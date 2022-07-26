@@ -3,8 +3,8 @@ kind: Service
 metadata:
   labels:
     control-plane: controller-manager
-  name: controller-manager-metrics-service
-  namespace: system
+  name: ngrok-ingress-controller-controller-manager-metrics-service
+  namespace: {{ .Release.Namespace }}
 spec:
   ports:
   - name: https

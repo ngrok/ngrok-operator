@@ -1,0 +1,14 @@
+apiVersion: v2
+name: ngrok-ingress-controller
+description: A Kubernetes ingress controller built using Ngrok.
+version: 0.1.0
+appVersion: 0.1.0
+keywords:
+  - ngrok
+  - networking
+  - ingress
+  - edge
+home: https://ngrok.com
+sources:
+  - https://github.com/ngrok/ngrok-ingress-controller
+# icon: TODO
