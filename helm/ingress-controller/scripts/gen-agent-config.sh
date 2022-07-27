@@ -1,9 +1,5 @@
 #!/bin/bash
 
-ls -altr
-touch tmp
-touch /tmp/tmp
-
 NGORK_LOG="${NGROK_LOG:-stdout}"
 NGROK_METADATA="${NGROK_METADATA:-{}}"
 NGROK_REGION="${NGROK_REGION:-us}"
