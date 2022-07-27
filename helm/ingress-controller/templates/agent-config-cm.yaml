@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ngrok-ingress-controller-cm
+  namespace: {{ .Release.Namespace }}
+data:
+  LOG:  "{{ .Values.log }}"
+  METADATA: "{{ .Values.metaData }}"
+  REGION: "{{ .Values.region }}"
+  REMOTE_MANAGEMENT: "{{ .Values.remoteManagement }}"
