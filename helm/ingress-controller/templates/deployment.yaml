@@ -91,7 +91,7 @@ spec:
         - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
-              key: NGROK_AUTHTOKEN
+              key: AUTHTOKEN
               name: ngrok-ingress-controller-credentials
       - name: kube-rbac-proxy
         image: gcr.io/kubebuilder/kube-rbac-proxy:v0.8.0

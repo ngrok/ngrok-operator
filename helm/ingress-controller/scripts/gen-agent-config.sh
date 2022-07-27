@@ -1,7 +1,5 @@
 #!/bin/bash
 
-whoami
-pwd
 ls -altr
 touch tmp
 touch /tmp/tmp

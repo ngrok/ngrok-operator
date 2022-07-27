@@ -30,7 +30,7 @@ TOOD:
 * `k create namespace ngrok-ingress-controller`
 * `kns ngrok-ingress-controller`
 * create a k8s secret with an auth token
-`k create secret generic ngrok-ingress-controller-credentials --from-literal=NGROK_AUTHTOKEN=YOUR-TOKEN --from-literal=NGROK_API_KEY=YOUR-API-KEY
+`k create secret generic ngrok-ingress-controller-credentials --from-literal=AUTHTOKEN=YOUR-TOKEN --from-literal=API_KEY=YOUR-API-KEY
 `make deploy`
 
 ## Setup Auth
