@@ -1,9 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-GO_VERSION=$(go version)
+set -eu -o pipefail
 
-# Ensure go version is 1.17
-if [[ $GO_VERSION != *"go version go1.17"* ]]; then
-  echo "Go version must be 1.17"
+GOVERSION="$(go env GOVERSION || echo "not installed")"
+
+if ! [[ "$GOVERSION" == "go1.18" ||  "$GOVERSION" = "go1.18."* ]]; then
+  echo "Detected go version $GOVERSION, but 1.18 is required"
   exit 1
 fi

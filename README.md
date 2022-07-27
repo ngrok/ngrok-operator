@@ -21,7 +21,7 @@ TOOD:
 
 ## Setup
 
-* go 1.17 to make kubebuilder happy
+* go 1.18
 * assume a k8s cluster is available via your kubectl client. Right now, I'm just using our ngrok local cluster.
 * `make build`
 * `make docker-build`
