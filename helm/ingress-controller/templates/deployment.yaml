@@ -18,6 +18,11 @@ spec:
         control-plane: controller-manager
     spec:
       serviceAccountName: ngrok-ingress-controller-controller-manager
+      volumes:
+      - name: scripts
+        configMap:
+          name: scripts
+          defaultMode: 0755
       containers:
       - name: manager
         image: controller:latest
@@ -30,6 +35,12 @@ spec:
         - --leader-elect
         securityContext:
           allowPrivilegeEscalation: false
+        env:
+        - name: NGROK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: API_KEY
+              name: ngrok-ingress-controller-credentials
         livenessProbe:
           httpGet:
             path: /healthz
@@ -52,16 +63,23 @@ spec:
       - name: ngrok-cli
         image: ngrok/ngrok:3
         command:
-        - /bin/sh
+        - ''
         args:
-        - -c
-        - ngrok start --none
+        - ./scripts/gen-agent-config.sh
+        envFrom:
+        - configMapRef:
+            name: ngrok-ingress-controller-cm
+            optional: true
         env:
         - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
-              key: NGROK_AUTHTOKEN
-              name: ngrok-credentials
+              key: AUTHTOKEN
+              name: ngrok-ingress-controller-credentials
+        volumeMounts:
+          - name: scripts
+            mountPath: /scripts
+            readOnly: true
       - name: ngrok-cli-debug
         image: ubuntu
         command:
@@ -73,8 +91,8 @@ spec:
         - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
-              key: NGROK_AUTHTOKEN
-              name: ngrok-credentials
+              key: AUTHTOKEN
+              name: ngrok-ingress-controller-credentials
       - name: kube-rbac-proxy
         image: gcr.io/kubebuilder/kube-rbac-proxy:v0.8.0
         args:
@@ -93,3 +111,10 @@ spec:
           requests:
             cpu: 5m
             memory: 64Mi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scripts
+data:
+{{ (.Files.Glob "scripts/gen-agent-config.sh").AsConfig | indent 2 }}
