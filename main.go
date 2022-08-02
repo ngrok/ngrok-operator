@@ -33,15 +33,16 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"ngrok.io/ngrok-ingress-controller/internal/controllers"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme        = runtime.NewScheme()
+	setupLog      = ctrl.Log.WithName("setup")
+	configMapName = "ngrok-ingress-controller"
+	namespace     = "ngrok-ingress-controller" // This should become based on the curren namespace its deployed to
 )
 
 func init() {
@@ -81,10 +82,11 @@ func main() {
 	}
 
 	if err := (&controllers.IngressReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("ingress"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("ingress-controller"),
+		Client:    mgr.GetClient(),
+		Log:       ctrl.Log.WithName("controllers").WithName("ingress"),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  mgr.GetEventRecorderFor("ingress-controller"),
+		Namespace: namespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ingress")
 		os.Exit(1)
@@ -94,15 +96,11 @@ func main() {
 	// For controller level configs, this may be the recommended way though https://book.kubebuilder.io/reference/markers.html
 	// We can't use this though to write config maps, and the mgr.GetClient() doesn't work because the cache isn't initialized
 	config := &v1.ConfigMap{}
-	if err := mgr.GetAPIReader().Get(context.TODO(), types.NamespacedName{Name: "ngrok-ingress-controller", Namespace: "ngrok-ingress-controller"}, config); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			setupLog.Info("Didn't find config map named 'ngrok-ingress-controller'. Using defaults.")
-		} else {
-			setupLog.Error(err, "unable to query for config map")
-			os.Exit(1)
-		}
+	if err := mgr.GetAPIReader().Get(context.TODO(), types.NamespacedName{Name: configMapName, Namespace: namespace}, config); err != nil {
+		setupLog.Error(err, "error getting config map named '%s'", configMapName)
+		os.Exit(1)
 	} else {
-		setupLog.Info(fmt.Sprintf("Found config map named 'ngrok-ingress-controller' %+v", config))
+		setupLog.Info(fmt.Sprintf("Found config map named '%s' %+v", configMapName, config))
 	}
 
 	//+kubebuilder:scaffold:builder
