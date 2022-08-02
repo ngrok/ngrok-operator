@@ -77,6 +77,10 @@ func (t *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(t)
 }
 
+// LogicalEdgeNamespace returns a string that can be used to namespace api
+// resources in the ngrok api. The namespace would be used to control load balancing
+// between clusters. This function should be only called by the leader to avoid multiple
+// controllers attempting a read/write operation on the same config map without a lock.
 func (t *IngressReconciler) LogicalEdgeNamespace(ctx context.Context) (string, error) {
 	configMapName := "ngrok-ingress-controller-edge-namespace"
 	configMapKey := "edge-namespace"
