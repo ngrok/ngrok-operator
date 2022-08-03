@@ -92,6 +92,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := (&controllers.TunnelReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("tunnel"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("tunnel-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "tunnel")
+		os.Exit(1)
+	}
+
 	// Can query for config maps like this.
 	// For controller level configs, this may be the recommended way though https://book.kubebuilder.io/reference/markers.html
 	// We can't use this though to write config maps, and the mgr.GetClient() doesn't work because the cache isn't initialized
