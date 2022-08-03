@@ -6,7 +6,7 @@ metadata:
   name: ngrok-ingress-controller-controller-manager
   namespace: {{ .Release.Namespace }}
 spec:
-  replicas:
+  replicas: 2
   selector:
     matchLabels:
       control-plane: controller-manager

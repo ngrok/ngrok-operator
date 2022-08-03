@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
@@ -37,40 +36,24 @@ type IngressReconciler struct {
 func (ir *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ir.Log.WithValues("ingress", req.NamespacedName)
 	// TODO: Figure out the best way to form the edgeName taking into account isolating multiple clusters
-	edgeName := strings.Replace(req.NamespacedName.String(), "/", "-", -1)
+
+	edgeName := getEdgeName(req.NamespacedName.String())
+	ingress, err := getIngress(ctx, ir.Client, req.NamespacedName)
+	if err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 	edgeNamespace, err := ir.LogicalEdgeNamespace(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	log.Info("Using edge namespace of " + edgeNamespace)
 
-	// Fetch the ingress class. Later on, we'll filter based on this.
-	// I believe this client provided by the controller-runtime uses a cache
-	// It might be better to do in the ManagerSetup with a filter later on
-	ingressClasses := &netv1.IngressClassList{}
-	if err := ir.List(ctx, ingressClasses); err != nil {
-		log.Error(err, "unable to list ingress classes")
-		return ctrl.Result{}, err
-	}
-	log.Info(fmt.Sprintf("found %s ingress classes", ingressClasses))
-
-	ingress := &netv1.Ingress{}
-	if err := ir.Get(ctx, req.NamespacedName, ingress); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			log.Info("ingress not found, must have been deleted")
-			return ctrl.Result{}, nil
-		} else {
-
-			log.Error(err, "unable to fetch ingress")
-			return ctrl.Result{}, err
-		}
-	}
-
 	log.Info(fmt.Sprintf("We did find the ingress %+v \n", ingress))
-	log.Info(fmt.Sprintf("TODO: Create the api resources needed for this %s", edgeName))
+	log.Info(fmt.Sprintf("TODO: Create the ngrok agent tunnels needed for this %s", edgeName))
 	return ctrl.Result{}, nil
 }
 
+// Create a new controller using our reconciler and set it up with the manager
 func (t *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netv1.Ingress{}).
