@@ -6,7 +6,7 @@ metadata:
   name: ngrok-ingress-controller-controller-manager
   namespace: {{ .Release.Namespace }}
 spec:
-  replicas: 1
+  replicas:
   selector:
     matchLabels:
       control-plane: controller-manager
@@ -25,7 +25,7 @@ spec:
           defaultMode: 0755
       containers:
       - name: manager
-        image: controller:latest
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: Never
         command:
         - /manager

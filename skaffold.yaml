@@ -1,0 +1,16 @@
+apiVersion: skaffold/v2beta29
+kind: Config
+build:
+  local:
+    push: false
+  artifacts:
+  - image: controller
+deploy:
+  helm:
+    releases:
+    - name: controller
+      chartPath: helm/ingress-controller/
+      namespace: ngrok-ingress-controller
+      createNamespace: true
+      imageStrategy:
+        helm: {}

@@ -1,0 +1,3 @@
+image:
+  repository: controller
+  tag: latest
