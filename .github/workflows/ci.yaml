@@ -1,0 +1,41 @@
+name: Go
+on:
+  push:
+    branches: [ "main"]
+  pull_request:
+    branches: [ "main" ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: debianmaster/actions-k3s@master
+      id: k3s
+      with:
+        version: 'latest'
+    - run: |
+        kubectl get nodes
+        kubectl get pods -A
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.18
+
+    - name: Build
+      run: make build
+
+    - name: Test and Lint
+      run: make test
+
+    - name: Build the Docker image
+      run: make docker-build
+
+    - name: Deploy controller to local cluster
+      run: make deploy
+
+    - name: Check if controller is up
+      run: |
+        kubectl get nodes
+        kubectl get pods -A
