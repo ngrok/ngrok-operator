@@ -9,6 +9,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"ngrok.io/ngrok-ingress-controller/pkg/agentapiclient"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -43,7 +44,19 @@ func (t *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	log.Info(fmt.Sprintf("We did find the ingress %+v \n", ingress))
+	// TODO: For now this assumes 1 rule and 1 path. Expand on this and loop through them
+	backendService := ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
 	log.Info(fmt.Sprintf("TODO: Create the api resources needed for this %s", edgeName))
+	if err := agentapiclient.NewAgentApiClient().CreateTunnel(ctx, agentapiclient.TunnelsApiBody{
+		Name:  edgeName,
+		Proto: "http",
+		// TODO: This will need to handle cross namespace connections
+		Addr: fmt.Sprintf("%s:%d", backendService.Name, backendService.Port.Number),
+	}); err != nil {
+		log.Error(err, "Failed to create tunnel")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
