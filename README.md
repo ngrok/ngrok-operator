@@ -9,9 +9,12 @@ TOOD:
 * perhaps use https://book.kubebuilder.io/component-config-tutorial/tutorial.html instead of a normal config map for agent configs
 * use finalizers to handle deleting resources https://book.kubebuilder.io/reference/using-finalizers.html
 * add ingress class
-* create pr template
 * helm lint
 * setup filters https://stuartleeks.com/posts/kubebuilder-event-filters-part-1-delete/
+* handle multiple namespaces
+  * connecting to services in other namespaces
+  * flexing what namespace the controller is installed in
+* handle ingress with multiple rules and hosts
 
 ## Setup
 
