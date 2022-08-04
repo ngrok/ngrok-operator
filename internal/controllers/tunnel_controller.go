@@ -53,8 +53,7 @@ func (t *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// TODO: This will need to handle cross namespace connections
 		Addr: fmt.Sprintf("%s:%d", backendService.Name, backendService.Port.Number),
 		// Labels: []string{"ngrok.io/ingress-name=" + ingress.Name, "ngrok.io/service-name=" + backendService.Name},
-	},
-	); err != nil {
+	}); err != nil {
 		log.Error(err, "Failed to create tunnel")
 		return ctrl.Result{}, err
 	}
