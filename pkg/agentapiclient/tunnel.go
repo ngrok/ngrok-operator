@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const tunnelApiUrl = "http://localhost:4040/api/tunnels"
+
 type AgentApiClient interface {
 	CreateTunnel(ctx context.Context, t TunnelsApiBody) error
 	DeleteTunnel(ctx context.Context, name string) error
@@ -30,7 +32,9 @@ func (ac agentApiClient) CreateTunnel(_ context.Context, t TunnelsApiBody) error
 	if err != nil {
 		return err
 	}
-	resp, err := ac.client.Post("http://localhost:4040/api/tunnels", "application/json", bytes.NewBuffer(myJson))
+
+	fmt.Printf("Creating tunnel with body of %s\n", myJson)
+	resp, err := ac.client.Post(tunnelApiUrl, "application/json", bytes.NewBuffer(myJson))
 	if err != nil {
 		fmt.Printf("Error %s", err)
 		return err
@@ -42,7 +46,7 @@ func (ac agentApiClient) CreateTunnel(_ context.Context, t TunnelsApiBody) error
 }
 
 func (ac agentApiClient) DeleteTunnel(_ context.Context, name string) error {
-	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("http://localhost:4040/api/tunnels/%s", name), nil)
+	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/tunnels/%s", tunnelApiUrl, name), nil)
 	resp, err := ac.client.Do(req)
 	if err != nil {
 		fmt.Printf("Error %s", err)
@@ -58,6 +62,6 @@ type TunnelsApiBody struct {
 	Addr      string `json:"addr"`
 	Proto     string `json:"proto"`
 	Name      string `json:"name"`
-	SubDomain string `json:"subdomain"` // TODO: for some reason ,omitempty doesn't work here and blows up the backend tunnel api.
-	// Labels map[string]string `json:"labels"` // TODO: Enable this once we create edges and have labels to use
+	SubDomain string `json:"subdomain,omitempty"`
+	// Labels    []string `json:"labels"`
 }
