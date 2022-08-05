@@ -3,8 +3,7 @@ name: Release Helm Charts
 on:
   push:
     branches:
-      - alex/helm-polish
-      # TODO: Should be scoped to tag pushes eventually
+      - main
 
 jobs:
   release:
@@ -26,4 +25,4 @@ jobs:
           charts_dir: helm/ingress-controller
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        # TODO: Point this to the right subdirectory
+        # TODO: Still need to setup auth and gh pages once the repo is public
