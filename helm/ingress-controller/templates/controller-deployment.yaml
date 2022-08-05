@@ -5,6 +5,10 @@ metadata:
     app: ngrok-ingress-controller
   name: ngrok-ingress-controller-manager
   namespace: {{ .Release.Namespace }}
+  annotations:
+    checksum/agent-config: {{ include (print $.Template.BasePath "/agent-config-cm.yaml") . | sha256sum }}
+    checksum/controller-role: {{ include (print $.Template.BasePath "/role.yaml") . | sha256sum }}
+    checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
 spec:
   replicas: {{.Values.replicaCount}}
   selector:
@@ -26,7 +30,7 @@ spec:
       containers:
       - name: manager
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }} # TODO: make this configurable
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /manager
         args:

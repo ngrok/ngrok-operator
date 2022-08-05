@@ -13,4 +13,4 @@ keywords:
 home: https://ngrok.com
 sources:
   - https://github.com/ngrok/ngrok-ingress-controller
-# icon: TODO
+icon: https://blog.ngrok.com/_next/image?url=%2Fassets%2Fblog%2Fplaceholder.png&w=1920&q=75

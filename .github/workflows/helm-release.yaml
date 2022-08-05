@@ -1,4 +1,4 @@
-name: Release Charts
+name: Release Helm Charts
 
 on:
   push:
@@ -22,6 +22,8 @@ jobs:
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.1.0
+        with:
+          charts_dir: helm/ingress-controller
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         # TODO: Point this to the right subdirectory
