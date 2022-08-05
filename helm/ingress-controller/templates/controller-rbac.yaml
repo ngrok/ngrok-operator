@@ -82,7 +82,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: manager-role
+  name: ngrok-ingress-controller-manager-role
 subjects:
 - kind: ServiceAccount
   name: ngrok-ingress-controller-manager

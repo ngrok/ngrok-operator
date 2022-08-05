@@ -48,11 +48,10 @@ func (t *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	backendService := ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
 	log.Info(fmt.Sprintf("TODO: Create the api resources needed for this %s", edgeName))
 	if err := agentapiclient.NewAgentApiClient().CreateTunnel(ctx, agentapiclient.TunnelsApiBody{
-		Name:  edgeName,
-		Proto: "http",
+		Name: edgeName,
 		// TODO: This will need to handle cross namespace connections
-		Addr: fmt.Sprintf("%s:%d", backendService.Name, backendService.Port.Number),
-		// Labels: []string{"ngrok.io/ingress-name=" + ingress.Name, "ngrok.io/service-name=" + backendService.Name},
+		Addr:   fmt.Sprintf("%s:%d", backendService.Name, backendService.Port.Number),
+		Labels: []string{"ngrok.io/ingress-name=" + ingress.Name, "ngrok.io/service-name=" + backendService.Name},
 	}); err != nil {
 		log.Error(err, "Failed to create tunnel")
 		return ctrl.Result{}, err

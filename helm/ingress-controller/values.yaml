@@ -5,7 +5,7 @@ replicaCount: 2
 image:
   repository: controller
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Never
 
 # The ingress class this controller will satisfy. If not specified, controller will match all
 # ingresses without ingress class annotation and ingresses of type ngrok
