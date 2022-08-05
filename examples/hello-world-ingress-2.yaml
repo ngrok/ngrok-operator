@@ -4,13 +4,14 @@ metadata:
   name: minimal-ingress-2
 spec:
   rules:
-  - http:
+  - host: minimal-ingress-2.example.com
+    http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: test-2
+            name: nginx-2
             port:
               number: 80
 ---
