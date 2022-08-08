@@ -59,9 +59,8 @@ func (ac agentApiClient) DeleteTunnel(_ context.Context, name string) error {
 }
 
 type TunnelsApiBody struct {
-	Addr      string `json:"addr"`
-	Proto     string `json:"proto"`
-	Name      string `json:"name"`
-	SubDomain string `json:"subdomain,omitempty"`
-	// Labels    []string `json:"labels"`
+	Addr      string   `json:"addr"`
+	Name      string   `json:"name"`
+	SubDomain string   `json:"subdomain,omitempty"`
+	Labels    []string `json:"labels"`
 }

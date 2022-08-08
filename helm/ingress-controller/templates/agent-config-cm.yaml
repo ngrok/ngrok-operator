@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ngrok-ingress-controller-cm
+  name: ngrok-ingress-controller-agent-cm
   namespace: {{ .Release.Namespace }}
 data:
   LOG:  "{{ .Values.log }}"

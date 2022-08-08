@@ -1,0 +1,28 @@
+name: Release Helm Charts
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.1.0
+        with:
+          charts_dir: helm/ingress-controller
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        # TODO: Still need to setup auth and gh pages once the repo is public

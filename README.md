@@ -31,7 +31,7 @@ TOOD:
 
 ## Setup Auth
 
-* assumes a k8s secret named `ngrok-ingress-controller-cm` exists with the following keys:
+* assumes a k8s secret named `ngrok-ingress-controller-credentials` exists with the following keys:
   * NGROK_AUTHTOKEN
   * NGROK_API_KEY
 * For now, its a hard requirement. Maybe a fully unauth flow for a 1 line hello world would be nice.
@@ -49,7 +49,7 @@ data:
 
 ## How to Configure the Agent
 
-* assumes configs will be in a config map named `ngrok-ingress-controller-cm` in the same namespace
+* assumes configs will be in a config map named `ngrok-ingress-controller-agent-cm` in the same namespace
 * setup automatically via helm. Values and config map name can be configured in the future via helm
 * subset of these that should be configurable https://ngrok.com/docs/ngrok-agent/config#config-full-example
 * example config map showing all optional values with their defaults.
@@ -58,7 +58,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ngrok-ingress-controller-cm
+  name: ngrok-ingress-controller-agent-cm
   namespace: ngrok-ingress-controller
 data:
   LOG: stdout

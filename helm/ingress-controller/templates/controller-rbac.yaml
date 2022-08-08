@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: ngrok-ingress-controller-controller-manager
+  name: ngrok-ingress-controller-manager
   namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -72,7 +72,7 @@ roleRef:
   name: ngrok-ingress-controller-leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: ngrok-ingress-controller-controller-manager
+  name: ngrok-ingress-controller-manager
   namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -82,10 +82,10 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: manager-role
+  name: ngrok-ingress-controller-manager-role
 subjects:
 - kind: ServiceAccount
-  name: ngrok-ingress-controller-controller-manager
+  name: ngrok-ingress-controller-manager
   namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -98,5 +98,5 @@ roleRef:
   name: ngrok-ingress-controller-proxy-role
 subjects:
 - kind: ServiceAccount
-  name: ngrok-ingress-controller-controller-manager
+  name: ngrok-ingress-controller-manager
   namespace: {{ .Release.Namespace }}
