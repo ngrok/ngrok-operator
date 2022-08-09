@@ -35,44 +35,45 @@ type TunnelReconciler struct {
 // It is invoked whenever there is an event that occurs for a resource
 // being watched (in our case, ingress objects). If you tail the controller
 // logs and delete, update, edit ingress objects, you see the events come in.
-func (t *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := t.Log.WithValues("ingress", req.NamespacedName)
-	edgeName := strings.Replace(req.NamespacedName.String(), "/", "-", -1)
-	ingress, err := getIngress(ctx, t.Client, req.NamespacedName)
+func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := trec.Log.WithValues("ingress", req.NamespacedName)
+	ingress, err := getIngress(ctx, trec.Client, req.NamespacedName)
+	tunnelName := strings.Replace(req.NamespacedName.String(), "/", "-", -1)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-
-	log.Info(fmt.Sprintf("We did find the ingress %+v \n", ingress))
+	// Check if the ingress object is being deleted
+	if !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
+		log.Info("Cleaning up tunnel because ingress is being deleted")
+		return ctrl.Result{}, agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnelName)
+	}
 	// TODO: For now this assumes 1 rule and 1 path. Expand on this and loop through them
 	backendService := ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
-	log.Info(fmt.Sprintf("TODO: Create the api resources needed for this %s", edgeName))
-	if err := agentapiclient.NewAgentApiClient().CreateTunnel(ctx, agentapiclient.TunnelsApiBody{
-		Name: edgeName,
+	return ctrl.Result{}, agentapiclient.NewAgentApiClient().CreateTunnel(ctx, agentapiclient.TunnelsApiBody{
+		Name: tunnelName,
 		// TODO: This will need to handle cross namespace connections
-		Addr:   fmt.Sprintf("%s:%d", backendService.Name, backendService.Port.Number),
-		Labels: []string{"ngrok.io/ingress-name=" + ingress.Name, "ngrok.io/service-name=" + backendService.Name},
-	}); err != nil {
-		log.Error(err, "Failed to create tunnel")
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+		Addr: fmt.Sprintf("%s:%d", backendService.Name, backendService.Port.Number),
+		Labels: []string{
+			"ngrok.io/ingress-name=" + ingress.Name,
+			"ngrok.io/ingress-namespace=" + ingress.Namespace,
+			"ngrok.io/k8s-backend-name=" + backendService.Name,
+		},
+	})
 }
 
 // Create a new Controller that watches Ingress objects.
 // Add it to our manager.
-func (t *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	c, err := NewTunnelControllerNew("tunnel-controller", mgr, t)
+func (trec *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	tCont, err := NewTunnelControllerNew("tunnel-controller", mgr, trec)
 	if err != nil {
 		return err
 	}
 
-	if err := c.Watch(&source.Kind{Type: &netv1.Ingress{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := tCont.Watch(&source.Kind{Type: &netv1.Ingress{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
-	mgr.Add(c)
+	mgr.Add(tCont)
 	return nil
 }
 
@@ -82,19 +83,24 @@ type TunnelController struct {
 }
 
 // Creates an un-managed controller that can be embeded in our controller struct so we can override functions.
-func NewTunnelControllerNew(name string, mgr manager.Manager, tr *TunnelReconciler) (controller.Controller, error) {
-	c, err := controller.NewUnmanaged(name, mgr, controller.Options{
-		Reconciler: tr,
+func NewTunnelControllerNew(name string, mgr manager.Manager, trec *TunnelReconciler) (controller.Controller, error) {
+	cont, err := controller.NewUnmanaged(name, mgr, controller.Options{
+		Reconciler: trec,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &TunnelController{
-		Controller: c,
+		Controller: cont,
 	}, nil
 }
 
 // This controller should not use leader election. It should run on all controllers by default to control the agents on each.
-func (t *TunnelController) NeedLeaderElection() bool {
+func (trec *TunnelController) NeedLeaderElection() bool {
 	return false
+}
+
+func (trec *TunnelController) Start(ctx context.Context) error {
+	// TODO: Wait for k8s config map with controller namespaces to be ready
+	return trec.Controller.Start(ctx)
 }

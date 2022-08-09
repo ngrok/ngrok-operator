@@ -2,25 +2,31 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/ngrok-api-go/v4"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"ngrok.io/ngrok-ingress-controller/pkg/ngrokapidriver"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // This implements the Reconciler for the controller-runtime
 // https://pkg.go.dev/sigs.k8s.io/controller-runtime#section-readme
 type IngressReconciler struct {
 	client.Client
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
-	Recorder  record.EventRecorder
-	Namespace string
+	Log            logr.Logger
+	Scheme         *runtime.Scheme
+	Recorder       record.EventRecorder
+	Namespace      string
+	NgrokAPIDriver ngrokapidriver.NgrokAPIDriver
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -33,42 +39,103 @@ type IngressReconciler struct {
 // It is invoked whenever there is an event that occurs for a resource
 // being watched (in our case, ingress objects). If you tail the controller
 // logs and delete, update, edit ingress objects, you see the events come in.
-func (ir *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	edgeName := getEdgeName(req.NamespacedName.String())
-	log := ir.Log.WithValues("ingress", req.NamespacedName)
-	ingress, err := getIngress(ctx, ir.Client, req.NamespacedName)
+func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := irec.Log.WithValues("ingress", req.NamespacedName)
+	ingress, err := getIngress(ctx, irec.Client, req.NamespacedName)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	err = setStatus(ctx, ir, ingress, edgeName)
+	err = setStatus(ctx, irec, ingress)
 	if err != nil {
 		log.Error(err, "Failed to set status")
 		return ctrl.Result{}, err
-
 	}
+
+	err = setFinalizer(ctx, irec, ingress)
+	if err != nil {
+		log.Error(err, "Failed to set finalizer")
+		return ctrl.Result{}, err
+	}
+
+	edge, err := IngressToEdge(ctx, ingress)
+	if err != nil {
+		log.Error(err, "Failed to convert ingress to edge")
+		return ctrl.Result{}, err
+	}
+
+	// The object is being deleted
+	if !ingress.ObjectMeta.DeletionTimestamp.IsZero() && controllerutil.ContainsFinalizer(ingress, finalizerName) {
+		return irec.DeleteIngress(ctx, *edge, ingress)
+	}
+	// Else its being created or updated
+	// Check for a saved edge-id to do a lookup instead of a create
+	if ingress.ObjectMeta.Annotations["ngrok.io/edge-id"] != "" {
+		_, err := irec.NgrokAPIDriver.FindEdge(ctx, ingress.ObjectMeta.Annotations["ngrok.io/edge-id"])
+		if err == nil {
+			log.Info("Edge already exists")
+			// TODO: Provide update functionality. Right now, its create/delete
+			return irec.UpdateIngress(ctx, *edge, ingress)
+		}
+		if !ngrok.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+	}
+	// Otherwise, create it!
+	return irec.CreateIngress(ctx, *edge, ingress)
+}
+
+func (irec *IngressReconciler) DeleteIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
+	if err := irec.NgrokAPIDriver.DeleteEdge(ctx, edge); err != nil {
+		fmt.Printf("Failed to delete edge: %s\n", err)
+		return ctrl.Result{}, err
+	}
+
+	// remove the finalizer and let it be fully deleted
+	controllerutil.RemoveFinalizer(ingress, finalizerName)
+	return ctrl.Result{}, irec.Update(ctx, ingress)
+}
+
+func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
+	// TODO: Provide update functionality. Right now, its create/delete
+	// return ctrl.Result{}, ir.NgrokAPIDriver.UpdateEdge(ctx, foundEdge)
 	return ctrl.Result{}, nil
 }
 
-// Create a new controller using our reconciler and set it up with the manager
-func (t *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&netv1.Ingress{}).
-		Complete(t)
+func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
+	ngrokEdge, err := irec.NgrokAPIDriver.CreateEdge(ctx, edge)
+	if err != nil {
+		fmt.Printf("Failed to create edge: %s\n", err)
+		return ctrl.Result{}, err
+	}
+
+	ingress.ObjectMeta.Annotations["ngrok.io/edge-id"] = ngrokEdge.ID
+	return ctrl.Result{}, irec.Update(ctx, ingress)
 }
 
+// Create a new controller using our reconciler and set it up with the manager
+func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&netv1.Ingress{}).
+		Complete(irec)
+}
+
+// TODO: This may not actually be needed. Edges for example, don't have names
+// that need to be unique. I think you just can't have multiple edges using the
+// same hostports. Once I confirm this, we can probably get rid of this
+//
 // LogicalEdgeNamespace returns a string that can be used to namespace api
 // resources in the ngrok api. The namespace would be used to control load balancing
 // between clusters. This function should be only called by the leader to avoid multiple
 // controllers attempting a read/write operation on the same config map without a lock.
-func (ir *IngressReconciler) LogicalEdgeNamespace(ctx context.Context) (string, error) {
+func (irec *IngressReconciler) LogicalEdgeNamespace(ctx context.Context) (string, error) {
 	configMapName := "ngrok-ingress-controller-edge-namespace"
 	configMapKey := "edge-namespace"
-	// This should be configurable by the user eventually or random. For now, be consistent for testing
+	// TODO: This should be configurable by the user eventually or random. For now, be consistent for testing
 	newName := "devenv-users"
 	config := &v1.ConfigMap{}
 	// Try to find the existing config map
-	err := ir.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: ir.Namespace}, config)
+	err := irec.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: irec.Namespace}, config)
 	if err == nil {
 		if val, ok := config.Data[configMapKey]; ok {
 			return val, nil
@@ -83,10 +150,10 @@ func (ir *IngressReconciler) LogicalEdgeNamespace(ctx context.Context) (string, 
 	}
 
 	// If its not found, try to make it
-	if err := ir.Create(ctx, &v1.ConfigMap{
+	if err := irec.Create(ctx, &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
-			Namespace: ir.Namespace,
+			Namespace: irec.Namespace,
 		},
 		Data: map[string]string{
 			configMapKey: newName,

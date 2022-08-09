@@ -2,8 +2,12 @@
 
 set -eu -o pipefail
 
-kill $(lsof -t -i:4040) || true
 namespace='ngrok-ingress-controller'
+kubectl delete deployment ngrok-ingress-controller-manager -n $namespace --ignore-not-found
+# Remove finalizers form ingress in namespace
+for i in $(kubectl get ing -o name); do
+  kubectl get $i -o=json | jq '.metadata.finalizers = null' | kubectl apply -f -
+done
 kubectl delete namespace $namespace --ignore-not-found
 kubectl create namespace $namespace
 
@@ -15,9 +19,5 @@ kubectl apply -n $namespace -f examples/
 
 sleep 30
 
-aPod=$(kubectl get pods -l control-plane=controller-manager -o json -n $namespace | jq -r '.items[0].metadata.name')
-kubectl port-forward $aPod 4040:4040 &
-sleep 5
-
-aDomain=$(curl localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
-curl $aDomain
+curl -I https://minimal-ingress.ngrok.io
+curl -I https://minimal-ingress-2.ngrok.io
