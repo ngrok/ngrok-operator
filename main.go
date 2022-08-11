@@ -33,6 +33,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"ngrok.io/ngrok-ingress-controller/internal/controllers"
+	"ngrok.io/ngrok-ingress-controller/pkg/ngrokapidriver"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -84,11 +85,12 @@ func main() {
 	}
 
 	if err := (&controllers.IngressReconciler{
-		Client:    mgr.GetClient(),
-		Log:       ctrl.Log.WithName("controllers").WithName("ingress"),
-		Scheme:    mgr.GetScheme(),
-		Recorder:  mgr.GetEventRecorderFor("ingress-controller"),
-		Namespace: namespace,
+		Client:         mgr.GetClient(),
+		Log:            ctrl.Log.WithName("controllers").WithName("ingress"),
+		Scheme:         mgr.GetScheme(),
+		Recorder:       mgr.GetEventRecorderFor("ingress-controller"),
+		Namespace:      namespace,
+		NgrokAPIDriver: ngrokapidriver.NewNgrokApiClient(os.Getenv("NGROK_API_KEY")),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ingress")
 		os.Exit(1)

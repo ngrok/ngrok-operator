@@ -4,7 +4,7 @@ metadata:
   name: minimal-ingress-2
 spec:
   rules:
-  - host: minimal-ingress-2.example.com
+  - host: minimal-ingress-2.ngrok.io
     http:
       paths:
       - path: /

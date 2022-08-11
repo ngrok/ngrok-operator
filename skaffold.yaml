@@ -4,16 +4,16 @@ build:
   local:
     push: false
   artifacts:
-  - image: controller
+  - image: ngrok-ingress-controller
 deploy:
   kubectl:
     manifests:
       - examples/*
   helm:
     releases:
-    - name: controller
+    - name: ngrok-ingress-controller
       artifactOverrides:
-        image: controller
+        image: ngrok-ingress-controller
       chartPath: helm/ingress-controller/
       namespace: ngrok-ingress-controller
       createNamespace: true

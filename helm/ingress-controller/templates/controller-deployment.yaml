@@ -28,7 +28,7 @@ spec:
           name: scripts
           defaultMode: 0755
       containers:
-      - name: manager
+      - name: ngrok-ingress-controller
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:

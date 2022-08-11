@@ -3,7 +3,7 @@
 replicaCount: 2
 
 image:
-  repository: controller
+  repository: ngrok-ingress-controller
   tag: latest
   pullPolicy: Never
 

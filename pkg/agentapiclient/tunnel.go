@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"time"
 )
@@ -28,34 +27,31 @@ func NewAgentApiClient() AgentApiClient {
 }
 
 func (ac agentApiClient) CreateTunnel(_ context.Context, t TunnelsApiBody) error {
+	resp, err := ac.client.Get(tunnelApiUrl + "/" + t.Name)
+	if err != nil {
+		return err
+	}
+	if resp.Status != "404 Not Found" {
+		// we found the tunnel so skip
+		return nil
+	}
+
 	myJson, err := json.Marshal(t)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Creating tunnel with body of %s\n", myJson)
-	resp, err := ac.client.Post(tunnelApiUrl, "application/json", bytes.NewBuffer(myJson))
-	if err != nil {
-		fmt.Printf("Error %s", err)
-		return err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	fmt.Printf("Body : %s", body)
-	return nil
+	_, err = ac.client.Post(tunnelApiUrl, "application/json", bytes.NewBuffer(myJson))
+	return err
 }
 
 func (ac agentApiClient) DeleteTunnel(_ context.Context, name string) error {
-	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/tunnels/%s", tunnelApiUrl, name), nil)
-	resp, err := ac.client.Do(req)
+	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/%s", tunnelApiUrl, name), nil)
 	if err != nil {
-		fmt.Printf("Error %s", err)
 		return err
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	fmt.Printf("Body : %s", body)
-	return nil
+	_, err = ac.client.Do(req)
+	return err
 }
 
 type TunnelsApiBody struct {
