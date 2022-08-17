@@ -3,10 +3,10 @@ package controllers
 import (
 	"context"
 
+	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"ngrok.io/ngrok-ingress-controller/pkg/ngrokapidriver"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )

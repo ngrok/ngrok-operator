@@ -2,5 +2,5 @@ domain: ngrok.io
 layout:
 - go.kubebuilder.io/v3
 projectName: ngrok-ingress-controller
-repo: ngrok.io/ngrok-ingress-controller
+repo: github.com/ngrok/ngrok-ingress-controller
 version: "3"
