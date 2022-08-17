@@ -1,4 +1,4 @@
-module ngrok.io/ngrok-ingress-controller
+module github.com/ngrok/ngrok-ingress-controller
 
 go 1.18
 

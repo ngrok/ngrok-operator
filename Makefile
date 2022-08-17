@@ -77,11 +77,11 @@ test: manifests generate fmt vet ## Run tests.
 
 .PHONY: build
 build: preflight generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
+	go build -o bin/manager github.com/ngrok/ngrok-ingress-controller/cmd/manager
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	go run ./cmd/manager
 
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.

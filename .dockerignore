@@ -3,6 +3,7 @@
 *
 !internal/
 !pkg/
+!cmd/
 !**/*.go
 !**/*.mod
 !**/*.sum
