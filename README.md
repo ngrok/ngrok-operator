@@ -22,7 +22,7 @@ TOOD:
 
 ## Setup
 
-* go 1.18
+* go 1.19
 * assume a k8s cluster is available via your kubectl client. Right now, I'm just using our ngrok local cluster.
 * `make build`
 * `make docker-build`
