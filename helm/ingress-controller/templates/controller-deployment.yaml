@@ -62,8 +62,6 @@ spec:
       - name: ngrok-cli
         image: ngrok/ngrok:3
         command:
-        - ''
-        args:
         - ./scripts/gen-agent-config.sh
         envFrom:
         - configMapRef:
