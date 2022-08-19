@@ -37,13 +37,21 @@ type TunnelReconciler struct {
 // logs and delete, update, edit ingress objects, you see the events come in.
 func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := trec.Log.WithValues("ingress", req.NamespacedName)
-	ingress, err := getIngress(ctx, trec.Client, req.NamespacedName)
 	tunnelName := strings.Replace(req.NamespacedName.String(), "/", "-", -1)
+	ingress, err := getIngress(ctx, trec.Client, req.NamespacedName)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	// getIngress didn't return the object, so we can't do anything with it
+	if ingress == nil {
+		return ctrl.Result{}, nil
+	}
+
+	log.Info(fmt.Sprintf("Reconciling ingress %+v\n", ingress))
+	log.Info(fmt.Sprintf("And the error is clearly nil... %+v\n", err))
+
 	// Check if the ingress object is being deleted
-	if !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
+	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
 		log.Info("Cleaning up tunnel because ingress is being deleted")
 		return ctrl.Result{}, agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnelName)
 	}

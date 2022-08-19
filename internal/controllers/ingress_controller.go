@@ -45,6 +45,10 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	// getIngress didn't return the object, so we can't do anything with it
+	if ingress == nil {
+		return ctrl.Result{}, nil
+	}
 
 	err = setStatus(ctx, irec, ingress)
 	if err != nil {
