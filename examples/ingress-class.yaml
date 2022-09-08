@@ -21,7 +21,7 @@ kind: Ingress
 metadata:
   name: different-ingress-class-example
 spec:
-  ingressClassName: other # Example of using a different class than ngrok
+  ingressClassName: nginx # Example of using a different class than ngrok
   rules:
   - host: different-ingress-class.ngrok.io
     http:

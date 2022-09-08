@@ -47,9 +47,6 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	log.Info(fmt.Sprintf("Reconciling ingress %+v\n", ingress))
-	log.Info(fmt.Sprintf("And the error is clearly nil... %+v\n", err))
-
 	// Check if the ingress object is being deleted
 	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
 		log.Info("Cleaning up tunnel because ingress is being deleted")

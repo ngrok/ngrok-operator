@@ -24,7 +24,6 @@ func matchesIngressClass(ctx context.Context, c client.Client, ingress *netv1.In
 		return false, err
 	}
 
-	// TODO: Finish filtering on ingress class (verify the behavior based on how other controllers do it)
 	// https://kubernetes.io/docs/concepts/services-networking/ingress/#default-ingress-class
 	// lookup cluster ingress classes
 	// if none are defined
@@ -89,14 +88,12 @@ func getIngress(ctx context.Context, c client.Client, namespacedName types.Names
 	if err := c.Get(ctx, namespacedName, ingress); err != nil {
 		return nil, err
 	}
-	fmt.Printf("Found ingress in getIngress function: %+v\n", ingress)
 
 	if err := validateIngress(ctx, ingress); err != nil {
 		return nil, err
 	}
 
 	matches, err := matchesIngressClass(ctx, c, ingress)
-	fmt.Printf("Matches ingress class: %v\n", matches)
 	if !matches || err != nil {
 		return nil, err
 	}
