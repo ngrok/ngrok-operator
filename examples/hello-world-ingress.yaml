@@ -3,6 +3,7 @@ kind: Ingress
 metadata:
   name: minimal-ingress
 spec:
+  ingressClassName: ngrok
   rules:
   - host: minimal-ingress.ngrok.io
     http:

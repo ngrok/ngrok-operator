@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	v1 "k8s.io/api/core/v1"
@@ -12,23 +13,23 @@ import (
 )
 
 const finalizerName = "ngrok.io/finalizer"
+const controllerName = "k8s.ngrok.com/ingress-controller" // TODO: Let the user configure this
 
 // Checks to see if the ingress controller should do anything about
 // the ingress object it saw depending on how ingress classes are configured
 // Returns a boolean indicating if the ingress object should be processed
-func matchesIngressClass(ctx context.Context, c client.Client) (bool, error) {
+func matchesIngressClass(ctx context.Context, c client.Client, ingress *netv1.Ingress) (bool, error) {
 	ingressClasses := &netv1.IngressClassList{}
 	if err := c.List(ctx, ingressClasses); err != nil {
 		return false, err
 	}
 
-	// TODO: Finish filtering on ingress class (verify the behavior based on how other controllers do it)
 	// https://kubernetes.io/docs/concepts/services-networking/ingress/#default-ingress-class
 	// lookup cluster ingress classes
 	// if none are defined
 	// 	then handle this ingress
 	// if some are defined
-	// 	filter to ones that match our controller
+	// 	filter to one that matches our controller
 	// 		Look at the ingress object and see if it has a class
 	// 			if it doesn't
 	// 				check if our matched class is the default
@@ -38,21 +39,62 @@ func matchesIngressClass(ctx context.Context, c client.Client) (bool, error) {
 	// 				check if it matches our ingress class
 	// 					if it does handle it
 	// 					if it doesn't drop it
-	return true, nil
+
+	if len(ingressClasses.Items) == 0 {
+		fmt.Println("No ingress classes defined so accepting this ingress")
+		return true, nil
+	}
+
+	var ngrokClass *netv1.IngressClass
+	for _, ingressClass := range ingressClasses.Items {
+		if ingressClass.Spec.Controller == controllerName {
+			ngrokClass = &ingressClass
+			break
+		}
+	}
+
+	if ngrokClass == nil {
+		fmt.Printf("No ingress class found for controller %s\n", controllerName)
+		return false, nil
+	}
+
+	if ngrokClass.Annotations["ingressclass.kubernetes.io/is-default-class"] == "default" {
+		if ingress.Spec.IngressClassName == nil || ingress.Spec.IngressClassName == &ngrokClass.Name {
+			fmt.Printf("Since ngrok is the default and this ingress has a class of %s, so we will handle it\n", *ingress.Spec.IngressClassName)
+			return true, nil
+		}
+		fmt.Printf("Ngrok is the default Ingress class  but this ingress object's ingress class doesn't match: %s\n", *ingress.Spec.IngressClassName)
+		return false, nil
+	}
+
+	if ingress.Spec.IngressClassName != nil && *ingress.Spec.IngressClassName == ngrokClass.Name {
+		fmt.Println("This ingress object matches the ngrok class so we will handle it")
+		return true, nil
+	} else {
+		fmt.Printf("Got our else statement so dump some info: %s\n", ngrokClass.Name)
+	}
+
+	if ingress.Spec.IngressClassName == nil {
+		fmt.Println("This ingress object's ingress class is not set so we did not handle this one")
+	} else {
+		fmt.Printf("This ingress object's ingress class doesn't match: %s\n", *ingress.Spec.IngressClassName)
+	}
+	return false, nil
 }
 
 // Lookup the ingress object and provide any filtering or error handling logic to filter things out
 func getIngress(ctx context.Context, c client.Client, namespacedName types.NamespacedName) (*netv1.Ingress, error) {
-	if matches, err := matchesIngressClass(ctx, c); !matches || err != nil {
-		return nil, err
-	}
-
 	ingress := &netv1.Ingress{}
 	if err := c.Get(ctx, namespacedName, ingress); err != nil {
 		return nil, err
 	}
 
 	if err := validateIngress(ctx, ingress); err != nil {
+		return nil, err
+	}
+
+	matches, err := matchesIngressClass(ctx, c, ingress)
+	if !matches || err != nil {
 		return nil, err
 	}
 
