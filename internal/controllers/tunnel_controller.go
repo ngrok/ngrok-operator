@@ -57,7 +57,7 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, agentapiclient.NewAgentApiClient().CreateTunnel(ctx, agentapiclient.TunnelsApiBody{
 		Name: tunnelName,
 		// TODO: This will need to handle cross namespace connections
-		Addr: fmt.Sprintf("%s:%d", backendService.Name, backendService.Port.Number),
+		Addr: fmt.Sprintf("%s.%s.svc.cluster.local:%d", backendService.Name, ingress.Namespace, backendService.Port.Number),
 		Labels: []string{
 			"ngrok.io/ingress-name=" + ingress.Name,
 			"ngrok.io/ingress-namespace=" + ingress.Namespace,

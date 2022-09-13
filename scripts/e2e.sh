@@ -20,6 +20,7 @@ kubectl create secret generic ngrok-ingress-controller-credentials \
   --from-literal=AUTHTOKEN=$NGROK_AUTHTOKEN \
   --from-literal=API_KEY=$NGROK_API_KEY
 
+sleep 10
 make deploy
 kubectl apply -f examples/
 
@@ -28,7 +29,7 @@ sleep 30
 echo "Should 200"
 curl -I https://minimal-ingress.ngrok.io
 echo "Should 200"
-curl -I https://minimal-ingress-2.ngrok.io
+curl -I https://minimal-ingress-2-namespaced.ngrok.io
 echo "Should   404"
 curl -I https://different-ingress-class.ngrok.io
 echo "Should 200"
