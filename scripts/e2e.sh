@@ -2,7 +2,7 @@
 
 set -eu -o pipefail
 
-namespace='ngrok-ingress-controller'
+namespace='ngrok-ingress-controller-different'
 kubectl config set-context --current --namespace=$namespace
 
 kubectl delete -f examples --ignore-not-found --wait=false
