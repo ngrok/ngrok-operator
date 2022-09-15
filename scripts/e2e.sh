@@ -6,7 +6,7 @@ namespace='ngrok-ingress-controller'
 kubectl config set-context --current --namespace=$namespace
 
 kubectl delete -f examples --ignore-not-found --wait=false
-# Remove finalizers form ingress in namespace
+# Remove finalizers from ingress in namespace
 for i in $(kubectl get ing -o name); do
   kubectl get $i -o=json | jq '.metadata.finalizers = null' | kubectl apply -f -
 done

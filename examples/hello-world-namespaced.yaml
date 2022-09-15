@@ -57,4 +57,4 @@ spec:
     protocol: TCP
     targetPort: 80
   selector:
-    app: nginx-2
+    app: nginx-2-namespaced
