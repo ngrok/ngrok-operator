@@ -74,8 +74,8 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	// Else its being created or updated
 	// Check for a saved edge-id to do a lookup instead of a create
-	if ingress.ObjectMeta.Annotations["ngrok.io/edge-id"] != "" {
-		_, err := irec.NgrokAPIDriver.FindEdge(ctx, ingress.ObjectMeta.Annotations["ngrok.io/edge-id"])
+	if ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] != "" {
+		_, err := irec.NgrokAPIDriver.FindEdge(ctx, ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"])
 		if err == nil {
 			log.Info("Edge already exists")
 			// TODO: Provide update functionality. Right now, its create/delete
@@ -113,7 +113,7 @@ func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge ngrokapid
 		return ctrl.Result{}, err
 	}
 
-	ingress.ObjectMeta.Annotations["ngrok.io/edge-id"] = ngrokEdge.ID
+	ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] = ngrokEdge.ID
 	return ctrl.Result{}, irec.Update(ctx, ingress)
 }
 

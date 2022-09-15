@@ -59,9 +59,9 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// TODO: This will need to handle cross namespace connections
 		Addr: fmt.Sprintf("%s:%d", backendService.Name, backendService.Port.Number),
 		Labels: []string{
-			"ngrok.io/ingress-name=" + ingress.Name,
-			"ngrok.io/ingress-namespace=" + ingress.Namespace,
-			"ngrok.io/k8s-backend-name=" + backendService.Name,
+			"k8s.ngrok.com/ingress-name=" + ingress.Name,
+			"k8s.ngrok.com/ingress-namespace=" + ingress.Namespace,
+			"k8s.ngrok.com/k8s-backend-name=" + backendService.Name,
 		},
 	})
 }

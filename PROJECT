@@ -1,4 +1,4 @@
-domain: ngrok.io
+domain: k8s.ngrok.com
 layout:
 - go.kubebuilder.io/v3
 projectName: ngrok-ingress-controller

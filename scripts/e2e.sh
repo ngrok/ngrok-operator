@@ -5,6 +5,8 @@ set -eu -o pipefail
 namespace='ngrok-ingress-controller'
 kubectl config set-context --current --namespace=$namespace
 
+# TODO: Use ngrok cli api to delete all edges owned by the ingress controller
+
 kubectl delete -f examples --ignore-not-found --wait=false
 # Remove finalizers form ingress in namespace
 for i in $(kubectl get ing -o name); do
