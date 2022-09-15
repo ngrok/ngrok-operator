@@ -107,7 +107,8 @@ uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube
 
 .PHONY: deploy
 deploy: docker-build manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade ngrok-ingress-controller helm/ingress-controller --install
+	helm upgrade ngrok-ingress-controller helm/ingress-controller --install \
+		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}"
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
