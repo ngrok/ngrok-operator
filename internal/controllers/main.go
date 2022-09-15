@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const finalizerName = "ngrok.io/finalizer"
+const finalizerName = "k8s.ngrok.com/finalizer"
 const controllerName = "k8s.ngrok.com/ingress-controller" // TODO: Let the user configure this
 
 // Checks to see if the ingress controller should do anything about
@@ -156,15 +156,15 @@ func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
 // Converts a k8s ingress object into an edge with all its configurations and sub-resources
 func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
 	return &ngrokapidriver.Edge{
-		Id: ingress.Annotations["ngrok.io/edge-id"],
+		Id: ingress.Annotations["k8s.ngrok.com/edge-id"],
 		// TODO: Support multiple rules
 		Hostport: ingress.Spec.Rules[0].Host + ":443",
 		Labels: map[string]string{
-			"ngrok.io/ingress-name":      ingress.Name,
-			"ngrok.io/ingress-namespace": ingress.Namespace,
+			"k8s.ngrok.com/ingress-name":      ingress.Name,
+			"k8s.ngrok.com/ingress-namespace": ingress.Namespace,
 			// TODO: Maybe I don't need this backend name. Need to figure out if edge labels have to all match or if we can match
 			// a subset. In theory the edge can support multiple different backends
-			"ngrok.io/k8s-backend-name": ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name,
+			"k8s.ngrok.com/k8s-backend-name": ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name,
 		},
 		Routes: []ngrokapidriver.Route{
 			{
