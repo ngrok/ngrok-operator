@@ -18,6 +18,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+const (
+	// TODO: We can technically figure this out by looking at things like our resolv.conf or we can just take this as a helm option
+	clusterDomain = "svc.cluster.local"
+)
+
 // This implements the Reconciler for the controller-runtime
 // https://pkg.go.dev/sigs.k8s.io/controller-runtime#section-readme
 type TunnelReconciler struct {
@@ -56,8 +61,7 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	backendService := ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
 	return ctrl.Result{}, agentapiclient.NewAgentApiClient().CreateTunnel(ctx, agentapiclient.TunnelsApiBody{
 		Name: tunnelName,
-		// TODO: This will need to handle cross namespace connections
-		Addr: fmt.Sprintf("%s:%d", backendService.Name, backendService.Port.Number),
+		Addr: fmt.Sprintf("%s.%s.%s:%d", backendService.Name, ingress.Namespace, clusterDomain, backendService.Port.Number),
 		Labels: []string{
 			"k8s.ngrok.com/ingress-name=" + ingress.Name,
 			"k8s.ngrok.com/ingress-namespace=" + ingress.Namespace,

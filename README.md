@@ -7,18 +7,16 @@ TOOD:
 * Generate a unique name for the controller installation.
 * ci to run make commands and then diff at end to make sure anything generated and checked in is all good
 * perhaps use https://book.kubebuilder.io/component-config-tutorial/tutorial.html instead of a normal config map for agent configs
-* add ingress class
 * helm lint
 * setup filters https://stuartleeks.com/posts/kubebuilder-event-filters-part-1-delete/
 * handle multiple namespaces
-  * connecting to services in other namespaces
   * flexing what namespace the controller is installed in
 * handle ingress with multiple rules and hosts
 * make the health/ready checks run the `ngrok diagnose` command or ping the container tunnels endpoint to make sure its healthy
 * user can supply their own metadata
 * setup unit tests for go
 * make it work with a free account
-* pass logger around in context or somethign and clean up fmt.println's
+* pass logger around in context or something and clean up fmt.println's
 
 ## Setup
 
