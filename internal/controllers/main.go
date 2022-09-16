@@ -155,6 +155,17 @@ func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
 
 // Converts a k8s ingress object into an edge with all its configurations and sub-resources
 func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
+	var matchType string
+	switch *ingress.Spec.Rules[0].HTTP.Paths[0].PathType {
+	case netv1.PathTypePrefix:
+		matchType = "path_prefix"
+	case netv1.PathTypeExact:
+		matchType = "exact_path"
+	case netv1.PathTypeImplementationSpecific:
+		matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
+	default:
+		return nil, fmt.Errorf("unsupported path type: %v", ingress.Spec.Rules[0].HTTP.Paths[0].PathType)
+	}
 	return &ngrokapidriver.Edge{
 		Id: ingress.Annotations["k8s.ngrok.com/edge-id"],
 		// TODO: Support multiple rules
@@ -169,8 +180,7 @@ func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver
 		Routes: []ngrokapidriver.Route{
 			{
 				Match:     ingress.Spec.Rules[0].HTTP.Paths[0].Path,
-				MatchType: "exact_path", // TODO: support other match types
-				// MatchType: string(*ingress.Spec.Rules[0].HTTP.Paths[0].PathType),
+				MatchType: matchType,
 				// Modules:   []ngrokapidriver.Module{},
 			}},
 	}, nil
