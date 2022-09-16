@@ -44,11 +44,24 @@ var (
 	scheme        = runtime.NewScheme()
 	setupLog      = ctrl.Log.WithName("setup")
 	configMapName = "ngrok-ingress-controller"
-	namespace     = "ngrok-ingress-controller" // This should become based on the curren namespace its deployed to
+	namespace     string
+	ngrokApiKey   string
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
+	podNamespace, ok := os.LookupEnv("POD_NAMESPACE")
+	if !ok {
+		panic("POD_NAMESPACE is not set")
+	}
+	namespace = podNamespace
+
+	k, ok := os.LookupEnv("NGROK_API_KEY")
+	if !ok {
+		panic("NGROK_API_KEY is not set")
+	}
+	ngrokApiKey = k
 
 	//+kubebuilder:scaffold:scheme
 }
@@ -90,7 +103,7 @@ func main() {
 		Scheme:         mgr.GetScheme(),
 		Recorder:       mgr.GetEventRecorderFor("ingress-controller"),
 		Namespace:      namespace,
-		NgrokAPIDriver: ngrokapidriver.NewNgrokApiClient(os.Getenv("NGROK_API_KEY")),
+		NgrokAPIDriver: ngrokapidriver.NewNgrokApiClient(ngrokApiKey),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ingress")
 		os.Exit(1)
