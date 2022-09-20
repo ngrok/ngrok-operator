@@ -3,10 +3,13 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -41,7 +44,6 @@ func matchesIngressClass(ctx context.Context, c client.Client, ingress *netv1.In
 	// 					if it doesn't drop it
 
 	if len(ingressClasses.Items) == 0 {
-		fmt.Println("No ingress classes defined so accepting this ingress")
 		return true, nil
 	}
 
@@ -54,30 +56,28 @@ func matchesIngressClass(ctx context.Context, c client.Client, ingress *netv1.In
 	}
 
 	if ngrokClass == nil {
-		fmt.Printf("No ingress class found for controller %s\n", controllerName)
+		ctrl.LoggerFrom(ctx).Error(fmt.Errorf("No ingress class found for this controller"), "controller", controllerName)
 		return false, nil
 	}
 
 	if ngrokClass.Annotations["ingressclass.kubernetes.io/is-default-class"] == "default" {
 		if ingress.Spec.IngressClassName == nil || ingress.Spec.IngressClassName == &ngrokClass.Name {
-			fmt.Printf("Since ngrok is the default and this ingress has a class of %s, so we will handle it\n", *ingress.Spec.IngressClassName)
 			return true, nil
 		}
-		fmt.Printf("Ngrok is the default Ingress class  but this ingress object's ingress class doesn't match: %s\n", *ingress.Spec.IngressClassName)
+		ctrl.LoggerFrom(ctx).Info(fmt.Sprintf("Ngrok is the default Ingress class  but this ingress object's ingress class doesn't match: %s\n", *ingress.Spec.IngressClassName), "controller", controllerName)
 		return false, nil
 	}
 
 	if ingress.Spec.IngressClassName != nil && *ingress.Spec.IngressClassName == ngrokClass.Name {
-		fmt.Println("This ingress object matches the ngrok class so we will handle it")
 		return true, nil
 	} else {
-		fmt.Printf("Got our else statement so dump some info: %s\n", ngrokClass.Name)
+		ctrl.LoggerFrom(ctx).Info(fmt.Sprintf("Got our else statement so dump some info: %s\n", ngrokClass.Name), "controller", controllerName)
 	}
 
 	if ingress.Spec.IngressClassName == nil {
-		fmt.Println("This ingress object's ingress class is not set so we did not handle this one")
+		ctrl.LoggerFrom(ctx).Info("This ingress object's ingress class is not set so we did not handle this one", "controller", controllerName)
 	} else {
-		fmt.Printf("This ingress object's ingress class doesn't match: %s\n", *ingress.Spec.IngressClassName)
+		ctrl.LoggerFrom(ctx).Info(fmt.Sprintf("This ingress object's ingress class doesn't match: %s\n", *ingress.Spec.IngressClassName), "controller", controllerName)
 	}
 	return false, nil
 }
@@ -102,15 +102,28 @@ func getIngress(ctx context.Context, c client.Client, namespacedName types.Names
 }
 
 // Sets the hostname that the tunnel is accessible on to the ingress object status
-func setStatus(ctx context.Context, irec *IngressReconciler, ingress *netv1.Ingress) error {
+func setStatus(ctx context.Context, irec *IngressReconciler, ingress *netv1.Ingress, edgeID string) error {
 	// TODO: Handle multiple rules
 	if ingress.Spec.Rules[0].Host == "" || len(ingress.Status.LoadBalancer.Ingress) != 0 && ingress.Status.LoadBalancer.Ingress[0].Hostname == ingress.Spec.Rules[0].Host {
 		return nil
 	}
 
+	var hostName string
+	if strings.Contains(ingress.Spec.Rules[0].Host, ".ngrok.io") {
+		hostName = ingress.Spec.Rules[0].Host
+	} else {
+		domains, err := irec.NgrokAPIDriver.GetReservedDomains(ctx, edgeID)
+		if err != nil {
+			return err
+		}
+		if len(domains) != 0 && domains[0].CNAMETarget != nil {
+			hostName = *domains[0].CNAMETarget
+		}
+	}
+
 	ingress.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{
 		{
-			Hostname: ingress.Spec.Rules[0].Host,
+			Hostname: hostName,
 		},
 	}
 
@@ -149,7 +162,8 @@ func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
 	// Only 1 unique hostname is allowed per object
 	// For now, only 1 rule is even allowed
 	// same namespace as the controller for now
-	// Atleast 1 route must be declared
+	// At least 1 route must be declared
+	// At least 1 host must be declared
 	return nil
 }
 

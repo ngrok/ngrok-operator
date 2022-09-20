@@ -16,7 +16,6 @@ TOOD:
 * user can supply their own metadata
 * setup unit tests for go
 * make it work with a free account
-* pass logger around in context or something and clean up fmt.println's
 
 ## Setup
 

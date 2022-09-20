@@ -13,9 +13,10 @@ import (
 
 type NgrokAPIDriver interface {
 	FindEdge(ctx context.Context, id string) (*ngrok.HTTPSEdge, error)
-	CreateEdge(ctx context.Context, n Edge) (*ngrok.HTTPSEdge, error)
-	UpdateEdge(ctx context.Context, n Edge) (*ngrok.HTTPSEdge, error)
+	CreateEdge(ctx context.Context, e Edge) (*ngrok.HTTPSEdge, error)
+	UpdateEdge(ctx context.Context, e Edge) (*ngrok.HTTPSEdge, error)
 	DeleteEdge(ctx context.Context, e Edge) error
+	GetReservedDomains(ctx context.Context, edgeID string) ([]ngrok.ReservedDomain, error)
 }
 
 type ngrokAPIDriver struct {
@@ -136,4 +137,37 @@ func (nc ngrokAPIDriver) DeleteEdge(ctx context.Context, e Edge) error {
 		}
 	}
 	return nil
+}
+
+func (nc ngrokAPIDriver) GetReservedDomains(ctx context.Context, edgeID string) ([]ngrok.ReservedDomain, error) {
+	edge, err := nc.FindEdge(ctx, edgeID)
+	if err != nil {
+		return nil, err
+	}
+	hostPortDomains := []string{}
+	for _, hostport := range *edge.Hostports {
+		hostPortDomains = append(hostPortDomains, strings.Split(hostport, ":")[0])
+	}
+
+	domainsItr := nc.reservedDomains.List(nil)
+	var matchingReservedDomains []ngrok.ReservedDomain
+	// Loop while there are more domains and check if they match any of the hostPortDomains. If so add it to the reservedDomains
+	for {
+		if !domainsItr.Next(ctx) {
+			err := domainsItr.Err()
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+		domain := domainsItr.Item()
+
+		for _, hostPortDomain := range hostPortDomains {
+			if domain.Domain == hostPortDomain {
+				matchingReservedDomains = append(matchingReservedDomains, *domain)
+			}
+		}
+	}
+
+	return matchingReservedDomains, nil
 }

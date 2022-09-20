@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/agentapiclient"
+	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -42,6 +43,7 @@ type TunnelReconciler struct {
 // logs and delete, update, edit ingress objects, you see the events come in.
 func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := trec.Log.WithValues("ingress", req.NamespacedName)
+	ctx = ctrl.LoggerInto(ctx, log)
 	tunnelName := strings.Replace(req.NamespacedName.String(), "/", "-", -1)
 	ingress, err := getIngress(ctx, trec.Client, req.NamespacedName)
 	if err != nil {
@@ -54,20 +56,34 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Check if the ingress object is being deleted
 	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
-		log.Info("Cleaning up tunnel because ingress is being deleted")
-		return ctrl.Result{}, agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnelName)
+		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleting", fmt.Sprintf("Tunnel %s deleting", tunnelName))
+		err := agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnelName)
+		if err != nil {
+			trec.Recorder.Event(ingress, "Warning", "TunnelDeleteFailed", fmt.Sprintf("Tunnel %s delete failed", tunnelName))
+			return ctrl.Result{}, err
+		}
+		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleted", fmt.Sprintf("Tunnel %s deleted", tunnelName))
+		return ctrl.Result{}, nil
 	}
 	// TODO: For now this assumes 1 rule and 1 path. Expand on this and loop through them
 	backendService := ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
-	return ctrl.Result{}, agentapiclient.NewAgentApiClient().CreateTunnel(ctx, agentapiclient.TunnelsApiBody{
+	tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", backendService.Name, ingress.Namespace, clusterDomain, backendService.Port.Number)
+	trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnelName))
+	err = agentapiclient.NewAgentApiClient().CreateTunnel(ctx, agentapiclient.TunnelsApiBody{
 		Name: tunnelName,
-		Addr: fmt.Sprintf("%s.%s.%s:%d", backendService.Name, ingress.Namespace, clusterDomain, backendService.Port.Number),
+		Addr: tunnelAddr,
 		Labels: []string{
 			"k8s.ngrok.com/ingress-name=" + ingress.Name,
 			"k8s.ngrok.com/ingress-namespace=" + ingress.Namespace,
 			"k8s.ngrok.com/k8s-backend-name=" + backendService.Name,
 		},
 	})
+	if err != nil {
+		trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnelName))
+		return ctrl.Result{}, err
+	}
+	trec.Recorder.Event(ingress, "Normal", "TunnelCreated", fmt.Sprintf("Tunnel %s created", tunnelName))
+	return ctrl.Result{}, nil
 }
 
 // Create a new Controller that watches Ingress objects.
