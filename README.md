@@ -17,18 +17,27 @@ TOOD:
 * setup unit tests for go
 * make it work with a free account
 
+## Prerequisites
+
+* [Go 1.19](https://go.dev/dl/)
+* [Helm](https://helm.sh/docs/intro/install/)
+* A k8s cluster is available via your kubectl client. Right now, I'm just using our ngrok local cluster.
+
 ## Setup
 
-* go 1.19
-* assume a k8s cluster is available via your kubectl client. Right now, I'm just using our ngrok local cluster.
-* `make build`
-* `make docker-build`
-*  depending on how you are running your local k8s cluster, you may need to make the image available in its registry
-* `k create namespace ngrok-ingress-controller`
-* `kns ngrok-ingress-controller`
-* create a k8s secret with an auth token
-`k create secret generic ngrok-ingress-controller-credentials --from-literal=AUTHTOKEN=YOUR-TOKEN --from-literal=API_KEY=YOUR-API-KEY
-`make deploy`
+1. Build the Ngrok Ingress Controller:
+    * `make build`
+2. Build Docker image for the Ngrok Ingress Controller:
+    * `make docker-build`
+    * **NOTE:** depending on how you are running your local k8s cluster, you may need to make the image available in its registry
+* Create the `ngrok-ingress-controller` Kubernetes namespace:
+    * `kubectl create namespace ngrok-ingress-controller`
+* Configure `kubectl` to use this namespace by default:
+    * `kubectl config set-context --current --namespace=ngrok-ingress-controller`
+* Create a k8s secret with an auth token:
+    * `kubectl create secret generic ngrok-ingress-controller-credentials --from-literal=AUTHTOKEN=YOUR-TOKEN --from-literal=API_KEY=YOUR-API-KEY`
+* Deploy the Ngrok Ingress Controller:
+    * `make deploy`
 
 ## Setup Auth
 

@@ -11,7 +11,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-  - host: minimal-ingress-2-namespaced.ngrok.io
+  - host: SET-VIA-config.yaml
     http:
       paths:
       - path: /

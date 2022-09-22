@@ -1,0 +1,16 @@
+resources:
+- ingress-class.yaml
+
+patchesJson6902:
+- target:
+    group: networking.k8s.io
+    version: v1
+    kind: Ingress
+    name: ingress-class-example
+  path: config.yaml
+- target:
+    group: networking.k8s.io
+    version: v1
+    kind: Ingress
+    name: different-ingress-class-example
+  path: config-different.yaml

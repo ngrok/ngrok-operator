@@ -23,3 +23,5 @@ testbin/*
 *.swo
 *~
 .vscode
+
+examples/*/config*.yaml
