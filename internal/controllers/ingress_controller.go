@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v4"
@@ -41,6 +40,7 @@ type IngressReconciler struct {
 // logs and delete, update, edit ingress objects, you see the events come in.
 func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := irec.Log.WithValues("ingress", req.NamespacedName)
+	ctx = ctrl.LoggerInto(ctx, log)
 	ingress, err := getIngress(ctx, irec.Client, req.NamespacedName)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -50,21 +50,15 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	err = setStatus(ctx, irec, ingress)
-	if err != nil {
-		log.Error(err, "Failed to set status")
-		return ctrl.Result{}, err
-	}
-
 	err = setFinalizer(ctx, irec, ingress)
 	if err != nil {
-		log.Error(err, "Failed to set finalizer")
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to set finalizer", err.Error())
 		return ctrl.Result{}, err
 	}
 
 	edge, err := IngressToEdge(ctx, ingress)
 	if err != nil {
-		log.Error(err, "Failed to convert ingress to edge")
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to convert ingress to edge", err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -77,11 +71,12 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] != "" {
 		_, err := irec.NgrokAPIDriver.FindEdge(ctx, ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"])
 		if err == nil {
-			log.Info("Edge already exists")
+			irec.Recorder.Event(ingress, v1.EventTypeWarning, "EdgeExists", "Edge already exists")
 			// TODO: Provide update functionality. Right now, its create/delete
 			return irec.UpdateIngress(ctx, *edge, ingress)
 		}
 		if !ngrok.IsNotFound(err) {
+			irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to find edge", err.Error())
 			return ctrl.Result{}, err
 		}
 	}
@@ -91,7 +86,7 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 func (irec *IngressReconciler) DeleteIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
 	if err := irec.NgrokAPIDriver.DeleteEdge(ctx, edge); err != nil {
-		fmt.Printf("Failed to delete edge: %s\n", err)
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to delete edge", err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -109,12 +104,24 @@ func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge ngrokapid
 func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
 	ngrokEdge, err := irec.NgrokAPIDriver.CreateEdge(ctx, edge)
 	if err != nil {
-		fmt.Printf("Failed to create edge: %s\n", err)
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to create edge", err.Error())
 		return ctrl.Result{}, err
 	}
 
+	irec.Recorder.Event(ingress, v1.EventTypeNormal, "CreatedEdge", "Created edge "+ngrokEdge.ID)
 	ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] = ngrokEdge.ID
-	return ctrl.Result{}, irec.Update(ctx, ingress)
+
+	err = irec.Update(ctx, ingress)
+	if err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update ingress", err.Error())
+		return ctrl.Result{}, err
+	}
+	err = setStatus(ctx, irec, ingress, ngrokEdge.ID)
+	if err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to set status", err.Error())
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }
 
 // Create a new controller using our reconciler and set it up with the manager
