@@ -2,6 +2,7 @@ package ngrokapidriver
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/ngrok/ngrok-api-go/v4"
@@ -9,6 +10,7 @@ import (
 	edge "github.com/ngrok/ngrok-api-go/v4/edges/https"
 	edge_route "github.com/ngrok/ngrok-api-go/v4/edges/https_routes"
 	"github.com/ngrok/ngrok-api-go/v4/reserved_domains"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 type NgrokAPIDriver interface {
@@ -39,7 +41,14 @@ func NewNgrokApiClient(apiKey string) NgrokAPIDriver {
 }
 
 func (nc ngrokAPIDriver) FindEdge(ctx context.Context, id string) (*ngrok.HTTPSEdge, error) {
-	return nc.edges.Get(ctx, id)
+	edge, err := nc.edges.Get(ctx, id)
+	if err != nil {
+		if ngrok.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get edge id %s: %w", id, err)
+	}
+	return edge, nil
 }
 
 // Goes through the whole edge object and creates resources for
@@ -48,6 +57,7 @@ func (nc ngrokAPIDriver) FindEdge(ctx context.Context, id string) (*ngrok.HTTPSE
 // * edge routes
 // * the edge itself
 func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary Edge) (*ngrok.HTTPSEdge, error) {
+	log := ctrl.LoggerFrom(ctx)
 	// TODO: Support multiple rules and multiple hostports
 	domain := strings.Split(edgeSummary.Hostport, ":")[0]
 	_, err := napi.reservedDomains.Create(ctx, &ngrok.ReservedDomainCreate{
@@ -57,29 +67,22 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary Edge) (*n
 		Metadata:    napi.metadata,
 	})
 	// Swallow conflicts, just always try to create it and don't delete them upon ingress deletion
-	if err != nil && !strings.Contains(err.Error(), "ERR_NGROK_413") && !strings.Contains(err.Error(), "ERR_NGROK_7122") {
-		return nil, err
+	if err != nil {
+		if strings.Contains(err.Error(), "ERR_NGROK_413") || strings.Contains(err.Error(), "ERR_NGROK_7122") {
+			log.Info("Reserved domain already exists, skipping creation", "domain", domain)
+		} else {
+			return nil, err
+		}
 	}
 
 	var newEdge *ngrok.HTTPSEdge
-
-	// If the edge ID is already set, try to look it up
-	if edgeSummary.Id != "" {
-		newEdge, err = napi.edges.Get(ctx, edgeSummary.Id)
-		if ngrok.IsNotFound(err) {
-			edgeSummary.Id = ""
-		} else if err != nil {
-			return nil, err
-		}
-	} else { // Otherwise Make it
-		newEdge, err = napi.edges.Create(ctx, &ngrok.HTTPSEdgeCreate{
-			Hostports:   &[]string{edgeSummary.Hostport},
-			Description: "Created by ngrok-ingress-controller",
-			Metadata:    napi.metadata,
-		})
-		if err != nil {
-			return nil, err
-		}
+	newEdge, err = napi.edges.Create(ctx, &ngrok.HTTPSEdgeCreate{
+		Hostports:   &[]string{edgeSummary.Hostport},
+		Description: "Created by ngrok-ingress-controller",
+		Metadata:    napi.metadata,
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	backend, err := napi.tgbs.Create(ctx, &ngrok.TunnelGroupBackendCreate{
@@ -112,29 +115,58 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary Edge) (*n
 
 // TODO: Implement this
 func (nc ngrokAPIDriver) UpdateEdge(ctx context.Context, edgeSummary Edge) (*ngrok.HTTPSEdge, error) {
+	existingEdge, err := nc.FindEdge(ctx, edgeSummary.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	// For now, we only support 1 hostport so anytime we have more or less than 1, something is different
+	hostPortsDifferent := len(*existingEdge.Hostports) != 1 || (*existingEdge.Hostports)[0] != edgeSummary.Hostport
+	if hostPortsDifferent {
+		err := nc.DeleteEdge(ctx, edgeSummary)
+		if err != nil {
+			return nil, err
+		}
+		return nc.CreateEdge(ctx, edgeSummary)
+	}
+
+	// If the hostport is the same
+	// Loop through the edgeSummary's routes
+	// Create a unique key formed from each route's key attributes
+	// Create a similar key from the existing edge's routes
+	// compare to our list
+	// for each one thats not in our list delete
+	// for each thats in our list but not remote, create it
+	// if it is in our list, then all its attributes match so ignore it
+	// TODO: also check for route modules at this point
 	return nil, nil
 }
 
 // DeleteEdge deletes the edge and routes but doesn't delete reserved domains
-// TODO: This is leaking backends, they need to be deleted a well
 func (nc ngrokAPIDriver) DeleteEdge(ctx context.Context, e Edge) error {
-	edge, err := nc.edges.Get(ctx, e.Id)
+	log := ctrl.LoggerFrom(ctx).WithValues("DeleteEdge", e.Id)
+	log.Info("Deleting edge")
+	edge, err := nc.FindEdge(ctx, e.Id)
 	if err != nil {
 		return err
 	}
+	if edge == nil {
+		log.Info("Edge not found, skipping deletion", "edge", e.Id)
+		return nil
+	}
+
 	for _, route := range edge.Routes {
-		err := nc.routes.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: e.Id, ID: route.ID})
-		if err != nil {
-			return err
+		if err := nc.tgbs.Delete(ctx, route.Backend.Backend.ID); err != nil && !ngrok.IsNotFound(err) {
+			return fmt.Errorf("error deleting backend with id %s: %w", route.Backend.Backend.ID, err)
+		}
+
+		if err := nc.routes.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: e.Id, ID: route.ID}); err != nil && !ngrok.IsNotFound(err) {
+			return fmt.Errorf("error deleting route with id %s: %w", route.ID, err)
 		}
 	}
 
-	err = nc.edges.Delete(ctx, e.Id)
-	if err != nil {
-		if !ngrok.IsNotFound(err) {
-			return err
-		} else {
-		}
+	if err := nc.edges.Delete(ctx, e.Id); err != nil && !ngrok.IsNotFound(err) {
+		return fmt.Errorf("error deleting edge with id %s: %w", e.Id, err)
 	}
 	return nil
 }
