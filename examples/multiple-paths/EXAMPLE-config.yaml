@@ -2,4 +2,5 @@
 # 2. Set you unique FQDN in the "value" field below
 - op: replace
   path: /spec/rules/0/host
-  value: <UNIQUE SUBDOMAIN 2>.ngrok.io
+  value: <UNIQUE SUBDOMAIN>.ngrok.io
+# e2e-expected: HTTP/2 200

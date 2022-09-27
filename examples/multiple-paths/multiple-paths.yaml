@@ -1,0 +1,96 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: multiple-paths
+spec:
+  ingressClassName: ngrok
+  rules:
+  - host: SET-VIA-config.yaml
+    http:
+      paths:
+      - path: /
+        pathType: Exact
+        backend:
+          service:
+            name: nginx-multi-path
+            port:
+              number: 80
+      - path: /path2
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-multi-path
+            port:
+              number: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-multi-path
+spec:
+  selector:
+    matchLabels:
+      app: nginx-multi-path
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: nginx-multi-path
+    spec:
+      containers:
+      - name: nginx-multi-path
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+           - name: nginx-conf
+             mountPath: /etc/nginx/nginx.conf
+             subPath: nginx.conf
+             readOnly: true
+      volumes:
+      - name: nginx-conf
+        configMap:
+          name: nginx-conf
+          items:
+            - key: nginx.conf
+              path: nginx.conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-multi-path
+  labels:
+    app: nginx-multi-path
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: nginx-multi-path
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+data:
+  nginx.conf: |
+    user nginx;
+    worker_processes  1;
+    events {
+      worker_connections  10240;
+    }
+    http {
+      server {
+        listen       80;
+        server_name  localhost;
+        location / {
+          root   /usr/share/nginx/html;
+          index  index.html index.htm;
+        }
+        location /path2 {
+          return 301 $scheme://$host/;
+        }
+      }
+    }
