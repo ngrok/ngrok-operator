@@ -197,7 +197,7 @@ func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver
 	ngrokRoutes, err := routesBuider(ingress.Spec.Rules[0].IngressRuleValue)
 
 	return &ngrokapidriver.Edge{
-		Id: ingress.Annotations["k8s.ngrok.com/edge-id"],
+		Id: ingress.Annotations["k8s.ngrok.com/edge-id"], // TODO: Make this a constant or something
 		// TODO: Support multiple rules
 		Hostport: ingress.Spec.Rules[0].Host + ":443",
 		Labels: map[string]string{
