@@ -161,7 +161,6 @@ func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
 	// TODO: restrict the spec to a limited set of usecases for now until we support others
 	// Only 1 unique hostname is allowed per object
 	// For now, only 1 rule is even allowed
-	// same namespace as the controller for now
 	// At least 1 route must be declared
 	// At least 1 host must be declared
 	return nil
@@ -204,9 +203,9 @@ func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver
 		Labels: map[string]string{
 			"k8s.ngrok.com/ingress-name":      ingress.Name,
 			"k8s.ngrok.com/ingress-namespace": ingress.Namespace,
-			// TODO: Maybe I don't need this backend name. Need to figure out if edge labels have to all match or if we can match
-			// a subset. In theory the edge can support multiple different backends
-			"k8s.ngrok.com/k8s-backend-name": ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name,
+			"k8s.ngrok.com/k8s-backend-name":  ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name,
+			// TODO: Add port as a tunnel label so we distinguish between same backend but different ports
+			// Or flip to use the path and match_type as the labels so the backend service name/port are abstracted
 		},
 		Routes: ngrokRoutes,
 	}, err

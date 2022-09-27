@@ -44,6 +44,8 @@ type TunnelReconciler struct {
 func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := trec.Log.WithValues("ingress", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
+	// TODO: This name is used as the name of the tunnel. Right now its just the ingress name + namespace. So if we need to create
+	// multiple tunnels for 1 ingress object, we'll need to provide some namespacing here.
 	tunnelName := strings.Replace(req.NamespacedName.String(), "/", "-", -1)
 	ingress, err := getIngress(ctx, trec.Client, req.NamespacedName)
 	if err != nil {

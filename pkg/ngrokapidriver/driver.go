@@ -56,8 +56,7 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary Edge) (*n
 		Description: "Created by ngrok-ingress-controller",
 		Metadata:    napi.metadata,
 	})
-	// Swallow conflicts, just always try to create it
-	// TODO: Depending on if we choose to clean up reserved domains or not, we may want to surface this conflict to the user
+	// Swallow conflicts, just always try to create it and don't delete them upon ingress deletion
 	if err != nil && !strings.Contains(err.Error(), "ERR_NGROK_413") && !strings.Contains(err.Error(), "ERR_NGROK_7122") {
 		return nil, err
 	}
@@ -116,6 +115,8 @@ func (nc ngrokAPIDriver) UpdateEdge(ctx context.Context, edgeSummary Edge) (*ngr
 	return nil, nil
 }
 
+// DeleteEdge deletes the edge and routes but doesn't delete reserved domains
+// TODO: This is leaking backends, they need to be deleted a well
 func (nc ngrokAPIDriver) DeleteEdge(ctx context.Context, e Edge) error {
 	edge, err := nc.edges.Get(ctx, e.Id)
 	if err != nil {
@@ -128,7 +129,6 @@ func (nc ngrokAPIDriver) DeleteEdge(ctx context.Context, e Edge) error {
 		}
 	}
 
-	// TODO: I could delete the reserved endpoint, but it might make sense to just leave it reserved. Keeping this for now
 	err = nc.edges.Delete(ctx, e.Id)
 	if err != nil {
 		if !ngrok.IsNotFound(err) {
