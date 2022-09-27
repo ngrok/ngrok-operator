@@ -1,0 +1,3 @@
+config.yaml:
+  paths:
+    "/": "HTTP/2 200"
