@@ -167,19 +167,36 @@ func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
 	return nil
 }
 
-// Converts a k8s ingress object into an edge with all its configurations and sub-resources
-func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
+// Converts a k8s Ingress Rule to and Ngrok Route.
+func routesBuider(rule netv1.IngressRuleValue) ([]ngrokapidriver.Route, error) {
 	var matchType string
-	switch *ingress.Spec.Rules[0].HTTP.Paths[0].PathType {
-	case netv1.PathTypePrefix:
-		matchType = "path_prefix"
-	case netv1.PathTypeExact:
-		matchType = "exact_path"
-	case netv1.PathTypeImplementationSpecific:
-		matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
-	default:
-		return nil, fmt.Errorf("unsupported path type: %v", ingress.Spec.Rules[0].HTTP.Paths[0].PathType)
+	var ngrokRoutes []ngrokapidriver.Route
+
+	for _, httpIngressPath := range rule.HTTP.Paths {
+		switch *httpIngressPath.PathType {
+		case netv1.PathTypePrefix:
+			matchType = "path_prefix"
+		case netv1.PathTypeExact:
+			matchType = "exact_path"
+		case netv1.PathTypeImplementationSpecific:
+			matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
+		default:
+			return nil, fmt.Errorf("unsupported path type: %v", httpIngressPath.PathType)
+		}
+		ngrokRoutes = append(ngrokRoutes, ngrokapidriver.Route{
+			Match:     httpIngressPath.Path,
+			MatchType: matchType,
+		})
 	}
+
+	return ngrokRoutes, nil
+}
+
+// Converts a k8s ingress object into an Ngrok Edge with all its configurations and sub-resources
+// TODO: Support multiple Rules per Ingress
+func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
+	ngrokRoutes, err := routesBuider(ingress.Spec.Rules[0].IngressRuleValue)
+
 	return &ngrokapidriver.Edge{
 		Id: ingress.Annotations["k8s.ngrok.com/edge-id"],
 		// TODO: Support multiple rules
@@ -191,11 +208,6 @@ func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver
 			// a subset. In theory the edge can support multiple different backends
 			"k8s.ngrok.com/k8s-backend-name": ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name,
 		},
-		Routes: []ngrokapidriver.Route{
-			{
-				Match:     ingress.Spec.Rules[0].HTTP.Paths[0].Path,
-				MatchType: matchType,
-				// Modules:   []ngrokapidriver.Module{},
-			}},
-	}, nil
+		Routes: ngrokRoutes,
+	}, err
 }
