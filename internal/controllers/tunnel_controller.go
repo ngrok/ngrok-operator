@@ -144,7 +144,7 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 		}
 
 		agentTunnels = append(agentTunnels, agentapiclient.TunnelsApiBody{
-			Name:   fmt.Sprintf("%s-%s-%d", namespace, serviceName, servicePort),
+			Name:   fmt.Sprintf("%s-%s-%s-%d", ingressName, namespace, serviceName, servicePort),
 			Addr:   tunnelAddr,
 			Labels: labels,
 		})
