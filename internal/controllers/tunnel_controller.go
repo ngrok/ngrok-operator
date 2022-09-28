@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/agentapiclient"
@@ -44,9 +43,7 @@ type TunnelReconciler struct {
 func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := trec.Log.WithValues("ingress", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
-	// TODO: This name is used as the name of the tunnel. Right now its just the ingress name + namespace. So if we need to create
-	// multiple tunnels for 1 ingress object, we'll need to provide some namespacing here.
-	tunnelName := strings.Replace(req.NamespacedName.String(), "/", "-", -1)
+
 	ingress, err := getIngress(ctx, trec.Client, req.NamespacedName)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -55,8 +52,6 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if ingress == nil {
 		return ctrl.Result{}, nil
 	}
-
-	trec.Recorder.Event(ingress, "Normal", "Reconcile Called", fmt.Sprintf("tunnelName:%q with req: %q", tunnelName, req))
 
 	// Check if the ingress object is being deleted
 	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -76,10 +71,10 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnel.Name))
 		err = agentapiclient.NewAgentApiClient().CreateTunnel(ctx, tunnel)
 		if err != nil {
-			trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnelName))
+			trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnel.Name))
 			return ctrl.Result{}, err
 		}
-		trec.Recorder.Event(ingress, "Normal", "TunnelCreated", fmt.Sprintf("Tunnel %s created with labels %q", tunnelName, tunnel.Labels))
+		trec.Recorder.Event(ingress, "Normal", "TunnelCreated", fmt.Sprintf("Tunnel %s created with labels %q", tunnel.Name, tunnel.Labels))
 	}
 
 	return ctrl.Result{}, nil
