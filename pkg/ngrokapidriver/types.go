@@ -14,6 +14,7 @@ type Route struct {
 	// "exact_path" or "path_prefix"
 	MatchType string
 	Modules   []any
+	Labels    map[string]string
 }
 
 type Module interface {
