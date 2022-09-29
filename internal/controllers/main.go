@@ -163,6 +163,7 @@ func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
 	// For now, only 1 rule is even allowed
 	// At least 1 route must be declared
 	// At least 1 host must be declared
+	// TODO: Either limit backends to Service or implement support for Resource
 	return nil
 }
 
