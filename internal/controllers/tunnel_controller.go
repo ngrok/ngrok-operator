@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/agentapiclient"
@@ -138,8 +139,10 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 			labels = append(labels, fmt.Sprintf("%s=%s", key, value))
 		}
 
+		clean_path := strings.Replace(httpIngressPath.Path, "/", "-", -1)
+
 		agentTunnels = append(agentTunnels, agentapiclient.TunnelsApiBody{
-			Name:   fmt.Sprintf("%s-%s-%s-%d", ingressName, namespace, serviceName, servicePort),
+			Name:   fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
 			Addr:   tunnelAddr,
 			Labels: labels,
 		})
