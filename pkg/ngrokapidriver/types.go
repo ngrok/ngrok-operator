@@ -3,7 +3,6 @@ package ngrokapidriver
 type Edge struct {
 	Id       string
 	Hostport string // TODO: Support an array of hostports when we support multiple rules
-	Labels   map[string]string
 	Routes   []Route
 }
 
