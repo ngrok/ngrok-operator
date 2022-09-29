@@ -44,9 +44,7 @@ type TunnelReconciler struct {
 func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := trec.Log.WithValues("ingress", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
-	// TODO: This name is used as the name of the tunnel. Right now its just the ingress name + namespace. So if we need to create
-	// multiple tunnels for 1 ingress object, we'll need to provide some namespacing here.
-	tunnelName := strings.Replace(req.NamespacedName.String(), "/", "-", -1)
+
 	ingress, err := getIngress(ctx, trec.Client, req.NamespacedName)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -58,33 +56,28 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Check if the ingress object is being deleted
 	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
-		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleting", fmt.Sprintf("Tunnel %s deleting", tunnelName))
-		err := agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnelName)
-		if err != nil {
-			trec.Recorder.Event(ingress, "Warning", "TunnelDeleteFailed", fmt.Sprintf("Tunnel %s delete failed", tunnelName))
-			return ctrl.Result{}, err
+		for _, tunnel := range ingressToTunnels(ingress) {
+			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleting", fmt.Sprintf("Tunnel %s deleting", tunnel.Name))
+			err := agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnel.Name)
+			if err != nil {
+				trec.Recorder.Event(ingress, "Warning", "TunnelDeleteFailed", fmt.Sprintf("Tunnel %s delete failed", tunnel.Name))
+				return ctrl.Result{}, err
+			}
+			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleted", fmt.Sprintf("Tunnel %s deleted", tunnel.Name))
 		}
-		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleted", fmt.Sprintf("Tunnel %s deleted", tunnelName))
 		return ctrl.Result{}, nil
 	}
-	// TODO: For now this assumes 1 rule and 1 path. Expand on this and loop through them
-	backendService := ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
-	tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", backendService.Name, ingress.Namespace, clusterDomain, backendService.Port.Number)
-	trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnelName))
-	err = agentapiclient.NewAgentApiClient().CreateTunnel(ctx, agentapiclient.TunnelsApiBody{
-		Name: tunnelName,
-		Addr: tunnelAddr,
-		Labels: []string{
-			"k8s.ngrok.com/ingress-name=" + ingress.Name,
-			"k8s.ngrok.com/ingress-namespace=" + ingress.Namespace,
-			"k8s.ngrok.com/k8s-backend-name=" + backendService.Name,
-		},
-	})
-	if err != nil {
-		trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnelName))
-		return ctrl.Result{}, err
+
+	for _, tunnel := range ingressToTunnels(ingress) {
+		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnel.Name))
+		err = agentapiclient.NewAgentApiClient().CreateTunnel(ctx, tunnel)
+		if err != nil {
+			trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnel.Name))
+			return ctrl.Result{}, err
+		}
+		trec.Recorder.Event(ingress, "Normal", "TunnelCreated", fmt.Sprintf("Tunnel %s created with labels %q", tunnel.Name, tunnel.Labels))
 	}
-	trec.Recorder.Event(ingress, "Normal", "TunnelCreated", fmt.Sprintf("Tunnel %s created", tunnelName))
+
 	return ctrl.Result{}, nil
 }
 
@@ -130,4 +123,39 @@ func (trec *TunnelController) NeedLeaderElection() bool {
 func (trec *TunnelController) Start(ctx context.Context) error {
 	// TODO: Wait for k8s config map with controller namespaces to be ready
 	return trec.Controller.Start(ctx)
+}
+
+// Converts a k8s Ingress Rule to and Ngrok Agent Tunnel configuration.
+func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) []agentapiclient.TunnelsApiBody {
+	var agentTunnels []agentapiclient.TunnelsApiBody
+
+	for _, httpIngressPath := range rule.HTTP.Paths {
+		serviceName := httpIngressPath.Backend.Service.Name
+		servicePort := int(httpIngressPath.Backend.Service.Port.Number)
+		tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
+
+		var labels []string
+		for key, value := range backendToLabelMap(httpIngressPath.Backend, ingressName, namespace) {
+			labels = append(labels, fmt.Sprintf("%s=%s", key, value))
+		}
+
+		clean_path := strings.Replace(httpIngressPath.Path, "/", "-", -1)
+
+		agentTunnels = append(agentTunnels, agentapiclient.TunnelsApiBody{
+			Name:   fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
+			Addr:   tunnelAddr,
+			Labels: labels,
+		})
+	}
+
+	return agentTunnels
+}
+
+// Converts a k8s ingress object into a slice of Ngrok Agent Tunnels
+// TODO: Support multiple Rules per Ingress
+func ingressToTunnels(ingress *netv1.Ingress) []agentapiclient.TunnelsApiBody {
+	ingressRule := ingress.Spec.Rules[0]
+
+	tunnels := tunnelsPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
+	return tunnels
 }

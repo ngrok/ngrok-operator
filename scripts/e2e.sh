@@ -12,6 +12,7 @@ for example in $(ls -d examples/*)
 do
     kubectl delete -k $example --ignore-not-found --wait=false
 done
+sleep 5
 
 echo "~~~ Cleaning up previous deploy of ngrok-ingress-controller"
 make undeploy || true

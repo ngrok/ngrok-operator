@@ -1,6 +1,6 @@
 config.yaml:
   paths:
     "/": "HTTP/2 200"
-    "/path2": "HTTP/2 301"
-    "/path2/1234": "HTTP/2 301"
-    "/path234": "HTTP/2 404"
+    "/path2": "HTTP/2 404"
+    "/path2/": "HTTP/2 200"
+    "/path2/50x.html": "HTTP/2 200"
