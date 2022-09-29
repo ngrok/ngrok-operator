@@ -197,6 +197,9 @@ func routesPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) (
 func ingressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
 	ingressRule := ingress.Spec.Rules[0]
 	ngrokRoutes, err := routesPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
+	if err != nil {
+		return nil, err
+	}
 
 	return &ngrokapidriver.Edge{
 		Id: ingress.Annotations["k8s.ngrok.com/edge-id"],
