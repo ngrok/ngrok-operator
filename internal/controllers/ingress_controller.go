@@ -57,7 +57,7 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	edge, err := IngressToEdge(ctx, ingress)
+	edge, err := ingressToEdge(ctx, ingress)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to convert ingress to edge", err.Error())
 		return ctrl.Result{}, err
@@ -204,7 +204,7 @@ func routesPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) (
 
 // Converts a k8s ingress object into an Ngrok Edge with all its configurations and sub-resources
 // TODO: Support multiple Rules per Ingress
-func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
+func ingressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
 	ingressRule := ingress.Spec.Rules[0]
 	ngrokRoutes, err := routesPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
 

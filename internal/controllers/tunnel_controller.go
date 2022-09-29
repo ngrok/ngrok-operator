@@ -55,7 +55,7 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Check if the ingress object is being deleted
 	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
-		for _, tunnel := range IngressToTunnels(ingress) {
+		for _, tunnel := range ingressToTunnels(ingress) {
 			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleting", fmt.Sprintf("Tunnel %s deleting", tunnel.Name))
 			err := agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnel.Name)
 			if err != nil {
@@ -67,7 +67,7 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	for _, tunnel := range IngressToTunnels(ingress) {
+	for _, tunnel := range ingressToTunnels(ingress) {
 		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnel.Name))
 		err = agentapiclient.NewAgentApiClient().CreateTunnel(ctx, tunnel)
 		if err != nil {
@@ -150,7 +150,7 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 
 // Converts a k8s ingress object into a slice of Ngrok Agent Tunnels
 // TODO: Support multiple Rules per Ingress
-func IngressToTunnels(ingress *netv1.Ingress) []agentapiclient.TunnelsApiBody {
+func ingressToTunnels(ingress *netv1.Ingress) []agentapiclient.TunnelsApiBody {
 	ingressRule := ingress.Spec.Rules[0]
 
 	tunnels := tunnelsPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
