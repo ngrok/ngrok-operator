@@ -3,9 +3,9 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
-	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -163,50 +163,16 @@ func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
 	// For now, only 1 rule is even allowed
 	// At least 1 route must be declared
 	// At least 1 host must be declared
+	// TODO: Either limit backends to Service or implement support for Resource
 	return nil
 }
 
-// Converts a k8s Ingress Rule to and Ngrok Route.
-func routesBuider(rule netv1.IngressRuleValue) ([]ngrokapidriver.Route, error) {
-	var matchType string
-	var ngrokRoutes []ngrokapidriver.Route
-
-	for _, httpIngressPath := range rule.HTTP.Paths {
-		switch *httpIngressPath.PathType {
-		case netv1.PathTypePrefix:
-			matchType = "path_prefix"
-		case netv1.PathTypeExact:
-			matchType = "exact_path"
-		case netv1.PathTypeImplementationSpecific:
-			matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
-		default:
-			return nil, fmt.Errorf("unsupported path type: %v", httpIngressPath.PathType)
-		}
-		ngrokRoutes = append(ngrokRoutes, ngrokapidriver.Route{
-			Match:     httpIngressPath.Path,
-			MatchType: matchType,
-		})
+// Generates a labels map for matching Ngrok Routes to Agent Tunnels
+func backendToLabelMap(backend netv1.IngressBackend, ingressName, namespace string) map[string]string {
+	return map[string]string{
+		"k8s.ngrok.com/ingress-name":      ingressName,
+		"k8s.ngrok.com/ingress-namespace": namespace,
+		"k8s.ngrok.com/service":           backend.Service.Name,
+		"k8s.ngrok.com/port":              strconv.Itoa(int(backend.Service.Port.Number)),
 	}
-
-	return ngrokRoutes, nil
-}
-
-// Converts a k8s ingress object into an Ngrok Edge with all its configurations and sub-resources
-// TODO: Support multiple Rules per Ingress
-func IngressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
-	ngrokRoutes, err := routesBuider(ingress.Spec.Rules[0].IngressRuleValue)
-
-	return &ngrokapidriver.Edge{
-		Id: ingress.Annotations["k8s.ngrok.com/edge-id"], // TODO: Make this a constant or something
-		// TODO: Support multiple rules
-		Hostport: ingress.Spec.Rules[0].Host + ":443",
-		Labels: map[string]string{
-			"k8s.ngrok.com/ingress-name":      ingress.Name,
-			"k8s.ngrok.com/ingress-namespace": ingress.Namespace,
-			"k8s.ngrok.com/k8s-backend-name":  ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name,
-			// TODO: Add port as a tunnel label so we distinguish between same backend but different ports
-			// Or flip to use the path and match_type as the labels so the backend service name/port are abstracted
-		},
-		Routes: ngrokRoutes,
-	}, err
 }

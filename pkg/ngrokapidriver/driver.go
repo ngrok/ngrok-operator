@@ -85,17 +85,19 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary Edge) (*n
 		return nil, err
 	}
 
-	backend, err := napi.tgbs.Create(ctx, &ngrok.TunnelGroupBackendCreate{
-		Labels:      edgeSummary.Labels,
-		Description: "Created by ngrok-ingress-controller",
-		Metadata:    napi.metadata,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	for _, route := range edgeSummary.Routes {
-		_, err := napi.routes.Create(ctx, &ngrok.HTTPSEdgeRouteCreate{
+		// Create Tunnel-Group Backend
+		backend, err := napi.tgbs.Create(ctx, &ngrok.TunnelGroupBackendCreate{
+			Labels:      route.Labels,
+			Description: "Created by ngrok-ingress-controller",
+			Metadata:    napi.metadata,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Create Route
+		_, err = napi.routes.Create(ctx, &ngrok.HTTPSEdgeRouteCreate{
 			EdgeID:      newEdge.ID,
 			MatchType:   route.MatchType,
 			Match:       route.Match,

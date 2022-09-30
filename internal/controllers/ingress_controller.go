@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
@@ -55,7 +56,7 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	edge, err := IngressToEdge(ctx, ingress)
+	edge, err := ingressToEdge(ctx, ingress)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to convert ingress to edge", err.Error())
 		return ctrl.Result{}, err
@@ -179,4 +180,44 @@ func (irec *IngressReconciler) LogicalEdgeNamespace(ctx context.Context) (string
 		return "", err
 	}
 	return newName, nil
+}
+
+// Converts a k8s Ingress Rule to and Ngrok Route configuration.
+func routesPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) ([]ngrokapidriver.Route, error) {
+	var matchType string
+	var ngrokRoutes []ngrokapidriver.Route
+
+	for _, httpIngressPath := range rule.HTTP.Paths {
+		switch *httpIngressPath.PathType {
+		case netv1.PathTypePrefix:
+			matchType = "path_prefix"
+		case netv1.PathTypeExact:
+			matchType = "exact_path"
+		case netv1.PathTypeImplementationSpecific:
+			matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
+		default:
+			return nil, fmt.Errorf("unsupported path type: %v", httpIngressPath.PathType)
+		}
+		ngrokRoutes = append(ngrokRoutes, ngrokapidriver.Route{
+			Match:     httpIngressPath.Path,
+			MatchType: matchType,
+			Labels:    backendToLabelMap(httpIngressPath.Backend, ingressName, namespace),
+		})
+	}
+
+	return ngrokRoutes, nil
+}
+
+// Converts a k8s ingress object into an Ngrok Edge with all its configurations and sub-resources
+// TODO: Support multiple Rules per Ingress
+func ingressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
+	ingressRule := ingress.Spec.Rules[0]
+	ngrokRoutes, err := routesPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
+
+	return &ngrokapidriver.Edge{
+		Id: ingress.Annotations["k8s.ngrok.com/edge-id"],
+		// TODO: Support multiple rules
+		Hostport: ingress.Spec.Rules[0].Host + ":443",
+		Routes:   ngrokRoutes,
+	}, err
 }
