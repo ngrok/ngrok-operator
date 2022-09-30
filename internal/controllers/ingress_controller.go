@@ -73,10 +73,9 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		// If the edge in't found, we need to create it
+		// If the edge isn't found, we need to create it
 		if foundEdge == nil {
-			irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to find edge", err.Error())
-			return ctrl.Result{}, err
+			return irec.CreateIngress(ctx, *edge, ingress)
 		}
 		// Otherwise, we found the edge, so update it
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "EdgeExists", "Edge already exists")
@@ -98,14 +97,12 @@ func (irec *IngressReconciler) DeleteIngress(ctx context.Context, edge ngrokapid
 }
 
 func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
-	_, err := irec.NgrokAPIDriver.UpdateEdge(ctx, edge)
+	ngrokEdge, err := irec.NgrokAPIDriver.UpdateEdge(ctx, edge)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update edge", err.Error())
 		return ctrl.Result{}, err
 	}
-
-	// TODO: update the ingress object status and edge-id annotation if necessary
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, setEdgeId(ctx, irec, ingress, ngrokEdge)
 }
 
 func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
@@ -115,20 +112,7 @@ func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge ngrokapid
 		return ctrl.Result{}, err
 	}
 
-	irec.Recorder.Event(ingress, v1.EventTypeNormal, "CreatedEdge", "Created edge "+ngrokEdge.ID)
-	ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] = ngrokEdge.ID
-
-	err = irec.Update(ctx, ingress)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update ingress", err.Error())
-		return ctrl.Result{}, err
-	}
-	err = setStatus(ctx, irec, ingress, ngrokEdge.ID)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to set status", err.Error())
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, setEdgeId(ctx, irec, ingress, ngrokEdge)
 }
 
 // Create a new controller using our reconciler and set it up with the manager

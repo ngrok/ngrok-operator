@@ -121,6 +121,9 @@ func (nc ngrokAPIDriver) UpdateEdge(ctx context.Context, edgeSummary Edge) (*ngr
 	if err != nil {
 		return nil, err
 	}
+	if existingEdge == nil {
+		return nil, fmt.Errorf("edge %s does not exist", edgeSummary.Id)
+	}
 
 	// For now, we only support 1 hostport so anytime we have more or less than 1, something is different
 	hostPortsDifferent := len(*existingEdge.Hostports) != 1 || (*existingEdge.Hostports)[0] != edgeSummary.Hostport
@@ -141,7 +144,7 @@ func (nc ngrokAPIDriver) UpdateEdge(ctx context.Context, edgeSummary Edge) (*ngr
 	// for each thats in our list but not remote, create it
 	// if it is in our list, then all its attributes match so ignore it
 	// TODO: also check for route modules at this point
-	return nil, nil
+	return existingEdge, nil
 }
 
 // DeleteEdge deletes the edge and routes but doesn't delete reserved domains
