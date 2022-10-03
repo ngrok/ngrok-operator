@@ -3,7 +3,7 @@ kind: Ingress
 metadata:
   name: route-modules
   annotations:
-    ngrok.ingress.kubernetes.io/http-compression: true
+    ngrok.ingress.kubernetes.io/https-compression: true
 spec:
   ingressClassName: ngrok
   rules:
