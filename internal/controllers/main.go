@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ngrok/ngrok-api-go/v4"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -99,6 +100,23 @@ func getIngress(ctx context.Context, c client.Client, namespacedName types.Names
 	}
 
 	return ingress, nil
+}
+
+func setEdgeId(ctx context.Context, irec *IngressReconciler, ingress *netv1.Ingress, ngrokEdge *ngrok.HTTPSEdge) error {
+	irec.Recorder.Event(ingress, v1.EventTypeNormal, "CreatedEdge", "Created edge "+ngrokEdge.ID)
+	ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] = ngrokEdge.ID
+
+	err := irec.Update(ctx, ingress)
+	if err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update ingress", err.Error())
+		return err
+	}
+	err = setStatus(ctx, irec, ingress, ngrokEdge.ID)
+	if err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to set status", err.Error())
+		return err
+	}
+	return nil
 }
 
 // Sets the hostname that the tunnel is accessible on to the ingress object status

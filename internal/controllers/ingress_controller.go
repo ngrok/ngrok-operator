@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v4"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -70,16 +69,17 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Else its being created or updated
 	// Check for a saved edge-id to do a lookup instead of a create
 	if ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] != "" {
-		_, err := irec.NgrokAPIDriver.FindEdge(ctx, ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"])
-		if err == nil {
-			irec.Recorder.Event(ingress, v1.EventTypeWarning, "EdgeExists", "Edge already exists")
-			// TODO: Provide update functionality. Right now, its create/delete
-			return irec.UpdateIngress(ctx, *edge, ingress)
-		}
-		if !ngrok.IsNotFound(err) {
-			irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to find edge", err.Error())
+		foundEdge, err := irec.NgrokAPIDriver.FindEdge(ctx, ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"])
+		if err != nil {
 			return ctrl.Result{}, err
 		}
+		// If the edge isn't found, we need to create it
+		if foundEdge == nil {
+			return irec.CreateIngress(ctx, *edge, ingress)
+		}
+		// Otherwise, we found the edge, so update it
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "EdgeExists", "Edge already exists")
+		return irec.UpdateIngress(ctx, *edge, ingress)
 	}
 	// Otherwise, create it!
 	return irec.CreateIngress(ctx, *edge, ingress)
@@ -97,9 +97,12 @@ func (irec *IngressReconciler) DeleteIngress(ctx context.Context, edge ngrokapid
 }
 
 func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
-	// TODO: Provide update functionality. Right now, its create/delete
-	// return ctrl.Result{}, ir.NgrokAPIDriver.UpdateEdge(ctx, foundEdge)
-	return ctrl.Result{}, nil
+	ngrokEdge, err := irec.NgrokAPIDriver.UpdateEdge(ctx, edge)
+	if err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update edge", err.Error())
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, setEdgeId(ctx, irec, ingress, ngrokEdge)
 }
 
 func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
@@ -109,20 +112,7 @@ func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge ngrokapid
 		return ctrl.Result{}, err
 	}
 
-	irec.Recorder.Event(ingress, v1.EventTypeNormal, "CreatedEdge", "Created edge "+ngrokEdge.ID)
-	ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] = ngrokEdge.ID
-
-	err = irec.Update(ctx, ingress)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update ingress", err.Error())
-		return ctrl.Result{}, err
-	}
-	err = setStatus(ctx, irec, ingress, ngrokEdge.ID)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to set status", err.Error())
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, setEdgeId(ctx, irec, ingress, ngrokEdge)
 }
 
 // Create a new controller using our reconciler and set it up with the manager
