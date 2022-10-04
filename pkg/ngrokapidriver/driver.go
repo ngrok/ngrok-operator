@@ -103,9 +103,8 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 		if err != nil {
 			return nil, err
 		}
-
 		// Create Route
-		_, err = napi.routes.Create(ctx, &ngrok.HTTPSEdgeRouteCreate{
+		edgeRouteCreate := ngrok.HTTPSEdgeRouteCreate{
 			EdgeID:      newEdge.ID,
 			MatchType:   route.MatchType,
 			Match:       route.Match,
@@ -114,7 +113,27 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 			Backend: &ngrok.EndpointBackendMutate{
 				BackendID: backend.ID,
 			},
-		})
+		}
+
+		// TODO: This is a shortcut and should be replaced
+		if route.Compression {
+			edgeRouteCreate.Compression = &ngrok.EndpointCompression{}
+		}
+
+		if route.GoogleOAuth.ClientID != "" {
+			edgeRouteCreate.OAuth = &ngrok.EndpointOAuth{
+				Provider: ngrok.EndpointOAuthProvider{
+					Google: &ngrok.EndpointOAuthGoogle{
+						ClientID:     &route.GoogleOAuth.ClientID,
+						ClientSecret: &route.GoogleOAuth.ClientSecret,
+						Scopes:       route.GoogleOAuth.Scopes,
+						EmailDomains: route.GoogleOAuth.EmailDomains,
+					},
+				},
+			}
+		}
+
+		_, err = napi.routes.Create(ctx, &edgeRouteCreate)
 		if err != nil {
 			return nil, err
 		}

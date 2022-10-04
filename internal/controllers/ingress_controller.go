@@ -33,6 +33,7 @@ type IngressReconciler struct {
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses/status,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingressclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 // This reconcile function is called by the controller-runtime manager.
 // It is invoked whenever there is an event that occurs for a resource
@@ -56,7 +57,7 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	edge, err := ingressToEdge(ctx, ingress)
+	edge, err := irec.ingressToEdge(ctx, ingress)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to convert ingress to edge", err.Error())
 		return ctrl.Result{}, err
@@ -167,7 +168,7 @@ func (irec *IngressReconciler) LogicalEdgeNamespace(ctx context.Context) (string
 }
 
 // Converts a k8s Ingress Rule to and Ngrok Route configuration.
-func routesPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) ([]ngrokapidriver.Route, error) {
+func (irec *IngressReconciler) routesPlanner(ctx context.Context, rule netv1.IngressRuleValue, ingressName, namespace string, annotations map[string]string) ([]ngrokapidriver.Route, error) {
 	var matchType string
 	var ngrokRoutes []ngrokapidriver.Route
 
@@ -182,11 +183,25 @@ func routesPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) (
 		default:
 			return nil, fmt.Errorf("unsupported path type: %v", httpIngressPath.PathType)
 		}
-		ngrokRoutes = append(ngrokRoutes, ngrokapidriver.Route{
+
+		route := ngrokapidriver.Route{
 			Match:     httpIngressPath.Path,
 			MatchType: matchType,
 			Labels:    backendToLabelMap(httpIngressPath.Backend, ingressName, namespace),
-		})
+		}
+
+		// TODO: This should be replaced, see TODO at top of route_modules.go
+		if annotationsToCompression(annotations) {
+			route.Compression = true
+		}
+
+		if oauth, err := irec.annotationsToOauth(ctx, annotations); err != nil {
+			return nil, fmt.Errorf("error configuriong OAuth: %q", err)
+		} else if oauth != nil {
+			route.GoogleOAuth = *oauth
+		}
+
+		ngrokRoutes = append(ngrokRoutes, route)
 	}
 
 	return ngrokRoutes, nil
@@ -194,9 +209,11 @@ func routesPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) (
 
 // Converts a k8s ingress object into an Ngrok Edge with all its configurations and sub-resources
 // TODO: Support multiple Rules per Ingress
-func ingressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
+func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
+	annotations := ingress.ObjectMeta.GetAnnotations()
 	ingressRule := ingress.Spec.Rules[0]
-	ngrokRoutes, err := routesPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
+
+	ngrokRoutes, err := irec.routesPlanner(ctx, ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace, annotations)
 	if err != nil {
 		return nil, err
 	}
