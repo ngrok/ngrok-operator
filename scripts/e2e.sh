@@ -10,7 +10,7 @@ kubectl config set-context --current --namespace=$namespace
 echo "~~~ Cleaning up previous deploy of examples"
 for example in $(ls -d examples/*)
 do
-    kubectl delete -k $example --ignore-not-found --wait=false
+    kubectl delete -k $example --ignore-not-found --wait=false || true
 done
 sleep 5
 
