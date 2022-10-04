@@ -12,117 +12,83 @@ spec:
         pathType: Exact
         backend:
           service:
-            name: nginx-multi-path-default
+            name: http-echo-svc
             port:
               number: 80
       - path: /path2
         pathType: Prefix
         backend:
           service:
-            name: nginx-multi-path-path2
+            name: http-echo-path2-svc
             port:
               number: 80
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-multi-path-default
+  name: http-echo-deploy
 spec:
   selector:
     matchLabels:
-      app: nginx-multi-path-default-app
+      app: http-echo-app
   replicas: 2
   template:
     metadata:
       labels:
-        app: nginx-multi-path-default-app
+        app: http-echo-app
     spec:
       containers:
-      - name: nginx-multi-path-default
-        image: nginx
+      - name: http-echo
+        image: mendhak/http-https-echo:24
         ports:
-        - containerPort: 80
+        - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-multi-path-default
+  name: http-echo-svc
   labels:
-    app: nginx-multi-path-default-app
+    app: http-echo-app
 spec:
   ports:
   - name: http
     port: 80
     protocol: TCP
-    targetPort: 80
+    targetPort: 8080
   selector:
-    app: nginx-multi-path-default-app
+    app: http-echo-app
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-multi-path-path2
+  name: http-echo-path2-deploy
 spec:
   selector:
     matchLabels:
-      app: nginx-multi-path-path2-app
+      app: http-echo-path2-app
   replicas: 2
   template:
     metadata:
       labels:
-        app: nginx-multi-path-path2-app
+        app: http-echo-path2-app
     spec:
       containers:
-      - name: nginx-multi-path-path2
-        image: nginx
+      - name: http-echo-path2
+        image: mendhak/http-https-echo:24
         ports:
-        - containerPort: 80
-        volumeMounts:
-           - name: nginx-conf
-             mountPath: /etc/nginx/nginx.conf
-             subPath: nginx.conf
-             readOnly: true
-      volumes:
-      - name: nginx-conf
-        configMap:
-          name: nginx-conf-path2
-          items:
-            - key: nginx.conf
-              path: nginx.conf
+        - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-multi-path-path2
+  name: http-echo-path2-svc
   labels:
-    app: nginx-multi-path-path2-app
+    app: http-echo-path2-app
 spec:
   ports:
   - name: http
     port: 80
     protocol: TCP
-    targetPort: 80
+    targetPort: 8080
   selector:
-    app: nginx-multi-path-path2-app
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nginx-conf-path2
-data:
-  nginx.conf: |
-    user nginx;
-    worker_processes  1;
-    events {
-      worker_connections  10240;
-    }
-    http {
-      server {
-        listen       80;
-        server_name  localhost;
-        location /path2/ {
-            alias  /usr/share/nginx/html/;
-            index  index.html index.htm;
-        }
-      }
-    }
+    app: http-echo-path2-app
