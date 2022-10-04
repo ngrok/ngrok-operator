@@ -3,7 +3,11 @@ kind: Ingress
 metadata:
   name: route-modules
   annotations:
-    ngrok.ingress.kubernetes.io/https-compression: true
+    k8s.ngrok.com/https-compression: true
+    k8s.ngrok.com/https-oauth.secret-name: ngrok-corp-ingress-oauth-credentials
+    k8s.ngrok.com/https-oauth.provider: google
+    k8s.ngrok.com/https-oauth.scopes: https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/userinfo.profile
+    k8s.ngrok.com/https-oauth.allow-domains: ngrok.com
 spec:
   ingressClassName: ngrok
   rules:
