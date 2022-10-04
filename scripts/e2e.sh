@@ -43,7 +43,7 @@ make deploy
 echo "--- Deploying examples"
 for example in $(ls -d examples/*)
 do
-    kubectl apply -k $example
+    kubectl apply -k $example || true
 done
 sleep 30
 
