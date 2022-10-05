@@ -1,50 +1,119 @@
+<!-- [![][ngrok-logo]][ngrok-url] -->
+<p align="center">
+  <img src="docs/images/ngrok-blue-lrg.png" alt="Ngrok Logo" width="500" />
+  <img src="docs/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="250" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/ngrok/ngrok-ingress-controller/actions?query=branch%3Amain+event%3Apush">
+      <img src="https://github.com/ngrok/ngrok-ingress-controller/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
+  </a>
+  <!-- TODO: Add badges for things like docker build status, image pulls, helm build status, latest stable release version, etc -->
+</p>
+<p align="center">
+  <a href="https://github.com/ngrok/ngrok-ingress-controller/blob/master/LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"/>
+  </a>
+  <a href="#features-and-alpha-status">
+    <img src="https://img.shields.io/badge/Status-Alpha-orange.svg" alt="Status"/>
+  </a>
+  <a href="https://ngrok.com/slack">
+    <img src="https://img.shields.io/badge/Join%20Our%20Community-Slack-blue" alt="Slack"/>
+  </a>
+  <a href="https://twitter.com/intent/follow?screen_name=ngrokHQ">
+    <img src="https://img.shields.io/twitter/follow/ngrokHQ.svg?style=social&label=Follow" alt="Twitter"/>
+  </a>
+</p>
+
+
+
 # Ngrok Ingress Controller
 
-This is a general purpose [kubernetes ingress controller](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/) that uses ngrok.
+This is a general purpose [kubernetes ingress controller](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/) provides to workloads running in a kubernetes cluster with a public URL via [ngrok](https://ngrok.com/). It dynamically provisions and deprovisions multiple highly available Ngrok [tunnels](https://ngrok.com/docs/secure-tunnels#labeled-tunnels) and [edges](https://ngrok.com/docs/secure-tunnels#integrating-with-cloud-edge) as ingress resources are created and deleted.
+
+## Features and Alpha Status
+
+This project is currently in alpha status. It is not yet recommended for production use. The following features are currently supported:
+* Create, update, and delete ingress objects and have their corresponding tunnels and edges to be updated in response.
+* Install via Helm
+* Supports multiple routes, BUT ONLY ONE host per ingress object at this time.
+* MUST have a pro account to use this controller. The controller will not work with a free account right now as it requires the usage of Ngrok Edges.
+
+### Looking Forward
+
+An official roadmap is coming soon. In the meantime, here are some of the features we are working on:
+* Stability and HA testing and improvements. Especially during ingress updates, or controller rollouts.
+* Support for multiple hosts per ingress object.
+* Support for all of Ngrok's Edge Modules such as [Oauth](https://ngrok.com/docs/api#api-edge-route-o-auth-module)
+* Free tier support
 
 
-TOOD:
-* Generate a unique name for the controller installation.
-* ci to run make commands and then diff at end to make sure anything generated and checked in is all good
-* perhaps use https://book.kubebuilder.io/component-config-tutorial/tutorial.html instead of a normal config map for agent configs
-* helm lint
-* setup filters https://stuartleeks.com/posts/kubebuilder-event-filters-part-1-delete/
-* handle multiple namespaces
-  * flexing what namespace the controller is installed in
-* handle ingress with multiple rules and hosts
-* make the health/ready checks run the `ngrok diagnose` command or ping the container tunnels endpoint to make sure its healthy
-* user can supply their own metadata
-* setup unit tests for go
-* make it work with a free account
+## Getting Started
 
-## Prerequisites
+Get your [Ngrok API Key](https://ngrok.com/docs/api#authentication) and [Ngrok Auth Token](https://dashboard.ngrok.com/) and export them as environment variables
+
+  ```bash
+export NGROK_API_KEY=<YOUR Secret API KEY>
+export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
+  ```
+
+Create a namespace for the controller to run in
+
+```bash
+kubectl create namespace ngrok-ingress-controller
+kubectl config set-context --current --namespace=ngrok-ingress-controller
+```
+
+Create a secret with your API key and Auth Token
+
+```bash
+kubectl create secret generic ngrok-ingress-controller-secrets \
+  --from-literal=api-key=$NGROK_API_KEY \
+  --from-literal=auth-token=$NGROK_AUTHTOKEN
+```
+Install via Helm:
+See [Helm Chart](./helm/ingress-controller/README.md#install-the-controller-with-helm)
+
+
+## Documentation
+
+<!-- TODO: https://ngrok.com/docs/ngrok-ingress-controller -->
+  <img src="./docs/images/Under-Construction-Sign.png" alt="Kubernetes logo" width="350" />
+
+
+## Local Development
+
+Ensure you have the following prerequisites installed:
 
 * [Go 1.19](https://go.dev/dl/)
 * [Helm](https://helm.sh/docs/intro/install/)
-* A k8s cluster is available via your kubectl client. Right now, I'm just using our ngrok local cluster.
+* A k8s cluster is available via your kubectl client. This can be a remote cluster or a local cluster like [minikube](https://minikube.sigs.k8s.io/docs/start/)
+  * NOTE: Depending on your cluster, you may have to take additional steps to make the image available. For example with minikube, you may need to run `eval $(minikube docker-env)` to make the image available to the cluster.
 
-## Setup
+### Setup
 
-1. Build the Ngrok Ingress Controller:
-    * `make build`
-2. Build Docker image for the Ngrok Ingress Controller:
-    * `make docker-build`
-    * **NOTE:** depending on how you are running your local k8s cluster, you may need to make the image available in its registry
-* Create the `ngrok-ingress-controller` Kubernetes namespace:
-    * `kubectl create namespace ngrok-ingress-controller`
-* Configure `kubectl` to use this namespace by default:
-    * `kubectl config set-context --current --namespace=ngrok-ingress-controller`
-* Create a k8s secret with an auth token:
-    * `kubectl create secret generic ngrok-ingress-controller-credentials --from-literal=AUTHTOKEN=YOUR-TOKEN --from-literal=API_KEY=YOUR-API-KEY`
-* Deploy the Ngrok Ingress Controller:
-    * `make deploy`
+```sh
+export NGROK_API_KEY=<YOUR Secret API KEY>
+export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
+# kubectl can connect to your cluster and images built locally are available to the cluster
+kubectl create namespace ngrok-ingress-controller
+kubectl config set-context --current --namespace=ngrok-ingress-controller
+kubectl create secret generic ngrok-ingress-controller-credentials \
+  --from-literal=API_KEY=$NGROK_API_KEY  \
+  --from-literal=AUTHTOKEN=$NGROK_AUTHTOKEN
 
-## Setup Auth
+make deploy
+```
 
-* assumes a k8s secret named `ngrok-ingress-controller-credentials` exists with the following keys:
-  * NGROK_AUTHTOKEN
-  * NGROK_API_KEY
-* For now, its a hard requirement. Maybe a fully unauth flow for a 1 line hello world would be nice.
+### Auth and Credentials
+
+The controller assumes a k8s secret named `ngrok-ingress-controller-credentials` exists with the following keys:
+  * AUTHTOKEN
+  * API_KEY
+
+The name can technically be changed via a helm value, but for now its required while we still use edges and edges are a pro feature.
+
+Example:
 
 ```yaml
 apiVersion: v1
@@ -59,6 +128,7 @@ data:
 
 ## How to Configure the Agent
 
+> Warnging: This will be deprecated soon when moving to the new lib-ngrok library
 * assumes configs will be in a config map named `ngrok-ingress-controller-agent-cm` in the same namespace
 * setup automatically via helm. Values and config map name can be configured in the future via helm
 * subset of these that should be configurable https://ngrok.com/docs/ngrok-agent/config#config-full-example
@@ -86,3 +156,10 @@ Then, you need to update the `value` field in that new file.
 
 You can then apply the given example via `kubectl apply -k examples/<example in question>`, i.e.
 `kubectl apply -k examples/hello-world-ingess`.
+
+## E2E Tests
+
+If you run the script `./scripts/e2e.sh` it will run the e2e tests against your current kubectl context. These tests tear down any existing ingress controller and examples, re-installs them, and then runs the tests. It creates a set of different ingresses and verifies that they all behave as expected
+
+[ngrok-url]: https://ngrok.com
+[ngrok-logo]: ./docs/images/ngrok-blue-lrg.png
