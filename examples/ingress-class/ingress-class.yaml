@@ -12,7 +12,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: nginx
+            name: http-echo-svc
             port:
               number: 80
 ---
@@ -30,7 +30,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: nginx
+            name: http-echo-svc
             port:
               number: 80
 ---
