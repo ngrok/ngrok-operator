@@ -23,5 +23,6 @@ testbin/*
 *.swo
 *~
 .vscode
+.DS_Store
 
 examples/*/config*.yaml
