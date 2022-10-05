@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - mschenck/12685/publish-docker-image
       # TODO: Should be scoped to tag pushes eventually
 
 jobs:
