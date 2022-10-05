@@ -1,7 +1,10 @@
-<!-- [![][ngrok-logo]][ngrok-url] -->
 <p align="center">
-  <img src="docs/images/ngrok-blue-lrg.png" alt="Ngrok Logo" width="500" />
+  <a href="https://ngrok.com">
+    <img src="docs/images/ngrok-blue-lrg.png" alt="Ngrok Logo" width="500" url="https://ngrok.com" />
+  </a>
+  <a href="https://kubernetes.io/">
   <img src="docs/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="250" />
+  </a>
 </p>
 
 <p align="center">
