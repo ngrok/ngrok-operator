@@ -114,7 +114,7 @@ The controller assumes a k8s secret named `ngrok-ingress-controller-credentials`
   * AUTHTOKEN
   * API_KEY
 
-The name can technically be changed via a helm value, but for now its required while we still use edges and edges are a pro feature.
+The name can technically be changed via a helm value, but for now its required while we still use ngrok Cloud Edges and Edges are a pro feature.
 
 Example:
 
@@ -131,7 +131,7 @@ data:
 
 ## How to Configure the Agent
 
-> Warnging: This will be deprecated soon when moving to the new lib-ngrok library
+> Warning: This will be deprecated soon when moving to the new lib-ngrok library
 * assumes configs will be in a config map named `ngrok-ingress-controller-agent-cm` in the same namespace
 * setup automatically via helm. Values and config map name can be configured in the future via helm
 * subset of these that should be configurable https://ngrok.com/docs/ngrok-agent/config#config-full-example
@@ -151,7 +151,7 @@ data:
 ```
 
 ## Using the Examples
-Several examples are provided in the [`examples` folder](./examples).  To use a given example, make a copy of the given `EXAMPLE*config.yaml` in the same directory, like this:
+Several examples are provided in the [`examples` folder](./examples).  To use an example, make a copy of the included `EXAMPLE*config.yaml` in the same directory, like this:
 - `cp examples/hello-world-ingress/EXAMPLE-config.yaml examples/hello-world-ingress/config.yaml`
 - `cp examples/ingress-class/EXAMPLE-config-different.yaml examples/ingress-class/config-different.yaml`
 
