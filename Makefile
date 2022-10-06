@@ -91,6 +91,10 @@ docker-build: test ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
+.PHONY: helm-package
+helm-package: ## package helm chart
+	helm package helm/ingress-controller
+
 ##@ Deployment
 
 ifndef ignore-not-found
