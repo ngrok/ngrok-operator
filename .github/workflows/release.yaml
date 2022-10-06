@@ -58,3 +58,4 @@ jobs:
           charts_dir: helm/ingress-controller
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CR_SKIP_EXISTING: false
