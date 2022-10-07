@@ -59,15 +59,11 @@ jobs:
           version: "${{ steps.helm_chart.outputs.version }}"
 
       - name: Update Chart version
-        id: replace
         uses: jacobtomlinson/gha-find-replace@v2
         with:
           include: "helm/ingress-controller/Chart.yaml"
           find: '(?m)^version: .*$'
           replace: "version: ${{ steps.next_version.outputs.patch }}"
-
-      - name: debugging
-        run: echo "::debug::Number of files changes '${{ steps.replace.outputs.modifiedFiles }}'"
 
       - name: Commit Chart.yaml version bump
         uses: stefanzweifel/git-auto-commit-action@v4
