@@ -70,7 +70,7 @@ kubectl config set-context --current --namespace=ngrok-ingress-controller
 Create a secret with your API key and Auth Token
 
 ```bash
-kubectl create secret generic ngrok-ingress-controller-secrets \
+kubectl create secret generic ngrok-ingress-controller-credentials \
   --from-literal=api-key=$NGROK_API_KEY \
   --from-literal=auth-token=$NGROK_AUTHTOKEN
 ```
