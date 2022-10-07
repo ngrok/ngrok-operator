@@ -32,9 +32,50 @@ jobs:
           context: .
           push: true
           tags: ngrok/ngrok-ingress-controller:latest
-    
-  helm_release:
+
+  helm_bump_version:
     needs: docker_release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Read Helm Chart Version
+        id: helm_chart
+        uses: jacobtomlinson/gha-read-helm-chart@master
+        with:
+          path: helm/ingress-controller
+
+      - name: Increment Semver Patch-level
+        id: next_version
+        uses: "WyriHaximus/github-action-next-semvers@v1"
+        with:
+          version: "${{ steps.helm_chart.outputs.version }}"
+
+      - name: Update Chart version
+        id: replace
+        uses: jacobtomlinson/gha-find-replace@v2
+        with:
+          include: "helm/ingress-controller/Chart.yaml"
+          find: '(?m)^version: .*$'
+          replace: "version: ${{ steps.next_version.outputs.patch }}"
+
+      - name: debugging
+        run: echo "::debug::Number of files changes '${{ steps.replace.outputs.modifiedFiles }}'"
+
+      - name: Commit Chart.yaml version bump
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Increment (patch-level) chart version
+
+  helm_release:
+    needs: helm_bump_version
     runs-on: ubuntu-latest
 
     steps:
