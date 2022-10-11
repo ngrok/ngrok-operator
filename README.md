@@ -71,8 +71,8 @@ Create a secret with your API key and Auth Token
 
 ```bash
 kubectl create secret generic ngrok-ingress-controller-credentials \
-  --from-literal=api-key=$NGROK_API_KEY \
-  --from-literal=auth-token=$NGROK_AUTHTOKEN
+  --from-literal=API_KEY=$NGROK_API_KEY \
+  --from-literal=AUTHTOKEN=$NGROK_AUTHTOKEN
 ```
 Install via Helm:
 See [Helm Chart](./helm/ingress-controller/README.md#install-the-controller-with-helm)
