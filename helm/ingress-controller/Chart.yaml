@@ -2,7 +2,7 @@ apiVersion: v2
 name: ngrok-ingress-controller
 description: A Kubernetes ingress controller built using Ngrok.
 # kubeVersion: TODO: check ingress spec for minimum version we need
-version: 0.1.0
+version: 0.1.1
 appVersion: 0.1.0
 keywords:
   - ngrok
