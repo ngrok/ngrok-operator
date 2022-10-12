@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -30,9 +31,9 @@ import (
 
 	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
+	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -40,61 +41,82 @@ import (
 	//+kubebuilder:scaffold:imports
 )
 
-var (
-	scheme        = runtime.NewScheme()
-	setupLog      = ctrl.Log.WithName("setup")
-	configMapName = "ngrok-ingress-controller"
-	namespace     string
-	ngrokApiKey   string
-)
+const configMapName = "ngrok-ingress-controller"
+
+var log = ctrl.Log.WithName("setup")
 
 func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
-	podNamespace, ok := os.LookupEnv("POD_NAMESPACE")
-	if !ok {
-		panic("POD_NAMESPACE is not set")
-	}
-	namespace = podNamespace
-
-	k, ok := os.LookupEnv("NGROK_API_KEY")
-	if !ok {
-		panic("NGROK_API_KEY is not set")
-	}
-	ngrokApiKey = k
-
 	//+kubebuilder:scaffold:scheme
 }
 
 func main() {
-	ctx := context.Background()
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
-	opts := zap.Options{
-		Development: true,
+	if err := cmd().Execute(); err != nil {
+		log.Error(err, "error running manager")
+		os.Exit(1)
 	}
-	opts.BindFlags(flag.CommandLine)
-	flag.Parse()
+}
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+type managerOpts struct {
+	// flags
+	metricsAddr          string
+	enableLeaderElection bool
+	probeAddr            string
+	zapOpts              *zap.Options
+
+	// env vars
+	namespace   string
+	ngrokAPIKey string
+}
+
+func cmd() *cobra.Command {
+	var opts managerOpts
+	c := &cobra.Command{
+		Use: "manager",
+		RunE: func(c *cobra.Command, args []string) error {
+			return runController(c.Context(), opts)
+		},
+	}
+
+	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
+	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	c.Flags().BoolVar(&opts.enableLeaderElection, "leader-elect", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	opts.zapOpts = &zap.Options{Development: true}
+	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
+	opts.zapOpts.BindFlags(goFlagSet)
+	c.Flags().AddGoFlagSet(goFlagSet)
+
+	return c
+}
+
+func runController(ctx context.Context, opts managerOpts) error {
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		return err
+	}
+
+	var ok bool
+	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
+	if !ok {
+		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
+	}
+
+	opts.ngrokAPIKey, ok = os.LookupEnv("NGROK_API_KEY")
+	if !ok {
+		return errors.New("NGROK_API_KEY environment variable should be set, but was not")
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
+		MetricsBindAddress:     opts.metricsAddr,
 		Port:                   9443,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
+		HealthProbeBindAddress: opts.probeAddr,
+		LeaderElection:         opts.enableLeaderElection,
 		LeaderElectionID:       "3792108b.ngrok.io",
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
 	if err := (&controllers.IngressReconciler{
@@ -102,11 +124,10 @@ func main() {
 		Log:            ctrl.Log.WithName("controllers").WithName("ingress"),
 		Scheme:         mgr.GetScheme(),
 		Recorder:       mgr.GetEventRecorderFor("ingress-controller"),
-		Namespace:      namespace,
-		NgrokAPIDriver: ngrokapidriver.NewNgrokApiClient(ngrokApiKey),
+		Namespace:      opts.namespace,
+		NgrokAPIDriver: ngrokapidriver.NewNgrokApiClient(opts.ngrokAPIKey),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ingress")
-		os.Exit(1)
+		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
 
 	if err := (&controllers.TunnelReconciler{
@@ -115,35 +136,32 @@ func main() {
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("tunnel-controller"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "tunnel")
-		os.Exit(1)
+		return fmt.Errorf("unable to create tunnel controller: %w", err)
 	}
 
 	// Can query for config maps like this.
 	// For controller level configs, this may be the recommended way though https://book.kubebuilder.io/reference/markers.html
 	// We can't use this though to write config maps, and the mgr.GetClient() doesn't work because the cache isn't initialized
 	config := &v1.ConfigMap{}
-	if err := mgr.GetAPIReader().Get(ctx, types.NamespacedName{Name: configMapName, Namespace: namespace}, config); client.IgnoreNotFound(err) != nil {
-		setupLog.Error(err, fmt.Sprintf("error getting config map named '%s'", configMapName))
-		os.Exit(1)
+	if err := mgr.GetAPIReader().Get(ctx, types.NamespacedName{Name: configMapName, Namespace: opts.namespace}, config); client.IgnoreNotFound(err) != nil {
+		return err
 	} else {
-		setupLog.Info(fmt.Sprintf("Found config map named '%s' %+v", configMapName, config))
+		log.Info(fmt.Sprintf("Found config map named %q %+v", configMapName, config))
 	}
 
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
+		return fmt.Errorf("error setting up health check: %w", err)
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
+		return fmt.Errorf("error setting up readyz check: %w", err)
 	}
 
-	setupLog.Info("starting manager")
+	log.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+		return fmt.Errorf("error starting manager: %w", err)
 	}
+
+	return nil
 }

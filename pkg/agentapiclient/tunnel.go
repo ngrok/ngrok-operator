@@ -9,44 +9,51 @@ import (
 	"time"
 )
 
-const tunnelApiUrl = "http://localhost:4040/api/tunnels"
+const tunnelAPIURL = "http://localhost:4040/api/tunnels"
 
-type AgentApiClient interface {
-	CreateTunnel(ctx context.Context, t TunnelsApiBody) error
+type AgentAPIClient interface {
+	CreateTunnel(ctx context.Context, t TunnelsAPIBody) error
 	DeleteTunnel(ctx context.Context, name string) error
 }
 
-type agentApiClient struct {
+type agentAPIClient struct {
 	client *http.Client
 }
 
-func NewAgentApiClient() AgentApiClient {
-	return &agentApiClient{
-		client: &http.Client{Timeout: time.Duration(1) * time.Second},
+func NewAgentApiClient() AgentAPIClient {
+	return agentAPIClient{
+		client: &http.Client{Timeout: 1 * time.Second},
 	}
 }
 
-func (ac agentApiClient) CreateTunnel(_ context.Context, t TunnelsApiBody) error {
-	resp, err := ac.client.Get(tunnelApiUrl + "/" + t.Name)
+func (ac agentAPIClient) CreateTunnel(ctx context.Context, t TunnelsAPIBody) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tunnelAPIURL+"/"+t.Name, nil)
 	if err != nil {
 		return err
 	}
-	if resp.Status != "404 Not Found" {
-		// we found the tunnel so skip
+	resp, err := ac.client.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 404 {
 		return nil
 	}
 
-	myJson, err := json.Marshal(t)
+	body, err := json.Marshal(t)
 	if err != nil {
 		return err
 	}
-
-	_, err = ac.client.Post(tunnelApiUrl, "application/json", bytes.NewBuffer(myJson))
+	req, err = http.NewRequestWithContext(ctx, http.MethodPost, tunnelAPIURL, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	_, err = ac.client.Do(req)
 	return err
 }
 
-func (ac agentApiClient) DeleteTunnel(_ context.Context, name string) error {
-	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/%s", tunnelApiUrl, name), nil)
+func (ac agentAPIClient) DeleteTunnel(ctx context.Context, name string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, fmt.Sprintf("%s/%s", tunnelAPIURL, name), nil)
 	if err != nil {
 		return err
 	}
@@ -54,7 +61,7 @@ func (ac agentApiClient) DeleteTunnel(_ context.Context, name string) error {
 	return err
 }
 
-type TunnelsApiBody struct {
+type TunnelsAPIBody struct {
 	Addr      string   `json:"addr"`
 	Name      string   `json:"name"`
 	SubDomain string   `json:"subdomain,omitempty"`
