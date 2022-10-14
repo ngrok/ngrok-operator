@@ -15,6 +15,3 @@ type Route struct {
 	Modules   []any
 	Labels    map[string]string
 }
-
-type Module interface {
-}

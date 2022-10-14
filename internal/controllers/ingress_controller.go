@@ -64,7 +64,7 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	// The object is being deleted
 	if !ingress.ObjectMeta.DeletionTimestamp.IsZero() && controllerutil.ContainsFinalizer(ingress, finalizerName) {
-		return irec.DeleteIngress(ctx, *edge, ingress)
+		return irec.DeleteIngress(ctx, edge, ingress)
 	}
 	// Else its being created or updated
 	// Check for a saved edge-id to do a lookup instead of a create
@@ -75,17 +75,17 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		// If the edge isn't found, we need to create it
 		if foundEdge == nil {
-			return irec.CreateIngress(ctx, *edge, ingress)
+			return irec.CreateIngress(ctx, edge, ingress)
 		}
 		// Otherwise, we found the edge, so update it
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "EdgeExists", "Edge already exists")
-		return irec.UpdateIngress(ctx, *edge, ingress)
+		return irec.UpdateIngress(ctx, edge, ingress)
 	}
 	// Otherwise, create it!
-	return irec.CreateIngress(ctx, *edge, ingress)
+	return irec.CreateIngress(ctx, edge, ingress)
 }
 
-func (irec *IngressReconciler) DeleteIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
+func (irec *IngressReconciler) DeleteIngress(ctx context.Context, edge *ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
 	if err := irec.NgrokAPIDriver.DeleteEdge(ctx, edge); err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to delete edge", err.Error())
 		return ctrl.Result{}, err
@@ -96,7 +96,7 @@ func (irec *IngressReconciler) DeleteIngress(ctx context.Context, edge ngrokapid
 	return ctrl.Result{}, irec.Update(ctx, ingress)
 }
 
-func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
+func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge *ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
 	ngrokEdge, err := irec.NgrokAPIDriver.UpdateEdge(ctx, edge)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update edge", err.Error())
@@ -105,7 +105,7 @@ func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge ngrokapid
 	return ctrl.Result{}, setEdgeId(ctx, irec, ingress, ngrokEdge)
 }
 
-func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
+func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge *ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
 	ngrokEdge, err := irec.NgrokAPIDriver.CreateEdge(ctx, edge)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to create edge", err.Error())

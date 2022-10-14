@@ -2,8 +2,9 @@ package ngrokapidriver
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
+	"net"
 
 	"github.com/ngrok/ngrok-api-go/v4"
 	tgb "github.com/ngrok/ngrok-api-go/v4/backends/tunnel_group"
@@ -15,27 +16,27 @@ import (
 
 type NgrokAPIDriver interface {
 	FindEdge(ctx context.Context, id string) (*ngrok.HTTPSEdge, error)
-	CreateEdge(ctx context.Context, e Edge) (*ngrok.HTTPSEdge, error)
-	UpdateEdge(ctx context.Context, e Edge) (*ngrok.HTTPSEdge, error)
-	DeleteEdge(ctx context.Context, e Edge) error
+	CreateEdge(ctx context.Context, e *Edge) (*ngrok.HTTPSEdge, error)
+	UpdateEdge(ctx context.Context, e *Edge) (*ngrok.HTTPSEdge, error)
+	DeleteEdge(ctx context.Context, e *Edge) error
 	GetReservedDomains(ctx context.Context, edgeID string) ([]ngrok.ReservedDomain, error)
 }
 
 type ngrokAPIDriver struct {
-	edges           edge.Client
-	tgbs            tgb.Client
-	routes          edge_route.Client
-	reservedDomains reserved_domains.Client
+	edges           *edge.Client
+	tgbs            *tgb.Client
+	routes          *edge_route.Client
+	reservedDomains *reserved_domains.Client
 	metadata        string
 }
 
 func NewNgrokApiClient(apiKey string) NgrokAPIDriver {
 	config := ngrok.NewClientConfig(apiKey)
 	return &ngrokAPIDriver{
-		edges:           *edge.NewClient(config),
-		tgbs:            *tgb.NewClient(config),
-		routes:          *edge_route.NewClient(config),
-		reservedDomains: *reserved_domains.NewClient(config),
+		edges:           edge.NewClient(config),
+		tgbs:            tgb.NewClient(config),
+		routes:          edge_route.NewClient(config),
+		reservedDomains: reserved_domains.NewClient(config),
 		metadata:        "\"{\"owned-by\":\"ngrok-ingress-controller\"}\"",
 	}
 }
@@ -56,11 +57,14 @@ func (nc ngrokAPIDriver) FindEdge(ctx context.Context, id string) (*ngrok.HTTPSE
 // * tunnel group backends
 // * edge routes
 // * the edge itself
-func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary Edge) (*ngrok.HTTPSEdge, error) {
+func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*ngrok.HTTPSEdge, error) {
 	log := ctrl.LoggerFrom(ctx)
 	// TODO: Support multiple rules and multiple hostports
-	domain := strings.Split(edgeSummary.Hostport, ":")[0]
-	_, err := napi.reservedDomains.Create(ctx, &ngrok.ReservedDomainCreate{
+	domain, _, err := net.SplitHostPort(edgeSummary.Hostport)
+	if err != nil {
+		return nil, err
+	}
+	_, err = napi.reservedDomains.Create(ctx, &ngrok.ReservedDomainCreate{
 		Name:        domain,
 		Region:      "us", // TODO: Set this from user config
 		Description: "Created by ngrok-ingress-controller",
@@ -68,15 +72,19 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary Edge) (*n
 	})
 	// Swallow conflicts, just always try to create it and don't delete them upon ingress deletion
 	if err != nil {
-		if strings.Contains(err.Error(), "ERR_NGROK_413") || strings.Contains(err.Error(), "ERR_NGROK_7122") {
-			log.Info("Reserved domain already exists, skipping creation", "domain", domain)
-		} else {
-			return nil, err
+		var nerr *ngrok.Error
+		if errors.As(err, &nerr) {
+			switch nerr.ErrorCode {
+			case "ERR_NGROK_413", "ERR_NGROK_7122":
+				log.Info("Reserved domain already exists, skipping creation", "domain", domain)
+			default:
+				return nil, err
+			}
 		}
+		return nil, err
 	}
 
-	var newEdge *ngrok.HTTPSEdge
-	newEdge, err = napi.edges.Create(ctx, &ngrok.HTTPSEdgeCreate{
+	newEdge, err := napi.edges.Create(ctx, &ngrok.HTTPSEdgeCreate{
 		Hostports:   &[]string{edgeSummary.Hostport},
 		Description: "Created by ngrok-ingress-controller",
 		Metadata:    napi.metadata,
@@ -116,7 +124,7 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary Edge) (*n
 }
 
 // TODO: Implement this
-func (nc ngrokAPIDriver) UpdateEdge(ctx context.Context, edgeSummary Edge) (*ngrok.HTTPSEdge, error) {
+func (nc ngrokAPIDriver) UpdateEdge(ctx context.Context, edgeSummary *Edge) (*ngrok.HTTPSEdge, error) {
 	existingEdge, err := nc.FindEdge(ctx, edgeSummary.Id)
 	if err != nil {
 		return nil, err
@@ -148,7 +156,7 @@ func (nc ngrokAPIDriver) UpdateEdge(ctx context.Context, edgeSummary Edge) (*ngr
 }
 
 // DeleteEdge deletes the edge and routes but doesn't delete reserved domains
-func (nc ngrokAPIDriver) DeleteEdge(ctx context.Context, e Edge) error {
+func (nc ngrokAPIDriver) DeleteEdge(ctx context.Context, e *Edge) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("DeleteEdge", e.Id)
 	log.Info("Deleting edge")
 	edge, err := nc.FindEdge(ctx, e.Id)
@@ -183,22 +191,18 @@ func (nc ngrokAPIDriver) GetReservedDomains(ctx context.Context, edgeID string) 
 	}
 	hostPortDomains := []string{}
 	for _, hostport := range *edge.Hostports {
-		hostPortDomains = append(hostPortDomains, strings.Split(hostport, ":")[0])
+		domain, _, err := net.SplitHostPort(hostport)
+		if err != nil {
+			return nil, err
+		}
+		hostPortDomains = append(hostPortDomains, domain)
 	}
 
 	domainsItr := nc.reservedDomains.List(nil)
 	var matchingReservedDomains []ngrok.ReservedDomain
 	// Loop while there are more domains and check if they match any of the hostPortDomains. If so add it to the reservedDomains
-	for {
-		if !domainsItr.Next(ctx) {
-			err := domainsItr.Err()
-			if err != nil {
-				return nil, err
-			}
-			break
-		}
+	for domainsItr.Next(ctx) {
 		domain := domainsItr.Item()
-
 		for _, hostPortDomain := range hostPortDomains {
 			if domain.Domain == hostPortDomain {
 				matchingReservedDomains = append(matchingReservedDomains, *domain)
@@ -206,5 +210,5 @@ func (nc ngrokAPIDriver) GetReservedDomains(ctx context.Context, edgeID string) 
 		}
 	}
 
-	return matchingReservedDomains, nil
+	return matchingReservedDomains, domainsItr.Err()
 }
