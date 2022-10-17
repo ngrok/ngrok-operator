@@ -26,23 +26,6 @@ do
 done
 
 kubectl delete namespace $namespace --ignore-not-found
-kubectl create namespace $namespace
-
-# TODO: Error check for auth token or api token not being set as environment variables
-kubectl delete secret ngrok-ingress-controller-credentials --ignore-not-found
-
-
-echo "~~~ Creating ngrok secret"
-kubectl create secret generic ngrok-ingress-controller-credentials \
-  --from-literal=AUTHTOKEN=$NGROK_AUTHTOKEN \
-  --from-literal=API_KEY=$NGROK_API_KEY
-
-if [ "$GOOGLE_CLIENT_ID" != "" ]
-then
-  kubectl create secret generic ngrok-corp-ingress-oauth-credentials \
-    --from-literal=ClientID=$GOOGLE_CLIENT_ID \
-    --from-literal=ClientSecret=$GOOGLE_CLIENT_SECRET
-fi
 
 sleep 10
 
@@ -50,6 +33,12 @@ echo "--- Deploying ngrok-ingress-controller"
 make deploy
 
 echo "--- Deploying examples"
+if [ "$GOOGLE_CLIENT_ID" != "" ]
+then
+  kubectl create secret generic ngrok-corp-ingress-oauth-credentials \
+    --from-literal=ClientID=$GOOGLE_CLIENT_ID \
+    --from-literal=ClientSecret=$GOOGLE_CLIENT_SECRET
+fi
 for example in $(ls -d examples/*)
 do
     kubectl apply -k $example || true

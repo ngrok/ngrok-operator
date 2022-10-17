@@ -111,7 +111,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Port:                   9443,
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         true,
-		LeaderElectionID:       "3792108b.ngrok.io",
+		LeaderElectionID:       "ngrok-ingress-controller-leader",
 	})
 	if err != nil {
 		return fmt.Errorf("unable to start manager: %w", err)

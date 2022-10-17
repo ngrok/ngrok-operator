@@ -21,10 +21,10 @@ region: us
 
 # The name of the K8S secret that contains the credentials for the
 # ingress controller.
-credentialsSecretName:
+credentialsSecret:
   name: ngrok-ingress-controller-credentials
 apiKey: ""
-authToken: ""
+authtoken: ""
 
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious

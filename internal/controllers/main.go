@@ -17,6 +17,8 @@ import (
 )
 
 const finalizerName = "k8s.ngrok.com/finalizer"
+
+// The name of the ingress controller which is uses to match on ingress classes
 const controllerName = "k8s.ngrok.com/ingress-controller" // TODO: Let the user configure this
 
 // Checks to see if the ingress controller should do anything about
@@ -127,6 +129,7 @@ func setStatus(ctx context.Context, irec *IngressReconciler, ingress *netv1.Ingr
 	}
 
 	var hostName string
+	// TODO: This needs another solution as this domain may change
 	if strings.Contains(ingress.Spec.Rules[0].Host, ".ngrok.io") {
 		hostName = ingress.Spec.Rules[0].Host
 	} else {

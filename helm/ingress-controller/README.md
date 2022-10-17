@@ -42,7 +42,7 @@ TODO: These need descriptions. Perhaps we auto generate these via https://github
 | ingressClass | string | `"ngrok"` | The ingress class this controller will satisfy. If not specified, controller will match all ingresses without ingress class annotation and ingresses of type ngrok |
 | log | string | `"stdout"` | Agent log destination. |
 | region | string | `"us"` | ngrok region to create tunnels in. |
-| credentialSecretName | string | `"ngrok-ingress-controller-credentials"` | The name of the K8S secret that contains the credentials for the ingress controller. |
+| credentialsSecret.name | string | `"ngrok-ingress-controller-credentials"` | The name of the K8S secret that contains the credentials for the ingress controller. |
 | resources.limits.cpu | string | `"100m"` | The cpu limit for the controller |
 | resources.limits.memory | string | `"128Mi"` | The memory limit for the controller |
 | resources.requests.cpu | string | `"10m"` | The cpu request for the controller |

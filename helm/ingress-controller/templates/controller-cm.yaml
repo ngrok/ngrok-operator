@@ -13,5 +13,5 @@ data:
       bindAddress: 127.0.0.1:8080
     leaderElection:
       leaderElect: true
-      resourceName: 3792108b.k8s.ngrok.com
+      resourceName: ngrok-ingress-controller-leader
 

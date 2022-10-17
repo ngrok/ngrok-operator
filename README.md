@@ -59,23 +59,18 @@ Get your [Ngrok API Key](https://ngrok.com/docs/api#authentication) and [Ngrok A
 export NGROK_API_KEY=<YOUR Secret API KEY>
 export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
   ```
-
-Create a namespace for the controller to run in
-
-```bash
-kubectl create namespace ngrok-ingress-controller
-kubectl config set-context --current --namespace=ngrok-ingress-controller
-```
-
-Create a secret with your API key and Auth Token
-
-```bash
-kubectl create secret generic ngrok-ingress-controller-credentials \
-  --from-literal=API_KEY=$NGROK_API_KEY \
-  --from-literal=AUTHTOKEN=$NGROK_AUTHTOKEN
-```
 Install via Helm:
-See [Helm Chart](./helm/ingress-controller/README.md#install-the-controller-with-helm)
+
+See [Helm Chart](1./helm/ingress-controller/README.md#install-the-controller-with-helm) for more details.
+
+```bash
+helm repo add ngrok https://ngrok.github.io/ngrok-ingress-controller
+helm install ngrok-ingress-controller ngrok/ingress-controller \
+  --namespace ngrok-ingress-controller \
+  --create-namespace \
+  --set apiKey=$(NGROK_API_KEY) \
+  --set authtoken=$(NGROK_AUTHTOKEN)
+```
 
 
 ## Documentation
