@@ -120,7 +120,6 @@ func (trec *TunnelController) NeedLeaderElection() bool {
 }
 
 func (trec *TunnelController) Start(ctx context.Context) error {
-	// TODO: Wait for k8s config map with controller namespaces to be ready
 	return trec.Controller.Start(ctx)
 }
 

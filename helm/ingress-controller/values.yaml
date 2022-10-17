@@ -3,8 +3,11 @@
 replicaCount: 2
 
 image:
+  # The image repository to pull from
   repository: ngrok/ngrok-ingress-controller
+  # The image tag to pull
   tag: latest
+  # The image pull policy
   pullPolicy: IfNotPresent
 
 # The ingress class this controller will satisfy. If not specified, controller will match all
@@ -13,12 +16,15 @@ ingressClass: ngrok
 
 # Agent log destination.
 log: stdout
-# Ngrok region to create tunnels in.
+# ngrok region to create tunnels in.
 region: us
 
 # The name of the K8S secret that contains the credentials for the
 # ingress controller.
-credentialsSecretName: ngrok-ingress-controller-credentials
+credentialsSecretName:
+  name: ngrok-ingress-controller-credentials
+apiKey: ""
+authToken: ""
 
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious

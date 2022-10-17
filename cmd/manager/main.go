@@ -25,15 +25,13 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
-	v1 "k8s.io/api/core/v1"
+
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -112,7 +110,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		MetricsBindAddress:     opts.metricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: opts.probeAddr,
-		LeaderElection:         opts.enableLeaderElection,
+		LeaderElection:         true,
 		LeaderElectionID:       "3792108b.ngrok.io",
 	})
 	if err != nil {
@@ -137,16 +135,6 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Recorder: mgr.GetEventRecorderFor("tunnel-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create tunnel controller: %w", err)
-	}
-
-	// Can query for config maps like this.
-	// For controller level configs, this may be the recommended way though https://book.kubebuilder.io/reference/markers.html
-	// We can't use this though to write config maps, and the mgr.GetClient() doesn't work because the cache isn't initialized
-	config := &v1.ConfigMap{}
-	if err := mgr.GetAPIReader().Get(ctx, types.NamespacedName{Name: configMapName, Namespace: opts.namespace}, config); client.IgnoreNotFound(err) != nil {
-		return err
-	} else {
-		log.Info(fmt.Sprintf("Found config map named %q %+v", configMapName, config))
 	}
 
 	//+kubebuilder:scaffold:builder

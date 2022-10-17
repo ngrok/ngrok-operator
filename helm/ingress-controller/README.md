@@ -35,16 +35,16 @@ To uninstall the chart:
 TODO: These need descriptions. Perhaps we auto generate these via https://github.com/norwoodj/helm-docs
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| replicaCount | int | `2` |  |
-| image.repository | string | `"ghcr.io/ngrok/ngrok-ingress-controller"` |  |
-| image.pullPolicy | string | `"Never"` |  |
-| image.tag | string | `"latest"` |  |
-| ingressClass | string | `"ngrok"` |  |
-| log | string | `"stdout"` |  |
-| region | string | `"us"` |  |
-| credentialSecretName | string | `"ngrok-ingress-controller-credentials"` |  |
-| resources.limits.cpu | string | `"100m"` |  |
-| resources.limits.memory | string | `"128Mi"` |  |
-| resources.requests.cpu | string | `"10m"` |  |
-| resources.requests.memory | string | `"64Mi"` |  |
-| podAnnotations | object | `{}` |  |
+| replicaCount | int | `2` | The number of controllers and agents to run. A minimum of 2 is recommended in production for HA. |
+| image.repository | string | `"ghcr.io/ngrok/ngrok-ingress-controller"` | The image repository to pull from |
+| image.tag | string | `"latest"` | The image tag to pull |
+| image.pullPolicy | string | `"Never"` | The image pull policy |
+| ingressClass | string | `"ngrok"` | The ingress class this controller will satisfy. If not specified, controller will match all ingresses without ingress class annotation and ingresses of type ngrok |
+| log | string | `"stdout"` | Agent log destination. |
+| region | string | `"us"` | ngrok region to create tunnels in. |
+| credentialSecretName | string | `"ngrok-ingress-controller-credentials"` | The name of the K8S secret that contains the credentials for the ingress controller. |
+| resources.limits.cpu | string | `"100m"` | The cpu limit for the controller |
+| resources.limits.memory | string | `"128Mi"` | The memory limit for the controller |
+| resources.requests.cpu | string | `"10m"` | The cpu request for the controller |
+| resources.requests.memory | string | `"64Mi"` | The memory request for the controller |
+| podAnnotations | object | `{}` | Annotations to add to the controller pod |

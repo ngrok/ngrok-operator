@@ -31,7 +31,11 @@ type ngrokAPIDriver struct {
 }
 
 func NewNgrokApiClient(apiKey string) NgrokAPIDriver {
-	config := ngrok.NewClientConfig(apiKey)
+	config := ngrok.NewClientConfig(apiKey, 
+	// add user agent
+	
+)
+
 	return &ngrokAPIDriver{
 		edges:           edge.NewClient(config),
 		tgbs:            tgb.NewClient(config),
