@@ -12,6 +12,16 @@ type Route struct {
 	Match string
 	// "exact_path" or "path_prefix"
 	MatchType string
-	Modules   []any
 	Labels    map[string]string
+
+	// TODO: This is a shortcut and should be replaced
+	Compression bool
+	GoogleOAuth OAuthGoogle
+}
+
+type OAuthGoogle struct {
+	ClientID     string
+	ClientSecret string
+	Scopes       []string
+	EmailDomains []string
 }
