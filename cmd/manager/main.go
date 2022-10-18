@@ -25,23 +25,19 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
-	v1 "k8s.io/api/core/v1"
+
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	//+kubebuilder:scaffold:imports
 )
-
-const configMapName = "ngrok-ingress-controller"
 
 var log = ctrl.Log.WithName("setup")
 
@@ -66,6 +62,8 @@ type managerOpts struct {
 	// env vars
 	namespace   string
 	ngrokAPIKey string
+
+	region string
 }
 
 func cmd() *cobra.Command {
@@ -80,6 +78,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().BoolVar(&opts.enableLeaderElection, "leader-elect", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	c.Flags().StringVar(&opts.region, "region", "us", "The region to use for ngrok tunnels")
 	opts.zapOpts = &zap.Options{Development: true}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -112,8 +111,8 @@ func runController(ctx context.Context, opts managerOpts) error {
 		MetricsBindAddress:     opts.metricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: opts.probeAddr,
-		LeaderElection:         opts.enableLeaderElection,
-		LeaderElectionID:       "3792108b.ngrok.io",
+		LeaderElection:         true,
+		LeaderElectionID:       "ngrok-ingress-controller-leader",
 	})
 	if err != nil {
 		return fmt.Errorf("unable to start manager: %w", err)
@@ -125,7 +124,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Scheme:         mgr.GetScheme(),
 		Recorder:       mgr.GetEventRecorderFor("ingress-controller"),
 		Namespace:      opts.namespace,
-		NgrokAPIDriver: ngrokapidriver.NewNgrokApiClient(opts.ngrokAPIKey),
+		NgrokAPIDriver: ngrokapidriver.NewNgrokAPIClient(opts.ngrokAPIKey, opts.region),
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
@@ -137,16 +136,6 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Recorder: mgr.GetEventRecorderFor("tunnel-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create tunnel controller: %w", err)
-	}
-
-	// Can query for config maps like this.
-	// For controller level configs, this may be the recommended way though https://book.kubebuilder.io/reference/markers.html
-	// We can't use this though to write config maps, and the mgr.GetClient() doesn't work because the cache isn't initialized
-	config := &v1.ConfigMap{}
-	if err := mgr.GetAPIReader().Get(ctx, types.NamespacedName{Name: configMapName, Namespace: opts.namespace}, config); client.IgnoreNotFound(err) != nil {
-		return err
-	} else {
-		log.Info(fmt.Sprintf("Found config map named %q %+v", configMapName, config))
 	}
 
 	//+kubebuilder:scaffold:builder

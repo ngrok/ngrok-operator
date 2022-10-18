@@ -14,6 +14,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+// NgrkAPIDriver is an interface for managing Ngrok API resources
 type NgrokAPIDriver interface {
 	FindEdge(ctx context.Context, id string) (*ngrok.HTTPSEdge, error)
 	CreateEdge(ctx context.Context, e *Edge) (*ngrok.HTTPSEdge, error)
@@ -22,15 +23,18 @@ type NgrokAPIDriver interface {
 	GetReservedDomains(ctx context.Context, edgeID string) ([]ngrok.ReservedDomain, error)
 }
 
+// NewNgrokAPIClient creates a new Driver setup with the passed in apiKey as well as default metadata
 type ngrokAPIDriver struct {
 	edges           *edge.Client
 	tgbs            *tgb.Client
 	routes          *edge_route.Client
 	reservedDomains *reserved_domains.Client
 	metadata        string
+	region          string
 }
 
-func NewNgrokApiClient(apiKey string) NgrokAPIDriver {
+func NewNgrokAPIClient(apiKey string, region string) NgrokAPIDriver {
+	// TODO: Add in a unique user agent here
 	config := ngrok.NewClientConfig(apiKey)
 	return &ngrokAPIDriver{
 		edges:           edge.NewClient(config),
@@ -38,9 +42,14 @@ func NewNgrokApiClient(apiKey string) NgrokAPIDriver {
 		routes:          edge_route.NewClient(config),
 		reservedDomains: reserved_domains.NewClient(config),
 		metadata:        "\"{\"owned-by\":\"ngrok-ingress-controller\"}\"",
+		region:          region,
 	}
 }
 
+// FindEdge attempts to find an edge by its ID
+// If it finds it, it returns the edge object with no error
+// If it doesn't find it, it returns nil and no error
+// If there is any error finding it other than "Not Found" it returns nil and the error
 func (nc ngrokAPIDriver) FindEdge(ctx context.Context, id string) (*ngrok.HTTPSEdge, error) {
 	edge, err := nc.edges.Get(ctx, id)
 	if err != nil {
@@ -52,7 +61,7 @@ func (nc ngrokAPIDriver) FindEdge(ctx context.Context, id string) (*ngrok.HTTPSE
 	return edge, nil
 }
 
-// Goes through the whole edge object and creates resources for
+// CreateEdge goes through the whole edge object and creates resources for
 // * reserved domains
 // * tunnel group backends
 // * edge routes
@@ -66,22 +75,18 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 	}
 	_, err = napi.reservedDomains.Create(ctx, &ngrok.ReservedDomainCreate{
 		Name:        domain,
-		Region:      "us", // TODO: Set this from user config
+		Region:      napi.region,
 		Description: "Created by ngrok-ingress-controller",
 		Metadata:    napi.metadata,
 	})
 	// Swallow conflicts, just always try to create it and don't delete them upon ingress deletion
 	if err != nil {
 		var nerr *ngrok.Error
-		if errors.As(err, &nerr) {
-			switch nerr.ErrorCode {
-			case "ERR_NGROK_413", "ERR_NGROK_7122":
-				log.Info("Reserved domain already exists, skipping creation", "domain", domain)
-			default:
-				return nil, err
-			}
+		if errors.As(err, &nerr) && ngrok.IsErrorCode(nerr, 413, 7122) {
+			log.Info("Reserved domain already exists, skipping creation", "domain", domain)
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 
 	newEdge, err := napi.edges.Create(ctx, &ngrok.HTTPSEdgeCreate{
@@ -142,7 +147,8 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 	return newEdge, nil
 }
 
-// TODO: Implement this
+// UpdateEdge updates the edge with the passed in edgeSummary
+// If the hostports (the ingress host value) it will create a new edge and delete the old one
 func (nc ngrokAPIDriver) UpdateEdge(ctx context.Context, edgeSummary *Edge) (*ngrok.HTTPSEdge, error) {
 	existingEdge, err := nc.FindEdge(ctx, edgeSummary.Id)
 	if err != nil {
@@ -203,6 +209,8 @@ func (nc ngrokAPIDriver) DeleteEdge(ctx context.Context, e *Edge) error {
 	return nil
 }
 
+// GetReservedDomains returns all reserved domains that are being used by the edgeID passed in.
+// There is no ID based relationship, so this matches edge hostports against reserved domains
 func (nc ngrokAPIDriver) GetReservedDomains(ctx context.Context, edgeID string) ([]ngrok.ReservedDomain, error) {
 	edge, err := nc.FindEdge(ctx, edgeID)
 	if err != nil {

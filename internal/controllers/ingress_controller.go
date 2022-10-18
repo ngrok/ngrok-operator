@@ -8,7 +8,6 @@ import (
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,6 +47,10 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	// getIngress didn't return the object, so we can't do anything with it
 	if ingress == nil {
+		return ctrl.Result{}, nil
+	}
+	if err := validateIngress(ctx, ingress); err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Invalid ingress, discarding the event.", err.Error())
 		return ctrl.Result{}, nil
 	}
 
@@ -121,50 +124,6 @@ func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netv1.Ingress{}).
 		Complete(irec)
-}
-
-// TODO: This may not actually be needed. Edges for example, don't have names
-// that need to be unique. I think you just can't have multiple edges using the
-// same hostports. Once I confirm this, we can probably get rid of this
-//
-// LogicalEdgeNamespace returns a string that can be used to namespace api
-// resources in the ngrok api. The namespace would be used to control load balancing
-// between clusters. This function should be only called by the leader to avoid multiple
-// controllers attempting a read/write operation on the same config map without a lock.
-func (irec *IngressReconciler) LogicalEdgeNamespace(ctx context.Context) (string, error) {
-	configMapName := "ngrok-ingress-controller-edge-namespace"
-	configMapKey := "edge-namespace"
-	// TODO: This should be configurable by the user eventually or random. For now, be consistent for testing
-	newName := "devenv-users"
-	config := &v1.ConfigMap{}
-	// Try to find the existing config map
-	err := irec.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: irec.Namespace}, config)
-	if err == nil {
-		if val, ok := config.Data[configMapKey]; ok {
-			return val, nil
-		} else {
-			panic("Config map is missing the key " + configMapKey + " which shouldn't be possible")
-		}
-	}
-
-	// Valid non "not found" error
-	if client.IgnoreNotFound(err) != nil {
-		return "", err
-	}
-
-	// If its not found, try to make it
-	if err := irec.Create(ctx, &v1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      configMapName,
-			Namespace: irec.Namespace,
-		},
-		Data: map[string]string{
-			configMapKey: newName,
-		},
-	}); err != nil {
-		return "", err
-	}
-	return newName, nil
 }
 
 // Converts a k8s Ingress Rule to and Ngrok Route configuration.
