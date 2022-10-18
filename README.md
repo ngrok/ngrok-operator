@@ -70,7 +70,7 @@ helm install ngrok-ingress-controller ngrok/ingress-controller \
   --set authtoken=$(NGROK_AUTHTOKEN)
 ```
 
-See [Helm Chart](1./helm/ingress-controller/README.md#install-the-controller-with-helm) for more details.
+See [Helm Chart](./helm/ingress-controller/README.md#install-the-controller-with-helm) for more details.
 
 ## Documentation
 
