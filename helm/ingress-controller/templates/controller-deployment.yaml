@@ -9,9 +9,6 @@ metadata:
     checksum/agent-config: {{ include (print $.Template.BasePath "/agent-config-cm.yaml") . | sha256sum }}
     checksum/controller-role: {{ include (print $.Template.BasePath "/role.yaml") . | sha256sum }}
     checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
-{{- if .Values.podAnnotations }}
-{{ toYaml .Values.podAnnotations | indent 4 }}
-{{- end }}
 spec:
   replicas: {{.Values.replicaCount}}
   selector:
@@ -21,6 +18,9 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
+        {{- if .Values.podAnnotations }}
+          {{- toYaml .Values.podAnnotations | nindent 8 }}
+        {{- end }}
       labels:
         app: ngrok-ingress-controller
     spec:
