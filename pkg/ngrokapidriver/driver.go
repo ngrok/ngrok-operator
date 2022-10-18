@@ -30,9 +30,10 @@ type ngrokAPIDriver struct {
 	routes          *edge_route.Client
 	reservedDomains *reserved_domains.Client
 	metadata        string
+	region          string
 }
 
-func NewNgrokApiClient(apiKey string) NgrokAPIDriver {
+func NewNgrokAPIClient(apiKey string, region string) NgrokAPIDriver {
 	// TODO: Add in a unique user agent here
 	config := ngrok.NewClientConfig(apiKey)
 	return &ngrokAPIDriver{
@@ -41,6 +42,7 @@ func NewNgrokApiClient(apiKey string) NgrokAPIDriver {
 		routes:          edge_route.NewClient(config),
 		reservedDomains: reserved_domains.NewClient(config),
 		metadata:        "\"{\"owned-by\":\"ngrok-ingress-controller\"}\"",
+		region:          region,
 	}
 }
 
@@ -73,7 +75,7 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 	}
 	_, err = napi.reservedDomains.Create(ctx, &ngrok.ReservedDomainCreate{
 		Name:        domain,
-		Region:      "us", // TODO: Set this from user config
+		Region:      napi.region,
 		Description: "Created by ngrok-ingress-controller",
 		Metadata:    napi.metadata,
 	})

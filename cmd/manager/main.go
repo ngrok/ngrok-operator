@@ -39,8 +39,6 @@ import (
 	//+kubebuilder:scaffold:imports
 )
 
-const configMapName = "ngrok-ingress-controller"
-
 var log = ctrl.Log.WithName("setup")
 
 func init() {
@@ -64,6 +62,8 @@ type managerOpts struct {
 	// env vars
 	namespace   string
 	ngrokAPIKey string
+
+	region string
 }
 
 func cmd() *cobra.Command {
@@ -78,6 +78,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().BoolVar(&opts.enableLeaderElection, "leader-elect", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	c.Flags().StringVar(&opts.region, "region", "us", "The region to use for ngrok tunnels")
 	opts.zapOpts = &zap.Options{Development: true}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -123,7 +124,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Scheme:         mgr.GetScheme(),
 		Recorder:       mgr.GetEventRecorderFor("ingress-controller"),
 		Namespace:      opts.namespace,
-		NgrokAPIDriver: ngrokapidriver.NewNgrokApiClient(opts.ngrokAPIKey),
+		NgrokAPIDriver: ngrokapidriver.NewNgrokAPIClient(opts.ngrokAPIKey, opts.region),
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}

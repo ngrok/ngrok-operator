@@ -40,6 +40,9 @@ spec:
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=127.0.0.1:8080
         - --leader-elect
+        {{- if .Values.region }}
+        - --region={{ .Values.region}}
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -80,6 +83,10 @@ spec:
             secretKeyRef:
               key: AUTHTOKEN
               name: {{ .Values.credentialsSecret.name }}
+        {{- if .Values.region }}
+        - name: NGROK_REGION
+          value: {{ quote .Values.region}}
+        {{- end }}
         volumeMounts:
           - name: scripts
             mountPath: /scripts
