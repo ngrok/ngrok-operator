@@ -43,6 +43,8 @@ TODO: These need descriptions. Perhaps we auto generate these via https://github
 | log | string | `"stdout"` | Agent log destination. |
 | region | string | `"us"` | ngrok region to create tunnels in. |
 | credentialsSecret.name | string | `"ngrok-ingress-controller-credentials"` | The name of the K8S secret that contains the credentials for the ingress controller. |
+| apiKey | string | `""` | The ngrok API key to use. If not specified, the controller will use the API key from the credentials secret. |
+| authtoken | string | `""` | The ngrok auth token to use. If not specified, the controller will use the auth token from the credentials secret. |
 | resources.limits.cpu | string | `"100m"` | The cpu limit for the controller |
 | resources.limits.memory | string | `"128Mi"` | The memory limit for the controller |
 | resources.requests.cpu | string | `"10m"` | The cpu request for the controller |
