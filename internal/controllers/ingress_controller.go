@@ -49,6 +49,10 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if ingress == nil {
 		return ctrl.Result{}, nil
 	}
+	if err := validateIngress(ctx, ingress); err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Invalid ingress, discarding the event.", err.Error())
+		return ctrl.Result{}, nil
+	}
 
 	err = setFinalizer(ctx, irec, ingress)
 	if err != nil {

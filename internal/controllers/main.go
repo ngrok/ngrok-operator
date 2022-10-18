@@ -92,10 +92,6 @@ func getIngress(ctx context.Context, c client.Client, namespacedName types.Names
 		return nil, err
 	}
 
-	if err := validateIngress(ctx, ingress); err != nil {
-		return nil, err
-	}
-
 	matches, err := matchesIngressClass(ctx, c, ingress)
 	if !matches || err != nil {
 		return nil, err
@@ -179,12 +175,21 @@ func setFinalizer(ctx context.Context, irec *IngressReconciler, ingress *netv1.I
 // Checks the ingress object to make sure its using a the limited set of configuration options
 // that we support. Returns an error if the ingress object is not valid
 func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
-	// TODO: restrict the spec to a limited set of usecases for now until we support others
-	// Only 1 unique hostname is allowed per object
-	// For now, only 1 rule is even allowed
-	// At least 1 route must be declared
-	// At least 1 host must be declared
-	// TODO: Either limit backends to Service or implement support for Resource
+	if len(ingress.Spec.Rules) > 1 {
+		return fmt.Errorf("A maximum of one rule is required to be set")
+	}
+	if len(ingress.Spec.Rules) == 0 {
+		return fmt.Errorf("At least one rule is required to be set")
+	}
+	if ingress.Spec.Rules[0].Host == "" {
+		return fmt.Errorf("A host is required to be set")
+	}
+	for _, path := range ingress.Spec.Rules[0].HTTP.Paths {
+		if path.Backend.Resource != nil {
+			return fmt.Errorf("Resource backends are not supported")
+		}
+	}
+
 	return nil
 }
 

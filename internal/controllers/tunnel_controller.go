@@ -52,6 +52,10 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if ingress == nil {
 		return ctrl.Result{}, nil
 	}
+	if err := validateIngress(ctx, ingress); err != nil {
+		trec.Recorder.Event(ingress, v1.EventTypeWarning, "Invalid ingress, discarding the event.", err.Error())
+		return ctrl.Result{}, nil
+	}
 
 	// Check if the ingress object is being deleted
 	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {

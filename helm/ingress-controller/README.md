@@ -32,7 +32,7 @@ To uninstall the chart:
 
 ## Values
 
-TODO: These need descriptions. Perhaps we auto generate these via https://github.com/norwoodj/helm-docs
+<!-- TODO: auto generate these via https://github.com/norwoodj/helm-docs -->
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | replicaCount | int | `2` | The number of controllers and agents to run. A minimum of 2 is recommended in production for HA. |
