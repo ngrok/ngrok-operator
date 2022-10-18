@@ -109,7 +109,7 @@ uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube
 deploy: docker-build manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	helm upgrade ngrok-ingress-controller helm/ingress-controller --install \
 		--namespace ngrok-ingress-controller \
-  	--create-namespace \
+		--create-namespace \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set image.repository=$(IMG) \
 		--set apiKey=$(NGROK_API_KEY) \

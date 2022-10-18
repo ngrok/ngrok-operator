@@ -83,7 +83,7 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 		if errors.As(err, &nerr) && ngrok.IsErrorCode(nerr, 413, 7122) {
 			log.Info("Reserved domain already exists, skipping creation", "domain", domain)
 		} else {
-			log.Info("Else case on err checking", "domain", domain, "error", err)
+			return nil, err
 		}
 	}
 
