@@ -1,0 +1,9 @@
+The ngrok Ingress controller has been deployed as a Deployment type to your cluster.
+
+If you haven't yet, create some Ingress resources in your cluster and they will be automatically configured on the internet using ngrok.
+
+Once done, view your edges in the Dashboard https://dashboard.ngrok.com/cloud-edge/edges
+Find the tunnels running in your cluster here https://dashboard.ngrok.com/tunnels/agents
+
+This controller is under active development and is in Alpha. It is not suggested to use this in production.
+If you have any questions or feedback, please join us in https://ngrok.com/slack and let us know!
