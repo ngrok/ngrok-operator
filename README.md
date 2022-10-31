@@ -63,7 +63,7 @@ Install via Helm:
 
 ```bash
 helm repo add ngrok https://ngrok.github.io/ngrok-ingress-controller
-helm install ngrok-ingress-controller ngrok/ingress-controller \
+helm install ngrok-ingress-controller ngrok/ngrok-ingress-controller \
   --namespace ngrok-ingress-controller \
   --create-namespace \
   --set apiKey=$(NGROK_API_KEY) \
