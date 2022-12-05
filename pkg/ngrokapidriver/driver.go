@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/ngrok/ngrok-api-go/v4"
-	tgb "github.com/ngrok/ngrok-api-go/v4/backends/tunnel_group"
-	edge "github.com/ngrok/ngrok-api-go/v4/edges/https"
-	edge_route "github.com/ngrok/ngrok-api-go/v4/edges/https_routes"
-	"github.com/ngrok/ngrok-api-go/v4/reserved_domains"
+	"github.com/ngrok/ngrok-api-go/v5"
+	tgb "github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
+	edge "github.com/ngrok/ngrok-api-go/v5/edges/https"
+	edge_route "github.com/ngrok/ngrok-api-go/v5/edges/https_routes"
+	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -34,8 +34,7 @@ type ngrokAPIDriver struct {
 }
 
 func NewNgrokAPIClient(apiKey string, region string) NgrokAPIDriver {
-	// TODO: Add in a unique user agent here
-	config := ngrok.NewClientConfig(apiKey)
+	config := ngrok.NewClientConfig(apiKey, ngrok.WithUserAgent("ngrok-ingress-controller/v1-alpha"))
 	return &ngrokAPIDriver{
 		edges:           edge.NewClient(config),
 		tgbs:            tgb.NewClient(config),
@@ -90,7 +89,7 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 	}
 
 	newEdge, err := napi.edges.Create(ctx, &ngrok.HTTPSEdgeCreate{
-		Hostports:   &[]string{edgeSummary.Hostport},
+		Hostports:   []string{edgeSummary.Hostport},
 		Description: "Created by ngrok-ingress-controller",
 		Metadata:    napi.metadata,
 	})
@@ -159,7 +158,7 @@ func (nc ngrokAPIDriver) UpdateEdge(ctx context.Context, edgeSummary *Edge) (*ng
 	}
 
 	// For now, we only support 1 hostport so anytime we have more or less than 1, something is different
-	hostPortsDifferent := len(*existingEdge.Hostports) != 1 || (*existingEdge.Hostports)[0] != edgeSummary.Hostport
+	hostPortsDifferent := len(existingEdge.Hostports) != 1 || (existingEdge.Hostports)[0] != edgeSummary.Hostport
 	if hostPortsDifferent {
 		err := nc.DeleteEdge(ctx, edgeSummary)
 		if err != nil {
@@ -217,7 +216,7 @@ func (nc ngrokAPIDriver) GetReservedDomains(ctx context.Context, edgeID string) 
 		return nil, err
 	}
 	hostPortDomains := []string{}
-	for _, hostport := range *edge.Hostports {
+	for _, hostport := range edge.Hostports {
 		domain, _, err := net.SplitHostPort(hostport)
 		if err != nil {
 			return nil, err
