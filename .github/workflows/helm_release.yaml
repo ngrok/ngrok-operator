@@ -4,14 +4,14 @@ on:
   push:
     branches:
       - main
-      - mschenck/12686/helm-release-workflow
     paths:
       - 'helm/ingress-controller/Chart.yaml'
 
 jobs:
   helm_release:
+    if: github.repository == 'ngrok/ngrok-ingress-controller' # Don't run on forks
     runs-on: ubuntu-latest
-
+    timeout-minutes: 15
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
