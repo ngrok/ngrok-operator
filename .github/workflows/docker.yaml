@@ -42,7 +42,10 @@ jobs:
     name: Release Images
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: |
+      github.repository == 'ngrok/ngrok-ingress-controller' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
