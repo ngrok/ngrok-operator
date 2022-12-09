@@ -35,16 +35,17 @@ To uninstall the chart:
 <!-- TODO: auto generate these via https://github.com/norwoodj/helm-docs -->
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| replicaCount | int | `2` | The number of controllers and agents to run. A minimum of 2 is recommended in production for HA. |
+| replicaCount | int | `1` | The number of controllers and agents to run. A minimum of 1 is set for testing purposes but more should be used in production for high availability. |
 | image.repository | string | `"ghcr.io/ngrok/ngrok-ingress-controller"` | The image repository to pull from |
 | image.tag | string | `"latest"` | The image tag to pull |
 | image.pullPolicy | string | `"Never"` | The image pull policy |
 | ingressClass | string | `"ngrok"` | The ingress class this controller will satisfy. If not specified, controller will match all ingresses without ingress class annotation and ingresses of type ngrok |
-| log | string | `"stdout"` | Agent log destination. |
+| serverAddr | string | `""` | This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL. |
 | region | string | `"us"` | ngrok region to create tunnels in. |
-| credentialsSecret.name | string | `"ngrok-ingress-controller-credentials"` | The name of the K8S secret that contains the credentials for the ingress controller. |
-| apiKey | string | `""` | The ngrok API key to use. If not specified, the controller will use the API key from the credentials secret. |
-| authtoken | string | `""` | The ngrok auth token to use. If not specified, the controller will use the auth token from the credentials secret. |
+| credentials.secret.name | string | `"ngrok-ingress-controller-credentials"` | The name of the K8S secret that contains the credentials for the ingress controller. |
+| credentials.secret.create | bool | `false` | If true, the controller will create the secret with the provided credentials. |
+| credentials.apiKey | string | `""` | The ngrok API key to use. If not specified, the controller will use the API key from the credentials secret. |
+| credentials.authtoken | string | `""` | The ngrok auth token to use. If not specified, the controller will use the auth token from the credentials secret. |
 | resources.limits.cpu | string | `"100m"` | The cpu limit for the controller |
 | resources.limits.memory | string | `"128Mi"` | The memory limit for the controller |
 | resources.requests.cpu | string | `"10m"` | The cpu request for the controller |

@@ -32,6 +32,8 @@ sleep 10
 echo "--- Deploying ngrok-ingress-controller"
 make deploy
 
+kubectl rollout status deploy/ngrok-ingress-controller-manager -n $namespace --timeout=60s
+
 echo "--- Deploying examples"
 if [ "$GOOGLE_CLIENT_ID" != "" ]
 then

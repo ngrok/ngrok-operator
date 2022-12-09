@@ -4,7 +4,7 @@ metadata:
   name: ngrok-ingress-controller-agent-cm
   namespace: {{ .Release.Namespace }}
 data:
-  LOG:  "{{ .Values.log }}"
+  SERVER_ADDR:  "{{ .Values.serverAddr }}"
   METADATA: "{{ .Values.metaData }}"
   REGION: "{{ .Values.region }}"
   REMOTE_MANAGEMENT: "{{ .Values.remoteManagement }}"

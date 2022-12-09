@@ -66,8 +66,9 @@ helm repo add ngrok https://ngrok.github.io/ngrok-ingress-controller
 helm install ngrok-ingress-controller ngrok/ngrok-ingress-controller \
   --namespace ngrok-ingress-controller \
   --create-namespace \
-  --set apiKey=$(NGROK_API_KEY) \
-  --set authtoken=$(NGROK_AUTHTOKEN)
+  --set credentials.secret.create = true \
+  --set credentials.apiKey=$(NGROK_API_KEY) \
+  --set credentials.authtoken=$(NGROK_AUTHTOKEN)
 ```
 
 See [Helm Chart](./helm/ingress-controller/README.md#install-the-controller-with-helm) for more details.
@@ -138,7 +139,6 @@ metadata:
   name: ngrok-ingress-controller-agent-cm
   namespace: ngrok-ingress-controller
 data:
-  LOG: stdout
   METADATA: "{}"
   REGION: us
   REMOTE_MANAGEMENT: true

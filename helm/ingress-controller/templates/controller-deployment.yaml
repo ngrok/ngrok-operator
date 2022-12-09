@@ -50,7 +50,7 @@ spec:
           valueFrom:
             secretKeyRef:
               key: API_KEY
-              name: {{ .Values.credentialsSecret.name }}
+              name: {{ .Values.credentials.secret.name }}
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
@@ -82,7 +82,7 @@ spec:
           valueFrom:
             secretKeyRef:
               key: AUTHTOKEN
-              name: {{ .Values.credentialsSecret.name }}
+              name: {{ .Values.credentials.secret.name }}
         {{- if .Values.region }}
         - name: NGROK_REGION
           value: {{ quote .Values.region}}

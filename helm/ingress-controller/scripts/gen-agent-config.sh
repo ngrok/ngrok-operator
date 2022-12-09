@@ -1,14 +1,12 @@
 #!/bin/bash
 
-NGROK_LOG="${NGROK_LOG:-stdout}"
-NGROK_REGION="${NGROK_REGION:-us}"
 NGROK_REMOTE_MANAGEMENT="${NGROK_REMOTE_MANAGEMENT:-true}"
 
 cat > /var/lib/ngrok/agent-template.yaml <<EOF
 version: 2
 authtoken: $NGROK_AUTHTOKEN
 console_ui: false
-log: $NGROK_LOG
+server_addr: $NGROK_SERVER_ADDR
 region: $NGROK_REGION
 remote_management: $NGROK_REMOTE_MANAGEMENT
 update_check: false
