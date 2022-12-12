@@ -32,3 +32,22 @@ To uninstall the chart:
 
 <!-- Parameters are auto generated via @bitnami/readme-generator-for-helm -->
 ## Parameters
+
+### Controller parameters
+
+| Name                     | Description                                     | Value                                  |
+| ------------------------ | ----------------------------------------------- | -------------------------------------- |
+| `podAnnotations`         | Used to inject custom annotations directly into | `{}`                                   |
+| `replicaCount`           | The number of controllers and agents to run.    | `2`                                    |
+| `image.repository`       | The ngrok ingress controller image repository.  | `ngrok/ngrok-ingress-controller`       |
+| `image.tag`              | The ngrok ingress controller image tag.         | `latest`                               |
+| `image.pullPolicy`       | The ngrok ingress controller image pull policy. | `IfNotPresent`                         |
+| `ingressClass`           | The ingress class this controller will satisfy. | `ngrok`                                |
+| `log`                    | Agent log destination.                          | `stdout`                               |
+| `region`                 | ngrok region to create tunnels in.              | `us`                                   |
+| `credentialsSecret.name` | The name of the K8S secret that contains the    | `ngrok-ingress-controller-credentials` |
+| `apiKey`                 | The ngrok API key to use                        | `""`                                   |
+| `authtoken`              | The ngrok auth token to use                     | `""`                                   |
+| `resources.limits`       | The resources limits for the container          | `{}`                                   |
+| `resources.requests`     | The requested resources for the container       | `{}`                                   |
+
