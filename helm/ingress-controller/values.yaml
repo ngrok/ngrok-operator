@@ -1,42 +1,64 @@
-# The number of controllers and agents to run. A minimum of 2 is
-# recommended in production for HA.
+## @section Controller parameters
+##
+
+## @param podAnnotations Used to inject custom annotations directly into
+## the ingress pods for things like service mesh integrations.
+##
+podAnnotations: {}
+
+
+## @param replicaCount The number of controllers and agents to run.
+## A minimum of 2 is recommended in production for HA.
+##
 replicaCount: 2
 
+## @param image.repository The ngrok ingress controller image repository.
+## @param image.tag The ngrok ingress controller image tag.
+## @param image.pullPolicy The ngrok ingress controller image pull policy.
 image:
-  # The image repository to pull from
   repository: ngrok/ngrok-ingress-controller
-  # The image tag to pull
   tag: latest
-  # The image pull policy
   pullPolicy: IfNotPresent
 
-# The ingress class this controller will satisfy. If not specified, controller will match all
-# ingresses without ingress class annotation and ingresses of type ngrok
+## @param ingressClass The ingress class this controller will satisfy.
+## If not specified, controller will match all ingresses without ingress
+## class annotation and ingresses of type ngrok
 ingressClass: ngrok
 
-# Agent log destination.
+## @param log Agent log destination.
 log: stdout
-# ngrok region to create tunnels in.
+## @param region ngrok region to create tunnels in.
 region: us
 
-# The name of the K8S secret that contains the credentials for the
-# ingress controller.
+## @param credentialsSecret.name The name of the K8S secret that contains the
+## credentials for the ingress controller.
 credentialsSecret:
   name: ngrok-ingress-controller-credentials
+
+## @param apiKey The ngrok API key to use
 apiKey: ""
+## @param authtoken The ngrok auth token to use
 authtoken: ""
 
+## Controller container resource requests and limits
+## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+## We usually recommend not to specify default resources and to leave this as a conscious
+## choice for the user. This also increases chances charts run on environments with little
+## resources, such as Minikube. If you do want to specify resources, uncomment the following
+## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+## @param resources.limits The resources limits for the container
+## @param resources.requests The requested resources for the container
+##
 resources:
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  limits:
-    cpu: 100m
-    memory: 128Mi
-  requests:
-    cpu: 10m
-    memory: 64Mi
-
-# Used to inject custom annotations directly into the ingress pods for things like service mesh integrations.
-podAnnotations: {}
+  ## Example:
+  ## limits:
+  ##    cpu: 100m
+  ##    memory: 128Mi
+  ##
+  limits: {}
+  ## Examples:
+  ## requests:
+  ##    cpu: 100m
+  ##    memory: 128Mi
+  ##
+  requests: {}
