@@ -4,40 +4,11 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branchs:
-      - main
 
 env:
   DOCKER_BUILDX_PLATFORMS: linux/amd64,linux/arm64
 
-# TODO: These jobs are basically the same. The only difference is
-# when we release images(only on pushes to main), we need to log in
-# to docker hub and we change `push: false` to `push: true`. If they
-# become more complicated than this, we should combine the common parts
-# into a composite action.
 jobs:
-  build:
-    name: Build Images
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
-    - id: buildx-setup
-      name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-      with:
-        platforms: ${{ env.DOCKER_BUILDX_PLATFORMS }}
-    - name: Build
-      uses: docker/build-push-action@v3
-      with:
-        context: .
-        platforms: ${{ steps.buildx-setup.outputs.platforms }}
-        push: false
-        tags: ngrok/ngrok-ingress-controller:latest
-
   release:
     name: Release Images
     runs-on: ubuntu-latest
