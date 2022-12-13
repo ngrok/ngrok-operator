@@ -43,7 +43,7 @@ body:
     description: What do you think went wrong?
     placeholder: >
       Please explain why you think the behavior you observed is incorrect. It is extremely helpful
-      if you copy&paste the fragment of logs showing the exact error messages or wrong behavior.
+      if you copy & paste the fragment of logs showing the exact error messages or wrong behavior.
 - type: textarea
   attributes:
     label: How to reproduce
