@@ -14,7 +14,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-// NgrkAPIDriver is an interface for managing Ngrok API resources
+// NgrkAPIDriver is an interface for managing ngrok API resources
 type NgrokAPIDriver interface {
 	FindEdge(ctx context.Context, id string) (*ngrok.HTTPSEdge, error)
 	CreateEdge(ctx context.Context, e *Edge) (*ngrok.HTTPSEdge, error)
