@@ -1,5 +1,6 @@
 ---
 name: ngrok Ingress Controller Helm Chart Bug Report
+description: Report an issue in the ngrok Ingress Controller Helm Chart
 labels: ["bug", "area/helm-chart", "needs-triage"]
 body:
 - type: markdown

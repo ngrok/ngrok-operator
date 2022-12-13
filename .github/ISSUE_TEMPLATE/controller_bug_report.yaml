@@ -1,5 +1,6 @@
 ---
 name: ngrok Ingress Controller Bug Report
+description: Report an issue in the ngrok Ingress Controller
 labels: ["bug", "area/controller", "needs-triage"]
 body:
 - type: markdown
