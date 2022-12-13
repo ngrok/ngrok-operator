@@ -118,3 +118,12 @@ deploy: docker-build manifests ## Deploy controller to the K8s cluster specified
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	helm uninstall ngrok-ingress-controller
+
+.PHONY: helm-lint
+helm-lint: ## Lint the helm chart
+	helm lint helm/ingress-controller
+
+.PHONY: helm-test
+helm-test: ## Run helm unittest plugin
+	./scripts/helm-setup.sh
+	cd helm/ingress-controller && helm unittest --helm3 .

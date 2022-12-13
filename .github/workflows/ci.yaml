@@ -1,4 +1,4 @@
-name: CI tests
+name: CI
 on:
   push:
     branches: [ "main" ]
@@ -40,3 +40,16 @@ jobs:
       run: |
         kubectl get nodes
         kubectl get pods -A
+
+  helm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v3
+    - uses: azure/setup-helm@v3
+      with:
+        version: v3.10.0
+    - name: Lint Helm Chart
+      run: make helm-lint
+    - name: Helm Unit Tests
+      run: make helm-test

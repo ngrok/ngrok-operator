@@ -1,0 +1,27 @@
+suite: test controller-cm
+templates:
+- controller-cm.yaml
+release:
+  name: test-release
+  namespace: test-namespace
+tests:
+- it: should create a configmap
+  asserts:
+  - isKind:
+      of: ConfigMap
+  - isAPIVersion:
+      of: v1
+  - hasDocuments:
+      count: 1
+- it: should contain the correct namespace
+  set:
+    namespace: test-namespace
+  asserts:
+  - equal:
+      path: metadata.namespace
+      value: test-namespace
+- it: Should create a configmap with the correct name
+  asserts:
+  - equal:
+      path: metadata.name
+      value: ngrok-ingress-controller-manager-config

@@ -6,7 +6,6 @@
 ##
 podAnnotations: {}
 
-
 ## @param replicaCount The number of controllers and agents to run.
 ## A minimum of 2 is recommended in production for HA.
 ##
