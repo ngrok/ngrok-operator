@@ -1,5 +1,5 @@
 ---
-name: Ngrok Ingress Controller Feature Request
+name: ngrok Ingress Controller Feature Request
 description: Suggest an idea for this project
 labels: ["enhancement", "needs-triage"]
 body:
@@ -8,7 +8,7 @@ body:
     value: |
       Thanks for taking the time to fill out this feature request!
 
-      We really appreciate the community efforts to improve the Ngrok Ingress Controller.
+      We really appreciate the community efforts to improve the ngrok Ingress Controller.
 
 - type: textarea
   attributes:
@@ -27,4 +27,4 @@ body:
     description: Are there any related issues?
 - type: markdown
   attributes:
-    value: "Thank you for help in improving the Ngrok Ingress Controller!"
+    value: "Thank you for help in improving the ngrok Ingress Controller!"

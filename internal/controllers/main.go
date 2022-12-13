@@ -67,7 +67,7 @@ func matchesIngressClass(ctx context.Context, c client.Client, ingress *netv1.In
 		if ingress.Spec.IngressClassName == nil || ingress.Spec.IngressClassName == &ngrokClass.Name {
 			return true, nil
 		}
-		ctrl.LoggerFrom(ctx).Info(fmt.Sprintf("Ngrok is the default Ingress class  but this ingress object's ingress class doesn't match: %s\n", *ingress.Spec.IngressClassName), "controller", controllerName)
+		ctrl.LoggerFrom(ctx).Info(fmt.Sprintf("ngrok is the default Ingress class  but this ingress object's ingress class doesn't match: %s\n", *ingress.Spec.IngressClassName), "controller", controllerName)
 		return false, nil
 	}
 
@@ -193,7 +193,7 @@ func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
 	return nil
 }
 
-// Generates a labels map for matching Ngrok Routes to Agent Tunnels
+// Generates a labels map for matching ngrok Routes to Agent Tunnels
 func backendToLabelMap(backend netv1.IngressBackend, ingressName, namespace string) map[string]string {
 	return map[string]string{
 		"k8s.ngrok.com/ingress-name":      ingressName,

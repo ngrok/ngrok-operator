@@ -1,5 +1,5 @@
 ---
-name: Ngrok Ingress Controller Bug Report
+name: ngrok Ingress Controller Bug Report
 labels: ["bug", "area/controller", "needs-triage"]
 body:
 - type: markdown
@@ -33,4 +33,4 @@ body:
       precisely as possible. It will greatly help us in figuring out the root cause of the problem and fixing it.
 - type: markdown
   attributes:
-    value: "Thank you for help in improving the Ngrok Ingress Controller!"
+    value: "Thank you for help in improving the ngrok Ingress Controller!"

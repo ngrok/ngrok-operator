@@ -126,7 +126,7 @@ func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(irec)
 }
 
-// Converts a k8s Ingress Rule to and Ngrok Route configuration.
+// Converts a k8s Ingress Rule to and ngrok Route configuration.
 func (irec *IngressReconciler) routesPlanner(ctx context.Context, rule netv1.IngressRuleValue, ingressName, namespace string, annotations map[string]string) ([]ngrokapidriver.Route, error) {
 	var matchType string
 	var ngrokRoutes []ngrokapidriver.Route
@@ -166,7 +166,7 @@ func (irec *IngressReconciler) routesPlanner(ctx context.Context, rule netv1.Ing
 	return ngrokRoutes, nil
 }
 
-// Converts a k8s ingress object into an Ngrok Edge with all its configurations and sub-resources
+// Converts a k8s ingress object into an ngrok Edge with all its configurations and sub-resources
 // TODO: Support multiple Rules per Ingress
 func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
 	annotations := ingress.ObjectMeta.GetAnnotations()
