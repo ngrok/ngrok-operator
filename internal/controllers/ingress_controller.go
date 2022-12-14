@@ -169,6 +169,16 @@ func (irec *IngressReconciler) routesPlanner(ctx context.Context, rule netv1.Ing
 // Converts a k8s ingress object into an ngrok Edge with all its configurations and sub-resources
 // TODO: Support multiple Rules per Ingress
 func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
+	if ingress == nil {
+		return nil, nil
+	}
+
+	// An ingress with no rules sends all traffic to a single default backend(.spec.defaultBackend)
+	// and must be specified. TODO: Implement this.
+	if len(ingress.Spec.Rules) == 0 {
+		return nil, nil
+	}
+
 	annotations := ingress.ObjectMeta.GetAnnotations()
 	ingressRule := ingress.Spec.Rules[0]
 
