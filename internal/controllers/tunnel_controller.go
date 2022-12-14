@@ -156,6 +156,9 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 // Converts a k8s ingress object into a slice of ngrok Agent Tunnels
 // TODO: Support multiple Rules per Ingress
 func ingressToTunnels(ingress *netv1.Ingress) []agentapiclient.TunnelsAPIBody {
+	if ingress == nil || len(ingress.Spec.Rules) == 0 {
+		return []agentapiclient.TunnelsAPIBody{}
+	}
 	ingressRule := ingress.Spec.Rules[0]
 
 	tunnels := tunnelsPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
