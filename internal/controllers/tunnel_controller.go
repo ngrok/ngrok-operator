@@ -14,8 +14,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
@@ -87,12 +89,25 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // Create a new Controller that watches Ingress objects.
 // Add it to our manager.
 func (trec *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	predicateFilters := predicate.Funcs{
+		DeleteFunc: func(de event.DeleteEvent) bool {
+			// Ignore deletes.  Since we leverage a finalizer, we initiate "deletion"
+			// when an Update Event includes a metadata.deletionTimestamp
+			return false
+		},
+		UpdateFunc: func(ue event.UpdateEvent) bool {
+			// No change to spec, so we can ignore.  This does not filter out updates
+			// that set metadata.deletionTimestamp, so this won't undermine finalizer.
+			return ue.ObjectNew.GetGeneration() != ue.ObjectOld.GetGeneration()
+		},
+	}
+
 	tCont, err := NewTunnelControllerNew("tunnel-controller", mgr, trec)
 	if err != nil {
 		return err
 	}
 
-	if err := tCont.Watch(&source.Kind{Type: &netv1.Ingress{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := tCont.Watch(&source.Kind{Type: &netv1.Ingress{}}, &handler.EnqueueRequestForObject{}, predicateFilters); err != nil {
 		return err
 	}
 
