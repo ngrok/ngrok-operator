@@ -52,6 +52,15 @@ Releases of the controller will be tagged with a prefix of `ngrok-ingress-contro
 version `1.2.0` of the docker image will have a git tag of `ngrok-ingress-controller-1.2.0` which
 contains the code used to build the docker image `ngrok/ngrok-ingress-controller:1.2.0`.
 
+#### Helm Chart
+
 Releases of the helm chart will tagged with a prefix of `helm-chart-`. For example, version `1.2.0`
 of the helm chart will have a git tag of `helm-chart-1.2.0` which contains the code used to package
 and publish version `1.2.0` of the helm chart.
+
+When changes are made to the helm chart's `Chart.yaml` file, a github workflow will trigger upon
+merging the PR to the `main` branch. The workflow will package and publish the helm chart for
+consumption. The workflow will also create a git tag as described above.
+
+When changing `version` in the helm chart's `Chart.yaml` file, the version should be bumped according
+to the semantic versioning spec as described above.
