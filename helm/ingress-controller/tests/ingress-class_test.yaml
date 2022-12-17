@@ -1,0 +1,7 @@
+suite: test ingress-class
+templates:
+- ingress-class.yaml
+tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}

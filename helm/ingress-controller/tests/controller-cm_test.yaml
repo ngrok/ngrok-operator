@@ -5,6 +5,9 @@ release:
   name: test-release
   namespace: test-namespace
 tests:
+- it: should match snapshot
+  asserts:
+  - matchSnapshot: {}
 - it: should create a configmap
   asserts:
   - isKind:
