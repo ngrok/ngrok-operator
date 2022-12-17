@@ -3,6 +3,16 @@ Should match snapshot:
     apiVersion: networking.k8s.io/v1
     kind: IngressClass
     metadata:
+      annotations:
+        ingressclass.kubernetes.io/is-default-class: "true"
+      labels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-ingress-controller
+        app.kubernetes.io/part-of: ngrok-ingress-controller
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: ngrok-ingress-controller-0.1.2
       name: ngrok
     spec:
       controller: k8s.ngrok.com/ingress-controller

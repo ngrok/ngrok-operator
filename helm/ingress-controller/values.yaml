@@ -36,10 +36,13 @@ image:
   pullPolicy: IfNotPresent
   pullSecrets: []
 
-## @param ingressClass The ingress class this controller will satisfy.
-## If not specified, controller will match all ingresses without ingress
-## class annotation and ingresses of type ngrok
-ingressClass: ngrok
+## @param ingressClass.name The name of the ingress class to use.
+## @param ingressClass.create Whether to create the ingress class.
+## @param ingressClass.default Whether to set the ingress class as default.
+ingressClass:
+  name: ngrok
+  create: true
+  default: true
 
 ## @param log Agent log destination.
 log: stdout

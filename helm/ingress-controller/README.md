@@ -54,7 +54,9 @@ To uninstall the chart:
 | `image.tag`                  | The ngrok ingress controller image tag.                         | `latest`                               |
 | `image.pullPolicy`           | The ngrok ingress controller image pull policy.                 | `IfNotPresent`                         |
 | `image.pullSecrets`          | An array of imagePullSecrets to be used when pulling the image. | `[]`                                   |
-| `ingressClass`               | The ingress class this controller will satisfy.                 | `ngrok`                                |
+| `ingressClass.name`          | The name of the ingress class to use.                           | `ngrok`                                |
+| `ingressClass.create`        | Whether to create the ingress class.                            | `true`                                 |
+| `ingressClass.default`       | Whether to set the ingress class as default.                    | `true`                                 |
 | `log`                        | Agent log destination.                                          | `stdout`                               |
 | `region`                     | ngrok region to create tunnels in.                              | `us`                                   |
 | `credentialsSecret.name`     | The name of the K8S secret that contains the                    | `ngrok-ingress-controller-credentials` |
