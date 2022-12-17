@@ -8,14 +8,22 @@ Should match snapshot:
         checksum/controller-role: 4c8da8ec4e728eb7bbf0e2f88f5ad55781f988247737d6f1c889c736aa909c60
         checksum/rbac: d65fd1d397f0da2dc2888c7af42265b5a47272fbbf56a0c3331023d949f3c58b
       labels:
-        app: ngrok-ingress-controller
-      name: ngrok-ingress-controller-manager
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-ingress-controller
+        app.kubernetes.io/part-of: ngrok-ingress-controller
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: ngrok-ingress-controller-0.1.2
+      name: RELEASE-NAME-ngrok-ingress-controller-manager
       namespace: NAMESPACE
     spec:
       replicas: 2
       selector:
         matchLabels:
-          app: ngrok-ingress-controller
+          app.kubernetes.io/component: controller
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: ngrok-ingress-controller
       template:
         metadata:
           annotations:
@@ -24,7 +32,9 @@ Should match snapshot:
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
           labels:
-            app: ngrok-ingress-controller
+            app.kubernetes.io/component: controller
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: ngrok-ingress-controller
         spec:
           containers:
           - args:
@@ -84,7 +94,7 @@ Should match snapshot:
             - mountPath: /scripts
               name: scripts
               readOnly: true
-          serviceAccountName: ngrok-ingress-controller-manager
+          serviceAccountName: RELEASE-NAME-ngrok-ingress-controller
           volumes:
           - configMap:
               defaultMode: 493

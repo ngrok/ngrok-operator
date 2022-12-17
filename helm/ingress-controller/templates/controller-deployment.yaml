@@ -2,8 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: ngrok-ingress-controller
-  name: ngrok-ingress-controller-manager
+    {{- include "ngrok-ingress-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+  name: {{ include "ngrok-ingress-controller.fullname" . }}-manager
   namespace: {{ .Release.Namespace }}
   annotations:
     checksum/agent-config: {{ include (print $.Template.BasePath "/agent-config-cm.yaml") . | sha256sum }}
@@ -13,7 +14,8 @@ spec:
   replicas: {{.Values.replicaCount}}
   selector:
     matchLabels:
-      app: ngrok-ingress-controller
+      {{- include "ngrok-ingress-controller.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: controller
   template:
     metadata:
       annotations:
@@ -25,7 +27,8 @@ spec:
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
       labels:
-        app: ngrok-ingress-controller
+        {{- include "ngrok-ingress-controller.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: controller
     spec:
       serviceAccountName: {{ template "ngrok-ingress-controller.serviceAccountName" . }}
       volumes:
