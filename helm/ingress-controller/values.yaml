@@ -1,3 +1,16 @@
+## @section Common parameters
+##
+
+## @param nameOverride String to partially override generated resource names
+## @param fullnameOverride String to fully override generated resource names
+## @param commonLabels Labels to add to all deployed objects
+## @param commonAnnotations Annotations to add to all deployed objects
+##
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+
 ## @section Controller parameters
 ##
 
@@ -11,13 +24,17 @@ podAnnotations: {}
 ##
 replicaCount: 2
 
+## @param image.registry The ngrok ingress controller image registry.
 ## @param image.repository The ngrok ingress controller image repository.
 ## @param image.tag The ngrok ingress controller image tag.
 ## @param image.pullPolicy The ngrok ingress controller image pull policy.
+## @param image.pullSecrets An array of imagePullSecrets to be used when pulling the image.
 image:
+  registry: docker.io
   repository: ngrok/ngrok-ingress-controller
   tag: latest
   pullPolicy: IfNotPresent
+  pullSecrets: []
 
 ## @param ingressClass The ingress class this controller will satisfy.
 ## If not specified, controller will match all ingresses without ingress
@@ -61,3 +78,15 @@ resources:
   ##    memory: 128Mi
   ##
   requests: {}
+
+
+## Controller Service Account Settings
+## @param serviceAccount.create Specifies whether a ServiceAccount should be created
+## @param serviceAccount.name The name of the ServiceAccount to use.
+## If not set and create is true, a name is generated using the fullname template
+## @param serviceAccount.annotations Additional annotations to add to the ServiceAccount
+##
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
