@@ -31,6 +31,10 @@ spec:
         app.kubernetes.io/component: controller
     spec:
       serviceAccountName: {{ template "ngrok-ingress-controller.serviceAccountName" . }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
       volumes:
       - name: scripts
         configMap:
@@ -38,7 +42,7 @@ spec:
           defaultMode: 0755
       containers:
       - name: ngrok-ingress-controller
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        image: {{ include "ngrok-ingress-controller.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /manager

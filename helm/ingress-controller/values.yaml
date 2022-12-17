@@ -34,6 +34,10 @@ image:
   repository: ngrok/ngrok-ingress-controller
   tag: latest
   pullPolicy: IfNotPresent
+  ## Example
+  ## pullSecrets:
+  ## - name: my-imagepull-secret
+  ##
   pullSecrets: []
 
 ## @param ingressClass.name The name of the ingress class to use.
