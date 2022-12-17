@@ -30,7 +30,7 @@ Should match snapshot:
           - args:
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
-            - --leader-elect
+            - --election-id=RELEASE-NAME-ngrok-ingress-controller-leader
             - --region=us
             command:
             - /manager
