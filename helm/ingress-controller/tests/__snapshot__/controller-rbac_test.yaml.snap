@@ -1,4 +1,4 @@
-Should generate rbac:
+Should match snapshot:
   1: |
     apiVersion: v1
     kind: ServiceAccount
