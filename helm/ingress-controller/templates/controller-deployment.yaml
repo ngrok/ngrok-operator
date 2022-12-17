@@ -27,7 +27,7 @@ spec:
       labels:
         app: ngrok-ingress-controller
     spec:
-      serviceAccountName: ngrok-ingress-controller-manager
+      serviceAccountName: {{ template "ngrok-ingress-controller.serviceAccountName" . }}
       volumes:
       - name: scripts
         configMap:

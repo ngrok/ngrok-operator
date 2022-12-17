@@ -1,11 +1,5 @@
 Should match snapshot:
   1: |
-    apiVersion: v1
-    kind: ServiceAccount
-    metadata:
-      name: ngrok-ingress-controller-manager
-      namespace: NAMESPACE
-  2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
@@ -43,7 +37,7 @@ Should match snapshot:
       verbs:
       - create
       - patch
-  3: |
+  2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -61,7 +55,7 @@ Should match snapshot:
       - subjectaccessreviews
       verbs:
       - create
-  4: |
+  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
@@ -73,9 +67,9 @@ Should match snapshot:
       name: ngrok-ingress-controller-leader-election-role
     subjects:
     - kind: ServiceAccount
-      name: ngrok-ingress-controller-manager
+      name: RELEASE-NAME-ngrok-ingress-controller
       namespace: NAMESPACE
-  5: |
+  4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -86,9 +80,9 @@ Should match snapshot:
       name: ngrok-ingress-controller-manager-role
     subjects:
     - kind: ServiceAccount
-      name: ngrok-ingress-controller-manager
+      name: RELEASE-NAME-ngrok-ingress-controller
       namespace: NAMESPACE
-  6: |
+  5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -99,5 +93,5 @@ Should match snapshot:
       name: ngrok-ingress-controller-proxy-role
     subjects:
     - kind: ServiceAccount
-      name: ngrok-ingress-controller-manager
+      name: RELEASE-NAME-ngrok-ingress-controller
       namespace: NAMESPACE
