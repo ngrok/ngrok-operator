@@ -13,8 +13,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -125,18 +123,7 @@ func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge *ngrokapi
 func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netv1.Ingress{}).
-		WithEventFilter(predicate.Funcs{
-			DeleteFunc: func(de event.DeleteEvent) bool {
-				// Ignore deletes.  Since we leverage a finalizer, we initiate "deletion"
-				// when an Update Event includes a metadata.deletionTimestamp
-				return false
-			},
-			UpdateFunc: func(ue event.UpdateEvent) bool {
-				// No change to spec, so we can ignore.  This does not filter out updates
-				// that set metadata.deletionTimestamp, so this won't undermine finalizer.
-				return ue.ObjectNew.GetGeneration() != ue.ObjectOld.GetGeneration()
-			},
-		}).
+		WithEventFilter(commonPredicateFilters).
 		Complete(irec)
 }
 
