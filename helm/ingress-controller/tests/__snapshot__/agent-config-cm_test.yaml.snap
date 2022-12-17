@@ -8,5 +8,5 @@ Should match snapshot:
       REMOTE_MANAGEMENT: ""
     kind: ConfigMap
     metadata:
-      name: ngrok-ingress-controller-agent-cm
+      name: RELEASE-NAME-ngrok-ingress-controller-agent-cm
       namespace: NAMESPACE

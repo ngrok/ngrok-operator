@@ -4,7 +4,7 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/agent-config: 7f940449c596d0f38d8694cf3fbfc65a95feccfd4cdb5b6c1ebf13b88d7bac16
+        checksum/agent-config: c477ecc68a20d5571a24a33342f62893ed4c1d89ecb80cc7cf97b58b290e2891
         checksum/controller-role: 4c8da8ec4e728eb7bbf0e2f88f5ad55781f988247737d6f1c889c736aa909c60
         checksum/rbac: a680811929fbf29dce4d4818bf7fa3dd8ed258cb8f07daf7ce1f9d19093ff3da
       labels:
@@ -76,7 +76,7 @@ Should match snapshot:
               value: us
             envFrom:
             - configMapRef:
-                name: ngrok-ingress-controller-agent-cm
+                name: RELEASE-NAME-ngrok-ingress-controller-agent-cm
                 optional: true
             image: ngrok/ngrok:3
             name: ngrok-cli
@@ -124,7 +124,7 @@ Should match snapshot:
       REMOTE_MANAGEMENT: ""
     kind: ConfigMap
     metadata:
-      name: ngrok-ingress-controller-agent-cm
+      name: RELEASE-NAME-ngrok-ingress-controller-agent-cm
       namespace: NAMESPACE
   4: |
     apiVersion: v1

@@ -78,7 +78,7 @@ spec:
         - ./scripts/gen-agent-config.sh
         envFrom:
         - configMapRef:
-            name: ngrok-ingress-controller-agent-cm
+            name: {{ include "ngrok-ingress-controller.fullname" . }}-agent-cm
             optional: true
         env:
         - name: NGROK_AUTHTOKEN

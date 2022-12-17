@@ -126,7 +126,7 @@ data:
 ## How to Configure the Agent
 
 > Warning: This will be deprecated soon when moving to the new lib-ngrok library
-* assumes configs will be in a config map named `ngrok-ingress-controller-agent-cm` in the same namespace
+* assumes configs will be in a config map named `{{ include "ngrok-ingress-controller.fullname" . }}-agent-cm` in the same namespace
 * setup automatically via helm. Values and config map name can be configured in the future via helm
 * subset of these that should be configurable https://ngrok.com/docs/ngrok-agent/config#config-full-example
 * example config map showing all optional values with their defaults.
@@ -135,7 +135,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ngrok-ingress-controller-agent-cm
+  name: {{ include "ngrok-ingress-controller.fullname" . }}-agent-cm
   namespace: ngrok-ingress-controller
 data:
   LOG: stdout
