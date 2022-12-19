@@ -34,6 +34,8 @@ jobs:
     name: Release Images
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
     needs:
       - changes
     if: |
@@ -75,13 +77,13 @@ jobs:
           push: true
           tags: ngrok/ngrok-ingress-controller:${{ steps.extract_tag.outputs.tag }}
       - name: Create GitHub Release
-        uses: actions/github-script@v5
+        uses: actions/github-script@v6
         if: ${{ needs.changes.outputs.tag == 'true' }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const tag = '${{ steps.extract_tag.outputs.tag }}'
-            const release = await github.repos.createRelease({
+            const release = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: `ngrok-ingress-controller-${tag}`,
