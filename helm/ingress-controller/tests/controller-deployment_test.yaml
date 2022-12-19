@@ -1,0 +1,15 @@
+suite: test controller-deployment
+templates:
+- controller-deployment.yaml
+# The following included templates are needed due to the way helm unittest works.
+# It won't load the temaplates unless they are included here. Due to the checksums
+# we are including on the deployment, we need to include them here. It makes the
+# snapshot much larger than it needs to be, but it's the only way to test the
+# deployment at this time.
+- agent-config-cm.yaml
+- controller-rbac.yaml
+- role.yaml
+tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}

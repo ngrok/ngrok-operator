@@ -33,21 +33,38 @@ To uninstall the chart:
 <!-- Parameters are auto generated via @bitnami/readme-generator-for-helm -->
 ## Parameters
 
+### Common parameters
+
+| Name                | Description                                           | Value |
+| ------------------- | ----------------------------------------------------- | ----- |
+| `nameOverride`      | String to partially override generated resource names | `""`  |
+| `fullnameOverride`  | String to fully override generated resource names     | `""`  |
+| `commonLabels`      | Labels to add to all deployed objects                 | `{}`  |
+| `commonAnnotations` | Annotations to add to all deployed objects            | `{}`  |
+
+
 ### Controller parameters
 
-| Name                     | Description                                     | Value                                  |
-| ------------------------ | ----------------------------------------------- | -------------------------------------- |
-| `podAnnotations`         | Used to inject custom annotations directly into | `{}`                                   |
-| `replicaCount`           | The number of controllers and agents to run.    | `2`                                    |
-| `image.repository`       | The ngrok ingress controller image repository.  | `ngrok/ngrok-ingress-controller`       |
-| `image.tag`              | The ngrok ingress controller image tag.         | `latest`                               |
-| `image.pullPolicy`       | The ngrok ingress controller image pull policy. | `IfNotPresent`                         |
-| `ingressClass`           | The ingress class this controller will satisfy. | `ngrok`                                |
-| `log`                    | Agent log destination.                          | `stdout`                               |
-| `region`                 | ngrok region to create tunnels in.              | `us`                                   |
-| `credentialsSecret.name` | The name of the K8S secret that contains the    | `ngrok-ingress-controller-credentials` |
-| `apiKey`                 | The ngrok API key to use                        | `""`                                   |
-| `authtoken`              | The ngrok auth token to use                     | `""`                                   |
-| `resources.limits`       | The resources limits for the container          | `{}`                                   |
-| `resources.requests`     | The requested resources for the container       | `{}`                                   |
+| Name                         | Description                                                     | Value                                  |
+| ---------------------------- | --------------------------------------------------------------- | -------------------------------------- |
+| `podAnnotations`             | Used to inject custom annotations directly into                 | `{}`                                   |
+| `replicaCount`               | The number of controllers and agents to run.                    | `2`                                    |
+| `image.registry`             | The ngrok ingress controller image registry.                    | `docker.io`                            |
+| `image.repository`           | The ngrok ingress controller image repository.                  | `ngrok/ngrok-ingress-controller`       |
+| `image.tag`                  | The ngrok ingress controller image tag.                         | `latest`                               |
+| `image.pullPolicy`           | The ngrok ingress controller image pull policy.                 | `IfNotPresent`                         |
+| `image.pullSecrets`          | An array of imagePullSecrets to be used when pulling the image. | `[]`                                   |
+| `ingressClass.name`          | The name of the ingress class to use.                           | `ngrok`                                |
+| `ingressClass.create`        | Whether to create the ingress class.                            | `true`                                 |
+| `ingressClass.default`       | Whether to set the ingress class as default.                    | `true`                                 |
+| `log`                        | Agent log destination.                                          | `stdout`                               |
+| `region`                     | ngrok region to create tunnels in.                              | `us`                                   |
+| `credentialsSecret.name`     | The name of the K8S secret that contains the                    | `ngrok-ingress-controller-credentials` |
+| `apiKey`                     | The ngrok API key to use                                        | `""`                                   |
+| `authtoken`                  | The ngrok auth token to use                                     | `""`                                   |
+| `resources.limits`           | The resources limits for the container                          | `{}`                                   |
+| `resources.requests`         | The requested resources for the container                       | `{}`                                   |
+| `serviceAccount.create`      | Specifies whether a ServiceAccount should be created            | `true`                                 |
+| `serviceAccount.name`        | The name of the ServiceAccount to use.                          | `""`                                   |
+| `serviceAccount.annotations` | Additional annotations to add to the ServiceAccount             | `{}`                                   |
 

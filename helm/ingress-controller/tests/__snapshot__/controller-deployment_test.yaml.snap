@@ -1,0 +1,293 @@
+Should match snapshot:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      annotations:
+        checksum/agent-config: c477ecc68a20d5571a24a33342f62893ed4c1d89ecb80cc7cf97b58b290e2891
+        checksum/controller-role: 4c8da8ec4e728eb7bbf0e2f88f5ad55781f988247737d6f1c889c736aa909c60
+        checksum/rbac: d65fd1d397f0da2dc2888c7af42265b5a47272fbbf56a0c3331023d949f3c58b
+      labels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-ingress-controller
+        app.kubernetes.io/part-of: ngrok-ingress-controller
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: ngrok-ingress-controller-0.2.0
+      name: RELEASE-NAME-ngrok-ingress-controller-manager
+      namespace: NAMESPACE
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: controller
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: ngrok-ingress-controller
+      template:
+        metadata:
+          annotations:
+            kubectl.kubernetes.io/default-container: manager
+            prometheus.io/path: /metrics
+            prometheus.io/port: "8080"
+            prometheus.io/scrape: "true"
+          labels:
+            app.kubernetes.io/component: controller
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: ngrok-ingress-controller
+        spec:
+          containers:
+          - args:
+            - --health-probe-bind-address=:8081
+            - --metrics-bind-address=:8080
+            - --election-id=RELEASE-NAME-ngrok-ingress-controller-leader
+            - --region=us
+            command:
+            - /manager
+            env:
+            - name: NGROK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: API_KEY
+                  name: ngrok-ingress-controller-credentials
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            image: docker.io/ngrok/ngrok-ingress-controller:latest
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              httpGet:
+                path: /healthz
+                port: 8081
+              initialDelaySeconds: 15
+              periodSeconds: 20
+            name: ngrok-ingress-controller
+            readinessProbe:
+              httpGet:
+                path: /readyz
+                port: 8081
+              initialDelaySeconds: 5
+              periodSeconds: 10
+            resources:
+              limits: {}
+              requests: {}
+            securityContext:
+              allowPrivilegeEscalation: false
+          - command:
+            - ./scripts/gen-agent-config.sh
+            env:
+            - name: NGROK_AUTHTOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: AUTHTOKEN
+                  name: ngrok-ingress-controller-credentials
+            - name: NGROK_REGION
+              value: us
+            envFrom:
+            - configMapRef:
+                name: RELEASE-NAME-ngrok-ingress-controller-agent-cm
+                optional: true
+            image: ngrok/ngrok:3
+            name: ngrok-cli
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+              readOnly: true
+          serviceAccountName: RELEASE-NAME-ngrok-ingress-controller
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: scripts
+            name: scripts
+  2: |
+    apiVersion: v1
+    data:
+      gen-agent-config.sh: |
+        #!/bin/bash
+
+        NGROK_LOG="${NGROK_LOG:-stdout}"
+        NGROK_REGION="${NGROK_REGION:-us}"
+        NGROK_REMOTE_MANAGEMENT="${NGROK_REMOTE_MANAGEMENT:-true}"
+
+        cat > /var/lib/ngrok/agent-template.yaml <<EOF
+        version: 2
+        authtoken: $NGROK_AUTHTOKEN
+        console_ui: false
+        log: $NGROK_LOG
+        region: $NGROK_REGION
+        remote_management: $NGROK_REMOTE_MANAGEMENT
+        update_check: false
+        EOF
+
+        ngrok start --none --config /var/lib/ngrok/agent-template.yaml
+    kind: ConfigMap
+    metadata:
+      name: scripts
+      namespace: NAMESPACE
+  3: |
+    apiVersion: v1
+    data:
+      LOG: stdout
+      METADATA: ""
+      REGION: us
+      REMOTE_MANAGEMENT: ""
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME-ngrok-ingress-controller-agent-cm
+      namespace: NAMESPACE
+  4: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: ngrok-ingress-controller-leader-election-role
+      namespace: NAMESPACE
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - configmaps
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - coordination.k8s.io
+      resources:
+      - leases
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - ""
+      resources:
+      - events
+      verbs:
+      - create
+      - patch
+  5: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: ngrok-ingress-controller-proxy-role
+    rules:
+    - apiGroups:
+      - authentication.k8s.io
+      resources:
+      - tokenreviews
+      verbs:
+      - create
+    - apiGroups:
+      - authorization.k8s.io
+      resources:
+      - subjectaccessreviews
+      verbs:
+      - create
+  6: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: ngrok-ingress-controller-leader-election-rolebinding
+      namespace: NAMESPACE
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: ngrok-ingress-controller-leader-election-role
+    subjects:
+    - kind: ServiceAccount
+      name: RELEASE-NAME-ngrok-ingress-controller
+      namespace: NAMESPACE
+  7: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: ngrok-ingress-controller-manager-rolebinding
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: ngrok-ingress-controller-manager-role
+    subjects:
+    - kind: ServiceAccount
+      name: RELEASE-NAME-ngrok-ingress-controller
+      namespace: NAMESPACE
+  8: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: ngrok-ingress-controller-proxy-rolebinding
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: ngrok-ingress-controller-proxy-role
+    subjects:
+    - kind: ServiceAccount
+      name: RELEASE-NAME-ngrok-ingress-controller
+      namespace: NAMESPACE
+  9: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      creationTimestamp: null
+      name: ngrok-ingress-controller-manager-role
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - configmaps
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - ""
+      resources:
+      - events
+      verbs:
+      - create
+      - patch
+    - apiGroups:
+      - ""
+      resources:
+      - secrets
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - networking.k8s.io
+      resources:
+      - ingressclasses
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - networking.k8s.io
+      resources:
+      - ingresses
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - networking.k8s.io
+      resources:
+      - ingresses/status
+      verbs:
+      - get
+      - list
+      - update
+      - watch

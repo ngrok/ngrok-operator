@@ -1,6 +1,6 @@
-suite: test controller-rbac
+suite: test agent-config-cm
 templates:
-- controller-rbac.yaml
+- agent-config-cm.yaml
 tests:
 - it: Should match snapshot
   asserts:
