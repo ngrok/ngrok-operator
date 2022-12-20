@@ -3,7 +3,7 @@ package controllers
 import (
 	"testing"
 
-	"github.com/ngrok/ngrok-ingress-controller/pkg/agentapiclient"
+	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokgodriver"
 	"github.com/stretchr/testify/assert"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,12 +14,12 @@ func TestIngressToTunnels(t *testing.T) {
 	testCases := []struct {
 		testName string
 		ingress  *netv1.Ingress
-		tunnels  []agentapiclient.TunnelsAPIBody
+		tunnels  []ngrokgodriver.TunnelsAPIBody
 	}{
 		{
 			testName: "Returns empty list when ingress is nil",
 			ingress:  nil,
-			tunnels:  []agentapiclient.TunnelsAPIBody{},
+			tunnels:  []ngrokgodriver.TunnelsAPIBody{},
 		},
 		{
 			testName: "Returns empty list when ingress has no rules",
@@ -31,7 +31,7 @@ func TestIngressToTunnels(t *testing.T) {
 					Rules: []netv1.IngressRule{},
 				},
 			},
-			tunnels: []agentapiclient.TunnelsAPIBody{},
+			tunnels: []ngrokgodriver.TunnelsAPIBody{},
 		},
 		{
 			ingress: &netv1.Ingress{
@@ -64,16 +64,16 @@ func TestIngressToTunnels(t *testing.T) {
 					},
 				},
 			},
-			tunnels: []agentapiclient.TunnelsAPIBody{
+			tunnels: []ngrokgodriver.TunnelsAPIBody{
 				{
 					Addr:      "test-service.test-namespace.svc.cluster.local:8080",
 					Name:      "test-ingress-test-namespace-test-service-8080--",
 					SubDomain: "",
-					Labels: []string{
-						"k8s.ngrok.com/ingress-name=test-ingress",
-						"k8s.ngrok.com/ingress-namespace=test-namespace",
-						"k8s.ngrok.com/service=test-service",
-						"k8s.ngrok.com/port=8080",
+					Labels: map[string]string{
+						"k8s.ngrok.com/ingress-name":      "test-ingress",
+						"k8s.ngrok.com/ingress-namespace": "test-namespace",
+						"k8s.ngrok.com/service":           "test-service",
+						"k8s.ngrok.com/port":              "8080",
 					},
 				},
 			},
@@ -88,7 +88,7 @@ func TestIngressToTunnels(t *testing.T) {
 			assert.Equal(t, tunnels[i].Name, test.tunnels[i].Name)
 			assert.Equal(t, tunnels[i].Addr, test.tunnels[i].Addr)
 			assert.Equal(t, tunnels[i].SubDomain, test.tunnels[i].SubDomain)
-			assert.ElementsMatch(t, tunnels[i].Labels, test.tunnels[i].Labels)
+			assert.Equal(t, tunnels[i].Labels, test.tunnels[i].Labels)
 		}
 	}
 }

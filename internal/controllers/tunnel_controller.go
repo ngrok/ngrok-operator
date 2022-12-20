@@ -139,18 +139,12 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 		serviceName := httpIngressPath.Backend.Service.Name
 		servicePort := int(httpIngressPath.Backend.Service.Port.Number)
 		tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
-
-		var labels []string
-		for key, value := range backendToLabelMap(httpIngressPath.Backend, ingressName, namespace) {
-			labels = append(labels, fmt.Sprintf("%s=%s", key, value))
-		}
-
 		clean_path := strings.Replace(httpIngressPath.Path, "/", "-", -1)
 
 		agentTunnels = append(agentTunnels, ngrokgodriver.TunnelsAPIBody{
 			Name:   fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
 			Addr:   tunnelAddr,
-			Labels: labels,
+			Labels: backendToLabelMap(httpIngressPath.Backend, ingressName, namespace),
 		})
 	}
 
