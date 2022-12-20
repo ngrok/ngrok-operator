@@ -23,9 +23,6 @@ tests:
   - matchRegex:
       path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
       pattern: test-secret-name
-  - matchRegex:
-      path: spec.template.spec.containers[1].env[0].valueFrom.secretKeyRef.name
-      pattern: test-secret-name
 - it: Should pass the region via container args to the controller if specified
   set:
     region: eu
