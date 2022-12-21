@@ -25,6 +25,8 @@ KUSTOMIZE = go run sigs.k8s.io/kustomize/kustomize/v3
 
 ENVTEST = go run sigs.k8s.io/controller-runtime/tools/setup-envtest
 
+HELM_CHART_DIR = ./helm/ingress-controller
+
 # Targets
 
 .PHONY: all
@@ -85,7 +87,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.
-	docker build -t ${IMG} .
+	DOCKER_BUILDKIT=1 docker build -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -107,7 +109,7 @@ uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube
 
 .PHONY: deploy
 deploy: docker-build manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade ngrok-ingress-controller helm/ingress-controller --install \
+	helm upgrade ngrok-ingress-controller $(HELM_CHART_DIR) --install \
 		--namespace ngrok-ingress-controller \
 		--create-namespace \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
@@ -119,3 +121,17 @@ deploy: docker-build manifests ## Deploy controller to the K8s cluster specified
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	helm uninstall ngrok-ingress-controller
+
+.PHONY: helm-lint
+helm-lint: ## Lint the helm chart
+	helm lint $(HELM_CHART_DIR)
+
+.PHONY: helm-test
+helm-test: ## Run helm unittest plugin
+	./scripts/helm-setup.sh
+	helm unittest --helm3 $(HELM_CHART_DIR)
+
+.PHONY: helm-update-snapshots
+helm-update-snapshots: ## Update helm unittest snapshots
+	./scripts/helm-setup.sh
+	helm unittest --helm3 -u $(HELM_CHART_DIR)

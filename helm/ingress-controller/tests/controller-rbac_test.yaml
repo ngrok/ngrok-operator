@@ -1,0 +1,7 @@
+suite: test controller-rbac
+templates:
+- controller-rbac.yaml
+tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}

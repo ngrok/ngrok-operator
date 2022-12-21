@@ -1,0 +1,30 @@
+---
+name: ngrok Ingress Controller Feature Request
+description: Suggest an idea for this project
+labels: ["enhancement", "needs-triage"]
+body:
+- type: markdown
+  attributes:
+    value: |
+      Thanks for taking the time to fill out this feature request!
+
+      We really appreciate the community efforts to improve the ngrok Ingress Controller.
+
+- type: textarea
+  attributes:
+    label: Description
+    description: A short description of the feature request
+- type: textarea
+  attributes:
+    label: Use Case
+    description: What is the use case for this feature?
+    placeholder: >
+      Rather than telling us how you might implement this feature, try to take a step
+      back and explain what you are trying to achieve.
+- type: textarea
+  attributes:
+    label: Related issues
+    description: Are there any related issues?
+- type: markdown
+  attributes:
+    value: "Thank you for help in improving the ngrok Ingress Controller!"

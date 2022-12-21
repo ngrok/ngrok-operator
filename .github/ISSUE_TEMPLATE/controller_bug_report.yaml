@@ -1,0 +1,37 @@
+---
+name: ngrok Ingress Controller Bug Report
+description: Report an issue in the ngrok Ingress Controller
+labels: ["bug", "area/controller", "needs-triage"]
+body:
+- type: markdown
+  attributes:
+    value: |
+      Thanks for taking the time to fill out this bug report!
+
+      Note, you do not need to create an issue if you have a change ready to submit.
+      You can open a [pull request](https://github.com/ngrok/ngrok-ingress-controller/pulls) immediately instead.
+- type: textarea
+  attributes:
+    label: What happened
+    description: Describe what happened.
+    placeholder: >
+      Please provide the context in which the problem occurred and explain what happened
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: What you think should happen instead
+    description: What do you think went wrong?
+    placeholder: >
+      Please explain why you think the behavior you observed is incorrect. It is extremely helpful
+      if you copy & paste the fragment of logs showing the exact error messages or wrong behavior.
+- type: textarea
+  attributes:
+    label: How to reproduce
+    description: What should we do to reproduce the problem?
+    placeholder: >
+      Please provide a reproducible step-by-step case of how to reproduce the problem as minimally and
+      precisely as possible. It will greatly help us in figuring out the root cause of the problem and fixing it.
+- type: markdown
+  attributes:
+    value: "Thank you for help in improving the ngrok Ingress Controller!"

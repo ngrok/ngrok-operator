@@ -1,6 +1,51 @@
-The ngrok Ingress controller has been deployed as a Deployment type to your cluster.
+================================================================================
+The ngrok Ingress controller has been deployed as a Deployment type to your
+cluster.
 
-If you haven't yet, create some Ingress resources in your cluster and they will be automatically configured on the internet using ngrok.
+If you haven't yet, create some Ingress resources in your cluster and they will
+be automatically configured on the internet using ngrok.
+
+
+{{- $found := false }}
+{{- range $svcIndex, $service := (lookup "v1" "Service" "" "").items }}
+    {{- range $portMapIdx, $portMap := $service.spec.ports }}
+        {{- if eq $portMap.port 80 443 }}
+          {{- if ne $service.metadata.name "kubernetes" }}
+            {{- $randomStr := randAlphaNum 8 }}}}
+
+One example, taken from your cluster, is the Service:
+   {{ $service.metadata.name | quote }}
+
+You can make this accessible via Ngrok with the following manifest:
+--------------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $service.metadata.name }}
+  namespace: {{ $service.metadata.namespace }}
+spec:
+  ingressClassName: ngrok
+  rules:
+  - host: {{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $service.metadata.name }}
+            port:
+              number: {{ $portMap.port }}
+--------------------------------------------------------------------------------
+Applying this manifest will make the service {{ $service.metadata.name | quote }}
+available on the public internet at "https://{{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.io/".
+
+                {{- $found = true -}}
+            {{- end }}
+        {{- end }}
+    {{- end }}
+    {{- if eq $found true }}{{break}}{{end}}
+{{- end }}
 
 Once done, view your edges in the Dashboard https://dashboard.ngrok.com/cloud-edge/edges
 Find the tunnels running in your cluster here https://dashboard.ngrok.com/tunnels/agents

@@ -1,0 +1,79 @@
+name: 'PR Comments'
+
+on:
+  pull_request_target:
+    branches:
+    - main
+    paths:
+    - 'helm/*/Chart.yaml'
+    - 'VERSION'
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.filter.outputs.charts }}
+      chartyaml: ${{ steps.filter.outputs.chartyaml }}
+      go: ${{ steps.filter.outputs.go }}
+      tag: ${{ steps.filter.outputs.tag }}
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - id: filter
+      uses: dorny/paths-filter@v2.11.1
+      with:
+        filters: |
+          chartyaml:
+            - 'helm/ingress-controller/Chart.yaml'
+          charts:
+            - 'helm/ingress-controller/**'
+            - 'scripts/e2e.sh'
+          go:
+            - '**.go'
+            - 'go.mod'
+            - 'go.sum'
+            - 'cmd/**'
+            - 'internal/**'
+            - 'pkg/**'
+            - 'Dockerfile'
+            - 'scripts/e2e.sh'
+            - 'VERSION'
+          tag:
+            - 'VERSION'
+
+  # Action that will automatically comment on PRs based on changes
+  pr-comments:
+    name: Comment on PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [changes]
+    permissions:
+      pull-requests: write
+    steps:
+    - if: needs.changes.outputs.chartyaml == 'true'
+      name: Notify about changes to Chart.yaml
+      uses: actions/github-script@v5
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: ":wave: Looks like there are changes in the Helm Chart's Chart.yaml file. Upon merge, a new release of the helm chart will be created. Please make sure the version is updated appropriately."
+          })
+    - if: needs.changes.outputs.tag == 'true'
+      name: Notify about version change
+      uses: actions/github-script@v5
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: ":wave: Looks like there are changes in the `VERSION` file. Upon merge, a new release of the docker image will be created. Please make sure the version is updated appropriately."
+          })

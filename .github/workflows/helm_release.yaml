@@ -1,21 +1,49 @@
-name: Helm Release
+name: Helm
 
 on:
   push:
     branches:
       - main
-      - mschenck/12686/helm-release-workflow
     paths:
       - 'helm/ingress-controller/Chart.yaml'
 
 jobs:
-  helm_release:
+  changes:
+    name: Changes
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      charts: ${{ steps.filter.outputs.charts }}
+    permissions:
+      contents: read
+      pull-requests: read
+    if: github.repository == 'ngrok/ngrok-ingress-controller'
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Check for changes
+        id: filter
+        uses: dorny/paths-filter@v2.11.1
+        with:
+          filters: |
+            charts:
+              - 'helm/ingress-controller/Chart.yaml'
 
+  chart:
+    name: Release Chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # need to write releases
+    needs: [changes]
+    if: |
+      (github.repository == 'ngrok/ngrok-ingress-controller') &&
+      (needs.changes.outputs.charts == 'true')
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
+          # Fetch entire history. Required for chart-releaser to work.
           fetch-depth: 0
 
       - name: Configure Git
@@ -30,7 +58,8 @@ jobs:
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.4.1
-        with:
-          charts_dir: helm
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CR_RELEASE_NAME_TEMPLATE: "helm-chart-{{ .Version }}" # Publishes a new release. Ex: helm-chart-0.1.0
+        with:
+          charts_dir: helm

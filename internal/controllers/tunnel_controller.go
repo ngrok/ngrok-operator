@@ -92,7 +92,7 @@ func (trec *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := tCont.Watch(&source.Kind{Type: &netv1.Ingress{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := tCont.Watch(&source.Kind{Type: &netv1.Ingress{}}, &handler.EnqueueRequestForObject{}, commonPredicateFilters); err != nil {
 		return err
 	}
 
@@ -127,7 +127,7 @@ func (trec *TunnelController) Start(ctx context.Context) error {
 	return trec.Controller.Start(ctx)
 }
 
-// Converts a k8s Ingress Rule to and Ngrok Agent Tunnel configuration.
+// Converts a k8s Ingress Rule to and ngrok Agent Tunnel configuration.
 func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) []agentapiclient.TunnelsAPIBody {
 	var agentTunnels []agentapiclient.TunnelsAPIBody
 
@@ -153,9 +153,12 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 	return agentTunnels
 }
 
-// Converts a k8s ingress object into a slice of Ngrok Agent Tunnels
+// Converts a k8s ingress object into a slice of ngrok Agent Tunnels
 // TODO: Support multiple Rules per Ingress
 func ingressToTunnels(ingress *netv1.Ingress) []agentapiclient.TunnelsAPIBody {
+	if ingress == nil || len(ingress.Spec.Rules) == 0 {
+		return []agentapiclient.TunnelsAPIBody{}
+	}
 	ingressRule := ingress.Spec.Rules[0]
 
 	tunnels := tunnelsPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)

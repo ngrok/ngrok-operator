@@ -2,8 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: ngrok-ingress-controller
-  name: ngrok-ingress-controller-manager
+    {{- include "ngrok-ingress-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+  name: {{ include "ngrok-ingress-controller.fullname" . }}-manager
   namespace: {{ .Release.Namespace }}
   annotations:
     checksum/agent-config: {{ include (print $.Template.BasePath "/agent-config-cm.yaml") . | sha256sum }}
@@ -13,7 +14,8 @@ spec:
   replicas: {{.Values.replicaCount}}
   selector:
     matchLabels:
-      app: ngrok-ingress-controller
+      {{- include "ngrok-ingress-controller.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: controller
   template:
     metadata:
       annotations:
@@ -21,10 +23,18 @@ spec:
         {{- if .Values.podAnnotations }}
           {{- toYaml .Values.podAnnotations | nindent 8 }}
         {{- end }}
+        prometheus.io/path: /metrics
+        prometheus.io/port: '8080'
+        prometheus.io/scrape: 'true'
       labels:
-        app: ngrok-ingress-controller
+        {{- include "ngrok-ingress-controller.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: controller
     spec:
-      serviceAccountName: ngrok-ingress-controller-manager
+      serviceAccountName: {{ template "ngrok-ingress-controller.serviceAccountName" . }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
       volumes:
       - name: scripts
         configMap:
@@ -32,14 +42,14 @@ spec:
           defaultMode: 0755
       containers:
       - name: ngrok-ingress-controller
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        image: {{ include "ngrok-ingress-controller.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /manager
         args:
         - --health-probe-bind-address=:8081
-        - --metrics-bind-address=127.0.0.1:8080
-        - --leader-elect
+        - --metrics-bind-address=:8080
+        - --election-id={{ include "ngrok-ingress-controller.fullname" . }}-leader
         {{- if .Values.region }}
         - --region={{ .Values.region}}
         {{- end }}
@@ -75,7 +85,7 @@ spec:
         - ./scripts/gen-agent-config.sh
         envFrom:
         - configMapRef:
-            name: ngrok-ingress-controller-agent-cm
+            name: {{ include "ngrok-ingress-controller.fullname" . }}-agent-cm
             optional: true
         env:
         - name: NGROK_AUTHTOKEN
