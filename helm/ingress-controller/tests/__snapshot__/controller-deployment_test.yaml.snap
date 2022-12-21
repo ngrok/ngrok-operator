@@ -48,7 +48,7 @@ Should match snapshot:
               valueFrom:
                 secretKeyRef:
                   key: API_KEY
-                  name: ngrok-ingress-controller-credentials
+                  name: RELEASE-NAME-ngrok-ingress-controller-credentials
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -80,7 +80,7 @@ Should match snapshot:
               valueFrom:
                 secretKeyRef:
                   key: AUTHTOKEN
-                  name: ngrok-ingress-controller-credentials
+                  name: RELEASE-NAME-ngrok-ingress-controller-credentials
             envFrom:
             - configMapRef:
                 name: RELEASE-NAME-ngrok-ingress-controller-agent-cm

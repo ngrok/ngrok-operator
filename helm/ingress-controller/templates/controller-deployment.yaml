@@ -60,7 +60,7 @@ spec:
           valueFrom:
             secretKeyRef:
               key: API_KEY
-              name: {{ .Values.credentials.secret.name }}
+              name: {{ include "ngrok-ingress-controller.credentialsSecretName" .}}
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
@@ -92,7 +92,7 @@ spec:
           valueFrom:
             secretKeyRef:
               key: AUTHTOKEN
-              name: {{ .Values.credentials.secret.name }}
+              name: {{ include "ngrok-ingress-controller.credentialsSecretName" .}}
         {{- if .Values.region }}
         - name: NGROK_REGION
           value: {{ quote .Values.region}}

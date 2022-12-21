@@ -31,6 +31,17 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 
 {{/*
+Create a default name for the credentials secret name using the helm release
+*/}}
+{{- define "ngrok-ingress-controller.credentialsSecretName" -}}
+{{- if .Values.credentials.secretName -}}
+{{- .Values.credentials.secretName -}}
+{{- else -}}
+{{- printf "%s-credentials" (include "ngrok-ingress-controller.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Common labels
 */}}
 {{- define "ngrok-ingress-controller.labels" -}}
