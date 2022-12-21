@@ -114,7 +114,6 @@ deploy: docker-build manifests ## Deploy controller to the K8s cluster specified
 		--create-namespace \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set image.repository=$(IMG) \
-		--set credentials.secret.create=true \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN)
 

@@ -66,7 +66,6 @@ helm repo add ngrok https://ngrok.github.io/ngrok-ingress-controller
 helm install ngrok-ingress-controller ngrok/ngrok-ingress-controller \
   --namespace ngrok-ingress-controller \
   --create-namespace \
-  --set credentials.secret.create = true \
   --set credentials.apiKey=$(NGROK_API_KEY) \
   --set credentials.authtoken=$(NGROK_AUTHTOKEN)
 ```

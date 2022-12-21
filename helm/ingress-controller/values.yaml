@@ -22,7 +22,7 @@ podAnnotations: {}
 ## @param replicaCount The number of controllers and agents to run.
 ## A minimum of 2 is recommended in production for HA.
 ##
-replicaCount: 2
+replicaCount: 1
 
 ## @param image.registry The ngrok ingress controller image registry.
 ## @param image.repository The ngrok ingress controller image repository.
@@ -52,7 +52,6 @@ ingressClass:
 # ingress controller.
 credentials:
   secret:
-    create: false
     name: ngrok-ingress-controller-credentials
   apiKey: ""
   authtoken: ""
