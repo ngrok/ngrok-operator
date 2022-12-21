@@ -2,21 +2,15 @@ package controllers
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
-	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-ingress-controller/pkg/agentapiclient"
 	v1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	"github.com/go-logr/logr"
+	k8sngrokcomv1 "github.com/ngrok/ngrok-ingress-controller/pkg/api/v1"
 )
 
 const (
@@ -24,25 +18,20 @@ const (
 	clusterDomain = "svc.cluster.local"
 )
 
-// This implements the Reconciler for the controller-runtime
-// https://pkg.go.dev/sigs.k8s.io/controller-runtime#section-readme
+// TunnelReconciler reconciles a Tunnel object
 type TunnelReconciler struct {
 	client.Client
-	Log      logr.Logger
 	Scheme   *runtime.Scheme
+	Log      logr.Logger
 	Recorder record.EventRecorder
 }
 
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups="networking.k8s.io",resources=ingressclasses,verbs=get;list;watch
+//+kubebuilder:rbac:groups=k8s.ngrok.com,resources=tunnels,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=k8s.ngrok.com,resources=tunnels/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=k8s.ngrok.com,resources=tunnels/finalizers,verbs=update
 
-// This reconcile function is called by the controller-runtime manager.
-// It is invoked whenever there is an event that occurs for a resource
-// being watched (in our case, ingress objects). If you tail the controller
-// logs and delete, update, edit ingress objects, you see the events come in.
 func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := trec.Log.WithValues("ingress", req.NamespacedName)
+	log := trec.Log.WithValues("tunnel", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
 	ingress, err := getIngress(ctx, trec.Client, req.NamespacedName)
 	if err != nil {
@@ -57,110 +46,38 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	// Check if the ingress object is being deleted
-	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
+	/*
+		// Check if the ingress object is being deleted
+		if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
+			for _, tunnel := range ingressToTunnels(ingress) {
+				trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleting", fmt.Sprintf("Tunnel %s deleting", tunnel.Name))
+				err := agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnel.Name)
+				if err != nil {
+					trec.Recorder.Event(ingress, "Warning", "TunnelDeleteFailed", fmt.Sprintf("Tunnel %s delete failed", tunnel.Name))
+					return ctrl.Result{}, err
+				}
+				trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleted", fmt.Sprintf("Tunnel %s deleted", tunnel.Name))
+			}
+			return ctrl.Result{}, nil
+		}
+
 		for _, tunnel := range ingressToTunnels(ingress) {
-			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleting", fmt.Sprintf("Tunnel %s deleting", tunnel.Name))
-			err := agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnel.Name)
+			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnel.Name))
+			err = agentapiclient.NewAgentApiClient().CreateTunnel(ctx, tunnel)
 			if err != nil {
-				trec.Recorder.Event(ingress, "Warning", "TunnelDeleteFailed", fmt.Sprintf("Tunnel %s delete failed", tunnel.Name))
+				trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnel.Name))
 				return ctrl.Result{}, err
 			}
-			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleted", fmt.Sprintf("Tunnel %s deleted", tunnel.Name))
+			trec.Recorder.Event(ingress, "Normal", "TunnelCreated", fmt.Sprintf("Tunnel %s created with labels %q", tunnel.Name, tunnel.Labels))
 		}
-		return ctrl.Result{}, nil
-	}
-
-	for _, tunnel := range ingressToTunnels(ingress) {
-		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnel.Name))
-		err = agentapiclient.NewAgentApiClient().CreateTunnel(ctx, tunnel)
-		if err != nil {
-			trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnel.Name))
-			return ctrl.Result{}, err
-		}
-		trec.Recorder.Event(ingress, "Normal", "TunnelCreated", fmt.Sprintf("Tunnel %s created with labels %q", tunnel.Name, tunnel.Labels))
-	}
+	*/
 
 	return ctrl.Result{}, nil
 }
 
-// Create a new Controller that watches Ingress objects.
-// Add it to our manager.
-func (trec *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	tCont, err := NewTunnelControllerNew("tunnel-controller", mgr, trec)
-	if err != nil {
-		return err
-	}
-
-	if err := tCont.Watch(&source.Kind{Type: &netv1.Ingress{}}, &handler.EnqueueRequestForObject{}, commonPredicateFilters); err != nil {
-		return err
-	}
-
-	mgr.Add(tCont)
-	return nil
-}
-
-// Small wrapper struct of the core controller.Controller so we get most of its functionality
-type TunnelController struct {
-	controller.Controller
-}
-
-// Creates an un-managed controller that can be embeded in our controller struct so we can override functions.
-func NewTunnelControllerNew(name string, mgr manager.Manager, trec *TunnelReconciler) (controller.Controller, error) {
-	cont, err := controller.NewUnmanaged(name, mgr, controller.Options{
-		Reconciler: trec,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &TunnelController{
-		Controller: cont,
-	}, nil
-}
-
-// This controller should not use leader election. It should run on all controllers by default to control the agents on each.
-func (trec *TunnelController) NeedLeaderElection() bool {
-	return false
-}
-
-func (trec *TunnelController) Start(ctx context.Context) error {
-	return trec.Controller.Start(ctx)
-}
-
-// Converts a k8s Ingress Rule to and ngrok Agent Tunnel configuration.
-func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) []agentapiclient.TunnelsAPIBody {
-	var agentTunnels []agentapiclient.TunnelsAPIBody
-
-	for _, httpIngressPath := range rule.HTTP.Paths {
-		serviceName := httpIngressPath.Backend.Service.Name
-		servicePort := int(httpIngressPath.Backend.Service.Port.Number)
-		tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
-
-		var labels []string
-		for key, value := range backendToLabelMap(httpIngressPath.Backend, ingressName, namespace) {
-			labels = append(labels, fmt.Sprintf("%s=%s", key, value))
-		}
-
-		clean_path := strings.Replace(httpIngressPath.Path, "/", "-", -1)
-
-		agentTunnels = append(agentTunnels, agentapiclient.TunnelsAPIBody{
-			Name:   fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
-			Addr:   tunnelAddr,
-			Labels: labels,
-		})
-	}
-
-	return agentTunnels
-}
-
-// Converts a k8s ingress object into a slice of ngrok Agent Tunnels
-// TODO: Support multiple Rules per Ingress
-func ingressToTunnels(ingress *netv1.Ingress) []agentapiclient.TunnelsAPIBody {
-	if ingress == nil || len(ingress.Spec.Rules) == 0 {
-		return []agentapiclient.TunnelsAPIBody{}
-	}
-	ingressRule := ingress.Spec.Rules[0]
-
-	tunnels := tunnelsPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
-	return tunnels
+// SetupWithManager sets up the controller with the Manager.
+func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&k8sngrokcomv1.Tunnel{}).
+		Complete(r)
 }

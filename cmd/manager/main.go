@@ -29,9 +29,11 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
+	k8sngrokcomv1 "github.com/ngrok/ngrok-ingress-controller/pkg/api/v1"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -39,9 +41,15 @@ import (
 	//+kubebuilder:scaffold:imports
 )
 
-var log = ctrl.Log.WithName("setup")
+var (
+	log    = ctrl.Log.WithName("setup")
+	scheme = runtime.NewScheme()
+)
 
 func init() {
+	clientgoscheme.AddToScheme(scheme)
+
+	utilruntime.Must(k8sngrokcomv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -89,11 +97,6 @@ func cmd() *cobra.Command {
 
 func runController(ctx context.Context, opts managerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
-
-	scheme := runtime.NewScheme()
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		return err
-	}
 
 	var ok bool
 	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")

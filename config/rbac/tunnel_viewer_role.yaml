@@ -1,0 +1,27 @@
+# permissions for end users to view tunnels.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: tunnel-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: tunnel-viewer-role
+rules:
+- apiGroups:
+  - k8s.ngrok.com
+  resources:
+  - tunnels
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - k8s.ngrok.com
+  resources:
+  - tunnels/status
+  verbs:
+  - get

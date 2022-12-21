@@ -11,6 +11,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	k8sngrokcomv1 "github.com/ngrok/ngrok-ingress-controller/pkg/api/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -201,4 +202,44 @@ func backendToLabelMap(backend netv1.IngressBackend, ingressName, namespace stri
 		"k8s.ngrok.com/service":           backend.Service.Name,
 		"k8s.ngrok.com/port":              strconv.Itoa(int(backend.Service.Port.Number)),
 	}
+}
+
+// Converts a k8s Ingress Rule to and ngrok Agent Tunnel configuration.
+func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) k8sngrokcomv1.TunnelList {
+	var agentTunnels k8sngrokcomv1.TunnelList
+
+	for _, httpIngressPath := range rule.HTTP.Paths {
+		serviceName := httpIngressPath.Backend.Service.Name
+		servicePort := int(httpIngressPath.Backend.Service.Port.Number)
+		tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
+
+		var labels []string
+		for key, value := range backendToLabelMap(httpIngressPath.Backend, ingressName, namespace) {
+			labels = append(labels, fmt.Sprintf("%s=%s", key, value))
+		}
+
+		clean_path := strings.Replace(httpIngressPath.Path, "/", "-", -1)
+
+		agentTunnels.Items = append(agentTunnels.Items, k8sngrokcomv1.Tunnel{
+			Spec: k8sngrokcomv1.TunnelSpec{
+				Name:   fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
+				Addr:   tunnelAddr,
+				Labels: labels,
+			},
+		})
+	}
+
+	return agentTunnels
+}
+
+// Converts a k8s ingress object into a slice of ngrok Agent Tunnels
+// TODO: Support multiple Rules per Ingress
+func ingressToTunnels(ingress *netv1.Ingress) k8sngrokcomv1.TunnelList {
+	if ingress == nil || len(ingress.Spec.Rules) == 0 {
+		return k8sngrokcomv1.TunnelList{}
+	}
+	ingressRule := ingress.Spec.Rules[0]
+
+	tunnels := tunnelsPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
+	return tunnels
 }

@@ -1,0 +1,31 @@
+# permissions for end users to edit tunnels.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: tunnel-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: tunnel-editor-role
+rules:
+- apiGroups:
+  - k8s.ngrok.com
+  resources:
+  - tunnels
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - k8s.ngrok.com
+  resources:
+  - tunnels/status
+  verbs:
+  - get

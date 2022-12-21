@@ -1,0 +1,12 @@
+apiVersion: k8s.ngrok.com/v1
+kind: Tunnel
+metadata:
+  labels:
+    app.kubernetes.io/name: tunnel
+    app.kubernetes.io/instance: tunnel-sample
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+  name: tunnel-sample
+spec:
+  # TODO(user): Add fields here
