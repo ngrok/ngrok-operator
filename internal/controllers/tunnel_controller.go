@@ -88,8 +88,13 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // Create a new Controller that watches Ingress objects.
 // Add it to our manager.
 func (trec *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var err error
+
 	if trec.tm == nil {
-		trec.tm = ngrokgodriver.NewTunnelManager()
+		trec.tm, err = ngrokgodriver.NewTunnelManager()
+		if err != nil {
+			return err
+		}
 	}
 	tCont, err := NewTunnelControllerNew("tunnel-controller", mgr, trec)
 	if err != nil {

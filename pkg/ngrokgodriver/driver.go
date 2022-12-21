@@ -13,13 +13,22 @@ import (
 )
 
 type TunnelManager struct {
+	session ngrok.Session
 	tunnels map[string]ngrok.Tunnel
 }
 
-func NewTunnelManager() *TunnelManager {
-	return &TunnelManager{
-		tunnels: make(map[string]ngrok.Tunnel),
+func NewTunnelManager() (*TunnelManager, error) {
+	opts := []ngrok.ConnectOption{
+		ngrok.WithAuthtokenFromEnv(),
 	}
+	session, err := ngrok.Connect(context.Background(), opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &TunnelManager{
+		session: session,
+		tunnels: make(map[string]ngrok.Tunnel),
+	}, nil
 }
 
 func (tm *TunnelManager) CreateTunnel(ctx context.Context, t TunnelsAPIBody) error {
@@ -32,10 +41,7 @@ func (tm *TunnelManager) CreateTunnel(ctx context.Context, t TunnelsAPIBody) err
 		defer tm.stopTunnel(context.Background(), tun)
 	}
 
-	tun, err := ngrok.Listen(ctx,
-		tm.buildTunnelConfig(t),
-		ngrok.WithAuthtokenFromEnv(),
-	)
+	tun, err := tm.session.Listen(ctx, tm.buildTunnelConfig(t))
 	if err != nil {
 		return err
 	}
