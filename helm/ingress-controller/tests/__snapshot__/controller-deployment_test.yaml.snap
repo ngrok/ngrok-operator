@@ -4,7 +4,7 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/agent-config: 732ea14c98d6ebe827d70766796447cf1022da04ef6f1644496f706d6d035623
+        checksum/agent-config: 3671fa6e906913b7e88c956cd85864fb4a056335e2676f8fce44a1cfafba37d6
         checksum/controller-role: 4c8da8ec4e728eb7bbf0e2f88f5ad55781f988247737d6f1c889c736aa909c60
         checksum/rbac: d65fd1d397f0da2dc2888c7af42265b5a47272fbbf56a0c3331023d949f3c58b
       labels:
@@ -109,7 +109,6 @@ Should match snapshot:
         version: 2
         authtoken: $NGROK_AUTHTOKEN
         console_ui: false
-        server_addr: $NGROK_SERVER_ADDR
         region: $NGROK_REGION
         remote_management: $NGROK_REMOTE_MANAGEMENT
         update_check: false
@@ -126,7 +125,6 @@ Should match snapshot:
       METADATA: ""
       REGION: ""
       REMOTE_MANAGEMENT: ""
-      SERVER_ADDR: ""
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME-ngrok-ingress-controller-agent-cm

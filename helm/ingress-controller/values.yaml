@@ -53,14 +53,12 @@ ingressClass:
 ## @param credentials.authtoken Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.
 credentials:
   secret:
-    name:
+    name: ""
   apiKey: ""
   authtoken: ""
 
-## @param serverAddr The URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.
-serverAddr:
 ## @param region ngrok region to create tunnels in. Defaults to empty to utilize the global network
-region:
+region: ""
 
 ## Controller container resource requests and limits
 ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
