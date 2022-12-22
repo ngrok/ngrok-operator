@@ -35,8 +35,13 @@ func (ac agentAPIClient) CreateTunnel(ctx context.Context, t TunnelsAPIBody) err
 	if err != nil {
 		return err
 	}
-	if resp.StatusCode != 404 {
+	// If the tunnel already exists, we don't need to create it again
+	if resp.StatusCode == 200 {
 		return nil
+	}
+	// If its not a 200 or a 404, we have an error
+	if resp.StatusCode != 404 {
+		return fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 
 	body, err := json.Marshal(t)

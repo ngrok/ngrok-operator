@@ -114,8 +114,8 @@ deploy: docker-build manifests ## Deploy controller to the K8s cluster specified
 		--create-namespace \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set image.repository=$(IMG) \
-		--set apiKey=$(NGROK_API_KEY) \
-		--set authtoken=$(NGROK_AUTHTOKEN)
+		--set credentials.apiKey=$(NGROK_API_KEY) \
+		--set credentials.authtoken=$(NGROK_AUTHTOKEN)
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
