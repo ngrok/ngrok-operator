@@ -1,8 +1,9 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/quintush/helm-unittest/master/schema/helm-testsuite.json
 suite: test controller-deployment
 templates:
 - controller-deployment.yaml
 # The following included templates are needed due to the way helm unittest works.
-# It won't load the temaplates unless they are included here. Due to the checksums
+# It won't load the templates unless they are included here. Due to the checksums
 # we are including on the deployment, we need to include them here. It makes the
 # snapshot much larger than it needs to be, but it's the only way to test the
 # deployment at this time.
@@ -13,3 +14,31 @@ tests:
 - it: Should match snapshot
   asserts:
   - matchSnapshot: {}
+- it: Should use the specified secret name for the credentials secret
+  set:
+    credentials.secret.name: test-secret-name
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+      pattern: test-secret-name
+  - matchRegex:
+      path: spec.template.spec.containers[1].env[0].valueFrom.secretKeyRef.name
+      pattern: test-secret-name
+- it: Should pass the region via container args to the controller if specified
+  set:
+    region: eu
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].args[0]
+      pattern: --region=eu
+- it: Should not pass the region via container args to the controller if not specified
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].args[0]
+      pattern: --region=eu

@@ -47,12 +47,12 @@ spec:
         command:
         - /manager
         args:
-        - --health-probe-bind-address=:8081
-        - --metrics-bind-address=:8080
-        - --election-id={{ include "ngrok-ingress-controller.fullname" . }}-leader
         {{- if .Values.region }}
         - --region={{ .Values.region}}
         {{- end }}
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8080
+        - --election-id={{ include "ngrok-ingress-controller.fullname" . }}-leader
         securityContext:
           allowPrivilegeEscalation: false
         env:

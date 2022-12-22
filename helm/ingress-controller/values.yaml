@@ -48,11 +48,9 @@ ingressClass:
   create: true
   default: true
 
-# The name of the K8S secret that contains the credentials for the
-# ingress controller.
-## @param apiKey The ngrok API key to use
-## @param authtoken The ngrok auth token to use
-# TODO:
+## @param credentials.secret.name The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.
+## @param credentials.apiKey Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well.
+## @param credentials.authtoken Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.
 credentials:
   secret:
     name:

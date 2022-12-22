@@ -5,3 +5,10 @@ tests:
 - it: Should match snapshot
   asserts:
   - matchSnapshot: {}
+- it: should create a config map with the right server address
+  set:
+    serverAddr: "test-server-addr"
+  asserts:
+  - matchRegex:
+      path: data.SERVER_ADDR
+      pattern: test-server-addr
