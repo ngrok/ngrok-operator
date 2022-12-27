@@ -3,13 +3,14 @@ package ngrokgodriver
 import (
 	"context"
 	"io"
-	"log"
 	"net"
 	"reflect"
 
+	"github.com/go-logr/logr"
 	"golang.ngrok.com/ngrok"
 	"golang.ngrok.com/ngrok/config"
 	"golang.org/x/sync/errgroup"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type TunnelManager struct {
@@ -32,9 +33,11 @@ func NewTunnelManager() (*TunnelManager, error) {
 }
 
 func (tm *TunnelManager) CreateTunnel(ctx context.Context, t TunnelsAPIBody) error {
+	log := log.FromContext(ctx)
+
 	if tun, ok := tm.tunnels[t.Name]; ok {
 		if reflect.DeepEqual(tun.Labels(), t.Labels) {
-			// The tunnel already exists and has the same labels, do nothing
+			log.Info("Tunnel labels match existing tunnel, doing nothing")
 			return nil
 		}
 		// There is already a tunnel with this name, start the new one and defer closing the old one
@@ -46,13 +49,16 @@ func (tm *TunnelManager) CreateTunnel(ctx context.Context, t TunnelsAPIBody) err
 		return err
 	}
 	tm.tunnels[t.Name] = tun
-	go tm.startTunnel(tun, t.Addr)
+	go tm.startTunnel(ctx, tun, t.Addr)
 	return nil
 }
 
 func (tm *TunnelManager) DeleteTunnel(ctx context.Context, name string) error {
+	log := log.FromContext(ctx).WithValues("name", name)
+
 	tun := tm.tunnels[name]
 	if tun == nil {
+		log.Info("Tunnel not found while trying to delete tunnel")
 		return nil
 	}
 
@@ -61,6 +67,7 @@ func (tm *TunnelManager) DeleteTunnel(ctx context.Context, name string) error {
 		return err
 	}
 	delete(tm.tunnels, name)
+	log.Info("Tunnel deleted successfully")
 	return nil
 }
 
@@ -79,18 +86,25 @@ func (tm *TunnelManager) buildTunnelConfig(t TunnelsAPIBody) config.Tunnel {
 	return config.LabeledTunnel(opts...)
 }
 
-func (tm *TunnelManager) startTunnel(tun ngrok.Tunnel, dest string) {
+func (tm *TunnelManager) startTunnel(ctx context.Context, tun ngrok.Tunnel, dest string) {
+	log := log.FromContext(ctx).WithValues("id", tun.ID())
 	for {
 		conn, err := tun.Accept()
 		if err != nil {
-			log.Println(err)
+			log.Error(err, "Error accepting connection")
 		}
 
-		log.Println("Accepted connection from ", conn.RemoteAddr())
-		go func(address string) {
+		cnxnLogger := log.WithValues("remoteAddr", conn.RemoteAddr())
+		cnxnLogger.Info("Accepted connection")
+
+		go func(address string, logger logr.Logger) {
 			err := handleConn(context.Background(), address, conn)
-			log.Println("Connection closed: ", err)
-		}(dest)
+			if err != nil {
+				logger.Error(err, "Error handling connection")
+			} else {
+				logger.Info("Connection closed")
+			}
+		}(dest, cnxnLogger)
 	}
 }
 
