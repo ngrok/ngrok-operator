@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-ingress-controller/pkg/agentapiclient"
+	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokgodriver"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,6 +31,7 @@ type TunnelReconciler struct {
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
+	tm       *ngrokgodriver.TunnelManager
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -61,7 +62,7 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
 		for _, tunnel := range ingressToTunnels(ingress) {
 			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleting", fmt.Sprintf("Tunnel %s deleting", tunnel.Name))
-			err := agentapiclient.NewAgentApiClient().DeleteTunnel(ctx, tunnel.Name)
+			err := trec.tm.DeleteTunnel(ctx, tunnel.Name)
 			if err != nil {
 				trec.Recorder.Event(ingress, "Warning", "TunnelDeleteFailed", fmt.Sprintf("Tunnel %s delete failed", tunnel.Name))
 				return ctrl.Result{}, err
@@ -73,7 +74,7 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	for _, tunnel := range ingressToTunnels(ingress) {
 		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnel.Name))
-		err = agentapiclient.NewAgentApiClient().CreateTunnel(ctx, tunnel)
+		err = trec.tm.CreateTunnel(ctx, tunnel)
 		if err != nil {
 			trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnel.Name))
 			return ctrl.Result{}, err
@@ -87,6 +88,14 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // Create a new Controller that watches Ingress objects.
 // Add it to our manager.
 func (trec *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var err error
+
+	if trec.tm == nil {
+		trec.tm, err = ngrokgodriver.NewTunnelManager()
+		if err != nil {
+			return err
+		}
+	}
 	tCont, err := NewTunnelControllerNew("tunnel-controller", mgr, trec)
 	if err != nil {
 		return err
@@ -128,25 +137,19 @@ func (trec *TunnelController) Start(ctx context.Context) error {
 }
 
 // Converts a k8s Ingress Rule to and ngrok Agent Tunnel configuration.
-func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) []agentapiclient.TunnelsAPIBody {
-	var agentTunnels []agentapiclient.TunnelsAPIBody
+func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) []ngrokgodriver.TunnelsAPIBody {
+	var agentTunnels []ngrokgodriver.TunnelsAPIBody
 
 	for _, httpIngressPath := range rule.HTTP.Paths {
 		serviceName := httpIngressPath.Backend.Service.Name
 		servicePort := int(httpIngressPath.Backend.Service.Port.Number)
 		tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
-
-		var labels []string
-		for key, value := range backendToLabelMap(httpIngressPath.Backend, ingressName, namespace) {
-			labels = append(labels, fmt.Sprintf("%s=%s", key, value))
-		}
-
 		clean_path := strings.Replace(httpIngressPath.Path, "/", "-", -1)
 
-		agentTunnels = append(agentTunnels, agentapiclient.TunnelsAPIBody{
+		agentTunnels = append(agentTunnels, ngrokgodriver.TunnelsAPIBody{
 			Name:   fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
 			Addr:   tunnelAddr,
-			Labels: labels,
+			Labels: backendToLabelMap(httpIngressPath.Backend, ingressName, namespace),
 		})
 	}
 
@@ -155,9 +158,9 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 
 // Converts a k8s ingress object into a slice of ngrok Agent Tunnels
 // TODO: Support multiple Rules per Ingress
-func ingressToTunnels(ingress *netv1.Ingress) []agentapiclient.TunnelsAPIBody {
+func ingressToTunnels(ingress *netv1.Ingress) []ngrokgodriver.TunnelsAPIBody {
 	if ingress == nil || len(ingress.Spec.Rules) == 0 {
-		return []agentapiclient.TunnelsAPIBody{}
+		return []ngrokgodriver.TunnelsAPIBody{}
 	}
 	ingressRule := ingress.Spec.Rules[0]
 

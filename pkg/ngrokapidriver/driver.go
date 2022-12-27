@@ -14,6 +14,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+const (
+	defaultDescription = "Created by ngrok-ingress-controller"
+)
+
 // NgrkAPIDriver is an interface for managing ngrok API resources
 type NgrokAPIDriver interface {
 	FindEdge(ctx context.Context, id string) (*ngrok.HTTPSEdge, error)
@@ -75,7 +79,7 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 	_, err = napi.reservedDomains.Create(ctx, &ngrok.ReservedDomainCreate{
 		Name:        domain,
 		Region:      napi.region,
-		Description: "Created by ngrok-ingress-controller",
+		Description: defaultDescription,
 		Metadata:    napi.metadata,
 	})
 	// Swallow conflicts, just always try to create it and don't delete them upon ingress deletion
@@ -90,7 +94,7 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 
 	newEdge, err := napi.edges.Create(ctx, &ngrok.HTTPSEdgeCreate{
 		Hostports:   []string{edgeSummary.Hostport},
-		Description: "Created by ngrok-ingress-controller",
+		Description: defaultDescription,
 		Metadata:    napi.metadata,
 	})
 	if err != nil {
@@ -101,7 +105,7 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 		// Create Tunnel-Group Backend
 		backend, err := napi.tgbs.Create(ctx, &ngrok.TunnelGroupBackendCreate{
 			Labels:      route.Labels,
-			Description: "Created by ngrok-ingress-controller",
+			Description: defaultDescription,
 			Metadata:    napi.metadata,
 		})
 		if err != nil {
@@ -112,7 +116,7 @@ func (napi ngrokAPIDriver) CreateEdge(ctx context.Context, edgeSummary *Edge) (*
 			EdgeID:      newEdge.ID,
 			MatchType:   route.MatchType,
 			Match:       route.Match,
-			Description: "Created by ngrok-ingress-controller",
+			Description: defaultDescription,
 			Metadata:    napi.metadata,
 			Backend: &ngrok.EndpointBackendMutate{
 				BackendID: backend.ID,

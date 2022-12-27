@@ -35,11 +35,6 @@ spec:
       imagePullSecrets:
         {{- toYaml .Values.image.pullSecrets | nindent 8 }}
       {{- end }}
-      volumes:
-      - name: scripts
-        configMap:
-          name: scripts
-          defaultMode: 0755
       containers:
       - name: ngrok-ingress-controller
         image: {{ include "ngrok-ingress-controller.image" . }}
@@ -60,7 +55,12 @@ spec:
           valueFrom:
             secretKeyRef:
               key: API_KEY
-              name: {{ include "ngrok-ingress-controller.credentialsSecretName" .}}
+              name: {{ include "ngrok-ingress-controller.credentialsSecretName" . }}
+        - name: NGROK_AUTHTOKEN
+          valueFrom:
+            secretKeyRef:
+              key: AUTHTOKEN
+              name: {{ include "ngrok-ingress-controller.credentialsSecretName" . }}
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
@@ -79,33 +79,3 @@ spec:
           periodSeconds: 10
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
-      - name: ngrok-cli
-        image: ngrok/ngrok:3
-        command:
-        - ./scripts/gen-agent-config.sh
-        envFrom:
-        - configMapRef:
-            name: {{ include "ngrok-ingress-controller.fullname" . }}-agent-cm
-            optional: true
-        env:
-        - name: NGROK_AUTHTOKEN
-          valueFrom:
-            secretKeyRef:
-              key: AUTHTOKEN
-              name: {{ include "ngrok-ingress-controller.credentialsSecretName" .}}
-        {{- if .Values.region }}
-        - name: NGROK_REGION
-          value: {{ quote .Values.region}}
-        {{- end }}
-        volumeMounts:
-          - name: scripts
-            mountPath: /scripts
-            readOnly: true
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: scripts
-  namespace: {{ .Release.Namespace }}
-data:
-{{ (.Files.Glob "scripts/gen-agent-config.sh").AsConfig | indent 2 }}
