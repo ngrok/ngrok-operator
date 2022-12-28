@@ -1,0 +1,19 @@
+suite: test ingress-class
+templates:
+- ingress-class.yaml
+tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}
+- it: Creates an default ingress class called ngrok by default
+  asserts:
+  - isKind:
+      of: IngressClass
+  - hasDocuments:
+      count: 1
+- it: Does not create an ingress class when ingressClass.create is false
+  set:
+    ingressClass.create: false
+  asserts:
+  - hasDocuments:
+      count: 0

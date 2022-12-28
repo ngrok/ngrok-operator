@@ -54,10 +54,10 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	metricsAddr          string
-	enableLeaderElection bool
-	probeAddr            string
-	zapOpts              *zap.Options
+	metricsAddr string
+	electionID  string
+	probeAddr   string
+	zapOpts     *zap.Options
 
 	// env vars
 	namespace   string
@@ -77,7 +77,7 @@ func cmd() *cobra.Command {
 
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().BoolVar(&opts.enableLeaderElection, "leader-elect", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-ingress-controller-leader", "The name of the configmap that is used for holding the leader lock")
 	c.Flags().StringVar(&opts.region, "region", "us", "The region to use for ngrok tunnels")
 	opts.zapOpts = &zap.Options{Development: true}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -111,8 +111,8 @@ func runController(ctx context.Context, opts managerOpts) error {
 		MetricsBindAddress:     opts.metricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: opts.probeAddr,
-		LeaderElection:         true,
-		LeaderElectionID:       "ngrok-ingress-controller-leader",
+		LeaderElection:         opts.electionID != "",
+		LeaderElectionID:       opts.electionID,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to start manager: %w", err)

@@ -66,8 +66,8 @@ helm repo add ngrok https://ngrok.github.io/ngrok-ingress-controller
 helm install ngrok-ingress-controller ngrok/ngrok-ingress-controller \
   --namespace ngrok-ingress-controller \
   --create-namespace \
-  --set apiKey=$(NGROK_API_KEY) \
-  --set authtoken=$(NGROK_AUTHTOKEN)
+  --set credentials.apiKey=$(NGROK_API_KEY) \
+  --set credentials.authtoken=$(NGROK_AUTHTOKEN)
 ```
 
 See [Helm Chart](./helm/ingress-controller/README.md#install-the-controller-with-helm) for more details.
@@ -95,20 +95,15 @@ export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
 # kubectl can connect to your cluster and images built locally are available to the cluster
 kubectl create namespace ngrok-ingress-controller
 kubectl config set-context --current --namespace=ngrok-ingress-controller
-kubectl create secret generic ngrok-ingress-controller-credentials \
-  --from-literal=API_KEY=$NGROK_API_KEY  \
-  --from-literal=AUTHTOKEN=$NGROK_AUTHTOKEN
 
 make deploy
 ```
 
 ### Auth and Credentials
 
-The controller assumes a k8s secret named `ngrok-ingress-controller-credentials` exists with the following keys:
-  * AUTHTOKEN
-  * API_KEY
+The controller needs access to your ngrok API key and Authtoken to be able to manage ingress to your services.
 
-The name can technically be changed via a helm value, but for now its required while we still use ngrok Cloud Edges and Edges are a pro feature.
+The above quickstart section shows how you are able to pass these credentials in via environment variables. This is not recommended for production use as you often need to source control your helm values. Instead, we recommend you use a k8s secret to store your credentials and pass that name to the controller via helm values. It must be in the same namespace as the controller.
 
 Example:
 
@@ -123,10 +118,17 @@ data:
   AUTHTOKEN: "YOUR-AUTHTOKEN-BASE64"
 ```
 
+Then when installing the controller via helm, you can pass the name of the secret to the controller via the `credentials.secret.name` helm value.
+
+```bash
+helm install ngrok-ingress-controller ngrok/ngrok-ingress-controller \
+  --set credentials.secret.name=ngrok-ingress-controller-credentials
+```
+
 ## How to Configure the Agent
 
 > Warning: This will be deprecated soon when moving to the new lib-ngrok library
-* assumes configs will be in a config map named `ngrok-ingress-controller-agent-cm` in the same namespace
+* assumes configs will be in a config map named `{{ include "ngrok-ingress-controller.fullname" . }}-agent-cm` in the same namespace
 * setup automatically via helm. Values and config map name can be configured in the future via helm
 * subset of these that should be configurable https://ngrok.com/docs/ngrok-agent/config#config-full-example
 * example config map showing all optional values with their defaults.
@@ -135,10 +137,9 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ngrok-ingress-controller-agent-cm
+  name: {{ include "ngrok-ingress-controller.fullname" . }}-agent-cm
   namespace: ngrok-ingress-controller
 data:
-  LOG: stdout
   METADATA: "{}"
   REGION: us
   REMOTE_MANAGEMENT: true

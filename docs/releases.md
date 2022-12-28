@@ -1,15 +1,14 @@
 # Releases
 
-<!-- TOC depthfrom:2 -->
-
 - [Artifacts](#artifacts)
-    - [Docker Image](#docker-image)
-    - [Helm Chart](#helm-chart)
+  - [Docker Image](#docker-image)
+  - [Helm Chart](#helm-chart)
 - [Semantic Versioning](#semantic-versioning)
 - [Release Process](#release-process)
-    - [Tagging](#tagging)
+  - [Tagging](#tagging)
+    - [Helm Chart](#helm-chart-1)
+    - [Controller](#controller)
 
-<!-- /TOC -->
 
 ## Artifacts
 
@@ -48,10 +47,30 @@ release in both.
 
 There is a different git tag pattern for each artifact. 
 
-Releases of the controller will be tagged with a prefix of `ngrok-ingress-controller-`. For example,
-version `1.2.0` of the docker image will have a git tag of `ngrok-ingress-controller-1.2.0` which
-contains the code used to build the docker image `ngrok/ngrok-ingress-controller:1.2.0`.
+#### Helm Chart
 
 Releases of the helm chart will tagged with a prefix of `helm-chart-`. For example, version `1.2.0`
 of the helm chart will have a git tag of `helm-chart-1.2.0` which contains the code used to package
 and publish version `1.2.0` of the helm chart.
+
+When changes are made to the helm chart's `Chart.yaml` file, a github workflow will trigger upon
+merging the PR to the `main` branch. The workflow will package and publish the helm chart for
+consumption. The workflow will also create a git tag as described above.
+
+When changing `version` in the helm chart's `Chart.yaml` file, the version should be bumped according
+to the semantic versioning spec as described above.
+
+#### Controller
+
+Releases of the controller will be tagged with a prefix of `ngrok-ingress-controller-`. For example,
+version `1.2.0` of the docker image will have a git tag of `ngrok-ingress-controller-1.2.0` which
+contains the code used to build the docker image `ngrok/ngrok-ingress-controller:1.2.0`.
+
+When changes that would affect the controller's docker image are pushed to `main`, a github workflow
+will trigger. The workflow will build and publish the `ngrok/ngrok-ingress-controller:latest` docker
+image.
+
+If the `VERSION` file at the root of the repo is changed, the workflow will also create a git tag
+for the controller as described above and publish a tagged docker image. For instance when the
+`VERSION` is changed to `1.2.0`, the workflow will create a git tag of `ngrok-ingress-controller-1.2.0`
+and publish the docker image `ngrok/ngrok-ingress-controller:1.2.0`.

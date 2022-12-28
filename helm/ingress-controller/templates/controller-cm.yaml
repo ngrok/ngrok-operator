@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ngrok-ingress-controller-manager-config
+  name: {{ include "ngrok-ingress-controller.fullname" . }}-manager-config
   namespace: {{ .Release.Namespace }}
 data:
   controller_manager_config.yaml: |
@@ -13,5 +13,4 @@ data:
       bindAddress: 127.0.0.1:8080
     leaderElection:
       leaderElect: true
-      resourceName: ngrok-ingress-controller-leader
-
+      resourceName: {{ include "ngrok-ingress-controller.fullname" . }}-leader

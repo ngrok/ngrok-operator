@@ -5,6 +5,9 @@ release:
   name: test-release
   namespace: test-namespace
 tests:
+- it: should match snapshot
+  asserts:
+  - matchSnapshot: {}
 - it: should create a configmap
   asserts:
   - isKind:
@@ -24,4 +27,11 @@ tests:
   asserts:
   - equal:
       path: metadata.name
-      value: ngrok-ingress-controller-manager-config
+      value: test-release-ngrok-ingress-controller-manager-config
+- it: Works when fullname is supplied
+  set:
+    fullnameOverride: fno
+  asserts:
+  - equal:
+      path: metadata.name
+      value: fno-manager-config
