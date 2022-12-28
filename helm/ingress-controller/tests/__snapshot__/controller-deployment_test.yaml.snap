@@ -14,7 +14,7 @@ Should match snapshot:
         app.kubernetes.io/name: ngrok-ingress-controller
         app.kubernetes.io/part-of: ngrok-ingress-controller
         app.kubernetes.io/version: 0.2.0
-        helm.sh/chart: ngrok-ingress-controller-0.3.0
+        helm.sh/chart: ngrok-ingress-controller-0.3.1
       name: RELEASE-NAME-ngrok-ingress-controller-manager
       namespace: NAMESPACE
     spec:

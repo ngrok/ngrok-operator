@@ -8,10 +8,12 @@ be automatically configured on the internet using ngrok.
 
 {{- $found := false }}
 {{- range $svcIndex, $service := (lookup "v1" "Service" "" "").items }}
+  {{- if not $found }}
     {{- range $portMapIdx, $portMap := $service.spec.ports }}
-        {{- if eq $portMap.port 80 443 }}
-          {{- if ne $service.metadata.name "kubernetes" }}
-            {{- $randomStr := randAlphaNum 8 }}}}
+      {{- if eq $portMap.port 80 443 }}
+        {{- if ne $service.metadata.name "kubernetes" }}
+          {{- $found = true -}}
+          {{- $randomStr := randAlphaNum 8 }}
 
 One example, taken from your cluster, is the Service:
    {{ $service.metadata.name | quote }}
@@ -39,12 +41,10 @@ spec:
 --------------------------------------------------------------------------------
 Applying this manifest will make the service {{ $service.metadata.name | quote }}
 available on the public internet at "https://{{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.io/".
-
-                {{- $found = true -}}
-            {{- end }}
         {{- end }}
+      {{- end }}
     {{- end }}
-    {{- if eq $found true }}{{break}}{{end}}
+  {{- end}}
 {{- end }}
 
 Once done, view your edges in the Dashboard https://dashboard.ngrok.com/cloud-edge/edges
