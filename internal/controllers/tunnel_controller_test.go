@@ -3,7 +3,6 @@ package controllers
 import (
 	"testing"
 
-	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokgodriver"
 	"github.com/stretchr/testify/assert"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,12 +13,12 @@ func TestIngressToTunnels(t *testing.T) {
 	testCases := []struct {
 		testName string
 		ingress  *netv1.Ingress
-		tunnels  []ngrokgodriver.TunnelsAPIBody
+		tunnels  []Tunnel
 	}{
 		{
 			testName: "Returns empty list when ingress is nil",
 			ingress:  nil,
-			tunnels:  []ngrokgodriver.TunnelsAPIBody{},
+			tunnels:  []Tunnel{},
 		},
 		{
 			testName: "Returns empty list when ingress has no rules",
@@ -31,7 +30,7 @@ func TestIngressToTunnels(t *testing.T) {
 					Rules: []netv1.IngressRule{},
 				},
 			},
-			tunnels: []ngrokgodriver.TunnelsAPIBody{},
+			tunnels: []Tunnel{},
 		},
 		{
 			ingress: &netv1.Ingress{
@@ -64,11 +63,10 @@ func TestIngressToTunnels(t *testing.T) {
 					},
 				},
 			},
-			tunnels: []ngrokgodriver.TunnelsAPIBody{
+			tunnels: []Tunnel{
 				{
-					Addr:      "test-service.test-namespace.svc.cluster.local:8080",
-					Name:      "test-ingress-test-namespace-test-service-8080--",
-					SubDomain: "",
+					ForwardsTo: "test-service.test-namespace.svc.cluster.local:8080",
+					Name:       "test-ingress-test-namespace-test-service-8080--",
 					Labels: map[string]string{
 						"k8s.ngrok.com/ingress-name":      "test-ingress",
 						"k8s.ngrok.com/ingress-namespace": "test-namespace",
@@ -86,8 +84,7 @@ func TestIngressToTunnels(t *testing.T) {
 		assert.Equal(t, len(tunnels), len(test.tunnels))
 		for i := 0; i < len(tunnels); i++ {
 			assert.Equal(t, tunnels[i].Name, test.tunnels[i].Name)
-			assert.Equal(t, tunnels[i].Addr, test.tunnels[i].Addr)
-			assert.Equal(t, tunnels[i].SubDomain, test.tunnels[i].SubDomain)
+			assert.Equal(t, tunnels[i].ForwardsTo, test.tunnels[i].ForwardsTo)
 			assert.Equal(t, tunnels[i].Labels, test.tunnels[i].Labels)
 		}
 	}

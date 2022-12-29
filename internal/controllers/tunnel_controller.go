@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokgodriver"
+	"github.com/ngrok/ngrok-ingress-controller/pkg/tunneldriver"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,7 +31,8 @@ type TunnelReconciler struct {
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
-	tm       *ngrokgodriver.TunnelManager
+
+	driver *tunneldriver.TunnelDriver
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -62,7 +63,7 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
 		for _, tunnel := range ingressToTunnels(ingress) {
 			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleting", fmt.Sprintf("Tunnel %s deleting", tunnel.Name))
-			err := trec.tm.DeleteTunnel(ctx, tunnel.Name)
+			err := trec.driver.DeleteTunnel(ctx, tunnel.Name)
 			if err != nil {
 				trec.Recorder.Event(ingress, "Warning", "TunnelDeleteFailed", fmt.Sprintf("Tunnel %s delete failed", tunnel.Name))
 				return ctrl.Result{}, err
@@ -74,7 +75,7 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	for _, tunnel := range ingressToTunnels(ingress) {
 		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnel.Name))
-		err = trec.tm.CreateTunnel(ctx, tunnel)
+		err = trec.driver.CreateTunnel(ctx, tunnel.Name, tunnel.Labels, tunnel.ForwardsTo)
 		if err != nil {
 			trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnel.Name))
 			return ctrl.Result{}, err
@@ -90,8 +91,8 @@ func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (trec *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
 
-	if trec.tm == nil {
-		trec.tm, err = ngrokgodriver.NewTunnelManager()
+	if trec.driver == nil {
+		trec.driver, err = tunneldriver.New()
 		if err != nil {
 			return err
 		}
@@ -137,8 +138,8 @@ func (trec *TunnelController) Start(ctx context.Context) error {
 }
 
 // Converts a k8s Ingress Rule to and ngrok Agent Tunnel configuration.
-func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) []ngrokgodriver.TunnelsAPIBody {
-	var agentTunnels []ngrokgodriver.TunnelsAPIBody
+func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) []Tunnel {
+	var agentTunnels []Tunnel
 
 	for _, httpIngressPath := range rule.HTTP.Paths {
 		serviceName := httpIngressPath.Backend.Service.Name
@@ -146,10 +147,10 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 		tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
 		clean_path := strings.Replace(httpIngressPath.Path, "/", "-", -1)
 
-		agentTunnels = append(agentTunnels, ngrokgodriver.TunnelsAPIBody{
-			Name:   fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
-			Addr:   tunnelAddr,
-			Labels: backendToLabelMap(httpIngressPath.Backend, ingressName, namespace),
+		agentTunnels = append(agentTunnels, Tunnel{
+			Name:       fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
+			ForwardsTo: tunnelAddr,
+			Labels:     backendToLabelMap(httpIngressPath.Backend, ingressName, namespace),
 		})
 	}
 
@@ -158,12 +159,19 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 
 // Converts a k8s ingress object into a slice of ngrok Agent Tunnels
 // TODO: Support multiple Rules per Ingress
-func ingressToTunnels(ingress *netv1.Ingress) []ngrokgodriver.TunnelsAPIBody {
+func ingressToTunnels(ingress *netv1.Ingress) []Tunnel {
 	if ingress == nil || len(ingress.Spec.Rules) == 0 {
-		return []ngrokgodriver.TunnelsAPIBody{}
+		return []Tunnel{}
 	}
 	ingressRule := ingress.Spec.Rules[0]
 
 	tunnels := tunnelsPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
 	return tunnels
+}
+
+// Tunnel is a struct that represents a tunnel
+type Tunnel struct {
+	Name       string
+	ForwardsTo string
+	Labels     map[string]string
 }

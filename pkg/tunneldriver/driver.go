@@ -1,4 +1,4 @@
-package ngrokgodriver
+package tunneldriver
 
 import (
 	"context"
@@ -13,12 +13,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type TunnelManager struct {
+// TunnelDriver is a driver for creating and deleting ngrok tunnels
+type TunnelDriver struct {
 	session ngrok.Session
 	tunnels map[string]ngrok.Tunnel
 }
 
-func NewTunnelManager() (*TunnelManager, error) {
+// New creates and initializes a new TunnelDriver
+func New() (*TunnelDriver, error) {
 	opts := []ngrok.ConnectOption{
 		ngrok.WithAuthtokenFromEnv(),
 	}
@@ -26,67 +28,70 @@ func NewTunnelManager() (*TunnelManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &TunnelManager{
+	return &TunnelDriver{
 		session: session,
 		tunnels: make(map[string]ngrok.Tunnel),
 	}, nil
 }
 
-func (tm *TunnelManager) CreateTunnel(ctx context.Context, t TunnelsAPIBody) error {
+// CreateTunnel creates and starts a new tunnel in a goroutine. If a tunnel with the same name already exists,
+// it will be stopped and replaced with a new tunnel unless the labels match.
+func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels map[string]string, destination string) error {
 	log := log.FromContext(ctx)
 
-	if tun, ok := tm.tunnels[t.Name]; ok {
-		if reflect.DeepEqual(tun.Labels(), t.Labels) {
+	if tun, ok := td.tunnels[name]; ok {
+		if reflect.DeepEqual(tun.Labels(), labels) {
 			log.Info("Tunnel labels match existing tunnel, doing nothing")
 			return nil
 		}
 		// There is already a tunnel with this name, start the new one and defer closing the old one
-		defer tm.stopTunnel(context.Background(), tun)
+		defer td.stopTunnel(context.Background(), tun)
 	}
 
-	tun, err := tm.session.Listen(ctx, tm.buildTunnelConfig(t))
+	tun, err := td.session.Listen(ctx, td.buildTunnelConfig(labels))
 	if err != nil {
 		return err
 	}
-	tm.tunnels[t.Name] = tun
-	go tm.startTunnel(ctx, tun, t.Addr)
+	td.tunnels[name] = tun
+	go td.startTunnel(ctx, tun, destination)
 	return nil
 }
 
-func (tm *TunnelManager) DeleteTunnel(ctx context.Context, name string) error {
+// DeleteTunnel stops and deletes a tunnel
+func (td *TunnelDriver) DeleteTunnel(ctx context.Context, name string) error {
 	log := log.FromContext(ctx).WithValues("name", name)
 
-	tun := tm.tunnels[name]
+	tun := td.tunnels[name]
 	if tun == nil {
 		log.Info("Tunnel not found while trying to delete tunnel")
 		return nil
 	}
 
-	err := tm.stopTunnel(ctx, tun)
+	err := td.stopTunnel(ctx, tun)
 	if err != nil {
 		return err
 	}
-	delete(tm.tunnels, name)
+	delete(td.tunnels, name)
 	log.Info("Tunnel deleted successfully")
 	return nil
 }
 
-func (tm *TunnelManager) stopTunnel(ctx context.Context, tun ngrok.Tunnel) error {
+func (td *TunnelDriver) stopTunnel(ctx context.Context, tun ngrok.Tunnel) error {
 	if tun == nil {
 		return nil
 	}
 	return tun.CloseWithContext(ctx)
 }
 
-func (tm *TunnelManager) buildTunnelConfig(t TunnelsAPIBody) config.Tunnel {
+func (td *TunnelDriver) buildTunnelConfig(labels map[string]string) config.Tunnel {
 	opts := []config.LabeledTunnelOption{}
-	for key, value := range t.Labels {
+	for key, value := range labels {
 		opts = append(opts, config.WithLabel(key, value))
 	}
 	return config.LabeledTunnel(opts...)
 }
 
-func (tm *TunnelManager) startTunnel(ctx context.Context, tun ngrok.Tunnel, dest string) {
+func (td *TunnelDriver) startTunnel(ctx context.Context, tun ngrok.Tunnel, dest string) {
 	log := log.FromContext(ctx).WithValues("id", tun.ID())
 	for {
 		conn, err := tun.Accept()
@@ -106,13 +111,6 @@ func (tm *TunnelManager) startTunnel(ctx context.Context, tun ngrok.Tunnel, dest
 			}
 		}(dest, cnxnLogger)
 	}
-}
-
-type TunnelsAPIBody struct {
-	Addr      string            `json:"addr"`
-	Name      string            `json:"name"`
-	SubDomain string            `json:"subdomain,omitempty"`
-	Labels    map[string]string `json:"labels"`
 }
 
 func handleConn(ctx context.Context, dest string, conn net.Conn) error {
