@@ -21,7 +21,7 @@ SHELL = /usr/bin/env bash -o pipefail
 
 CONTROLLER_GEN = go run sigs.k8s.io/controller-tools/cmd/controller-gen
 
-KUSTOMIZE = go run sigs.k8s.io/kustomize/kustomize/v3
+KUSTOMIZE ?= go run sigs.k8s.io/kustomize/kustomize/v3
 
 ENVTEST = go run sigs.k8s.io/controller-runtime/tools/setup-envtest
 

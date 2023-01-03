@@ -33,6 +33,7 @@ type IngressReconciler struct {
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingressclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="k8s.ngrok.com",resources=tunnels,verbs=get;list;create;update;delete
 
 // This reconcile function is called by the controller-runtime manager.
 // It is invoked whenever there is an event that occurs for a resource
@@ -71,6 +72,18 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return irec.DeleteIngress(ctx, edge, ingress)
 	}
 	// Else its being created or updated
+
+	// Create Tunnel CRD
+	tunnels := ingressToTunnels(ingress)
+	for _, tunnel := range tunnels.Items {
+		err := irec.Create(ctx, &tunnel)
+		if err != nil {
+			irec.Recorder.Event(ingress, v1.EventTypeWarning, "Creating Tunnel", err.Error())
+		} else {
+			irec.Recorder.Event(ingress, v1.EventTypeNormal, fmt.Sprintf("Created tunnel: %v", tunnel), "success?")
+		}
+	}
+
 	// Check for a saved edge-id to do a lookup instead of a create
 	if ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] != "" {
 		foundEdge, err := irec.NgrokAPIDriver.FindEdge(ctx, ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"])

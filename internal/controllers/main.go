@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"github.com/ngrok/ngrok-api-go/v5"
+	k8sngrokcomv1 "github.com/ngrok/ngrok-ingress-controller/pkg/api/v1"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
-
-	k8sngrokcomv1 "github.com/ngrok/ngrok-ingress-controller/pkg/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -205,8 +205,8 @@ func backendToLabelMap(backend netv1.IngressBackend, ingressName, namespace stri
 }
 
 // Converts a k8s Ingress Rule to and ngrok Agent Tunnel configuration.
-func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) k8sngrokcomv1.TunnelList {
-	var agentTunnels k8sngrokcomv1.TunnelList
+func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) *k8sngrokcomv1.TunnelList {
+	agentTunnels := &k8sngrokcomv1.TunnelList{}
 
 	for _, httpIngressPath := range rule.HTTP.Paths {
 		serviceName := httpIngressPath.Backend.Service.Name
@@ -218,11 +218,16 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 			labels = append(labels, fmt.Sprintf("%s=%s", key, value))
 		}
 
-		clean_path := strings.Replace(httpIngressPath.Path, "/", "-", -1)
+		cleanPath := strings.Replace(httpIngressPath.Path, "/", "-", -1)
+		tunnelName := fmt.Sprintf("%s-%s-%s-%d-%s-tunnel", ingressName, namespace, serviceName, servicePort, cleanPath)
 
 		agentTunnels.Items = append(agentTunnels.Items, k8sngrokcomv1.Tunnel{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      tunnelName,
+			},
 			Spec: k8sngrokcomv1.TunnelSpec{
-				Name:   fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
+				Name:   tunnelName,
 				Addr:   tunnelAddr,
 				Labels: labels,
 			},
@@ -234,9 +239,9 @@ func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) 
 
 // Converts a k8s ingress object into a slice of ngrok Agent Tunnels
 // TODO: Support multiple Rules per Ingress
-func ingressToTunnels(ingress *netv1.Ingress) k8sngrokcomv1.TunnelList {
+func ingressToTunnels(ingress *netv1.Ingress) *k8sngrokcomv1.TunnelList {
 	if ingress == nil || len(ingress.Spec.Rules) == 0 {
-		return k8sngrokcomv1.TunnelList{}
+		return &k8sngrokcomv1.TunnelList{}
 	}
 	ingressRule := ingress.Spec.Rules[0]
 

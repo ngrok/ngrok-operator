@@ -23,7 +23,9 @@ type TunnelStatus struct {
 }
 
 //+kubebuilder:object:root=true
+//+kubebuilder:object:generate=true
 //+kubebuilder:subresource:status
+//+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Tunnel is the Schema for the tunnels API
 type Tunnel struct {
@@ -35,6 +37,8 @@ type Tunnel struct {
 }
 
 //+kubebuilder:object:root=true
+//+kubebuilder:object:generate=true
+//+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // TunnelList contains a list of Tunnel
 type TunnelList struct {
