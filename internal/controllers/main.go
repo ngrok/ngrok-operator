@@ -138,7 +138,7 @@ func setStatus(ctx context.Context, irec *IngressReconciler, ingress *netv1.Ingr
 		}
 	}
 
-	ingress.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{
+	ingress.Status.LoadBalancer.Ingress = []netv1.IngressLoadBalancerIngress{
 		{
 			Hostname: hostName,
 		},
