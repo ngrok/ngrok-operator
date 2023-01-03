@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
+	"os"
 
 	"github.com/ngrok/ngrok-api-go/v5"
 	tgb "github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
@@ -37,8 +39,18 @@ type ngrokAPIDriver struct {
 	region          string
 }
 
+// TODO:
 func NewNgrokAPIClient(apiKey string, region string) NgrokAPIDriver {
 	config := ngrok.NewClientConfig(apiKey, ngrok.WithUserAgent("ngrok-ingress-controller/v1-alpha"))
+	apiBaseUrl, ok := os.LookupEnv("NGROK_API_ADDR")
+	if ok {
+		u, err := url.Parse(apiBaseUrl)
+		if err != nil {
+			ctrl.Log.Error(err, "Error parsing NGROK_API_ADDR")
+		}
+		config.BaseURL = u
+	}
+
 	return &ngrokAPIDriver{
 		edges:           edge.NewClient(config),
 		tgbs:            tgb.NewClient(config),
