@@ -1,0 +1,98 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: reserveddomains.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: ReservedDomain
+    listKind: ReservedDomainList
+    plural: reserveddomains
+    singular: reserveddomain
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Reserved Domain ID
+      jsonPath: .status.id
+      name: ID
+      type: string
+    - description: Region
+      jsonPath: .spec.region
+      name: Region
+      type: string
+    - description: Domain
+      jsonPath: .status.domain
+      name: Domain
+      type: string
+    - description: CNAME Target
+      jsonPath: .status.cname_target
+      name: CNAME Target
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ReservedDomain is the Schema for the reserveddomains API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ReservedDomainSpec defines the desired state of ReservedDomain
+            properties:
+              description:
+                default: Created by ngrok-ingress-controller
+                description: Description is a human-readable description of the reserved
+                  domain
+                type: string
+              domain:
+                description: Domain is the domain name to reserve
+                type: string
+              metadata:
+                default: '{"owned-by":"ngrok-ingress-controller"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the reserved domain
+                type: string
+              region:
+                description: Region is the region in which to reserve the domain
+                type: string
+            required:
+            - domain
+            type: object
+          status:
+            description: ReservedDomainStatus defines the observed state of ReservedDomain
+            properties:
+              cname_target:
+                description: CNAMETarget is the CNAME target for the reserved domain
+                type: string
+              domain:
+                description: Domain is the domain that was reserved
+                type: string
+              id:
+                description: ID is the unique identifier of the reserved domain
+                type: string
+              uri:
+                description: URI of the reserved domain API resource
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

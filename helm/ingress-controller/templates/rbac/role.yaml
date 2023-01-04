@@ -32,6 +32,32 @@ rules:
   - list
   - watch
 - apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - reserveddomains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - reserveddomains/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - reserveddomains/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingressclasses
