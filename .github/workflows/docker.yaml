@@ -48,7 +48,7 @@ jobs:
       - name: Extract Version tag
         id: extract_tag
         run: |
-          echo ::set-output name=tag::$(cat VERSION)
+          echo "tag=$(cat VERSION)" >> $GITHUB_OUTPUT
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
