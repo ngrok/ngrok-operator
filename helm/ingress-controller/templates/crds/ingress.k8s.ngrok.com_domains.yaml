@@ -29,7 +29,7 @@ spec:
       name: Domain
       type: string
     - description: CNAME Target
-      jsonPath: .status.cname_target
+      jsonPath: .status.cnameTarget
       name: CNAME Target
       type: string
     - description: Age

@@ -79,7 +79,7 @@ type DomainStatus struct {
 //+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
 //+kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`,description="Region"
 //+kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.status.domain`,description="Domain"
-//+kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cname_target`,description="CNAME Target"
+//+kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cnameTarget`,description="CNAME Target"
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
 // Domain is the Schema for the domains API
