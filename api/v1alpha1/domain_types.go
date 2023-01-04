@@ -82,7 +82,7 @@ type DomainStatus struct {
 //+kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cname_target`,description="CNAME Target"
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
-// Domain is the Schema for the reserveddomains API
+// Domain is the Schema for the domains API
 type Domain struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -146,7 +146,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("Domain"),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("reserved-domain-controller"),
+		Recorder: mgr.GetEventRecorderFor("domain-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Domain")
 		os.Exit(1)

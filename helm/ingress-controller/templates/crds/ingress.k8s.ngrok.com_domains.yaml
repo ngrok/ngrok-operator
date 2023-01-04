@@ -39,7 +39,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Domain is the Schema for the reserveddomains API
+        description: Domain is the Schema for the domains API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
