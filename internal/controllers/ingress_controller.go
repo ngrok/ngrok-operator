@@ -3,12 +3,18 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
+	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -101,6 +107,12 @@ func (irec *IngressReconciler) DeleteIngress(ctx context.Context, edge *ngrokapi
 }
 
 func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge *ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
+	err := irec.reconcileReservedDomains(ctx, ingress)
+	if err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to reconcile reserved domains", err.Error())
+		return ctrl.Result{}, err
+	}
+
 	ngrokEdge, err := irec.NgrokAPIDriver.UpdateEdge(ctx, edge)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update edge", err.Error())
@@ -110,6 +122,12 @@ func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge *ngrokapi
 }
 
 func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge *ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
+	err := irec.reconcileReservedDomains(ctx, ingress)
+	if err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to reconcile reserved domains", err.Error())
+		return ctrl.Result{}, err
+	}
+
 	ngrokEdge, err := irec.NgrokAPIDriver.CreateEdge(ctx, edge)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to create edge", err.Error())
@@ -194,4 +212,60 @@ func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1
 		Hostport: ingress.Spec.Rules[0].Host + ":443",
 		Routes:   ngrokRoutes,
 	}, err
+}
+
+func (irec *IngressReconciler) reconcileReservedDomains(ctx context.Context, ingress *netv1.Ingress) error {
+	reservedDomains, err := irec.ingressToDomains(ctx, ingress)
+	if err != nil {
+		return err
+	}
+
+	for _, reservedDomain := range reservedDomains {
+		if err := controllerutil.SetControllerReference(ingress, &reservedDomain, irec.Scheme); err != nil {
+			return err
+		}
+
+		found := &ingressv1alpha1.ReservedDomain{}
+		err := irec.Client.Get(ctx, types.NamespacedName{Name: reservedDomain.Name, Namespace: reservedDomain.Namespace}, found)
+		if err != nil && errors.IsNotFound(err) {
+			err = irec.Create(ctx, &reservedDomain)
+			if err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+
+		if !reflect.DeepEqual(reservedDomain.Spec, found.Spec) {
+			found.Spec = reservedDomain.Spec
+			err = irec.Update(ctx, found)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (irec *IngressReconciler) ingressToDomains(ctx context.Context, ingress *netv1.Ingress) ([]ingressv1alpha1.ReservedDomain, error) {
+	reservedDomains := make([]ingressv1alpha1.ReservedDomain, 0)
+
+	if ingress == nil {
+		return reservedDomains, nil
+	}
+
+	for _, rule := range ingress.Spec.Rules {
+		reservedDomains = append(reservedDomains, ingressv1alpha1.ReservedDomain{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      strings.Replace(rule.Host, ".", "-", -1),
+				Namespace: ingress.Namespace,
+			},
+			Spec: ingressv1alpha1.ReservedDomainSpec{
+				Domain: rule.Host,
+			},
+		})
+	}
+
+	return reservedDomains, nil
 }

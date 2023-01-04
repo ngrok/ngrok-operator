@@ -64,6 +64,9 @@ type ReservedDomainStatus struct {
 	// Domain is the domain that was reserved
 	Domain string `json:"domain,omitempty"`
 
+	// Region is the region in which the reserved domain was created
+	Region string `json:"region,omitempty"`
+
 	// URI of the reserved domain API resource
 	URI string `json:"uri,omitempty"`
 
@@ -74,7 +77,7 @@ type ReservedDomainStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Reserved Domain ID"
-//+kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.spec.region`,description="Region"
+//+kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`,description="Region"
 //+kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.status.domain`,description="Domain"
 //+kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cname_target`,description="CNAME Target"
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"

@@ -21,7 +21,7 @@ spec:
       name: ID
       type: string
     - description: Region
-      jsonPath: .spec.region
+      jsonPath: .status.region
       name: Region
       type: string
     - description: Domain
@@ -86,6 +86,10 @@ spec:
                 type: string
               id:
                 description: ID is the unique identifier of the reserved domain
+                type: string
+              region:
+                description: Region is the region in which the reserved domain was
+                  created
                 type: string
               uri:
                 description: URI of the reserved domain API resource

@@ -191,7 +191,11 @@ func (r *ReservedDomainReconciler) createExternalResources(ctx context.Context, 
 	}
 	resp, err := r.ReservedDomainsClient.Create(ctx, req)
 	if err != nil {
-		return err
+		// Let's check if the domain already exists. If it does, we'll just update the status fields
+		resp, err = r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
+		if err != nil {
+			return err
+		}
 	}
 
 	return r.updateStatus(ctx, domain, resp)
@@ -209,11 +213,24 @@ func (r *ReservedDomainReconciler) updateExternalResources(ctx context.Context, 
 	return r.updateStatus(ctx, domain, resp)
 }
 
+// finds the reserved domain by the hostname. If it doesn't exist, returns nil
+func (r *ReservedDomainReconciler) findReservedDomainByHostname(ctx context.Context, domainName string) (*ngrok.ReservedDomain, error) {
+	iter := r.ReservedDomainsClient.List(&ngrok.Paging{})
+	for iter.Next(ctx) {
+		domain := iter.Item()
+		if domain.Domain == domainName {
+			return domain, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *ReservedDomainReconciler) updateStatus(ctx context.Context, domain *ingressv1alpha1.ReservedDomain, ngrokDomain *ngrok.ReservedDomain) error {
 	domain.Status.ID = ngrokDomain.ID
 	domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
 	domain.Status.URI = ngrokDomain.URI
 	domain.Status.Domain = ngrokDomain.Domain
+	domain.Status.Region = ngrokDomain.Region
 
 	return r.Status().Update(ctx, domain)
 }
