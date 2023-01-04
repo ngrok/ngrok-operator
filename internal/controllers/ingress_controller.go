@@ -113,6 +113,12 @@ func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge *ngrokapi
 		return ctrl.Result{}, err
 	}
 
+	err = irec.reconcileTunnels(ctx, ingress)
+	if err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to reconcile tunnels", err.Error())
+		return ctrl.Result{}, err
+	}
+
 	ngrokEdge, err := irec.NgrokAPIDriver.UpdateEdge(ctx, edge)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update edge", err.Error())
@@ -125,6 +131,12 @@ func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge *ngrokapi
 	err := irec.reconcileDomains(ctx, ingress)
 	if err != nil {
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to reconcile reserved domains", err.Error())
+		return ctrl.Result{}, err
+	}
+
+	err = irec.reconcileTunnels(ctx, ingress)
+	if err != nil {
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to reconcile tunnels", err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -165,7 +177,7 @@ func (irec *IngressReconciler) routesPlanner(ctx context.Context, rule netv1.Ing
 		route := ngrokapidriver.Route{
 			Match:     httpIngressPath.Path,
 			MatchType: matchType,
-			Labels:    backendToLabelMap(httpIngressPath.Backend, ingressName, namespace),
+			Labels:    backendToLabelMap(httpIngressPath.Backend, namespace),
 		}
 
 		// TODO: This should be replaced, see TODO at top of route_modules.go
@@ -248,6 +260,37 @@ func (irec *IngressReconciler) reconcileDomains(ctx context.Context, ingress *ne
 	return nil
 }
 
+func (irec *IngressReconciler) reconcileTunnels(ctx context.Context, ingress *netv1.Ingress) error {
+	tunnels := ingressToTunnels(ingress)
+
+	for _, tunnel := range tunnels {
+		if err := controllerutil.SetControllerReference(ingress, &tunnel, irec.Scheme); err != nil {
+			return err
+		}
+
+		found := &ingressv1alpha1.Tunnel{}
+		err := irec.Client.Get(ctx, types.NamespacedName{Name: tunnel.Name, Namespace: tunnel.Namespace}, found)
+		if err != nil && errors.IsNotFound(err) {
+			err = irec.Create(ctx, &tunnel)
+			if err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+
+		if !reflect.DeepEqual(tunnel.Spec, found.Spec) {
+			found.Spec = tunnel.Spec
+			err = irec.Update(ctx, found)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (irec *IngressReconciler) ingressToDomains(ctx context.Context, ingress *netv1.Ingress) ([]ingressv1alpha1.Domain, error) {
 	reservedDomains := make([]ingressv1alpha1.Domain, 0)
 
@@ -271,4 +314,45 @@ func (irec *IngressReconciler) ingressToDomains(ctx context.Context, ingress *ne
 	}
 
 	return reservedDomains, nil
+}
+
+func ingressToTunnels(ingress *netv1.Ingress) []ingressv1alpha1.Tunnel {
+	tunnels := make([]ingressv1alpha1.Tunnel, 0)
+
+	if ingress == nil || len(ingress.Spec.Rules) == 0 {
+		return tunnels
+	}
+
+	// Tunnels should be unique on a service and port basis so if they are ferenced more than once, we
+	// only create one tunnel per service and port.
+	tunnelMap := make(map[string]ingressv1alpha1.Tunnel)
+	for _, rule := range ingress.Spec.Rules {
+		if rule.Host == "" {
+			continue
+		}
+
+		for _, path := range rule.HTTP.Paths {
+			serviceName := path.Backend.Service.Name
+			servicePort := path.Backend.Service.Port.Number
+			tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, ingress.Namespace, clusterDomain, servicePort)
+			tunnelName := fmt.Sprintf("%s-%d", serviceName, servicePort)
+
+			tunnelMap[tunnelName] = ingressv1alpha1.Tunnel{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tunnelName,
+					Namespace: ingress.Namespace,
+				},
+				Spec: ingressv1alpha1.TunnelSpec{
+					ForwardsTo: tunnelAddr,
+					Labels:     backendToLabelMap(path.Backend, ingress.Namespace),
+				},
+			}
+		}
+	}
+
+	for _, tunnel := range tunnelMap {
+		tunnels = append(tunnels, tunnel)
+	}
+
+	return tunnels
 }

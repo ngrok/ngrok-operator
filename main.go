@@ -133,15 +133,6 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
 
-	if err := (&controllers.TunnelReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("tunnel"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("tunnel-controller"),
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create tunnel controller: %w", err)
-	}
-
 	if err = (&controllers.DomainReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("Domain"),
@@ -149,6 +140,15 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Recorder: mgr.GetEventRecorderFor("domain-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Domain")
+		os.Exit(1)
+	}
+	if err = (&controllers.TunnelReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("Tunnel"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("tunnel-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

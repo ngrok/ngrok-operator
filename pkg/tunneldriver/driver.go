@@ -48,7 +48,7 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels ma
 		defer td.stopTunnel(context.Background(), tun)
 	}
 
-	tun, err := td.session.Listen(ctx, td.buildTunnelConfig(labels))
+	tun, err := td.session.Listen(ctx, td.buildTunnelConfig(labels, destination))
 	if err != nil {
 		return err
 	}
@@ -83,11 +83,12 @@ func (td *TunnelDriver) stopTunnel(ctx context.Context, tun ngrok.Tunnel) error 
 	return tun.CloseWithContext(ctx)
 }
 
-func (td *TunnelDriver) buildTunnelConfig(labels map[string]string) config.Tunnel {
+func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination string) config.Tunnel {
 	opts := []config.LabeledTunnelOption{}
 	for key, value := range labels {
 		opts = append(opts, config.WithLabel(key, value))
 	}
+	opts = append(opts, config.WithForwardsTo(destination))
 	return config.LabeledTunnel(opts...)
 }
 

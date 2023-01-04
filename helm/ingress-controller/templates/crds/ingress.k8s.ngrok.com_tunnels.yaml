@@ -1,0 +1,64 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: tunnels.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: Tunnel
+    listKind: TunnelList
+    plural: tunnels
+    singular: tunnel
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Service/port to forward to
+      jsonPath: .spec.forwardsTo
+      name: ForwardsTo
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Tunnel is the Schema for the tunnels API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TunnelSpec defines the desired state of Tunnel
+            properties:
+              forwardsTo:
+                description: ForwardsTo is the name and port of the service to forward
+                  traffic to
+                type: string
+              labels:
+                additionalProperties:
+                  type: string
+                description: Labels are key/value pairs that are attached to the tunnel
+                type: object
+            type: object
+          status:
+            description: TunnelStatus defines the observed state of Tunnel
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
