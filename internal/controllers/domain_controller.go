@@ -45,35 +45,35 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
 )
 
-// ReservedDomainReconciler reconciles a ReservedDomain object
-type ReservedDomainReconciler struct {
+// DomainReconciler reconciles a Domain object
+type DomainReconciler struct {
 	client.Client
 
-	Log                   logr.Logger
-	Scheme                *runtime.Scheme
-	Recorder              record.EventRecorder
-	ReservedDomainsClient *reserved_domains.Client
+	Log           logr.Logger
+	Scheme        *runtime.Scheme
+	Recorder      record.EventRecorder
+	DomainsClient *reserved_domains.Client
 }
 
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=reserveddomains,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=reserveddomains/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=reserveddomains/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the ReservedDomain object against the actual cluster state, and then
+// the Domain object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
-func (r *ReservedDomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("V1Alpha1ReservedDomain", req.NamespacedName)
+func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log.WithValues("V1Alpha1Domain", req.NamespacedName)
 
-	domain := new(ingressv1alpha1.ReservedDomain)
+	domain := new(ingressv1alpha1.Domain)
 	if err := r.Get(ctx, req.NamespacedName, domain); err != nil {
-		log.Error(err, "unable to fetch ReservedDomain")
+		log.Error(err, "unable to fetch Domain")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -89,11 +89,11 @@ func (r *ReservedDomainReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		// The object is being deleted
 		if hasFinalizer(domain) {
 			if domain.Status.ID != "" {
-				r.Recorder.Event(domain, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting Reserved Domain %s", domain.Name))
+				r.Recorder.Event(domain, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting Domain %s", domain.Name))
 				// Question: Do we actually want to delete the reserved domains for real? Or maybe just delete the resource and have the user delete the reserved domain from
 				// the ngrok dashboard manually?
-				if err := r.ReservedDomainsClient.Delete(ctx, domain.Status.ID); err != nil {
-					r.Recorder.Event(domain, v1.EventTypeWarning, "FailedDelete", fmt.Sprintf("Failed to delete Reserved Domain %s: %s", domain.Name, err.Error()))
+				if err := r.DomainsClient.Delete(ctx, domain.Status.ID); err != nil {
+					r.Recorder.Event(domain, v1.EventTypeWarning, "FailedDelete", fmt.Sprintf("Failed to delete Domain %s: %s", domain.Name, err.Error()))
 					return ctrl.Result{}, err
 				}
 
@@ -101,7 +101,7 @@ func (r *ReservedDomainReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				if err := r.Update(ctx, domain); err != nil {
 					return ctrl.Result{}, err
 				}
-				r.Recorder.Event(domain, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted Reserved Domain %s", domain.Name))
+				r.Recorder.Event(domain, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted Domain %s", domain.Name))
 			}
 
 			// We don't have the ID, so can't delete the resource. We'll just remove the finalizer for now.
@@ -114,27 +114,27 @@ func (r *ReservedDomainReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	if domain.Status.ID != "" {
 		if err := r.updateExternalResources(ctx, domain); err != nil {
-			r.Recorder.Event(domain, v1.EventTypeWarning, "UpdateFailed", fmt.Sprintf("Failed to update Reserved Domain %s: %s", domain.Name, err.Error()))
+			r.Recorder.Event(domain, v1.EventTypeWarning, "UpdateFailed", fmt.Sprintf("Failed to update Domain %s: %s", domain.Name, err.Error()))
 			return ctrl.Result{}, err
 		}
 
-		r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated Reserved Domain %s", domain.Name))
+		r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated Domain %s", domain.Name))
 
 	} else {
 		// Create
 		if err := r.createExternalResources(ctx, domain); err != nil {
-			r.Recorder.Event(domain, v1.EventTypeWarning, "CreateFailed", fmt.Sprintf("Failed to create Reserved Domain %s: %s", domain.Name, err.Error()))
+			r.Recorder.Event(domain, v1.EventTypeWarning, "CreateFailed", fmt.Sprintf("Failed to create Domain %s: %s", domain.Name, err.Error()))
 			return ctrl.Result{}, err
 		}
 
-		r.Recorder.Event(domain, v1.EventTypeNormal, "Created", fmt.Sprintf("Created Reserved Domain %s", domain.Name))
+		r.Recorder.Event(domain, v1.EventTypeNormal, "Created", fmt.Sprintf("Created Domain %s", domain.Name))
 	}
 
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ReservedDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	c, err := controller.New("reserved-domain-controller", mgr, controller.Options{
 		Reconciler: r,
 		LogConstructor: func(_ *reconcile.Request) logr.Logger {
@@ -147,7 +147,7 @@ func (r *ReservedDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	if err := c.Watch(
-		&source.Kind{Type: &ingressv1alpha1.ReservedDomain{}},
+		&source.Kind{Type: &ingressv1alpha1.Domain{}},
 		&handler.EnqueueRequestForObject{},
 		commonPredicateFilters,
 	); err != nil {
@@ -162,12 +162,12 @@ func (r *ReservedDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		apiKey,
 		ngrok.WithUserAgent("ngrok-ingress-controller/v1-alpha"),
 	)
-	r.ReservedDomainsClient = reserved_domains.NewClient(config)
+	r.DomainsClient = reserved_domains.NewClient(config)
 
 	return nil
 }
 
-func (r *ReservedDomainReconciler) registerFinalizer(ctx context.Context, domain *ingressv1alpha1.ReservedDomain) error {
+func (r *DomainReconciler) registerFinalizer(ctx context.Context, domain *ingressv1alpha1.Domain) error {
 	if hasFinalizer(domain) {
 		// Finalizer already exists, nothing to do
 		return nil
@@ -178,18 +178,18 @@ func (r *ReservedDomainReconciler) registerFinalizer(ctx context.Context, domain
 }
 
 // Deletes the external resources associated with the ReservedDomain. This is just the reserved domain itself.
-func (r *ReservedDomainReconciler) deleteExternalResources(ctx context.Context, domain *ingressv1alpha1.ReservedDomain) error {
-	return r.ReservedDomainsClient.Delete(ctx, domain.Status.ID)
+func (r *DomainReconciler) deleteExternalResources(ctx context.Context, domain *ingressv1alpha1.Domain) error {
+	return r.DomainsClient.Delete(ctx, domain.Status.ID)
 }
 
-func (r *ReservedDomainReconciler) createExternalResources(ctx context.Context, domain *ingressv1alpha1.ReservedDomain) error {
+func (r *DomainReconciler) createExternalResources(ctx context.Context, domain *ingressv1alpha1.Domain) error {
 	req := &ngrok.ReservedDomainCreate{
 		Domain:      domain.Spec.Domain,
 		Region:      domain.Spec.Region,
 		Description: domain.Spec.Description,
 		Metadata:    domain.Spec.Metadata,
 	}
-	resp, err := r.ReservedDomainsClient.Create(ctx, req)
+	resp, err := r.DomainsClient.Create(ctx, req)
 	if err != nil {
 		// Let's check if the domain already exists. If it does, we'll just update the status fields
 		resp, err = r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
@@ -201,8 +201,8 @@ func (r *ReservedDomainReconciler) createExternalResources(ctx context.Context, 
 	return r.updateStatus(ctx, domain, resp)
 }
 
-func (r *ReservedDomainReconciler) updateExternalResources(ctx context.Context, domain *ingressv1alpha1.ReservedDomain) error {
-	resp, err := r.ReservedDomainsClient.Get(ctx, domain.Status.ID)
+func (r *DomainReconciler) updateExternalResources(ctx context.Context, domain *ingressv1alpha1.Domain) error {
+	resp, err := r.DomainsClient.Get(ctx, domain.Status.ID)
 	if err != nil {
 		return err
 	}
@@ -214,8 +214,8 @@ func (r *ReservedDomainReconciler) updateExternalResources(ctx context.Context, 
 }
 
 // finds the reserved domain by the hostname. If it doesn't exist, returns nil
-func (r *ReservedDomainReconciler) findReservedDomainByHostname(ctx context.Context, domainName string) (*ngrok.ReservedDomain, error) {
-	iter := r.ReservedDomainsClient.List(&ngrok.Paging{})
+func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, domainName string) (*ngrok.ReservedDomain, error) {
+	iter := r.DomainsClient.List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		domain := iter.Item()
 		if domain.Domain == domainName {
@@ -225,7 +225,7 @@ func (r *ReservedDomainReconciler) findReservedDomainByHostname(ctx context.Cont
 	return nil, nil
 }
 
-func (r *ReservedDomainReconciler) updateStatus(ctx context.Context, domain *ingressv1alpha1.ReservedDomain, ngrokDomain *ngrok.ReservedDomain) error {
+func (r *DomainReconciler) updateStatus(ctx context.Context, domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) error {
 	domain.Status.ID = ngrokDomain.ID
 	domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
 	domain.Status.URI = ngrokDomain.URI

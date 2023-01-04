@@ -10,7 +10,7 @@ resources:
   controller: true
   domain: k8s.ngrok.com
   group: ingress
-  kind: ReservedDomain
+  kind: Domain
   path: github.com/ngrok/ngrok-ingress-controller/api/v1alpha1
   version: v1alpha1
 version: "3"

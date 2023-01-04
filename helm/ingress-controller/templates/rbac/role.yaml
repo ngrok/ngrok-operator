@@ -34,7 +34,7 @@ rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
-  - reserveddomains
+  - domains
   verbs:
   - create
   - delete
@@ -46,13 +46,13 @@ rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
-  - reserveddomains/finalizers
+  - domains/finalizers
   verbs:
   - update
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
-  - reserveddomains/status
+  - domains/status
   verbs:
   - get
   - patch

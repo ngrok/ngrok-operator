@@ -142,13 +142,13 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create tunnel controller: %w", err)
 	}
 
-	if err = (&controllers.ReservedDomainReconciler{
+	if err = (&controllers.DomainReconciler{
 		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("ReservedDomain"),
+		Log:      ctrl.Log.WithName("controllers").WithName("Domain"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("reserved-domain-controller"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ReservedDomain")
+		setupLog.Error(err, "unable to create controller", "controller", "Domain")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

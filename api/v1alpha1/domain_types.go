@@ -31,8 +31,8 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// ReservedDomainSpec defines the desired state of ReservedDomain
-type ReservedDomainSpec struct {
+// DomainSpec defines the desired state of Domain
+type DomainSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -44,62 +44,62 @@ type ReservedDomainSpec struct {
 	// +kubebuilder:validation:Required
 	Region string `json:"region,omitempty"`
 
-	// Description is a human-readable description of the reserved domain
+	// Description is a human-readable description of the domain
 	// +kubebuilder:default:=`Created by ngrok-ingress-controller`
 	Description string `json:"description,omitempty"`
 
-	// Metadata is a string of arbitrary data associated with the reserved domain
+	// Metadata is a string of arbitrary data associated with the domain
 	// +kubebuilder:default:=`{"owned-by":"ngrok-ingress-controller"}`
 	Metadata string `json:"metadata,omitempty"`
 }
 
-// ReservedDomainStatus defines the observed state of ReservedDomain
-type ReservedDomainStatus struct {
+// DomainStatus defines the observed state of Domain
+type DomainStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// ID is the unique identifier of the reserved domain
+	// ID is the unique identifier of the domain
 	ID string `json:"id,omitempty"`
 
 	// Domain is the domain that was reserved
 	Domain string `json:"domain,omitempty"`
 
-	// Region is the region in which the reserved domain was created
+	// Region is the region in which the domain was created
 	Region string `json:"region,omitempty"`
 
 	// URI of the reserved domain API resource
 	URI string `json:"uri,omitempty"`
 
-	// CNAMETarget is the CNAME target for the reserved domain
-	CNAMETarget *string `json:"cname_target,omitempty"`
+	// CNAMETarget is the CNAME target for the domain
+	CNAMETarget *string `json:"cnameTarget,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Reserved Domain ID"
+//+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
 //+kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`,description="Region"
 //+kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.status.domain`,description="Domain"
 //+kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cname_target`,description="CNAME Target"
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
-// ReservedDomain is the Schema for the reserveddomains API
-type ReservedDomain struct {
+// Domain is the Schema for the reserveddomains API
+type Domain struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ReservedDomainSpec   `json:"spec,omitempty"`
-	Status ReservedDomainStatus `json:"status,omitempty"`
+	Spec   DomainSpec   `json:"spec,omitempty"`
+	Status DomainStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// ReservedDomainList contains a list of ReservedDomain
-type ReservedDomainList struct {
+// DomainList contains a list of ReservedDomain
+type DomainList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ReservedDomain `json:"items"`
+	Items           []Domain `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ReservedDomain{}, &ReservedDomainList{})
+	SchemeBuilder.Register(&Domain{}, &DomainList{})
 }

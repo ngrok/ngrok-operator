@@ -5,7 +5,7 @@ Should match snapshot:
     metadata:
       annotations:
         checksum/agent-config: 3671fa6e906913b7e88c956cd85864fb4a056335e2676f8fce44a1cfafba37d6
-        checksum/controller-role: d5896aa3742994c2904109cb3a9a6dbc83815cd16121e6de1f293c4fda68386c
+        checksum/controller-role: 816fbb0081be1faf81c791f8550980d539a257b07e62db318a48d6db18c43956
         checksum/rbac: d65fd1d397f0da2dc2888c7af42265b5a47272fbbf56a0c3331023d949f3c58b
       labels:
         app.kubernetes.io/component: controller
@@ -221,7 +221,7 @@ Should match snapshot:
     - apiGroups:
       - ingress.k8s.ngrok.com
       resources:
-      - reserveddomains
+      - domains
       verbs:
       - create
       - delete
@@ -233,13 +233,13 @@ Should match snapshot:
     - apiGroups:
       - ingress.k8s.ngrok.com
       resources:
-      - reserveddomains/finalizers
+      - domains/finalizers
       verbs:
       - update
     - apiGroups:
       - ingress.k8s.ngrok.com
       resources:
-      - reserveddomains/status
+      - domains/status
       verbs:
       - get
       - patch
