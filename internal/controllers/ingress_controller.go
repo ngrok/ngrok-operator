@@ -256,6 +256,9 @@ func (irec *IngressReconciler) ingressToDomains(ctx context.Context, ingress *ne
 	}
 
 	for _, rule := range ingress.Spec.Rules {
+		if rule.Host == "" {
+			continue
+		}
 		reservedDomains = append(reservedDomains, ingressv1alpha1.ReservedDomain{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      strings.Replace(rule.Host, ".", "-", -1),
