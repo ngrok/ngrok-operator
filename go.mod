@@ -103,3 +103,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace golang.ngrok.com/ngrok => github.com/jonstacks/ngrok-go v0.0.0-20230104195048-cc46e7fe982f
