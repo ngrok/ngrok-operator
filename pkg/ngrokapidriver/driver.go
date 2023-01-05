@@ -39,7 +39,7 @@ type ngrokAPIDriver struct {
 	region          string
 }
 
-// TODO:
+// NewNgrokAPIClient creates a new Driver setup with the passed in apiKey and region
 func NewNgrokAPIClient(apiKey string, region string) NgrokAPIDriver {
 	config := ngrok.NewClientConfig(apiKey, ngrok.WithUserAgent("ngrok-ingress-controller/v1-alpha"))
 	apiBaseUrl, ok := os.LookupEnv("NGROK_API_ADDR")
