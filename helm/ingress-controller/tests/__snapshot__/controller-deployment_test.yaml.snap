@@ -44,6 +44,9 @@ Should match snapshot:
             command:
             - /manager
             env:
+            - name: 0
+              value:
+                TEST_ENV_VAR: test
             - name: NGROK_API_KEY
               valueFrom:
                 secretKeyRef:

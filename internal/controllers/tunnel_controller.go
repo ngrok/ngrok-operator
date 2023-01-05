@@ -28,10 +28,11 @@ const (
 // https://pkg.go.dev/sigs.k8s.io/controller-runtime#section-readme
 type TunnelReconciler struct {
 	client.Client
-	Log      logr.Logger
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
-	tm       *ngrokgodriver.TunnelManager
+	Log        logr.Logger
+	Scheme     *runtime.Scheme
+	Recorder   record.EventRecorder
+	ServerAddr string
+	tm         *ngrokgodriver.TunnelManager
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -91,7 +92,7 @@ func (trec *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
 
 	if trec.tm == nil {
-		trec.tm, err = ngrokgodriver.NewTunnelManager()
+		trec.tm, err = ngrokgodriver.NewTunnelManager(trec.ServerAddr)
 		if err != nil {
 			return err
 		}

@@ -45,12 +45,19 @@ spec:
         {{- if .Values.region }}
         - --region={{ .Values.region}}
         {{- end }}
+        {{- if .Values.serverAddr }}
+        - --server-addr={{ .Values.serverAddr}}
+        {{- end }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id={{ include "ngrok-ingress-controller.fullname" . }}-leader
         securityContext:
           allowPrivilegeEscalation: false
         env:
+        {{- range $key, $value := .Values.extraEnv }}
+        - name: {{ $key }}
+          value: {{- toYaml $value | nindent 12 }}
+        {{- end }}
         - name: NGROK_API_KEY
           valueFrom:
             secretKeyRef:

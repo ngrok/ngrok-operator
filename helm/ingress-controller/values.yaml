@@ -60,6 +60,9 @@ credentials:
 ## @param region ngrok region to create tunnels in. Defaults to empty to utilize the global network
 region: ""
 
+## @param serverAddr  ngrok server address to connect to. Defaults to US
+serverAddr: ""
+
 ## Controller container resource requests and limits
 ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
 ## We usually recommend not to specify default resources and to leave this as a conscious
@@ -82,6 +85,16 @@ resources:
   ##    memory: 128Mi
   ##
   requests: {}
+
+
+## @param extraEnv An array of extra environment variables to set on the controller.
+# extraEnv:
+#   myVar: test
+#   mySecretVar:
+#     secretKeyRef:
+#       key: test-key
+#       value: test-value
+
 
 
 ## Controller Service Account Settings

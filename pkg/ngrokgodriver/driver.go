@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"os"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -19,15 +18,11 @@ type TunnelManager struct {
 	tunnels map[string]ngrok.Tunnel
 }
 
-func NewTunnelManager() (*TunnelManager, error) {
+func NewTunnelManager(serverAddr string) (*TunnelManager, error) {
 	opts := []ngrok.ConnectOption{
 		ngrok.WithAuthtokenFromEnv(),
 	}
-
-	serverAddr, ok := os.LookupEnv("NGROK_SEVER_ADDR")
-	if ok {
-		opts = append(opts, ngrok.WithServer(serverAddr))
-	}
+	opts = append(opts, ngrok.WithServer(serverAddr))
 
 	session, err := ngrok.Connect(context.Background(), opts...)
 	if err != nil {
