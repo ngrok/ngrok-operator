@@ -60,7 +60,7 @@ credentials:
 ## @param region ngrok region to create tunnels in. Defaults to empty to utilize the global network
 region: ""
 
-## @param serverAddr  ngrok server address to connect to. Defaults to US
+## @param serverAddr  This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.
 serverAddr: ""
 
 ## Controller container resource requests and limits
