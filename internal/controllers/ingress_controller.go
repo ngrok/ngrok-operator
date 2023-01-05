@@ -323,7 +323,7 @@ func ingressToTunnels(ingress *netv1.Ingress) []ingressv1alpha1.Tunnel {
 		return tunnels
 	}
 
-	// Tunnels should be unique on a service and port basis so if they are ferenced more than once, we
+	// Tunnels should be unique on a service and port basis so if they are referenced more than once, we
 	// only create one tunnel per service and port.
 	tunnelMap := make(map[string]ingressv1alpha1.Tunnel)
 	for _, rule := range ingress.Spec.Rules {
