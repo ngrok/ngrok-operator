@@ -37,6 +37,7 @@ type TunnelSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// ForwardsTo is the name and port of the service to forward traffic to
+	// +kubebuilder:validation:Required
 	ForwardsTo string `json:"forwardsTo,omitempty"`
 
 	// Labels are key/value pairs that are attached to the tunnel
