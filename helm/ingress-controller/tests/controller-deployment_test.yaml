@@ -11,7 +11,10 @@ templates:
 - controller-rbac.yaml
 - rbac/role.yaml
 tests:
-- it: Should match snapshot
+- it: Should match default snapshot
+  asserts:
+  - matchSnapshot: {}
+- it: Should match all-options snapshot
   set:
     extraEnv:
       TEST_ENV_VAR: test
