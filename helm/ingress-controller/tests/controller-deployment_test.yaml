@@ -9,7 +9,7 @@ templates:
 # deployment at this time.
 - agent-config-cm.yaml
 - controller-rbac.yaml
-- role.yaml
+- rbac/role.yaml
 tests:
 - it: Should match snapshot
   asserts:

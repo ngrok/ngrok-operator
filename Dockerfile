@@ -10,13 +10,14 @@ COPY go.sum go.sum
 RUN go mod download
 
 # Copy the go source
-COPY cmd/ cmd/
+COPY main.go main.go
+COPY api/ api/
 COPY internal/ internal/
 COPY pkg/ pkg/
 
 ARG TARGETOS TARGETARCH
 # Build
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -o manager github.com/ngrok/ngrok-ingress-controller/cmd/manager
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details

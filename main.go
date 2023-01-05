@@ -28,26 +28,35 @@ import (
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
-	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
+	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
+	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	//+kubebuilder:scaffold:imports
 )
 
-var log = ctrl.Log.WithName("setup")
+var (
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
+)
 
 func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
 	//+kubebuilder:scaffold:scheme
+	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 }
 
 func main() {
 	if err := cmd().Execute(); err != nil {
-		log.Error(err, "error running manager")
+		setupLog.Error(err, "error running manager")
 		os.Exit(1)
 	}
 }
@@ -89,11 +98,6 @@ func cmd() *cobra.Command {
 
 func runController(ctx context.Context, opts managerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
-
-	scheme := runtime.NewScheme()
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		return err
-	}
 
 	var ok bool
 	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
@@ -138,6 +142,15 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create tunnel controller: %w", err)
 	}
 
+	if err = (&controllers.DomainReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("Domain"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("domain-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Domain")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -147,7 +160,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("error setting up readyz check: %w", err)
 	}
 
-	log.Info("starting manager")
+	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		return fmt.Errorf("error starting manager: %w", err)
 	}

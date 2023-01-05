@@ -16,8 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const finalizerName = "k8s.ngrok.com/finalizer"
-
 // The name of the ingress controller which is uses to match on ingress classes
 const controllerName = "k8s.ngrok.com/ingress-controller" // TODO: Let the user configure this
 
@@ -138,7 +136,7 @@ func setStatus(ctx context.Context, irec *IngressReconciler, ingress *netv1.Ingr
 		}
 	}
 
-	ingress.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{
+	ingress.Status.LoadBalancer.Ingress = []netv1.IngressLoadBalancerIngress{
 		{
 			Hostname: hostName,
 		},

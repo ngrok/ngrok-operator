@@ -1,6 +1,7 @@
 # More info: https://docs.docker.com/engine/reference/builder/#dockerignore-file
 # Ignore all files then explicitly whitelist ones we want
 *
+!api/
 !internal/
 !pkg/
 !cmd/
