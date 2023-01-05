@@ -135,7 +135,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	if err = (&controllers.DomainReconciler{
 		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("Domain"),
+		Log:      ctrl.Log.WithName("controllers").WithName("domain"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("domain-controller"),
 	}).SetupWithManager(mgr); err != nil {
@@ -144,7 +144,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 	if err = (&controllers.TunnelReconciler{
 		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("Tunnel"),
+		Log:      ctrl.Log.WithName("controllers").WithName("tunnel"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("tunnel-controller"),
 	}).SetupWithManager(mgr); err != nil {
