@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
@@ -10,6 +11,34 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func makeTestBackend(serviceName string, servicePort int32) netv1.IngressBackend {
+	return netv1.IngressBackend{
+		Service: &netv1.IngressServiceBackend{
+			Name: serviceName,
+			Port: netv1.ServiceBackendPort{
+				Number: servicePort,
+			},
+		},
+	}
+}
+
+func makeTestTunnel(namespace, serviceName string, servicePort int) ingressv1alpha1.Tunnel {
+	return ingressv1alpha1.Tunnel{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%d", serviceName, servicePort),
+			Namespace: namespace,
+		},
+		Spec: ingressv1alpha1.TunnelSpec{
+			ForwardsTo: fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort),
+			Labels: map[string]string{
+				"k8s.ngrok.com/namespace": namespace,
+				"k8s.ngrok.com/service":   serviceName,
+				"k8s.ngrok.com/port":      fmt.Sprintf("%d", servicePort),
+			},
+		},
+	}
+}
 
 func TestIngressReconcilerIngressToEdge(t *testing.T) {
 	prefix := netv1.PathTypePrefix
@@ -53,14 +82,7 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 										{
 											Path:     "/",
 											PathType: &prefix,
-											Backend: netv1.IngressBackend{
-												Service: &netv1.IngressServiceBackend{
-													Name: "test-service",
-													Port: netv1.ServiceBackendPort{
-														Number: 8080,
-													},
-												},
-											},
+											Backend:  makeTestBackend("test-service", 8080),
 										},
 									},
 								},
@@ -135,6 +157,7 @@ func TestIngressToTunnels(t *testing.T) {
 			tunnels: []ingressv1alpha1.Tunnel{},
 		},
 		{
+			testName: "Converts an ingress to a tunnel",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-ingress",
@@ -148,15 +171,8 @@ func TestIngressToTunnels(t *testing.T) {
 								HTTP: &netv1.HTTPIngressRuleValue{
 									Paths: []netv1.HTTPIngressPath{
 										{
-											Path: "/",
-											Backend: netv1.IngressBackend{
-												Service: &netv1.IngressServiceBackend{
-													Name: "test-service",
-													Port: netv1.ServiceBackendPort{
-														Number: 8080,
-													},
-												},
-											},
+											Path:    "/",
+											Backend: makeTestBackend("test-service", 8080),
 										},
 									},
 								},
@@ -166,32 +182,64 @@ func TestIngressToTunnels(t *testing.T) {
 				},
 			},
 			tunnels: []ingressv1alpha1.Tunnel{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-service-8080",
-						Namespace: "test-namespace",
-					},
-					Spec: ingressv1alpha1.TunnelSpec{
-						ForwardsTo: "test-service.test-namespace.svc.cluster.local:8080",
-						Labels: map[string]string{
-							"k8s.ngrok.com/namespace": "test-namespace",
-							"k8s.ngrok.com/service":   "test-service",
-							"k8s.ngrok.com/port":      "8080",
+				makeTestTunnel("test-namespace", "test-service", 8080),
+			},
+		},
+		{
+			testName: "Correctly converts an ingress with multiple paths that point to the same service",
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-ingress",
+					Namespace: "test-namespace",
+				},
+				Spec: netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{
+							Host: "my-test-tunnel.ngrok.io",
+							IngressRuleValue: netv1.IngressRuleValue{
+								HTTP: &netv1.HTTPIngressRuleValue{
+									Paths: []netv1.HTTPIngressPath{
+										{
+											Path:    "/",
+											Backend: makeTestBackend("test-service", 8080),
+										},
+										{
+											Path:    "/api",
+											Backend: makeTestBackend("test-api", 80),
+										},
+									},
+								},
+							},
+						},
+						{
+							Host: "my-other-test-tunnel.ngrok.io",
+							IngressRuleValue: netv1.IngressRuleValue{
+								HTTP: &netv1.HTTPIngressRuleValue{
+									Paths: []netv1.HTTPIngressPath{
+										{
+											Path:    "/",
+											Backend: makeTestBackend("test-service", 8080),
+										},
+										{
+											Path:    "/api",
+											Backend: makeTestBackend("test-api", 80),
+										},
+									},
+								},
+							},
 						},
 					},
 				},
+			},
+			tunnels: []ingressv1alpha1.Tunnel{
+				makeTestTunnel("test-namespace", "test-service", 8080),
+				makeTestTunnel("test-namespace", "test-api", 80),
 			},
 		},
 	}
 
 	for _, test := range testCases {
 		tunnels := ingressToTunnels(test.ingress)
-
-		assert.Equal(t, len(tunnels), len(test.tunnels))
-		for i := 0; i < len(tunnels); i++ {
-			assert.Equal(t, tunnels[i].Name, test.tunnels[i].Name)
-			assert.Equal(t, tunnels[i].Spec.ForwardsTo, test.tunnels[i].Spec.ForwardsTo)
-			assert.Equal(t, tunnels[i].Spec.Labels, test.tunnels[i].Spec.Labels)
-		}
+		assert.ElementsMatch(t, tunnels, test.tunnels)
 	}
 }

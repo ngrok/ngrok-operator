@@ -4,31 +4,37 @@ import (
 	"context"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+// dummyController is a controller that does nothing.
+type dummyController struct{}
+
+func (d dummyController) Reconcile(context.Context, reconcile.Request) (reconcile.Result, error) {
+	return reconcile.Result{}, nil
+}
+func (d dummyController) Watch(src source.Source, handler handler.EventHandler, predicates ...predicate.Predicate) error {
+	return nil
+}
+func (d dummyController) Start(context.Context) error {
+	return nil
+}
+func (d dummyController) GetLogger() logr.Logger {
+	return logr.Discard()
+}
+
 func TestNonLeaderElectedController(t *testing.T) {
-	testenv := &envtest.Environment{}
-	cfg, err := testenv.Start()
-	assert.NoError(t, err)
-
-	rec := reconcile.Func(func(context.Context, reconcile.Request) (reconcile.Result, error) {
-		return reconcile.Result{}, nil
-	})
-
-	m, err := manager.New(cfg, manager.Options{})
-	assert.NoError(t, err)
-
-	c, err := controller.NewUnmanaged("tunnel-controller", m, controller.Options{
-		Reconciler: rec,
-	})
-	assert.NoError(t, err)
-
-	wrappedController := NonLeaderElectedController{c}
+	ctrl := dummyController{}
+	assert.Implements(t, (*controller.Controller)(nil), ctrl)
+	wrappedController := NonLeaderElectedController{ctrl}
+	assert.Implements(t, (*controller.Controller)(nil), wrappedController)
 
 	// Assert that the wrapped controller implements the LeaderElectionRunnable interface
 	assert.Implements(t, (*manager.LeaderElectionRunnable)(nil), wrappedController)
