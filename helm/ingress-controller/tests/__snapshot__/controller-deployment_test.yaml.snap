@@ -44,13 +44,6 @@ Should match all-options snapshot:
             command:
             - /manager
             env:
-            - name: SECRET_ENV_VAR
-              value:
-                secretKeyRef:
-                  key: test-key
-                value: test-value
-            - name: TEST_ENV_VAR
-              value: test
             - name: NGROK_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -65,6 +58,13 @@ Should match all-options snapshot:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: SECRET_ENV_VAR
+              value:
+                secretKeyRef:
+                  key: test-key
+                value: test-value
+            - name: TEST_ENV_VAR
+              value: test
             image: docker.io/ngrok/ngrok-ingress-controller:latest
             imagePullPolicy: IfNotPresent
             livenessProbe:

@@ -55,32 +55,6 @@ tests:
   - notMatchRegex:
       path: spec.template.spec.containers[0].args[0]
       pattern: --region=eu
-- it: Should pass through a simple extra environment variable
-  set:
-    extraEnv:
-      TEST_ENV_VAR: test
-  template: controller-deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - matchRegex:
-      path: spec.template.spec.containers[0].env[0].name
-      pattern: TEST_ENV_VAR
-  - matchRegex:
-      path: spec.template.spec.containers[0].env[0].value
-      pattern: test
-- it: Should pass through a secret extra environment variable
-  set:
-    extraEnv:
-      SECRET_ENV_VAR:
-        secretKeyRef:
-          key: test-key
-          value: test-value
-  template: controller-deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - matchRegex:
-      path: spec.template.spec.containers[0].env[0].name
-      pattern: SECRET_ENV_VAR
 - it: Should pass through extra volumes and extra volume mounts
   set:
     extraVolumes:
