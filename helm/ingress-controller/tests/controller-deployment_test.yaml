@@ -14,7 +14,17 @@ tests:
 - it: Should match snapshot
   set:
     extraEnv:
-    - TEST_ENV_VAR: test
+      TEST_ENV_VAR: test
+      SECRET_ENV_VAR:
+        secretKeyRef:
+          key: test-key
+        value: test-value
+    extraVolumes:
+    - name: test-volume
+      emptyDir: {}
+    extraVolumeMounts:
+    - name: test-volume
+      mountPath: /test-volume
   asserts:
   - matchSnapshot: {}
 - it: Should use the specified secret name for the credentials secret
@@ -68,3 +78,23 @@ tests:
   - matchRegex:
       path: spec.template.spec.containers[0].env[0].name
       pattern: SECRET_ENV_VAR
+- it: Should pass through extra volumes and extra volume mounts
+  set:
+    extraVolumes:
+    - name: test-volume
+      emptyDir: {}
+    extraVolumeMounts:
+    - name: test-volume
+      mountPath: /test-volume
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.volumes[0].name
+      pattern: test-volume
+  - matchRegex:
+      path: spec.template.spec.containers[0].volumeMounts[0].name
+      pattern: test-volume
+  - matchRegex:
+      path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+      pattern: /test-volume

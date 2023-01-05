@@ -5,7 +5,7 @@ Should match snapshot:
     metadata:
       annotations:
         checksum/agent-config: 3671fa6e906913b7e88c956cd85864fb4a056335e2676f8fce44a1cfafba37d6
-        checksum/controller-role: 816fbb0081be1faf81c791f8550980d539a257b07e62db318a48d6db18c43956
+        checksum/controller-role: 175dc8ea9d6eede9b368731c6fc8078c54e497102a8ec5ee08d08f0ae0c991c5
         checksum/rbac: d65fd1d397f0da2dc2888c7af42265b5a47272fbbf56a0c3331023d949f3c58b
       labels:
         app.kubernetes.io/component: controller
@@ -44,9 +44,13 @@ Should match snapshot:
             command:
             - /manager
             env:
-            - name: 0
+            - name: SECRET_ENV_VAR
               value:
-                TEST_ENV_VAR: test
+                secretKeyRef:
+                  key: test-key
+                value: test-value
+            - name: TEST_ENV_VAR
+              value: test
             - name: NGROK_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -81,7 +85,13 @@ Should match snapshot:
               requests: {}
             securityContext:
               allowPrivilegeEscalation: false
+            volumeMounts:
+            - mountPath: /test-volume
+              name: test-volume
           serviceAccountName: RELEASE-NAME-ngrok-ingress-controller
+          volumes:
+          - emptyDir: {}
+            name: test-volume
   2: |
     apiVersion: v1
     data:
@@ -243,6 +253,32 @@ Should match snapshot:
       - ingress.k8s.ngrok.com
       resources:
       - domains/status
+      verbs:
+      - get
+      - patch
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - tunnels
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - tunnels/finalizers
+      verbs:
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - tunnels/status
       verbs:
       - get
       - patch

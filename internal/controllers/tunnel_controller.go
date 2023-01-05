@@ -1,170 +1,142 @@
+/*
+MIT License
+
+Copyright (c) 2022 ngrok, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 package controllers
 
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokgodriver"
+	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
+	"github.com/ngrok/ngrok-ingress-controller/pkg/tunneldriver"
 	v1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-const (
-	// TODO: We can technically figure this out by looking at things like our resolv.conf or we can just take this as a helm option
-	clusterDomain = "svc.cluster.local"
-)
-
-// This implements the Reconciler for the controller-runtime
-// https://pkg.go.dev/sigs.k8s.io/controller-runtime#section-readme
+// TunnelReconciler reconciles a Tunnel object
 type TunnelReconciler struct {
 	client.Client
+
 	Log        logr.Logger
 	Scheme     *runtime.Scheme
 	Recorder   record.EventRecorder
 	ServerAddr string
-	tm         *ngrokgodriver.TunnelManager
+
+	driver *tunneldriver.TunnelDriver
 }
 
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups="networking.k8s.io",resources=ingressclasses,verbs=get;list;watch
-
-// This reconcile function is called by the controller-runtime manager.
-// It is invoked whenever there is an event that occurs for a resource
-// being watched (in our case, ingress objects). If you tail the controller
-// logs and delete, update, edit ingress objects, you see the events come in.
-func (trec *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := trec.Log.WithValues("ingress", req.NamespacedName)
-	ctx = ctrl.LoggerInto(ctx, log)
-	ingress, err := getIngress(ctx, trec.Client, req.NamespacedName)
-	if err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-	// getIngress didn't return the object, so we can't do anything with it
-	if ingress == nil {
-		return ctrl.Result{}, nil
-	}
-	if err := validateIngress(ctx, ingress); err != nil {
-		trec.Recorder.Event(ingress, v1.EventTypeWarning, "Invalid ingress, discarding the event.", err.Error())
-		return ctrl.Result{}, nil
-	}
-
-	// Check if the ingress object is being deleted
-	if ingress.ObjectMeta.DeletionTimestamp != nil && !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
-		for _, tunnel := range ingressToTunnels(ingress) {
-			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleting", fmt.Sprintf("Tunnel %s deleting", tunnel.Name))
-			err := trec.tm.DeleteTunnel(ctx, tunnel.Name)
-			if err != nil {
-				trec.Recorder.Event(ingress, "Warning", "TunnelDeleteFailed", fmt.Sprintf("Tunnel %s delete failed", tunnel.Name))
-				return ctrl.Result{}, err
-			}
-			trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelDeleted", fmt.Sprintf("Tunnel %s deleted", tunnel.Name))
-		}
-		return ctrl.Result{}, nil
-	}
-
-	for _, tunnel := range ingressToTunnels(ingress) {
-		trec.Recorder.Event(ingress, v1.EventTypeNormal, "TunnelCreating", fmt.Sprintf("Tunnel %s creating", tunnel.Name))
-		err = trec.tm.CreateTunnel(ctx, tunnel)
-		if err != nil {
-			trec.Recorder.Event(ingress, "Warning", "TunnelCreateFailed", fmt.Sprintf("Tunnel %s create failed", tunnel.Name))
-			return ctrl.Result{}, err
-		}
-		trec.Recorder.Event(ingress, "Normal", "TunnelCreated", fmt.Sprintf("Tunnel %s created with labels %q", tunnel.Name, tunnel.Labels))
-	}
-
-	return ctrl.Result{}, nil
-}
-
-// Create a new Controller that watches Ingress objects.
-// Add it to our manager.
-func (trec *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
+// SetupWithManager sets up the controller with the Manager
+func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
 
-	if trec.tm == nil {
-		trec.tm, err = ngrokgodriver.NewTunnelManager(trec.ServerAddr)
+	if r.driver == nil {
+		r.driver, err = tunneldriver.New(r.ServerAddr)
 		if err != nil {
 			return err
 		}
 	}
-	tCont, err := NewTunnelControllerNew("tunnel-controller", mgr, trec)
+
+	cont, err := controller.NewUnmanaged("tunnel-controller", mgr, controller.Options{
+		Reconciler: r,
+		LogConstructor: func(_ *reconcile.Request) logr.Logger {
+			return r.Log
+		},
+	})
 	if err != nil {
 		return err
 	}
 
-	if err := tCont.Watch(&source.Kind{Type: &netv1.Ingress{}}, &handler.EnqueueRequestForObject{}, commonPredicateFilters); err != nil {
+	cont = NonLeaderElectedController{cont}
+
+	if err := cont.Watch(
+		&source.Kind{Type: &ingressv1alpha1.Tunnel{}},
+		&handler.EnqueueRequestForObject{},
+		commonPredicateFilters,
+	); err != nil {
 		return err
 	}
 
-	mgr.Add(tCont)
+	mgr.Add(cont)
 	return nil
 }
 
-// Small wrapper struct of the core controller.Controller so we get most of its functionality
-type TunnelController struct {
-	controller.Controller
-}
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tunnels,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tunnels/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tunnels/finalizers,verbs=update
 
-// Creates an un-managed controller that can be embeded in our controller struct so we can override functions.
-func NewTunnelControllerNew(name string, mgr manager.Manager, trec *TunnelReconciler) (controller.Controller, error) {
-	cont, err := controller.NewUnmanaged(name, mgr, controller.Options{
-		Reconciler: trec,
-	})
+// Reconcile is part of the main kubernetes reconciliation loop which aims to
+// move the current state of the cluster closer to the desired state.
+// TODO(user): Modify the Reconcile function to compare the state specified by
+// the Tunnel object against the actual cluster state, and then
+// perform operations to make the cluster state reflect the state specified by
+// the user.
+//
+// For more details, check Reconcile and its Result here:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
+func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log.WithValues("V1Alpha1Tunnel", req.NamespacedName)
+	ctx = ctrl.LoggerInto(ctx, log)
+
+	tunnel := &ingressv1alpha1.Tunnel{}
+
+	if err := r.Client.Get(ctx, req.NamespacedName, tunnel); err != nil {
+		log.Error(err, "unable to fetch Tunnel")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if tunnel == nil {
+		return ctrl.Result{}, nil
+	}
+
+	tunnelName := req.NamespacedName.String()
+
+	if isDelete(tunnel.ObjectMeta) {
+		r.Recorder.Event(tunnel, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting tunnel %s", tunnelName))
+		err := r.driver.DeleteTunnel(ctx, tunnelName)
+		if err != nil {
+			r.Recorder.Event(tunnel, v1.EventTypeWarning, "DeleteError", fmt.Sprintf("Failed to delete tunnel %s: %s", tunnelName, err.Error()))
+			return ctrl.Result{}, err
+		}
+		r.Recorder.Event(tunnel, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted tunnel %s", tunnelName))
+		return ctrl.Result{}, nil
+	}
+
+	r.Recorder.Event(tunnel, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating tunnel %s", tunnelName))
+	err := r.driver.CreateTunnel(ctx, tunnelName, tunnel.Spec.Labels, tunnel.Spec.ForwardsTo)
 	if err != nil {
-		return nil, err
+		r.Recorder.Event(tunnel, v1.EventTypeWarning, "CreateError", fmt.Sprintf("Failed to create tunnel %s: %s", tunnelName, err.Error()))
+		return ctrl.Result{}, err
 	}
-	return &TunnelController{
-		Controller: cont,
-	}, nil
-}
+	r.Recorder.Event(tunnel, v1.EventTypeNormal, "Created", fmt.Sprintf("Created tunnel %s", tunnelName))
 
-// This controller should not use leader election. It should run on all controllers by default to control the agents on each.
-func (trec *TunnelController) NeedLeaderElection() bool {
-	return false
-}
-
-func (trec *TunnelController) Start(ctx context.Context) error {
-	return trec.Controller.Start(ctx)
-}
-
-// Converts a k8s Ingress Rule to and ngrok Agent Tunnel configuration.
-func tunnelsPlanner(rule netv1.IngressRuleValue, ingressName, namespace string) []ngrokgodriver.TunnelsAPIBody {
-	var agentTunnels []ngrokgodriver.TunnelsAPIBody
-
-	for _, httpIngressPath := range rule.HTTP.Paths {
-		serviceName := httpIngressPath.Backend.Service.Name
-		servicePort := int(httpIngressPath.Backend.Service.Port.Number)
-		tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
-		clean_path := strings.Replace(httpIngressPath.Path, "/", "-", -1)
-
-		agentTunnels = append(agentTunnels, ngrokgodriver.TunnelsAPIBody{
-			Name:   fmt.Sprintf("%s-%s-%s-%d-%s", ingressName, namespace, serviceName, servicePort, clean_path),
-			Addr:   tunnelAddr,
-			Labels: backendToLabelMap(httpIngressPath.Backend, ingressName, namespace),
-		})
-	}
-
-	return agentTunnels
-}
-
-// Converts a k8s ingress object into a slice of ngrok Agent Tunnels
-// TODO: Support multiple Rules per Ingress
-func ingressToTunnels(ingress *netv1.Ingress) []ngrokgodriver.TunnelsAPIBody {
-	if ingress == nil || len(ingress.Spec.Rules) == 0 {
-		return []ngrokgodriver.TunnelsAPIBody{}
-	}
-	ingressRule := ingress.Spec.Rules[0]
-
-	tunnels := tunnelsPlanner(ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace)
-	return tunnels
+	return ctrl.Result{}, nil
 }

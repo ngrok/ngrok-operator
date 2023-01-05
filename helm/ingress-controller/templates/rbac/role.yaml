@@ -58,6 +58,32 @@ rules:
   - patch
   - update
 - apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingressclasses

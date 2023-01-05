@@ -192,11 +192,10 @@ func validateIngress(ctx context.Context, ingress *netv1.Ingress) error {
 }
 
 // Generates a labels map for matching ngrok Routes to Agent Tunnels
-func backendToLabelMap(backend netv1.IngressBackend, ingressName, namespace string) map[string]string {
+func backendToLabelMap(backend netv1.IngressBackend, namespace string) map[string]string {
 	return map[string]string{
-		"k8s.ngrok.com/ingress-name":      ingressName,
-		"k8s.ngrok.com/ingress-namespace": namespace,
-		"k8s.ngrok.com/service":           backend.Service.Name,
-		"k8s.ngrok.com/port":              strconv.Itoa(int(backend.Service.Port.Number)),
+		"k8s.ngrok.com/namespace": namespace,
+		"k8s.ngrok.com/service":   backend.Service.Name,
+		"k8s.ngrok.com/port":      strconv.Itoa(int(backend.Service.Port.Number)),
 	}
 }
