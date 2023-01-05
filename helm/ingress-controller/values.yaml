@@ -88,17 +88,28 @@ resources:
 
 
 ## @param extraVolumes An array of extra volumes to add to the controller.
-## @param extraVolumeMounts An array of extra volume mounts to add to the controller.
 extraVolumes: []
+## @param extraVolumeMounts An array of extra volume mounts to add to the controller.
 extraVolumeMounts: []
+##
+## Example:
+##
+## extraVolumes:
+## - name: test-volume
+##   emptyDir: {}
+## extraVolumeMounts:
+## - name: test-volume
+##   mountPath: /test-volume
 
-## @param extraEnv An array of extra environment variables to set on the controller.
-# extraEnv:
-#   MY_VAR: test
-#   MY_SECRET_VAR:
-#     secretKeyRef:
-#       key: test-key
-#       value: test-value
+
+## @param extraEnv an object of extra environment variables to add to the controller.
+extraEnv: {}
+## Example:
+##   MY_VAR: test
+##   MY_SECRET_VAR:
+##     secretKeyRef:
+##       key: test-key
+##       value: test-value
 
 ## Controller Service Account Settings
 ## @param serviceAccount.create Specifies whether a ServiceAccount should be created
