@@ -19,16 +19,27 @@ type TunnelDriver struct {
 	tunnels map[string]ngrok.Tunnel
 }
 
+// TunnelDriverOpts are options for creating a new TunnelDriver
+type TunnelDriverOpts struct {
+	ServerAddr string
+	Region     string
+}
+
 // New creates and initializes a new TunnelDriver
-func New(serverAddr string) (*TunnelDriver, error) {
-	opts := []ngrok.ConnectOption{
+func New(opts TunnelDriverOpts) (*TunnelDriver, error) {
+	connOpts := []ngrok.ConnectOption{
 		ngrok.WithAuthtokenFromEnv(),
 	}
-	if serverAddr != "" {
-		opts = append(opts, ngrok.WithServer(serverAddr))
+
+	if opts.Region != "" {
+		connOpts = append(connOpts, ngrok.WithRegion(opts.Region))
 	}
 
-	session, err := ngrok.Connect(context.Background(), opts...)
+	if opts.ServerAddr != "" {
+		connOpts = append(connOpts, ngrok.WithServer(opts.ServerAddr))
+	}
+
+	session, err := ngrok.Connect(context.Background(), connOpts...)
 	if err != nil {
 		return nil, err
 	}
