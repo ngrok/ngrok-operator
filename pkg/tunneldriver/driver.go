@@ -24,7 +24,9 @@ func New(serverAddr string) (*TunnelDriver, error) {
 	opts := []ngrok.ConnectOption{
 		ngrok.WithAuthtokenFromEnv(),
 	}
-	opts = append(opts, ngrok.WithServer(serverAddr))
+	if serverAddr != "" {
+		opts = append(opts, ngrok.WithServer(serverAddr))
+	}
 
 	session, err := ngrok.Connect(context.Background(), opts...)
 	if err != nil {
