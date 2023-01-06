@@ -46,23 +46,18 @@ import (
 type TunnelReconciler struct {
 	client.Client
 
-	Log        logr.Logger
-	Scheme     *runtime.Scheme
-	Recorder   record.EventRecorder
-	ServerAddr string
-
-	driver *tunneldriver.TunnelDriver
+	Log          logr.Logger
+	Scheme       *runtime.Scheme
+	Recorder     record.EventRecorder
+	TunnelDriver *tunneldriver.TunnelDriver
 }
 
 // SetupWithManager sets up the controller with the Manager
 func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
 
-	if r.driver == nil {
-		r.driver, err = tunneldriver.New(r.ServerAddr)
-		if err != nil {
-			return err
-		}
+	if r.TunnelDriver == nil {
+		return fmt.Errorf("TunnelDriver is nil")
 	}
 
 	cont, err := controller.NewUnmanaged("tunnel-controller", mgr, controller.Options{
@@ -121,7 +116,7 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if isDelete(tunnel.ObjectMeta) {
 		r.Recorder.Event(tunnel, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting tunnel %s", tunnelName))
-		err := r.driver.DeleteTunnel(ctx, tunnelName)
+		err := r.TunnelDriver.DeleteTunnel(ctx, tunnelName)
 		if err != nil {
 			r.Recorder.Event(tunnel, v1.EventTypeWarning, "DeleteError", fmt.Sprintf("Failed to delete tunnel %s: %s", tunnelName, err.Error()))
 			return ctrl.Result{}, err
@@ -131,7 +126,7 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	r.Recorder.Event(tunnel, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating tunnel %s", tunnelName))
-	err := r.driver.CreateTunnel(ctx, tunnelName, tunnel.Spec.Labels, tunnel.Spec.ForwardsTo)
+	err := r.TunnelDriver.CreateTunnel(ctx, tunnelName, tunnel.Spec.Labels, tunnel.Spec.ForwardsTo)
 	if err != nil {
 		r.Recorder.Event(tunnel, v1.EventTypeWarning, "CreateError", fmt.Sprintf("Failed to create tunnel %s: %s", tunnelName, err.Error()))
 		return ctrl.Result{}, err

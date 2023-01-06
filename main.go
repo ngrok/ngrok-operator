@@ -39,6 +39,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
+	"github.com/ngrok/ngrok-ingress-controller/pkg/tunneldriver"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -144,12 +145,20 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "Domain")
 		os.Exit(1)
 	}
-	if err = (&controllers.TunnelReconciler{
-		Client:     mgr.GetClient(),
-		Log:        ctrl.Log.WithName("controllers").WithName("tunnel"),
-		Scheme:     mgr.GetScheme(),
-		Recorder:   mgr.GetEventRecorderFor("tunnel-controller"),
+
+	td, err := tunneldriver.New(tunneldriver.TunnelDriverOpts{
 		ServerAddr: opts.serverAddr,
+		Region:     opts.region,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to create tunnel driver: %w", err)
+	}
+	if err = (&controllers.TunnelReconciler{
+		Client:       mgr.GetClient(),
+		Log:          ctrl.Log.WithName("controllers").WithName("tunnel"),
+		Scheme:       mgr.GetScheme(),
+		Recorder:     mgr.GetEventRecorderFor("tunnel-controller"),
+		TunnelDriver: td,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
 		os.Exit(1)
