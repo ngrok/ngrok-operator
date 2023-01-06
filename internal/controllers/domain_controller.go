@@ -183,16 +183,22 @@ func (r *DomainReconciler) deleteExternalResources(ctx context.Context, domain *
 }
 
 func (r *DomainReconciler) createExternalResources(ctx context.Context, domain *ingressv1alpha1.Domain) error {
-	req := &ngrok.ReservedDomainCreate{
-		Domain:      domain.Spec.Domain,
-		Region:      domain.Spec.Region,
-		Description: domain.Spec.Description,
-		Metadata:    domain.Spec.Metadata,
-	}
-	resp, err := r.DomainsClient.Create(ctx, req)
+	// First check if the reserved domain already exists. The API is sometimes returning dangling CNAME records
+	// errors right now, so we'll check if the domain already exists before trying to create it.
+	resp, err := r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
 	if err != nil {
-		// Let's check if the domain already exists. If it does, we'll just update the status fields
-		resp, err = r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
+		return err
+	}
+
+	// Not found, so we'll create it
+	if resp == nil {
+		req := &ngrok.ReservedDomainCreate{
+			Domain:      domain.Spec.Domain,
+			Region:      domain.Spec.Region,
+			Description: domain.Spec.Description,
+			Metadata:    domain.Spec.Metadata,
+		}
+		resp, err = r.DomainsClient.Create(ctx, req)
 		if err != nil {
 			return err
 		}
