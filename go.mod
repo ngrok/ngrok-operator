@@ -7,7 +7,7 @@ require (
 	github.com/ngrok/ngrok-api-go/v5 v5.0.0
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.1
-	golang.ngrok.com/ngrok v0.0.0-20221215203300-45a13036a1ff
+	golang.ngrok.com/ngrok v0.0.0-20230105184634-66ddd48add80
 	golang.org/x/sync v0.1.0
 	k8s.io/api v0.26.0
 	k8s.io/apimachinery v0.26.0
@@ -78,11 +78,11 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.4.0 // indirect
 	golang.org/x/mod v0.7.0 // indirect
-	golang.org/x/net v0.4.0 // indirect
+	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/oauth2 v0.3.0 // indirect
-	golang.org/x/sys v0.3.0 // indirect
-	golang.org/x/term v0.3.0 // indirect
-	golang.org/x/text v0.5.0 // indirect
+	golang.org/x/sys v0.4.0 // indirect
+	golang.org/x/term v0.4.0 // indirect
+	golang.org/x/text v0.6.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.4.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
@@ -103,5 +103,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-replace golang.ngrok.com/ngrok => github.com/jonstacks/ngrok-go v0.0.0-20230104195048-cc46e7fe982f
