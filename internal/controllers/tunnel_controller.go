@@ -57,10 +57,7 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
 
 	if r.TunnelDriver == nil {
-		r.TunnelDriver, err = tunneldriver.New(r.ServerAddr)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("TunnelDriver is nil")
 	}
 
 	cont, err := controller.NewUnmanaged("tunnel-controller", mgr, controller.Options{

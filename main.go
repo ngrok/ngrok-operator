@@ -146,7 +146,10 @@ func runController(ctx context.Context, opts managerOpts) error {
 		os.Exit(1)
 	}
 
-	td, err := tunneldriver.New(opts.serverAddr, opts.region)
+	td, err := tunneldriver.New(tunneldriver.TunnelDriverOpts{
+		ServerAddr: opts.serverAddr,
+		Region:     opts.region,
+	})
 	if err != nil {
 		return fmt.Errorf("unable to create tunnel driver: %w", err)
 	}
