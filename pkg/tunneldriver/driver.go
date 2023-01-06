@@ -20,10 +20,14 @@ type TunnelDriver struct {
 }
 
 // New creates and initializes a new TunnelDriver
-func New() (*TunnelDriver, error) {
+func New(serverAddr string) (*TunnelDriver, error) {
 	opts := []ngrok.ConnectOption{
 		ngrok.WithAuthtokenFromEnv(),
 	}
+	if serverAddr != "" {
+		opts = append(opts, ngrok.WithServer(serverAddr))
+	}
+
 	session, err := ngrok.Connect(context.Background(), opts...)
 	if err != nil {
 		return nil, err

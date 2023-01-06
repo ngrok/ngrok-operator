@@ -60,6 +60,9 @@ credentials:
 ## @param region ngrok region to create tunnels in. Defaults to empty to utilize the global network
 region: ""
 
+## @param serverAddr  This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.
+serverAddr: ""
+
 ## Controller container resource requests and limits
 ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
 ## We usually recommend not to specify default resources and to leave this as a conscious
@@ -83,6 +86,30 @@ resources:
   ##
   requests: {}
 
+
+## @param extraVolumes An array of extra volumes to add to the controller.
+extraVolumes: []
+## @param extraVolumeMounts An array of extra volume mounts to add to the controller.
+extraVolumeMounts: []
+##
+## Example:
+##
+## extraVolumes:
+## - name: test-volume
+##   emptyDir: {}
+## extraVolumeMounts:
+## - name: test-volume
+##   mountPath: /test-volume
+
+
+## @param extraEnv an object of extra environment variables to add to the controller.
+extraEnv: {}
+## Example:
+##   MY_VAR: test
+##   MY_SECRET_VAR:
+##     secretKeyRef:
+##       key: test-key
+##       value: test-value
 
 ## Controller Service Account Settings
 ## @param serviceAccount.create Specifies whether a ServiceAccount should be created

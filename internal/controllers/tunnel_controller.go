@@ -46,9 +46,10 @@ import (
 type TunnelReconciler struct {
 	client.Client
 
-	Log      logr.Logger
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Log        logr.Logger
+	Scheme     *runtime.Scheme
+	Recorder   record.EventRecorder
+	ServerAddr string
 
 	driver *tunneldriver.TunnelDriver
 }
@@ -58,7 +59,7 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
 
 	if r.driver == nil {
-		r.driver, err = tunneldriver.New()
+		r.driver, err = tunneldriver.New(r.ServerAddr)
 		if err != nil {
 			return err
 		}

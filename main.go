@@ -66,6 +66,7 @@ type managerOpts struct {
 	metricsAddr string
 	electionID  string
 	probeAddr   string
+	serverAddr  string
 	zapOpts     *zap.Options
 
 	// env vars
@@ -88,6 +89,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-ingress-controller-leader", "The name of the configmap that is used for holding the leader lock")
 	c.Flags().StringVar(&opts.region, "region", "us", "The region to use for ngrok tunnels")
+	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	opts.zapOpts = &zap.Options{Development: true}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -143,10 +145,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 		os.Exit(1)
 	}
 	if err = (&controllers.TunnelReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("tunnel"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("tunnel-controller"),
+		Client:     mgr.GetClient(),
+		Log:        ctrl.Log.WithName("controllers").WithName("tunnel"),
+		Scheme:     mgr.GetScheme(),
+		Recorder:   mgr.GetEventRecorderFor("tunnel-controller"),
+		ServerAddr: opts.serverAddr,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
 		os.Exit(1)

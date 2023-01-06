@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated go dependencies
 - Moved `main.go` to root of project to match what `kubebuilder` expects.
 - Updated `Makefile` to match what `kubebuilder` currently outputs.
+- Created `serverAddr` flag and plumbed it through to `ngrok-go`
+- Read environment variable `NGROK_API_ADDR` for an override to the ngrok API address.
 
 ## 0.2.0
 ### Changed

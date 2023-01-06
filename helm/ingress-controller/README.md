@@ -61,8 +61,12 @@ To uninstall the chart:
 | `credentials.apiKey`         | Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well. | `""`                             |
 | `credentials.authtoken`      | Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.  | `""`                             |
 | `region`                     | ngrok region to create tunnels in. Defaults to empty to utilize the global network                                    | `""`                             |
+| `serverAddr`                 | This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.         | `""`                             |
 | `resources.limits`           | The resources limits for the container                                                                                | `{}`                             |
 | `resources.requests`         | The requested resources for the container                                                                             | `{}`                             |
+| `extraVolumes`               | An array of extra volumes to add to the controller.                                                                   | `[]`                             |
+| `extraVolumeMounts`          | An array of extra volume mounts to add to the controller.                                                             | `[]`                             |
+| `extraEnv`                   | an object of extra environment variables to add to the controller.                                                    | `{}`                             |
 | `serviceAccount.create`      | Specifies whether a ServiceAccount should be created                                                                  | `true`                           |
 | `serviceAccount.name`        | The name of the ServiceAccount to use.                                                                                | `""`                             |
 | `serviceAccount.annotations` | Additional annotations to add to the ServiceAccount                                                                   | `{}`                             |
