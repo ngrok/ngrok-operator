@@ -33,8 +33,7 @@ import (
 
 // DomainSpec defines the desired state of Domain
 type DomainSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	ngrokAPICommon `json:",inline"`
 
 	// Domain is the domain name to reserve
 	// +kubebuilder:validation:Required
@@ -43,14 +42,6 @@ type DomainSpec struct {
 	// Region is the region in which to reserve the domain
 	// +kubebuilder:validation:Required
 	Region string `json:"region,omitempty"`
-
-	// Description is a human-readable description of the domain
-	// +kubebuilder:default:=`Created by ngrok-ingress-controller`
-	Description string `json:"description,omitempty"`
-
-	// Metadata is a string of arbitrary data associated with the domain
-	// +kubebuilder:default:=`{"owned-by":"ngrok-ingress-controller"}`
-	Metadata string `json:"metadata,omitempty"`
 }
 
 // DomainStatus defines the observed state of Domain
