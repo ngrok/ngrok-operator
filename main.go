@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -37,9 +38,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/ngrok/ngrok-api-go/v5"
-	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
 	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
+	"github.com/ngrok/ngrok-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/tunneldriver"
 	//+kubebuilder:scaffold:imports
@@ -115,10 +116,21 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return errors.New("NGROK_API_KEY environment variable should be set, but was not")
 	}
 
-	ngrokClientConfig := ngrok.NewClientConfig(
-		opts.ngrokAPIKey,
+	clientConfigOpts := []ngrok.ClientConfigOption{
 		ngrok.WithUserAgent("ngrok-ingress-controller/v1-alpha"),
-	)
+	}
+
+	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
+	apiBaseURL := os.Getenv("NGROK_API_ADDR")
+	if apiBaseURL != "" {
+		u, err := url.Parse(apiBaseURL)
+		if err != nil {
+			setupLog.Error(err, "invalid NGROK_API_ADDR")
+		}
+		ngrokClientConfig.BaseURL = u
+	}
+
+	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -148,7 +160,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
 		Scheme:        mgr.GetScheme(),
 		Recorder:      mgr.GetEventRecorderFor("domain-controller"),
-		DomainsClient: reserved_domains.NewClient(ngrokClientConfig),
+		DomainsClient: ngrokClientset.Domains(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Domain")
 		os.Exit(1)
@@ -169,6 +181,18 @@ func runController(ctx context.Context, opts managerOpts) error {
 		TunnelDriver: td,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
+		os.Exit(1)
+	}
+
+	if err = (&controllers.TCPEdgeReconciler{
+		Client:                   mgr.GetClient(),
+		Log:                      ctrl.Log.WithName("controllers").WithName("tcp-edge"),
+		Scheme:                   mgr.GetScheme(),
+		Recorder:                 mgr.GetEventRecorderFor("tcp-edge-controller"),
+		TCPEdgeClient:            ngrokClientset.TCPEdges(),
+		TunnelGroupBackendClient: ngrokClientset.TunnelGroupBackends(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TCPEdge")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
