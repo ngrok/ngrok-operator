@@ -33,10 +33,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v5"
@@ -52,6 +48,18 @@ type DomainReconciler struct {
 	Scheme        *runtime.Scheme
 	Recorder      record.EventRecorder
 	DomainsClient *reserved_domains.Client
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.DomainsClient == nil {
+		return fmt.Errorf("DomainsClient must be set")
+	}
+
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&ingressv1alpha1.Domain{}).
+		WithEventFilter(commonPredicateFilters).
+		Complete(r)
 }
 
 //+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;create;update;patch;delete
@@ -72,7 +80,6 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	domain := new(ingressv1alpha1.Domain)
 	if err := r.Get(ctx, req.NamespacedName, domain); err != nil {
-		log.Error(err, "unable to fetch Domain")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -88,27 +95,29 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// The object is being deleted
 		if hasFinalizer(domain) {
 			if domain.Status.ID != "" {
+				log.Info("Deleting reserved domain", "ID", domain.Status.ID)
 				r.Recorder.Event(domain, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting Domain %s", domain.Name))
 				// Question: Do we actually want to delete the reserved domains for real? Or maybe just delete the resource and have the user delete the reserved domain from
 				// the ngrok dashboard manually?
 				if err := r.DomainsClient.Delete(ctx, domain.Status.ID); err != nil {
-					r.Recorder.Event(domain, v1.EventTypeWarning, "FailedDelete", fmt.Sprintf("Failed to delete Domain %s: %s", domain.Name, err.Error()))
-					return ctrl.Result{}, err
+					if !ngrok.IsNotFound(err) {
+						r.Recorder.Event(domain, v1.EventTypeWarning, "FailedDelete", fmt.Sprintf("Failed to delete Domain %s: %s", domain.Name, err.Error()))
+						return ctrl.Result{}, err
+					}
+					log.Info("Domain not found, assuming it was already deleted", "ID", domain.Status.ID)
 				}
-
-				removeFinalizer(domain)
-				if err := r.Update(ctx, domain); err != nil {
-					return ctrl.Result{}, err
-				}
-				r.Recorder.Event(domain, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted Domain %s", domain.Name))
+				domain.Status.ID = ""
 			}
 
-			// We don't have the ID, so can't delete the resource. We'll just remove the finalizer for now.
-			removeFinalizer(domain)
-			if err := r.Update(ctx, domain); err != nil {
+			if err := removeAndSyncFinalizer(ctx, r.Client, domain); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
+
+		r.Recorder.Event(domain, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted Domain %s", domain.Name))
+
+		// Stop reconciliation as the item is being deleted
+		return ctrl.Result{}, nil
 	}
 
 	if domain.Status.ID != "" {
@@ -130,44 +139,6 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return ctrl.Result{}, nil
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if r.DomainsClient == nil {
-		return fmt.Errorf("DomainsClient must be set")
-	}
-
-	c, err := controller.New("domain-controller", mgr, controller.Options{
-		Reconciler: r,
-		LogConstructor: func(_ *reconcile.Request) logr.Logger {
-			return r.Log
-		},
-	})
-
-	if err != nil {
-		return err
-	}
-
-	if err := c.Watch(
-		&source.Kind{Type: &ingressv1alpha1.Domain{}},
-		&handler.EnqueueRequestForObject{},
-		commonPredicateFilters,
-	); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *DomainReconciler) registerFinalizer(ctx context.Context, domain *ingressv1alpha1.Domain) error {
-	if hasFinalizer(domain) {
-		// Finalizer already exists, nothing to do
-		return nil
-	}
-
-	addFinalizer(domain)
-	return r.Update(ctx, domain)
 }
 
 // Deletes the external resources associated with the ReservedDomain. This is just the reserved domain itself.
