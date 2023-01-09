@@ -1,0 +1,150 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: httpsedges.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: HTTPSEdge
+    listKind: HTTPSEdgeList
+    plural: httpsedges
+    singular: httpsedge
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: HTTPSEdge is the Schema for the httpsedges API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: HTTPSEdgeSpec defines the desired state of HTTPSEdge
+            properties:
+              description:
+                default: Created by ngrok-ingress-controller
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
+                type: string
+              hostports:
+                description: Hostports is a list of hostports served by this edge
+                items:
+                  type: string
+                type: array
+              metadata:
+                default: '{"owned-by":"ngrok-ingress-controller"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the object in the ngrok API/Dashboard
+                type: string
+              routes:
+                description: Routes is a list of routes served by this edge
+                items:
+                  properties:
+                    backend:
+                      description: Backend is the definition for the tunnel group
+                        backend that serves traffic for this edge
+                      properties:
+                        description:
+                          default: Created by ngrok-ingress-controller
+                          description: Description is a human-readable description
+                            of the object in the ngrok API/Dashboard
+                          type: string
+                        labels:
+                          additionalProperties:
+                            type: string
+                          description: Labels to watch for tunnels on this backend
+                          type: object
+                        metadata:
+                          default: '{"owned-by":"ngrok-ingress-controller"}'
+                          description: Metadata is a string of arbitrary data associated
+                            with the object in the ngrok API/Dashboard
+                          type: string
+                      type: object
+                    compression:
+                      description: Compression is whether or not to enable compression
+                        for this route
+                      properties:
+                        enabled:
+                          description: Enabled is whether or not to enable compression
+                            for this endpoint
+                          type: boolean
+                      type: object
+                    description:
+                      default: Created by ngrok-ingress-controller
+                      description: Description is a human-readable description of
+                        the object in the ngrok API/Dashboard
+                      type: string
+                    match:
+                      description: Match is the value to match against the request
+                        path
+                      type: string
+                    matchType:
+                      description: 'MatchType is the type of match to use for this
+                        route. Valid values are:'
+                      enum:
+                      - exact_path
+                      - path_prefix
+                      type: string
+                    metadata:
+                      default: '{"owned-by":"ngrok-ingress-controller"}'
+                      description: Metadata is a string of arbitrary data associated
+                        with the object in the ngrok API/Dashboard
+                      type: string
+                  required:
+                  - match
+                  - matchType
+                  type: object
+                type: array
+            type: object
+          status:
+            description: HTTPSEdgeStatus defines the observed state of HTTPSEdge
+            properties:
+              id:
+                description: ID is the unique identifier for this edge
+                type: string
+              routes:
+                items:
+                  properties:
+                    backend:
+                      description: Backend stores the status of the tunnel group backend,
+                        mainly the ID of the backend
+                      properties:
+                        id:
+                          description: ID is the unique identifier for this backend
+                          type: string
+                      type: object
+                    id:
+                      description: ID is the unique identifier for this route
+                      type: string
+                    match:
+                      type: string
+                    matchType:
+                      type: string
+                    uri:
+                      description: URI is the URI for this route
+                      type: string
+                  type: object
+                type: array
+              uri:
+                description: URI is the URI for this edge
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
