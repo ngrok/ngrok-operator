@@ -36,6 +36,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/ngrok/ngrok-api-go/v5"
+	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
 	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
@@ -113,6 +115,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return errors.New("NGROK_API_KEY environment variable should be set, but was not")
 	}
 
+	ngrokClientConfig := ngrok.NewClientConfig(
+		opts.ngrokAPIKey,
+		ngrok.WithUserAgent("ngrok-ingress-controller/v1-alpha"),
+	)
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     opts.metricsAddr,
@@ -137,10 +144,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	if err = (&controllers.DomainReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("domain"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("domain-controller"),
+		Client:        mgr.GetClient(),
+		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
+		Scheme:        mgr.GetScheme(),
+		Recorder:      mgr.GetEventRecorderFor("domain-controller"),
+		DomainsClient: reserved_domains.NewClient(ngrokClientConfig),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Domain")
 		os.Exit(1)

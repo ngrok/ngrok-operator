@@ -27,7 +27,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"os"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -135,6 +134,10 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.DomainsClient == nil {
+		return fmt.Errorf("DomainsClient must be set")
+	}
+
 	c, err := controller.New("domain-controller", mgr, controller.Options{
 		Reconciler: r,
 		LogConstructor: func(_ *reconcile.Request) logr.Logger {
@@ -153,16 +156,6 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	); err != nil {
 		return err
 	}
-
-	apiKey := os.Getenv("NGROK_API_KEY")
-	if apiKey == "" {
-		return fmt.Errorf("NGROK_API_KEY environment variable must be set")
-	}
-	config := ngrok.NewClientConfig(
-		apiKey,
-		ngrok.WithUserAgent("ngrok-ingress-controller/v1-alpha"),
-	)
-	r.DomainsClient = reserved_domains.NewClient(config)
 
 	return nil
 }
