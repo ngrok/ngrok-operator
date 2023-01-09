@@ -58,7 +58,8 @@ spec:
             properties:
               description:
                 default: Created by ngrok-ingress-controller
-                description: Description is a human-readable description of the domain
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
                 type: string
               domain:
                 description: Domain is the domain name to reserve
@@ -66,7 +67,7 @@ spec:
               metadata:
                 default: '{"owned-by":"ngrok-ingress-controller"}'
                 description: Metadata is a string of arbitrary data associated with
-                  the domain
+                  the object in the ngrok API/Dashboard
                 type: string
               region:
                 description: Region is the region in which to reserve the domain
