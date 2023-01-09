@@ -37,3 +37,8 @@ func registerAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Obj
 	}
 	return nil
 }
+
+func removeAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
+	removeFinalizer(o)
+	return c.Update(ctx, o)
+}
