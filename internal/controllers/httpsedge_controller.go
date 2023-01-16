@@ -162,8 +162,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 
 // TODO: This is going to be a bit messy right now, come back and make this cleaner
 func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, remoteEdge *ngrok.HTTPSEdge) error {
-	remoteRoutes := remoteEdge.Routes
-	routeStatuses := make([]ingressv1alpha1.HTTPSEdgeRouteStatus, len(remoteRoutes))
+	routeStatuses := make([]ingressv1alpha1.HTTPSEdgeRouteStatus, len(edge.Spec.Routes))
 	tunnelGroupReconciler, err := newTunnelGroupBackendReconciler(r.TunnelGroupBackendClient)
 	if err != nil {
 		return err
