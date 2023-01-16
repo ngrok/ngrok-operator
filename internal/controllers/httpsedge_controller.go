@@ -328,7 +328,11 @@ func (r *tunnelGroupBackendReconciler) findOrCreate(ctx context.Context, backend
 		}
 	}
 
-	be, err := r.client.Create(ctx, &ngrok.TunnelGroupBackendCreate{})
+	be, err := r.client.Create(ctx, &ngrok.TunnelGroupBackendCreate{
+		Description: backend.Description,
+		Metadata:    backend.Metadata,
+		Labels:      backend.Labels,
+	})
 	if err != nil {
 		return nil, err
 	}
