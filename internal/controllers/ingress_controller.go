@@ -112,7 +112,9 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 func (irec *IngressReconciler) DeleteDependents(ctx context.Context, ingress *netv1.Ingress) error {
-	// TODO: delete dependent resources
+	// TODO: Currently this controller "owns" the HTTPSEdge and Tunnel objects so deleting an ingress
+	// will delete the HTTPSEdge and Tunnel objects. Once multiple ingress objects combine to form 1 edge
+	// this logic will need to be smarter
 	return nil
 }
 
