@@ -5,7 +5,7 @@ Should match all-options snapshot:
     metadata:
       annotations:
         checksum/agent-config: 3671fa6e906913b7e88c956cd85864fb4a056335e2676f8fce44a1cfafba37d6
-        checksum/controller-role: 75223d0b5fbf175b0112a0d76e427f5c42d76b37931d8c455450a87638d6b5bd
+        checksum/controller-role: 78f53a459d02fa3696fbc4c74b0c84b3bb8d23fa0500b544ada31209bc908fd8
         checksum/rbac: d65fd1d397f0da2dc2888c7af42265b5a47272fbbf56a0c3331023d949f3c58b
       labels:
         app.kubernetes.io/component: controller
@@ -260,6 +260,32 @@ Should match all-options snapshot:
     - apiGroups:
       - ingress.k8s.ngrok.com
       resources:
+      - httpsedges
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - httpsedges/finalizers
+      verbs:
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - httpsedges/status
+      verbs:
+      - get
+      - patch
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
       - tcpedges
       verbs:
       - create
@@ -342,7 +368,7 @@ Should match default snapshot:
     metadata:
       annotations:
         checksum/agent-config: 3671fa6e906913b7e88c956cd85864fb4a056335e2676f8fce44a1cfafba37d6
-        checksum/controller-role: 75223d0b5fbf175b0112a0d76e427f5c42d76b37931d8c455450a87638d6b5bd
+        checksum/controller-role: 78f53a459d02fa3696fbc4c74b0c84b3bb8d23fa0500b544ada31209bc908fd8
         checksum/rbac: d65fd1d397f0da2dc2888c7af42265b5a47272fbbf56a0c3331023d949f3c58b
       labels:
         app.kubernetes.io/component: controller
@@ -577,6 +603,32 @@ Should match default snapshot:
       - ingress.k8s.ngrok.com
       resources:
       - domains/status
+      verbs:
+      - get
+      - patch
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - httpsedges
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - httpsedges/finalizers
+      verbs:
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - httpsedges/status
       verbs:
       - get
       - patch

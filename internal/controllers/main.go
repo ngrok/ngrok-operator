@@ -4,16 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v5"
-	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // The name of the ingress controller which is uses to match on ingress classes
@@ -96,78 +92,6 @@ func getIngress(ctx context.Context, c client.Client, namespacedName types.Names
 	}
 
 	return ingress, nil
-}
-
-func setEdgeId(ctx context.Context, irec *IngressReconciler, ingress *netv1.Ingress, ngrokEdge *ngrok.HTTPSEdge) error {
-	irec.Recorder.Event(ingress, v1.EventTypeNormal, "CreatedEdge", "Created edge "+ngrokEdge.ID)
-	ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] = ngrokEdge.ID
-
-	err := irec.Update(ctx, ingress)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update ingress", err.Error())
-		return err
-	}
-	err = setStatus(ctx, irec, ingress, ngrokEdge.ID)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to set status", err.Error())
-		return err
-	}
-	return nil
-}
-
-// Sets the hostname that the tunnel is accessible on to the ingress object status
-func setStatus(ctx context.Context, irec *IngressReconciler, ingress *netv1.Ingress, edgeID string) error {
-	// TODO: Handle multiple rules
-	if ingress.Spec.Rules[0].Host == "" || len(ingress.Status.LoadBalancer.Ingress) != 0 && ingress.Status.LoadBalancer.Ingress[0].Hostname == ingress.Spec.Rules[0].Host {
-		return nil
-	}
-
-	var hostName string
-	// TODO: This needs another solution as this domain may change
-	if strings.Contains(ingress.Spec.Rules[0].Host, ".ngrok.io") {
-		hostName = ingress.Spec.Rules[0].Host
-	} else {
-		domains, err := irec.NgrokAPIDriver.GetReservedDomains(ctx, edgeID)
-		if err != nil {
-			return err
-		}
-		if len(domains) != 0 && domains[0].CNAMETarget != nil {
-			hostName = *domains[0].CNAMETarget
-		}
-	}
-
-	ingress.Status.LoadBalancer.Ingress = []netv1.IngressLoadBalancerIngress{
-		{
-			Hostname: hostName,
-		},
-	}
-
-	if err := irec.Status().Update(ctx, ingress); err != nil {
-		return err
-	}
-
-	// TODO: This update and the update in setFinalizer both trigger new reconcile loops. We should
-	// make these functions just mutate the objects and then we save them once, and/or use
-	// updateFunc predicates to filter out updates to status and finalizers
-	return irec.Client.Update(ctx, ingress)
-}
-
-func setFinalizer(ctx context.Context, irec *IngressReconciler, ingress *netv1.Ingress) error {
-	// if the deletion timestamp is set, its being deleted and we don't need to add the finalizer
-	if !ingress.ObjectMeta.DeletionTimestamp.IsZero() {
-		return nil
-	}
-	// The object is not being deleted, so if it does not have our finalizer,
-	// then lets add the finalizer and update the object. This is equivalent
-	// registering our finalizer.
-	if !controllerutil.ContainsFinalizer(ingress, finalizerName) {
-		controllerutil.AddFinalizer(ingress, finalizerName)
-		if err := irec.Update(ctx, ingress); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Checks the ingress object to make sure its using a the limited set of configuration options

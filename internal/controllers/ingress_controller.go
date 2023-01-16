@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
-	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
+	"github.com/ngrok/ngrok-ingress-controller/internal/annotations"
+	internalerrors "github.com/ngrok/ngrok-ingress-controller/internal/errors"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -19,18 +21,39 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // This implements the Reconciler for the controller-runtime
 // https://pkg.go.dev/sigs.k8s.io/controller-runtime#section-readme
 type IngressReconciler struct {
 	client.Client
-	Log            logr.Logger
-	Scheme         *runtime.Scheme
-	Recorder       record.EventRecorder
-	Namespace      string
-	NgrokAPIDriver ngrokapidriver.NgrokAPIDriver
+	Log                  logr.Logger
+	Scheme               *runtime.Scheme
+	Recorder             record.EventRecorder
+	Namespace            string
+	AnnotationsExtractor annotations.Extractor
+}
+
+// Create a new controller using our reconciler and set it up with the manager
+func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&netv1.Ingress{}).
+		Owns(&ingressv1alpha1.HTTPSEdge{}).
+		Owns(&ingressv1alpha1.Tunnel{}).
+		Watches(
+			&source.Kind{Type: &ingressv1alpha1.Domain{}},
+			handler.EnqueueRequestsFromMapFunc(irec.listIngressesForDomain),
+		).
+		WithEventFilter(
+			predicate.Funcs{
+				DeleteFunc: deleteFuncPredicateFilter,
+			},
+		).
+		Complete(irec)
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -60,55 +83,46 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	err = setFinalizer(ctx, irec, ingress)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to set finalizer", err.Error())
-		return ctrl.Result{}, err
-	}
-
-	edge, err := irec.ingressToEdge(ctx, ingress)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to convert ingress to edge", err.Error())
-		return ctrl.Result{}, err
-	}
-
-	// The object is being deleted
-	if !ingress.ObjectMeta.DeletionTimestamp.IsZero() && controllerutil.ContainsFinalizer(ingress, finalizerName) {
-		return irec.DeleteIngress(ctx, edge, ingress)
-	}
-	// Else its being created or updated
-	// Check for a saved edge-id to do a lookup instead of a create
-	if ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"] != "" {
-		foundEdge, err := irec.NgrokAPIDriver.FindEdge(ctx, ingress.ObjectMeta.Annotations["k8s.ngrok.com/edge-id"])
-		if err != nil {
+	if ingress.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The object is not being deleted, so register and sync finalizer
+		if err := registerAndSyncFinalizer(ctx, irec.Client, ingress); err != nil {
+			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
-		// If the edge isn't found, we need to create it
-		if foundEdge == nil {
-			return irec.CreateIngress(ctx, edge, ingress)
+	} else {
+		// The object is being deleted
+		if hasFinalizer(ingress) {
+			log.Info("Deleting ingress")
+
+			if err = irec.DeleteDependents(ctx, ingress); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			if err := removeAndSyncFinalizer(ctx, irec.Client, ingress); err != nil {
+				log.Error(err, "Failed to remove finalizer")
+				return ctrl.Result{}, err
+			}
 		}
-		// Otherwise, we found the edge, so update it
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "EdgeExists", "Edge already exists")
-		return irec.UpdateIngress(ctx, edge, ingress)
-	}
-	// Otherwise, create it!
-	return irec.CreateIngress(ctx, edge, ingress)
-}
 
-func (irec *IngressReconciler) DeleteIngress(ctx context.Context, edge *ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
-	if err := irec.NgrokAPIDriver.DeleteEdge(ctx, edge); err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to delete edge", err.Error())
-		return ctrl.Result{}, err
+		// Stop reconciliation as the item is being deleted
+		return ctrl.Result{}, nil
 	}
 
-	// remove the finalizer and let it be fully deleted
-	controllerutil.RemoveFinalizer(ingress, finalizerName)
-	return ctrl.Result{}, irec.Update(ctx, ingress)
+	return irec.reconcileAll(ctx, ingress)
 }
 
-func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge *ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
+func (irec *IngressReconciler) DeleteDependents(ctx context.Context, ingress *netv1.Ingress) error {
+	// TODO: delete dependent resources
+	return nil
+}
+
+func (irec *IngressReconciler) reconcileAll(ctx context.Context, ingress *netv1.Ingress) (reconcile.Result, error) {
 	err := irec.reconcileDomains(ctx, ingress)
 	if err != nil {
+		if internalerrors.IsNotAllDomainsReadyYet(err) {
+			irec.Recorder.Event(ingress, v1.EventTypeNormal, "Provisioning domains", "Waiting for domains to be ready")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
 		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to reconcile reserved domains", err.Error())
 		return ctrl.Result{}, err
 	}
@@ -119,48 +133,24 @@ func (irec *IngressReconciler) UpdateIngress(ctx context.Context, edge *ngrokapi
 		return ctrl.Result{}, err
 	}
 
-	ngrokEdge, err := irec.NgrokAPIDriver.UpdateEdge(ctx, edge)
+	err = irec.reconcileEdges(ctx, ingress)
 	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to update edge", err.Error())
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, setEdgeId(ctx, irec, ingress, ngrokEdge)
-}
-
-func (irec *IngressReconciler) CreateIngress(ctx context.Context, edge *ngrokapidriver.Edge, ingress *netv1.Ingress) (reconcile.Result, error) {
-	err := irec.reconcileDomains(ctx, ingress)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to reconcile reserved domains", err.Error())
+		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to reconcile edges", err.Error())
 		return ctrl.Result{}, err
 	}
 
-	err = irec.reconcileTunnels(ctx, ingress)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to reconcile tunnels", err.Error())
-		return ctrl.Result{}, err
-	}
-
-	ngrokEdge, err := irec.NgrokAPIDriver.CreateEdge(ctx, edge)
-	if err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Failed to create edge", err.Error())
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, setEdgeId(ctx, irec, ingress, ngrokEdge)
-}
-
-// Create a new controller using our reconciler and set it up with the manager
-func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&netv1.Ingress{}).
-		WithEventFilter(commonPredicateFilters).
-		Complete(irec)
+	return ctrl.Result{}, nil
 }
 
 // Converts a k8s Ingress Rule to and ngrok Route configuration.
-func (irec *IngressReconciler) routesPlanner(ctx context.Context, rule netv1.IngressRuleValue, ingressName, namespace string, annotations map[string]string) ([]ngrokapidriver.Route, error) {
+func (irec *IngressReconciler) routesPlanner(ctx context.Context, ingress *netv1.Ingress) ([]ingressv1alpha1.HTTPSEdgeRouteSpec, error) {
+	namespace := ingress.Namespace
+	rule := ingress.Spec.Rules[0]
+
 	var matchType string
-	var ngrokRoutes []ngrokapidriver.Route
+	var ngrokRoutes []ingressv1alpha1.HTTPSEdgeRouteSpec
+
+	parsedAnnotations := irec.AnnotationsExtractor.Extract(ingress)
 
 	for _, httpIngressPath := range rule.HTTP.Paths {
 		switch *httpIngressPath.PathType {
@@ -174,21 +164,13 @@ func (irec *IngressReconciler) routesPlanner(ctx context.Context, rule netv1.Ing
 			return nil, fmt.Errorf("unsupported path type: %v", httpIngressPath.PathType)
 		}
 
-		route := ngrokapidriver.Route{
+		route := ingressv1alpha1.HTTPSEdgeRouteSpec{
 			Match:     httpIngressPath.Path,
 			MatchType: matchType,
-			Labels:    backendToLabelMap(httpIngressPath.Backend, namespace),
-		}
-
-		// TODO: This should be replaced, see TODO at top of route_modules.go
-		if annotationsToCompression(annotations) {
-			route.Compression = true
-		}
-
-		if oauth, err := irec.annotationsToOauth(ctx, annotations); err != nil {
-			return nil, fmt.Errorf("error configuriong OAuth: %q", err)
-		} else if oauth != nil {
-			route.GoogleOAuth = *oauth
+			Backend: ingressv1alpha1.TunnelGroupBackend{
+				Labels: backendToLabelMap(httpIngressPath.Backend, namespace),
+			},
+			Compression: parsedAnnotations.Compression,
 		}
 
 		ngrokRoutes = append(ngrokRoutes, route)
@@ -199,7 +181,7 @@ func (irec *IngressReconciler) routesPlanner(ctx context.Context, rule netv1.Ing
 
 // Converts a k8s ingress object into an ngrok Edge with all its configurations and sub-resources
 // TODO: Support multiple Rules per Ingress
-func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ngrokapidriver.Edge, error) {
+func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1.Ingress) (*ingressv1alpha1.HTTPSEdge, error) {
 	if ingress == nil {
 		return nil, nil
 	}
@@ -210,20 +192,53 @@ func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1
 		return nil, nil
 	}
 
-	annotations := ingress.ObjectMeta.GetAnnotations()
-	ingressRule := ingress.Spec.Rules[0]
-
-	ngrokRoutes, err := irec.routesPlanner(ctx, ingressRule.IngressRuleValue, ingress.Name, ingress.Namespace, annotations)
+	ngrokRoutes, err := irec.routesPlanner(ctx, ingress)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ngrokapidriver.Edge{
-		Id: ingress.Annotations["k8s.ngrok.com/edge-id"],
-		// TODO: Support multiple rules
-		Hostport: ingress.Spec.Rules[0].Host + ":443",
-		Routes:   ngrokRoutes,
-	}, err
+	return &ingressv1alpha1.HTTPSEdge{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ingress.Namespace,
+			Name:      ingress.Name,
+		},
+		Spec: ingressv1alpha1.HTTPSEdgeSpec{
+			Hostports: []string{ingress.Spec.Rules[0].Host + ":443"},
+			Routes:    ngrokRoutes,
+		},
+	}, nil
+}
+
+func (irec *IngressReconciler) reconcileEdges(ctx context.Context, ingress *netv1.Ingress) error {
+	edge, err := irec.ingressToEdge(ctx, ingress)
+	if err != nil {
+		return err
+	}
+
+	if err := controllerutil.SetControllerReference(ingress, edge, irec.Scheme); err != nil {
+		return err
+	}
+
+	found := &ingressv1alpha1.HTTPSEdge{}
+	err = irec.Client.Get(ctx, types.NamespacedName{Name: edge.Name, Namespace: edge.Namespace}, found)
+	if err != nil && errors.IsNotFound(err) {
+		err = irec.Create(ctx, edge)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	if !reflect.DeepEqual(edge.Spec, found.Spec) {
+		found.Spec = edge.Spec
+		err = irec.Update(ctx, found)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (irec *IngressReconciler) reconcileDomains(ctx context.Context, ingress *netv1.Ingress) error {
@@ -232,20 +247,22 @@ func (irec *IngressReconciler) reconcileDomains(ctx context.Context, ingress *ne
 		return err
 	}
 
-	for _, reservedDomain := range reservedDomains {
-		if err := controllerutil.SetControllerReference(ingress, &reservedDomain, irec.Scheme); err != nil {
-			return err
-		}
+	loadBalancerIngressStatuses := []netv1.IngressLoadBalancerIngress{}
+	hasDomainsWithoutStatus := false
 
+	for _, reservedDomain := range reservedDomains {
 		found := &ingressv1alpha1.Domain{}
 		err := irec.Client.Get(ctx, types.NamespacedName{Name: reservedDomain.Name, Namespace: reservedDomain.Namespace}, found)
-		if err != nil && errors.IsNotFound(err) {
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return err
+			}
+
+			irec.Log.Info("Creating domain", "namespace", reservedDomain.Namespace, "name", reservedDomain.Name)
 			err = irec.Create(ctx, &reservedDomain)
 			if err != nil {
 				return err
 			}
-		} else if err != nil {
-			return err
 		}
 
 		if !reflect.DeepEqual(reservedDomain.Spec, found.Spec) {
@@ -255,9 +272,28 @@ func (irec *IngressReconciler) reconcileDomains(ctx context.Context, ingress *ne
 				return err
 			}
 		}
+
+		var loadBalancerHostname string
+		if found.Status.CNAMETarget != nil {
+			loadBalancerHostname = *found.Status.CNAMETarget
+		} else if found.Status.Domain != "" {
+			loadBalancerHostname = found.Status.Domain
+		} else {
+			hasDomainsWithoutStatus = true
+		}
+
+		loadBalancerIngressStatuses = append(loadBalancerIngressStatuses, netv1.IngressLoadBalancerIngress{
+			Hostname: loadBalancerHostname,
+		})
 	}
 
-	return nil
+	if hasDomainsWithoutStatus {
+		return internalerrors.NewNotAllDomainsReadyYetError()
+	}
+
+	irec.Log.Info("Updating Ingress status with load balancer ingress statuses")
+	ingress.Status.LoadBalancer.Ingress = loadBalancerIngressStatuses
+	return irec.Status().Update(ctx, ingress)
 }
 
 func (irec *IngressReconciler) reconcileTunnels(ctx context.Context, ingress *netv1.Ingress) error {
@@ -314,6 +350,41 @@ func (irec *IngressReconciler) ingressToDomains(ctx context.Context, ingress *ne
 	}
 
 	return reservedDomains, nil
+}
+
+// listIngressesForDomains returns a list of ingresses that reference the given domain.
+func (irec *IngressReconciler) listIngressesForDomain(obj client.Object) []reconcile.Request {
+	irec.Log.Info("Listing ingresses for domain to determine if they need to be reconciled")
+	domain, ok := obj.(*ingressv1alpha1.Domain)
+	if !ok {
+		irec.Log.Error(nil, "failed to convert object to domain", "object", obj)
+		return []reconcile.Request{}
+	}
+
+	ingresses := &netv1.IngressList{}
+	if err := irec.Client.List(context.Background(), ingresses); err != nil {
+		irec.Log.Error(err, "failed to list ingresses for domain", "domain", domain.Spec.Domain)
+		return []reconcile.Request{}
+	}
+
+	recs := []reconcile.Request{}
+
+	for _, ingress := range ingresses.Items {
+		for _, rule := range ingress.Spec.Rules {
+			if rule.Host == domain.Status.Domain {
+				recs = append(recs, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      ingress.GetName(),
+						Namespace: ingress.GetNamespace(),
+					},
+				})
+				break
+			}
+		}
+	}
+
+	irec.Log.Info("Domain change triggered ingress reconciliation", "count", len(recs), "domain", domain.Spec.Domain)
+	return recs
 }
 
 func ingressToTunnels(ingress *netv1.Ingress) []ingressv1alpha1.Tunnel {

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
-	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	"github.com/stretchr/testify/assert"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,7 +44,7 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 	testCases := []struct {
 		testName string
 		ingress  *netv1.Ingress
-		edge     *ngrokapidriver.Edge
+		edge     *ingressv1alpha1.HTTPSEdge
 		err      error
 	}{
 		{
@@ -91,18 +90,24 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 					},
 				},
 			},
-			edge: &ngrokapidriver.Edge{
-				Hostport: "my-test-tunnel.ngrok.io:443",
-				Id:       "",
-				Routes: []ngrokapidriver.Route{
-					{
-						Id:        "",
-						Match:     "/",
-						MatchType: "path_prefix",
-						Labels: map[string]string{
-							"k8s.ngrok.com/namespace": "test-namespace",
-							"k8s.ngrok.com/port":      "8080",
-							"k8s.ngrok.com/service":   "test-service",
+			edge: &ingressv1alpha1.HTTPSEdge{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-ingress",
+					Namespace: "test-namespace",
+				},
+				Spec: ingressv1alpha1.HTTPSEdgeSpec{
+					Hostports: []string{"my-test-tunnel.ngrok.io:443"},
+					Routes: []ingressv1alpha1.HTTPSEdgeRouteSpec{
+						{
+							Match:     "/",
+							MatchType: "path_prefix",
+							Backend: ingressv1alpha1.TunnelGroupBackend{
+								Labels: map[string]string{
+									"k8s.ngrok.com/namespace": "test-namespace",
+									"k8s.ngrok.com/service":   "test-service",
+									"k8s.ngrok.com/port":      "8080",
+								},
+							},
 						},
 					},
 				},
@@ -125,9 +130,7 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 			continue
 		}
 
-		assert.Equal(t, testCase.edge.Hostport, edge.Hostport, "Hostport does not match expected value")
-		assert.Equal(t, testCase.edge.Id, edge.Id, "ID does not match expected value")
-		assert.ElementsMatch(t, testCase.edge.Routes, edge.Routes)
+		assert.Equal(t, testCase.edge, edge, "Edge does not match expected value")
 	}
 }
 

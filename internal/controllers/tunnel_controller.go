@@ -104,7 +104,6 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	tunnel := &ingressv1alpha1.Tunnel{}
 
 	if err := r.Client.Get(ctx, req.NamespacedName, tunnel); err != nil {
-		log.Error(err, "unable to fetch Tunnel")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 

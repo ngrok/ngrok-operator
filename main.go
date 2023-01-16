@@ -27,6 +27,7 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 
+	"go.uber.org/zap/zapcore"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
@@ -38,10 +39,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/ngrok/ngrok-api-go/v5"
+
 	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
+	"github.com/ngrok/ngrok-ingress-controller/internal/annotations"
 	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
 	"github.com/ngrok/ngrok-ingress-controller/internal/ngrokapi"
-	"github.com/ngrok/ngrok-ingress-controller/pkg/ngrokapidriver"
 	"github.com/ngrok/ngrok-ingress-controller/pkg/tunneldriver"
 	//+kubebuilder:scaffold:imports
 )
@@ -94,7 +96,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-ingress-controller-leader", "The name of the configmap that is used for holding the leader lock")
 	c.Flags().StringVar(&opts.region, "region", "us", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
-	opts.zapOpts = &zap.Options{Development: true}
+	opts.zapOpts = &zap.Options{Development: true, StacktraceLevel: zapcore.DPanicLevel}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
 	c.Flags().AddGoFlagSet(goFlagSet)
@@ -145,12 +147,12 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	if err := (&controllers.IngressReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("ingress"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("ingress-controller"),
-		Namespace:      opts.namespace,
-		NgrokAPIDriver: ngrokapidriver.NewNgrokAPIClient(opts.ngrokAPIKey, opts.region),
+		Client:               mgr.GetClient(),
+		Log:                  ctrl.Log.WithName("controllers").WithName("ingress"),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             mgr.GetEventRecorderFor("ingress-controller"),
+		Namespace:            opts.namespace,
+		AnnotationsExtractor: annotations.NewAnnotationsExtractor(),
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
@@ -183,7 +185,6 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
 		os.Exit(1)
 	}
-
 	if err = (&controllers.TCPEdgeReconciler{
 		Client:                   mgr.GetClient(),
 		Log:                      ctrl.Log.WithName("controllers").WithName("tcp-edge"),
@@ -193,6 +194,18 @@ func runController(ctx context.Context, opts managerOpts) error {
 		TunnelGroupBackendClient: ngrokClientset.TunnelGroupBackends(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TCPEdge")
+		os.Exit(1)
+	}
+	if err = (&controllers.HTTPSEdgeReconciler{
+		Client:                   mgr.GetClient(),
+		Log:                      ctrl.Log.WithName("controllers").WithName("https-edge"),
+		Scheme:                   mgr.GetScheme(),
+		Recorder:                 mgr.GetEventRecorderFor("https-edge-controller"),
+		HTTPSEdgeClient:          ngrokClientset.HTTPSEdges(),
+		HTTPSEdgeRoutesClient:    ngrokClientset.HTTPSEdgeRoutes(),
+		TunnelGroupBackendClient: ngrokClientset.TunnelGroupBackends(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "HTTPSEdge")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
