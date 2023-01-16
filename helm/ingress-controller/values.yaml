@@ -46,7 +46,7 @@ image:
 ingressClass:
   name: ngrok
   create: true
-  default: true
+  default: false
 
 ## @param credentials.secret.name The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.
 ## @param credentials.apiKey Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well.
