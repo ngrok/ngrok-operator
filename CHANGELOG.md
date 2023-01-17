@@ -6,7 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+
+## 0.3.0
 ### Changed
+- Renamed docker image from `ngrok/ngrok-ingress-controller` to `ngrok/kubernetes-ingress-controller`.
+- Added new controllers for `domains`, `tcpedges`, and `httpsedges`.
 - Updated go dependencies
 - Moved `main.go` to root of project to match what `kubebuilder` expects.
 - Updated `Makefile` to match what `kubebuilder` currently outputs.
