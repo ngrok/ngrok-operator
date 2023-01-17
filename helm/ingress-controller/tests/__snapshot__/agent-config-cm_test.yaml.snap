@@ -7,5 +7,5 @@ Should match snapshot:
       REMOTE_MANAGEMENT: ""
     kind: ConfigMap
     metadata:
-      name: RELEASE-NAME-ngrok-ingress-controller-agent-cm
+      name: RELEASE-NAME-kubernetes-ingress-controller-agent-cm
       namespace: NAMESPACE

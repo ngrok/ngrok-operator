@@ -27,7 +27,7 @@ tests:
   asserts:
   - equal:
       path: metadata.name
-      value: test-release-ngrok-ingress-controller-manager-config
+      value: test-release-kubernetes-ingress-controller-manager-config
 - it: Works when fullname is supplied
   set:
     fullnameOverride: fno
