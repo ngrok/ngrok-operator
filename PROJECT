@@ -1,7 +1,7 @@
 domain: k8s.ngrok.com
 layout:
 - go.kubebuilder.io/v3
-projectName: ngrok-ingress-controller
+projectName: kubernetes-ingress-controller
 repo: github.com/ngrok/kubernetes-ingress-controller
 resources:
 - api:
