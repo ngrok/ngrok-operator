@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
-	"github.com/ngrok/ngrok-ingress-controller/internal/annotations"
-	internalerrors "github.com/ngrok/ngrok-ingress-controller/internal/errors"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
+	internalerrors "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"

@@ -17,7 +17,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    if: github.repository == 'ngrok/ngrok-ingress-controller'
+    if: github.repository == 'ngrok/kubernetes-ingress-controller'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -37,7 +37,7 @@ jobs:
       contents: write # need to write releases
     needs: [changes]
     if: |
-      (github.repository == 'ngrok/ngrok-ingress-controller') &&
+      (github.repository == 'ngrok/kubernetes-ingress-controller') &&
       (needs.changes.outputs.charts == 'true')
     steps:
       - name: Checkout repo

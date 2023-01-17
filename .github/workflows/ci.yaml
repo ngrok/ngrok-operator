@@ -85,7 +85,7 @@ jobs:
         context: .
         platforms: ${{ steps.buildx-setup.outputs.platforms }}
         push: false
-        tags: ngrok/ngrok-ingress-controller:latest
+        tags: ngrok/kubernetes-ingress-controller:latest
 
   build:
     runs-on: ubuntu-latest

@@ -9,10 +9,10 @@ Should match snapshot:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: ngrok-ingress-controller
-        app.kubernetes.io/part-of: ngrok-ingress-controller
-        app.kubernetes.io/version: 0.2.0
-        helm.sh/chart: ngrok-ingress-controller-0.4.0
+        app.kubernetes.io/name: kubernetes-ingress-controller
+        app.kubernetes.io/part-of: kubernetes-ingress-controller
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: kubernetes-ingress-controller-0.5.0
       name: ngrok
     spec:
       controller: k8s.ngrok.com/ingress-controller
