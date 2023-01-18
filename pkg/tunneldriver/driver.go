@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"path/filepath"
 	"reflect"
 
@@ -14,6 +15,12 @@ import (
 	"golang.ngrok.com/ngrok/config"
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+const (
+	// TODO: Make this configurable via helm and document it so users can
+	// use it for things like proxies
+	customCertsPath = "/etc/ssl/certs/ngrok/"
 )
 
 // TunnelDriver is a driver for creating and deleting ngrok tunnels
@@ -42,11 +49,13 @@ func New(opts TunnelDriverOpts) (*TunnelDriver, error) {
 		connOpts = append(connOpts, ngrok.WithServer(opts.ServerAddr))
 	}
 
-	caCerts, err := caCerts()
-	if err != nil {
-		return nil, err
+	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) {
+		caCerts, err := caCerts()
+		if err != nil {
+			return nil, err
+		}
+		connOpts = append(connOpts, ngrok.WithCA(caCerts))
 	}
-	connOpts = append(connOpts, ngrok.WithCA(caCerts))
 
 	session, err := ngrok.Connect(context.Background(), connOpts...)
 	if err != nil {
@@ -60,9 +69,6 @@ func New(opts TunnelDriverOpts) (*TunnelDriver, error) {
 
 // caCerts combines the system ca certs with a directory of custom ca certs
 func caCerts() (*x509.CertPool, error) {
-	// TODO: Make this configurable via helm and document it so users can
-	// use it for things like proxies
-	customCertsPath := "/etc/ssl/certs/ngrok/"
 	systemCertPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, err
