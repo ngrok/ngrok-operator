@@ -2,9 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    {{- include "ngrok-ingress-controller.labels" . | nindent 4 }}
+    {{- include "kubernetes-ingress-controller.labels" . | nindent 4 }}
     app.kubernetes.io/component: controller
-  name: {{ include "ngrok-ingress-controller.fullname" . }}-manager
+  name: {{ include "kubernetes-ingress-controller.fullname" . }}-manager
   namespace: {{ .Release.Namespace }}
   annotations:
     checksum/agent-config: {{ include (print $.Template.BasePath "/agent-config-cm.yaml") . | sha256sum }}
@@ -14,7 +14,7 @@ spec:
   replicas: {{.Values.replicaCount}}
   selector:
     matchLabels:
-      {{- include "ngrok-ingress-controller.selectorLabels" . | nindent 6 }}
+      {{- include "kubernetes-ingress-controller.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: controller
   template:
     metadata:
@@ -27,17 +27,17 @@ spec:
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
       labels:
-        {{- include "ngrok-ingress-controller.selectorLabels" . | nindent 8 }}
+        {{- include "kubernetes-ingress-controller.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: controller
     spec:
-      serviceAccountName: {{ template "ngrok-ingress-controller.serviceAccountName" . }}
+      serviceAccountName: {{ template "kubernetes-ingress-controller.serviceAccountName" . }}
       {{- if .Values.image.pullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.image.pullSecrets | nindent 8 }}
       {{- end }}
       containers:
       - name: ngrok-ingress-controller
-        image: {{ include "ngrok-ingress-controller.image" . }}
+        image: {{ include "kubernetes-ingress-controller.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /manager
@@ -50,7 +50,7 @@ spec:
         {{- end }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
-        - --election-id={{ include "ngrok-ingress-controller.fullname" . }}-leader
+        - --election-id={{ include "kubernetes-ingress-controller.fullname" . }}-leader
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -58,12 +58,12 @@ spec:
           valueFrom:
             secretKeyRef:
               key: API_KEY
-              name: {{ include "ngrok-ingress-controller.credentialsSecretName" . }}
+              name: {{ include "kubernetes-ingress-controller.credentialsSecretName" . }}
         - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
               key: AUTHTOKEN
-              name: {{ include "ngrok-ingress-controller.credentialsSecretName" . }}
+              name: {{ include "kubernetes-ingress-controller.credentialsSecretName" . }}
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

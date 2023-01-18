@@ -18,10 +18,10 @@ package annotations
 
 import (
 	"github.com/imdario/mergo"
-	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
-	"github.com/ngrok/ngrok-ingress-controller/internal/annotations/compression"
-	"github.com/ngrok/ngrok-ingress-controller/internal/annotations/parser"
-	"github.com/ngrok/ngrok-ingress-controller/internal/errors"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/compression"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/klog/v2"
 )

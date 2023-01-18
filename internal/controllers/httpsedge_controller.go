@@ -36,11 +36,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/go-logr/logr"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
 	httpsedge "github.com/ngrok/ngrok-api-go/v5/edges/https"
 	httpsedgeroutes "github.com/ngrok/ngrok-api-go/v5/edges/https_routes"
-	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
 )
 
 // HTTPSEdgeReconciler reconciles a HTTPSEdge object
@@ -325,7 +325,9 @@ func (r *tunnelGroupBackendReconciler) findOrCreate(ctx context.Context, backend
 	}
 
 	be, err := r.client.Create(ctx, &ngrok.TunnelGroupBackendCreate{
-		Labels: backend.Labels,
+		Description: backend.Description,
+		Metadata:    backend.Metadata,
+		Labels:      backend.Labels,
 	})
 	if err != nil {
 		return nil, err

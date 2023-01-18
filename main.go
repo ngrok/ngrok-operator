@@ -40,11 +40,11 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v5"
 
-	ingressv1alpha1 "github.com/ngrok/ngrok-ingress-controller/api/v1alpha1"
-	"github.com/ngrok/ngrok-ingress-controller/internal/annotations"
-	"github.com/ngrok/ngrok-ingress-controller/internal/controllers"
-	"github.com/ngrok/ngrok-ingress-controller/internal/ngrokapi"
-	"github.com/ngrok/ngrok-ingress-controller/pkg/tunneldriver"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controllers"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
+	"github.com/ngrok/kubernetes-ingress-controller/pkg/tunneldriver"
 	//+kubebuilder:scaffold:imports
 )
 

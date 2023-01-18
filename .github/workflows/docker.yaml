@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    if: github.repository == 'ngrok/ngrok-ingress-controller'
+    if: github.repository == 'ngrok/kubernetes-ingress-controller'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -39,7 +39,7 @@ jobs:
     needs:
       - changes
     if: |
-      github.repository == 'ngrok/ngrok-ingress-controller' &&
+      github.repository == 'ngrok/kubernetes-ingress-controller' &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main'
     steps:
@@ -67,7 +67,7 @@ jobs:
           context: .
           platforms: ${{ steps.buildx-setup.outputs.platforms }}
           push: true
-          tags: ngrok/ngrok-ingress-controller:latest
+          tags: ngrok/kubernetes-ingress-controller:latest
       - name: Build and push tag'd docker image
         uses: docker/build-push-action@v3
         if: ${{ needs.changes.outputs.tag == 'true' }}
@@ -75,7 +75,7 @@ jobs:
           context: .
           platforms: ${{ steps.buildx-setup.outputs.platforms }}
           push: true
-          tags: ngrok/ngrok-ingress-controller:${{ steps.extract_tag.outputs.tag }}
+          tags: ngrok/kubernetes-ingress-controller:${{ steps.extract_tag.outputs.tag }}
       - name: Create GitHub Release
         uses: actions/github-script@v6
         if: ${{ needs.changes.outputs.tag == 'true' }}
