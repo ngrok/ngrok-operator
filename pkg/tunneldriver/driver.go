@@ -49,6 +49,7 @@ func New(opts TunnelDriverOpts) (*TunnelDriver, error) {
 		connOpts = append(connOpts, ngrok.WithServer(opts.ServerAddr))
 	}
 
+	// Only configure custom certs if the directory exists
 	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) {
 		caCerts, err := caCerts()
 		if err != nil {
