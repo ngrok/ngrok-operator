@@ -2,8 +2,12 @@ package tunneldriver
 
 import (
 	"context"
+	"crypto/x509"
 	"io"
+	"io/ioutil"
 	"net"
+	"os"
+	"path/filepath"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -11,6 +15,12 @@ import (
 	"golang.ngrok.com/ngrok/config"
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+const (
+	// TODO: Make this configurable via helm and document it so users can
+	// use it for things like proxies
+	customCertsPath = "/etc/ssl/certs/ngrok/"
 )
 
 // TunnelDriver is a driver for creating and deleting ngrok tunnels
@@ -39,6 +49,15 @@ func New(opts TunnelDriverOpts) (*TunnelDriver, error) {
 		connOpts = append(connOpts, ngrok.WithServer(opts.ServerAddr))
 	}
 
+	// Only configure custom certs if the directory exists
+	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) {
+		caCerts, err := caCerts()
+		if err != nil {
+			return nil, err
+		}
+		connOpts = append(connOpts, ngrok.WithCA(caCerts))
+	}
+
 	session, err := ngrok.Connect(context.Background(), connOpts...)
 	if err != nil {
 		return nil, err
@@ -47,6 +66,40 @@ func New(opts TunnelDriverOpts) (*TunnelDriver, error) {
 		session: session,
 		tunnels: make(map[string]ngrok.Tunnel),
 	}, nil
+}
+
+// caCerts combines the system ca certs with a directory of custom ca certs
+func caCerts() (*x509.CertPool, error) {
+	systemCertPool, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, err
+	}
+
+	// Clone the system cert pool
+	customCertPool := systemCertPool.Clone()
+
+	// Read each .crt file in the custom cert directory
+	files, err := ioutil.ReadDir(customCertsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		if filepath.Ext(file.Name()) != ".crt" {
+			continue
+		}
+
+		// Read the contents of the .crt file
+		certBytes, err := ioutil.ReadFile(filepath.Join(customCertsPath, file.Name()))
+		if err != nil {
+			return nil, err
+		}
+
+		// Append the cert to the custom cert pool
+		customCertPool.AppendCertsFromPEM(certBytes)
+	}
+
+	return customCertPool, nil
 }
 
 // CreateTunnel creates and starts a new tunnel in a goroutine. If a tunnel with the same name already exists,
