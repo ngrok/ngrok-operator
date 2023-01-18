@@ -3,8 +3,6 @@ Should match snapshot:
     apiVersion: networking.k8s.io/v1
     kind: IngressClass
     metadata:
-      annotations:
-        ingressclass.kubernetes.io/is-default-class: "true"
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
