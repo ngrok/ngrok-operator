@@ -56,7 +56,7 @@ To uninstall the chart:
 | `image.pullSecrets`          | An array of imagePullSecrets to be used when pulling the image.                                                       | `[]`                                  |
 | `ingressClass.name`          | The name of the ingress class to use.                                                                                 | `ngrok`                               |
 | `ingressClass.create`        | Whether to create the ingress class.                                                                                  | `true`                                |
-| `ingressClass.default`       | Whether to set the ingress class as default.                                                                          | `true`                                |
+| `ingressClass.default`       | Whether to set the ingress class as default.                                                                          | `false`                               |
 | `credentials.secret.name`    | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.    | `""`                                  |
 | `credentials.apiKey`         | Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well. | `""`                                  |
 | `credentials.authtoken`      | Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.  | `""`                                  |
