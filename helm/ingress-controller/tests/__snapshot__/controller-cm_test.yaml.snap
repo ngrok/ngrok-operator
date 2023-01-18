@@ -11,8 +11,8 @@ should match snapshot:
           bindAddress: 127.0.0.1:8080
         leaderElection:
           leaderElect: true
-          resourceName: test-release-ngrok-ingress-controller-leader
+          resourceName: test-release-kubernetes-ingress-controller-leader
     kind: ConfigMap
     metadata:
-      name: test-release-ngrok-ingress-controller-manager-config
+      name: test-release-kubernetes-ingress-controller-manager-config
       namespace: test-namespace

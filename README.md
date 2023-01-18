@@ -8,13 +8,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ngrok/ngrok-ingress-controller/actions?query=branch%3Amain+event%3Apush">
-      <img src="https://github.com/ngrok/ngrok-ingress-controller/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
+  <a href="https://github.com/ngrok/kubernetes-ingress-controller/actions?query=branch%3Amain+event%3Apush">
+      <img src="https://github.com/ngrok/kubernetes-ingress-controller/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
   </a>
   <!-- TODO: Add badges for things like docker build status, image pulls, helm build status, latest stable release version, etc -->
 </p>
 <p align="center">
-  <a href="https://github.com/ngrok/ngrok-ingress-controller/blob/master/LICENSE">
+  <a href="https://github.com/ngrok/kubernetes-ingress-controller/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"/>
   </a>
   <a href="#features-and-alpha-status">
@@ -62,8 +62,8 @@ export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
 Install via Helm:
 
 ```bash
-helm repo add ngrok https://ngrok.github.io/ngrok-ingress-controller
-helm install ngrok-ingress-controller ngrok/ngrok-ingress-controller \
+helm repo add ngrok https://ngrok.github.io/kubernetes-ingress-controller
+helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
   --namespace ngrok-ingress-controller \
   --create-namespace \
   --set credentials.apiKey=$(NGROK_API_KEY) \
@@ -121,14 +121,14 @@ data:
 Then when installing the controller via helm, you can pass the name of the secret to the controller via the `credentials.secret.name` helm value.
 
 ```bash
-helm install ngrok-ingress-controller ngrok/ngrok-ingress-controller \
+helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
   --set credentials.secret.name=ngrok-ingress-controller-credentials
 ```
 
 ## How to Configure the Agent
 
 > Warning: This will be deprecated soon when moving to the new lib-ngrok library
-* assumes configs will be in a config map named `{{ include "ngrok-ingress-controller.fullname" . }}-agent-cm` in the same namespace
+* assumes configs will be in a config map named `{{ include "kubernetes-ingress-controller.fullname" . }}-agent-cm` in the same namespace
 * setup automatically via helm. Values and config map name can be configured in the future via helm
 * subset of these that should be configurable https://ngrok.com/docs/ngrok-agent/config#config-full-example
 * example config map showing all optional values with their defaults.
@@ -137,7 +137,7 @@ helm install ngrok-ingress-controller ngrok/ngrok-ingress-controller \
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "ngrok-ingress-controller.fullname" . }}-agent-cm
+  name: {{ include "kubernetes-ingress-controller.fullname" . }}-agent-cm
   namespace: ngrok-ingress-controller
 data:
   METADATA: "{}"

@@ -31,7 +31,7 @@ replicaCount: 1
 ## @param image.pullSecrets An array of imagePullSecrets to be used when pulling the image.
 image:
   registry: docker.io
-  repository: ngrok/ngrok-ingress-controller
+  repository: ngrok/kubernetes-ingress-controller
   tag: latest
   pullPolicy: IfNotPresent
   ## Example
