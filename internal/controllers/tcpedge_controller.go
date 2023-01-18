@@ -126,6 +126,11 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 		// A backend has already been created for this edge, make sure the labels match
 		backend, err := r.TunnelGroupBackendClient.Get(ctx, edge.Status.Backend.ID)
 		if err != nil {
+			if ngrok.IsNotFound(err) {
+				r.Log.Info("TunnelGroupBackend not found, clearing ID and requeuing", "TunnelGroupBackend.ID", edge.Status.Backend.ID)
+				edge.Status.Backend.ID = ""
+				r.Status().Update(ctx, edge)
+			}
 			return err
 		}
 
@@ -163,6 +168,13 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 		// An edge already exists, make sure everything matches
 		resp, err := r.TCPEdgeClient.Get(ctx, edge.Status.ID)
 		if err != nil {
+			// If we can't find the edge in the ngrok API, it's been deleted, so clear the ID
+			// and requeue the edge. When it gets reconciled again, it will be recreated.
+			if ngrok.IsNotFound(err) {
+				r.Log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
+				edge.Status.ID = ""
+				r.Status().Update(ctx, edge)
+			}
 			return err
 		}
 
@@ -183,15 +195,22 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 			}
 		}
 
-		edge.Status.ID = resp.ID
-		edge.Status.URI = resp.URI
-		edge.Status.Hostports = resp.Hostports
-		edge.Status.Backend.ID = resp.Backend.Backend.ID
-		return r.Status().Update(ctx, edge)
+		return r.updateEdgeStatus(ctx, edge, resp)
+	}
+
+	// Try to find the edge by the backend labels
+	resp, err := r.findEdgeByBackendLabels(ctx, edge.Spec.Backend.Labels)
+	if err != nil {
+		return err
+	}
+
+	if resp != nil {
+		return r.updateEdgeStatus(ctx, edge, resp)
 	}
 
 	// No edge has been created for this edge, create one
-	resp, err := r.TCPEdgeClient.Create(ctx, &ngrok.TCPEdgeCreate{
+	r.Log.Info("Creating new TCPEdge", "namespace", edge.Namespace, "name", edge.Name)
+	resp, err = r.TCPEdgeClient.Create(ctx, &ngrok.TCPEdgeCreate{
 		Description: edge.Spec.Description,
 		Metadata:    edge.Spec.Metadata,
 		Backend: &ngrok.EndpointBackendMutate{
@@ -201,21 +220,43 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 	if err != nil {
 		return err
 	}
+	r.Log.Info("Created new TCPEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
 
-	edge.Status.ID = resp.ID
-	edge.Status.URI = resp.URI
-	edge.Status.Hostports = resp.Hostports
-	edge.Status.Backend.ID = resp.Backend.Backend.ID
-	return r.Status().Update(ctx, edge)
+	return r.updateEdgeStatus(ctx, edge, resp)
 }
 
-func (r *TCPEdgeReconciler) findEdgeByHostports(ctx context.Context, hostports []string) (*ngrok.TCPEdge, error) {
+func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backendLabels map[string]string) (*ngrok.TCPEdge, error) {
+	r.Log.Info("Searching for existing TCPEdge with backend labels", "labels", backendLabels)
 	iter := r.TCPEdgeClient.List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		edge := iter.Item()
-		if reflect.DeepEqual(edge.Hostports, hostports) {
+		if edge.Backend == nil {
+			continue
+		}
+
+		backend, err := r.TunnelGroupBackendClient.Get(ctx, edge.Backend.Backend.ID)
+		if err != nil {
+			// If we get an error looking up the backend, return the error and
+			// hopefully the next reconcile will fix it.
+			return nil, err
+		}
+		if backend == nil {
+			continue
+		}
+
+		if reflect.DeepEqual(backend.Labels, backendLabels) {
+			r.Log.Info("Found existing TCPEdge with matching backend labels", "labels", backendLabels, "edge.ID", edge.ID)
 			return edge, nil
 		}
 	}
 	return nil, iter.Err()
+}
+
+func (r *TCPEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
+	edge.Status.ID = remoteEdge.ID
+	edge.Status.URI = remoteEdge.URI
+	edge.Status.Hostports = remoteEdge.Hostports
+	edge.Status.Backend.ID = remoteEdge.Backend.Backend.ID
+
+	return r.Status().Update(ctx, edge)
 }
