@@ -41,6 +41,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
 	"github.com/ngrok/ngrok-api-go/v5/edges/tcp"
+	"github.com/ngrok/ngrok-api-go/v5/reserved_addrs"
 )
 
 // TCPEdgeReconciler reconciles a TCPEdge object
@@ -51,6 +52,7 @@ type TCPEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
+	TCPAddrsClient           *reserved_addrs.Client
 	TCPEdgeClient            *tcp.Client
 	TunnelGroupBackendClient *tunnel_group.Client
 }
@@ -112,7 +114,12 @@ func (r *TCPEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if err := r.reconcileTunnelGroupBackend(ctx, edge); err != nil {
-		log.Error(err, "unable to ensure tunnel group backend", err.Error())
+		log.Error(err, "unable to reconcile tunnel group backend", "backend.id", edge.Status.Backend.ID)
+		return ctrl.Result{}, err
+	}
+
+	if err := r.reserveAddrIfEmpty(ctx, edge); err != nil {
+		log.Error(err, "unable to create tcp address")
 		return ctrl.Result{}, err
 	}
 
@@ -178,9 +185,8 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 			return err
 		}
 
-		// If the backend doesn't match, update the edge with the desired backend
-
-		if resp.Backend.Backend.ID != edge.Status.Backend.ID {
+		// If the backend or hostports do not match, update the edge with the desired backend and hostports
+		if resp.Backend.Backend.ID != edge.Status.Backend.ID || !reflect.DeepEqual(resp.Hostports, edge.Status.Hostports) {
 			resp, err = r.TCPEdgeClient.Update(ctx, &ngrok.TCPEdgeUpdate{
 				ID:          resp.ID,
 				Description: pointer.String(edge.Spec.Description),
@@ -259,4 +265,51 @@ func (r *TCPEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv
 	edge.Status.Backend.ID = remoteEdge.Backend.Backend.ID
 
 	return r.Status().Update(ctx, edge)
+}
+
+func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	if edge.Status.Hostports == nil || len(edge.Status.Hostports) == 0 {
+		addr, err := r.findAddrWithMatchingMetadata(ctx, r.metadataForEdge(edge))
+		if err != nil {
+			return err
+		}
+
+		// If we found an addr with matching metadata, use it
+		if addr != nil {
+			edge.Status.Hostports = []string{addr.Addr}
+			return r.Status().Update(ctx, edge)
+		}
+
+		// No hostports have been assigned to this edge, assign one
+		addr, err = r.TCPAddrsClient.Create(ctx, &ngrok.ReservedAddrCreate{
+			Description: r.descriptionForEdge(edge),
+			Metadata:    r.metadataForEdge(edge),
+		})
+		if err != nil {
+			return err
+		}
+
+		edge.Status.Hostports = []string{addr.Addr}
+		return r.Status().Update(ctx, edge)
+	}
+	return nil
+}
+
+func (r *TCPEdgeReconciler) findAddrWithMatchingMetadata(ctx context.Context, metadata string) (*ngrok.ReservedAddr, error) {
+	iter := r.TCPAddrsClient.List(&ngrok.Paging{})
+	for iter.Next(ctx) {
+		addr := iter.Item()
+		if addr.Metadata == metadata {
+			return addr, nil
+		}
+	}
+	return nil, iter.Err()
+}
+
+func (r *TCPEdgeReconciler) metadataForEdge(edge *ingressv1alpha1.TCPEdge) string {
+	return fmt.Sprintf(`{"namespace": "%s", "name": "%s"}`, edge.Namespace, edge.Name)
+}
+
+func (r *TCPEdgeReconciler) descriptionForEdge(edge *ingressv1alpha1.TCPEdge) string {
+	return fmt.Sprintf("Reserved for %s/%s", edge.Namespace, edge.Name)
 }
