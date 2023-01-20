@@ -188,6 +188,12 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 					Enabled: routeSpec.Compression.Enabled,
 				}
 			}
+			if routeSpec.IPRestriction != nil {
+				req.IPRestriction = &ngrok.EndpointIPPolicyMutate{
+					Enabled:     routeSpec.IPRestriction.Enabled,
+					IPPolicyIDs: routeSpec.IPRestriction.IPPolicyIDs,
+				}
+			}
 			route, err = r.HTTPSEdgeRoutesClient.Create(ctx, req)
 		} else {
 			r.Log.Info("Updating route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
@@ -204,6 +210,12 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			if routeSpec.Compression != nil {
 				req.Compression = &ngrok.EndpointCompression{
 					Enabled: routeSpec.Compression.Enabled,
+				}
+			}
+			if routeSpec.IPRestriction != nil {
+				req.IPRestriction = &ngrok.EndpointIPPolicyMutate{
+					Enabled:     routeSpec.IPRestriction.Enabled,
+					IPPolicyIDs: routeSpec.IPRestriction.IPPolicyIDs,
 				}
 			}
 			route, err = r.HTTPSEdgeRoutesClient.Update(ctx, req)

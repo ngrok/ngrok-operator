@@ -152,7 +152,7 @@ func (irec *IngressReconciler) routesPlanner(ctx context.Context, ingress *netv1
 	var matchType string
 	var ngrokRoutes []ingressv1alpha1.HTTPSEdgeRouteSpec
 
-	parsedAnnotations := irec.AnnotationsExtractor.Extract(ingress)
+	parsedRouteModules := irec.AnnotationsExtractor.Extract(ingress)
 
 	for _, httpIngressPath := range rule.HTTP.Paths {
 		switch *httpIngressPath.PathType {
@@ -172,7 +172,8 @@ func (irec *IngressReconciler) routesPlanner(ctx context.Context, ingress *netv1
 			Backend: ingressv1alpha1.TunnelGroupBackend{
 				Labels: backendToLabelMap(httpIngressPath.Backend, namespace),
 			},
-			Compression: parsedAnnotations.Compression,
+			Compression:   parsedRouteModules.Compression,
+			IPRestriction: parsedRouteModules.IPRestriction,
 		}
 
 		ngrokRoutes = append(ngrokRoutes, route)
