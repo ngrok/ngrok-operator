@@ -6,13 +6,15 @@ import (
 	https_edges "github.com/ngrok/ngrok-api-go/v5/edges/https"
 	https_edge_routes "github.com/ngrok/ngrok-api-go/v5/edges/https_routes"
 	tcp_edges "github.com/ngrok/ngrok-api-go/v5/edges/tcp"
+	"github.com/ngrok/ngrok-api-go/v5/reserved_addrs"
 	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
 )
 
-type CLientset interface {
+type Clientset interface {
 	Domains() *reserved_domains.Client
 	HTTPSEdges() *https_edges.Client
 	HTTPSEdgeRoutes() *https_edge_routes.Client
+	TCPAddresses() *reserved_addrs.Client
 	TCPEdges() *tcp_edges.Client
 	TunnelGroupBackends() *tunnel_group_backends.Client
 }
@@ -21,16 +23,19 @@ type DefaultClientset struct {
 	domainsClient             *reserved_domains.Client
 	httpsEdgesClient          *https_edges.Client
 	httpsEdgeRoutesClient     *https_edge_routes.Client
+	tcpAddrsClient            *reserved_addrs.Client
 	tcpEdgesClient            *tcp_edges.Client
 	tunnelGroupBackendsClient *tunnel_group_backends.Client
 }
 
+// NewClientSet creates a new ClientSet from an ngrok client config.
 func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
 	return &DefaultClientset{
 		domainsClient:             reserved_domains.NewClient(config),
 		httpsEdgesClient:          https_edges.NewClient(config),
 		httpsEdgeRoutesClient:     https_edge_routes.NewClient(config),
 		tcpEdgesClient:            tcp_edges.NewClient(config),
+		tcpAddrsClient:            reserved_addrs.NewClient(config),
 		tunnelGroupBackendsClient: tunnel_group_backends.NewClient(config),
 	}
 }
@@ -45,6 +50,10 @@ func (c *DefaultClientset) HTTPSEdges() *https_edges.Client {
 
 func (c *DefaultClientset) HTTPSEdgeRoutes() *https_edge_routes.Client {
 	return c.httpsEdgeRoutesClient
+}
+
+func (c *DefaultClientset) TCPAddresses() *reserved_addrs.Client {
+	return c.tcpAddrsClient
 }
 
 func (c *DefaultClientset) TCPEdges() *tcp_edges.Client {

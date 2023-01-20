@@ -190,6 +190,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Log:                      ctrl.Log.WithName("controllers").WithName("tcp-edge"),
 		Scheme:                   mgr.GetScheme(),
 		Recorder:                 mgr.GetEventRecorderFor("tcp-edge-controller"),
+		TCPAddrsClient:           ngrokClientset.TCPAddresses(),
 		TCPEdgeClient:            ngrokClientset.TCPEdges(),
 		TunnelGroupBackendClient: ngrokClientset.TunnelGroupBackends(),
 	}).SetupWithManager(mgr); err != nil {
