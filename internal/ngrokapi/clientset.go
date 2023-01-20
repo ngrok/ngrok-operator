@@ -27,9 +27,9 @@ type DefaultClientset struct {
 	domainsClient             *reserved_domains.Client
 	httpsEdgesClient          *https_edges.Client
 	httpsEdgeRoutesClient     *https_edge_routes.Client
-	tcpAddrsClient            *reserved_addrs.Client
 	ipPoliciesClient          *ip_policies.Client
 	ipPolicyRulesClient       *ip_policy_rules.Client
+	tcpAddrsClient            *reserved_addrs.Client
 	tcpEdgesClient            *tcp_edges.Client
 	tunnelGroupBackendsClient *tunnel_group_backends.Client
 }
