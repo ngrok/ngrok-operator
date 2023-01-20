@@ -77,6 +77,16 @@ spec:
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
+              ipRestriction:
+                description: IPRestriction is an IPRestriction to apply to this route
+                properties:
+                  enabled:
+                    type: boolean
+                  policyIDs:
+                    items:
+                      type: string
+                    type: array
+                type: object
               metadata:
                 default: '{"owned-by":"ngrok-ingress-controller"}'
                 description: Metadata is a string of arbitrary data associated with

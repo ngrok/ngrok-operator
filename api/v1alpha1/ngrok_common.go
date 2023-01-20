@@ -9,3 +9,15 @@ type ngrokAPICommon struct {
 	// +kubebuilder:default:=`{"owned-by":"ngrok-ingress-controller"}`
 	Metadata string `json:"metadata,omitempty"`
 }
+
+// Route Module Types
+
+type EndpointCompression struct {
+	// Enabled is whether or not to enable compression for this endpoint
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+type EndpointIPPolicy struct {
+	Enabled     *bool    `json:"enabled,omitempty"`
+	IPPolicyIDs []string `json:"policyIDs,omitempty"`
+}

@@ -89,8 +89,8 @@ spec:
                         the object in the ngrok API/Dashboard
                       type: string
                     ipRestriction:
-                      description: IPPolicyIDs is a list of IP policy IDs to apply
-                        to this route
+                      description: IPRestriction is an IPRestriction to apply to this
+                        route
                       properties:
                         enabled:
                           type: boolean

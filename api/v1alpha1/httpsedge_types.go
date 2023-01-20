@@ -31,16 +31,6 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type EndpointCompression struct {
-	// Enabled is whether or not to enable compression for this endpoint
-	Enabled *bool `json:"enabled,omitempty"`
-}
-
-type EndpointIPPolicy struct {
-	Enabled     *bool    `json:"enabled,omitempty"`
-	IPPolicyIDs []string `json:"policyIDs,omitempty"`
-}
-
 type HTTPSEdgeRouteSpec struct {
 	ngrokAPICommon `json:",inline"`
 
@@ -61,7 +51,7 @@ type HTTPSEdgeRouteSpec struct {
 	// Compression is whether or not to enable compression for this route
 	Compression *EndpointCompression `json:"compression,omitempty"`
 
-	// IPPolicyIDs is a list of IP policy IDs to apply to this route
+	// IPRestriction is an IPRestriction to apply to this route
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
 }
 

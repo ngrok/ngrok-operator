@@ -46,6 +46,9 @@ type TCPEdgeSpec struct {
 	// that serves traffic for this edge
 	// +kubebuilder:validation:Required
 	Backend TunnelGroupBackend `json:"backend,omitempty"`
+
+	// IPRestriction is an IPRestriction to apply to this route
+	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
 }
 
 type TunnelGroupBackendStatus struct {
