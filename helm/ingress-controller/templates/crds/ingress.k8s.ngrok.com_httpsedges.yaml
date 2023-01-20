@@ -88,6 +88,17 @@ spec:
                       description: Description is a human-readable description of
                         the object in the ngrok API/Dashboard
                       type: string
+                    ipRestriction:
+                      description: IPPolicyIDs is a list of IP policy IDs to apply
+                        to this route
+                      properties:
+                        enabled:
+                          type: boolean
+                        policyIDs:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     match:
                       description: Match is the value to match against the request
                         path
