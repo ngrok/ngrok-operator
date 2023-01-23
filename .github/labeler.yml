@@ -1,0 +1,26 @@
+area/ci:
+- .github/workflows/**/*
+
+area/controller:
+- '**/*.go'
+- Dockerfile
+
+area/helm-chart:
+- helm/**/*
+
+area/release:
+- docs/releases.md
+- VERSION
+- helm/ingress-controller/Chart.yaml
+
+documentation:
+- docs/**/*
+
+meta/project:
+- .github/ISSUE_TEMPLATE/**/*
+- .github/CODEOWNERS
+- .github/labeler.yaml
+- .github/PULL_REQUEST_TEMPLATE.md
+
+testing:
+- scripts/e2e.sh
