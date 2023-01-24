@@ -17,6 +17,7 @@ limitations under the License.
 package parser
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -86,6 +87,21 @@ func (a ingAnnotations) parseStringSlice(name string) ([]string, error) {
 	return []string{}, errors.ErrMissingAnnotations
 }
 
+func (a ingAnnotations) parseStringMap(name string) (map[string]string, error) {
+	val, ok := a[name]
+	if !ok {
+		return nil, errors.ErrMissingAnnotations
+	}
+
+	m := map[string]string{}
+	err := json.Unmarshal([]byte(val), &m)
+	if err != nil {
+		return nil, errors.NewInvalidAnnotationContent(name, val)
+	}
+
+	return m, nil
+}
+
 func (a ingAnnotations) parseInt(name string) (int, error) {
 	val, ok := a[name]
 	if ok {
@@ -150,6 +166,16 @@ func GetStringSliceAnnotation(name string, ing *networking.Ingress) ([]string, e
 	}
 
 	return ingAnnotations(ing.GetAnnotations()).parseStringSlice(v)
+}
+
+func GetStringMapAnnotation(name string, ing *networking.Ingress) (map[string]string, error) {
+	v := GetAnnotationWithPrefix(name)
+	err := checkAnnotation(v, ing)
+	if err != nil {
+		return nil, err
+	}
+
+	return ingAnnotations(ing.GetAnnotations()).parseStringMap(v)
 }
 
 // GetIntAnnotation extracts an int from an Ingress annotation
