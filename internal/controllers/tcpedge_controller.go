@@ -171,6 +171,14 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 }
 
 func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	var ipRestriction *ngrok.EndpointIPPolicyMutate
+	if edge.Spec.IPRestriction != nil {
+		ipRestriction = &ngrok.EndpointIPPolicyMutate{
+			Enabled:     edge.Spec.IPRestriction.Enabled,
+			IPPolicyIDs: edge.Spec.IPRestriction.IPPolicyIDs,
+		}
+	}
+
 	if edge.Status.ID != "" {
 		// An edge already exists, make sure everything matches
 		resp, err := r.TCPEdgeClient.Get(ctx, edge.Status.ID)
@@ -186,7 +194,9 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 		}
 
 		// If the backend or hostports do not match, update the edge with the desired backend and hostports
-		if resp.Backend.Backend.ID != edge.Status.Backend.ID || !reflect.DeepEqual(resp.Hostports, edge.Status.Hostports) {
+		if resp.Backend.Backend.ID != edge.Status.Backend.ID ||
+			!reflect.DeepEqual(resp.Hostports, edge.Status.Hostports) ||
+			!reflect.DeepEqual(resp.IpRestriction, ipRestriction) {
 			resp, err = r.TCPEdgeClient.Update(ctx, &ngrok.TCPEdgeUpdate{
 				ID:          resp.ID,
 				Description: pointer.String(edge.Spec.Description),
@@ -195,6 +205,7 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 				Backend: &ngrok.EndpointBackendMutate{
 					BackendID: edge.Status.Backend.ID,
 				},
+				IPRestriction: ipRestriction,
 			})
 			if err != nil {
 				return err
@@ -222,6 +233,7 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 		Backend: &ngrok.EndpointBackendMutate{
 			BackendID: edge.Status.Backend.ID,
 		},
+		IPRestriction: ipRestriction,
 	})
 	if err != nil {
 		return err

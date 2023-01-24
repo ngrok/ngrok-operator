@@ -67,6 +67,25 @@ func (a ingAnnotations) parseString(name string) (string, error) {
 	return "", errors.ErrMissingAnnotations
 }
 
+func (a ingAnnotations) parseStringSlice(name string) ([]string, error) {
+	val, ok := a[name]
+	if ok {
+		s := normalizeString(val)
+		if len(s) == 0 {
+			return []string{}, errors.NewInvalidAnnotationContent(name, val)
+		}
+
+		// Remove spaces around each element
+		values := []string{}
+		for _, v := range strings.Split(s, ",") {
+			values = append(values, strings.TrimSpace(v))
+		}
+
+		return values, nil
+	}
+	return []string{}, errors.ErrMissingAnnotations
+}
+
 func (a ingAnnotations) parseInt(name string) (int, error) {
 	val, ok := a[name]
 	if ok {
@@ -121,6 +140,16 @@ func GetStringAnnotation(name string, ing *networking.Ingress) (string, error) {
 	}
 
 	return ingAnnotations(ing.GetAnnotations()).parseString(v)
+}
+
+func GetStringSliceAnnotation(name string, ing *networking.Ingress) ([]string, error) {
+	v := GetAnnotationWithPrefix(name)
+	err := checkAnnotation(v, ing)
+	if err != nil {
+		return []string{}, err
+	}
+
+	return ingAnnotations(ing.GetAnnotations()).parseStringSlice(v)
 }
 
 // GetIntAnnotation extracts an int from an Ingress annotation
