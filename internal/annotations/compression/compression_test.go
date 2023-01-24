@@ -5,34 +5,27 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/testutil"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func createIngressWithAnnotations(annotations map[string]string) *networking.Ingress {
-	return &networking.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-ingress",
-			Namespace:   v1.NamespaceDefault,
-			Annotations: annotations,
-		},
-	}
-}
-
 func TestCompressionWhenNotSupplied(t *testing.T) {
-	ing := createIngressWithAnnotations(map[string]string{})
+	ing := testutil.NewIngress()
+	ing.SetAnnotations(map[string]string{})
 	parsed, err := NewParser().Parse(ing)
 
 	assert.Nil(t, parsed)
 	assert.Error(t, err)
+	assert.True(t, errors.IsMissingAnnotations(err))
 }
 
 func TestCompressionWhenSuppliedAndTrue(t *testing.T) {
-	ing := createIngressWithAnnotations(map[string]string{
-		parser.GetAnnotationWithPrefix("https-compression"): "true",
-	})
+	ing := testutil.NewIngress()
+	annotations := map[string]string{}
+	annotations[parser.GetAnnotationWithPrefix("https-compression")] = "true"
+	ing.SetAnnotations(annotations)
+
 	parsed, err := NewParser().Parse(ing)
 	assert.NoError(t, err)
 
@@ -44,9 +37,11 @@ func TestCompressionWhenSuppliedAndTrue(t *testing.T) {
 }
 
 func TestCompressionWhenSuppliedAndFalse(t *testing.T) {
-	ing := createIngressWithAnnotations(map[string]string{
-		parser.GetAnnotationWithPrefix("https-compression"): "false",
-	})
+	ing := testutil.NewIngress()
+	annotations := map[string]string{}
+	annotations[parser.GetAnnotationWithPrefix("https-compression")] = "false"
+	ing.SetAnnotations(annotations)
+
 	parsed, err := NewParser().Parse(ing)
 	assert.NoError(t, err)
 
