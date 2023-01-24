@@ -5,7 +5,6 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	networking "k8s.io/api/networking/v1"
-	"k8s.io/utils/pointer"
 )
 
 type headers struct{}
@@ -15,14 +14,7 @@ func NewParser() parser.IngressAnnotation {
 }
 
 func (h headers) Parse(ing *networking.Ingress) (interface{}, error) {
-	parsed := &ingressv1alpha1.EndpointHeaders{
-		Request: &ingressv1alpha1.EndpointRequestHeaders{
-			Enabled: pointer.Bool(false),
-		},
-		Response: &ingressv1alpha1.EndpointResponseHeaders{
-			Enabled: pointer.Bool(false),
-		},
-	}
+	parsed := &ingressv1alpha1.EndpointHeaders{}
 
 	v, err := parser.GetStringSliceAnnotation("request-headers-remove", ing)
 	if err != nil {
@@ -32,7 +24,9 @@ func (h headers) Parse(ing *networking.Ingress) (interface{}, error) {
 	}
 
 	if len(v) > 0 {
-		parsed.Request.Enabled = pointer.Bool(true)
+		if parsed.Request == nil {
+			parsed.Request = &ingressv1alpha1.EndpointRequestHeaders{}
+		}
 		parsed.Request.Remove = v
 	}
 
@@ -44,7 +38,9 @@ func (h headers) Parse(ing *networking.Ingress) (interface{}, error) {
 	}
 
 	if len(v) > 0 {
-		parsed.Response.Enabled = pointer.Bool(true)
+		if parsed.Response == nil {
+			parsed.Response = &ingressv1alpha1.EndpointResponseHeaders{}
+		}
 		parsed.Response.Remove = v
 	}
 
