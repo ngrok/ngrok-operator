@@ -12,6 +12,9 @@ func NewParser() parser.IngressAnnotation {
 	return compression{}
 }
 
+// Parse parses the annotations contained in the ingress and returns a
+// compression configuration or an error. If no compression annotations are
+// found, the returned error an errors.ErrMissingAnnotations.
 func (c compression) Parse(ing *networking.Ingress) (interface{}, error) {
 	v, err := parser.GetBoolAnnotation("https-compression", ing)
 	if err != nil {
