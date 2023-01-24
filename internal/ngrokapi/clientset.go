@@ -14,6 +14,7 @@ import (
 
 type Clientset interface {
 	Domains() *reserved_domains.Client
+	EdgeModules() EdgeModulesClientset
 	HTTPSEdges() *https_edges.Client
 	HTTPSEdgeRoutes() *https_edge_routes.Client
 	IPPolicies() *ip_policies.Client
@@ -25,6 +26,7 @@ type Clientset interface {
 
 type DefaultClientset struct {
 	domainsClient             *reserved_domains.Client
+	edgeModulesClientset      *defaultEdgeModulesClientset
 	httpsEdgesClient          *https_edges.Client
 	httpsEdgeRoutesClient     *https_edge_routes.Client
 	ipPoliciesClient          *ip_policies.Client
@@ -38,6 +40,7 @@ type DefaultClientset struct {
 func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
 	return &DefaultClientset{
 		domainsClient:             reserved_domains.NewClient(config),
+		edgeModulesClientset:      newEdgeModulesClientset(config),
 		httpsEdgesClient:          https_edges.NewClient(config),
 		httpsEdgeRoutesClient:     https_edge_routes.NewClient(config),
 		ipPoliciesClient:          ip_policies.NewClient(config),
@@ -50,6 +53,10 @@ func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
 
 func (c *DefaultClientset) Domains() *reserved_domains.Client {
 	return c.domainsClient
+}
+
+func (c *DefaultClientset) EdgeModules() EdgeModulesClientset {
+	return c.edgeModulesClientset
 }
 
 func (c *DefaultClientset) HTTPSEdges() *https_edges.Client {
