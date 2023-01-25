@@ -92,8 +92,6 @@ spec:
                       description: IPRestriction is an IPRestriction to apply to this
                         route
                       properties:
-                        enabled:
-                          type: boolean
                         policyIDs:
                           items:
                             type: string

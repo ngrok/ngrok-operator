@@ -32,6 +32,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -161,6 +162,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		return err
 	}
 
+	// TODO: clean this up. This is way too much nesting
 	for i, routeSpec := range edge.Spec.Routes {
 		backend, err := tunnelGroupReconciler.findOrCreate(ctx, routeSpec.Backend)
 		if err != nil {
@@ -180,17 +182,6 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 					BackendID: backend.ID,
 				},
 			}
-			if routeSpec.Compression != nil {
-				req.Compression = &ngrok.EndpointCompression{
-					Enabled: routeSpec.Compression.Enabled,
-				}
-			}
-			if routeSpec.IPRestriction != nil {
-				req.IPRestriction = &ngrok.EndpointIPPolicyMutate{
-					Enabled:     routeSpec.IPRestriction.Enabled,
-					IPPolicyIDs: routeSpec.IPRestriction.IPPolicyIDs,
-				}
-			}
 			route, err = r.NgrokClientset.HTTPSEdgeRoutes().Create(ctx, req)
 		} else {
 			r.Log.Info("Updating route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
@@ -203,17 +194,6 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 				Backend: &ngrok.EndpointBackendMutate{
 					BackendID: backend.ID,
 				},
-			}
-			if routeSpec.Compression != nil {
-				req.Compression = &ngrok.EndpointCompression{
-					Enabled: routeSpec.Compression.Enabled,
-				}
-			}
-			if routeSpec.IPRestriction != nil {
-				req.IPRestriction = &ngrok.EndpointIPPolicyMutate{
-					Enabled:     routeSpec.IPRestriction.Enabled,
-					IPPolicyIDs: routeSpec.IPRestriction.IPPolicyIDs,
-				}
 			}
 			route, err = r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, req)
 		}
@@ -231,11 +211,50 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 				ID: route.Backend.Backend.ID,
 			}
 		}
+
+		if err := r.setEdgeRouteCompression(ctx, edge.Status.ID, route.ID, routeSpec.Compression); err != nil {
+			return err
+		}
+		if err := r.setEdgeRouteIPRestriction(ctx, edge.Status.ID, route.ID, routeSpec.IPRestriction); err != nil {
+			return err
+		}
 	}
 
 	edge.Status.Routes = routeStatuses
 
 	return r.Status().Update(ctx, edge)
+}
+
+func (r *HTTPSEdgeReconciler) setEdgeRouteCompression(ctx context.Context, edgeID string, routeID string, compression *ingressv1alpha1.EndpointCompression) error {
+	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().Compression()
+
+	if compression == nil {
+		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edgeID, ID: routeID})
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteCompressionReplace{
+		EdgeID: edgeID,
+		ID:     routeID,
+		Module: ngrok.EndpointCompression{
+			Enabled: pointer.Bool(compression.Enabled),
+		},
+	})
+	return err
+}
+
+func (r *HTTPSEdgeReconciler) setEdgeRouteIPRestriction(ctx context.Context, edgeID string, routeID string, ipRestriction *ingressv1alpha1.EndpointIPPolicy) error {
+	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().IPRestriction()
+	if ipRestriction == nil || len(ipRestriction.IPPolicyIDs) == 0 {
+		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edgeID, ID: routeID})
+	}
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteIPRestrictionReplace{
+		EdgeID: edgeID,
+		ID:     routeID,
+		Module: ngrok.EndpointIPPolicyMutate{
+			IPPolicyIDs: ipRestriction.IPPolicyIDs,
+		},
+	})
+	return err
 }
 
 func (r *HTTPSEdgeReconciler) findEdgeByHostports(ctx context.Context, hostports []string) (*ngrok.HTTPSEdge, error) {

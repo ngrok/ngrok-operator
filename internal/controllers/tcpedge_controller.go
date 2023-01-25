@@ -167,14 +167,6 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 }
 
 func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
-	var ipRestriction *ngrok.EndpointIPPolicyMutate
-	if edge.Spec.IPRestriction != nil {
-		ipRestriction = &ngrok.EndpointIPPolicyMutate{
-			Enabled:     edge.Spec.IPRestriction.Enabled,
-			IPPolicyIDs: edge.Spec.IPRestriction.IPPolicyIDs,
-		}
-	}
-
 	if edge.Status.ID != "" {
 		// An edge already exists, make sure everything matches
 		resp, err := r.NgrokClientset.TCPEdges().Get(ctx, edge.Status.ID)
@@ -191,8 +183,7 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 
 		// If the backend or hostports do not match, update the edge with the desired backend and hostports
 		if resp.Backend.Backend.ID != edge.Status.Backend.ID ||
-			!reflect.DeepEqual(resp.Hostports, edge.Status.Hostports) ||
-			!reflect.DeepEqual(resp.IpRestriction, ipRestriction) {
+			!reflect.DeepEqual(resp.Hostports, edge.Status.Hostports) {
 			resp, err = r.NgrokClientset.TCPEdges().Update(ctx, &ngrok.TCPEdgeUpdate{
 				ID:          resp.ID,
 				Description: pointer.String(edge.Spec.Description),
@@ -201,7 +192,6 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 				Backend: &ngrok.EndpointBackendMutate{
 					BackendID: edge.Status.Backend.ID,
 				},
-				IPRestriction: ipRestriction,
 			})
 			if err != nil {
 				return err
@@ -229,14 +219,18 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 		Backend: &ngrok.EndpointBackendMutate{
 			BackendID: edge.Status.Backend.ID,
 		},
-		IPRestriction: ipRestriction,
 	})
 	if err != nil {
 		return err
 	}
 	r.Log.Info("Created new TCPEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
 
-	return r.updateEdgeStatus(ctx, edge, resp)
+	if err := r.updateEdgeStatus(ctx, edge, resp); err != nil {
+		return err
+	}
+
+	return r.updateIPRestrictionRouteModule(ctx, edge, resp)
+
 }
 
 func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backendLabels map[string]string) (*ngrok.TCPEdge, error) {
@@ -320,4 +314,18 @@ func (r *TCPEdgeReconciler) metadataForEdge(edge *ingressv1alpha1.TCPEdge) strin
 
 func (r *TCPEdgeReconciler) descriptionForEdge(edge *ingressv1alpha1.TCPEdge) string {
 	return fmt.Sprintf("Reserved for %s/%s", edge.Namespace, edge.Name)
+}
+
+func (r *TCPEdgeReconciler) updateIPRestrictionRouteModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
+	if edge.Spec.IPRestriction == nil {
+		return r.NgrokClientset.EdgeModules().TCP().IPRestriction().Delete(ctx, edge.Status.ID)
+	} else {
+		_, err := r.NgrokClientset.EdgeModules().TCP().IPRestriction().Replace(ctx, &ngrok.EdgeIPRestrictionReplace{
+			ID: edge.Status.ID,
+			Module: ngrok.EndpointIPPolicyMutate{
+				IPPolicyIDs: edge.Spec.IPRestriction.IPPolicyIDs,
+			},
+		})
+		return err
+	}
 }
