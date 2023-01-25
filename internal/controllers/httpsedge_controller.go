@@ -37,10 +37,9 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
-	httpsedge "github.com/ngrok/ngrok-api-go/v5/edges/https"
-	httpsedgeroutes "github.com/ngrok/ngrok-api-go/v5/edges/https_routes"
 )
 
 // HTTPSEdgeReconciler reconciles a HTTPSEdge object
@@ -51,9 +50,7 @@ type HTTPSEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	HTTPSEdgeClient          *httpsedge.Client
-	HTTPSEdgeRoutesClient    *httpsedgeroutes.Client
-	TunnelGroupBackendClient *tunnel_group.Client
+	NgrokClientset ngrokapi.Clientset
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -95,7 +92,7 @@ func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if hasFinalizer(edge) {
 			if edge.Status.ID != "" {
 				r.Recorder.Event(edge, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting Edge %s", edge.Name))
-				if err := r.HTTPSEdgeClient.Delete(ctx, edge.Status.ID); err != nil {
+				if err := r.NgrokClientset.HTTPSEdges().Delete(ctx, edge.Status.ID); err != nil {
 					if !ngrok.IsNotFound(err) {
 						r.Recorder.Event(edge, v1.EventTypeWarning, "FailedDelete", fmt.Sprintf("Failed to delete Edge %s: %s", edge.Name, err.Error()))
 						return ctrl.Result{}, err
@@ -125,7 +122,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 	if edge.Status.ID != "" {
 		// We already have an ID, so we can just update the resource
 		// TODO: Update the edge if the hostports don't match or the metadata doesn't match
-		remoteEdge, err = r.HTTPSEdgeClient.Get(ctx, edge.Status.ID)
+		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
 		if err != nil {
 			return err
 		}
@@ -138,7 +135,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 
 		// Not found, so create it
 		if remoteEdge == nil {
-			remoteEdge, err = r.HTTPSEdgeClient.Create(ctx, &ngrok.HTTPSEdgeCreate{
+			remoteEdge, err = r.NgrokClientset.HTTPSEdges().Create(ctx, &ngrok.HTTPSEdgeCreate{
 				Metadata:    edge.Spec.Metadata,
 				Description: edge.Spec.Description,
 				Hostports:   edge.Spec.Hostports,
@@ -159,7 +156,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 // TODO: This is going to be a bit messy right now, come back and make this cleaner
 func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, remoteEdge *ngrok.HTTPSEdge) error {
 	routeStatuses := make([]ingressv1alpha1.HTTPSEdgeRouteStatus, len(edge.Spec.Routes))
-	tunnelGroupReconciler, err := newTunnelGroupBackendReconciler(r.TunnelGroupBackendClient)
+	tunnelGroupReconciler, err := newTunnelGroupBackendReconciler(r.NgrokClientset.TunnelGroupBackends())
 	if err != nil {
 		return err
 	}
@@ -194,7 +191,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 					IPPolicyIDs: routeSpec.IPRestriction.IPPolicyIDs,
 				}
 			}
-			route, err = r.HTTPSEdgeRoutesClient.Create(ctx, req)
+			route, err = r.NgrokClientset.HTTPSEdgeRoutes().Create(ctx, req)
 		} else {
 			r.Log.Info("Updating route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
 			// This is an existing route, so we need to update it
@@ -218,7 +215,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 					IPPolicyIDs: routeSpec.IPRestriction.IPPolicyIDs,
 				}
 			}
-			route, err = r.HTTPSEdgeRoutesClient.Update(ctx, req)
+			route, err = r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, req)
 		}
 		if err != nil {
 			return err
@@ -242,7 +239,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 }
 
 func (r *HTTPSEdgeReconciler) findEdgeByHostports(ctx context.Context, hostports []string) (*ngrok.HTTPSEdge, error) {
-	iter := r.HTTPSEdgeClient.List(&ngrok.Paging{})
+	iter := r.NgrokClientset.HTTPSEdges().List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		edge := iter.Item()
 
