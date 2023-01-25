@@ -218,6 +218,20 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		if err := r.setEdgeRouteIPRestriction(ctx, edge.Status.ID, route.ID, routeSpec.IPRestriction); err != nil {
 			return err
 		}
+		var requestHeaders *ingressv1alpha1.EndpointRequestHeaders
+		if routeSpec.Headers != nil {
+			requestHeaders = routeSpec.Headers.Request
+		}
+		if err := r.setEdgeRouteRequestHeaders(ctx, edge.Status.ID, route.ID, requestHeaders); err != nil {
+			return err
+		}
+		var responseHeaders *ingressv1alpha1.EndpointResponseHeaders
+		if routeSpec.Headers != nil {
+			responseHeaders = routeSpec.Headers.Response
+		}
+		if err := r.setEdgeRouteResponseHeaders(ctx, edge.Status.ID, route.ID, responseHeaders); err != nil {
+			return err
+		}
 	}
 
 	edge.Status.Routes = routeStatuses
@@ -253,6 +267,50 @@ func (r *HTTPSEdgeReconciler) setEdgeRouteIPRestriction(ctx context.Context, edg
 		Module: ngrok.EndpointIPPolicyMutate{
 			IPPolicyIDs: ipRestriction.IPPolicyIDs,
 		},
+	})
+	return err
+}
+
+func (r *HTTPSEdgeReconciler) setEdgeRouteRequestHeaders(ctx context.Context, edgeID string, routeID string, requestHeaders *ingressv1alpha1.EndpointRequestHeaders) error {
+	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().RequestHeaders()
+	if requestHeaders == nil {
+		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edgeID, ID: routeID})
+	}
+
+	module := ngrok.EndpointRequestHeaders{}
+	if len(requestHeaders.Add) > 0 {
+		module.Add = requestHeaders.Add
+	}
+	if len(requestHeaders.Remove) > 0 {
+		module.Remove = requestHeaders.Remove
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteRequestHeadersReplace{
+		EdgeID: edgeID,
+		ID:     routeID,
+		Module: module,
+	})
+	return err
+}
+
+func (r *HTTPSEdgeReconciler) setEdgeRouteResponseHeaders(ctx context.Context, edgeID string, routeID string, responseHeaders *ingressv1alpha1.EndpointResponseHeaders) error {
+	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().ResponseHeaders()
+	if responseHeaders == nil {
+		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edgeID, ID: routeID})
+	}
+
+	module := ngrok.EndpointResponseHeaders{}
+	if len(responseHeaders.Add) > 0 {
+		module.Add = responseHeaders.Add
+	}
+	if len(responseHeaders.Remove) > 0 {
+		module.Remove = responseHeaders.Remove
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteResponseHeadersReplace{
+		EdgeID: edgeID,
+		ID:     routeID,
+		Module: module,
 	})
 	return err
 }
