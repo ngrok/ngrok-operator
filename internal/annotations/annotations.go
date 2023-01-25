@@ -23,6 +23,7 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/headers"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/ip_policies"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/webhook_verification"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/klog/v2"
@@ -32,9 +33,10 @@ import (
 const DeniedKeyName = "Denied"
 
 type RouteModules struct {
-	Compression   *ingressv1alpha1.EndpointCompression
-	Headers       *ingressv1alpha1.EndpointHeaders
-	IPRestriction *ingressv1alpha1.EndpointIPPolicy
+	Compression         *ingressv1alpha1.EndpointCompression
+	Headers             *ingressv1alpha1.EndpointHeaders
+	IPRestriction       *ingressv1alpha1.EndpointIPPolicy
+	WebhookVerification *ingressv1alpha1.EndpointWebhookValidation
 }
 
 type Extractor struct {
@@ -44,9 +46,10 @@ type Extractor struct {
 func NewAnnotationsExtractor() Extractor {
 	return Extractor{
 		annotations: map[string]parser.IngressAnnotation{
-			"Compression":   compression.NewParser(),
-			"Headers":       headers.NewParser(),
-			"IPRestriction": ip_policies.NewParser(),
+			"Compression":         compression.NewParser(),
+			"Headers":             headers.NewParser(),
+			"IPRestriction":       ip_policies.NewParser(),
+			"WebhookVerification": webhook_verification.NewParser(),
 		},
 	}
 }
