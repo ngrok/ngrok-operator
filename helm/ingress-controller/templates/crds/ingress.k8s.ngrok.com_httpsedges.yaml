@@ -88,12 +88,52 @@ spec:
                       description: Description is a human-readable description of
                         the object in the ngrok API/Dashboard
                       type: string
+                    headers:
+                      description: Headers are request/response headers to apply to
+                        this route
+                      properties:
+                        request:
+                          description: Request headers are the request headers module
+                            configuration or null
+                          properties:
+                            add:
+                              additionalProperties:
+                                type: string
+                              description: a map of header key to header value that
+                                will be injected into the HTTP Request before being
+                                sent to the upstream application server
+                              type: object
+                            remove:
+                              description: a list of header names that will be removed
+                                from the HTTP Request before being sent to the upstream
+                                application server
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        response:
+                          description: Response headers are the response headers module
+                            configuration or null
+                          properties:
+                            add:
+                              additionalProperties:
+                                type: string
+                              description: a map of header key to header value that
+                                will be injected into the HTTP Response returned to
+                                the HTTP client
+                              type: object
+                            remove:
+                              description: a list of header names that will be removed
+                                from the HTTP Response returned to the HTTP client
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                      type: object
                     ipRestriction:
                       description: IPRestriction is an IPRestriction to apply to this
                         route
                       properties:
-                        enabled:
-                          type: boolean
                         policyIDs:
                           items:
                             type: string

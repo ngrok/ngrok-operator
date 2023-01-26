@@ -53,6 +53,9 @@ type HTTPSEdgeRouteSpec struct {
 
 	// IPRestriction is an IPRestriction to apply to this route
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
+
+	// Headers are request/response headers to apply to this route
+	Headers *EndpointHeaders `json:"headers,omitempty"`
 }
 
 // HTTPSEdgeSpec defines the desired state of HTTPSEdge

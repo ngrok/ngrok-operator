@@ -174,6 +174,7 @@ func (irec *IngressReconciler) routesPlanner(ctx context.Context, ingress *netv1
 			},
 			Compression:   parsedRouteModules.Compression,
 			IPRestriction: parsedRouteModules.IPRestriction,
+			Headers:       parsedRouteModules.Headers,
 		}
 
 		ngrokRoutes = append(ngrokRoutes, route)

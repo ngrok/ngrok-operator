@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 )
 
 func makeTestBackend(serviceName string, servicePort int32) netv1.IngressBackend {
@@ -72,6 +71,9 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-ingress",
 					Namespace: "test-namespace",
+					Annotations: map[string]string{
+						"k8s.ngrok.com/https-compression": "false",
+					},
 				},
 				Spec: netv1.IngressSpec{
 					Rules: []netv1.IngressRule{
@@ -109,6 +111,9 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 									"k8s.ngrok.com/service":   "test-service",
 									"k8s.ngrok.com/port":      "8080",
 								},
+							},
+							Compression: &ingressv1alpha1.EndpointCompression{
+								Enabled: false,
 							},
 						},
 					},
@@ -164,10 +169,9 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 								},
 							},
 							Compression: &ingressv1alpha1.EndpointCompression{
-								Enabled: pointer.Bool(true),
+								Enabled: true,
 							},
 							IPRestriction: &ingressv1alpha1.EndpointIPPolicy{
-								Enabled:     pointer.Bool(true),
 								IPPolicyIDs: []string{"policy-1", "policy-2"},
 							},
 						},
