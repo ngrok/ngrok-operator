@@ -9,6 +9,7 @@ based on the `spec.rules` defined in the Ingress resource. It will then configur
   - [Request Headers](#request-headers)
   - [Response Headers](#response-headers)
 - [IP Restriction](#ip-restriction)
+- [Webhook Verification](#webhook-verification)
 
 
 ## Compression
@@ -88,4 +89,27 @@ metadata:
     k8s.ngrok.com/ip-policy-ids: "ipp_ABC123tV8hrTPdf0Q0lS4KC,ipp_ABCD123V8hrTPdf0Q0lS4"
 spec:
   ...
+```
+
+
+## Webhook Verification
+
+The following annotations can be used to configure the [Webhook Verification module](https://ngrok.com/docs/cloud-edge/modules/webhook).
+
+* `k8s.ngrok.com/webhook-validation-provider` - The webhook provider to use.
+* `k8s.ngrok.com/webhook-validation-secret-name` - The name of the Kubernetes Secret that contains the webhook secret.
+* `k8s.ngrok.com/webhook-validation-secret-key` - The key in the Kubernetes Secret that contains the webhook secret.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minimal-ingress
+  annotations:
+    k8s.ngrok.com/webhook-validation-provider: "github"
+    k8s.ngrok.com/webhook-validation-secret-name: "github-webhook-token"
+    k8s.ngrok.com/webhook-validation-secret-key: "SECRET_TOKEN"
+spec:
+  ...
+
 ```
