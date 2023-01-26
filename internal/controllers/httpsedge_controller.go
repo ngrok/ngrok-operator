@@ -31,6 +31,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -232,6 +233,9 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		if err := r.setEdgeRouteResponseHeaders(ctx, edge.Status.ID, route.ID, responseHeaders); err != nil {
 			return err
 		}
+		if err := r.setEdgeRouteWebhookVerification(ctx, edge, route.ID, routeSpec.WebhookVerification); err != nil {
+			return err
+		}
 	}
 
 	edge.Status.Routes = routeStatuses
@@ -309,6 +313,40 @@ func (r *HTTPSEdgeReconciler) setEdgeRouteResponseHeaders(ctx context.Context, e
 
 	_, err := client.Replace(ctx, &ngrok.EdgeRouteResponseHeadersReplace{
 		EdgeID: edgeID,
+		ID:     routeID,
+		Module: module,
+	})
+	return err
+}
+
+func (r *HTTPSEdgeReconciler) setEdgeRouteWebhookVerification(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, routeID string, webhookValidation *ingressv1alpha1.EndpointWebhookValidation) error {
+	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().WebhookVerification()
+	if webhookValidation == nil {
+		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edge.Status.ID, ID: routeID})
+	}
+
+	// TODO: Get the secret from the store
+	secret := &v1.Secret{}
+	err := r.Client.Get(ctx, types.NamespacedName{
+		Name:      webhookValidation.SecretRef.Name,
+		Namespace: edge.Namespace,
+	}, secret)
+	if err != nil {
+		return err
+	}
+
+	webhookSecret, ok := secret.Data[webhookValidation.SecretRef.Key]
+	if !ok {
+		return fmt.Errorf("secret %s/%s does not contain key %s", edge.Namespace, webhookValidation.SecretRef.Name, webhookValidation.SecretRef.Key)
+	}
+
+	module := ngrok.EndpointWebhookValidation{
+		Provider: webhookValidation.Provider,
+		Secret:   string(webhookSecret),
+	}
+
+	_, err = client.Replace(ctx, &ngrok.EdgeRouteWebhookVerificationReplace{
+		EdgeID: edge.Status.ID,
 		ID:     routeID,
 		Module: module,
 	})
