@@ -234,6 +234,23 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		}
 	}
 
+	// Delete any routes that are no longer in the spec
+	for _, remoteRoute := range remoteEdge.Routes {
+		found := false
+		for _, routeStatus := range routeStatuses {
+			if routeStatus.ID == remoteRoute.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			r.Log.Info("Deleting route", "edgeID", edge.Status.ID, "routeID", remoteRoute.ID)
+			if err := r.NgrokClientset.HTTPSEdgeRoutes().Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edge.Status.ID, ID: remoteRoute.ID}); err != nil {
+				return err
+			}
+		}
+	}
+
 	edge.Status.Routes = routeStatuses
 
 	return r.Status().Update(ctx, edge)
