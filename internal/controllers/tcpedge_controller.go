@@ -31,10 +31,14 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
@@ -50,13 +54,21 @@ type TCPEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
+	ipPolicyResolver
+
 	NgrokClientset ngrokapi.Clientset
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.ipPolicyResolver = ipPolicyResolver{client: mgr.GetClient()}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.TCPEdge{}).
+		Watches(
+			&source.Kind{Type: &ingressv1alpha1.IPPolicy{}},
+			handler.EnqueueRequestsFromMapFunc(r.listTCPEdgesForIPPolicy),
+		).
 		Complete(r)
 }
 
@@ -317,15 +329,57 @@ func (r *TCPEdgeReconciler) descriptionForEdge(edge *ingressv1alpha1.TCPEdge) st
 }
 
 func (r *TCPEdgeReconciler) updateIPRestrictionRouteModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
-	if edge.Spec.IPRestriction == nil {
+	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TCP().IPRestriction().Delete(ctx, edge.Status.ID)
-	} else {
-		_, err := r.NgrokClientset.EdgeModules().TCP().IPRestriction().Replace(ctx, &ngrok.EdgeIPRestrictionReplace{
-			ID: edge.Status.ID,
-			Module: ngrok.EndpointIPPolicyMutate{
-				IPPolicyIDs: edge.Spec.IPRestriction.IPPolicyIDs,
-			},
-		})
+	}
+	policyIds, err := r.ipPolicyResolver.resolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
+	if err != nil {
 		return err
 	}
+	r.Log.Info("Resolved IP Policy NamesOrIDs to IDs", "policyIds", policyIds)
+
+	_, err = r.NgrokClientset.EdgeModules().TCP().IPRestriction().Replace(ctx, &ngrok.EdgeIPRestrictionReplace{
+		ID: edge.Status.ID,
+		Module: ngrok.EndpointIPPolicyMutate{
+			IPPolicyIDs: policyIds,
+		},
+	})
+	return err
+}
+
+func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(obj client.Object) []reconcile.Request {
+	r.Log.Info("Listing TCPEdges for ip policy to determine if they need to be reconciled")
+	policy, ok := obj.(*ingressv1alpha1.IPPolicy)
+	if !ok {
+		r.Log.Error(nil, "failed to convert object to IPPolicy", "object", obj)
+		return []reconcile.Request{}
+	}
+
+	edges := &ingressv1alpha1.TCPEdgeList{}
+	if err := r.Client.List(context.Background(), edges); err != nil {
+		r.Log.Error(err, "failed to list TCPEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
+		return []reconcile.Request{}
+	}
+
+	recs := []reconcile.Request{}
+
+	for _, edge := range edges.Items {
+		if edge.Spec.IPRestriction == nil {
+			continue
+		}
+		for _, edgePolicyID := range edge.Spec.IPRestriction.IPPolicies {
+			if edgePolicyID == policy.Name || edgePolicyID == policy.Status.ID {
+				recs = append(recs, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      edge.GetName(),
+						Namespace: edge.GetNamespace(),
+					},
+				})
+				break
+			}
+		}
+	}
+
+	r.Log.Info("IPPolicy change triggered TCPEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
+	return recs
 }

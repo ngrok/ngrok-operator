@@ -18,7 +18,7 @@ type EndpointCompression struct {
 }
 
 type EndpointIPPolicy struct {
-	IPPolicyIDs []string `json:"policyIDs,omitempty"`
+	IPPolicies []string `json:"policies,omitempty"`
 }
 
 // EndpointRequestHeaders is the configuration for a HTTPSEdgeRoute's request headers

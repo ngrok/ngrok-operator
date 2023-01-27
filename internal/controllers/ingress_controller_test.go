@@ -128,7 +128,7 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 					Namespace: "test-namespace",
 					Annotations: map[string]string{
 						"k8s.ngrok.com/https-compression": "true",
-						"k8s.ngrok.com/ip-policy-ids":     "policy-1,policy-2",
+						"k8s.ngrok.com/ip-policies":       "policy-1,policy-2",
 						"k8s.ngrok.com/tls-min-version":   "1.3",
 					},
 				},
@@ -176,7 +176,7 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 								Enabled: true,
 							},
 							IPRestriction: &ingressv1alpha1.EndpointIPPolicy{
-								IPPolicyIDs: []string{"policy-1", "policy-2"},
+								IPPolicies: []string{"policy-1", "policy-2"},
 							},
 						},
 					},

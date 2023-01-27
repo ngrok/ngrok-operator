@@ -79,7 +79,7 @@ metadata:
 
 ## IP Restriction
 
-The `k8s.ngrok.com/ip-policy-ids` annotation can be used to restrict access to all routes defined in the Ingress resource to a list of IP Policies. The annotation accepts a comma-separated list of IP Policy IDs. If not specified(default), the `IP Restriction` module will be disabled in ngrok for any Edge HTTPS Routes the annotation applies to.
+The `k8s.ngrok.com/ip-policies` annotation can be used to restrict access to all routes defined in the Ingress resource to a list of IP Policies. The annotation accepts a comma-separated list of IP Policies by either IP Policy ID or the name of an `ippolicies.ingress.k8s.ngrok.com` resource. If not specified(default), the `IP Restriction` module will be disabled in ngrok for any Edge HTTPS Routes the annotation applies to.
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -87,7 +87,7 @@ kind: Ingress
 metadata:
   name: minimal-ingress
   annotations:
-    k8s.ngrok.com/ip-policy-ids: "ipp_ABC123tV8hrTPdf0Q0lS4KC,ipp_ABCD123V8hrTPdf0Q0lS4"
+    k8s.ngrok.com/ip-policies: "ipp_ABC123tV8hrTPdf0Q0lS4KC,my-policy"
 spec:
   ...
 ```
