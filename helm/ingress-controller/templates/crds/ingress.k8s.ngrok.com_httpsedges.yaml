@@ -160,6 +160,15 @@ spec:
                   - matchType
                   type: object
                 type: array
+              tlsTermination:
+                description: TLSTermination is the TLS termination configuration for
+                  this edge
+                properties:
+                  minVersion:
+                    description: MinVersion is the minimum TLS version to allow for
+                      connections to the edge
+                    type: string
+                type: object
             type: object
           status:
             description: HTTPSEdgeStatus defines the observed state of HTTPSEdge

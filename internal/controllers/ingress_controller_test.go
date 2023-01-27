@@ -129,6 +129,7 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 					Annotations: map[string]string{
 						"k8s.ngrok.com/https-compression": "true",
 						"k8s.ngrok.com/ip-policy-ids":     "policy-1,policy-2",
+						"k8s.ngrok.com/tls-min-version":   "1.3",
 					},
 				},
 				Spec: netv1.IngressSpec{
@@ -157,6 +158,9 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 				},
 				Spec: ingressv1alpha1.HTTPSEdgeSpec{
 					Hostports: []string{"my-test-tunnel.ngrok.io:443"},
+					TLSTermination: &ingressv1alpha1.EndpointTLSTerminationAtEdge{
+						MinVersion: "1.3",
+					},
 					Routes: []ingressv1alpha1.HTTPSEdgeRouteSpec{
 						{
 							Match:     "/",

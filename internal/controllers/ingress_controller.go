@@ -145,14 +145,12 @@ func (irec *IngressReconciler) reconcileAll(ctx context.Context, ingress *netv1.
 }
 
 // Converts a k8s Ingress Rule to and ngrok Route configuration.
-func (irec *IngressReconciler) routesPlanner(ctx context.Context, ingress *netv1.Ingress) ([]ingressv1alpha1.HTTPSEdgeRouteSpec, error) {
+func (irec *IngressReconciler) routesPlanner(ctx context.Context, ingress *netv1.Ingress, parsedRouteModules *annotations.RouteModules) ([]ingressv1alpha1.HTTPSEdgeRouteSpec, error) {
 	namespace := ingress.Namespace
 	rule := ingress.Spec.Rules[0]
 
 	var matchType string
 	var ngrokRoutes []ingressv1alpha1.HTTPSEdgeRouteSpec
-
-	parsedRouteModules := irec.AnnotationsExtractor.Extract(ingress)
 
 	for _, httpIngressPath := range rule.HTTP.Paths {
 		switch *httpIngressPath.PathType {
@@ -196,7 +194,9 @@ func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1
 		return nil, nil
 	}
 
-	ngrokRoutes, err := irec.routesPlanner(ctx, ingress)
+	parsedRouteModules := irec.AnnotationsExtractor.Extract(ingress)
+
+	ngrokRoutes, err := irec.routesPlanner(ctx, ingress, parsedRouteModules)
 	if err != nil {
 		return nil, err
 	}
@@ -207,8 +207,9 @@ func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1
 			Name:      ingress.Name,
 		},
 		Spec: ingressv1alpha1.HTTPSEdgeSpec{
-			Hostports: []string{ingress.Spec.Rules[0].Host + ":443"},
-			Routes:    ngrokRoutes,
+			Hostports:      []string{ingress.Spec.Rules[0].Host + ":443"},
+			Routes:         ngrokRoutes,
+			TLSTermination: parsedRouteModules.TLSTermination,
 		},
 	}, nil
 }

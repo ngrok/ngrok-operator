@@ -151,7 +151,11 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 		return err
 	}
 
-	return r.reconcileRoutes(ctx, edge, remoteEdge)
+	if err = r.reconcileRoutes(ctx, edge, remoteEdge); err != nil {
+		return err
+	}
+
+	return r.setEdgeTLSTermination(ctx, edge.Status.ID, edge.Spec.TLSTermination)
 }
 
 // TODO: This is going to be a bit messy right now, come back and make this cleaner
@@ -311,6 +315,21 @@ func (r *HTTPSEdgeReconciler) setEdgeRouteResponseHeaders(ctx context.Context, e
 		EdgeID: edgeID,
 		ID:     routeID,
 		Module: module,
+	})
+	return err
+}
+
+func (r *HTTPSEdgeReconciler) setEdgeTLSTermination(ctx context.Context, edgeID string, tlsTermination *ingressv1alpha1.EndpointTLSTerminationAtEdge) error {
+	client := r.NgrokClientset.EdgeModules().HTTPS().TLSTermination()
+	if tlsTermination == nil {
+		return client.Delete(ctx, edgeID)
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeTLSTerminationAtEdgeReplace{
+		ID: edgeID,
+		Module: ngrok.EndpointTLSTerminationAtEdge{
+			MinVersion: pointer.String(tlsTermination.MinVersion),
+		},
 	})
 	return err
 }

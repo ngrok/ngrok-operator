@@ -49,3 +49,8 @@ type EndpointHeaders struct {
 	// Response headers are the response headers module configuration or null
 	Response *EndpointResponseHeaders `json:"response,omitempty"`
 }
+
+type EndpointTLSTerminationAtEdge struct {
+	// MinVersion is the minimum TLS version to allow for connections to the edge
+	MinVersion string `json:"minVersion,omitempty"`
+}
