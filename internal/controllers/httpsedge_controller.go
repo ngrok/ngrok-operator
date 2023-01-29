@@ -325,7 +325,6 @@ func (r *HTTPSEdgeReconciler) setEdgeRouteWebhookVerification(ctx context.Contex
 		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edge.Status.ID, ID: routeID})
 	}
 
-	// TODO: Get the secret from the store
 	secret := &v1.Secret{}
 	err := r.Client.Get(ctx, types.NamespacedName{
 		Name:      webhookValidation.SecretRef.Name,
