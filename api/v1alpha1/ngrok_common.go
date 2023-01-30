@@ -61,7 +61,6 @@ type EndpointWebhookValidation struct {
 	// a string indicating which webhook provider will be sending webhooks to this
 	// endpoint. Value must be one of the supported providers defined at
 	// https://ngrok.com/docs/cloud-edge#webhook-verification
-	// (https://ngrok.com/docs/cloud-edge#webhook-verification)
 	Provider string `json:"provider,omitempty"`
 	// SecretRef is a reference to a secret containing the secret used to validate
 	// requests from the given provider. All providers except AWS SNS require a secret
