@@ -6,7 +6,7 @@ import (
 	networking "k8s.io/api/networking/v1"
 )
 
-type EndpointWebhookValidation = ingressv1alpha1.EndpointWebhookValidation
+type EndpointWebhookVerification = ingressv1alpha1.EndpointWebhookVerification
 type SecretKeyRef = ingressv1alpha1.SecretKeyRef
 
 type webhookVerification struct{}
@@ -16,26 +16,26 @@ func NewParser() parser.IngressAnnotation {
 }
 
 func (wv webhookVerification) Parse(ing *networking.Ingress) (interface{}, error) {
-	provider, err := parser.GetStringAnnotation("webhook-validation-provider", ing)
+	provider, err := parser.GetStringAnnotation("webhook-verification-provider", ing)
 	if err != nil {
 		return nil, err
 	}
 
 	switch provider {
 	case "sns":
-		return &EndpointWebhookValidation{Provider: provider}, nil
+		return &EndpointWebhookVerification{Provider: provider}, nil
 	}
 
-	secretName, err := parser.GetStringAnnotation("webhook-validation-secret-name", ing)
+	secretName, err := parser.GetStringAnnotation("webhook-verification-secret-name", ing)
 	if err != nil {
 		return nil, err
 	}
 
-	secretKey, err := parser.GetStringAnnotation("webhook-validation-secret-key", ing)
+	secretKey, err := parser.GetStringAnnotation("webhook-verification-secret-key", ing)
 	if err != nil {
 		return nil, err
 	}
-	return &EndpointWebhookValidation{
+	return &EndpointWebhookVerification{
 		Provider: provider,
 		SecretRef: &SecretKeyRef{
 			Name: secretName,

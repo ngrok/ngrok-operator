@@ -319,28 +319,28 @@ func (r *HTTPSEdgeReconciler) setEdgeRouteResponseHeaders(ctx context.Context, e
 	return err
 }
 
-func (r *HTTPSEdgeReconciler) setEdgeRouteWebhookVerification(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, routeID string, webhookValidation *ingressv1alpha1.EndpointWebhookValidation) error {
+func (r *HTTPSEdgeReconciler) setEdgeRouteWebhookVerification(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, routeID string, webhookVerification *ingressv1alpha1.EndpointWebhookVerification) error {
 	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().WebhookVerification()
-	if webhookValidation == nil {
+	if webhookVerification == nil {
 		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edge.Status.ID, ID: routeID})
 	}
 
 	secret := &v1.Secret{}
 	err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      webhookValidation.SecretRef.Name,
+		Name:      webhookVerification.SecretRef.Name,
 		Namespace: edge.Namespace,
 	}, secret)
 	if err != nil {
 		return err
 	}
 
-	webhookSecret, ok := secret.Data[webhookValidation.SecretRef.Key]
+	webhookSecret, ok := secret.Data[webhookVerification.SecretRef.Key]
 	if !ok {
-		return fmt.Errorf("secret %s/%s does not contain key %s", edge.Namespace, webhookValidation.SecretRef.Name, webhookValidation.SecretRef.Key)
+		return fmt.Errorf("secret %s/%s does not contain key %s", edge.Namespace, webhookVerification.SecretRef.Name, webhookVerification.SecretRef.Key)
 	}
 
 	module := ngrok.EndpointWebhookValidation{
-		Provider: webhookValidation.Provider,
+		Provider: webhookVerification.Provider,
 		Secret:   string(webhookSecret),
 	}
 

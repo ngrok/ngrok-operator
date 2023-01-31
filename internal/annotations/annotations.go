@@ -36,7 +36,7 @@ type RouteModules struct {
 	Compression         *ingressv1alpha1.EndpointCompression
 	Headers             *ingressv1alpha1.EndpointHeaders
 	IPRestriction       *ingressv1alpha1.EndpointIPPolicy
-	WebhookVerification *ingressv1alpha1.EndpointWebhookValidation
+	WebhookVerification *ingressv1alpha1.EndpointWebhookVerification
 }
 
 type Extractor struct {

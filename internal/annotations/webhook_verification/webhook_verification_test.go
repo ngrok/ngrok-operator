@@ -23,7 +23,7 @@ func TestWebhookVerificationWhenNotSupplied(t *testing.T) {
 func TestWebhookVerificationWhenSecretRefDataNotSupplied(t *testing.T) {
 	ing := testutil.NewIngress()
 	annotations := map[string]string{}
-	annotations[parser.GetAnnotationWithPrefix("webhook-validation-provider")] = "github"
+	annotations[parser.GetAnnotationWithPrefix("webhook-verification-provider")] = "github"
 	ing.SetAnnotations(annotations)
 
 	parsed, err := NewParser().Parse(ing)
@@ -35,8 +35,8 @@ func TestWebhookVerificationWhenSecretRefDataNotSupplied(t *testing.T) {
 func TestWebhookVerificationWhenSecretRefNameNotSupplied(t *testing.T) {
 	ing := testutil.NewIngress()
 	annotations := map[string]string{}
-	annotations[parser.GetAnnotationWithPrefix("webhook-validation-provider")] = "github"
-	annotations[parser.GetAnnotationWithPrefix("webhook-validation-secret-name")] = "my-webhook-secret"
+	annotations[parser.GetAnnotationWithPrefix("webhook-verification-provider")] = "github"
+	annotations[parser.GetAnnotationWithPrefix("webhook-verification-secret-name")] = "my-webhook-secret"
 	ing.SetAnnotations(annotations)
 
 	parsed, err := NewParser().Parse(ing)
@@ -48,8 +48,8 @@ func TestWebhookVerificationWhenSecretRefNameNotSupplied(t *testing.T) {
 func TestWebhookVerificationWhenSecretRefKeyNotSupplied(t *testing.T) {
 	ing := testutil.NewIngress()
 	annotations := map[string]string{}
-	annotations[parser.GetAnnotationWithPrefix("webhook-validation-provider")] = "github"
-	annotations[parser.GetAnnotationWithPrefix("webhook-validation-secret-key")] = "SECRET_TOKEN"
+	annotations[parser.GetAnnotationWithPrefix("webhook-verification-provider")] = "github"
+	annotations[parser.GetAnnotationWithPrefix("webhook-verification-secret-key")] = "SECRET_TOKEN"
 	ing.SetAnnotations(annotations)
 
 	parsed, err := NewParser().Parse(ing)
@@ -61,16 +61,16 @@ func TestWebhookVerificationWhenSecretRefKeyNotSupplied(t *testing.T) {
 func TestWebhookVerificationWhenAnnotationsAreProvided(t *testing.T) {
 	ing := testutil.NewIngress()
 	annotations := map[string]string{}
-	annotations[parser.GetAnnotationWithPrefix("webhook-validation-provider")] = "github"
-	annotations[parser.GetAnnotationWithPrefix("webhook-validation-secret-name")] = "my-webhook-secret"
-	annotations[parser.GetAnnotationWithPrefix("webhook-validation-secret-key")] = "SECRET_TOKEN"
+	annotations[parser.GetAnnotationWithPrefix("webhook-verification-provider")] = "github"
+	annotations[parser.GetAnnotationWithPrefix("webhook-verification-secret-name")] = "my-webhook-secret"
+	annotations[parser.GetAnnotationWithPrefix("webhook-verification-secret-key")] = "SECRET_TOKEN"
 	ing.SetAnnotations(annotations)
 
 	parsed, err := NewParser().Parse(ing)
 	assert.NoError(t, err)
 	assert.NotNil(t, parsed)
 
-	webhookVerification, ok := parsed.(*ingressv1alpha1.EndpointWebhookValidation)
+	webhookVerification, ok := parsed.(*ingressv1alpha1.EndpointWebhookVerification)
 	if !ok {
 		t.Fatalf("expected *ingressv1alpha1.WebhookVerification, got %T", parsed)
 	}

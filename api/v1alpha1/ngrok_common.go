@@ -57,7 +57,7 @@ type SecretKeyRef struct {
 	Key string `json:"key,omitempty"`
 }
 
-type EndpointWebhookValidation struct {
+type EndpointWebhookVerification struct {
 	// a string indicating which webhook provider will be sending webhooks to this
 	// endpoint. Value must be one of the supported providers defined at
 	// https://ngrok.com/docs/cloud-edge#webhook-verification

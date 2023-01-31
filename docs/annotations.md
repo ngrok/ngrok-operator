@@ -96,9 +96,9 @@ spec:
 
 The following annotations can be used to configure the [Webhook Verification module](https://ngrok.com/docs/cloud-edge/modules/webhook).
 
-* `k8s.ngrok.com/webhook-validation-provider` - The webhook provider to use.
-* `k8s.ngrok.com/webhook-validation-secret-name` - The name of the Kubernetes Secret that contains the webhook secret.
-* `k8s.ngrok.com/webhook-validation-secret-key` - The key in the Kubernetes Secret that contains the webhook secret.
+* `k8s.ngrok.com/webhook-verification-provider` - The webhook provider to use.
+* `k8s.ngrok.com/webhook-verification-secret-name` - The name of the Kubernetes Secret that contains the webhook secret.
+* `k8s.ngrok.com/webhook-verification-secret-key` - The key in the Kubernetes Secret that contains the webhook secret.
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -106,9 +106,9 @@ kind: Ingress
 metadata:
   name: minimal-ingress
   annotations:
-    k8s.ngrok.com/webhook-validation-provider: "github"
-    k8s.ngrok.com/webhook-validation-secret-name: "github-webhook-token"
-    k8s.ngrok.com/webhook-validation-secret-key: "SECRET_TOKEN"
+    k8s.ngrok.com/webhook-verification-provider: "github"
+    k8s.ngrok.com/webhook-verification-secret-name: "github-webhook-token"
+    k8s.ngrok.com/webhook-verification-secret-key: "SECRET_TOKEN"
 spec:
   ...
 
