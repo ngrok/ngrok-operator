@@ -68,6 +68,9 @@ type HTTPSEdgeSpec struct {
 
 	// Routes is a list of routes served by this edge
 	Routes []HTTPSEdgeRouteSpec `json:"routes,omitempty"`
+
+	// TLSTermination is the TLS termination configuration for this edge
+	TLSTermination *EndpointTLSTerminationAtEdge `json:"tlsTermination,omitempty"`
 }
 
 type HTTPSEdgeRouteStatus struct {
