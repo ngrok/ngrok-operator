@@ -155,6 +155,28 @@ spec:
                       description: Metadata is a string of arbitrary data associated
                         with the object in the ngrok API/Dashboard
                       type: string
+                    webhookVerification:
+                      description: WebhookVerification is webhook verification configuration
+                        to apply to this route
+                      properties:
+                        provider:
+                          description: a string indicating which webhook provider
+                            will be sending webhooks to this endpoint. Value must
+                            be one of the supported providers defined at https://ngrok.com/docs/cloud-edge#webhook-verification
+                          type: string
+                        secret:
+                          description: SecretRef is a reference to a secret containing
+                            the secret used to validate requests from the given provider.
+                            All providers except AWS SNS require a secret
+                          properties:
+                            key:
+                              description: Key in the secret to use
+                              type: string
+                            name:
+                              description: Name of the Kubernetes secret
+                              type: string
+                          type: object
+                      type: object
                   required:
                   - match
                   - matchType

@@ -11,7 +11,7 @@ based on the `spec.rules` defined in the Ingress resource. It will then configur
 - [IP Restriction](#ip-restriction)
 - [TLS Termination](#tls-termination)
   - [Setting Minimum TLS Version](#setting-minimum-tls-version)
-
+- [Webhook Verification](#webhook-verification)
 
 ## Compression
 
@@ -92,6 +92,7 @@ spec:
   ...
 ```
 
+
 ## TLS Termination
 
 ### Setting Minimum TLS Version
@@ -106,6 +107,27 @@ metadata:
   name: minimal-ingress
   annotations:
     k8s.ngrok.com/tls-min-version: "1.3"
+spec:
+  ...
+```
+
+## Webhook Verification
+
+The following annotations can be used to configure the [Webhook Verification module](https://ngrok.com/docs/cloud-edge/modules/webhook).
+
+* `k8s.ngrok.com/webhook-verification-provider` - The webhook provider to use.
+* `k8s.ngrok.com/webhook-verification-secret-name` - The name of the Kubernetes Secret that contains the webhook secret.
+* `k8s.ngrok.com/webhook-verification-secret-key` - The key in the Kubernetes Secret that contains the webhook secret.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minimal-ingress
+  annotations:
+    k8s.ngrok.com/webhook-verification-provider: "github"
+    k8s.ngrok.com/webhook-verification-secret-name: "github-webhook-token"
+    k8s.ngrok.com/webhook-verification-secret-key: "SECRET_TOKEN"
 spec:
   ...
 ```

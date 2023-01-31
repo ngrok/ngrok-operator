@@ -56,6 +56,9 @@ type HTTPSEdgeRouteSpec struct {
 
 	// Headers are request/response headers to apply to this route
 	Headers *EndpointHeaders `json:"headers,omitempty"`
+
+	// WebhookVerification is webhook verification configuration to apply to this route
+	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
 }
 
 // HTTPSEdgeSpec defines the desired state of HTTPSEdge

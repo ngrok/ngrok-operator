@@ -170,9 +170,10 @@ func (irec *IngressReconciler) routesPlanner(ctx context.Context, ingress *netv1
 			Backend: ingressv1alpha1.TunnelGroupBackend{
 				Labels: backendToLabelMap(httpIngressPath.Backend, namespace),
 			},
-			Compression:   parsedRouteModules.Compression,
-			IPRestriction: parsedRouteModules.IPRestriction,
-			Headers:       parsedRouteModules.Headers,
+			Compression:         parsedRouteModules.Compression,
+			Headers:             parsedRouteModules.Headers,
+			IPRestriction:       parsedRouteModules.IPRestriction,
+			WebhookVerification: parsedRouteModules.WebhookVerification,
 		}
 
 		ngrokRoutes = append(ngrokRoutes, route)
