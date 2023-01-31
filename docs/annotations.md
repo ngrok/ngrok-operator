@@ -9,8 +9,9 @@ based on the `spec.rules` defined in the Ingress resource. It will then configur
   - [Request Headers](#request-headers)
   - [Response Headers](#response-headers)
 - [IP Restriction](#ip-restriction)
+- [TLS Termination](#tls-termination)
+  - [Setting Minimum TLS Version](#setting-minimum-tls-version)
 - [Webhook Verification](#webhook-verification)
-
 
 ## Compression
 
@@ -92,6 +93,24 @@ spec:
 ```
 
 
+## TLS Termination
+
+### Setting Minimum TLS Version
+
+The `k8s.ngrok.com/tls-min-version` annotation can be used to set the minimum TLS version for all routes belonging to an Edge. *Note*: **This setting applies to all routes
+belonging to an Edge, not just the routes defined in the Ingress resource**. The annotation accepts a string value. If not specified(default), the `TLS Termination` module will be disabled in ngrok and TLS will be terminated at the edge using the ngrok default minimum TLS version.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minimal-ingress
+  annotations:
+    k8s.ngrok.com/tls-min-version: "1.3"
+spec:
+  ...
+```
+
 ## Webhook Verification
 
 The following annotations can be used to configure the [Webhook Verification module](https://ngrok.com/docs/cloud-edge/modules/webhook).
@@ -111,5 +130,4 @@ metadata:
     k8s.ngrok.com/webhook-verification-secret-key: "SECRET_TOKEN"
 spec:
   ...
-
 ```

@@ -50,6 +50,11 @@ type EndpointHeaders struct {
 	Response *EndpointResponseHeaders `json:"response,omitempty"`
 }
 
+type EndpointTLSTerminationAtEdge struct {
+	// MinVersion is the minimum TLS version to allow for connections to the edge
+	MinVersion string `json:"minVersion,omitempty"`
+}
+
 type SecretKeyRef struct {
 	// Name of the Kubernetes secret
 	Name string `json:"name,omitempty"`
