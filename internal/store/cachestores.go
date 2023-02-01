@@ -61,6 +61,10 @@ func keyFunc(obj interface{}) (string, error) {
 	return namespace.String() + "/" + name.String(), nil
 }
 
+func getKey(name, namespace string) string {
+	return namespace + "/" + name
+}
+
 func clusterResourceKeyFunc(obj interface{}) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(obj))
 	return v.FieldByName("Name").String(), nil
