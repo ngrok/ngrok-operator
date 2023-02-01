@@ -13,12 +13,10 @@ func NewParser() parser.IngressAnnotation {
 }
 
 func (p ipPolicy) Parse(ing *networking.Ingress) (interface{}, error) {
-	v, err := parser.GetStringSliceAnnotation("ip-policy-ids", ing)
+	v, err := parser.GetStringSliceAnnotation("ip-policies", ing)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ingressv1alpha1.EndpointIPPolicy{
-		IPPolicyIDs: v,
-	}, nil
+	return &ingressv1alpha1.EndpointIPPolicy{IPPolicies: v}, nil
 }

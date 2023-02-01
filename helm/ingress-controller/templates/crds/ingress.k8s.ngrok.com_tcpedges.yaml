@@ -80,7 +80,7 @@ spec:
               ipRestriction:
                 description: IPRestriction is an IPRestriction to apply to this route
                 properties:
-                  policyIDs:
+                  policies:
                     items:
                       type: string
                     type: array
