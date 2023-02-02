@@ -12,7 +12,7 @@ for example in $(ls -d examples/*)
 do
     kubectl delete -k $example --ignore-not-found --wait=false || true
 done
-sleep 5
+sleep 10
 
 echo "~~~ Cleaning up previous deploy of ngrok-ingress-controller"
 make undeploy || true
@@ -24,17 +24,6 @@ do
   echo "kubectl get ingress -n $i -o=json | jq '.metadata.finalizers = null' | kubectl apply -f -"
   kubectl get ingress -n $i -o=json | jq '.metadata.finalizers = null' | kubectl apply -f -
 done
-# Remove finalizers from domains in namespace
-kubectl get domains -A -o custom-columns=NAMESPACE:metadata.namespace,NAME:metadata.name --no-headers | \
-while read -r i
-do
-  echo "kubectl get domains -n $i -o=json | jq '.metadata.finalizers = null' | kubectl apply -f -"
-  kubectl get domains -n $i -o=json | jq '.metadata.finalizers = null' | kubectl apply -f -
-done
-
-kubectl delete namespace $namespace --ignore-not-found
-
-sleep 10
 
 echo "--- Deploying ngrok-ingress-controller"
 make deploy
