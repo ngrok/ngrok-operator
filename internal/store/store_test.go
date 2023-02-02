@@ -9,7 +9,6 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 )
 
-const controllerName = "k8s.ngrok.com/ingress-controller" // TODO: Move this into a variable thats shared
 const ngrokIngressClass = "ngrok"
 
 func TestStore(t *testing.T) {

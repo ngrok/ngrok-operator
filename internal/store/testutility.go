@@ -1,6 +1,7 @@
 package store
 
 import (
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -65,6 +66,27 @@ func NewTestIngressV1(name string, namespace string) netv1.Ingress {
 					},
 				},
 			},
+		},
+	}
+}
+
+func NewDomainV1(name string, namespace string) ingressv1alpha1.Domain {
+	return ingressv1alpha1.Domain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: ingressv1alpha1.DomainSpec{
+			Domain: name,
+		},
+	}
+}
+
+func NewHTTPSEdge(name string, namespace string, domain string) ingressv1alpha1.HTTPSEdge {
+	return ingressv1alpha1.HTTPSEdge{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
 		},
 	}
 }
