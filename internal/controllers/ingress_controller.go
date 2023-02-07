@@ -31,11 +31,12 @@ import (
 // https://pkg.go.dev/sigs.k8s.io/controller-runtime#section-readme
 type IngressReconciler struct {
 	client.Client
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
-	Recorder  record.EventRecorder
-	Namespace string
-	Driver    *store.Driver
+	Log                  logr.Logger
+	Scheme               *runtime.Scheme
+	Recorder             record.EventRecorder
+	Namespace            string
+	AnnotationsExtractor annotations.Extractor
+	Driver               *store.Driver
 }
 
 func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -226,7 +227,7 @@ func (irec *IngressReconciler) ingressToEdge(ctx context.Context, ingress *netv1
 		return nil, nil
 	}
 
-	parsedRouteModules := annotations.NewAnnotationsExtractor().Extract(ingress)
+	parsedRouteModules := irec.AnnotationsExtractor.Extract(ingress)
 
 	ngrokRoutes, err := irec.routesPlanner(ctx, ingress, parsedRouteModules)
 	if err != nil {
