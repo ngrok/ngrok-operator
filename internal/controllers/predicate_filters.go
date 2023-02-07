@@ -5,13 +5,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-// common delete func predicate filter
-func deleteFuncPredicateFilter(de event.DeleteEvent) bool {
-	// Ignore deletes.  Since we leverage a finalizer, we initiate "deletion"
-	// when an Update Event includes a metadata.deletionTimestamp
-	return true
-}
-
 // common update func predicate filter
 func updateFuncPredicateFilter(ue event.UpdateEvent) bool {
 	// First check if there are any annotations present that aren't in the old version
@@ -27,6 +20,5 @@ func updateFuncPredicateFilter(ue event.UpdateEvent) bool {
 }
 
 var commonPredicateFilters = predicate.Funcs{
-	DeleteFunc: deleteFuncPredicateFilter,
 	UpdateFunc: updateFuncPredicateFilter,
 }

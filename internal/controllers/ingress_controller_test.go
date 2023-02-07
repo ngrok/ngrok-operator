@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	"github.com/stretchr/testify/assert"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -186,9 +185,7 @@ func TestIngressReconcilerIngressToEdge(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		irec := IngressReconciler{
-			AnnotationsExtractor: annotations.NewAnnotationsExtractor(),
-		}
+		irec := IngressReconciler{}
 		edge, err := irec.ingressToEdge(context.Background(), testCase.ingress)
 
 		if testCase.err != nil {
