@@ -2,6 +2,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-class-example
+  annotations:
+    k8s.ngrok.com/tls-min-version: "1.3"
 spec:
   ingressClassName: ngrok
   rules:
@@ -20,6 +22,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: different-ingress-class-example
+  annotations:
+    k8s.ngrok.com/tls-min-version: "1.3"
 spec:
   ingressClassName: nginx # Example of using a different class than ngrok
   rules:

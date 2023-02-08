@@ -3,6 +3,7 @@ kind: Ingress
 metadata:
   name: route-modules
   annotations:
+    k8s.ngrok.com/tls-min-version: "1.3"
     k8s.ngrok.com/https-compression: true
     k8s.ngrok.com/https-oauth.secret-name: ngrok-corp-ingress-oauth-credentials
     k8s.ngrok.com/https-oauth.provider: google
