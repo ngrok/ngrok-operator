@@ -37,6 +37,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/ngrok/ngrok-api-go/v5"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/controllers"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"github.com/ngrok/kubernetes-ingress-controller/pkg/tunneldriver"
 	//+kubebuilder:scaffold:imports
 )
@@ -133,7 +135,6 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     opts.metricsAddr,
@@ -146,6 +147,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
+	driver, err := getDriver(ctx, mgr)
+	if err != nil {
+		return fmt.Errorf("unable to create Driver: %w", err)
+	}
+
 	if err := (&controllers.IngressReconciler{
 		Client:               mgr.GetClient(),
 		Log:                  ctrl.Log.WithName("controllers").WithName("ingress"),
@@ -153,6 +159,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Recorder:             mgr.GetEventRecorderFor("ingress-controller"),
 		Namespace:            opts.namespace,
 		AnnotationsExtractor: annotations.NewAnnotationsExtractor(),
+		Driver:               driver,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
@@ -231,4 +238,34 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	return nil
+}
+
+// getDriver returns a new Driver instance that is seeded with the current state of the cluster.
+func getDriver(ctx context.Context, mgr manager.Manager) (*store.Driver, error) {
+	logger := mgr.GetLogger().WithName("cache-store-driver")
+	d := store.NewDriver(logger, mgr.GetScheme())
+	if err := d.Seed(ctx, mgr.GetAPIReader()); err != nil {
+		return nil, fmt.Errorf("unable to seed cache store: %w", err)
+	}
+
+	ings := d.ListNgrokIngressesV1()
+	for _, ing := range ings {
+		setupLog.Info("found matching ingress", "ingress-name", ing.Name, "ingress-namespace", ing.Namespace)
+	}
+
+	// Helpful debug information if someone doesn't have their ingress class set up correctly.
+	if len(ings) == 0 {
+		ingresses := d.ListIngressesV1()
+		ngrokIngresses := d.ListNgrokIngressesV1()
+		ingressClasses := d.ListIngressClassesV1()
+		ngrokIngressClasses := d.ListNgrokIngressClassesV1()
+		setupLog.Info("no matching ingresses found",
+			"all ingresses", ingresses,
+			"all ngrok ingresses", ngrokIngresses,
+			"all ingress classes", ingressClasses,
+			"all ngrok ingress classes", ngrokIngressClasses,
+		)
+	}
+
+	return d, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	internalerrors "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -21,8 +23,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -36,24 +36,25 @@ type IngressReconciler struct {
 	Recorder             record.EventRecorder
 	Namespace            string
 	AnnotationsExtractor annotations.Extractor
+	Driver               *store.Driver
 }
 
-// Create a new controller using our reconciler and set it up with the manager
 func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&netv1.Ingress{}).
-		Owns(&ingressv1alpha1.HTTPSEdge{}).
-		Owns(&ingressv1alpha1.Tunnel{}).
-		Watches(
-			&source.Kind{Type: &ingressv1alpha1.Domain{}},
-			handler.EnqueueRequestsFromMapFunc(irec.listIngressesForDomain),
-		).
-		WithEventFilter(
-			predicate.Funcs{
-				DeleteFunc: deleteFuncPredicateFilter,
-			},
-		).
-		Complete(irec)
+	storedResources := []client.Object{
+		&netv1.IngressClass{},
+		&ingressv1alpha1.Domain{},
+		&ingressv1alpha1.HTTPSEdge{},
+		&ingressv1alpha1.Tunnel{},
+	}
+
+	builder := ctrl.NewControllerManagedBy(mgr).For(&netv1.Ingress{})
+	for _, obj := range storedResources {
+		builder = builder.Watches(
+			&source.Kind{Type: obj},
+			store.NewUpdateStoreHandler(obj.GetObjectKind().GroupVersionKind().Kind, irec.Driver))
+	}
+
+	return builder.Complete(irec)
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -70,17 +71,48 @@ func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := irec.Log.WithValues("ingress", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
-	ingress, err := getIngress(ctx, irec.Client, req.NamespacedName)
+	ingress := &netv1.Ingress{}
+	err := irec.Client.Get(ctx, req.NamespacedName, ingress)
 	if err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-	// getIngress didn't return the object, so we can't do anything with it
-	if ingress == nil {
+		if client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err // its a real error
+		}
+		// Otherwise its a not found errors. If its fully gone, delete it from the store
+		if err := irec.Driver.DeleteIngress(req.NamespacedName); err != nil {
+			log.Error(err, "Failed to delete ingress from store")
+			return ctrl.Result{}, err
+		}
+
+		// TODO: Uncomment when we want the sync call to manage api resources
+		// err = irec.Driver.Sync(ctx, irec.Client)
+		// if err != nil {
+		// 	log.Error(err, "Failed to sync after removing ingress from store")
+		// 	return ctrl.Result{}, err
+		// }
+
 		return ctrl.Result{}, nil
 	}
-	if err := validateIngress(ctx, ingress); err != nil {
-		irec.Recorder.Event(ingress, v1.EventTypeWarning, "Invalid ingress, discarding the event.", err.Error())
+
+	// Ensure the ingress object is up to date in the store
+	err = irec.Driver.Update(ingress)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Even though we already have the ingress object, leverage the store to ensure this works off the same data as everything else
+	ingress, err = irec.Driver.GetNgrokIngressV1(ingress.Name, ingress.Namespace)
+	if internalerrors.IsErrDifferentIngressClass(err) {
+		log.Info("Ingress is not of type ngrok so skipping it")
 		return ctrl.Result{}, nil
+	}
+
+	if internalerrors.IsErrInvalidIngressSpec(err) {
+		log.Info("Ingress is not valid so skipping it")
+		return ctrl.Result{}, nil
+	}
+	if err != nil {
+		log.Error(err, "Failed to get ingress from store")
+		return ctrl.Result{}, err
 	}
 
 	if ingress.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -104,8 +136,8 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 
-		// Stop reconciliation as the item is being deleted
-		return ctrl.Result{}, nil
+		// Stop reconciliation as the item is being deleted and remove it from the store
+		return ctrl.Result{}, irec.Driver.Delete(ingress)
 	}
 
 	return irec.reconcileAll(ctx, ingress)
@@ -432,4 +464,13 @@ func ingressToTunnels(ingress *netv1.Ingress) []ingressv1alpha1.Tunnel {
 	}
 
 	return tunnels
+}
+
+// Generates a labels map for matching ngrok Routes to Agent Tunnels
+func backendToLabelMap(backend netv1.IngressBackend, namespace string) map[string]string {
+	return map[string]string{
+		"k8s.ngrok.com/namespace": namespace,
+		"k8s.ngrok.com/service":   backend.Service.Name,
+		"k8s.ngrok.com/port":      strconv.Itoa(int(backend.Service.Port.Number)),
+	}
 }
