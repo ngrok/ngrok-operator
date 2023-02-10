@@ -1,5 +1,10 @@
 # Google Oauth Configuration Guide
 
+<img src="./docs/images/Under-Construction-Sign.png" alt="Kubernetes logo" width="350" />
+
+We are currently refactoring the annotations system and this annotation is not present in the current build but will be back soon!
+
+
 Follow the guide here https://ngrok.com/docs/cloud-edge#oauth-providers-google
 Once completed, get the Client ID and the Client Secret and create a kubernetes secret with the following command:
 
