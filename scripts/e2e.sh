@@ -39,7 +39,7 @@ for example in $(ls -d examples/*)
 do
     kubectl apply -k $example || true
 done
-sleep 30
+sleep 60
 
 # Run tests
 echo "--- Running e2e tests"
