@@ -1,6 +1,6 @@
 # Google Oauth Configuration Guide
 
-<img src="./docs/images/Under-Construction-Sign.png" alt="Kubernetes logo" width="350" />
+<img src="./images/Under-Construction-Sign.png" alt="Kubernetes logo" width="350" />
 
 We are currently refactoring the annotations system and this annotation is not present in the current build but will be back soon!
 
