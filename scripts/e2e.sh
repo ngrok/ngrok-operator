@@ -7,8 +7,8 @@ kubectl config set-context --current --namespace=$namespace
 
 # TODO: Use ngrok cli api to delete all edges owned by the ingress controller
 
-echo "~~~ Cleaning up previous deploy of examples"
-for example in $(ls -d examples/*)
+echo "~~~ Cleaning up previous deploy of e2e-fixtures"
+for example in $(ls -d e2e-fixtures/*)
 do
     kubectl delete -k $example --ignore-not-found --wait=false || true
 done
@@ -28,23 +28,23 @@ done
 echo "--- Deploying ngrok-ingress-controller"
 make deploy
 
-echo "--- Deploying examples"
+echo "--- Deploying e2e-fixtures"
 if [ "$GOOGLE_CLIENT_ID" != "" ]
 then
   kubectl create secret generic ngrok-corp-ingress-oauth-credentials \
     --from-literal=ClientID=$GOOGLE_CLIENT_ID \
     --from-literal=ClientSecret=$GOOGLE_CLIENT_SECRET || true
 fi
-for example in $(ls -d examples/*)
+for example in $(ls -d e2e-fixtures/*)
 do
     kubectl apply -k $example || true
 done
-sleep 30
+sleep 120
 
 # Run tests
 echo "--- Running e2e tests"
 failed="false"
-for e2e_config in $(find ./examples -name 'e2e-expected.yaml')
+for e2e_config in $(find ./e2e-fixtures -name 'e2e-expected.yaml')
 do
   example_dir=$(dirname $e2e_config)
   for config_file in $(cat $e2e_config | yq -r '(. | keys)[]')
