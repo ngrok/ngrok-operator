@@ -86,8 +86,8 @@ jobs:
             const release = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: `ngrok-ingress-controller-${tag}`,
-              name: `ngrok-ingress-controller-${tag}`,
+              tag_name: `kubernetes-ingress-controller-${tag}`,
+              name: `kubernetes-ingress-controller-${tag}`,
               body: `${tag}`,
               draft: false,
               prerelease: false
