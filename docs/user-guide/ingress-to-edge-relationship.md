@@ -142,7 +142,7 @@ TODO: The example has 2 rules with hosts and then a third without a host, so whe
 
 ### TLS
 
-TLS Edges are not yet implemented but should be implemented in the future.
+TODO: Remove this: TLS Edges are not yet implemented but should be implemented in the future.
 
 ## Annotations
 
