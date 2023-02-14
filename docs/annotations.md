@@ -38,19 +38,19 @@ The following annotations can be used to add or remove headers for each request 
 
 * `k8s.ngrok.com/request-headers-add` - Add headers to the request before it is sent to the backend service.
 * `k8s.ngrok.com/request-headers-remove` - Remove headers from the request before it is sent to the backend service.
-  
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: minimal-ingress
   annotations:
-    k8s.ngrok.com/request-headers-remove: "X-DROP-ME"
+    k8s.ngrok.com/request-headers-remove: "X-DROP-ME,X-DROP-ME-TOO"
     k8s.ngrok.com/request-headers-add: |
       {
         "X-SEND-TO-BACKEND": "Value1"
       }
-    
+
 ```
 
 ### Response Headers
@@ -68,12 +68,12 @@ kind: Ingress
 metadata:
   name: minimal-ingress
   annotations:
-    k8s.ngrok.com/response-headers-remove: "X-DROP-ME"
+    k8s.ngrok.com/response-headers-remove: "X-DROP-ME,X-DROP-ME-TOO"
     k8s.ngrok.com/response-headers-add: |
       {
         "X-SEND-TO-CLIENT": "Value1"
       }
-    
+
 ```
 
 

@@ -45,12 +45,12 @@ spec:
             description: IPPolicySpec defines the desired state of IPPolicy
             properties:
               description:
-                default: Created by ngrok-ingress-controller
+                default: Created by kubernetes-ingress-controller
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
               metadata:
-                default: '{"owned-by":"ngrok-ingress-controller"}'
+                default: '{"owned-by":"kubernetes-ingress-controller"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
@@ -63,12 +63,12 @@ spec:
                     cidr:
                       type: string
                     description:
-                      default: Created by ngrok-ingress-controller
+                      default: Created by kubernetes-ingress-controller
                       description: Description is a human-readable description of
                         the object in the ngrok API/Dashboard
                       type: string
                     metadata:
-                      default: '{"owned-by":"ngrok-ingress-controller"}'
+                      default: '{"owned-by":"kubernetes-ingress-controller"}'
                       description: Metadata is a string of arbitrary data associated
                         with the object in the ngrok API/Dashboard
                       type: string

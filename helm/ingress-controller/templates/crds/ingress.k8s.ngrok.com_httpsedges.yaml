@@ -36,7 +36,7 @@ spec:
             description: HTTPSEdgeSpec defines the desired state of HTTPSEdge
             properties:
               description:
-                default: Created by ngrok-ingress-controller
+                default: Created by kubernetes-ingress-controller
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
@@ -46,7 +46,7 @@ spec:
                   type: string
                 type: array
               metadata:
-                default: '{"owned-by":"ngrok-ingress-controller"}'
+                default: '{"owned-by":"kubernetes-ingress-controller"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
@@ -59,7 +59,7 @@ spec:
                         backend that serves traffic for this edge
                       properties:
                         description:
-                          default: Created by ngrok-ingress-controller
+                          default: Created by kubernetes-ingress-controller
                           description: Description is a human-readable description
                             of the object in the ngrok API/Dashboard
                           type: string
@@ -69,7 +69,7 @@ spec:
                           description: Labels to watch for tunnels on this backend
                           type: object
                         metadata:
-                          default: '{"owned-by":"ngrok-ingress-controller"}'
+                          default: '{"owned-by":"kubernetes-ingress-controller"}'
                           description: Metadata is a string of arbitrary data associated
                             with the object in the ngrok API/Dashboard
                           type: string
@@ -84,7 +84,7 @@ spec:
                           type: boolean
                       type: object
                     description:
-                      default: Created by ngrok-ingress-controller
+                      default: Created by kubernetes-ingress-controller
                       description: Description is a human-readable description of
                         the object in the ngrok API/Dashboard
                       type: string
@@ -151,7 +151,7 @@ spec:
                       - path_prefix
                       type: string
                     metadata:
-                      default: '{"owned-by":"ngrok-ingress-controller"}'
+                      default: '{"owned-by":"kubernetes-ingress-controller"}'
                       description: Metadata is a string of arbitrary data associated
                         with the object in the ngrok API/Dashboard
                       type: string

@@ -25,4 +25,4 @@ testbin/*
 .vscode
 .DS_Store
 
-examples/*/config*.yaml
+e2e-fixtures/*/config*.yaml
