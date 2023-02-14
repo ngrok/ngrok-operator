@@ -96,35 +96,20 @@ func init() {
 	SchemeBuilder.Register(&Domain{}, &DomainList{})
 }
 
-// SetStatus updates the status of the domain from the ngrok API
-// object. Returns true if the status has changed.
-func (d *Domain) SetStatus(ngrokDomain *ngrok.ReservedDomain) bool {
-	changed := false
+// SetStatus pulls the fields off the ngrok domain and sets each one on the status field of the domain
+func (d *Domain) SetStatus(ngrokDomain *ngrok.ReservedDomain) {
+	d.Status.ID = ngrokDomain.ID
+	d.Status.Region = ngrokDomain.Region
+	d.Status.Domain = ngrokDomain.Domain
+	d.Status.URI = ngrokDomain.URI
+	d.Status.CNAMETarget = ngrokDomain.CNAMETarget
+}
 
-	if d.Status.ID != ngrokDomain.ID {
-		d.Status.ID = ngrokDomain.ID
-		changed = true
-	}
-
-	if d.Status.Region != ngrokDomain.Region {
-		d.Status.Region = ngrokDomain.Region
-		changed = true
-	}
-
-	if d.Status.Domain != ngrokDomain.Domain {
-		d.Status.Domain = ngrokDomain.Domain
-		changed = true
-	}
-
-	if d.Status.URI != ngrokDomain.URI {
-		d.Status.URI = ngrokDomain.URI
-		changed = true
-	}
-
-	if d.Status.CNAMETarget != ngrokDomain.CNAMETarget {
-		d.Status.CNAMETarget = ngrokDomain.CNAMETarget
-		changed = true
-	}
-
-	return changed
+// Equal returns true if the domain status is equal to the ngrok domain
+func (d *Domain) Equal(ngrokDomain *ngrok.ReservedDomain) bool {
+	return d.Status.ID == ngrokDomain.ID &&
+		d.Status.Region == ngrokDomain.Region &&
+		d.Status.Domain == ngrokDomain.Domain &&
+		d.Status.URI == ngrokDomain.URI &&
+		d.Status.CNAMETarget == ngrokDomain.CNAMETarget
 }
