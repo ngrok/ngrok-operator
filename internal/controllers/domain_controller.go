@@ -190,7 +190,7 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 func (r *DomainReconciler) updateStatus(ctx context.Context, domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) error {
 	changed := domain.SetStatus(ngrokDomain)
 	if changed {
-		r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated Domain %s", domain.Name))
+		r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updating Domain %s", domain.Name))
 		if err := r.Status().Update(ctx, domain); err != nil {
 			return err
 		}
