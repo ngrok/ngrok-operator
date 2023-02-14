@@ -188,30 +188,10 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 
 // updateStatus updates the status fields of the domain resource only if any values have changed
 func (r *DomainReconciler) updateStatus(ctx context.Context, domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) error {
-	dirty := false
-	if domain.Status.ID != ngrokDomain.ID {
-		domain.Status.ID = ngrokDomain.ID
-		dirty = true
-	}
-	if domain.Status.CNAMETarget != ngrokDomain.CNAMETarget {
-		domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
-		dirty = true
-	}
-	if domain.Status.URI != ngrokDomain.URI {
-		domain.Status.URI = ngrokDomain.URI
-		dirty = true
-	}
-	if domain.Status.Domain != ngrokDomain.Domain {
-		domain.Status.Domain = ngrokDomain.Domain
-		dirty = true
-	}
-	if domain.Status.Region != ngrokDomain.Region {
-		domain.Status.Region = ngrokDomain.Region
-		dirty = true
-	}
-
-	if dirty {
+	changed := domain.SetStatus(ngrokDomain)
+	if changed {
 		if err := r.Status().Update(ctx, domain); err != nil {
+			r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated Domain %s", domain.Name))
 			return err
 		}
 	}

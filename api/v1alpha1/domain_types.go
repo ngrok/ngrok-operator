@@ -25,6 +25,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"github.com/ngrok/ngrok-api-go/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -93,4 +94,37 @@ type DomainList struct {
 
 func init() {
 	SchemeBuilder.Register(&Domain{}, &DomainList{})
+}
+
+// SetStatus updates the status of the domain from the ngrok API
+// object. Returns true if the status has changed.
+func (d *Domain) SetStatus(ngrokDomain *ngrok.ReservedDomain) bool {
+	changed := false
+
+	if d.Status.ID != ngrokDomain.ID {
+		d.Status.ID = ngrokDomain.ID
+		changed = true
+	}
+
+	if d.Status.Region != ngrokDomain.Region {
+		d.Status.Region = ngrokDomain.Region
+		changed = true
+	}
+
+	if d.Status.Domain != ngrokDomain.Domain {
+		d.Status.Domain = ngrokDomain.Domain
+		changed = true
+	}
+
+	if d.Status.URI != ngrokDomain.URI {
+		d.Status.URI = ngrokDomain.URI
+		changed = true
+	}
+
+	if d.Status.CNAMETarget != ngrokDomain.CNAMETarget {
+		d.Status.CNAMETarget = ngrokDomain.CNAMETarget
+		changed = true
+	}
+
+	return changed
 }
