@@ -39,6 +39,7 @@ for example in $(ls -d e2e-fixtures/*)
 do
     kubectl apply -k $example || true
 done
+
 sleep 120
 
 # Run tests
