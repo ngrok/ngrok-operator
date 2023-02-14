@@ -13,23 +13,23 @@
 ## Artifacts
 
 The ngrok Ingress Controller has 2 main artifacts, a docker image and a helm chart.
-While the helm chart is the recommended way to install the Ingress Controller, the 
+While the helm chart is the recommended way to install the Ingress Controller, the
 docker image can be used to run the Ingress Controller in a Kubernetes cluster without helm.
 
 ### Docker Image
 
-The Docker image contains the ngrok Ingress Controller binary and is available on 
+The Docker image contains the ngrok Ingress Controller binary and is available on
 Docker Hub [here](https://hub.docker.com/r/ngrok/kubernetes-ingress-controller). We currently
 support `amd64` and `arm64` architectures, with future plans to build for other architectures.
 
 ### Helm Chart
 
-The helm chart is packaged and published to its own [helm repository](https://ngrok.github.io/ngrok-ingress-controller/index.yaml)
+The helm chart is packaged and published to its own [helm repository](https://ngrok.github.io/kubernetes-ingress-controller/index.yaml)
 and can be installed by following the instructions in the chart's [README](../helm/ingress-controller/README.md).
 
 ## Semantic Versioning
 
-This project uses [semantic versioning](https://semver.org/) for both the the docker image 
+This project uses [semantic versioning](https://semver.org/) for both the the docker image
 and helm chart. Please note that this project is still under development(pre 1.0.0) and considered `alpha` status at this time.
 
 From the [semver spec](https://semver.org/#spec-item-4):
@@ -45,7 +45,7 @@ release in both.
 
 ### Tagging
 
-There is a different git tag pattern for each artifact. 
+There is a different git tag pattern for each artifact.
 
 #### Helm Chart
 
@@ -62,8 +62,8 @@ to the semantic versioning spec as described above.
 
 #### Controller
 
-Releases of the controller will be tagged with a prefix of `ngrok-ingress-controller-`. For example,
-version `1.2.0` of the docker image will have a git tag of `ngrok-ingress-controller-1.2.0` which
+Releases of the controller will be tagged with a prefix of `kubernetes-ingress-controller-`. For example,
+version `1.2.0` of the docker image will have a git tag of `kubernetes-ingress-controller-1.2.0` which
 contains the code used to build the docker image `ngrok/kubernetes-ingress-controller:1.2.0`.
 
 When changes that would affect the controller's docker image are pushed to `main`, a github workflow
@@ -72,5 +72,5 @@ image.
 
 If the `VERSION` file at the root of the repo is changed, the workflow will also create a git tag
 for the controller as described above and publish a tagged docker image. For instance when the
-`VERSION` is changed to `1.2.0`, the workflow will create a git tag of `ngrok-ingress-controller-1.2.0`
+`VERSION` is changed to `1.2.0`, the workflow will create a git tag of `kubernetes-ingress-controller-1.2.0`
 and publish the docker image `ngrok/kubernetes-ingress-controller:1.2.0`.

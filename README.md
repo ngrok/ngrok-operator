@@ -145,15 +145,15 @@ data:
   REMOTE_MANAGEMENT: true
 ```
 
-## Using the Examples
-Several examples are provided in the [`examples` folder](./examples).  To use an example, make a copy of the included `EXAMPLE*config.yaml` in the same directory, like this:
-- `cp examples/hello-world-ingress/EXAMPLE-config.yaml examples/hello-world-ingress/config.yaml`
-- `cp examples/ingress-class/EXAMPLE-config-different.yaml examples/ingress-class/config-different.yaml`
+## Using the E2E Fixtures
+Several examples are provided in the [`e2e-fixtures` folder](./e2e-fixtures).  To use an example, make a copy of the included `EXAMPLE*config.yaml` in the same directory, like this:
+- `cp e2e-fixtures/hello-world-ingress/EXAMPLE-config.yaml e2e-fixtures/hello-world-ingress/config.yaml`
+- `cp e2e-fixtures/ingress-class/EXAMPLE-config-different.yaml e2e-fixtures/ingress-class/config-different.yaml`
 
 Then, you need to update the `value` field in that new file.
 
-You can then apply the given example via `kubectl apply -k examples/<example in question>`, i.e.
-`kubectl apply -k examples/hello-world-ingess`.
+You can then apply the given example via `kubectl apply -k e2e-fixtures/<example in question>`, i.e.
+`kubectl apply -k e2e-fixtures/hello-world-ingess`.
 
 ## E2E Tests
 

@@ -121,9 +121,6 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			r.Recorder.Event(domain, v1.EventTypeWarning, "UpdateFailed", fmt.Sprintf("Failed to update Domain %s: %s", domain.Name, err.Error()))
 			return ctrl.Result{}, err
 		}
-
-		r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated Domain %s", domain.Name))
-
 	} else {
 		// Create
 		if err := r.createExternalResources(ctx, domain); err != nil {
@@ -174,8 +171,6 @@ func (r *DomainReconciler) updateExternalResources(ctx context.Context, domain *
 	}
 
 	// TODO: Implement update logic. Right now we just get the reserved domain and update the status
-	// fields
-
 	return r.updateStatus(ctx, domain, resp)
 }
 
@@ -191,12 +186,12 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 	return nil, nil
 }
 
+// updateStatus updates the status fields of the domain resource only if any values have changed
 func (r *DomainReconciler) updateStatus(ctx context.Context, domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) error {
-	domain.Status.ID = ngrokDomain.ID
-	domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
-	domain.Status.URI = ngrokDomain.URI
-	domain.Status.Domain = ngrokDomain.Domain
-	domain.Status.Region = ngrokDomain.Region
-
+	if domain.Equal(ngrokDomain) {
+		return nil
+	}
+	domain.SetStatus(ngrokDomain)
+	r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updating Domain %s", domain.Name))
 	return r.Status().Update(ctx, domain)
 }
