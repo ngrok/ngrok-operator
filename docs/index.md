@@ -1,9 +1,9 @@
 <p align="center">
   <a href="https://ngrok.com">
-    <img src="./images/ngrok-blue-lrg.png" alt="ngrok Logo" width="500" url="https://ngrok.com" />
+    <img src="./assets/images/ngrok-blue-lrg.png" alt="ngrok Logo" width="500" url="https://ngrok.com" />
   </a>
   <a href="https://kubernetes.io/">
-  <img src="./images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="250" />
+  <img src="./assets/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="250" />
   </a>
 </p>
 
@@ -20,5 +20,16 @@ If its already installed and you are looking to configure ingress for an app or 
 - the path network traffic takes to get into the cluster through an established tunnel
 - how k8s resources are read and converted into ngrok resources
 
+
+- in k8s, its has its own private network which pods get ip addresses from and aren't accessible to the outside world
+- k8s ingress aims to solve getting traffic into the cluster
+- this should sound a bit similar to how ngrok helps get traffic to ip's behind a firewall on a private network
+- basic picture of ngrok controller in k8s cluster
+- create basic ingress object for a service, refer to more in depth ingress-to-edge-relationship.md
+
+
 # Contributing
  - see [developer-guide](./TODO)
+
+
+<img src="./assets/diagrams/index/k8s-basic.svg">

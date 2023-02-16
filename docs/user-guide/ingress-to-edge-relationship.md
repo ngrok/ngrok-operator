@@ -204,3 +204,4 @@ This configuration would produce a single edge with two routes. Each route has a
   - route: `/bar` -> `service2:8080`
     - module: `response-headers-add` -> `{"X-SEND-TO-CLIENT": "Value2"}`
 
+TODO: - need well defined rules for how the whole model of the store is built https://kubernetes.github.io/ingress-nginx/how-it-works/#building-the-nginx-model

@@ -54,3 +54,8 @@ Note: At the time of writing this, the tunnel controller is different from what 
 From the ingress resources, we end up needing to create specific tunnels for each of the unique service backends in each ingress object. Since the ingress controller is responsible for managing the ingress objects, the tunnel controller needs to be given this information from the ingress controller in a separate way so they aren't both fighting over the same resource. The tunnel controller will watch for a new custom resource called a Tunnel. The ingress controller will create a tunnel for each unique service backend in each ingress object. The tunnel controller will then create the tunnel in the ngrok agent and update the tunnel resource.
 
 
+### TODO:
+- driver and store pattern
+- other controllers/crds
+- ngrok-go usage
+- annotations system
