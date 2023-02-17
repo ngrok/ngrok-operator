@@ -16,6 +16,13 @@ The controller watches for [Ingress](http://kubernetes.io/docs/user-guide/ingres
 If you are looking to install the controller for the first time, see our [deployment-guide](./TODO).
 If its already installed and you are looking to configure ingress for an app or service, see our [user-guide](./TODO).
 
+For more in depth guides, see here:
+- [Deployment Guide](./deployment-guide/README.md)
+- [User Guide](./user-guide/README.md)
+- [Development Guide](./development-guide/README.md)
+- [Examples](./examples/README.md)
+
+
 # How It Works
 
 A Kubernetes cluster has its own private network internally that pods get ip addresses from. This network is not accessible to the outside world. Kubernetes Ingress aims to solve getting traffic into the cluster. This should sound a bit similar to how ngrok helps get traffic to ip's behind a firewall on a private network.
@@ -63,5 +70,5 @@ Should:
 
 
 # Contributing
- - see [developer-guide](./TODO)
 
+See our [Developer Guide](./development-guide/README.md) for more information on how to contribute to the project.
