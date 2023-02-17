@@ -1,25 +1,23 @@
-# Credentials
+In order to use the ngrok Kubernetes Ingress Controller, you will need a paid ngrok account. We are working on bringing the full experience to the free tier, and we will update this documentation when that is released. Once you have an account, you will need to log into the [ngrok dashboard](https://dashboard.ngrok.com) to gather the necessary credentials.
 
-Currently, the ngrok Kubernetes Ingress Controller requires a paid ngrok account. We are working to bring the full experience to the free tier and will update this when that has been released.
+You will need two things from the dashboard:
+- Your auth token, which can be found [here](https://dashboard.ngrok.com/auth/your-authtoken)
+- An API key, which can be found [here](https://dashboard.ngrok.com/api)
 
-Once you have an account, log into the [dashboard](https://dashboard.ngrok.com) and gather:
-- Your auth token from [here]](https://dashboard.ngrok.com/auth/your-authtoken)
-- An api key from [here](https://dashboard.ngrok.com/api)
+These credentials will be created as a Kubernetes secret, which the controller will have access to. The auth token is used to create tunnels, and the API key is used to manage edges and other resources via the ngrok API.
 
-These will be created as a kubernetes secret which the controller gets access to. It uses the auth token to create tunnels, and the api key to manage edges and other resources via the ngrok API.
+### Setup
 
-## Setup
+While the quickstart guide shows you can pass the credential values directly via helm values, we do not recommend this for production scenarios. Instead, we recommend creating a Kubernetes secret and passing the secret name to the helm chart. This allows for easier infrastructure as code in a more secure manner.
 
-While the quickstart guide shows you can pass the credential values directly via helm values, in a production scenario, this is not recommended as its difficult do infrastructure as code in a secure manner. Instead, we recommend creating a kubernetes secret and passing the secret name to the helm chart. How you create the secret is up to you, whether its manually, or via various secrets tools like external secrets, sealed secrets, etc.
+#### Creating the Secret
 
-### Create the secret
+To create the secret, follow these steps:
+- Make sure the secret is in the same namespace as the ingress controller
+- Use a well-formed name that can be passed to the helm chart
+- Add two keys to the secret: `API_KEY` and `AUTHTOKEN`
 
-The secret should:
-- be in the same namespace as the ingress controller
-- have a well formed name that can be passed to the helm chart
-- have two keys, `API_KEY` and `AUTHTOKEN`
-
-Example:
+Here is an example secret manifest:
 
 ```yaml
 apiVersion: v1
@@ -30,16 +28,3 @@ metadata:
 data:
   API_KEY: "YOUR-API-KEY-BASE64"
   AUTHTOKEN: "YOUR-AUTHTOKEN-BASE64"
-```
-
-### Using the Secret
-
-Once you have the secret created, you can pass the secret name to the helm chart via the `credentials.secretName` value.
-
-Example:
-
-```bash
-helm install my-ingress-controller ngrok/ingress-controller \
-  --set credentials.secret.name=my-custom-ngrok-ingress-controller-credentials
-```
-

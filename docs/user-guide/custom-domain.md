@@ -1,14 +1,5 @@
 # Custom domain
 
-- review ingress spec for hosts (or link to ingress-to-edge-relationship.md)
-- by default, you can specify any *.ngrok.io domain, and it will "just work"
-- if you create a custom white label domain, the controller will attempt to set it up
-- if you have your dns in place, it will just work
-- if you don't, it will hang until dns is in place, the domain is fully registered/reserved, and the edge can be configured properly.
-- automate that dns update with external dns (see example)
-https://ngrok.com/docs/guides/how-to-set-up-a-custom-domain
-
-
 In the Kubernetes Ingress spec, ingresses have rules with various hostnames. The full relationship of these rules' hostnames to ngrok reserved domains and edges can be found in the [ingress to edge relationship](./ingress-to-edge-relationship.md) documentation. TODO: Add hash link. While standard ngrok domains are available for use immediately after reservation, custom white label domains may require a couple extra steps to get working. The following outlines 2 options for getting custom white label domains working with the ngrok Kubernetes Ingress Controller.
 
 ## Managed by Kubernetes
@@ -52,7 +43,7 @@ Status:
       hostname:  12jkh25.cname.ngrok.io
 ```
 
-From here you can create the DNS record and everything should work as expected. To automate this fully though, see the example on integrating with external-dns here TODO: Add hash link.
+From here you can create the DNS record and everything should work as expected. To automate this fully though, see the example on integrating with external-dns here TODO: Add link to example when created.
 
 ## Externally managed
 

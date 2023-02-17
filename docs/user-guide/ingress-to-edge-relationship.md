@@ -140,10 +140,6 @@ This configuration would produce two edges with one route each.
 While not implemented yet, this would work the same as default backends where the rule is applied to all edges.
 TODO: The example has 2 rules with hosts and then a third without a host, so when a request matches neither, it does match that one. I'm not sure really if thats the same "default apply to everything" or if there is a fallback problem
 
-### TLS
-
-TODO: Remove this: TLS Edges are not yet implemented but should be implemented in the future.
-
 ## Annotations
 
 Annotations are created and applied at the ingress object level. However, from the section above, multiple ingresses can combine and be shared to form multiple edges. When using annotations that apply specifically to routes, the annotations on the ingress apply to all routes, but routes for multiple edges across different ingresses don't have to have the same annotations or modules.

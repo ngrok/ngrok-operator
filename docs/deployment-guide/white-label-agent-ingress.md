@@ -1,10 +1,12 @@
 # White Label Agent Ingress
 
-If you are trying to run ngrok and/or the ingress controller behind a corporate firewall, you may encounter errors due to connectivity issues from the agent or controller to the ngrok network edge. You can run the ngrok cli command documented [here](https://ngrok.com/docs/guides/running-behind-firewalls) to diagnose these problems.
+If you're running an ngrok and/or ingress controller behind a corporate firewall, you may encounter connectivity issues due to the agent or controller not being able to communicate with the ngrok network edge. If you're facing such issues, you can run the ngrok cli command, which is documented [here](https://ngrok.com/docs/guides/running-behind-firewalls) to diagnose the problem.
 
-If opening that connectivity is not a viable option, instead you can setup a custom ingress domain [on your Dashboard](https://dashboard.ngrok.com/tunnels/ingress). Once created, configure the ingress controller to use that domain instead of the default ngrok.io domain.
+However, if opening connectivity is not an option, you can set up a custom ingress domain on your dashboard. This way, you can configure the ingress controller to use the custom domain instead of the default ngrok.io domain.
+
+To get started with this, go to your dashboard and create a custom ingress domain. Once created, you can configure the ingress controller by using the following command:
 
 ```bash
 helm install my-ingress-controller ngrok/ingress-controller \
   --set serverAddr="ngrok.mydomain.com:443"
-```
+  ```

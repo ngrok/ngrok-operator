@@ -22,8 +22,6 @@ Individual controllers and the overall Manager are built using the kubernetes co
 
 One thing that wasn't clear originally was that it is an anti-pattern to have multiple controllers **managing** the same resource. Multiple controllers can watch the same resource without problems, for example multiple of them could watch for specific config map changes. However, if a controller needs to utilize the resources status or finalizers, or anything that requires a write or update, then multiple controllers will step on each other's toes if pointed at the same resource. We originally created 2 different controllers: 1 to manage the ngrok api resources and 1 to manage the tunnels. Both watched for ingress objects and relied on the finalizer in order to clean up their respective ngrok api resources and agent tunnels. But there was a race condition where if 1 finished first and removed the finalizer, the other would leak resources.
 
-
-
 # Our Architecture
 
 Today, our supported method of configuring ingress is via the Kubernetes Ingress Kind with things like Gateway and maybe CRD's in the future but not presently. Ultimately the goal is to watch for Ingress configuration changes and in turn manage

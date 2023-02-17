@@ -1,22 +1,19 @@
 # Multiple Ingress Controller Installations
 
-Kubernetes has the concept of [Ingress Classes](https://kubernetes.io/docs/concepts/services-networking/ingress/) which allows you to run multiple ingress controllers in the same cluster. This is useful if you want to run multiple ingress controllers, or if you want to run multiple versions of the ngrok Kubernetes Ingress Controller.
+The Ngrok Kubernetes Ingress Controller supports the Kubernetes concept of [Ingress Classes](https://kubernetes.io/docs/concepts/services-networking/ingress/) which allows you to run multiple ingress controllers in the same cluster. This feature is useful if you want to run multiple versions of the Ngrok Kubernetes Ingress Controller or other ingress controllers in the same cluster.
 
-Currently, we support full ingress class filtering, but we have some work on the road map still to enable use cases like running multiple ngrok Kubernetes Ingress Controllers in the same cluster watching specific namespaces.
+## What is Ingress Class Filtering?
 
-## Ingress Class Filtering
+Ingress controllers work by watching Kubernetes Ingress resources for changes and reconciling them to provide ingress to services. When multiple ingress controllers are installed in the same cluster, they can both try to reconcile all ingress objects by default, which can cause conflicts and unexpected behavior. To address this issue, Ingress Classes can be set on ingress objects and controllers can filter ingresses to only those that match their ingress class.
 
-Ingress controllers work by watching the k8s ingress resources for changes and reconciling them to provide ingress. By default, if you installed multiple controllers, they would both try to reconcile all ingress objects which could cause conflicts and unexpected behavior. To solve for this use case, Ingress classes can be set on ingress objects and controllers can filter ingresses to only those that match their ingress class.
+By default, the Ngrok Kubernetes Ingress Controller creates a non-default ingress class with the name `ngrok`, which the controller watches for changes. In order for the controller to reconcile an ingress, the ingress must have the same ingress class as the controller.
 
-By default, the helm chart will make a non-default ingress class with the name `ngrok` that the controller will watch.
-In order for the controller to reconcile an ingress, the ingress must have the same ingress class as the controller via:
-
-  ```yaml
+```yaml
+spec:
   ...
-  spec:
-    ingressClassName: ngrok
-    rules:
-    ...
+  ingressClassName: ngrok
+  rules:
+  ...
 ```
 
 You can override this name via the helm value `ingressClass.name`, or if there aren't other ingress controllers in the cluster, you can set it to default to be true and not have to add the `ingressClass` to the ingress objects' specs.
