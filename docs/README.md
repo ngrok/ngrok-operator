@@ -33,11 +33,11 @@ The ngrok Kubernetes Ingress Controller implements the standard Kubernetes Ingre
 - create basic ingress object for a service, refer to more in depth ingress-to-edge-relationship.md
 
 
-![k8s-basic](./assets/diagrams/index/k8s-basic.svg)
+![k8s-basic](./assets/diagrams/index/k8s-basic.png)
 
 
 # Contributing
  - see [developer-guide](./TODO)
 
 
-<img src="./assets/diagrams/index/k8s-basic.svg">
+<img src="./assets/diagrams/index/k8s-basic.png">
