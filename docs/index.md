@@ -17,6 +17,11 @@ If you are looking to install the controller for the first time, see our [deploy
 If its already installed and you are looking to configure ingress for an app or service, see our [user-guide](./TODO).
 
 # How It Works
+
+The ngrok Kubernetes Ingress Controller implements the standard Kubernetes Ingress Spec in order to allow secure connections from the internet to services running in the Kubernetes private network that pods and Kubernetes services lie on.
+
+
+
 - the path network traffic takes to get into the cluster through an established tunnel
 - how k8s resources are read and converted into ngrok resources
 
@@ -26,6 +31,9 @@ If its already installed and you are looking to configure ingress for an app or 
 - this should sound a bit similar to how ngrok helps get traffic to ip's behind a firewall on a private network
 - basic picture of ngrok controller in k8s cluster
 - create basic ingress object for a service, refer to more in depth ingress-to-edge-relationship.md
+
+
+![k8s-basic](./assets/diagrams/index/k8s-basic.svg)
 
 
 # Contributing

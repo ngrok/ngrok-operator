@@ -10,7 +10,7 @@ Before we jump directly into ngrok controller's specific architecture, let's fir
 
 The word _controller_ can sometimes be used in ways that can be confusing. While we commonly refer to the whole thing as the ingress _controller_, in reality, many _controllers_ are actually a Controller Runtime Manager which runs multiple individual [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) and provides common things to them like shared Kubernetes client caches and leader election.
 
-![Kubebuilder Architecture Diagram](./images/kubebuilder_architecture_diagram.svg)
+![Kubebuilder Architecture Diagram](./assets/images/kubebuilder_architecture_diagram.svg)
 
 > From: https://book.kubebuilder.io/architecture.html
 
@@ -56,6 +56,5 @@ From the ingress resources, we end up needing to create specific tunnels for eac
 
 ### TODO:
 - driver and store pattern
-- other controllers/crds
 - ngrok-go usage
 - annotations system
