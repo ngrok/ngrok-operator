@@ -18,26 +18,50 @@ If its already installed and you are looking to configure ingress for an app or 
 
 # How It Works
 
-The ngrok Kubernetes Ingress Controller implements the standard Kubernetes Ingress Spec in order to allow secure connections from the internet to services running in the Kubernetes private network that pods and Kubernetes services lie on.
+A Kubernetes cluster has its own private network internally that pods get ip addresses from. This network is not accessible to the outside world. Kubernetes Ingress aims to solve getting traffic into the cluster. This should sound a bit similar to how ngrok helps get traffic to ip's behind a firewall on a private network.
 
+By default, kubernetes offers the same types of tools you'd expect at home:
+- You can port forward: In kubernetes, this is a temporary solution using kubectl. At home, you can configure your router. Both may be disrupted if ip's change.
+- You can use an external load balancer of some sort.
 
+in this case below, the user cannot access the pod directly in the k8s private network without some sort of entry point.
 
-- the path network traffic takes to get into the cluster through an established tunnel
-- how k8s resources are read and converted into ngrok resources
+![k8s-basic](./assets/diagrams/index/k8s-basic-1.png)
 
+In kubernetes, ingress aims to solve this problem by letting various controllers implement the spec that provides a standard way of getting traffic into the cluster to access your application and service pods. This can be solved in different ways between controllers from exposing ports to external load balancers.
 
-- in k8s, its has its own private network which pods get ip addresses from and aren't accessible to the outside world
-- k8s ingress aims to solve getting traffic into the cluster
-- this should sound a bit similar to how ngrok helps get traffic to ip's behind a firewall on a private network
-- basic picture of ngrok controller in k8s cluster
-- create basic ingress object for a service, refer to more in depth ingress-to-edge-relationship.md
+![k8s-basic](./assets/diagrams/index/k8s-basic-2.png)
 
+With ngrok, the controller establishes an outbound session that tunnels traffic over. The end user makes a connection to the ngrok edge, which routes traffic down to the controllers' agents and is forwarded to the pods in the cluster.
 
-![k8s-basic](./assets/diagrams/index/k8s-basic.png)
+![k8s-basic](./assets/diagrams/index/k8s-basic-3.png)
+
+To get started, an example ingress object such as this:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-ingress
+  annotations:
+    kubernetes.io/ingress.class: "ngrok"
+spec:
+  rules:
+  - host: example.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: example-service
+          servicePort: 80
+```
+
+Should:
+- Create a tunnel to the service `example-service` on port `80`
+- Create an edge with the hostports of `example.com:443`
+- Create a Tunnel group backend for each tunnel service created with matching labels.
 
 
 # Contributing
  - see [developer-guide](./TODO)
 
-
-<img src="./assets/diagrams/index/k8s-basic.png">
