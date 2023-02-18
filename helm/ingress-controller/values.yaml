@@ -48,7 +48,7 @@ ingressClass:
   create: true
   default: false
 
-## @param watchNamespace The namespace to watch for ingress resources.
+## @param watchNamespace The namespace to watch for ingress resources. Defaults to all
 watchNamespace: ""
 
 ## @param credentials.secret.name The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.
