@@ -1,7 +1,7 @@
 package v1alpha1
 
 // common ngrok API/Dashboard fields
-type ngrokAPICommon struct {
+type NgrokAPICommon struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
 	// +kubebuilder:default:=`Created by kubernetes-ingress-controller`
 	Description string `json:"description,omitempty"`

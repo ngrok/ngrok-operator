@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -30,6 +31,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -75,6 +77,7 @@ type managerOpts struct {
 	electionID  string
 	probeAddr   string
 	serverAddr  string
+	metaData    string
 	zapOpts     *zap.Options
 
 	// env vars
@@ -96,6 +99,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-ingress-controller-leader", "The name of the configmap that is used for holding the leader lock")
+	c.Flags().StringVar(&opts.metaData, "metadata", "", "A comma separated list of key value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
 	c.Flags().StringVar(&opts.region, "region", "us", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	opts.zapOpts = &zap.Options{Development: true, StacktraceLevel: zapcore.DPanicLevel}
@@ -147,7 +151,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	driver, err := getDriver(ctx, mgr)
+	driver, err := getDriver(ctx, mgr, opts.metaData, setupLog)
 	if err != nil {
 		return fmt.Errorf("unable to create Driver: %w", err)
 	}
@@ -182,6 +186,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 	if err != nil {
 		return fmt.Errorf("unable to create tunnel driver: %w", err)
 	}
+
 	if err = (&controllers.TunnelReconciler{
 		Client:       mgr.GetClient(),
 		Log:          ctrl.Log.WithName("controllers").WithName("tunnel"),
@@ -241,9 +246,24 @@ func runController(ctx context.Context, opts managerOpts) error {
 }
 
 // getDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getDriver(ctx context.Context, mgr manager.Manager) (*store.Driver, error) {
+func getDriver(ctx context.Context, mgr manager.Manager, metaData string, log logr.Logger) (*store.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
 	d := store.NewDriver(logger, mgr.GetScheme())
+	if metaData != "" {
+		metaData = strings.TrimSuffix(metaData, ",")
+		// metadata is a comma separated list of key=value pairs.
+		// e.g. "foo=bar,baz=qux"
+		customMetaData := make(map[string]string)
+		pairs := strings.Split(metaData, ",")
+		for _, pair := range pairs {
+			kv := strings.Split(pair, "=")
+			if len(kv) != 2 {
+				return nil, fmt.Errorf("invalid metadata pair: %q", pair)
+			}
+			customMetaData[kv[0]] = kv[1]
+		}
+		d.WithMetaData(customMetaData)
+	}
 	if err := d.Seed(ctx, mgr.GetAPIReader()); err != nil {
 		return nil, fmt.Errorf("unable to seed cache store: %w", err)
 	}

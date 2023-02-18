@@ -32,7 +32,7 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type TunnelGroupBackend struct {
-	ngrokAPICommon `json:",inline"`
+	NgrokAPICommon `json:",inline"`
 
 	// Labels to watch for tunnels on this backend
 	Labels map[string]string `json:"labels,omitempty"`
@@ -40,7 +40,7 @@ type TunnelGroupBackend struct {
 
 // TCPEdgeSpec defines the desired state of TCPEdge
 type TCPEdgeSpec struct {
-	ngrokAPICommon `json:",inline"`
+	NgrokAPICommon `json:",inline"`
 
 	// Backend is the definition for the tunnel group backend
 	// that serves traffic for this edge

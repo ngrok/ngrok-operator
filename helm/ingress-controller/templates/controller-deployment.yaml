@@ -48,6 +48,13 @@ spec:
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}
         {{- end }}
+        {{- if .Values.metaData }}
+        - --metadata={{- $metadataArgs := list -}}
+          {{- range $key, $value := .Values.metaData }}
+          {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
+          {{- end }}
+          {{- $metadataArgs | join "," }}
+        {{- end }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id={{ include "kubernetes-ingress-controller.fullname" . }}-leader

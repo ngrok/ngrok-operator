@@ -29,7 +29,7 @@ import (
 )
 
 type IPPolicyRule struct {
-	ngrokAPICommon `json:",inline"`
+	NgrokAPICommon `json:",inline"`
 
 	// +kubebuilder:validation:Required
 	CIDR string `json:"cidr,omitempty"`
@@ -49,7 +49,7 @@ type IPPolicyRuleStatus struct {
 
 // IPPolicySpec defines the desired state of IPPolicy
 type IPPolicySpec struct {
-	ngrokAPICommon `json:",inline"`
+	NgrokAPICommon `json:",inline"`
 
 	// Rules is a list of rules that belong to the policy
 	Rules []IPPolicyRule `json:"rules,omitempty"`

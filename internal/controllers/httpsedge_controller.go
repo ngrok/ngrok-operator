@@ -127,10 +127,21 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 
 	if edge.Status.ID != "" {
 		// We already have an ID, so we can just update the resource
-		// TODO: Update the edge if the hostports don't match or the metadata doesn't match
 		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
 		if err != nil {
 			return err
+		}
+
+		if !edge.Equal(remoteEdge) {
+			remoteEdge, err = r.NgrokClientset.HTTPSEdges().Update(ctx, &ngrok.HTTPSEdgeUpdate{
+				ID:          edge.Status.ID,
+				Metadata:    &edge.Spec.Metadata,
+				Description: &edge.Spec.Description,
+				Hostports:   edge.Spec.Hostports,
+			})
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		// Try to find the edge by Hostports

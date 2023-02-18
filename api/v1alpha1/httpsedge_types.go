@@ -25,6 +25,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"github.com/ngrok/ngrok-api-go/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -32,7 +33,7 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type HTTPSEdgeRouteSpec struct {
-	ngrokAPICommon `json:",inline"`
+	NgrokAPICommon `json:",inline"`
 
 	// MatchType is the type of match to use for this route. Valid values are:
 	// +kubebuilder:validation:Required
@@ -63,7 +64,7 @@ type HTTPSEdgeRouteSpec struct {
 
 // HTTPSEdgeSpec defines the desired state of HTTPSEdge
 type HTTPSEdgeSpec struct {
-	ngrokAPICommon `json:",inline"`
+	NgrokAPICommon `json:",inline"`
 
 	// Hostports is a list of hostports served by this edge
 	// +kubebuilder:validation:Required
@@ -126,4 +127,48 @@ type HTTPSEdgeList struct {
 
 func init() {
 	SchemeBuilder.Register(&HTTPSEdge{}, &HTTPSEdgeList{})
+}
+
+// Equal returns true if the two HTTPSEdge objects are equal
+// It only checks the top level attributes like hostports and metadata
+// It does not check the routes or the tunnel group backend
+func (e *HTTPSEdge) Equal(edge *ngrok.HTTPSEdge) bool {
+	// check if the metadata matches
+	if e.Spec.Metadata != edge.Metadata {
+		return false
+	}
+
+	// check if the hostports match
+	if !stringSliceEqual(e.Spec.Hostports, edge.Hostports) {
+		return false
+	}
+
+	// check if TLSTermination matches
+	if (e.Spec.TLSTermination == nil && edge.TlsTermination != nil) || (e.Spec.TLSTermination != nil && edge.TlsTermination == nil) {
+		// one is nil and the other is not so they don't match
+		return false
+	}
+	if e.Spec.TLSTermination.MinVersion != *edge.TlsTermination.MinVersion {
+		return false
+	}
+	return true
+}
+
+func stringSliceEqual(x, y []string) bool {
+	xMap := make(map[string]int)
+	yMap := make(map[string]int)
+
+	for _, xElem := range x {
+		xMap[xElem]++
+	}
+	for _, yElem := range y {
+		yMap[yElem]++
+	}
+
+	for xMapKey, xMapVal := range xMap {
+		if yMap[xMapKey] != xMapVal {
+			return false
+		}
+	}
+	return true
 }
