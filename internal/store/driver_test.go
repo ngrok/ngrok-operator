@@ -25,7 +25,7 @@ var _ = Describe("Driver", func() {
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())
-		driver = NewDriver(logger, scheme)
+		driver = NewDriver(logger, scheme, defaultControllerName)
 		driver.bypassReentranceCheck = true
 	})
 
