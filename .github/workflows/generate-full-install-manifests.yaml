@@ -1,0 +1,33 @@
+name: 'Generate full install manifests'
+
+on:
+  pull_request_target:
+    branches:
+    - main
+    paths:
+    - 'helm/**/*'
+permissions:
+  contents: write
+jobs:
+  update-full-install:
+    name: Update full install
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.10.0
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run helm template
+        run: |
+          helm template ingress-controller helm/ingress-controller > helm/ingress-controller/full-install/latest.yaml
+      - name: Push changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Update README.md with readme-generator-for-helm
