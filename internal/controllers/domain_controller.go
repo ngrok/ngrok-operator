@@ -117,7 +117,6 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if domain.Status.ID != "" {
-		r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated Domain %v", domain))
 		if err := r.updateExternalResources(ctx, domain); err != nil {
 			r.Recorder.Event(domain, v1.EventTypeWarning, "UpdateFailed", fmt.Sprintf("Failed to update Domain %s: %s", domain.Name, err.Error()))
 			return ctrl.Result{}, err
@@ -183,8 +182,6 @@ func (r *DomainReconciler) updateExternalResources(ctx context.Context, domain *
 			return err
 		}
 		return r.updateStatus(ctx, domain, resp)
-	} else {
-		r.Log.Info("Reserved domain is up to date", "ID", domain.Status.ID)
 	}
 
 	return nil
