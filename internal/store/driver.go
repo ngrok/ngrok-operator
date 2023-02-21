@@ -50,7 +50,7 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme) *Driver {
 	}
 }
 
-// WithCustomMetadata allows you to pass in custom metadata to be added to all resources created by the controller
+// WithMetaData allows you to pass in custom metadata to be added to all resources created by the controller
 func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
 	if _, ok := customMetadata["owned-by"]; !ok {
 		customMetadata["owned-by"] = "kubernetes-ingress-controller"

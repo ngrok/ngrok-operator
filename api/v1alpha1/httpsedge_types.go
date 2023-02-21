@@ -133,6 +133,14 @@ func init() {
 // It only checks the top level attributes like hostports and metadata
 // It does not check the routes or the tunnel group backend
 func (e *HTTPSEdge) Equal(edge *ngrok.HTTPSEdge) bool {
+	if e == nil && edge == nil {
+		return true
+	}
+
+	if e == nil || edge == nil {
+		return false
+	}
+
 	// check if the metadata matches
 	if e.Spec.Metadata != edge.Metadata {
 		return false
@@ -144,31 +152,15 @@ func (e *HTTPSEdge) Equal(edge *ngrok.HTTPSEdge) bool {
 	}
 
 	// check if TLSTermination matches
+	if e.Spec.TLSTermination == nil && edge.TlsTermination == nil {
+		return true
+	}
 	if (e.Spec.TLSTermination == nil && edge.TlsTermination != nil) || (e.Spec.TLSTermination != nil && edge.TlsTermination == nil) {
 		// one is nil and the other is not so they don't match
 		return false
 	}
 	if e.Spec.TLSTermination.MinVersion != *edge.TlsTermination.MinVersion {
 		return false
-	}
-	return true
-}
-
-func stringSliceEqual(x, y []string) bool {
-	xMap := make(map[string]int)
-	yMap := make(map[string]int)
-
-	for _, xElem := range x {
-		xMap[xElem]++
-	}
-	for _, yElem := range y {
-		yMap[yElem]++
-	}
-
-	for xMapKey, xMapVal := range xMap {
-		if yMap[xMapKey] != xMapVal {
-			return false
-		}
 	}
 	return true
 }
