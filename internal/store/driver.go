@@ -137,9 +137,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	desiredDomains := d.calculateDomains()
 	desiredEdges := d.calculateHTTPSEdges()
 	desiredTunnels := d.calculateTunnels()
-	fmt.Printf("desiredDomains: %v", desiredDomains)
-	fmt.Printf("desiredEdges: %v", desiredEdges)
-	fmt.Printf("desiredTunnels: %v", desiredTunnels)
 
 	currDomains := &ingressv1alpha1.DomainList{}
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
@@ -412,12 +409,12 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 
 func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c client.Reader) []netv1.IngressLoadBalancerIngress {
 	domains := &ingressv1alpha1.DomainList{}
-	hostnames := make(map[string]netv1.IngressLoadBalancerIngress)
 	if err := c.List(context.Background(), domains); err != nil {
 		d.log.Error(err, "failed to list domains")
 		return []netv1.IngressLoadBalancerIngress{}
 	}
 
+	hostnames := make(map[string]netv1.IngressLoadBalancerIngress)
 	for _, domain := range domains.Items {
 		for _, rule := range ing.Spec.Rules {
 			if rule.Host == domain.Spec.Domain && domain.Status.CNAMETarget != nil {
