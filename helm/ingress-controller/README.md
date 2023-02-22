@@ -62,6 +62,7 @@ To uninstall the chart:
 | `credentials.authtoken`      | Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.  | `""`                                  |
 | `region`                     | ngrok region to create tunnels in. Defaults to empty to utilize the global network                                    | `""`                                  |
 | `serverAddr`                 | This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.         | `""`                                  |
+| `metaData`                   | This is a map of key/value pairs that will be added as meta data to all ngrok api resources created                   | `{}`                                  |
 | `resources.limits`           | The resources limits for the container                                                                                | `{}`                                  |
 | `resources.requests`         | The requested resources for the container                                                                             | `{}`                                  |
 | `extraVolumes`               | An array of extra volumes to add to the controller.                                                                   | `[]`                                  |
