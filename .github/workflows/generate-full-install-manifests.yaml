@@ -6,11 +6,11 @@ on:
     - alex/single-manifest-file
     # paths:
     # - 'helm/**/*'
-  pull_request_target:
-    branches:
-    - main
-    paths:
-    - 'helm/**/*'
+  # pull_request_target:
+  #   branches:
+  #   - main
+  #   paths:
+  #   - 'helm/**/*'
 permissions:
   contents: write
 jobs:
