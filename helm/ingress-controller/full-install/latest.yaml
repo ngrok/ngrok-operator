@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ingress-controller-kubernetes-ingress-controller
-  namespace: default
+  namespace: ngrok-ingress-controller
   labels:
     helm.sh/chart: kubernetes-ingress-controller-0.5.0
     app.kubernetes.io/name: kubernetes-ingress-controller
@@ -19,7 +19,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ingress-controller-kubernetes-ingress-controller-agent-cm
-  namespace: default
+  namespace: ngrok-ingress-controller
 data:
   METADATA: ""
   REGION: ""
@@ -30,7 +30,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ingress-controller-kubernetes-ingress-controller-manager-config
-  namespace: default
+  namespace: ngrok-ingress-controller
 data:
   controller_manager_config.yaml: |
     apiVersion: controller-runtime.sigs.k8s.io/v1alpha1
@@ -1203,7 +1203,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ingress-controller-kubernetes-ingress-controller
-  namespace: default
+  namespace: ngrok-ingress-controller
 ---
 # Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1217,14 +1217,14 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ingress-controller-kubernetes-ingress-controller
-  namespace: default
+  namespace: ngrok-ingress-controller
 ---
 # Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: ngrok-ingress-controller-leader-election-role
-  namespace: default
+  namespace: ngrok-ingress-controller
 rules:
 - apiGroups:
   - ""
@@ -1263,7 +1263,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: ngrok-ingress-controller-leader-election-rolebinding
-  namespace: default
+  namespace: ngrok-ingress-controller
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -1271,7 +1271,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ingress-controller-kubernetes-ingress-controller
-  namespace: default
+  namespace: ngrok-ingress-controller
 ---
 # Source: kubernetes-ingress-controller/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -1286,11 +1286,11 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
   name: ingress-controller-kubernetes-ingress-controller-manager
-  namespace: default
+  namespace: ngrok-ingress-controller
   annotations:
-    checksum/agent-config: 96e02ff3050575ad943b6e552f9eebe45b07226cdf5715249a802f8ffb12cca0
+    checksum/agent-config: 1012a0f3f4132751a558b1db2df58aab89fc9cf8a7f75a51ab84ffecf7ec9d71
     checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
-    checksum/rbac: ebcdf19a422026329c873d4e3dc75a8889c4691190a6d56bcd796e29adf2e2a6
+    checksum/rbac: ab5761a6b6e49df659299bec762a096c25634370afc20485d4b5f4befcda2504
 spec:
   replicas: 1
   selector:
