@@ -1328,12 +1328,12 @@ spec:
           valueFrom:
             secretKeyRef:
               key: API_KEY
-              name: ingress-controller-kubernetes-ingress-controller-credentials
+              name: ngrok-ingress-controller-credentials
         - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
               key: AUTHTOKEN
-              name: ingress-controller-kubernetes-ingress-controller-credentials
+              name: ngrok-ingress-controller-credentials
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
