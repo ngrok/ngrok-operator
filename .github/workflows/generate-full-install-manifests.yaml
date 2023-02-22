@@ -1,6 +1,11 @@
 name: 'Generate full install manifests'
 
 on:
+  push:
+    branches:
+    - alex/single-manifest-file
+    paths:
+    - 'helm/**/*'
   pull_request_target:
     branches:
     - main
@@ -30,4 +35,4 @@ jobs:
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: Update README.md with readme-generator-for-helm
+          commit_message: Update full install manifests file
