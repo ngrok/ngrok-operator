@@ -31,7 +31,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run helm template
         run: |
-          helm template ingress-controller helm/ingress-controller > helm/ingress-controller/full-install/latest.yaml
+          helm template ingress-controller helm/ingress-controller -n ngrok-ingress-controller > helm/ingress-controller/full-install/latest.yaml
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
