@@ -4,8 +4,8 @@ on:
   push:
     branches:
     - alex/single-manifest-file
-    paths:
-    - 'helm/**/*'
+    # paths:
+    # - 'helm/**/*'
   pull_request_target:
     branches:
     - main
