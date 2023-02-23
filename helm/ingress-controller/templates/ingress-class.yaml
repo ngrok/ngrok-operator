@@ -11,5 +11,5 @@ metadata:
     ingressclass.kubernetes.io/is-default-class: "true"
   {{- end }}
 spec:
-  controller: k8s.ngrok.com/ingress-controller
+  controller: {{ .Values.controllerName }}
 {{- end}}

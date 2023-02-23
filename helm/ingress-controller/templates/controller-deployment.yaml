@@ -47,6 +47,7 @@ spec:
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}
         {{- end }}
+        - --controller-name={{ .Values.controllerName }}
         {{- if .Values.watchNamespace }}
         - --watch-namespace={{ .Values.watchNamespace}}
         {{- end }}

@@ -75,6 +75,7 @@ type managerOpts struct {
 	electionID     string
 	probeAddr      string
 	serverAddr     string
+	controllerName string
 	watchNamespace string
 	zapOpts        *zap.Options
 
@@ -99,6 +100,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-ingress-controller-leader", "The name of the configmap that is used for holding the leader lock")
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
+	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	opts.zapOpts = &zap.Options{Development: true, StacktraceLevel: zapcore.DPanicLevel}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -155,7 +157,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	driver, err := getDriver(ctx, mgr)
+	driver, err := getDriver(ctx, mgr, opts)
 	if err != nil {
 		return fmt.Errorf("unable to create Driver: %w", err)
 	}
@@ -249,9 +251,9 @@ func runController(ctx context.Context, opts managerOpts) error {
 }
 
 // getDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getDriver(ctx context.Context, mgr manager.Manager) (*store.Driver, error) {
+func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
-	d := store.NewDriver(logger, mgr.GetScheme())
+	d := store.NewDriver(logger, mgr.GetScheme(), options.controllerName)
 	if err := d.Seed(ctx, mgr.GetAPIReader()); err != nil {
 		return nil, fmt.Errorf("unable to seed cache store: %w", err)
 	}

@@ -10,6 +10,7 @@ import (
 )
 
 const ngrokIngressClass = "ngrok"
+const defaultControllerName = "k8s.ngrok.com/ingress-controller"
 
 func TestStore(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -23,7 +24,7 @@ var _ = Describe("Store", func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())
 		cacheStores := NewCacheStores(logger)
-		store = New(cacheStores, controllerName, logger)
+		store = New(cacheStores, defaultControllerName, logger)
 	})
 
 	var _ = Describe("GetIngressClassV1", func() {

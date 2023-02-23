@@ -48,6 +48,9 @@ ingressClass:
   create: true
   default: false
 
+## @param controllerName The name of the controller to look for matching ingress classes
+controllerName: "k8s.ngrok.com/ingress-controller"
+
 ## @param watchNamespace The namespace to watch for ingress resources. Defaults to all
 watchNamespace: ""
 

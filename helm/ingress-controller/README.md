@@ -57,6 +57,7 @@ To uninstall the chart:
 | `ingressClass.name`          | The name of the ingress class to use.                                                                                 | `ngrok`                               |
 | `ingressClass.create`        | Whether to create the ingress class.                                                                                  | `true`                                |
 | `ingressClass.default`       | Whether to set the ingress class as default.                                                                          | `false`                               |
+| `controllerName`             | The name of the controller to look for matching ingress classes                                                       | `k8s.ngrok.com/ingress-controller`    |
 | `watchNamespace`             | The namespace to watch for ingress resources. Defaults to all                                                         | `""`                                  |
 | `credentials.secret.name`    | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.    | `""`                                  |
 | `credentials.apiKey`         | Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well. | `""`                                  |
