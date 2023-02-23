@@ -4,7 +4,6 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/agent-config: 3b489411f7beac52b84c9645f888cd57f483193fded2b336a5737c9a59760e51
         checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
@@ -38,6 +37,7 @@ Should match all-options snapshot:
         spec:
           containers:
           - args:
+            - --controller-name=k8s.ngrok.com/ingress-controller
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
@@ -93,16 +93,6 @@ Should match all-options snapshot:
           - emptyDir: {}
             name: test-volume
   2: |
-    apiVersion: v1
-    data:
-      METADATA: ""
-      REGION: ""
-      REMOTE_MANAGEMENT: ""
-    kind: ConfigMap
-    metadata:
-      name: RELEASE-NAME-kubernetes-ingress-controller-agent-cm
-      namespace: NAMESPACE
-  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
@@ -140,7 +130,7 @@ Should match all-options snapshot:
       verbs:
       - create
       - patch
-  4: |
+  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -158,7 +148,7 @@ Should match all-options snapshot:
       - subjectaccessreviews
       verbs:
       - create
-  5: |
+  4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
@@ -172,7 +162,7 @@ Should match all-options snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  6: |
+  5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -185,7 +175,7 @@ Should match all-options snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  7: |
+  6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -198,7 +188,7 @@ Should match all-options snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  8: |
+  7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -393,7 +383,6 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/agent-config: 3b489411f7beac52b84c9645f888cd57f483193fded2b336a5737c9a59760e51
         checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
@@ -427,6 +416,7 @@ Should match default snapshot:
         spec:
           containers:
           - args:
+            - --controller-name=k8s.ngrok.com/ingress-controller
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
@@ -469,16 +459,6 @@ Should match default snapshot:
               allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-kubernetes-ingress-controller
   2: |
-    apiVersion: v1
-    data:
-      METADATA: ""
-      REGION: ""
-      REMOTE_MANAGEMENT: ""
-    kind: ConfigMap
-    metadata:
-      name: RELEASE-NAME-kubernetes-ingress-controller-agent-cm
-      namespace: NAMESPACE
-  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
@@ -516,7 +496,7 @@ Should match default snapshot:
       verbs:
       - create
       - patch
-  4: |
+  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -534,7 +514,7 @@ Should match default snapshot:
       - subjectaccessreviews
       verbs:
       - create
-  5: |
+  4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
@@ -548,7 +528,7 @@ Should match default snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  6: |
+  5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -561,7 +541,7 @@ Should match default snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  7: |
+  6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -574,7 +554,7 @@ Should match default snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  8: |
+  7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:

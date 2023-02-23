@@ -125,26 +125,6 @@ helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
   --set credentials.secret.name=ngrok-ingress-controller-credentials
 ```
 
-## How to Configure the Agent
-
-> Warning: This will be deprecated soon when moving to the new lib-ngrok library
-* assumes configs will be in a config map named `{{ include "kubernetes-ingress-controller.fullname" . }}-agent-cm` in the same namespace
-* setup automatically via helm. Values and config map name can be configured in the future via helm
-* subset of these that should be configurable https://ngrok.com/docs/ngrok-agent/config#config-full-example
-* example config map showing all optional values with their defaults.
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "kubernetes-ingress-controller.fullname" . }}-agent-cm
-  namespace: ngrok-ingress-controller
-data:
-  METADATA: "{}"
-  REGION: us
-  REMOTE_MANAGEMENT: true
-```
-
 ## Using the E2E Fixtures
 Several examples are provided in the [`e2e-fixtures` folder](./e2e-fixtures).  To use an example, make a copy of the included `EXAMPLE*config.yaml` in the same directory, like this:
 - `cp e2e-fixtures/hello-world-ingress/EXAMPLE-config.yaml e2e-fixtures/hello-world-ingress/config.yaml`
