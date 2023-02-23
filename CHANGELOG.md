@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ingress Class has Default set to false [#109](https://github.com/ngrok/kubernetes-ingress-controller/pull/109)
 
 ### Added
+- Allow controller name to be configured to support multiple ngrok ingress classes [#159](https://github.com/ngrok/kubernetes-ingress-controller/pull/159)
+- Allow the controller to be configured to only watch a single namespace [#157](https://github.com/ngrok/kubernetes-ingress-controller/pull/157)
 - Allow the controller name to be configured to support multiple ngrok ingress classes [#159](https://github.com/ngrok/kubernetes-ingress-controller/pull/159)
 - merge all ingress objects into a single store to derive Edges. [#129](https://github.com/ngrok/kubernetes-ingress-controller/pull/129), [#10](https://github.com/ngrok/kubernetes-ingress-controller/pull/10), [#131](https://github.com/ngrok/kubernetes-ingress-controller/pull/131), [#137](https://github.com/ngrok/kubernetes-ingress-controller/pull/137)
 - Minimum TLS Version Route Module [#125](https://github.com/ngrok/kubernetes-ingress-controller/pull/125)
