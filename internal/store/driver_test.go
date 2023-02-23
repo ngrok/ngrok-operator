@@ -6,6 +6,8 @@ import (
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	netv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -20,12 +22,13 @@ var _ = Describe("Driver", func() {
 
 	var driver *Driver
 	var scheme = runtime.NewScheme()
+	cname := "cnametarget.com"
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())
-		driver = NewDriver(logger, scheme)
+		driver = NewDriver(logger, scheme, defaultControllerName)
 		driver.bypassReentranceCheck = true
 	})
 
@@ -145,6 +148,138 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(foundTunnel).ToNot(BeNil())
 			})
+		})
+	})
+
+	Describe("calculateIngressLoadBalancerIPStatus", func() {
+		It("Should return the correct status", func() {
+			i1 := NewTestIngressV1("test-ingress", "test-namespace")
+			i1.Spec = netv1.IngressSpec{
+				Rules: []netv1.IngressRule{
+					{
+						Host: "test-domain.com",
+					},
+				},
+			}
+			domainList := &ingressv1alpha1.DomainList{
+				Items: []ingressv1alpha1.Domain{
+					{
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: "test-domain.com",
+						},
+						Status: ingressv1alpha1.DomainStatus{
+							CNAMETarget: &cname,
+						},
+					},
+				},
+			}
+			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+
+			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
+			Expect(len(status)).To(Equal(1))
+			Expect(status[0].Hostname).To(Equal(cname))
+		})
+
+		It("Should return empty status if no matching domain found", func() {
+			i1 := NewTestIngressV1("test-ingress", "test-namespace")
+			i1.Spec = netv1.IngressSpec{
+				Rules: []netv1.IngressRule{
+					{
+						Host: "test-domain.com",
+					},
+				},
+			}
+			domainList := &ingressv1alpha1.DomainList{
+				Items: []ingressv1alpha1.Domain{
+					{
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: "another-domain.com",
+						},
+						Status: ingressv1alpha1.DomainStatus{
+							CNAMETarget: &cname,
+						},
+					},
+				},
+			}
+			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+
+			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
+			Expect(len(status)).To(Equal(0))
+		})
+
+		It("Should return empty status if domain CNAME target is nil", func() {
+			i1 := NewTestIngressV1("test-ingress", "test-namespace")
+			i1.Spec = netv1.IngressSpec{
+				Rules: []netv1.IngressRule{
+					{
+						Host: "test-domain.com",
+					},
+				},
+			}
+			domainList := &ingressv1alpha1.DomainList{
+				Items: []ingressv1alpha1.Domain{
+					{
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: "test-domain.com",
+						},
+						Status: ingressv1alpha1.DomainStatus{
+							CNAMETarget: nil,
+						},
+					},
+				},
+			}
+			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+
+			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
+			Expect(len(status)).To(Equal(0))
+		})
+
+		It("Should return multiple statuses for multiple matching domains", func() {
+			cname1 := "cnametarget1.com"
+			cname2 := "cnametarget2.com"
+			i1 := NewTestIngressV1("test-ingress", "test-namespace")
+			i1.Spec = netv1.IngressSpec{
+				Rules: []netv1.IngressRule{
+					{
+						Host: "test-domain1.com",
+					},
+					{
+						Host: "test-domain2.com",
+					},
+				},
+			}
+			domainList := &ingressv1alpha1.DomainList{
+				Items: []ingressv1alpha1.Domain{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "test-domain1.com",
+						},
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: "test-domain1.com",
+						},
+						Status: ingressv1alpha1.DomainStatus{
+							CNAMETarget: &cname1,
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "test-domain2.com",
+						},
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: "test-domain2.com",
+						},
+						Status: ingressv1alpha1.DomainStatus{
+							CNAMETarget: &cname2,
+						},
+					},
+				},
+			}
+			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+
+			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
+			Expect(len(status)).To(Equal(2))
+			Expect(status[0].Hostname).To(Equal(cname1))
+			Expect(status[1].Hostname).To(Equal(cname2))
 		})
 	})
 })
