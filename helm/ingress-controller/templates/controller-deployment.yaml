@@ -7,7 +7,6 @@ metadata:
   name: {{ include "kubernetes-ingress-controller.fullname" . }}-manager
   namespace: {{ .Release.Namespace }}
   annotations:
-    checksum/agent-config: {{ include (print $.Template.BasePath "/agent-config-cm.yaml") . | sha256sum }}
     checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/role.yaml") . | sha256sum }}
     checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
 spec:
@@ -49,6 +48,9 @@ spec:
         - --server-addr={{ .Values.serverAddr}}
         {{- end }}
         - --controller-name={{ .Values.controllerName }}
+        {{- if .Values.watchNamespace }}
+        - --watch-namespace={{ .Values.watchNamespace}}
+        {{- end }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id={{ include "kubernetes-ingress-controller.fullname" . }}-leader

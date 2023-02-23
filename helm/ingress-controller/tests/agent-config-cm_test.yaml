@@ -1,7 +1,0 @@
-suite: test agent-config-cm
-templates:
-- agent-config-cm.yaml
-tests:
-- it: Should match snapshot
-  asserts:
-  - matchSnapshot: {}

@@ -76,6 +76,7 @@ type managerOpts struct {
 	probeAddr      string
 	serverAddr     string
 	controllerName string
+	watchNamespace string
 	zapOpts        *zap.Options
 
 	// env vars
@@ -97,9 +98,10 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-ingress-controller-leader", "The name of the configmap that is used for holding the leader lock")
-	c.Flags().StringVar(&opts.region, "region", "us", "The region to use for ngrok tunnels")
+	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
+	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	opts.zapOpts = &zap.Options{Development: true, StacktraceLevel: zapcore.DPanicLevel}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -137,14 +139,20 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	options := ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     opts.metricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         opts.electionID != "",
 		LeaderElectionID:       opts.electionID,
-	})
+	}
+
+	if opts.watchNamespace != "" {
+		options.Namespace = opts.watchNamespace
+	}
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), options)
 	if err != nil {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}

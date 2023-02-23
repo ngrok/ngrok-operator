@@ -58,10 +58,11 @@ To uninstall the chart:
 | `ingressClass.create`        | Whether to create the ingress class.                                                                                  | `true`                                |
 | `ingressClass.default`       | Whether to set the ingress class as default.                                                                          | `false`                               |
 | `controllerName`             | The name of the controller to look for matching ingress classes                                                       | `k8s.ngrok.com/ingress-controller`    |
+| `watchNamespace`             | The namespace to watch for ingress resources. Defaults to all                                                         | `""`                                  |
 | `credentials.secret.name`    | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.    | `""`                                  |
 | `credentials.apiKey`         | Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well. | `""`                                  |
 | `credentials.authtoken`      | Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.  | `""`                                  |
-| `region`                     | ngrok region to create tunnels in. Defaults to empty to utilize the global network                                    | `""`                                  |
+| `region`                     | ngrok region to create tunnels in. Defaults to connect to the closest geographical region.                            | `""`                                  |
 | `serverAddr`                 | This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.         | `""`                                  |
 | `resources.limits`           | The resources limits for the container                                                                                | `{}`                                  |
 | `resources.requests`         | The requested resources for the container                                                                             | `{}`                                  |
