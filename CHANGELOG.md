@@ -7,21 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.4.0
 ### Changed
+- When no region override is passed to helm, the controller now does not default to the US and instead uses the closes geographic edge servers [#160](https://github.com/ngrok/kubernetes-ingress-controller/pull/160)
 - Ingress Class has Default set to false [#109](https://github.com/ngrok/kubernetes-ingress-controller/pull/109)
 
-
 ### Added
-- Load certs from the directory `"/etc/ssl/certs/ngrok/"` for ngrok-go if present [#111](https://github.com/ngrok/kubernetes-ingress-controller/pull/111)
-- Add IP Policy CRD and IP Policy Route Module [#120](https://github.com/ngrok/kubernetes-ingress-controller/pull/120)
-- Add/Remove Header Route Module [#121](https://github.com/ngrok/kubernetes-ingress-controller/pull/121)
-- Webhook Verification Route Module [#122](https://github.com/ngrok/kubernetes-ingress-controller/pull/122)
-- Minimum TLS Version Route Module [#125](https://github.com/ngrok/kubernetes-ingress-controller/pull/125)
-- Specify IP Policy by CRD name in addition to policy ID [#127](https://github.com/ngrok/kubernetes-ingress-controller/pull/127)
+- Allow the controller name to be configured to support multiple ngrok ingress classes [#159](https://github.com/ngrok/kubernetes-ingress-controller/pull/159)
 - merge all ingress objects into a single store to derive Edges. [#129](https://github.com/ngrok/kubernetes-ingress-controller/pull/129), [#10](https://github.com/ngrok/kubernetes-ingress-controller/pull/10), [#131](https://github.com/ngrok/kubernetes-ingress-controller/pull/131), [#137](https://github.com/ngrok/kubernetes-ingress-controller/pull/137)
+- Minimum TLS Version Route Module [#125](https://github.com/ngrok/kubernetes-ingress-controller/pull/125)
+- Webhook Verification Route Module [#122](https://github.com/ngrok/kubernetes-ingress-controller/pull/122)
+- Add/Remove Header Route Module [#121](https://github.com/ngrok/kubernetes-ingress-controller/pull/121)
+- Add IP Policy CRD and IP Policy Route Module [#120](https://github.com/ngrok/kubernetes-ingress-controller/pull/120)
+- Load certs from the directory `"/etc/ssl/certs/ngrok/"` for ngrok-go if present [#111](https://github.com/ngrok/kubernetes-ingress-controller/pull/111)
 
 ### Fixed
-- Remove routes from remote API when they are removed from the ingress object [#124](https://github.com/ngrok/kubernetes-ingress-controller/pull/124)
+- Fix bug from Driver and Store refactor so ingress status has CNAME Targets for custom domains updated correctly [#162](https://github.com/ngrok/kubernetes-ingress-controller/pull/162)
 - Reduce domain controller reconcile counts by not updating domains if they didn't change  [#140](https://github.com/ngrok/kubernetes-ingress-controller/pull/140)
+- Remove routes from remote API when they are removed from the ingress object [#124](https://github.com/ngrok/kubernetes-ingress-controller/pull/124)
 
 ## 0.3.0
 ### Changed
