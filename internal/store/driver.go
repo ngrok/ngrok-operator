@@ -137,9 +137,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	desiredDomains := d.calculateDomains()
 	desiredEdges := d.calculateHTTPSEdges()
 	desiredTunnels := d.calculateTunnels()
-	fmt.Printf("desiredDomains: %v", desiredDomains)
-	fmt.Printf("desiredEdges: %v", desiredEdges)
-	fmt.Printf("desiredTunnels: %v", desiredTunnels)
 
 	currDomains := &ingressv1alpha1.DomainList{}
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
@@ -271,10 +268,10 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) error {
 	ingresses := d.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
-		newLBIPStatus := d.calculateIngressLoadBalancerIPStatus(ingress)
+		newLBIPStatus := d.calculateIngressLoadBalancerIPStatus(ingress, c)
 		if !reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
 			ingress.Status.LoadBalancer.Ingress = newLBIPStatus
-			if err := c.Update(ctx, ingress); err != nil {
+			if err := c.Status().Update(ctx, ingress); err != nil {
 				d.log.Error(err, "error updating ingress status", "ingress", ingress)
 				return err
 			}
@@ -410,20 +407,26 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 	return tunnels
 }
 
-func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress) []netv1.IngressLoadBalancerIngress {
-	domains := d.calculateDomains()
-	status := []netv1.IngressLoadBalancerIngress{}
-	for _, rule := range ing.Spec.Rules {
-		// TODO: Handle rules without hosts
-		if rule.Host != "" {
-			for _, domain := range domains {
-				if rule.Host == domain.Spec.Domain && &domain.Status != nil && domain.Status.CNAMETarget != nil {
-					status = append(status, netv1.IngressLoadBalancerIngress{
-						IP: *domain.Status.CNAMETarget,
-					})
+func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c client.Reader) []netv1.IngressLoadBalancerIngress {
+	domains := &ingressv1alpha1.DomainList{}
+	if err := c.List(context.Background(), domains); err != nil {
+		d.log.Error(err, "failed to list domains")
+		return []netv1.IngressLoadBalancerIngress{}
+	}
+
+	hostnames := make(map[string]netv1.IngressLoadBalancerIngress)
+	for _, domain := range domains.Items {
+		for _, rule := range ing.Spec.Rules {
+			if rule.Host == domain.Spec.Domain && domain.Status.CNAMETarget != nil {
+				hostnames[domain.Spec.Domain] = netv1.IngressLoadBalancerIngress{
+					Hostname: *domain.Status.CNAMETarget,
 				}
 			}
 		}
+	}
+	status := []netv1.IngressLoadBalancerIngress{}
+	for _, hostname := range hostnames {
+		status = append(status, hostname)
 	}
 	return status
 }
