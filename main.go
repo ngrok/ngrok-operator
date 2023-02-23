@@ -100,7 +100,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-ingress-controller-leader", "The name of the configmap that is used for holding the leader lock")
 	c.Flags().StringVar(&opts.metaData, "metadata", "", "A comma separated list of key value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
-	c.Flags().StringVar(&opts.region, "region", "us", "The region to use for ngrok tunnels")
+	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	opts.zapOpts = &zap.Options{Development: true, StacktraceLevel: zapcore.DPanicLevel}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)

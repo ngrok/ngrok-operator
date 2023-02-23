@@ -4,7 +4,6 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/agent-config: a958b9e4aa4346354a2d0b19a26670782a626a8f2ef768425b343a0385374f49
         checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
@@ -93,16 +92,6 @@ Should match all-options snapshot:
           - emptyDir: {}
             name: test-volume
   2: |
-    apiVersion: v1
-    data:
-      METADATA: map[]
-      REGION: ""
-      REMOTE_MANAGEMENT: ""
-    kind: ConfigMap
-    metadata:
-      name: RELEASE-NAME-kubernetes-ingress-controller-agent-cm
-      namespace: NAMESPACE
-  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
@@ -140,7 +129,7 @@ Should match all-options snapshot:
       verbs:
       - create
       - patch
-  4: |
+  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -158,7 +147,7 @@ Should match all-options snapshot:
       - subjectaccessreviews
       verbs:
       - create
-  5: |
+  4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
@@ -172,7 +161,7 @@ Should match all-options snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  6: |
+  5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -185,7 +174,7 @@ Should match all-options snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  7: |
+  6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -198,7 +187,7 @@ Should match all-options snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  8: |
+  7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -393,7 +382,6 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/agent-config: a958b9e4aa4346354a2d0b19a26670782a626a8f2ef768425b343a0385374f49
         checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
@@ -469,16 +457,6 @@ Should match default snapshot:
               allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-kubernetes-ingress-controller
   2: |
-    apiVersion: v1
-    data:
-      METADATA: map[]
-      REGION: ""
-      REMOTE_MANAGEMENT: ""
-    kind: ConfigMap
-    metadata:
-      name: RELEASE-NAME-kubernetes-ingress-controller-agent-cm
-      namespace: NAMESPACE
-  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
@@ -516,7 +494,7 @@ Should match default snapshot:
       verbs:
       - create
       - patch
-  4: |
+  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -534,7 +512,7 @@ Should match default snapshot:
       - subjectaccessreviews
       verbs:
       - create
-  5: |
+  4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
@@ -548,7 +526,7 @@ Should match default snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  6: |
+  5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -561,7 +539,7 @@ Should match default snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  7: |
+  6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -574,7 +552,7 @@ Should match default snapshot:
     - kind: ServiceAccount
       name: RELEASE-NAME-kubernetes-ingress-controller
       namespace: NAMESPACE
-  8: |
+  7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:

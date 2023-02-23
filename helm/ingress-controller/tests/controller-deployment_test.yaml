@@ -7,7 +7,6 @@ templates:
 # we are including on the deployment, we need to include them here. It makes the
 # snapshot much larger than it needs to be, but it's the only way to test the
 # deployment at this time.
-- agent-config-cm.yaml
 - controller-rbac.yaml
 - rbac/role.yaml
 tests:
