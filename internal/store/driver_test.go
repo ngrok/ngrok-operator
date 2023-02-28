@@ -234,7 +234,7 @@ var _ = Describe("Driver", func() {
 			Expect(len(status)).To(Equal(0))
 		})
 
-		It("Should return multiple statuses for multiple matching domains", func() {
+		It("Should return multiple statuses for multiple different domains", func() {
 			cname1 := "cnametarget1.com"
 			cname2 := "cnametarget2.com"
 			i1 := NewTestIngressV1("test-ingress", "test-namespace")
@@ -277,9 +277,58 @@ var _ = Describe("Driver", func() {
 			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
 
 			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(len(status)).To(Equal(2))
-			Expect(status[0].Hostname).To(Equal(cname1))
-			Expect(status[1].Hostname).To(Equal(cname2))
+			Expect(status).Should(ConsistOf(
+				HaveField("Hostname", cname1),
+				HaveField("Hostname", cname2),
+			))
+		})
+
+		It("Should only have a single status for multiple domains that match", func() {
+			cname1 := "cnametarget1.com"
+			cname2 := "cnametarget2.com"
+			i1 := NewTestIngressV1("test-ingress", "test-namespace")
+			i1.Spec = netv1.IngressSpec{
+				Rules: []netv1.IngressRule{
+					{
+						Host: "test-domain1.com",
+					},
+					{
+						Host: "test-domain1.com",
+					},
+				},
+			}
+			domainList := &ingressv1alpha1.DomainList{
+				Items: []ingressv1alpha1.Domain{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "test-domain1.com",
+						},
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: "test-domain1.com",
+						},
+						Status: ingressv1alpha1.DomainStatus{
+							CNAMETarget: &cname1,
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "test-domain2.com",
+						},
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: "test-domain2.com",
+						},
+						Status: ingressv1alpha1.DomainStatus{
+							CNAMETarget: &cname2,
+						},
+					},
+				},
+			}
+			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+
+			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
+			Expect(status).Should(ConsistOf(
+				HaveField("Hostname", cname1),
+			))
 		})
 	})
 })
