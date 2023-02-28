@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -32,6 +33,7 @@ type Driver struct {
 	scheme                *runtime.Scheme
 	reentranceFlag        int64
 	bypassReentranceCheck bool
+	customMetadata        string
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
@@ -44,6 +46,20 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 		log:         logger,
 		scheme:      scheme,
 	}
+}
+
+// WithMetaData allows you to pass in custom metadata to be added to all resources created by the controller
+func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
+	if _, ok := customMetadata["owned-by"]; !ok {
+		customMetadata["owned-by"] = "kubernetes-ingress-controller"
+	}
+	jsonString, err := json.Marshal(customMetadata)
+	if err != nil {
+		d.log.Error(err, "error marshalling custom metadata", "customMetadata", d.customMetadata)
+		return d
+	}
+	d.customMetadata = string(jsonString)
+	return d
 }
 
 // Seed fetches all the upfront information the driver needs to operate
@@ -287,7 +303,7 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 			if rule.Host == "" {
 				continue
 			}
-			domainMap[rule.Host] = ingressv1alpha1.Domain{
+			domain := ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      strings.Replace(rule.Host, ".", "-", -1),
 					Namespace: ingress.Namespace,
@@ -296,6 +312,8 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 					Domain: rule.Host,
 				},
 			}
+			domain.Spec.Metadata = d.customMetadata
+			domainMap[rule.Host] = domain
 		}
 	}
 	domains := make([]ingressv1alpha1.Domain, 0, len(domainMap))
@@ -319,6 +337,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 				Hostports: []string{domain.Spec.Domain + ":443"},
 			},
 		}
+		edge.Spec.Metadata = d.customMetadata
 		var ngrokRoutes []ingressv1alpha1.HTTPSEdgeRouteSpec
 		for _, ingress := range ingresses {
 			for _, rule := range ingress.Spec.Rules {
@@ -357,6 +376,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 							IPRestriction: parsedRouteModules.IPRestriction,
 							Headers:       parsedRouteModules.Headers,
 						}
+						route.Metadata = d.customMetadata
 
 						ngrokRoutes = append(ngrokRoutes, route)
 					}

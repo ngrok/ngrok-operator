@@ -54,6 +54,17 @@ tests:
   - notMatchRegex:
       path: spec.template.spec.containers[0].args[0]
       pattern: --region=eu
+- it: Should pass extra metadata to the deployment
+  set:
+    metaData:
+      metaDataKey1: metaDataValue1
+      metaDataKey2: metaDataValue2
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].args[0]
+      pattern: --metadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
 - it: Should pass through extra volumes and extra volume mounts
   set:
     extraVolumes:
