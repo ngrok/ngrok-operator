@@ -315,7 +315,7 @@ var _ = Describe("Driver", func() {
 							Name: "test-domain2.com",
 						},
 						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain1.com",
+							Domain: "test-domain2.com",
 						},
 						Status: ingressv1alpha1.DomainStatus{
 							CNAMETarget: &cname2,
@@ -326,7 +326,9 @@ var _ = Describe("Driver", func() {
 			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
 
 			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(len(status)).To(Equal(1))
+			Expect(status).Should(ConsistOf(
+				HaveField("Hostname", cname1),
+			))
 		})
 	})
 })
