@@ -277,11 +277,10 @@ var _ = Describe("Driver", func() {
 			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
 
 			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(len(status)).To(Equal(2))
-			Expect(status[0].Hostname).To(Not(Equal(status[1].Hostname)))
-			for _, s := range status {
-				Expect(s.Hostname).To(SatisfyAny(Equal(cname1), Equal(cname2)))
-			}
+			Expect(status).Should(ConsistOf(
+				HaveField("Hostname", cname1),
+				HaveField("Hostname", cname2),
+			))
 		})
 
 		It("Should only have a single status for multiple domains that match", func() {
