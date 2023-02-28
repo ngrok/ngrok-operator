@@ -17,7 +17,7 @@ func NewTestIngressClass(name string, isDefault bool, isNgrok bool) netv1.Ingres
 	}
 
 	if isNgrok {
-		i.Spec.Controller = controllerName
+		i.Spec.Controller = "k8s.ngrok.com/ingress-controller"
 	} else {
 		i.Spec.Controller = "kubernetes.io/ingress-other"
 	}

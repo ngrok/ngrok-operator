@@ -35,7 +35,7 @@ func TestHTTPSEdgeEqual(t *testing.T) {
 			name: "metadata different",
 			a: &HTTPSEdge{
 				Spec: HTTPSEdgeSpec{
-					NgrokAPICommon: NgrokAPICommon{
+					ngrokAPICommon: ngrokAPICommon{
 						Metadata: "a",
 					},
 				},
@@ -49,7 +49,7 @@ func TestHTTPSEdgeEqual(t *testing.T) {
 			name: "metadata same",
 			a: &HTTPSEdge{
 				Spec: HTTPSEdgeSpec{
-					NgrokAPICommon: NgrokAPICommon{
+					ngrokAPICommon: ngrokAPICommon{
 						Metadata: "a",
 					},
 				},

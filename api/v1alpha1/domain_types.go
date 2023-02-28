@@ -34,7 +34,7 @@ import (
 
 // DomainSpec defines the desired state of Domain
 type DomainSpec struct {
-	NgrokAPICommon `json:",inline"`
+	ngrokAPICommon `json:",inline"`
 
 	// Domain is the domain name to reserve
 	// +kubebuilder:validation:Required

@@ -1,7 +1,7 @@
 package v1alpha1
 
 // common ngrok API/Dashboard fields
-type NgrokAPICommon struct {
+type ngrokAPICommon struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
 	// +kubebuilder:default:=`Created by kubernetes-ingress-controller`
 	Description string `json:"description,omitempty"`
@@ -70,23 +70,4 @@ type EndpointWebhookVerification struct {
 	// SecretRef is a reference to a secret containing the secret used to validate
 	// requests from the given provider. All providers except AWS SNS require a secret
 	SecretRef *SecretKeyRef `json:"secret,omitempty"`
-}
-
-func stringSliceEqual(x, y []string) bool {
-	xMap := make(map[string]int)
-	yMap := make(map[string]int)
-
-	for _, xElem := range x {
-		xMap[xElem]++
-	}
-	for _, yElem := range y {
-		yMap[yElem]++
-	}
-
-	for xMapKey, xMapVal := range xMap {
-		if yMap[xMapKey] != xMapVal {
-			return false
-		}
-	}
-	return true
 }

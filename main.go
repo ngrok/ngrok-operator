@@ -31,7 +31,6 @@ import (
 	"go.uber.org/zap/zapcore"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -73,12 +72,14 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	metricsAddr string
-	electionID  string
-	probeAddr   string
-	serverAddr  string
-	metaData    string
-	zapOpts     *zap.Options
+	metricsAddr    string
+	electionID     string
+	probeAddr      string
+	serverAddr     string
+	controllerName string
+	watchNamespace string
+	metaData       string
+	zapOpts        *zap.Options
 
 	// env vars
 	namespace   string
@@ -102,6 +103,8 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metaData, "metadata", "", "A comma separated list of key value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
+	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
+	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	opts.zapOpts = &zap.Options{Development: true, StacktraceLevel: zapcore.DPanicLevel}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -139,19 +142,25 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	options := ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     opts.metricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         opts.electionID != "",
 		LeaderElectionID:       opts.electionID,
-	})
+	}
+
+	if opts.watchNamespace != "" {
+		options.Namespace = opts.watchNamespace
+	}
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), options)
 	if err != nil {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	driver, err := getDriver(ctx, mgr, opts.metaData, setupLog)
+	driver, err := getDriver(ctx, mgr, opts)
 	if err != nil {
 		return fmt.Errorf("unable to create Driver: %w", err)
 	}
@@ -246,11 +255,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 }
 
 // getDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getDriver(ctx context.Context, mgr manager.Manager, metaData string, log logr.Logger) (*store.Driver, error) {
+func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
-	d := store.NewDriver(logger, mgr.GetScheme())
-	if metaData != "" {
-		metaData = strings.TrimSuffix(metaData, ",")
+	d := store.NewDriver(logger, mgr.GetScheme(), options.watchNamespace)
+	if options.metaData != "" {
+		metaData := strings.TrimSuffix(options.metaData, ",")
 		// metadata is a comma separated list of key=value pairs.
 		// e.g. "foo=bar,baz=qux"
 		customMetaData := make(map[string]string)
@@ -264,6 +273,7 @@ func getDriver(ctx context.Context, mgr manager.Manager, metaData string, log lo
 		}
 		d.WithMetaData(customMetaData)
 	}
+
 	if err := d.Seed(ctx, mgr.GetAPIReader()); err != nil {
 		return nil, fmt.Errorf("unable to seed cache store: %w", err)
 	}

@@ -25,6 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"reflect"
+
 	"github.com/ngrok/ngrok-api-go/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -33,7 +35,7 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type HTTPSEdgeRouteSpec struct {
-	NgrokAPICommon `json:",inline"`
+	ngrokAPICommon `json:",inline"`
 
 	// MatchType is the type of match to use for this route. Valid values are:
 	// +kubebuilder:validation:Required
@@ -64,7 +66,7 @@ type HTTPSEdgeRouteSpec struct {
 
 // HTTPSEdgeSpec defines the desired state of HTTPSEdge
 type HTTPSEdgeSpec struct {
-	NgrokAPICommon `json:",inline"`
+	ngrokAPICommon `json:",inline"`
 
 	// Hostports is a list of hostports served by this edge
 	// +kubebuilder:validation:Required
@@ -147,7 +149,7 @@ func (e *HTTPSEdge) Equal(edge *ngrok.HTTPSEdge) bool {
 	}
 
 	// check if the hostports match
-	if !stringSliceEqual(e.Spec.Hostports, edge.Hostports) {
+	if !reflect.DeepEqual(e.Spec.Hostports, edge.Hostports) {
 		return false
 	}
 

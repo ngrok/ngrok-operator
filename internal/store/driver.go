@@ -21,9 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// The name of the ingress controller which is uses to match on ingress classes
-const controllerName = "k8s.ngrok.com/ingress-controller" // TODO: Let the user configure this
-const clusterDomain = "svc.cluster.local"                 // TODO: We can technically figure this out by looking at things like our resolv.conf or we can just take this as a helm option
+const clusterDomain = "svc.cluster.local" // TODO: We can technically figure this out by looking at things like our resolv.conf or we can just take this as a helm option
 
 // Driver maintains the store of information, can derive new information from the store, and can
 // synchronize the desired state of the store to the actual state of the cluster.
@@ -39,7 +37,7 @@ type Driver struct {
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
-func NewDriver(logger logr.Logger, scheme *runtime.Scheme) *Driver {
+func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string) *Driver {
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
@@ -314,9 +312,7 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 					Domain: rule.Host,
 				},
 			}
-			if d.customMetadata != "" {
-				domain.Spec.NgrokAPICommon.Metadata = d.customMetadata
-			}
+			domain.Spec.Metadata = d.customMetadata
 			domainMap[rule.Host] = domain
 		}
 	}
@@ -341,9 +337,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 				Hostports: []string{domain.Spec.Domain + ":443"},
 			},
 		}
-		if d.customMetadata != "" {
-			edge.Spec.NgrokAPICommon.Metadata = d.customMetadata
-		}
+		edge.Spec.Metadata = d.customMetadata
 		var ngrokRoutes []ingressv1alpha1.HTTPSEdgeRouteSpec
 		for _, ingress := range ingresses {
 			for _, rule := range ingress.Spec.Rules {
@@ -382,9 +376,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 							IPRestriction: parsedRouteModules.IPRestriction,
 							Headers:       parsedRouteModules.Headers,
 						}
-						if d.customMetadata != "" {
-							route.NgrokAPICommon.Metadata = d.customMetadata
-						}
+						route.Metadata = d.customMetadata
 
 						ngrokRoutes = append(ngrokRoutes, route)
 					}
