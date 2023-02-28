@@ -33,7 +33,7 @@ jobs:
         run: |
           helm template ingress-controller helm/ingress-controller \
             -n ngrok-ingress-controller \
-            --set credentials.secret.name="ngrok-ingress-controller-credentials" > helm/ingress-controller/full-install/latest.yaml
+            --set credentials.secret.name="ngrok-ingress-controller-credentials" > manifest-bundle.yaml
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
