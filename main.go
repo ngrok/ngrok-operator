@@ -257,7 +257,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 // getDriver returns a new Driver instance that is seeded with the current state of the cluster.
 func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
-	d := store.NewDriver(logger, mgr.GetScheme(), options.watchNamespace)
+	d := store.NewDriver(logger, mgr.GetScheme(), options.controllerName)
 	if options.metaData != "" {
 		metaData := strings.TrimSuffix(options.metaData, ",")
 		// metadata is a comma separated list of key=value pairs.
