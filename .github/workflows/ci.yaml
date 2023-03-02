@@ -87,6 +87,24 @@ jobs:
         push: false
         tags: ngrok/kubernetes-ingress-controller:latest
 
+  go-mod-tidy:
+    name: Go Mod Tidy Check
+    runs-on: ubuntu-latest
+    needs:
+    - changes
+    if: |
+      (needs.changes.outputs.go == 'true')
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.19
+    - run: go mod tidy
+    - run: git diff --exit-code go.mod
+    - run: git diff --exit-code go.sum
+
+
   build:
     runs-on: ubuntu-latest
     needs:
