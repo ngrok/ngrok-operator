@@ -28,14 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-
-// NgrokModuleSet is the Schema for the ngrokmodules API
-type NgrokModuleSet struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
+type NgrokModuleSetModules struct {
 	// Compression configuration for this module
 	Compression *EndpointCompression `json:"compression,omitempty"`
 	// Header configuration for this module
@@ -46,6 +39,42 @@ type NgrokModuleSet struct {
 	TLSTermination *EndpointTLSTerminationAtEdge `json:"tlsTermination,omitempty"`
 	// WebhookVerification configuration for this module
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
+}
+
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+
+// NgrokModuleSet is the Schema for the ngrokmodules API
+type NgrokModuleSet struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Modules NgrokModuleSetModules `json:"modules,omitempty"`
+}
+
+func (ms *NgrokModuleSet) Merge(o *NgrokModuleSet) {
+	if o == nil {
+		return
+	}
+
+	msmod := &ms.Modules
+	omod := o.Modules
+
+	if omod.Compression != nil {
+		msmod.Compression = omod.Compression
+	}
+	if omod.Headers != nil {
+		msmod.Headers = omod.Headers
+	}
+	if omod.IPRestriction != nil {
+		msmod.IPRestriction = omod.IPRestriction
+	}
+	if omod.TLSTermination != nil {
+		msmod.TLSTermination = omod.TLSTermination
+	}
+	if omod.WebhookVerification != nil {
+		msmod.WebhookVerification = omod.WebhookVerification
+	}
 }
 
 //+kubebuilder:object:root=true

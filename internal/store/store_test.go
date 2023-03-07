@@ -164,7 +164,7 @@ var _ = Describe("Store", func() {
 	})
 
 	var _ = Describe("ListNgrokModulesV1", func() {
-		Context("when there are ngrok modules", func() {
+		Context("when there are NgrokModuleSets", func() {
 			BeforeEach(func() {
 				m1 := NewTestNgrokModuleSet("ngrok", "test", true)
 				store.Add(&m1)
@@ -173,37 +173,37 @@ var _ = Describe("Store", func() {
 				m3 := NewTestNgrokModuleSet("test", "test", true)
 				store.Add(&m3)
 			})
-			It("returns the ngrok modules", func() {
-				modules := store.ListNgrokModulesV1()
+			It("returns the NgrokModuleSet", func() {
+				modules := store.ListNgrokModuleSetsV1()
 				Expect(len(modules)).To(Equal(3))
 			})
 		})
-		Context("when there are no ngrok modules", func() {
+		Context("when there are no NgrokModuleSets", func() {
 			It("doesn't error", func() {
-				modules := store.ListNgrokModulesV1()
+				modules := store.ListNgrokModuleSetsV1()
 				Expect(len(modules)).To(Equal(0))
 			})
 		})
 	})
 
 	var _ = Describe("GetNgrokModuleSetV1", func() {
-		Context("when the ngrok module exists", func() {
+		Context("when the NgrokModuleSet exists", func() {
 			BeforeEach(func() {
 				m := NewTestNgrokModuleSet("ngrok", "test", true)
 				store.Add(&m)
 			})
-			It("returns the ngrok module", func() {
-				module, err := store.GetNgrokModuleSetV1("ngrok", "test")
+			It("returns the NgrokModuleSet", func() {
+				modset, err := store.GetNgrokModuleSetV1("ngrok", "test")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(module.Compression.Enabled).To(Equal(true))
+				Expect(modset.Modules.Compression.Enabled).To(Equal(true))
 			})
 		})
-		Context("when the ngrok module does not exist", func() {
+		Context("when the NgrokModuleSet does not exist", func() {
 			It("returns an error", func() {
-				module, err := store.GetNgrokModuleSetV1("does-not-exist", "does-not-exist")
+				modset, err := store.GetNgrokModuleSetV1("does-not-exist", "does-not-exist")
 				Expect(err).To(HaveOccurred())
 				Expect(errors.IsErrorNotFound(err)).To(Equal(true))
-				Expect(module).To(BeNil())
+				Expect(modset).To(BeNil())
 			})
 		})
 	})

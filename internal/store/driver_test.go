@@ -331,4 +331,83 @@ var _ = Describe("Driver", func() {
 			))
 		})
 	})
+
+	Describe("getNgrokModuleSetForIngress", func() {
+		var ms1, ms2, ms3 *ingressv1alpha1.NgrokModuleSet
+
+		BeforeEach(func() {
+			ms1 = &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "ms1", Namespace: "test"},
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					Compression: &ingressv1alpha1.EndpointCompression{
+						Enabled: true,
+					},
+				},
+			}
+			ms2 = &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "ms2", Namespace: "test"},
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					Compression: &ingressv1alpha1.EndpointCompression{
+						Enabled: false,
+					},
+					IPRestriction: &ingressv1alpha1.EndpointIPPolicy{
+						IPPolicies: []string{"policy1", "policy2"},
+					},
+				},
+			}
+			ms3 = &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "ms3", Namespace: "test"},
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					Compression: &ingressv1alpha1.EndpointCompression{
+						Enabled: true,
+					},
+				},
+			}
+			driver.Add(ms1)
+			driver.Add(ms2)
+			driver.Add(ms3)
+		})
+
+		It("Should return an empty module set if the ingress has no modules annotaion", func() {
+			ing := NewTestIngressV1("test-ingress", "test")
+			Expect(driver.Add(&ing)).To(BeNil())
+
+			ms, err := driver.getNgrokModuleSetForIngress(&ing)
+			Expect(err).To(BeNil())
+			Expect(ms.Modules.Compression).To(BeNil())
+			Expect(ms.Modules.Headers).To(BeNil())
+			Expect(ms.Modules.IPRestriction).To(BeNil())
+			Expect(ms.Modules.TLSTermination).To(BeNil())
+			Expect(ms.Modules.WebhookVerification).To(BeNil())
+		})
+
+		It("Should return the matching module set if the ingress has a modules annotaion", func() {
+			ing := NewTestIngressV1("test-ingress", "test")
+			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1"})
+			Expect(driver.Add(&ing)).To(BeNil())
+
+			ms, err := driver.getNgrokModuleSetForIngress(&ing)
+			Expect(err).To(BeNil())
+			Expect(ms.Modules).To(Equal(ms1.Modules))
+		})
+
+		It("merges modules with the last one winning if multiple module sets are specified", func() {
+			ing := NewTestIngressV1("test-ingress", "test")
+			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1,ms2,ms3"})
+			Expect(driver.Add(&ing)).To(BeNil())
+
+			ms, err := driver.getNgrokModuleSetForIngress(&ing)
+			Expect(err).To(BeNil())
+			Expect(ms.Modules).To(Equal(
+				ingressv1alpha1.NgrokModuleSetModules{
+					Compression: &ingressv1alpha1.EndpointCompression{
+						Enabled: true, // From ms3
+					},
+					IPRestriction: &ingressv1alpha1.EndpointIPPolicy{
+						IPPolicies: []string{"policy1", "policy2"}, // From ms2
+					},
+				},
+			))
+		})
+	})
 })

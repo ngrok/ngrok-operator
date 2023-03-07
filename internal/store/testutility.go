@@ -97,8 +97,10 @@ func NewTestNgrokModuleSet(name string, namespace string, compressionEnabled boo
 			Name:      name,
 			Namespace: namespace,
 		},
-		Compression: &ingressv1alpha1.EndpointCompression{
-			Enabled: compressionEnabled,
+		Modules: ingressv1alpha1.NgrokModuleSetModules{
+			Compression: &ingressv1alpha1.EndpointCompression{
+				Enabled: compressionEnabled,
+			},
 		},
 	}
 }

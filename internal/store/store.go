@@ -50,7 +50,7 @@ type Storer interface {
 	ListDomainsV1() []*ingressv1alpha1.Domain
 	ListTunnelsV1() []*ingressv1alpha1.Tunnel
 	ListHTTPSEdgesV1() []*ingressv1alpha1.HTTPSEdge
-	ListNgrokModulesV1() []*ingressv1alpha1.NgrokModuleSet
+	ListNgrokModuleSetsV1() []*ingressv1alpha1.NgrokModuleSet
 }
 
 // Store implements Storer and can be used to list Ingress, Services
@@ -275,8 +275,8 @@ func (s Store) ListHTTPSEdgesV1() []*ingressv1alpha1.HTTPSEdge {
 	return edges
 }
 
-// ListNgrokModulesV1 returns the list of NgrokModules in the NgrokModuleSet v1 store.
-func (s Store) ListNgrokModulesV1() []*ingressv1alpha1.NgrokModuleSet {
+// ListNgrokModuleSetsV1 returns the list of NgrokModules in the NgrokModuleSet v1 store.
+func (s Store) ListNgrokModuleSetsV1() []*ingressv1alpha1.NgrokModuleSet {
 	var modules []*ingressv1alpha1.NgrokModuleSet
 	for _, item := range s.stores.NgrokModuleV1.List() {
 		module, ok := item.(*ingressv1alpha1.NgrokModuleSet)
