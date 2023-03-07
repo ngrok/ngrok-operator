@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	netv1 "k8s.io/api/networking/v1"
@@ -160,5 +161,50 @@ var _ = Describe("Store", func() {
 			Entry("us and another us default", []netv1.IngressClass{icUsDefault, icOtherNotDefault}, 2),
 			Entry("us and another both default", []netv1.IngressClass{icUsDefault, icOtherDefault}, 2),
 		)
+	})
+
+	var _ = Describe("ListNgrokModulesV1", func() {
+		Context("when there are ngrok modules", func() {
+			BeforeEach(func() {
+				m1 := NewTestNgrokModuleSet("ngrok", "test", true)
+				store.Add(&m1)
+				m2 := NewTestNgrokModuleSet("ngrok", "test2", true)
+				store.Add(&m2)
+				m3 := NewTestNgrokModuleSet("test", "test", true)
+				store.Add(&m3)
+			})
+			It("returns the ngrok modules", func() {
+				modules := store.ListNgrokModulesV1()
+				Expect(len(modules)).To(Equal(3))
+			})
+		})
+		Context("when there are no ngrok modules", func() {
+			It("doesn't error", func() {
+				modules := store.ListNgrokModulesV1()
+				Expect(len(modules)).To(Equal(0))
+			})
+		})
+	})
+
+	var _ = Describe("GetNgrokModuleSetV1", func() {
+		Context("when the ngrok module exists", func() {
+			BeforeEach(func() {
+				m := NewTestNgrokModuleSet("ngrok", "test", true)
+				store.Add(&m)
+			})
+			It("returns the ngrok module", func() {
+				module, err := store.GetNgrokModuleSetV1("ngrok", "test")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(module.Compression.Enabled).To(Equal(true))
+			})
+		})
+		Context("when the ngrok module does not exist", func() {
+			It("returns an error", func() {
+				module, err := store.GetNgrokModuleSetV1("does-not-exist", "does-not-exist")
+				Expect(err).To(HaveOccurred())
+				Expect(errors.IsErrorNotFound(err)).To(Equal(true))
+				Expect(module).To(BeNil())
+			})
+		})
 	})
 })

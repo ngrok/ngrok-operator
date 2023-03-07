@@ -39,6 +39,7 @@ type Storer interface {
 	GetIngressClassV1(name string) (*netv1.IngressClass, error)
 	GetIngressV1(name, namespace string) (*netv1.Ingress, error)
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
+	GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error)
 
 	ListIngressClassesV1() []*netv1.IngressClass
 	ListNgrokIngressClassesV1() []*netv1.IngressClass
@@ -49,6 +50,7 @@ type Storer interface {
 	ListDomainsV1() []*ingressv1alpha1.Domain
 	ListTunnelsV1() []*ingressv1alpha1.Tunnel
 	ListHTTPSEdgesV1() []*ingressv1alpha1.HTTPSEdge
+	ListNgrokModulesV1() []*ingressv1alpha1.NgrokModuleSet
 }
 
 // Store implements Storer and can be used to list Ingress, Services
@@ -129,6 +131,17 @@ func (s Store) GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	}
 
 	return ing, nil
+}
+
+func (s Store) GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error) {
+	p, exists, err := s.stores.NgrokModuleV1.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("NgrokModuleSet %v not found", name))
+	}
+	return p.(*ingressv1alpha1.NgrokModuleSet), nil
 }
 
 // ListIngressClassesV1 returns the list of Ingresses in the Ingress v1 store.
@@ -260,6 +273,26 @@ func (s Store) ListHTTPSEdgesV1() []*ingressv1alpha1.HTTPSEdge {
 	})
 
 	return edges
+}
+
+// ListNgrokModulesV1 returns the list of NgrokModules in the NgrokModuleSet v1 store.
+func (s Store) ListNgrokModulesV1() []*ingressv1alpha1.NgrokModuleSet {
+	var modules []*ingressv1alpha1.NgrokModuleSet
+	for _, item := range s.stores.NgrokModuleV1.List() {
+		module, ok := item.(*ingressv1alpha1.NgrokModuleSet)
+		if !ok {
+			s.log.Info("listNgrokModulesV1: dropping object of unexpected type: %#v", item)
+			continue
+		}
+		modules = append(modules, module)
+	}
+
+	sort.SliceStable(modules, func(i, j int) bool {
+		return strings.Compare(fmt.Sprintf("%s/%s", modules[i].Namespace, modules[i].Name),
+			fmt.Sprintf("%s/%s", modules[j].Namespace, modules[j].Name)) < 0
+	})
+
+	return modules
 }
 
 func (s Store) shouldHandleIngress(ing *netv1.Ingress) (bool, error) {

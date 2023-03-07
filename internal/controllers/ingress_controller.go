@@ -35,6 +35,7 @@ func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
 		&ingressv1alpha1.Tunnel{},
+		&ingressv1alpha1.NgrokModuleSet{},
 	}
 
 	builder := ctrl.NewControllerManagedBy(mgr).For(&netv1.Ingress{})
