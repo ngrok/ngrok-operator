@@ -33,15 +33,15 @@ By default, kubernetes offers similar types of approaches to exposing traffic as
 
 in this case below, the user cannot access the pod directly in the k8s private network without some sort of entry point.
 
-![k8s-basic](./assets/diagrams/index/k8s-basic-1.png)
+![k8s-basic](./assets/images/basic-k8s-digram.png)
 
 In kubernetes, ingress aims to solve this problem by letting various controllers implement the spec that provides a standard way of getting traffic into the cluster to access your application and service pods. This can be solved in different ways between controllers from exposing ports to external load balancers.
 
-![k8s-basic](./assets/diagrams/index/k8s-basic-2.png)
+![k8s-basic-ingress](./assets/images/basic-k8s-ingress-diagram.png)
 
 With ngrok, the controller establishes an outbound session that tunnels traffic over. The end user makes a connection to the ngrok edge, which routes traffic down to the controllers' agents and is forwarded to the pods in the cluster.
 
-![k8s-basic](./assets/diagrams/index/k8s-basic-3.png)
+![k8s-basic](./assets/images/basic-ngrok-k8s-ingress-diagram.png)
 
 To get started, an example ingress object such as this:
 
