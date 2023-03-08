@@ -445,6 +445,7 @@ func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, rout
 		u.setEdgeRouteIPRestriction,
 		u.setEdgeRouteRequestHeaders,
 		u.setEdgeRouteResponseHeaders,
+		u.setEdgeRouteOAuth,
 		u.setEdgeRouteOIDC,
 		u.setEdgeRouteSAML,
 		u.setEdgeRouteWebhookVerification,
@@ -643,6 +644,48 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context
 	return err
 }
 
+func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	oauth := routeSpec.OAuth
+	client := u.clientset.OAuth()
+
+	if oauth == nil {
+		if route.OAuth == nil {
+			u.log.Info("OAuth matches desired state, skipping update")
+			return nil
+		}
+
+		return client.Delete(ctx, u.edgeRouteItem(route))
+	}
+
+	converter := OauthProviderConverter{provider: oauth.Provider, secretResolver: u.secretResolver, namespace: u.edge.Namespace}
+
+	ngrokProvider, err := converter.ToNgrokProvider(ctx)
+	if err != nil {
+		return err
+	}
+
+	module := ngrok.EndpointOAuth{
+		OptionsPassthrough: oauth.OptionsPassthrough,
+		CookiePrefix:       oauth.CookiePrefix,
+		InactivityTimeout:  uint32(oauth.InactivityTimeout.Seconds()),
+		MaximumDuration:    uint32(oauth.MaximumDuration.Seconds()),
+		AuthCheckInterval:  uint32(oauth.AuthCheckInterval.Seconds()),
+		Provider:           ngrokProvider,
+	}
+
+	if reflect.DeepEqual(&module, route.OAuth) {
+		u.log.Info("OAuth matches desired state, skipping update")
+		return nil
+	}
+
+	_, err = client.Replace(ctx, &ngrok.EdgeRouteOAuthReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: module,
+	})
+	return err
+}
+
 func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
 	oidc := routeSpec.OIDC
 	client := u.clientset.OIDC()
@@ -766,4 +809,80 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 		Module: module,
 	})
 	return err
+}
+
+type OauthProviderConverter struct {
+	provider       ingressv1alpha1.EndpointOAuthProvider
+	secretResolver secretResolver
+	namespace      string
+}
+
+func (c *OauthProviderConverter) ToNgrokProvider(ctx context.Context) (ngrok.EndpointOAuthProvider, error) {
+	ngrokProvider := ngrok.EndpointOAuthProvider{}
+
+	if c.provider.Github != nil {
+		secret, err := c.getSecret(ctx, c.provider.Github.ClientSecret)
+		if client.IgnoreNotFound(err) == nil {
+			ngrokProvider.Github = c.provider.Github.ToNgrok(&secret)
+		}
+	}
+
+	if c.provider.Gitlab != nil {
+		secret, err := c.getSecret(ctx, c.provider.Gitlab.ClientSecret)
+		if client.IgnoreNotFound(err) == nil {
+			ngrokProvider.Gitlab = c.provider.Gitlab.ToNgrok(&secret)
+		}
+	}
+
+	if c.provider.Google != nil {
+		secret, err := c.getSecret(ctx, c.provider.Google.ClientSecret)
+		if client.IgnoreNotFound(err) == nil {
+			ngrokProvider.Google = c.provider.Google.ToNgrok(&secret)
+		}
+	}
+
+	if c.provider.Facebook != nil {
+		secret, err := c.getSecret(ctx, c.provider.Facebook.ClientSecret)
+		if client.IgnoreNotFound(err) == nil {
+			ngrokProvider.Facebook = c.provider.Facebook.ToNgrok(&secret)
+		}
+	}
+
+	if c.provider.Linkedin != nil {
+		secret, err := c.getSecret(ctx, c.provider.Linkedin.ClientSecret)
+		if client.IgnoreNotFound(err) == nil {
+			ngrokProvider.Linkedin = c.provider.Linkedin.ToNgrok(&secret)
+		}
+	}
+
+	if c.provider.Twitch != nil {
+		secret, err := c.getSecret(ctx, c.provider.Twitch.ClientSecret)
+		if client.IgnoreNotFound(err) == nil {
+			ngrokProvider.Twitch = c.provider.Twitch.ToNgrok(&secret)
+		}
+	}
+
+	if c.provider.Amazon != nil {
+		secret, err := c.getSecret(ctx, c.provider.Amazon.ClientSecret)
+		if client.IgnoreNotFound(err) == nil {
+			ngrokProvider.Amazon = c.provider.Amazon.ToNgrok(&secret)
+		}
+	}
+
+	if c.provider.Microsoft != nil {
+		secret, err := c.getSecret(ctx, c.provider.Microsoft.ClientSecret)
+		if client.IgnoreNotFound(err) == nil {
+			ngrokProvider.Microsoft = c.provider.Microsoft.ToNgrok(&secret)
+		}
+	}
+
+	return ngrokProvider, nil
+}
+
+func (c *OauthProviderConverter) getSecret(ctx context.Context, secret *ingressv1alpha1.SecretKeyRef) (string, error) {
+	if secret == nil {
+		return "", nil
+	}
+
+	return c.secretResolver.getSecret(ctx, c.namespace, secret.Name, secret.Key)
 }
