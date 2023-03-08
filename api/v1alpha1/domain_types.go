@@ -111,5 +111,7 @@ func (d *Domain) Equal(ngrokDomain *ngrok.ReservedDomain) bool {
 		d.Status.Region == ngrokDomain.Region &&
 		d.Status.Domain == ngrokDomain.Domain &&
 		d.Status.URI == ngrokDomain.URI &&
-		d.Status.CNAMETarget == ngrokDomain.CNAMETarget
+		d.Status.CNAMETarget == ngrokDomain.CNAMETarget &&
+		d.Spec.Description == ngrokDomain.Description &&
+		d.Spec.Metadata == ngrokDomain.Metadata
 }

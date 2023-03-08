@@ -1,0 +1,1371 @@
+---
+# Source: kubernetes-ingress-controller/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ingress-controller-kubernetes-ingress-controller
+  namespace: ngrok-ingress-controller
+  labels:
+    helm.sh/chart: kubernetes-ingress-controller-0.5.0
+    app.kubernetes.io/name: kubernetes-ingress-controller
+    app.kubernetes.io/instance: ingress-controller
+    app.kubernetes.io/version: "0.3.0"
+    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+---
+# Source: kubernetes-ingress-controller/templates/agent-config-cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-controller-kubernetes-ingress-controller-agent-cm
+  namespace: ngrok-ingress-controller
+data:
+  METADATA: ""
+  REGION: ""
+  REMOTE_MANAGEMENT: ""
+---
+# Source: kubernetes-ingress-controller/templates/controller-cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-controller-kubernetes-ingress-controller-manager-config
+  namespace: ngrok-ingress-controller
+data:
+  controller_manager_config.yaml: |
+    apiVersion: controller-runtime.sigs.k8s.io/v1alpha1
+    kind: ControllerManagerConfig
+    health:
+      healthProbeBindAddress: :8081
+    metrics:
+      bindAddress: 127.0.0.1:8080
+    leaderElection:
+      leaderElect: true
+      resourceName: ingress-controller-kubernetes-ingress-controller-leader
+---
+# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_domains.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: domains.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: Domain
+    listKind: DomainList
+    plural: domains
+    singular: domain
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Domain ID
+      jsonPath: .status.id
+      name: ID
+      type: string
+    - description: Region
+      jsonPath: .status.region
+      name: Region
+      type: string
+    - description: Domain
+      jsonPath: .status.domain
+      name: Domain
+      type: string
+    - description: CNAME Target
+      jsonPath: .status.cnameTarget
+      name: CNAME Target
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Domain is the Schema for the domains API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DomainSpec defines the desired state of Domain
+            properties:
+              description:
+                default: Created by kubernetes-ingress-controller
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
+                type: string
+              domain:
+                description: Domain is the domain name to reserve
+                type: string
+              metadata:
+                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the object in the ngrok API/Dashboard
+                type: string
+              region:
+                description: Region is the region in which to reserve the domain
+                type: string
+            required:
+            - domain
+            type: object
+          status:
+            description: DomainStatus defines the observed state of Domain
+            properties:
+              cnameTarget:
+                description: CNAMETarget is the CNAME target for the domain
+                type: string
+              domain:
+                description: Domain is the domain that was reserved
+                type: string
+              id:
+                description: ID is the unique identifier of the domain
+                type: string
+              region:
+                description: Region is the region in which the domain was created
+                type: string
+              uri:
+                description: URI of the reserved domain API resource
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_httpsedges.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: httpsedges.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: HTTPSEdge
+    listKind: HTTPSEdgeList
+    plural: httpsedges
+    singular: httpsedge
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: HTTPSEdge is the Schema for the httpsedges API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: HTTPSEdgeSpec defines the desired state of HTTPSEdge
+            properties:
+              description:
+                default: Created by kubernetes-ingress-controller
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
+                type: string
+              hostports:
+                description: Hostports is a list of hostports served by this edge
+                items:
+                  type: string
+                type: array
+              metadata:
+                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the object in the ngrok API/Dashboard
+                type: string
+              routes:
+                description: Routes is a list of routes served by this edge
+                items:
+                  properties:
+                    backend:
+                      description: Backend is the definition for the tunnel group
+                        backend that serves traffic for this edge
+                      properties:
+                        description:
+                          default: Created by kubernetes-ingress-controller
+                          description: Description is a human-readable description
+                            of the object in the ngrok API/Dashboard
+                          type: string
+                        labels:
+                          additionalProperties:
+                            type: string
+                          description: Labels to watch for tunnels on this backend
+                          type: object
+                        metadata:
+                          default: '{"owned-by":"kubernetes-ingress-controller"}'
+                          description: Metadata is a string of arbitrary data associated
+                            with the object in the ngrok API/Dashboard
+                          type: string
+                      type: object
+                    compression:
+                      description: Compression is whether or not to enable compression
+                        for this route
+                      properties:
+                        enabled:
+                          description: Enabled is whether or not to enable compression
+                            for this endpoint
+                          type: boolean
+                      type: object
+                    description:
+                      default: Created by kubernetes-ingress-controller
+                      description: Description is a human-readable description of
+                        the object in the ngrok API/Dashboard
+                      type: string
+                    headers:
+                      description: Headers are request/response headers to apply to
+                        this route
+                      properties:
+                        request:
+                          description: Request headers are the request headers module
+                            configuration or null
+                          properties:
+                            add:
+                              additionalProperties:
+                                type: string
+                              description: a map of header key to header value that
+                                will be injected into the HTTP Request before being
+                                sent to the upstream application server
+                              type: object
+                            remove:
+                              description: a list of header names that will be removed
+                                from the HTTP Request before being sent to the upstream
+                                application server
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        response:
+                          description: Response headers are the response headers module
+                            configuration or null
+                          properties:
+                            add:
+                              additionalProperties:
+                                type: string
+                              description: a map of header key to header value that
+                                will be injected into the HTTP Response returned to
+                                the HTTP client
+                              type: object
+                            remove:
+                              description: a list of header names that will be removed
+                                from the HTTP Response returned to the HTTP client
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                      type: object
+                    ipRestriction:
+                      description: IPRestriction is an IPRestriction to apply to this
+                        route
+                      properties:
+                        policies:
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                    match:
+                      description: Match is the value to match against the request
+                        path
+                      type: string
+                    matchType:
+                      description: 'MatchType is the type of match to use for this
+                        route. Valid values are:'
+                      enum:
+                      - exact_path
+                      - path_prefix
+                      type: string
+                    metadata:
+                      default: '{"owned-by":"kubernetes-ingress-controller"}'
+                      description: Metadata is a string of arbitrary data associated
+                        with the object in the ngrok API/Dashboard
+                      type: string
+                    webhookVerification:
+                      description: WebhookVerification is webhook verification configuration
+                        to apply to this route
+                      properties:
+                        provider:
+                          description: a string indicating which webhook provider
+                            will be sending webhooks to this endpoint. Value must
+                            be one of the supported providers defined at https://ngrok.com/docs/cloud-edge#webhook-verification
+                          type: string
+                        secret:
+                          description: SecretRef is a reference to a secret containing
+                            the secret used to validate requests from the given provider.
+                            All providers except AWS SNS require a secret
+                          properties:
+                            key:
+                              description: Key in the secret to use
+                              type: string
+                            name:
+                              description: Name of the Kubernetes secret
+                              type: string
+                          type: object
+                      type: object
+                  required:
+                  - match
+                  - matchType
+                  type: object
+                type: array
+              tlsTermination:
+                description: TLSTermination is the TLS termination configuration for
+                  this edge
+                properties:
+                  minVersion:
+                    description: MinVersion is the minimum TLS version to allow for
+                      connections to the edge
+                    type: string
+                type: object
+            type: object
+          status:
+            description: HTTPSEdgeStatus defines the observed state of HTTPSEdge
+            properties:
+              id:
+                description: ID is the unique identifier for this edge
+                type: string
+              routes:
+                items:
+                  properties:
+                    backend:
+                      description: Backend stores the status of the tunnel group backend,
+                        mainly the ID of the backend
+                      properties:
+                        id:
+                          description: ID is the unique identifier for this backend
+                          type: string
+                      type: object
+                    id:
+                      description: ID is the unique identifier for this route
+                      type: string
+                    match:
+                      type: string
+                    matchType:
+                      type: string
+                    uri:
+                      description: URI is the URI for this route
+                      type: string
+                  type: object
+                type: array
+              uri:
+                description: URI is the URI for this edge
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_ippolicies.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: ippolicies.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: IPPolicy
+    listKind: IPPolicyList
+    plural: ippolicies
+    singular: ippolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: IPPolicy ID
+      jsonPath: .status.id
+      name: ID
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: IPPolicy is the Schema for the ippolicies API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: IPPolicySpec defines the desired state of IPPolicy
+            properties:
+              description:
+                default: Created by kubernetes-ingress-controller
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
+                type: string
+              metadata:
+                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the object in the ngrok API/Dashboard
+                type: string
+              rules:
+                description: Rules is a list of rules that belong to the policy
+                items:
+                  properties:
+                    action:
+                      type: string
+                    cidr:
+                      type: string
+                    description:
+                      default: Created by kubernetes-ingress-controller
+                      description: Description is a human-readable description of
+                        the object in the ngrok API/Dashboard
+                      type: string
+                    metadata:
+                      default: '{"owned-by":"kubernetes-ingress-controller"}'
+                      description: Metadata is a string of arbitrary data associated
+                        with the object in the ngrok API/Dashboard
+                      type: string
+                  type: object
+                type: array
+            type: object
+          status:
+            description: IPPolicyStatus defines the observed state of IPPolicy
+            properties:
+              id:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file'
+                type: string
+              rules:
+                items:
+                  properties:
+                    action:
+                      type: string
+                    cidr:
+                      type: string
+                    id:
+                      type: string
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_tcpedges.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: tcpedges.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: TCPEdge
+    listKind: TCPEdgeList
+    plural: tcpedges
+    singular: tcpedge
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Domain ID
+      jsonPath: .status.id
+      name: ID
+      type: string
+    - description: Hostports
+      jsonPath: .status.hostports
+      name: Hostports
+      type: string
+    - description: Tunnel Group Backend ID
+      jsonPath: .status.backend.id
+      name: Backend ID
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: TCPEdge is the Schema for the tcpedges API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TCPEdgeSpec defines the desired state of TCPEdge
+            properties:
+              backend:
+                description: Backend is the definition for the tunnel group backend
+                  that serves traffic for this edge
+                properties:
+                  description:
+                    default: Created by kubernetes-ingress-controller
+                    description: Description is a human-readable description of the
+                      object in the ngrok API/Dashboard
+                    type: string
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels to watch for tunnels on this backend
+                    type: object
+                  metadata:
+                    default: '{"owned-by":"kubernetes-ingress-controller"}'
+                    description: Metadata is a string of arbitrary data associated
+                      with the object in the ngrok API/Dashboard
+                    type: string
+                type: object
+              description:
+                default: Created by kubernetes-ingress-controller
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
+                type: string
+              ipRestriction:
+                description: IPRestriction is an IPRestriction to apply to this route
+                properties:
+                  policies:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              metadata:
+                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the object in the ngrok API/Dashboard
+                type: string
+            type: object
+          status:
+            description: TCPEdgeStatus defines the observed state of TCPEdge
+            properties:
+              backend:
+                description: Backend stores the status of the tunnel group backend,
+                  mainly the ID of the backend
+                properties:
+                  id:
+                    description: ID is the unique identifier for this backend
+                    type: string
+                type: object
+              hostports:
+                description: Hostports served by this edge
+                items:
+                  type: string
+                type: array
+              id:
+                description: ID is the unique identifier for this edge
+                type: string
+              uri:
+                description: URI is the URI of the edge
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_tunnels.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: tunnels.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: Tunnel
+    listKind: TunnelList
+    plural: tunnels
+    singular: tunnel
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Service/port to forward to
+      jsonPath: .spec.forwardsTo
+      name: ForwardsTo
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Tunnel is the Schema for the tunnels API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TunnelSpec defines the desired state of Tunnel
+            properties:
+              forwardsTo:
+                description: ForwardsTo is the name and port of the service to forward
+                  traffic to
+                type: string
+              labels:
+                additionalProperties:
+                  type: string
+                description: Labels are key/value pairs that are attached to the tunnel
+                type: object
+            type: object
+          status:
+            description: TunnelStatus defines the observed state of Tunnel
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-ingress-controller-proxy-role
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+# Source: kubernetes-ingress-controller/templates/rbac/domain_editor_role.yaml
+# permissions for end users to edit domains.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: kubernetes-ingress-controller-0.5.0
+    app.kubernetes.io/name: kubernetes-ingress-controller
+    app.kubernetes.io/instance: ingress-controller
+    app.kubernetes.io/version: "0.3.0"
+    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ingress-controller-kubernetes-ingress-controller-domain-editor-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/rbac/domain_viewer_role.yaml
+# permissions for end users to view domains.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: kubernetes-ingress-controller-0.5.0
+    app.kubernetes.io/name: kubernetes-ingress-controller
+    app.kubernetes.io/instance: ingress-controller
+    app.kubernetes.io/version: "0.3.0"
+    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ingress-controller-kubernetes-ingress-controller-domain-viewer-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/rbac/httpsedge_editor_role.yaml
+# permissions for end users to edit httpsedges.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: httpsedge-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: httpsedge-editor-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - httpsedges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - httpsedges/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/rbac/httpsedge_viewer_role.yaml
+# permissions for end users to view httpsedges.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: httpsedge-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: httpsedge-viewer-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - httpsedges
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - httpsedges/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/rbac/ippolicy_editor_role.yaml
+# permissions for end users to edit ippolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: ippolicy-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: ippolicy-editor-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/rbac/ippolicy_viewer_role.yaml
+# permissions for end users to view ippolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: ippolicy-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: ippolicy-viewer-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/rbac/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: ngrok-ingress-controller-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - httpsedges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - httpsedges/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - httpsedges/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tcpedges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tcpedges/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tcpedges/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+---
+# Source: kubernetes-ingress-controller/templates/rbac/tcpedge_editor_role.yaml
+# permissions for end users to edit tcpedges.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: tcpedge-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: tcpedge-editor-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tcpedges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tcpedges/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/rbac/tcpedge_viewer_role.yaml
+# permissions for end users to view tcpedges.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: tcpedge-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: tcpedge-viewer-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tcpedges
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tcpedges/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/rbac/tunnel_editor_role.yaml
+# permissions for end users to edit tunnels.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: kubernetes-ingress-controller-0.5.0
+    app.kubernetes.io/name: kubernetes-ingress-controller
+    app.kubernetes.io/instance: ingress-controller
+    app.kubernetes.io/version: "0.3.0"
+    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ingress-controller-kubernetes-ingress-controller-tunnel-editor-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/rbac/tunnel_viewer_role.yaml
+# permissions for end users to view tunnels.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: kubernetes-ingress-controller-0.5.0
+    app.kubernetes.io/name: kubernetes-ingress-controller
+    app.kubernetes.io/instance: ingress-controller
+    app.kubernetes.io/version: "0.3.0"
+    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ingress-controller-kubernetes-ingress-controller-tunnel-viewer-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels/status
+  verbs:
+  - get
+---
+# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ngrok-ingress-controller-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ngrok-ingress-controller-manager-role
+subjects:
+- kind: ServiceAccount
+  name: ingress-controller-kubernetes-ingress-controller
+  namespace: ngrok-ingress-controller
+---
+# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ngrok-ingress-controller-proxy-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ngrok-ingress-controller-proxy-role
+subjects:
+- kind: ServiceAccount
+  name: ingress-controller-kubernetes-ingress-controller
+  namespace: ngrok-ingress-controller
+---
+# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ngrok-ingress-controller-leader-election-role
+  namespace: ngrok-ingress-controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ngrok-ingress-controller-leader-election-rolebinding
+  namespace: ngrok-ingress-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ngrok-ingress-controller-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: ingress-controller-kubernetes-ingress-controller
+  namespace: ngrok-ingress-controller
+---
+# Source: kubernetes-ingress-controller/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    helm.sh/chart: kubernetes-ingress-controller-0.5.0
+    app.kubernetes.io/name: kubernetes-ingress-controller
+    app.kubernetes.io/instance: ingress-controller
+    app.kubernetes.io/version: "0.3.0"
+    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: ingress-controller-kubernetes-ingress-controller-manager
+  namespace: ngrok-ingress-controller
+  annotations:
+    checksum/agent-config: 1012a0f3f4132751a558b1db2df58aab89fc9cf8a7f75a51ab84ffecf7ec9d71
+    checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
+    checksum/rbac: ab5761a6b6e49df659299bec762a096c25634370afc20485d4b5f4befcda2504
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubernetes-ingress-controller
+      app.kubernetes.io/instance: ingress-controller
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+        prometheus.io/path: /metrics
+        prometheus.io/port: '8080'
+        prometheus.io/scrape: 'true'
+      labels:
+        app.kubernetes.io/name: kubernetes-ingress-controller
+        app.kubernetes.io/instance: ingress-controller
+        app.kubernetes.io/component: controller
+    spec:
+      serviceAccountName: ingress-controller-kubernetes-ingress-controller
+      containers:
+      - name: ngrok-ingress-controller
+        image: docker.io/ngrok/kubernetes-ingress-controller:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /manager
+        args:
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8080
+        - --election-id=ingress-controller-kubernetes-ingress-controller-leader
+        securityContext:
+          allowPrivilegeEscalation: false
+        env:
+        - name: NGROK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: API_KEY
+              name: ngrok-ingress-controller-credentials
+        - name: NGROK_AUTHTOKEN
+          valueFrom:
+            secretKeyRef:
+              key: AUTHTOKEN
+              name: ngrok-ingress-controller-credentials
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits: {}
+          requests: {}
+---
+# Source: kubernetes-ingress-controller/templates/ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  labels:
+    helm.sh/chart: kubernetes-ingress-controller-0.5.0
+    app.kubernetes.io/name: kubernetes-ingress-controller
+    app.kubernetes.io/instance: ingress-controller
+    app.kubernetes.io/version: "0.3.0"
+    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: ngrok
+spec:
+  controller: k8s.ngrok.com/ingress-controller

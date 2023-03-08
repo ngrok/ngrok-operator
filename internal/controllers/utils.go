@@ -2,8 +2,10 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -69,4 +71,25 @@ func (r *ipPolicyResolver) resolveIPPolicyNamesorIds(ctx context.Context, namesp
 	}
 
 	return policyIds, nil
+}
+
+type secretResolver struct {
+	client client.Reader
+}
+
+func (r *secretResolver) getSecret(ctx context.Context, namespace, name, key string) (string, error) {
+	secret := &v1.Secret{}
+	err := r.client.Get(ctx, types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}, secret)
+	if err != nil {
+		return "", err
+	}
+
+	value, ok := secret.Data[key]
+	if !ok {
+		return "", fmt.Errorf("secret '%s/%s' does not contain key '%s'", namespace, name, key)
+	}
+	return string(value), nil
 }

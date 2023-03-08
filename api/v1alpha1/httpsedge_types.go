@@ -25,6 +25,9 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"reflect"
+
+	"github.com/ngrok/ngrok-api-go/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -126,4 +129,40 @@ type HTTPSEdgeList struct {
 
 func init() {
 	SchemeBuilder.Register(&HTTPSEdge{}, &HTTPSEdgeList{})
+}
+
+// Equal returns true if the two HTTPSEdge objects are equal
+// It only checks the top level attributes like hostports and metadata
+// It does not check the routes or the tunnel group backend
+func (e *HTTPSEdge) Equal(edge *ngrok.HTTPSEdge) bool {
+	if e == nil && edge == nil {
+		return true
+	}
+
+	if e == nil || edge == nil {
+		return false
+	}
+
+	// check if the metadata matches
+	if e.Spec.Metadata != edge.Metadata {
+		return false
+	}
+
+	// check if the hostports match
+	if !reflect.DeepEqual(e.Spec.Hostports, edge.Hostports) {
+		return false
+	}
+
+	// check if TLSTermination matches
+	if e.Spec.TLSTermination == nil && edge.TlsTermination == nil {
+		return true
+	}
+	if (e.Spec.TLSTermination == nil && edge.TlsTermination != nil) || (e.Spec.TLSTermination != nil && edge.TlsTermination == nil) {
+		// one is nil and the other is not so they don't match
+		return false
+	}
+	if e.Spec.TLSTermination.MinVersion != *edge.TlsTermination.MinVersion {
+		return false
+	}
+	return true
 }

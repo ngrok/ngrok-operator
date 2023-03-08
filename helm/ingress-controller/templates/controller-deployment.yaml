@@ -47,6 +47,13 @@ spec:
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}
         {{- end }}
+        {{- if .Values.metaData }}
+        - --metadata={{- $metadataArgs := list -}}
+          {{- range $key, $value := .Values.metaData }}
+          {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
+          {{- end }}
+          {{- $metadataArgs | join "," }}
+        {{- end }}
         - --controller-name={{ .Values.controllerName }}
         {{- if .Values.watchNamespace }}
         - --watch-namespace={{ .Values.watchNamespace}}

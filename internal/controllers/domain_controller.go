@@ -170,8 +170,21 @@ func (r *DomainReconciler) updateExternalResources(ctx context.Context, domain *
 		return err
 	}
 
-	// TODO: Implement update logic. Right now we just get the reserved domain and update the status
-	return r.updateStatus(ctx, domain, resp)
+	if !domain.Equal(resp) {
+		r.Log.Info("Updating reserved domain", "ID", domain.Status.ID)
+		req := &ngrok.ReservedDomainUpdate{
+			ID:          domain.Status.ID,
+			Description: &domain.Spec.Description,
+			Metadata:    &domain.Spec.Metadata,
+		}
+		resp, err = r.DomainsClient.Update(ctx, req)
+		if err != nil {
+			return err
+		}
+		return r.updateStatus(ctx, domain, resp)
+	}
+
+	return nil
 }
 
 // finds the reserved domain by the hostname. If it doesn't exist, returns nil

@@ -53,14 +53,11 @@ type HTTPSEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	ipPolicyResolver
-
 	NgrokClientset ngrokapi.Clientset
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.ipPolicyResolver = ipPolicyResolver{client: mgr.GetClient()}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.HTTPSEdge{}).
 		WithEventFilter(commonPredicateFilters).
@@ -127,10 +124,21 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 
 	if edge.Status.ID != "" {
 		// We already have an ID, so we can just update the resource
-		// TODO: Update the edge if the hostports don't match or the metadata doesn't match
 		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
 		if err != nil {
 			return err
+		}
+
+		if !edge.Equal(remoteEdge) {
+			remoteEdge, err = r.NgrokClientset.HTTPSEdges().Update(ctx, &ngrok.HTTPSEdgeUpdate{
+				ID:          edge.Status.ID,
+				Metadata:    &edge.Spec.Metadata,
+				Description: &edge.Spec.Description,
+				Hostports:   edge.Spec.Hostports,
+			})
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		// Try to find the edge by Hostports
@@ -160,7 +168,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 		return err
 	}
 
-	return r.setEdgeTLSTermination(ctx, edge.Status.ID, edge.Spec.TLSTermination)
+	return r.setEdgeTLSTermination(ctx, remoteEdge, edge.Spec.TLSTermination)
 }
 
 // TODO: This is going to be a bit messy right now, come back and make this cleaner
@@ -169,6 +177,14 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 	tunnelGroupReconciler, err := newTunnelGroupBackendReconciler(r.NgrokClientset.TunnelGroupBackends())
 	if err != nil {
 		return err
+	}
+
+	routeModuleUpdater := &edgeRouteModuleUpdater{
+		log:              r.Log,
+		edge:             edge,
+		clientset:        r.NgrokClientset.EdgeModules().HTTPS().Routes(),
+		ipPolicyResolver: ipPolicyResolver{r.Client},
+		secretResolver:   secretResolver{r.Client},
 	}
 
 	// TODO: clean this up. This is way too much nesting
@@ -221,27 +237,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			}
 		}
 
-		if err := r.setEdgeRouteCompression(ctx, edge.Status.ID, route.ID, routeSpec.Compression); err != nil {
-			return err
-		}
-		if err := r.setEdgeRouteIPRestriction(ctx, edge, route.ID, routeSpec.IPRestriction); err != nil {
-			return err
-		}
-		var requestHeaders *ingressv1alpha1.EndpointRequestHeaders
-		if routeSpec.Headers != nil {
-			requestHeaders = routeSpec.Headers.Request
-		}
-		if err := r.setEdgeRouteRequestHeaders(ctx, edge.Status.ID, route.ID, requestHeaders); err != nil {
-			return err
-		}
-		var responseHeaders *ingressv1alpha1.EndpointResponseHeaders
-		if routeSpec.Headers != nil {
-			responseHeaders = routeSpec.Headers.Response
-		}
-		if err := r.setEdgeRouteResponseHeaders(ctx, edge.Status.ID, route.ID, responseHeaders); err != nil {
-			return err
-		}
-		if err := r.setEdgeRouteWebhookVerification(ctx, edge, route.ID, routeSpec.WebhookVerification); err != nil {
+		// Update all route modules for a given route
+		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
 			return err
 		}
 	}
@@ -268,130 +265,14 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 	return r.Status().Update(ctx, edge)
 }
 
-func (r *HTTPSEdgeReconciler) setEdgeRouteCompression(ctx context.Context, edgeID string, routeID string, compression *ingressv1alpha1.EndpointCompression) error {
-	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().Compression()
-
-	if compression == nil {
-		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edgeID, ID: routeID})
-	}
-
-	_, err := client.Replace(ctx, &ngrok.EdgeRouteCompressionReplace{
-		EdgeID: edgeID,
-		ID:     routeID,
-		Module: ngrok.EndpointCompression{
-			Enabled: pointer.Bool(compression.Enabled),
-		},
-	})
-	return err
-}
-
-func (r *HTTPSEdgeReconciler) setEdgeRouteIPRestriction(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, routeID string, ipRestriction *ingressv1alpha1.EndpointIPPolicy) error {
-	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().IPRestriction()
-	if ipRestriction == nil || len(ipRestriction.IPPolicies) == 0 {
-		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edge.Status.ID, ID: routeID})
-	}
-
-	policyIds, err := r.ipPolicyResolver.resolveIPPolicyNamesorIds(ctx, edge.Namespace, ipRestriction.IPPolicies)
-	if err != nil {
-		return err
-	}
-	r.Log.Info("Resolved IP Policy NamesOrIDs to IDs", "NamesOrIds", ipRestriction.IPPolicies, "policyIds", policyIds)
-
-	_, err = client.Replace(ctx, &ngrok.EdgeRouteIPRestrictionReplace{
-		EdgeID: edge.Status.ID,
-		ID:     routeID,
-		Module: ngrok.EndpointIPPolicyMutate{
-			IPPolicyIDs: policyIds,
-		},
-	})
-	return err
-}
-
-func (r *HTTPSEdgeReconciler) setEdgeRouteRequestHeaders(ctx context.Context, edgeID string, routeID string, requestHeaders *ingressv1alpha1.EndpointRequestHeaders) error {
-	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().RequestHeaders()
-	if requestHeaders == nil {
-		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edgeID, ID: routeID})
-	}
-
-	module := ngrok.EndpointRequestHeaders{}
-	if len(requestHeaders.Add) > 0 {
-		module.Add = requestHeaders.Add
-	}
-	if len(requestHeaders.Remove) > 0 {
-		module.Remove = requestHeaders.Remove
-	}
-
-	_, err := client.Replace(ctx, &ngrok.EdgeRouteRequestHeadersReplace{
-		EdgeID: edgeID,
-		ID:     routeID,
-		Module: module,
-	})
-	return err
-}
-
-func (r *HTTPSEdgeReconciler) setEdgeRouteResponseHeaders(ctx context.Context, edgeID string, routeID string, responseHeaders *ingressv1alpha1.EndpointResponseHeaders) error {
-	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().ResponseHeaders()
-	if responseHeaders == nil {
-		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edgeID, ID: routeID})
-	}
-
-	module := ngrok.EndpointResponseHeaders{}
-	if len(responseHeaders.Add) > 0 {
-		module.Add = responseHeaders.Add
-	}
-	if len(responseHeaders.Remove) > 0 {
-		module.Remove = responseHeaders.Remove
-	}
-
-	_, err := client.Replace(ctx, &ngrok.EdgeRouteResponseHeadersReplace{
-		EdgeID: edgeID,
-		ID:     routeID,
-		Module: module,
-	})
-	return err
-}
-
-func (r *HTTPSEdgeReconciler) setEdgeRouteWebhookVerification(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, routeID string, webhookVerification *ingressv1alpha1.EndpointWebhookVerification) error {
-	client := r.NgrokClientset.EdgeModules().HTTPS().Routes().WebhookVerification()
-	if webhookVerification == nil {
-		return client.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edge.Status.ID, ID: routeID})
-	}
-
-	secret := &v1.Secret{}
-	err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      webhookVerification.SecretRef.Name,
-		Namespace: edge.Namespace,
-	}, secret)
-	if err != nil {
-		return err
-	}
-
-	webhookSecret, ok := secret.Data[webhookVerification.SecretRef.Key]
-	if !ok {
-		return fmt.Errorf("secret %s/%s does not contain key %s", edge.Namespace, webhookVerification.SecretRef.Name, webhookVerification.SecretRef.Key)
-	}
-
-	module := ngrok.EndpointWebhookValidation{
-		Provider: webhookVerification.Provider,
-		Secret:   string(webhookSecret),
-	}
-
-	_, err = client.Replace(ctx, &ngrok.EdgeRouteWebhookVerificationReplace{
-		EdgeID: edge.Status.ID,
-		ID:     routeID,
-		Module: module,
-	})
-	return err
-}
-
-func (r *HTTPSEdgeReconciler) setEdgeTLSTermination(ctx context.Context, edgeID string, tlsTermination *ingressv1alpha1.EndpointTLSTerminationAtEdge) error {
+func (r *HTTPSEdgeReconciler) setEdgeTLSTermination(ctx context.Context, edge *ngrok.HTTPSEdge, tlsTermination *ingressv1alpha1.EndpointTLSTerminationAtEdge) error {
 	client := r.NgrokClientset.EdgeModules().HTTPS().TLSTermination()
 	if tlsTermination == nil {
-		return client.Delete(ctx, edgeID)
+		return client.Delete(ctx, edge.ID)
 	}
 
 	_, err := client.Replace(ctx, &ngrok.EdgeTLSTerminationAtEdgeReplace{
-		ID: edgeID,
+		ID: edge.ID,
 		Module: ngrok.EndpointTLSTerminationAtEdge{
 			MinVersion: pointer.String(tlsTermination.MinVersion),
 		},
@@ -544,4 +425,222 @@ func (r *tunnelGroupBackendReconciler) findOrCreate(ctx context.Context, backend
 	}
 	r.backends = append(r.backends, be)
 	return be, nil
+}
+
+type edgeRouteModuleUpdater struct {
+	log logr.Logger
+
+	edge *ingressv1alpha1.HTTPSEdge
+
+	clientset ngrokapi.HTTPSEdgeRouteModulesClientset
+
+	ipPolicyResolver ipPolicyResolver
+	secretResolver   secretResolver
+}
+
+func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	funcs := []func(context.Context, *ngrok.HTTPSEdgeRoute, *ingressv1alpha1.HTTPSEdgeRouteSpec) error{
+		u.setEdgeRouteCompression,
+		u.setEdgeRouteIPRestriction,
+		u.setEdgeRouteRequestHeaders,
+		u.setEdgeRouteResponseHeaders,
+		u.setEdgeRouteWebhookVerification,
+	}
+
+	for _, f := range funcs {
+		if err := f(ctx, route, routeSpec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (u *edgeRouteModuleUpdater) edgeRouteItem(route *ngrok.HTTPSEdgeRoute) *ngrok.EdgeRouteItem {
+	return &ngrok.EdgeRouteItem{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+	}
+}
+
+func (u *edgeRouteModuleUpdater) setEdgeRouteCompression(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	compression := routeSpec.Compression
+
+	client := u.clientset.Compression()
+
+	// Early return if nothing to be done
+	if compression == nil {
+		if route.Compression == nil {
+			u.log.Info("Compression matches desired state, skipping update")
+			return nil
+		}
+
+		return client.Delete(ctx, u.edgeRouteItem(route))
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteCompressionReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: ngrok.EndpointCompression{
+			Enabled: pointer.Bool(routeSpec.Compression.Enabled),
+		},
+	})
+	return err
+}
+
+func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	ipRestriction := routeSpec.IPRestriction
+	client := u.clientset.IPRestriction()
+
+	if ipRestriction == nil || len(ipRestriction.IPPolicies) == 0 {
+		if route.IpRestriction == nil || len(route.IpRestriction.IPPolicies) == 0 {
+			u.log.Info("IP Restriction matches desired state, skipping update")
+			return nil
+		}
+
+		return client.Delete(ctx, u.edgeRouteItem(route))
+	}
+
+	policyIds, err := u.ipPolicyResolver.resolveIPPolicyNamesorIds(ctx, u.edge.Namespace, ipRestriction.IPPolicies)
+	if err != nil {
+		return err
+	}
+	u.log.Info("Resolved IP Policy NamesOrIDs to IDs", "NamesOrIds", ipRestriction.IPPolicies, "policyIds", policyIds)
+
+	var remoteIPPolicies []string
+	if route.IpRestriction != nil && len(route.IpRestriction.IPPolicies) > 0 {
+		remoteIPPolicies := make([]string, 0, len(route.IpRestriction.IPPolicies))
+		for _, policy := range route.IpRestriction.IPPolicies {
+			remoteIPPolicies = append(remoteIPPolicies, policy.ID)
+		}
+	}
+
+	if reflect.DeepEqual(remoteIPPolicies, policyIds) {
+		u.log.Info("IP Restriction matches desired state, skipping update")
+		return nil
+	}
+
+	_, err = client.Replace(ctx, &ngrok.EdgeRouteIPRestrictionReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: ngrok.EndpointIPPolicyMutate{
+			IPPolicyIDs: policyIds,
+		},
+	})
+	return err
+}
+
+func (u *edgeRouteModuleUpdater) setEdgeRouteRequestHeaders(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	var requestHeaders *ingressv1alpha1.EndpointRequestHeaders
+	if routeSpec.Headers != nil {
+		requestHeaders = routeSpec.Headers.Request
+	}
+
+	client := u.clientset.RequestHeaders()
+
+	if requestHeaders == nil {
+		if route.RequestHeaders == nil {
+			u.log.Info("Request Headers matches desired state, skipping update")
+			return nil
+		}
+
+		return client.Delete(ctx, u.edgeRouteItem(route))
+	}
+
+	module := ngrok.EndpointRequestHeaders{}
+	if len(requestHeaders.Add) > 0 {
+		module.Add = requestHeaders.Add
+	}
+	if len(requestHeaders.Remove) > 0 {
+		module.Remove = requestHeaders.Remove
+	}
+
+	if reflect.DeepEqual(&module, route.RequestHeaders) {
+		u.log.Info("Request Headers matches desired state, skipping update")
+		return nil
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteRequestHeadersReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: module,
+	})
+	return err
+}
+
+func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	var responseHeaders *ingressv1alpha1.EndpointResponseHeaders
+	if routeSpec.Headers != nil {
+		responseHeaders = routeSpec.Headers.Response
+	}
+
+	client := u.clientset.ResponseHeaders()
+	if responseHeaders == nil {
+		if route.ResponseHeaders == nil {
+			u.log.Info("Response Headers matches desired state, skipping update")
+			return nil
+		}
+
+		return client.Delete(ctx, u.edgeRouteItem(route))
+	}
+
+	module := ngrok.EndpointResponseHeaders{}
+	if len(responseHeaders.Add) > 0 {
+		module.Add = responseHeaders.Add
+	}
+	if len(responseHeaders.Remove) > 0 {
+		module.Remove = responseHeaders.Remove
+	}
+
+	if reflect.DeepEqual(&module, route.ResponseHeaders) {
+		u.log.Info("Response Headers matches desired state, skipping update")
+		return nil
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteResponseHeadersReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: module,
+	})
+	return err
+}
+
+func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	webhookVerification := routeSpec.WebhookVerification
+
+	client := u.clientset.WebhookVerification()
+
+	if webhookVerification == nil {
+		if route.WebhookVerification == nil {
+			u.log.Info("Webhook Verification matches desired state, skipping update")
+			return nil
+		}
+
+		return client.Delete(ctx, u.edgeRouteItem(route))
+	}
+
+	webhookSecret, err := u.secretResolver.getSecret(ctx,
+		u.edge.Namespace,
+		webhookVerification.SecretRef.Name,
+		webhookVerification.SecretRef.Key,
+	)
+	if err != nil {
+		return err
+	}
+
+	module := ngrok.EndpointWebhookValidation{
+		Provider: webhookVerification.Provider,
+		Secret:   string(webhookSecret),
+	}
+
+	if reflect.DeepEqual(&module, route.WebhookVerification) {
+		u.log.Info("Webhook Verification matches desired state, skipping update")
+		return nil
+	}
+
+	_, err = client.Replace(ctx, &ngrok.EdgeRouteWebhookVerificationReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: module,
+	})
+	return err
 }

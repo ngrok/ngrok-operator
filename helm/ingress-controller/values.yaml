@@ -69,6 +69,9 @@ region: ""
 ## @param serverAddr  This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.
 serverAddr: ""
 
+## @param metaData This is a map of key/value pairs that will be added as meta data to all ngrok api resources created
+metaData: {}
+
 ## Controller container resource requests and limits
 ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
 ## We usually recommend not to specify default resources and to leave this as a conscious
