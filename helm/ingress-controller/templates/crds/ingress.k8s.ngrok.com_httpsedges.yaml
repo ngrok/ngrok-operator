@@ -74,6 +74,42 @@ spec:
                             with the object in the ngrok API/Dashboard
                           type: string
                       type: object
+                    circuitBreaker:
+                      description: CircuitBreaker is a circuit breaker configuration
+                        to apply to this route
+                      properties:
+                        errorThresholdPercentage:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: Error threshold percentage should be between
+                            0 - 1.0, not 0-100.0
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        numBuckets:
+                          description: Integer number of buckets into which metrics
+                            are retained. Max 128.
+                          format: int32
+                          maximum: 128
+                          minimum: 1
+                          type: integer
+                        rollingWindow:
+                          description: Integer number of seconds in the statistical
+                            rolling window that metrics are retained for.
+                          format: int32
+                          type: integer
+                        trippedDuration:
+                          description: Integer number of seconds after which the circuit
+                            is tripped to wait before re-evaluating upstream health
+                          format: int32
+                          type: integer
+                        volumeThreshold:
+                          description: Integer number of requests in a rolling window
+                            that will trip the circuit. Helpful if traffic volume
+                            is low.
+                          format: int32
+                          type: integer
+                      type: object
                     compression:
                       description: Compression is whether or not to enable compression
                         for this route

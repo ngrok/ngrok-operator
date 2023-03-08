@@ -403,6 +403,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 							Backend: ingressv1alpha1.TunnelGroupBackend{
 								Labels: backendToLabelMap(httpIngressPath.Backend, ingress.Namespace),
 							},
+							CircuitBreaker:      modSet.Modules.CircuitBreaker,
 							Compression:         modSet.Modules.Compression,
 							IPRestriction:       modSet.Modules.IPRestriction,
 							Headers:             modSet.Modules.Headers,

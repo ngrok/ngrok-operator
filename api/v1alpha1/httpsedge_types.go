@@ -51,6 +51,9 @@ type HTTPSEdgeRouteSpec struct {
 	// +kubebuilder:validation:Required
 	Backend TunnelGroupBackend `json:"backend,omitempty"`
 
+	// CircuitBreaker is a circuit breaker configuration to apply to this route
+	CircuitBreaker *EndpointCircuitBreaker `json:"circuitBreaker,omitempty"`
+
 	// Compression is whether or not to enable compression for this route
 	Compression *EndpointCompression `json:"compression,omitempty"`
 
