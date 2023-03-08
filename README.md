@@ -1,9 +1,9 @@
 <p align="center">
   <a href="https://ngrok.com">
-    <img src="docs/images/ngrok-blue-lrg.png" alt="ngrok Logo" width="500" url="https://ngrok.com" />
+    <img src="docs/assets/images/ngrok-blue-lrg.png" alt="ngrok Logo" width="500" url="https://ngrok.com" />
   </a>
   <a href="https://kubernetes.io/">
-  <img src="docs/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="250" />
+  <img src="docs/assets/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="250" />
   </a>
 </p>
 
