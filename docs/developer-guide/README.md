@@ -26,7 +26,7 @@ make deploy
 ```
 
 ### Using the E2E Fixtures
-Several examples are provided in the [`e2e-fixtures` folder](./e2e-fixtures).  To use an example, make a copy of the included `EXAMPLE*config.yaml` in the same directory, like this:
+Several examples are provided in the [`e2e-fixtures` folder](https://github.com/ngrok/kubernetes-ingress-controller/tree/main/e2e-fixtures).  To use an example, make a copy of the included `EXAMPLE*config.yaml` in the same directory, like this:
 - `cp e2e-fixtures/hello-world-ingress/EXAMPLE-config.yaml e2e-fixtures/hello-world-ingress/config.yaml`
 - `cp e2e-fixtures/ingress-class/EXAMPLE-config-different.yaml e2e-fixtures/ingress-class/config-different.yaml`
 
@@ -42,4 +42,4 @@ If you run the script `./scripts/e2e.sh` it will run the e2e tests against your 
 
 ## Releasing
 
-Please see the [release guide](./release.md) for more information on how to release a new version of the ingress controller.
+Please see the [release guide](./releasing.md) for more information on how to release a new version of the ingress controller.

@@ -4,9 +4,11 @@ If you have the ingress controller installed and are looking to use it to add in
 Today we just support ingress, but gateways will be here soon!
 
 Start by reading the [ingress-to-edge-relationship](./ingress-to-edge-relationship.md) documentation to understand how ingress objects are converted into ngrok edges.
-Then, read the [annotations](./annotations.md) documentation to understand how to configure your ingress objects to get the most out of the controller.
+The current annotations are being moved to a new Module CRD now. These docs will be updated when its finished.
 
 For more advanced cases and usages, see the following:
 - [Custom Domain](./custom-domain.md)
 - [CRDs](./crds.md)
 - [TLS and HTTPS](./tls-and-https.md)
+
+For see or contribute a specific example see [here](./examples/README.md)

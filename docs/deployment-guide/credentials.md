@@ -25,7 +25,7 @@ Here is an example secret manifest:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: my-custom-ngrok-ingress-controller-credentials
+  name: ngrok-ingress-controller-credentials
   namespace: ngrok-ingress-controller
 data:
   API_KEY: "YOUR-API-KEY-BASE64"

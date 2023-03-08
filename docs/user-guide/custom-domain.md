@@ -1,6 +1,6 @@
 # Custom domain
 
-In the Kubernetes Ingress spec, ingresses have rules with various hostnames. The full relationship of these rules' hostnames to ngrok reserved domains and edges can be found in the [ingress to edge relationship](./ingress-to-edge-relationship.md) documentation. TODO: Add hash link. While standard ngrok domains are available for use immediately after reservation, custom white label domains may require a couple extra steps to get working. The following outlines 2 options for getting custom white label domains working with the ngrok Kubernetes Ingress Controller.
+In the Kubernetes Ingress spec, ingresses can have multiple rules with different hostnames. The full relationship of these rules' hostnames to ngrok reserved domains and edges can be found in the [ingress to edge relationship](./ingress-to-edge-relationship.md#name-based-virtual-hosting) documentation. While standard ngrok domains are available for use immediately after reservation, custom white label domains may require a couple extra steps to get working. The following outlines 2 options for getting custom white label domains working with the ngrok Kubernetes Ingress Controller.
 
 ## Managed by Kubernetes
 
@@ -43,7 +43,7 @@ Status:
       hostname:  12jkh25.cname.ngrok.io
 ```
 
-From here you can create the DNS record and everything should work as expected. To automate this fully though, see the example on integrating with external-dns here TODO: Add link to example when created.
+From here you can create the DNS record and everything should work as expected. To automate this fully though, see the [example on integrating with external-dns](../examples/external-dns.md).
 
 ## Externally managed
 
@@ -52,4 +52,4 @@ Domains can also be created
 - via the ngrok API
 - via the ngrok terraform provider
 
-If created externally, the controller will discover the domain is already registered, and not interact with it at all.
+If created externally, the controller will discover the domain is already registered, and not interact with it unless you modify or delete the crd itself. Deleting the ingress objects that use that host won't result in the domain CRD in being deleted.

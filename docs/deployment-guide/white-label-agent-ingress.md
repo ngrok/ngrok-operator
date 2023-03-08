@@ -7,6 +7,6 @@ However, if opening connectivity is not an option, you can set up a custom ingre
 To get started with this, go to your dashboard and create a custom ingress domain. Once created, you can configure the ingress controller by using the following command:
 
 ```bash
-helm install my-ingress-controller ngrok/ingress-controller \
+helm install my-ingress-controller ngrok/kubernetes-ingress-controller \
   --set serverAddr="ngrok.mydomain.com:443"
   ```

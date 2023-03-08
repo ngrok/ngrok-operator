@@ -1,6 +1,10 @@
 # CRDs
 
-Kubernetes has the concept of [Custom Resource Definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) (CRDs) which allow you to define your own custom resources. The ngrok Kubernetes Ingress Controller uses CRDs internally to represent the collection of ingress objects and other k8s resources as ngrok Edges and other resources which it synchronizes to the API. While all resources can be accessed via the k8s API, we don't recommend editing the internal resources directly. They are however useful to inspect and query the state of the system. This document will go over all the CRDs and note the ones that are internal implementations for now. These API differences will be more clear when the controller moves the primary resources out of alpha, and the internal CRDs remain as alpha for flexibility.
+Kubernetes has the concept of [Custom Resource Definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) (CRDs) which allow you to define your own custom resources. The ngrok Kubernetes Ingress Controller uses CRDs internally to represent the collection of ingress objects and other k8s resources as ngrok Edges and other resources which it synchronizes to the API.
+
+_**Warning:**_  While all resources can be accessed via the k8s API, we don't recommend editing the internal resources directly.
+
+They are however useful to inspect and query the state of the system. This document will go over all the CRDs and note the ones that are internal implementations for now. These API differences will be more clear when the controller moves the primary resources out of alpha, and the internal CRDs remain as alpha for flexibility.
 
 ## IP Policies
 

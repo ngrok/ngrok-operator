@@ -53,7 +53,7 @@ An official roadmap is coming soon. In the meantime, here are some of the featur
 
 ## Documentation
 
-[Documentation](./docs/index.md)
+[Documentation](./docs/README.md)
 
 [ngrok-url]: https://ngrok.com
 [ngrok-logo]: ./docs/images/ngrok-blue-lrg.png
