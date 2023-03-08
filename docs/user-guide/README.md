@@ -7,6 +7,7 @@ Start by reading the [ingress-to-edge-relationship](./ingress-to-edge-relationsh
 The current annotations are being moved to a new Module CRD now. These docs will be updated when its finished.
 
 For more advanced cases and usages, see the following:
+- [Route Modules](./route-modules.md)
 - [Custom Domain](./custom-domain.md)
 - [CRDs](./crds.md)
 - [TLS and HTTPS](./tls-and-https.md)

@@ -41,7 +41,11 @@ In kubernetes, ingress aims to solve this problem by letting various controllers
 
 With ngrok, the controller establishes an outbound session that tunnels traffic over. The end user makes a connection to the ngrok edge, which routes traffic down to the controllers' agents and is forwarded to the pods in the cluster.
 
-![k8s-basic](./assets/images/basic-ngrok-k8s-ingress-diagram.png)
+![ngrok-k8s-basic](./assets/images/basic-ngrok-k8s-ingress-diagram.png)
+
+Once installed, a team can manage the shared controller component while other users or teams can self service ingress to their services given the limitations imposed by the ngrok account and the controller operators.
+
+![basic-k8s-operator-user](./assets/images/basic-k8s-operator-user-diagram.png)
 
 To get started, an example ingress object such as this:
 

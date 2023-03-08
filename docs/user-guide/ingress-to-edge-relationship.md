@@ -150,15 +150,31 @@ Annotations are created and applied at the ingress object level. However, from t
 So while annotations are limited to being applied to the whole ingress object, and we'd like to apply different route module annotations to different routes in 1 edge, we can leverage the fact that multiple ingresses can be combined to form an edge if the rules hosts match, but each annotation only applies to those routes in the ingress object they came from.
 
 ```yaml
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: NgrokModuleSet
+metadata:
+  name: example-module-set-1
+modules:
+  headers:
+    add:
+      X-SEND-TO-CLIENT: Value1
+---
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: NgrokModuleSet
+metadata:
+  name: example-module-set-2
+modules:
+  headers:
+    add:
+      X-SEND-TO-CLIENT: Value2
+---
+
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: example-header-add-1
   annotations:
-    k8s.ngrok.com/response-headers-add: |
-      {
-        "X-SEND-TO-CLIENT": "Value1"
-      }
+    k8s.ngrok.com/modules=example-module-set-1
 spec:
   rules:
   - host: foo.bar.com
@@ -177,10 +193,7 @@ kind: Ingress
 metadata:
   name: example-header-add-2
   annotations:
-    k8s.ngrok.com/response-headers-add: |
-      {
-        "X-SEND-TO-CLIENT": "Value2"
-      }
+    k8s.ngrok.com/modules=example-module-set-2
 spec:
   rules:
   - host: foo.bar.com
