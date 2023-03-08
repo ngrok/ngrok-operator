@@ -97,3 +97,9 @@ func (e Extractor) Extract(ing *networking.Ingress) *RouteModules {
 
 	return pia
 }
+
+// Extracts a list of moudule set names from the annotation
+// k8s.ngrok.com/modules: "module1,module2"
+func ExtractNgrokModuleSetsFromAnnotations(ing *networking.Ingress) ([]string, error) {
+	return parser.GetStringSliceAnnotation("modules", ing)
+}

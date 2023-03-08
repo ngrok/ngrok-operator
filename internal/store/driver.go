@@ -18,6 +18,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -323,6 +324,30 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 	return domains
 }
 
+// Given an ingress, it will resolve any ngrok modulesets defined on the ingress to the
+// CRDs and then will merge them in to a single moduleset
+func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alpha1.NgrokModuleSet, error) {
+	computedModSet := &ingressv1alpha1.NgrokModuleSet{}
+
+	modules, err := annotations.ExtractNgrokModuleSetsFromAnnotations(ing)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return computedModSet, nil
+		}
+		return computedModSet, err
+	}
+
+	for _, module := range modules {
+		resolvedMod, err := d.Storer.GetNgrokModuleSetV1(module, ing.Namespace)
+		if err != nil {
+			return computedModSet, err
+		}
+		computedModSet.Merge(resolvedMod)
+	}
+
+	return computedModSet, nil
+}
+
 func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 	domains := d.calculateDomains()
 	ingresses := d.ListNgrokIngressesV1()
@@ -340,15 +365,21 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 		edge.Spec.Metadata = d.customMetadata
 		var ngrokRoutes []ingressv1alpha1.HTTPSEdgeRouteSpec
 		for _, ingress := range ingresses {
+			modSet, err := d.getNgrokModuleSetForIngress(ingress)
+			if err != nil {
+				d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
+				continue
+			}
+
+			// Set edge specific modules
+			if modSet.Modules.TLSTermination != nil {
+				edge.Spec.TLSTermination = modSet.Modules.TLSTermination
+			}
+
 			for _, rule := range ingress.Spec.Rules {
 				// If any rule for an ingress matches, then it applies to this ingress
 				// TODO: Handle routes without hosts that then apply to all edges
 				if rule.Host == domain.Spec.Domain {
-					// If any of them have the tls termination annotation, then we should set it for the whole edge
-					parsedRouteModules := annotations.NewAnnotationsExtractor().Extract(ingress)
-					if parsedRouteModules != nil && parsedRouteModules.TLSTermination != nil {
-						edge.Spec.TLSTermination = parsedRouteModules.TLSTermination
-					}
 
 					for _, httpIngressPath := range rule.HTTP.Paths {
 						matchType := "path_prefix"
@@ -362,7 +393,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 								matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
 							default:
 								d.log.Error(fmt.Errorf("unknown path type"), "unknown path type", "pathType", *httpIngressPath.PathType)
-								return nil
+								continue
 							}
 						}
 
@@ -372,9 +403,10 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 							Backend: ingressv1alpha1.TunnelGroupBackend{
 								Labels: backendToLabelMap(httpIngressPath.Backend, ingress.Namespace),
 							},
-							Compression:   parsedRouteModules.Compression,
-							IPRestriction: parsedRouteModules.IPRestriction,
-							Headers:       parsedRouteModules.Headers,
+							Compression:         modSet.Modules.Compression,
+							IPRestriction:       modSet.Modules.IPRestriction,
+							Headers:             modSet.Modules.Headers,
+							WebhookVerification: modSet.Modules.WebhookVerification,
 						}
 						route.Metadata = d.customMetadata
 

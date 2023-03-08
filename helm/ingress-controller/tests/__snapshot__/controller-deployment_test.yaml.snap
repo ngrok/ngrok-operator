@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
+        checksum/controller-role: 74105e85ac7febec1e0b93ea36e9a482cf4c17508862b57605a5cea0619f3c1b
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
         app.kubernetes.io/component: controller
@@ -302,6 +302,14 @@ Should match all-options snapshot:
     - apiGroups:
       - ingress.k8s.ngrok.com
       resources:
+      - ngrokmodulesets
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
       - tcpedges
       verbs:
       - create
@@ -383,7 +391,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
+        checksum/controller-role: 74105e85ac7febec1e0b93ea36e9a482cf4c17508862b57605a5cea0619f3c1b
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
         app.kubernetes.io/component: controller
@@ -665,6 +673,14 @@ Should match default snapshot:
       - get
       - patch
       - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - ngrokmodulesets
+      verbs:
+      - get
+      - list
+      - watch
     - apiGroups:
       - ingress.k8s.ngrok.com
       resources:
