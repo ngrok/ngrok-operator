@@ -216,3 +216,15 @@ This configuration would produce a single edge with two routes. Each route has a
   - route: `/bar` -> `service2:8080`
     - module: `response-headers-add` -> `{"X-SEND-TO-CLIENT": "Value2"}`
 
+## Collisions and Errors
+
+Because the controller combines multiple ingress objects into a combined model that represents a set of edges, it is possible to have configurations collide and overwrite each other. When possible, the controller aims to drop the minimal amount of configuration rather than erroring to keep the majority of the edges and routes up and running when there is a configuration error. The controller will then emit logs and events warning of the bad configuration.
+
+### Rule Paths
+
+If multiple ingress objects have rules with the same host and path, the controller will drop whichever one it see first because it will merge over the route path on that edge. Only 1 host and path combination can exist on an edge.
+
+### NgrokModuleSets
+
+The [NgrokModuleSet CRD](./crds.md#ngrok-module-sets) is a collection of route module configurations. When set on an ingress object, it applies to all routes on that ingress object, but not routes on other ingress objects that may be combined to form the same edge.
+You can set multiple module sets on an ingress object. The controller will merge the modules from all of the module sets together. If there are any collisions, the controller will drop the module from the first set.

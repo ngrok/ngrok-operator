@@ -67,10 +67,9 @@ spec:
           servicePort: 80
 ```
 
-Should:
-- Create a tunnel to the service `example-service` on port `80`
-- Create an edge with the hostports of `example.com:443`
-- Create a Tunnel group backend for each tunnel service created with matching labels.
+This would create an edge on the ngrok account with the domain `example.com` and that routes traffic to a tunnel originating from the controller connecting ngrok to the kubernetes `example-service`.
+
+_*Warning*_ If you have existing infrastructure, edges, or domains in your account, make sure to only create ingresses with new domains. Otherwise, you may overwrite existing edges and domains.
 
 
 # Contributing

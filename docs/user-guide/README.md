@@ -11,5 +11,6 @@ For more advanced cases and usages, see the following:
 - [Custom Domain](./custom-domain.md)
 - [CRDs](./crds.md)
 - [TLS and HTTPS](./tls-and-https.md)
+- [IP Restrictions](./ip-restrictions.md)
 
 For see or contribute a specific example see [here](./examples/README.md)
