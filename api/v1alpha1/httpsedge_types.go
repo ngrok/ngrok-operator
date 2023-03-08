@@ -63,6 +63,9 @@ type HTTPSEdgeRouteSpec struct {
 	// Headers are request/response headers to apply to this route
 	Headers *EndpointHeaders `json:"headers,omitempty"`
 
+	// OIDC is the OpenID Connect configuration to apply to this route
+	OIDC *EndpointOIDC `json:"oidc,omitempty"`
+
 	// WebhookVerification is webhook verification configuration to apply to this route
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
 }

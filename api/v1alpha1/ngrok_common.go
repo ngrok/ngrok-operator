@@ -1,6 +1,9 @@
 package v1alpha1
 
-import "k8s.io/apimachinery/pkg/api/resource"
+import (
+	"k8s.io/apimachinery/pkg/api/resource"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // common ngrok API/Dashboard fields
 type ngrokAPICommon struct {
@@ -94,4 +97,30 @@ type EndpointCircuitBreaker struct {
 
 	// Error threshold percentage should be between 0 - 1.0, not 0-100.0
 	ErrorThresholdPercentage resource.Quantity `json:"errorThresholdPercentage,omitempty"`
+}
+
+type EndpointOIDC struct {
+	// Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+	// supporting CORS.
+	OptionsPassthrough bool `json:"optionsPassthrough,omitempty"`
+	// the prefix of the session cookie that ngrok sets on the http client to cache
+	// authentication. default is 'ngrok.'
+	CookiePrefix string `json:"cookiePrefix,omitempty"`
+	// Duration of inactivity after which if the user has not accessed
+	// the endpoint, their session will time out and they will be forced to
+	// reauthenticate.
+	//+kubebuilder:validation:Format=duration
+	InactivityTimeout v1.Duration `json:"inactivityTimeout,omitempty"`
+	// The maximum duration of an authenticated session.
+	// After this period is exceeded, a user must reauthenticate.
+	//+kubebuilder:validation:Format=duration
+	MaximumDuration v1.Duration `json:"maximumDuration,omitempty"`
+	// URL of the OIDC "OpenID provider". This is the base URL used for discovery.
+	Issuer string `json:"issuer,omitempty"`
+	// The OIDC app's client ID and OIDC audience.
+	ClientID string `json:"clientId,omitempty"`
+	// The OIDC app's client secret.
+	ClientSecret SecretKeyRef `json:"clientSecret,omitempty"`
+	// The set of scopes to request from the OIDC identity provider.
+	Scopes []string `json:"scopes,omitempty"`
 }
