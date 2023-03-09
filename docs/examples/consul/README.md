@@ -19,4 +19,4 @@ podAnnotations:
 
 https://developer.hashicorp.com/consul/docs/k8s/connect/ingress-controllers
 
-<img src="../assets/images/Under-Construction-Sign.png" alt="Under Construction" width="350" />
+<img src="../../assets/images/Under-Construction-Sign.png" alt="Under Construction" width="350" />
