@@ -1,5 +1,7 @@
 package v1alpha1
 
+import "k8s.io/apimachinery/pkg/api/resource"
+
 // common ngrok API/Dashboard fields
 type ngrokAPICommon struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
@@ -70,4 +72,26 @@ type EndpointWebhookVerification struct {
 	// SecretRef is a reference to a secret containing the secret used to validate
 	// requests from the given provider. All providers except AWS SNS require a secret
 	SecretRef *SecretKeyRef `json:"secret,omitempty"`
+}
+
+type EndpointCircuitBreaker struct {
+	// Integer number of seconds after which the circuit is tripped to wait before
+	// re-evaluating upstream health
+	TrippedDuration uint32 `json:"trippedDuration,omitempty"`
+
+	// Integer number of seconds in the statistical rolling window that metrics are
+	// retained for.
+	RollingWindow uint32 `json:"rollingWindow,omitempty"`
+
+	// Integer number of buckets into which metrics are retained. Max 128.
+	//+kubebuilder:validation:Minimum=1
+	//+kubebuilder:validation:Maximum=128
+	NumBuckets uint32 `json:"numBuckets,omitempty"`
+
+	// Integer number of requests in a rolling window that will trip the circuit.
+	// Helpful if traffic volume is low.
+	VolumeThreshold uint32 `json:"volumeThreshold,omitempty"`
+
+	// Error threshold percentage should be between 0 - 1.0, not 0-100.0
+	ErrorThresholdPercentage resource.Quantity `json:"errorThresholdPercentage,omitempty"`
 }

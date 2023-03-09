@@ -440,6 +440,7 @@ type edgeRouteModuleUpdater struct {
 
 func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
 	funcs := []func(context.Context, *ngrok.HTTPSEdgeRoute, *ingressv1alpha1.HTTPSEdgeRouteSpec) error{
+		u.setEdgeRouteCircuitBreaker,
 		u.setEdgeRouteCompression,
 		u.setEdgeRouteIPRestriction,
 		u.setEdgeRouteRequestHeaders,
@@ -460,6 +461,42 @@ func (u *edgeRouteModuleUpdater) edgeRouteItem(route *ngrok.HTTPSEdgeRoute) *ngr
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
 	}
+}
+
+func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	circuitBreaker := routeSpec.CircuitBreaker
+
+	client := u.clientset.CircuitBreaker()
+
+	// Early return if nothing to be done
+	if circuitBreaker == nil {
+		if route.CircuitBreaker == nil {
+			u.log.Info("CircuitBreaker matches desired state, skipping update")
+			return nil
+		}
+
+		return client.Delete(ctx, u.edgeRouteItem(route))
+	}
+
+	module := ngrok.EndpointCircuitBreaker{
+		TrippedDuration:          circuitBreaker.TrippedDuration,
+		RollingWindow:            circuitBreaker.RollingWindow,
+		NumBuckets:               circuitBreaker.NumBuckets,
+		VolumeThreshold:          circuitBreaker.VolumeThreshold,
+		ErrorThresholdPercentage: circuitBreaker.ErrorThresholdPercentage.AsApproximateFloat64(),
+	}
+
+	if reflect.DeepEqual(module, route.CircuitBreaker) {
+		u.log.Info("CircuitBreaker matches desired state, skipping update")
+		return nil
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteCircuitBreakerReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: module,
+	})
+	return err
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteCompression(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {

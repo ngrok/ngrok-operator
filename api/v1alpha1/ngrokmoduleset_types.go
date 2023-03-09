@@ -29,15 +29,17 @@ import (
 )
 
 type NgrokModuleSetModules struct {
-	// Compression configuration for this module
+	// CircuitBreaker configuration for this module set
+	CircuitBreaker *EndpointCircuitBreaker `json:"circuitBreaker,omitempty"`
+	// Compression configuration for this module set
 	Compression *EndpointCompression `json:"compression,omitempty"`
-	// Header configuration for this module
+	// Header configuration for this module set
 	Headers *EndpointHeaders `json:"headers,omitempty"`
-	// IPRestriction configuration for this module
+	// IPRestriction configuration for this module set
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
-	// TLSTermination configuration for this module
+	// TLSTermination configuration for this module set
 	TLSTermination *EndpointTLSTerminationAtEdge `json:"tlsTermination,omitempty"`
-	// WebhookVerification configuration for this module
+	// WebhookVerification configuration for this module set
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
 }
 
@@ -60,6 +62,9 @@ func (ms *NgrokModuleSet) Merge(o *NgrokModuleSet) {
 	msmod := &ms.Modules
 	omod := o.Modules
 
+	if omod.CircuitBreaker != nil {
+		msmod.CircuitBreaker = omod.CircuitBreaker
+	}
 	if omod.Compression != nil {
 		msmod.Compression = omod.Compression
 	}

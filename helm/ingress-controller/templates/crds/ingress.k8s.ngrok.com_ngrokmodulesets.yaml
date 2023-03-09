@@ -34,8 +34,42 @@ spec:
             type: object
           modules:
             properties:
+              circuitBreaker:
+                description: CircuitBreaker configuration for this module set
+                properties:
+                  errorThresholdPercentage:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Error threshold percentage should be between 0 -
+                      1.0, not 0-100.0
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  numBuckets:
+                    description: Integer number of buckets into which metrics are
+                      retained. Max 128.
+                    format: int32
+                    maximum: 128
+                    minimum: 1
+                    type: integer
+                  rollingWindow:
+                    description: Integer number of seconds in the statistical rolling
+                      window that metrics are retained for.
+                    format: int32
+                    type: integer
+                  trippedDuration:
+                    description: Integer number of seconds after which the circuit
+                      is tripped to wait before re-evaluating upstream health
+                    format: int32
+                    type: integer
+                  volumeThreshold:
+                    description: Integer number of requests in a rolling window that
+                      will trip the circuit. Helpful if traffic volume is low.
+                    format: int32
+                    type: integer
+                type: object
               compression:
-                description: Compression configuration for this module
+                description: Compression configuration for this module set
                 properties:
                   enabled:
                     description: Enabled is whether or not to enable compression for
@@ -43,7 +77,7 @@ spec:
                     type: boolean
                 type: object
               headers:
-                description: Header configuration for this module
+                description: Header configuration for this module set
                 properties:
                   request:
                     description: Request headers are the request headers module configuration
@@ -84,7 +118,7 @@ spec:
                     type: object
                 type: object
               ipRestriction:
-                description: IPRestriction configuration for this module
+                description: IPRestriction configuration for this module set
                 properties:
                   policies:
                     items:
@@ -92,7 +126,7 @@ spec:
                     type: array
                 type: object
               tlsTermination:
-                description: TLSTermination configuration for this module
+                description: TLSTermination configuration for this module set
                 properties:
                   minVersion:
                     description: MinVersion is the minimum TLS version to allow for
@@ -100,7 +134,7 @@ spec:
                     type: string
                 type: object
               webhookVerification:
-                description: WebhookVerification configuration for this module
+                description: WebhookVerification configuration for this module set
                 properties:
                   provider:
                     description: a string indicating which webhook provider will be
