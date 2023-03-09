@@ -82,6 +82,6 @@ Return the ngrok/ingress-controller image name
 {{- define "kubernetes-ingress-controller.image" -}}
 {{- $registryName := .Values.image.registry -}}
 {{- $repositoryName := .Values.image.repository -}}
-{{- $tag := .Values.image.tag | toString -}}
+{{- $tag := .Values.image.tag | default .Chart.AppVersion | toString -}}
 {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
 {{- end -}}

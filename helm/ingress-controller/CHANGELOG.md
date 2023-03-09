@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.1
+### Fixed
+- Default the image tag to the chart's `appVersion` for predictable installs. Previously, the helm chart would default to the `latest` image tag which can have breaking changes, notably with CRDs.
+
 ## 0.6.0
 ### Changed
 - Ingress Class has Default set to false [#109](https://github.com/ngrok/kubernetes-ingress-controller/pull/109)

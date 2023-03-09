@@ -51,7 +51,7 @@ To uninstall the chart:
 | `replicaCount`               | The number of controllers and agents to run.                                                                          | `1`                                   |
 | `image.registry`             | The ngrok ingress controller image registry.                                                                          | `docker.io`                           |
 | `image.repository`           | The ngrok ingress controller image repository.                                                                        | `ngrok/kubernetes-ingress-controller` |
-| `image.tag`                  | The ngrok ingress controller image tag.                                                                               | `latest`                              |
+| `image.tag`                  | The ngrok ingress controller image tag. Defaults to the chart's appVersion if not specified                           | `""`                                  |
 | `image.pullPolicy`           | The ngrok ingress controller image pull policy.                                                                       | `IfNotPresent`                        |
 | `image.pullSecrets`          | An array of imagePullSecrets to be used when pulling the image.                                                       | `[]`                                  |
 | `ingressClass.name`          | The name of the ingress class to use.                                                                                 | `ngrok`                               |
