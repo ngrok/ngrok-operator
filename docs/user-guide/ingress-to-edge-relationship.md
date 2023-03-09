@@ -193,7 +193,7 @@ kind: Ingress
 metadata:
   name: example-header-add-2
   annotations:
-    k8s.ngrok.com/modules=example-module-set-2
+    k8s.ngrok.com/modules: "example-module-set-2"
 spec:
   rules:
   - host: foo.bar.com
