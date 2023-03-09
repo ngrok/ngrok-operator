@@ -4,7 +4,7 @@ If you have the ingress controller installed and are looking to use it to add in
 Today we just support ingress, but gateways will be here soon!
 
 Start by reading the [ingress-to-edge-relationship](./ingress-to-edge-relationship.md) documentation to understand how ingress objects are converted into ngrok edges.
-The current annotations are being moved to a new Module CRD now. These docs will be updated when its finished.
+The current annotations are being moved to a new Module CRD now. These docs will be updated when it's finished.
 
 For more advanced cases and usages, see the following:
 - [Route Modules](./route-modules.md)
@@ -13,4 +13,4 @@ For more advanced cases and usages, see the following:
 - [TLS and HTTPS](./tls-and-https.md)
 - [IP Restrictions](./ip-restrictions.md)
 
-For see or contribute a specific example see [here](./examples/README.md)
+For see or contribute a specific example see [here](../examples/README.md).

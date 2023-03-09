@@ -24,4 +24,4 @@ While it's possible to install multiple versions of the controller right now, th
 
 ## Watching Specific Namespaces
 
-By default, the ingress controller watches all namespaces. It's a common use case to need a controller to watch only a specific namespace in the case where you may run a controller in a namespace for each team or environment. In order to watch only a specific namespace for ingress objects, you can set the helm value []`watchNamespace`](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/helm/ingress-controller/README.md#controller-parameters) to the namespace you want to watch.
+By default, the ingress controller watches all namespaces. It's a common use case to need a controller to watch only a specific namespace in the case where you may run a controller in a namespace for each team or environment. In order to watch only a specific namespace for ingress objects, you can set the helm value [`watchNamespace`](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/helm/ingress-controller/README.md#controller-parameters) to the namespace you want to watch.
