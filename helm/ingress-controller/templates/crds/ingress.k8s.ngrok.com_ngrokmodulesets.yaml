@@ -125,6 +125,52 @@ spec:
                       type: string
                     type: array
                 type: object
+              oidc:
+                description: OIDC configuration for this module set
+                properties:
+                  clientId:
+                    description: The OIDC app's client ID and OIDC audience.
+                    type: string
+                  clientSecret:
+                    description: The OIDC app's client secret.
+                    properties:
+                      key:
+                        description: Key in the secret to use
+                        type: string
+                      name:
+                        description: Name of the Kubernetes secret
+                        type: string
+                    type: object
+                  cookiePrefix:
+                    description: the prefix of the session cookie that ngrok sets
+                      on the http client to cache authentication. default is 'ngrok.'
+                    type: string
+                  inactivityTimeout:
+                    description: Duration of inactivity after which if the user has
+                      not accessed the endpoint, their session will time out and they
+                      will be forced to reauthenticate.
+                    format: duration
+                    type: string
+                  issuer:
+                    description: URL of the OIDC "OpenID provider". This is the base
+                      URL used for discovery.
+                    type: string
+                  maximumDuration:
+                    description: The maximum duration of an authenticated session.
+                      After this period is exceeded, a user must reauthenticate.
+                    format: duration
+                    type: string
+                  optionsPassthrough:
+                    description: Do not enforce authentication on HTTP OPTIONS requests.
+                      necessary if you are supporting CORS.
+                    type: boolean
+                  scopes:
+                    description: The set of scopes to request from the OIDC identity
+                      provider.
+                    items:
+                      type: string
+                    type: array
+                type: object
               tlsTermination:
                 description: TLSTermination configuration for this module set
                 properties:
