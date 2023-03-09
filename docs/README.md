@@ -14,7 +14,7 @@ This is the ngrok ingress controller. It can be deployed and operated to a clust
 The controller watches for [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) objects and creates the corresponding ngrok tunnels and edges. More details on how these are derived can be found [here](./user-guide/ingress-to-edge-relationship.md). Other ngrok features such as TCP Edges can be configured via [CRDs](./user-guide/crds.md).
 
 If you are looking to install the controller for the first time, see our [deployment-guide](./deployment-guide/README.md).
-If its already installed and you are looking to configure ingress for an app or service, see our [user-guide](./user-guide/README.md).
+If it's already installed and you are looking to configure ingress for an app or service, see our [user-guide](./user-guide/README.md).
 
 For more in depth guides, see here:
 - [Deployment Guide](./deployment-guide/README.md)
@@ -25,13 +25,13 @@ For more in depth guides, see here:
 
 # How It Works
 
-A Kubernetes cluster has its own private network internally that pods get ip addresses from. This network is not accessible to the outside world. Kubernetes Ingress aims to solve getting traffic into the cluster. This should sound a bit similar to how ngrok helps get traffic to ip's behind a firewall on a private network.
+A Kubernetes cluster has its own private network internally that pods get IP addresses from. This network is not accessible to the outside world. Kubernetes Ingress aims to solve getting traffic into the cluster. This should sound a bit similar to how ngrok helps get traffic to IPs behind a firewall on a private network.
 
 By default, kubernetes offers similar types of approaches to exposing traffic as you'd expect at home:
 - You can port forward: In kubernetes, this is a temporary solution using kubectl. At home, you can configure your router. Both may be disrupted if ip's change.
 - You can use an external load balancer of some sort that still needs access to the internal network somehow.
 
-in this case below, the user cannot access the pod directly in the k8s private network without some sort of entry point.
+In this case below, the user cannot access the pod directly in the k8s private network without some sort of entry point.
 
 ![k8s-basic](./assets/images/basic-k8s-digram.png)
 
@@ -43,7 +43,7 @@ With ngrok, the controller establishes an outbound session that tunnels traffic 
 
 ![ngrok-k8s-basic](./assets/images/basic-ngrok-k8s-ingress-diagram.png)
 
-Once installed, a team can manage the shared controller component while other users or teams can self service ingress to their services given the limitations imposed by the ngrok account and the controller operators.
+Once installed, a team can manage the shared controller component while other users or teams can self-service ingress to their services given the limitations imposed by the ngrok account and the controller operators.
 
 ![basic-k8s-operator-user](./assets/images/basic-k8s-operator-user-diagram.png)
 

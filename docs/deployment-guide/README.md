@@ -10,7 +10,7 @@ This guide is meant as the starting point for configuring, deploying, and operat
 
 ## Installation
 
-It is recommended to use helm to install the controller. Alternatively, the container is available on docker hub at `ngrok/ingress-controller` and can be ran directly with hand crafted manifests.
+It is recommended to use helm to install the controller. Alternatively, the container is available on docker hub at `ngrok/ingress-controller` and can be run directly with hand crafted manifests.
 
 To install via helm, run the following command to export your credentials as environment variables and install the controller:
 
@@ -40,7 +40,7 @@ kubectl apply -n ngrok-ingress-controller -f https://raw.githubusercontent.com/n
 
 ## Known Limits
 
-A limitation is that it doesn't work with free accounts. Additionally there are soft limitation in place we hit that we still need to stress test and document and look at changing.
+A limitation is that it doesn't work with free accounts. Additionally there are soft limitation in places that we still need to stress test and document and look at changing.
 
 
 ## Other Topics

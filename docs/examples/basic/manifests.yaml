@@ -5,7 +5,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-    - host: bezek-game-2048.ngrok.io
+    - host: $SUBDOMAIN-game-2048.ngrok.io
       http:
         paths:
           - path: /

@@ -139,11 +139,11 @@ The kubernetes spec specifies:
 
 > If you create an Ingress resource without any hosts defined in the rules, then any web traffic to the IP address of your Ingress controller can be matched without a name based virtual host being required.
 
-This only can be applied to ingress controllers that create static IPs to route to. With ngrok, an Edge always has a hostname, otherwise its not routeable. If a rule with no host is created, it will be dropped.
+This only can be applied to ingress controllers that create static IPs to route to. With ngrok, an Edge always has a hostname, otherwise it's not routable. If a rule with no host is created, it will be dropped.
 
 ## Annotations
 
-The current annotations are being moved to a new Module CRD now. These docs will be updated when its finished. The approach and structure will be the same, just showing how modules apply to routes.
+The current annotations are being moved to a new Module CRD now. These docs will be updated when it's finished. The approach and structure will be the same, just showing how modules apply to routes.
 
 Annotations are created and applied at the ingress object level. However, from the section above, multiple ingresses can combine and be shared to form multiple edges. When using annotations that apply specifically to routes, the annotations on the ingress apply to all routes, but routes for multiple edges across different ingresses don't have to have the same annotations or modules.
 
@@ -222,7 +222,7 @@ Because the controller combines multiple ingress objects into a combined model t
 
 ### Rule Paths
 
-If multiple ingress objects have rules with the same host and path, the controller will drop whichever one it see first because it will merge over the route path on that edge. Only 1 host and path combination can exist on an edge.
+If multiple ingress objects have rules with the same host and path, the controller will drop whichever one it sees first because it will merge over the route path on that edge. Only 1 host and path combination can exist on an edge.
 
 ### NgrokModuleSets
 

@@ -2,7 +2,7 @@
 
 Kubernetes has the concept of [Custom Resource Definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) (CRDs) which allow you to define your own custom resources. This document will cover the CRDs you might use to achieve your goals with the ngrok Kubernetes Ingress Controller.
 
-_**Warning:**_  There are other CRDs not documented here that are used internally by the controller. It is not recomended to edit these, but inspecting them to query the state of the system could be useful at times. See the [internal CRDs](../developer-guide/internal-crds.md) document for more details.
+_**Warning:**_  There are other CRDs not documented here that are used internally by the controller. It is not recommended to edit these, but inspecting them to query the state of the system could be useful at times. See the [internal CRDs](../developer-guide/internal-crds.md) document for more details.
 
 ## Ngrok Module Sets
 
@@ -85,7 +85,7 @@ _**Warning:**_  There are other CRDs not documented here that are used internall
 
 The `IPPolicy` CRD manages the ngrok [API resource](https://ngrok.com/docs/api/resources/ip-policies) directly. It is a first class CRD that you can manage to control these policies in your account.
 
-Its optional to create IP Policies this way vs using the ngrok dashboard or [terraform provider](https://registry.terraform.io/providers/ngrok/ngrok/latest/docs/resources/ip_policy). Once created though, you can use it in your ingress objects using the [annotations](./annotations.md#ip-restriction).
+It's optional to create IP Policies this way vs using the ngrok dashboard or [terraform provider](https://registry.terraform.io/providers/ngrok/ngrok/latest/docs/resources/ip_policy). Once created though, you can use it in your ingress objects using the [annotations](./annotations.md#ip-restriction).
 
 | Field | Description | Required | Type | Example |
 | ----- | ----------- | -------- | ---- | ------- |

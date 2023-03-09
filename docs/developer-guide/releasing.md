@@ -49,7 +49,7 @@ There is a different git tag pattern for each artifact.
 
 #### Helm Chart
 
-Releases of the helm chart will tagged with a prefix of `helm-chart-`. For example, version `1.2.0`
+Releases of the helm chart will be tagged with a prefix of `helm-chart-`. For example, version `1.2.0`
 of the helm chart will have a git tag of `helm-chart-1.2.0` which contains the code used to package
 and publish version `1.2.0` of the helm chart.
 

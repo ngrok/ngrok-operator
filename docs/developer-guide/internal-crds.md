@@ -6,7 +6,7 @@ Kubernetes has the concept of [Custom Resource Definitions](https://kubernetes.i
 
 Domains are automatically created by the controller based on the ingress objects host values. Standard ngrok subdomains will automatically be created and reserved for you. Custom domains will also be created and reserved, but will be up to you to configure the DNS records for them. See the [custom domain](./user-guide/custom-domain.md) guide for more details.
 
-If you delete all the ingress objects for a particular host, as a saftey precaution, the ingress controller does *NOT* delete the domains and thus does not un-register them. This ensures you don't lose domains while modifying or recreating ingress objects. You can still manually delete a domain CRD via `kubectl delete domain <name>` if you want to un-register it.
+If you delete all the ingress objects for a particular host, as a safety precaution, the ingress controller does *NOT* delete the domains and thus does not unregister them. This ensures you don't lose domains while modifying or recreating ingress objects. You can still manually delete a domain CRD via `kubectl delete domain <name>` if you want to unregister it.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -42,11 +42,11 @@ Tunnels are automatically created by the controller based on the ingress objects
 
 ## HTTPS Edges
 
-HTTPS Edges are the primary representation of all the ingress objects and various configuration's states that will be reflected to the ngrok API. While you could create https edge CRDs directly, its not recommended because:
+HTTPS Edges are the primary representation of all the ingress objects and various configuration's states that will be reflected to the ngrok API. While you could create https edge CRDs directly, it's not recommended because:
 - the api is internal and will likely change in the future
 - if your edge conflicts with any edge managed by the controller, it may be overwritten
 
-This may stabilize to a first class CRD in the future, but for now, its not recommended to use directly but may be useful to inspect the state of the system.
+This may stabilize to a first class CRD in the future, but for now, it's not recommended to use directly but may be useful to inspect the state of the system.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
