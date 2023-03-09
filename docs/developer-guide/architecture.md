@@ -16,43 +16,28 @@ The word _controller_ can sometimes be used in ways that can be confusing. While
 
 Individual controllers and the overall Manager are built using the kubernetes controller-runtime library which k8s itself leverages for its internal controllers (such as Deployment or StatefulSet controllers). Its go-docs explain each concept fairly well starting here https://pkg.go.dev/sigs.k8s.io/controller-runtime#hdr-Managers
 
-## Learned Lessons
-
-### 1 controller per resource
-
-One thing that wasn't clear originally was that it is an anti-pattern to have multiple controllers **managing** the same resource. Multiple controllers can watch the same resource without problems, for example multiple of them could watch for specific config map changes. However, if a controller needs to utilize the resources status or finalizers, or anything that requires a write or update, then multiple controllers will step on each other's toes if pointed at the same resource. We originally created 2 different controllers: 1 to manage the ngrok api resources and 1 to manage the tunnels. Both watched for ingress objects and relied on the finalizer in order to clean up their respective ngrok api resources and agent tunnels. But there was a race condition where if 1 finished first and removed the finalizer, the other would leak resources.
-
-# Our Architecture
-
-Today, our supported method of configuring ingress is via the Kubernetes Ingress Kind with things like Gateway and maybe CRD's in the future but not presently. Ultimately the goal is to watch for Ingress configuration changes and in turn manage
-- ngrok API resources such as reserved domains, edges, backends, etc
-- ngrok sessions and tunnels originating in your cluster to our edge infrastructure
-
 ## Controllers
 
-This is a running list of the controllers we have today and what they do. We will go into more detail on each of these in the following sections. Today these are all built into a single binary and run as a single manager. In the future we may split them out into separate binaries and/or managers.
+Internally, the ngrok Kubernetes Ingress Controller is made up of multiple controllers working in concert with each other, communicating via the Kubernetes API to interpret Ingress objects and convert them into managed ngrok Edges and other resources.
 
-### Ingress Controller
+Each of these controllers uses the same basic workflow to manage its resources. This will be dried up and documented as a part of [this issue](https://github.com/ngrok/kubernetes-ingress-controller/issues/118)
 
-The ingress controller is responsible for watching for Ingress resources and managing the ngrok API resources. It watches for Ingress resources and creates, updates, and deletes ngrok API resources as needed. It only runs in the leader elected pod to ensure there is only 1 actor trying to converge the ngrok api resources to match the desired state represented by the ingress objects.
+The following controllers for the most part manage a single resource and reflect those changes in the ngrok API.
+- [IP Policy Controller](../../internal/controllers/ippolicy_controller.go): It simply watches these CRDs and reflects the changes in the ngrok API.
+- [Domain Controller](../../internal/controllers/domain_controller.go): It will watch for domain CRDs and reflect those changes in the ngrok API. It will also update the domain CRD objects' status fields with the current state of the domain in the ngrok API, such as a CNAME target if its a white label domain.
+- [HTTPS Edge Controller](../../internal/controllers/httpsedge_controller.go): This CRD contains all the data necessary to build not just the edge, but also all routes, backends, and route modules by calling various ngrok APIs to combine resources. The HTTPSEdge CRD is the common type other controllers can create based on different source inputs like Ingress objects or Gateway objects.
+- [TCP Edge Controller](../../internal/controllers/tcpedge_controller.go): This CRD contains all the data necessary to build the edge and any edge modules configured. It will likely be a first class CRD used by consumers of the controller to create TCP edges because Kubernetes Ingress does not support TCP.
 
-Today, an ingress object is mapped 1-1 with an edge. The controller knows what edge it maps to because it stamps each object with an annotation denoting the edge id. This comes with limitations and will likely change so the controller manages multiple ingress objects and can merge them into a single edge.
-
-The ingress controller relies on using a finalizer on the ingress object to clean up resources in the API. Essentially, if you delete an ingress object from k8s, the controller receives the delete event, but the k8s api server will not fully remove the resource until the controller removes the finalizer. This allows the controller to clean up any resources it created in the
-ngrok API before the object is fully removed from k8s.
-
-The ingress controller is responsible for reserving domains today. If you create an ingress object with a host, it will automatically try to reserve that domain for you. If you delete an ingress object though, we do not unreserve the domain automatically to avoid you losing domains.
-
-The status of the ingress object is updated with the public url of the edge. If this is an ngrok domain, it will simply be the domain name. If it is a custom domain, it will be the CNAME record you need to create (or let something like external-dns create for you) to point to the edge.
+The following controllers are more complex and manage multiple resources and reflect those changes in the ngrok API.
 
 ### Tunnel Controller
 
-Note: At the time of writing this, the tunnel controller is different from what it will be. This short section is representing what it _will_ be.
-
-From the ingress resources, we end up needing to create specific tunnels for each of the unique service backends in each ingress object. Since the ingress controller is responsible for managing the ingress objects, the tunnel controller needs to be given this information from the ingress controller in a separate way so they aren't both fighting over the same resource. The tunnel controller will watch for a new custom resource called a Tunnel. The ingress controller will create a tunnel for each unique service backend in each ingress object. The tunnel controller will then create the tunnel in the ngrok agent and update the tunnel resource.
+All of the controllers except this tunnel controller use the controller-runtime's Leader Election process so when multiple instances of the controller only 1 is setup to actually try to call the ngrok api to prevent multiple pods from fighting with each other. The tunnel controller is the only controller that does not use this leader election and instead this controller runs in all pods, even non-leaders. This is because this controller is meant to read the Tunnel CRDs created by the ingress controller, and to dynamically manage a list of tunnels using the [ngrok-go](https://github.com/ngrok/ngrok-go) library. It creates these tunnels using labels specified on the Tunnel CRD so they should match an edge's backend created by the ingress controller.
 
 
-### TODO:
-- driver and store pattern
-- ngrok-go usage
-- annotations system
+### Ingress Controller
+
+The ingress controller is primary piece of functionality in the overall project right now. It is meant to watch Ingress objects and CRDs used by those objects like IPPolicies, NgrokModuleSets, or even secrets.
+
+TODO: Update more about the various pieces of the ingress controller portion such as the store, the driver, how annotations work, etc.
+<img src="../assets/images/Under-Construction-Sign.png" alt="Under Construction" width="350" />
