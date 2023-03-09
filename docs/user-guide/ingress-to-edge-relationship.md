@@ -174,7 +174,7 @@ kind: Ingress
 metadata:
   name: example-header-add-1
   annotations:
-    k8s.ngrok.com/modules=example-module-set-1
+    k8s.ngrok.com/modules: "example-module-set-1"
 spec:
   rules:
   - host: foo.bar.com
