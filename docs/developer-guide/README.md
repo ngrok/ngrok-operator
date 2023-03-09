@@ -8,7 +8,7 @@ Have a look at the architecture guide on the internal workings of the ingress co
 
 ## Local Development
 
-* [Go 1.19](https://go.dev/dl/)
+* [Go 1.20](https://go.dev/dl/)
 * [Helm](https://helm.sh/docs/intro/install/)
 * A k8s cluster is available via your kubectl client. This can be a remote cluster or a local cluster like [minikube](https://minikube.sigs.k8s.io/docs/start/)
   * NOTE: Depending on your cluster, you may have to take additional steps to make the image available. For example with minikube, you may need to run `eval $(minikube docker-env)` to make the image available to the cluster.
