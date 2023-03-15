@@ -2,7 +2,7 @@
 
 This ingress controller aims to take the [ingress spec](https://kubernetes.io/docs/concepts/services-networking/ingress/#the-ingress-resource) and implement each specified concept into ngrok edges. The concept of an ngrok Edge is documented more [here](https://ngrok.com/docs/cloud-edge/). This document aims to explain how multiple ingress objects with rules and hosts that overlap combine to form edges in the ngrok API.
 
-Overall
+In Short:
 - a host correlates directly to an edge
 - rules spread across ingress objects with matching hosts get merged into the same edge
 - annotations on an ingress apply only to the routes in the rules in that ingress if possible
@@ -135,31 +135,46 @@ This configuration would produce two edges with one route each.
 
 #### No Host
 
+The kubernetes spec specifies:
+
 > If you create an Ingress resource without any hosts defined in the rules, then any web traffic to the IP address of your Ingress controller can be matched without a name based virtual host being required.
 
-While not implemented yet, this would work the same as default backends where the rule is applied to all edges.
-TODO: The example has 2 rules with hosts and then a third without a host, so when a request matches neither, it does match that one. I'm not sure really if thats the same "default apply to everything" or if there is a fallback problem
-
-### TLS
-
-TLS Edges are not yet implemented but should be implemented in the future.
+This only can be applied to ingress controllers that create static IPs to route to. With ngrok, an Edge always has a hostname, otherwise it's not routable. If a rule with no host is created, it will be dropped.
 
 ## Annotations
+
+The current annotations are being moved to a new Module CRD now. These docs will be updated when it's finished. The approach and structure will be the same, just showing how modules apply to routes.
 
 Annotations are created and applied at the ingress object level. However, from the section above, multiple ingresses can combine and be shared to form multiple edges. When using annotations that apply specifically to routes, the annotations on the ingress apply to all routes, but routes for multiple edges across different ingresses don't have to have the same annotations or modules.
 
 So while annotations are limited to being applied to the whole ingress object, and we'd like to apply different route module annotations to different routes in 1 edge, we can leverage the fact that multiple ingresses can be combined to form an edge if the rules hosts match, but each annotation only applies to those routes in the ingress object they came from.
 
 ```yaml
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: NgrokModuleSet
+metadata:
+  name: example-module-set-1
+modules:
+  headers:
+    add:
+      X-SEND-TO-CLIENT: Value1
+---
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: NgrokModuleSet
+metadata:
+  name: example-module-set-2
+modules:
+  headers:
+    add:
+      X-SEND-TO-CLIENT: Value2
+---
+
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: example-header-add-1
   annotations:
-    k8s.ngrok.com/response-headers-add: |
-      {
-        "X-SEND-TO-CLIENT": "Value1"
-      }
+    k8s.ngrok.com/modules: "example-module-set-1"
 spec:
   rules:
   - host: foo.bar.com
@@ -178,10 +193,7 @@ kind: Ingress
 metadata:
   name: example-header-add-2
   annotations:
-    k8s.ngrok.com/response-headers-add: |
-      {
-        "X-SEND-TO-CLIENT": "Value2"
-      }
+    k8s.ngrok.com/modules: "example-module-set-2"
 spec:
   rules:
   - host: foo.bar.com
@@ -204,3 +216,15 @@ This configuration would produce a single edge with two routes. Each route has a
   - route: `/bar` -> `service2:8080`
     - module: `response-headers-add` -> `{"X-SEND-TO-CLIENT": "Value2"}`
 
+## Collisions and Errors
+
+Because the controller combines multiple ingress objects into a combined model that represents a set of edges, it is possible to have configurations collide and overwrite each other. When possible, the controller aims to drop the minimal amount of configuration rather than erroring to keep the majority of the edges and routes up and running when there is a configuration error. The controller will then emit logs and events warning of the bad configuration.
+
+### Rule Paths
+
+If multiple ingress objects have rules with the same host and path, the controller will drop whichever one it sees first because it will merge over the route path on that edge. Only 1 host and path combination can exist on an edge.
+
+### NgrokModuleSets
+
+The [NgrokModuleSet CRD](./crds.md#ngrok-module-sets) is a collection of route module configurations. When set on an ingress object, it applies to all routes on that ingress object, but not routes on other ingress objects that may be combined to form the same edge.
+You can set multiple module sets on an ingress object. The controller will merge the modules from all of the module sets together. If there are any collisions, the controller will drop the module from the first set.

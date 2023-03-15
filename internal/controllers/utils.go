@@ -14,7 +14,6 @@ import (
 
 const (
 	finalizerName = "k8s.ngrok.com/finalizer"
-	// TODO: We can technically figure this out by looking at things like our resolv.conf or we can just take this as a helm option
 )
 
 func isDelete(meta metav1.ObjectMeta) bool {
