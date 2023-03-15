@@ -480,8 +480,8 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context,
 	}
 
 	module := ngrok.EndpointCircuitBreaker{
-		TrippedDuration:          circuitBreaker.TrippedDuration,
-		RollingWindow:            circuitBreaker.RollingWindow,
+		TrippedDuration:          uint32(circuitBreaker.TrippedDuration.Seconds()),
+		RollingWindow:            uint32(circuitBreaker.RollingWindow.Seconds()),
 		NumBuckets:               circuitBreaker.NumBuckets,
 		VolumeThreshold:          circuitBreaker.VolumeThreshold,
 		ErrorThresholdPercentage: circuitBreaker.ErrorThresholdPercentage.AsApproximateFloat64(),
