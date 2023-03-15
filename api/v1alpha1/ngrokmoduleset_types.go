@@ -39,6 +39,8 @@ type NgrokModuleSetModules struct {
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
 	// OIDC configuration for this module set
 	OIDC *EndpointOIDC `json:"oidc,omitempty"`
+	// SAML configuration for this module set
+	SAML *EndpointSAML `json:"saml,omitempty"`
 	// TLSTermination configuration for this module set
 	TLSTermination *EndpointTLSTerminationAtEdge `json:"tlsTermination,omitempty"`
 	// WebhookVerification configuration for this module set
@@ -78,6 +80,9 @@ func (ms *NgrokModuleSet) Merge(o *NgrokModuleSet) {
 	}
 	if omod.OIDC != nil {
 		msmod.OIDC = omod.OIDC
+	}
+	if omod.SAML != nil {
+		msmod.SAML = omod.SAML
 	}
 	if omod.TLSTermination != nil {
 		msmod.TLSTermination = omod.TLSTermination
