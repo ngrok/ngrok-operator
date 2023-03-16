@@ -90,3 +90,17 @@ func NewHTTPSEdge(name string, namespace string, domain string) ingressv1alpha1.
 		},
 	}
 }
+
+func NewTestNgrokModuleSet(name string, namespace string, compressionEnabled bool) ingressv1alpha1.NgrokModuleSet {
+	return ingressv1alpha1.NgrokModuleSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Modules: ingressv1alpha1.NgrokModuleSetModules{
+			Compression: &ingressv1alpha1.EndpointCompression{
+				Enabled: compressionEnabled,
+			},
+		},
+	}
+}

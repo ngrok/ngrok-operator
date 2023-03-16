@@ -34,26 +34,14 @@
 
 This is a general purpose [kubernetes ingress controller](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/) provides to workloads running in a kubernetes cluster with a public URL via [ngrok](https://ngrok.com/). It dynamically provisions and deprovisions multiple highly available ngrok [tunnels](https://ngrok.com/docs/secure-tunnels#labeled-tunnels) and [edges](https://ngrok.com/docs/secure-tunnels#integrating-with-cloud-edge) as ingress resources are created and deleted. Take a guided tour through the architecture [here](https://s.icepanel.io/tPjIPc8Ifg/kj7w).
 
-## Features and Alpha Status
-
-This project is currently in alpha status. It is not yet recommended for production use. The following features are currently supported:
-* Create, update, and delete ingress objects and have their corresponding tunnels and edges to be updated in response.
-* Install via Helm
-* Supports multiple routes, BUT ONLY ONE host per ingress object at this time.
-* MUST have a pro account to use this controller. The controller will not work with a free account right now as it requires the usage of ngrok Edges.
-
-### Looking Forward
-
-An official roadmap is coming soon. In the meantime, here are some of the features we are working on:
-* Stability and HA testing and improvements. Especially during ingress updates, or controller rollouts.
-* Support for multiple hosts per ingress object.
-* Support for all of ngrok's Edge Modules such as [Oauth](https://ngrok.com/docs/api#api-edge-route-o-auth-module)
-* Free tier support
-
-
 ## Documentation
 
 [Documentation](./docs/README.md)
+
+## Project Status: Alpha
+
+This project is currently in alpha status as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads.
+
 
 [ngrok-url]: https://ngrok.com
 [ngrok-logo]: ./docs/images/ngrok-blue-lrg.png

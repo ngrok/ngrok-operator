@@ -1,0 +1,208 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: ngrokmodulesets.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: NgrokModuleSet
+    listKind: NgrokModuleSetList
+    plural: ngrokmodulesets
+    singular: ngrokmoduleset
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: NgrokModuleSet is the Schema for the ngrokmodules API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          modules:
+            properties:
+              circuitBreaker:
+                description: CircuitBreaker configuration for this module set
+                properties:
+                  errorThresholdPercentage:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Error threshold percentage should be between 0 -
+                      1.0, not 0-100.0
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  numBuckets:
+                    description: Integer number of buckets into which metrics are
+                      retained. Max 128.
+                    format: int32
+                    maximum: 128
+                    minimum: 1
+                    type: integer
+                  rollingWindow:
+                    description: Integer number of seconds in the statistical rolling
+                      window that metrics are retained for.
+                    format: int32
+                    type: integer
+                  trippedDuration:
+                    description: Integer number of seconds after which the circuit
+                      is tripped to wait before re-evaluating upstream health
+                    format: int32
+                    type: integer
+                  volumeThreshold:
+                    description: Integer number of requests in a rolling window that
+                      will trip the circuit. Helpful if traffic volume is low.
+                    format: int32
+                    type: integer
+                type: object
+              compression:
+                description: Compression configuration for this module set
+                properties:
+                  enabled:
+                    description: Enabled is whether or not to enable compression for
+                      this endpoint
+                    type: boolean
+                type: object
+              headers:
+                description: Header configuration for this module set
+                properties:
+                  request:
+                    description: Request headers are the request headers module configuration
+                      or null
+                    properties:
+                      add:
+                        additionalProperties:
+                          type: string
+                        description: a map of header key to header value that will
+                          be injected into the HTTP Request before being sent to the
+                          upstream application server
+                        type: object
+                      remove:
+                        description: a list of header names that will be removed from
+                          the HTTP Request before being sent to the upstream application
+                          server
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  response:
+                    description: Response headers are the response headers module
+                      configuration or null
+                    properties:
+                      add:
+                        additionalProperties:
+                          type: string
+                        description: a map of header key to header value that will
+                          be injected into the HTTP Response returned to the HTTP
+                          client
+                        type: object
+                      remove:
+                        description: a list of header names that will be removed from
+                          the HTTP Response returned to the HTTP client
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
+              ipRestriction:
+                description: IPRestriction configuration for this module set
+                properties:
+                  policies:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              oidc:
+                description: OIDC configuration for this module set
+                properties:
+                  clientId:
+                    description: The OIDC app's client ID and OIDC audience.
+                    type: string
+                  clientSecret:
+                    description: The OIDC app's client secret.
+                    properties:
+                      key:
+                        description: Key in the secret to use
+                        type: string
+                      name:
+                        description: Name of the Kubernetes secret
+                        type: string
+                    type: object
+                  cookiePrefix:
+                    description: the prefix of the session cookie that ngrok sets
+                      on the http client to cache authentication. default is 'ngrok.'
+                    type: string
+                  inactivityTimeout:
+                    description: Duration of inactivity after which if the user has
+                      not accessed the endpoint, their session will time out and they
+                      will be forced to reauthenticate.
+                    format: duration
+                    type: string
+                  issuer:
+                    description: URL of the OIDC "OpenID provider". This is the base
+                      URL used for discovery.
+                    type: string
+                  maximumDuration:
+                    description: The maximum duration of an authenticated session.
+                      After this period is exceeded, a user must reauthenticate.
+                    format: duration
+                    type: string
+                  optionsPassthrough:
+                    description: Do not enforce authentication on HTTP OPTIONS requests.
+                      necessary if you are supporting CORS.
+                    type: boolean
+                  scopes:
+                    description: The set of scopes to request from the OIDC identity
+                      provider.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              tlsTermination:
+                description: TLSTermination configuration for this module set
+                properties:
+                  minVersion:
+                    description: MinVersion is the minimum TLS version to allow for
+                      connections to the edge
+                    type: string
+                type: object
+              webhookVerification:
+                description: WebhookVerification configuration for this module set
+                properties:
+                  provider:
+                    description: a string indicating which webhook provider will be
+                      sending webhooks to this endpoint. Value must be one of the
+                      supported providers defined at https://ngrok.com/docs/cloud-edge#webhook-verification
+                    type: string
+                  secret:
+                    description: SecretRef is a reference to a secret containing the
+                      secret used to validate requests from the given provider. All
+                      providers except AWS SNS require a secret
+                    properties:
+                      key:
+                        description: Key in the secret to use
+                        type: string
+                      name:
+                        description: Name of the Kubernetes secret
+                        type: string
+                    type: object
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

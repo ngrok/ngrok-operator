@@ -1,5 +1,10 @@
 package v1alpha1
 
+import (
+	"k8s.io/apimachinery/pkg/api/resource"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
 // common ngrok API/Dashboard fields
 type ngrokAPICommon struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
@@ -70,4 +75,52 @@ type EndpointWebhookVerification struct {
 	// SecretRef is a reference to a secret containing the secret used to validate
 	// requests from the given provider. All providers except AWS SNS require a secret
 	SecretRef *SecretKeyRef `json:"secret,omitempty"`
+}
+
+type EndpointCircuitBreaker struct {
+	// Integer number of seconds after which the circuit is tripped to wait before
+	// re-evaluating upstream health
+	TrippedDuration uint32 `json:"trippedDuration,omitempty"`
+
+	// Integer number of seconds in the statistical rolling window that metrics are
+	// retained for.
+	RollingWindow uint32 `json:"rollingWindow,omitempty"`
+
+	// Integer number of buckets into which metrics are retained. Max 128.
+	//+kubebuilder:validation:Minimum=1
+	//+kubebuilder:validation:Maximum=128
+	NumBuckets uint32 `json:"numBuckets,omitempty"`
+
+	// Integer number of requests in a rolling window that will trip the circuit.
+	// Helpful if traffic volume is low.
+	VolumeThreshold uint32 `json:"volumeThreshold,omitempty"`
+
+	// Error threshold percentage should be between 0 - 1.0, not 0-100.0
+	ErrorThresholdPercentage resource.Quantity `json:"errorThresholdPercentage,omitempty"`
+}
+
+type EndpointOIDC struct {
+	// Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+	// supporting CORS.
+	OptionsPassthrough bool `json:"optionsPassthrough,omitempty"`
+	// the prefix of the session cookie that ngrok sets on the http client to cache
+	// authentication. default is 'ngrok.'
+	CookiePrefix string `json:"cookiePrefix,omitempty"`
+	// Duration of inactivity after which if the user has not accessed
+	// the endpoint, their session will time out and they will be forced to
+	// reauthenticate.
+	//+kubebuilder:validation:Format=duration
+	InactivityTimeout v1.Duration `json:"inactivityTimeout,omitempty"`
+	// The maximum duration of an authenticated session.
+	// After this period is exceeded, a user must reauthenticate.
+	//+kubebuilder:validation:Format=duration
+	MaximumDuration v1.Duration `json:"maximumDuration,omitempty"`
+	// URL of the OIDC "OpenID provider". This is the base URL used for discovery.
+	Issuer string `json:"issuer,omitempty"`
+	// The OIDC app's client ID and OIDC audience.
+	ClientID string `json:"clientId,omitempty"`
+	// The OIDC app's client secret.
+	ClientSecret SecretKeyRef `json:"clientSecret,omitempty"`
+	// The set of scopes to request from the OIDC identity provider.
+	Scopes []string `json:"scopes,omitempty"`
 }

@@ -112,6 +112,14 @@ rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
+  - ngrokmodulesets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
   - tcpedges
   verbs:
   - create

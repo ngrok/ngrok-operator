@@ -51,6 +51,9 @@ type HTTPSEdgeRouteSpec struct {
 	// +kubebuilder:validation:Required
 	Backend TunnelGroupBackend `json:"backend,omitempty"`
 
+	// CircuitBreaker is a circuit breaker configuration to apply to this route
+	CircuitBreaker *EndpointCircuitBreaker `json:"circuitBreaker,omitempty"`
+
 	// Compression is whether or not to enable compression for this route
 	Compression *EndpointCompression `json:"compression,omitempty"`
 
@@ -59,6 +62,9 @@ type HTTPSEdgeRouteSpec struct {
 
 	// Headers are request/response headers to apply to this route
 	Headers *EndpointHeaders `json:"headers,omitempty"`
+
+	// OIDC is the OpenID Connect configuration to apply to this route
+	OIDC *EndpointOIDC `json:"oidc,omitempty"`
 
 	// WebhookVerification is webhook verification configuration to apply to this route
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`

@@ -74,6 +74,42 @@ spec:
                             with the object in the ngrok API/Dashboard
                           type: string
                       type: object
+                    circuitBreaker:
+                      description: CircuitBreaker is a circuit breaker configuration
+                        to apply to this route
+                      properties:
+                        errorThresholdPercentage:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: Error threshold percentage should be between
+                            0 - 1.0, not 0-100.0
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        numBuckets:
+                          description: Integer number of buckets into which metrics
+                            are retained. Max 128.
+                          format: int32
+                          maximum: 128
+                          minimum: 1
+                          type: integer
+                        rollingWindow:
+                          description: Integer number of seconds in the statistical
+                            rolling window that metrics are retained for.
+                          format: int32
+                          type: integer
+                        trippedDuration:
+                          description: Integer number of seconds after which the circuit
+                            is tripped to wait before re-evaluating upstream health
+                          format: int32
+                          type: integer
+                        volumeThreshold:
+                          description: Integer number of requests in a rolling window
+                            that will trip the circuit. Helpful if traffic volume
+                            is low.
+                          format: int32
+                          type: integer
+                      type: object
                     compression:
                       description: Compression is whether or not to enable compression
                         for this route
@@ -155,6 +191,54 @@ spec:
                       description: Metadata is a string of arbitrary data associated
                         with the object in the ngrok API/Dashboard
                       type: string
+                    oidc:
+                      description: OIDC is the OpenID Connect configuration to apply
+                        to this route
+                      properties:
+                        clientId:
+                          description: The OIDC app's client ID and OIDC audience.
+                          type: string
+                        clientSecret:
+                          description: The OIDC app's client secret.
+                          properties:
+                            key:
+                              description: Key in the secret to use
+                              type: string
+                            name:
+                              description: Name of the Kubernetes secret
+                              type: string
+                          type: object
+                        cookiePrefix:
+                          description: the prefix of the session cookie that ngrok
+                            sets on the http client to cache authentication. default
+                            is 'ngrok.'
+                          type: string
+                        inactivityTimeout:
+                          description: Duration of inactivity after which if the user
+                            has not accessed the endpoint, their session will time
+                            out and they will be forced to reauthenticate.
+                          format: duration
+                          type: string
+                        issuer:
+                          description: URL of the OIDC "OpenID provider". This is
+                            the base URL used for discovery.
+                          type: string
+                        maximumDuration:
+                          description: The maximum duration of an authenticated session.
+                            After this period is exceeded, a user must reauthenticate.
+                          format: duration
+                          type: string
+                        optionsPassthrough:
+                          description: Do not enforce authentication on HTTP OPTIONS
+                            requests. necessary if you are supporting CORS.
+                          type: boolean
+                        scopes:
+                          description: The set of scopes to request from the OIDC
+                            identity provider.
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     webhookVerification:
                       description: WebhookVerification is webhook verification configuration
                         to apply to this route
