@@ -78,13 +78,13 @@ type EndpointWebhookVerification struct {
 }
 
 type EndpointCircuitBreaker struct {
-	// Integer number of seconds after which the circuit is tripped to wait before
-	// re-evaluating upstream health
-	TrippedDuration uint32 `json:"trippedDuration,omitempty"`
+	// Duration after which the circuit is tripped to wait before re-evaluating upstream health
+	//+kubebuilder:validation:Format=duration
+	TrippedDuration v1.Duration `json:"trippedDuration,omitempty"`
 
-	// Integer number of seconds in the statistical rolling window that metrics are
-	// retained for.
-	RollingWindow uint32 `json:"rollingWindow,omitempty"`
+	// Statistical rolling window duration that metrics are retained for.
+	//+kubebuilder:validation:Format=duration
+	RollingWindow v1.Duration `json:"rollingWindow,omitempty"`
 
 	// Integer number of buckets into which metrics are retained. Max 128.
 	//+kubebuilder:validation:Minimum=1

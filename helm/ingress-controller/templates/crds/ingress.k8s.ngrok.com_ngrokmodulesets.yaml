@@ -53,15 +53,15 @@ spec:
                     minimum: 1
                     type: integer
                   rollingWindow:
-                    description: Integer number of seconds in the statistical rolling
-                      window that metrics are retained for.
-                    format: int32
-                    type: integer
+                    description: Statistical rolling window duration that metrics
+                      are retained for.
+                    format: duration
+                    type: string
                   trippedDuration:
-                    description: Integer number of seconds after which the circuit
-                      is tripped to wait before re-evaluating upstream health
-                    format: int32
-                    type: integer
+                    description: Duration after which the circuit is tripped to wait
+                      before re-evaluating upstream health
+                    format: duration
+                    type: string
                   volumeThreshold:
                     description: Integer number of requests in a rolling window that
                       will trip the circuit. Helpful if traffic volume is low.
