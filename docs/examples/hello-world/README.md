@@ -114,4 +114,3 @@ Open your hostname in a browser and you should see the 2048 game running!
 ```bash
 open https://$SUBDOMAIN-game-2048.ngrok.io
 ```
-
