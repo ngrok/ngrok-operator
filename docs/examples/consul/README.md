@@ -19,16 +19,24 @@ As we are integrating with Consul to provide ingress to our services within its 
 ## Installing the Ingress Controller
 First, we need to install the controller in the cluster.
 
+Create a `values.yaml` file with the following values
+```yaml
+image:
+  tag: 0.4.0
+podAnnotations:
+  consul.hashicorp.com/connect-inject: "true"
+  # This is the CIDR of your Kubernetes API: `kubectl get svc kubernetes --output jsonpath='{.spec.clusterIP}'
+  consul.hashicorp.com/transparent-proxy-exclude-outbound-cidrs: "10.96.0.1/32"
+```
+
+Next we'll export our credentials as environment variables and install the controller with Helm:
 
 ```bash
 export NGROK_API_KEY=<YOUR Secret API KEY>
 export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
 
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
-  --set image.tag=0.4.0 \
+helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller --version 0.6.0 \
   --namespace default \
-  --set-string podAnnotations.consul\\.hashicorp\\.com/connect-inject=true \
-  --set podAnnotations."consul\.hashicorp\.com/transparent-proxy-exclude-outbound-cidrs"="10.96.0.1/32" \
   --set credentials.apiKey=$NGROK_API_KEY \
   --set credentials.authtoken=$NGROK_AUTHTOKEN
 ```
@@ -113,3 +121,5 @@ Once applied, your domain should be available almost instantaneously! Open your 
 ```bash
 open YOUR-CUSTOM-SUBDOMAIN-consul-ngrok-demo.ngrok.io
 ```
+
+Stay tuned and next week we'll expose the Consul Dashboard protected by google oauth!

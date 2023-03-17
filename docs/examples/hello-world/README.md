@@ -17,7 +17,7 @@ export NGROK_API_KEY=<YOUR Secret API KEY>
 export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
 
 helm repo add ngrok https://ngrok.github.io/kubernetes-ingress-controller
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller --version=0.6.0 \
   --set image.tag=0.4.0 \
   --namespace ngrok-ingress-controller \
   --create-namespace \
@@ -38,7 +38,6 @@ ngrok-ingress-controller-kubernetes-ingress-controller-mank8zgx   1/1     Runnin
 Next, lets deploy a simple demo service and expose it via the controller. First, we'll create a Deployment and Service for the 2048 game.
 
 ```yaml
-cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Service
 metadata:
@@ -71,7 +70,6 @@ spec:
           ports:
             - name: http
               containerPort: 80
-EOF
 ```
 
 Verify the pod is running and healthy:
