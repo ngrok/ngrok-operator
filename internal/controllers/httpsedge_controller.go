@@ -446,6 +446,7 @@ func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, rout
 		u.setEdgeRouteRequestHeaders,
 		u.setEdgeRouteResponseHeaders,
 		u.setEdgeRouteOIDC,
+		u.setEdgeRouteSAML,
 		u.setEdgeRouteWebhookVerification,
 	}
 
@@ -681,6 +682,44 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 	}
 
 	_, err = client.Replace(ctx, &ngrok.EdgeRouteOIDCReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: module,
+	})
+	return err
+}
+
+func (u *edgeRouteModuleUpdater) setEdgeRouteSAML(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	saml := routeSpec.SAML
+	client := u.clientset.SAML()
+
+	if saml == nil {
+		if route.SAML == nil {
+			u.log.Info("SAML matches desired state, skipping update")
+			return nil
+		}
+
+		return client.Delete(ctx, u.edgeRouteItem(route))
+	}
+
+	module := ngrok.EndpointSAMLMutate{
+		OptionsPassthrough: saml.OptionsPassthrough,
+		CookiePrefix:       saml.CookiePrefix,
+		InactivityTimeout:  uint32(saml.InactivityTimeout.Seconds()),
+		MaximumDuration:    uint32(saml.MaximumDuration.Seconds()),
+		IdPMetadata:        saml.IdPMetadata,
+		ForceAuthn:         saml.ForceAuthn,
+		AllowIdPInitiated:  saml.AllowIdPInitiated,
+		AuthorizedGroups:   saml.AuthorizedGroups,
+		NameIDFormat:       saml.NameIDFormat,
+	}
+
+	if reflect.DeepEqual(&module, route.SAML) {
+		u.log.Info("SAML matches desired state, skipping update")
+		return nil
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteSAMLReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
 		Module: module,

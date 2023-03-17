@@ -124,3 +124,41 @@ type EndpointOIDC struct {
 	// The set of scopes to request from the OIDC identity provider.
 	Scopes []string `json:"scopes,omitempty"`
 }
+
+type EndpointSAML struct {
+	// Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+	// supporting CORS.
+	OptionsPassthrough bool `json:"optionsPassthrough,omitempty"`
+	// the prefix of the session cookie that ngrok sets on the http client to cache
+	// authentication. default is 'ngrok.'
+	CookiePrefix string `json:"cookiePrefix,omitempty"`
+	// Duration of inactivity after which if the user has not accessed
+	// the endpoint, their session will time out and they will be forced to
+	// reauthenticate.
+	//+kubebuilder:validation:Format=duration
+	InactivityTimeout v1.Duration `json:"inactivityTimeout,omitempty"`
+	// The maximum duration of an authenticated session.
+	// After this period is exceeded, a user must reauthenticate.
+	//+kubebuilder:validation:Format=duration
+	MaximumDuration v1.Duration `json:"maximumDuration,omitempty"`
+	// The full XML IdP EntityDescriptor. Your IdP may provide this to you as a a file
+	// to download or as a URL.
+	IdPMetadata string `json:"idpMetadata,omitempty"`
+	// If true, indicates that whenever we redirect a user to the IdP for
+	// authentication that the IdP must prompt the user for authentication credentials
+	// even if the user already has a valid session with the IdP.
+	ForceAuthn bool `json:"forceAuthn,omitempty"`
+	// If true, the IdP may initiate a login directly (e.g. the user does not need to
+	// visit the endpoint first and then be redirected). The IdP should set the
+	// RelayState parameter to the target URL of the resource they want the user to be
+	// redirected to after the SAML login assertion has been processed.
+	AllowIdPInitiated *bool `json:"allowIdpInitiated,omitempty"`
+	// If present, only users who are a member of one of the listed groups may access
+	// the target endpoint.
+	AuthorizedGroups []string `json:"authorizedGroups,omitempty"`
+	// Defines the name identifier format the SP expects the IdP to use in its
+	// assertions to identify subjects. If unspecified, a default value of
+	// urn:oasis:names:tc:SAML:2.0:nameid-format:persistent will be used. A subset of
+	// the allowed values enumerated by the SAML specification are supported.
+	NameIDFormat string `json:"nameidFormat,omitempty"`
+}

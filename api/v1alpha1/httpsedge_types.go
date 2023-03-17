@@ -66,6 +66,9 @@ type HTTPSEdgeRouteSpec struct {
 	// OIDC is the OpenID Connect configuration to apply to this route
 	OIDC *EndpointOIDC `json:"oidc,omitempty"`
 
+	// SAML is the SAML configuration to apply to this route
+	SAML *EndpointSAML `json:"saml,omitempty"`
+
 	// WebhookVerification is webhook verification configuration to apply to this route
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
 }

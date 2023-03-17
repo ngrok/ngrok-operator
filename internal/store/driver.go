@@ -408,6 +408,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 							IPRestriction:       modSet.Modules.IPRestriction,
 							Headers:             modSet.Modules.Headers,
 							OIDC:                modSet.Modules.OIDC,
+							SAML:                modSet.Modules.SAML,
 							WebhookVerification: modSet.Modules.WebhookVerification,
 						}
 						route.Metadata = d.customMetadata
