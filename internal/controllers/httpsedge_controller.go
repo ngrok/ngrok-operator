@@ -684,7 +684,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 		// otherwise default to nil
 		if secretKeyRef != nil {
 			secret, err = u.getSecret(ctx, *secretKeyRef)
-			if client.IgnoreNotFound(err) != nil {
+			if err != nil {
 				return err
 			}
 		}
