@@ -63,6 +63,9 @@ type HTTPSEdgeRouteSpec struct {
 	// Headers are request/response headers to apply to this route
 	Headers *EndpointHeaders `json:"headers,omitempty"`
 
+	// OAuth configuration to apply to this route
+	OAuth *EndpointOAuth `json:"oauth,omitempty"`
+
 	// OIDC is the OpenID Connect configuration to apply to this route
 	OIDC *EndpointOIDC `json:"oidc,omitempty"`
 

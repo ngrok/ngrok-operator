@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"github.com/ngrok/ngrok-api-go/v5"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -161,4 +162,253 @@ type EndpointSAML struct {
 	// urn:oasis:names:tc:SAML:2.0:nameid-format:persistent will be used. A subset of
 	// the allowed values enumerated by the SAML specification are supported.
 	NameIDFormat string `json:"nameidFormat,omitempty"`
+}
+
+type OAuthProviderCommon struct {
+	// Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+	// supporting CORS.
+	OptionsPassthrough bool `json:"optionsPassthrough,omitempty"`
+	// the prefix of the session cookie that ngrok sets on the http client to cache
+	// authentication. default is 'ngrok.'
+	CookiePrefix string `json:"cookiePrefix,omitempty"`
+	// Duration of inactivity after which if the user has not accessed
+	// the endpoint, their session will time out and they will be forced to
+	// reauthenticate.
+	//+kubebuilder:validation:Format=duration
+	InactivityTimeout v1.Duration `json:"inactivityTimeout,omitempty"`
+	// Integer number of seconds of the maximum duration of an authenticated session.
+	// After this period is exceeded, a user must reauthenticate.
+	//+kubebuilder:validation:Format=duration
+	MaximumDuration v1.Duration `json:"maximumDuration,omitempty"`
+	// Duration after which ngrok guarantees it will refresh user
+	// state from the identity provider and recheck whether the user is still
+	// authorized to access the endpoint. This is the preferred tunable to use to
+	// enforce a minimum amount of time after which a revoked user will no longer be
+	// able to access the resource.
+	//+kubebuilder:validation:Format=duration
+	AuthCheckInterval v1.Duration `json:"authCheckInterval,omitempty"`
+	// the OAuth app client ID. retrieve it from the identity provider's dashboard
+	// where you created your own OAuth app. optional. if unspecified, ngrok will use
+	// its own managed oauth application which has additional restrictions. see the
+	// OAuth module docs for more details. if present, clientSecret must be present as
+	// well.
+	ClientID *string `json:"clientId,omitempty"`
+	// the OAuth app client secret. retrieve if from the identity provider's dashboard
+	// where you created your own OAuth app. optional, see all of the caveats in the
+	// docs for clientId.
+	ClientSecret *SecretKeyRef `json:"clientSecret,omitempty"`
+	// a list of provider-specific OAuth scopes with the permissions your OAuth app
+	// would like to ask for. these may not be set if you are using the ngrok-managed
+	// oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+	Scopes []string `json:"scopes,omitempty"`
+	// a list of email addresses of users authenticated by identity provider who are
+	// allowed access to the endpoint
+	EmailAddresses []string `json:"emailAddresses,omitempty"`
+	// a list of email domains of users authenticated by identity provider who are
+	// allowed access to the endpoint
+	EmailDomains []string `json:"emailDomains,omitempty"`
+}
+
+func (opc OAuthProviderCommon) toNgrokEndpointOauth() *ngrok.EndpointOAuth {
+	return &ngrok.EndpointOAuth{
+		OptionsPassthrough: opc.OptionsPassthrough,
+		CookiePrefix:       opc.CookiePrefix,
+		InactivityTimeout:  uint32(opc.InactivityTimeout.Duration.Seconds()),
+		MaximumDuration:    uint32(opc.MaximumDuration.Duration.Seconds()),
+		AuthCheckInterval:  uint32(opc.AuthCheckInterval.Duration.Seconds()),
+		Provider:           ngrok.EndpointOAuthProvider{},
+	}
+}
+
+func (opc OAuthProviderCommon) ClientSecretKeyRef() *SecretKeyRef {
+	return opc.ClientSecret
+}
+
+type EndpointOAuth struct {
+	// configuration for using github as the identity provider
+	Github *EndpointOAuthGitHub `json:"github,omitempty"`
+	// configuration for using facebook as the identity provider
+	Facebook *EndpointOAuthFacebook `json:"facebook,omitempty"`
+	// configuration for using microsoft as the identity provider
+	Microsoft *EndpointOAuthMicrosoft `json:"microsoft,omitempty"`
+	// configuration for using google as the identity provider
+	Google *EndpointOAuthGoogle `json:"google,omitempty"`
+	// configuration for using linkedin as the identity provider
+	Linkedin *EndpointOAuthLinkedIn `json:"linkedin,omitempty"`
+	// configuration for using gitlab as the identity provider
+	Gitlab *EndpointOAuthGitLab `json:"gitlab,omitempty"`
+	// configuration for using twitch as the identity provider
+	Twitch *EndpointOAuthTwitch `json:"twitch,omitempty"`
+	// configuration for using amazon as the identity provider
+	Amazon *EndpointOAuthAmazon `json:"amazon,omitempty"`
+}
+
+type EndpointOAuthGitHub struct {
+	OAuthProviderCommon `json:",inline"`
+	// a list of github teams identifiers. users will be allowed access to the endpoint
+	// if they are a member of any of these teams. identifiers should be in the 'slug'
+	// format qualified with the org name, e.g. org-name/team-name
+	Teams []string `json:"teams,omitempty"`
+	// a list of github org identifiers. users who are members of any of the listed
+	// organizations will be allowed access. identifiers should be the organization's
+	// 'slug'
+	Organizations []string `json:"organizations,omitempty"`
+}
+
+func (github *EndpointOAuthGitHub) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
+	if github == nil {
+		return nil
+	}
+
+	mod := github.toNgrokEndpointOauth()
+	mod.Provider.Github = &ngrok.EndpointOAuthGitHub{
+		ClientID:       github.ClientID,
+		ClientSecret:   clientSecret,
+		Scopes:         github.Scopes,
+		EmailAddresses: github.EmailAddresses,
+		EmailDomains:   github.EmailDomains,
+		Teams:          github.Teams,
+		Organizations:  github.Organizations,
+	}
+	return mod
+}
+
+type EndpointOAuthFacebook struct {
+	OAuthProviderCommon `json:",inline"`
+}
+
+func (facebook *EndpointOAuthFacebook) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
+	if facebook == nil {
+		return nil
+	}
+
+	mod := facebook.toNgrokEndpointOauth()
+	mod.Provider.Facebook = &ngrok.EndpointOAuthFacebook{
+		ClientID:       facebook.ClientID,
+		ClientSecret:   clientSecret,
+		Scopes:         facebook.Scopes,
+		EmailAddresses: facebook.EmailAddresses,
+		EmailDomains:   facebook.EmailDomains,
+	}
+	return mod
+}
+
+type EndpointOAuthMicrosoft struct {
+	OAuthProviderCommon `json:",inline"`
+}
+
+func (microsoft *EndpointOAuthMicrosoft) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
+	if microsoft == nil {
+		return nil
+	}
+
+	mod := microsoft.toNgrokEndpointOauth()
+	mod.Provider.Microsoft = &ngrok.EndpointOAuthMicrosoft{
+		ClientID:       microsoft.ClientID,
+		ClientSecret:   clientSecret,
+		Scopes:         microsoft.Scopes,
+		EmailAddresses: microsoft.EmailAddresses,
+		EmailDomains:   microsoft.EmailDomains,
+	}
+	return mod
+}
+
+type EndpointOAuthGoogle struct {
+	OAuthProviderCommon `json:",inline"`
+}
+
+func (google *EndpointOAuthGoogle) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
+	if google == nil {
+		return nil
+	}
+
+	mod := google.toNgrokEndpointOauth()
+	mod.Provider.Google = &ngrok.EndpointOAuthGoogle{
+		ClientID:       google.ClientID,
+		ClientSecret:   clientSecret,
+		Scopes:         google.Scopes,
+		EmailAddresses: google.EmailAddresses,
+		EmailDomains:   google.EmailDomains,
+	}
+	return mod
+}
+
+type EndpointOAuthLinkedIn struct {
+	OAuthProviderCommon `json:",inline"`
+}
+
+func (linkedin *EndpointOAuthLinkedIn) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
+	if linkedin == nil {
+		return nil
+	}
+
+	mod := linkedin.toNgrokEndpointOauth()
+	mod.Provider.Linkedin = &ngrok.EndpointOAuthLinkedIn{
+		ClientID:       linkedin.ClientID,
+		ClientSecret:   clientSecret,
+		Scopes:         linkedin.Scopes,
+		EmailAddresses: linkedin.EmailAddresses,
+		EmailDomains:   linkedin.EmailDomains,
+	}
+	return mod
+}
+
+type EndpointOAuthGitLab struct {
+	OAuthProviderCommon `json:",inline"`
+}
+
+func (gitlab *EndpointOAuthGitLab) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
+	if gitlab == nil {
+		return nil
+	}
+
+	mod := gitlab.toNgrokEndpointOauth()
+	mod.Provider.Gitlab = &ngrok.EndpointOAuthGitLab{
+		ClientID:       gitlab.ClientID,
+		ClientSecret:   clientSecret,
+		Scopes:         gitlab.Scopes,
+		EmailAddresses: gitlab.EmailAddresses,
+		EmailDomains:   gitlab.EmailDomains,
+	}
+	return mod
+}
+
+type EndpointOAuthTwitch struct {
+	OAuthProviderCommon `json:",inline"`
+}
+
+func (twitch *EndpointOAuthTwitch) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
+	if twitch == nil {
+		return nil
+	}
+
+	mod := twitch.toNgrokEndpointOauth()
+	mod.Provider.Twitch = &ngrok.EndpointOAuthTwitch{
+		ClientID:       twitch.ClientID,
+		ClientSecret:   clientSecret,
+		Scopes:         twitch.Scopes,
+		EmailAddresses: twitch.EmailAddresses,
+		EmailDomains:   twitch.EmailDomains,
+	}
+	return mod
+}
+
+type EndpointOAuthAmazon struct {
+	OAuthProviderCommon `json:",inline"`
+}
+
+func (amazon *EndpointOAuthAmazon) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
+	if amazon == nil {
+		return nil
+	}
+
+	mod := amazon.toNgrokEndpointOauth()
+	mod.Provider.Amazon = &ngrok.EndpointOAuthAmazon{
+		ClientID:       amazon.ClientID,
+		ClientSecret:   clientSecret,
+		Scopes:         amazon.Scopes,
+		EmailAddresses: amazon.EmailAddresses,
+		EmailDomains:   amazon.EmailDomains,
+	}
+	return mod
 }

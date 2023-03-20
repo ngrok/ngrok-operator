@@ -117,3 +117,21 @@ func IsErrInvalidIngressSpec(err error) bool {
 	_, ok := err.(ErrInvalidIngressSpec)
 	return ok
 }
+
+type ErrMissingRequiredSecret struct {
+	message string
+}
+
+func NewErrMissingRequiredSecret(message string) ErrMissingRequiredSecret {
+	return ErrMissingRequiredSecret{message: message}
+}
+
+func (e ErrMissingRequiredSecret) Error() string {
+	return fmt.Sprintf("missing required secret: %s", e.message)
+}
+
+// IsErrMissingRequiredSecret: Reflect: returns true if the error is a ErrMissingRequiredSecret
+func IsErrMissingRequiredSecret(err error) bool {
+	_, ok := err.(ErrMissingRequiredSecret)
+	return ok
+}

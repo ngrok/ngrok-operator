@@ -40,6 +40,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
@@ -445,6 +446,7 @@ func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, rout
 		u.setEdgeRouteIPRestriction,
 		u.setEdgeRouteRequestHeaders,
 		u.setEdgeRouteResponseHeaders,
+		u.setEdgeRouteOAuth,
 		u.setEdgeRouteOIDC,
 		u.setEdgeRouteSAML,
 		u.setEdgeRouteWebhookVerification,
@@ -643,6 +645,71 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context
 	return err
 }
 
+func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	oauth := routeSpec.OAuth
+	oauthClient := u.clientset.OAuth()
+
+	if oauth == nil {
+		if route.OAuth == nil {
+			u.log.Info("OAuth matches desired state, skipping update")
+			return nil
+		}
+
+		return oauthClient.Delete(ctx, u.edgeRouteItem(route))
+	}
+
+	var module *ngrok.EndpointOAuth
+	var err error
+
+	providers := []OAuthProvider{
+		oauth.Google,
+		oauth.Github,
+		oauth.Gitlab,
+		oauth.Amazon,
+		oauth.Facebook,
+		oauth.Microsoft,
+		oauth.Twitch,
+		oauth.Linkedin,
+	}
+
+	for _, p := range providers {
+		if p == nil {
+			continue
+		}
+
+		var secret *string
+		secretKeyRef := p.ClientSecretKeyRef()
+
+		// Look up the client secret key if its specified,
+		// otherwise default to nil
+		if secretKeyRef != nil {
+			secret, err = u.getSecret(ctx, *secretKeyRef)
+			if err != nil {
+				return err
+			}
+		}
+
+		module = p.ToNgrok(secret)
+		break
+	}
+
+	if module == nil {
+		return fmt.Errorf("no OAuth provider configured")
+	}
+
+	if reflect.DeepEqual(module, route.OAuth) {
+		u.log.Info("OAuth matches desired state, skipping update")
+		return nil
+	}
+
+	_, err = oauthClient.Replace(ctx, &ngrok.EdgeRouteOAuthReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: *module,
+	})
+	return err
+}
+
 func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
 	oidc := routeSpec.OIDC
 	client := u.clientset.OIDC()
@@ -656,13 +723,12 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 		return client.Delete(ctx, u.edgeRouteItem(route))
 	}
 
-	clientSecret, err := u.secretResolver.getSecret(ctx,
-		u.edge.Namespace,
-		oidc.ClientSecret.Name,
-		oidc.ClientSecret.Key,
-	)
+	clientSecret, err := u.getSecret(ctx, oidc.ClientSecret)
 	if err != nil {
 		return err
+	}
+	if clientSecret == nil {
+		return errors.NewErrMissingRequiredSecret("missing clientSecret for OIDC")
 	}
 
 	module := ngrok.EndpointOIDC{
@@ -672,7 +738,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 		MaximumDuration:    uint32(oidc.MaximumDuration.Seconds()),
 		Issuer:             oidc.Issuer,
 		ClientID:           oidc.ClientID,
-		ClientSecret:       clientSecret,
+		ClientSecret:       *clientSecret,
 		Scopes:             oidc.Scopes,
 	}
 
@@ -741,18 +807,21 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 		return client.Delete(ctx, u.edgeRouteItem(route))
 	}
 
-	webhookSecret, err := u.secretResolver.getSecret(ctx,
-		u.edge.Namespace,
-		webhookVerification.SecretRef.Name,
-		webhookVerification.SecretRef.Key,
-	)
-	if err != nil {
-		return err
+	// Some WebhookVerification providers don't require a secret,
+	// so default to an empty string.
+	var webhookSecret = ""
+
+	if webhookVerification.SecretRef != nil {
+		s, err := u.getSecret(ctx, *webhookVerification.SecretRef)
+		if err != nil {
+			return err
+		}
+		webhookSecret = *s
 	}
 
 	module := ngrok.EndpointWebhookValidation{
 		Provider: webhookVerification.Provider,
-		Secret:   string(webhookSecret),
+		Secret:   webhookSecret,
 	}
 
 	if reflect.DeepEqual(&module, route.WebhookVerification) {
@@ -760,10 +829,24 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 		return nil
 	}
 
-	_, err = client.Replace(ctx, &ngrok.EdgeRouteWebhookVerificationReplace{
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteWebhookVerificationReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
 		Module: module,
 	})
 	return err
+}
+
+func (u *edgeRouteModuleUpdater) getSecret(ctx context.Context, secretRef ingressv1alpha1.SecretKeyRef) (*string, error) {
+	secret, err := u.secretResolver.getSecret(ctx,
+		u.edge.Namespace,
+		secretRef.Name,
+		secretRef.Key,
+	)
+	return &secret, err
+}
+
+type OAuthProvider interface {
+	ClientSecretKeyRef() *ingressv1alpha1.SecretKeyRef
+	ToNgrok(*string) *ngrok.EndpointOAuth
 }
