@@ -7,7 +7,7 @@ This tutorial will guide you through the process of installing the ngrok Kuberne
 - Helm 3.0.0+
 - [MiniKube](https://minikube.sigs.k8s.io/docs/start/) 1.22+
 - docker 20.0+
-- consule 1.14.0+
+- consul 1.14.0+
 
 
 ## Initial Setup: Minikube and Consul
