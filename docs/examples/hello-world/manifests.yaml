@@ -28,11 +28,6 @@ spec:
   selector:
     app: game-2048
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: game-2048
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,8 +37,6 @@ spec:
   selector:
     matchLabels:
       app: game-2048
-  strategy:
-    type: RollingUpdate
   template:
     metadata:
       labels:
