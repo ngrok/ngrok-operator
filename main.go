@@ -128,7 +128,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	clientConfigOpts := []ngrok.ClientConfigOption{
-		ngrok.WithUserAgent("ngrok-ingress-controller/v1-alpha"),
+		ngrok.WithUserAgent("ngrok-ingress-controller/0.5.0"),
 	}
 
 	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
