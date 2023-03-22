@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0
+### Changed
+- Bumped go version to 1.20 [#167](https://github.com/ngrok/kubernetes-ingress-controller/pull/167)
+- Refactored Route Module Updates to be lazy [#168](https://github.com/ngrok/kubernetes-ingress-controller/pull/168)
+- Annotations for configuration have been removed in favor of grouping module configurations together in `NgrokModuleSet` custom resources [#170](https://github.com/ngrok/kubernetes-ingress-controller/pull/170)
+
+### Added
+- Ran go mod tidy and added check to make sure its tidy before merge [#166](https://github.com/ngrok/kubernetes-ingress-controller/pull/166)
+- Added `NgrokModuleSet` CRD [#170](https://github.com/ngrok/kubernetes-ingress-controller/pull/170)
+- Added support for Circuit Breaker route module [#171](https://github.com/ngrok/kubernetes-ingress-controller/pull/171)
+- Added support for OIDC route module [#173](https://github.com/ngrok/kubernetes-ingress-controller/pull/173)
+- Added support for SAML route module [#186](https://github.com/ngrok/kubernetes-ingress-controller/pull/186)
+- Added support for OAuth route module [#192](https://github.com/ngrok/kubernetes-ingress-controller/pull/192)
 ## 0.4.0
 ### Changed
 - When no region override is passed to helm, the controller now does not default to the US and instead uses the closes geographic edge servers [#160](https://github.com/ngrok/kubernetes-ingress-controller/pull/160)
