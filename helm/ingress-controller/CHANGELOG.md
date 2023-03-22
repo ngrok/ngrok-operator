@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.0
+
+### Added
+- Update `NgrokModuleSet` and `HTTPSEdge` CRD to support SAML and OAuth
+
+### Changed
+- Update appVersion to `0.5.0` to match the latest release of the controller.
+
 ## 0.6.1
 ### Fixed
 - Default the image tag to the chart's `appVersion` for predictable installs. Previously, the helm chart would default to the `latest` image tag which can have breaking changes, notably with CRDs.
