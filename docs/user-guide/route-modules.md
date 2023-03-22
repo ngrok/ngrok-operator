@@ -107,7 +107,7 @@ metadata:
     k8s.ngrok.com/modules: module-set-1,module-set-2
 ```
 
-In this example, the result is the `compression` module is enabled since `module-set-2` was supplied last.
+In this example, the result is the `compression` module is enabled since `module-set-2` was supplied last. If however, the annotation is `k8s.ngrok.com/modules: module-set-2,module-set-1 the order will result in the `compression` module being disabled since `module-set-1` overrides it from `module-set-1`
 
 ## Supported Modules
 
