@@ -8,6 +8,7 @@ ngrok's Cloud Edge [Modules](https://ngrok.com/docs/cloud-edge/modules/) allow y
 - [Design](#design)
     - [Reusable](#reusable)
     - [Composable](#composable)
+    - [RBAC](#rbac)
 - [Supported Modules](#supported-modules)
     - [Circuit Breaker](#circuit-breaker)
     - [Compression](#compression)
@@ -26,6 +27,8 @@ ngrok's Cloud Edge [Modules](https://ngrok.com/docs/cloud-edge/modules/) allow y
     - [SAML](#saml)
     - [TLS Termination](#tls-termination)
     - [Webhook Verification](#webhook-verification)
+- [Examples](#examples)
+    - [Configuring Multiple Modules](#configuring-multiple-modules)
 
 <!-- /TOC -->
 
@@ -107,7 +110,16 @@ metadata:
     k8s.ngrok.com/modules: module-set-1,module-set-2
 ```
 
-In this example, the result is the `compression` module is enabled since `module-set-2` was supplied last. If however, the annotation is `k8s.ngrok.com/modules: module-set-2,module-set-1 the order will result in the `compression` module being disabled since `module-set-1` overrides it from `module-set-1`
+In this example, the result is the `compression` module is enabled since `module-set-2` was supplied last. If however,
+the annotation is `k8s.ngrok.com/modules: module-set-2,module-set-1` the order will result in the `compression` module 
+being disabled since `module-set-1` is supplied last and overrides the value of `enabled` from `module-set-2`.
+
+
+### RBAC
+
+Since `NgrokModuleSet`s are Kubernetes Resources(Custom Resources), you can use RBAC to control who can create, update, get, list, delete them. This
+allows you to control who can create and manage `NgrokModuleSet`s, while being more permissive with Ingresses and allowing teams to self-service
+using pre-made configurations.
 
 ## Supported Modules
 
@@ -366,4 +378,94 @@ modules:
     secret:
       name: github-webhook-token
       key: SECRET_TOKEN
+```
+
+
+## Examples
+
+### Configuring Multiple Modules
+
+The following `NgrokModuleSet` named `example`:
+* Enables a circuit breaker
+* Enables compression
+* Adds and removes headers from both the request and response
+* Restricts access to the route to a list of trusted IPs defined in `policy-1`
+* Uses a ngrok managed OAuth application to authenticate users
+* Configures TLS termination
+
+
+```yaml
+---
+kind: IPPolicy
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+metadata:
+  name: policy-1
+spec:
+  description: "My Trusted IPs"
+  rules:
+  - action: "allow"
+    cidr: 1.2.3.4/32
+    description: "My Home IP"
+  - action: "allow"
+    cidr: 1.2.3.5/32
+    description: "My Work IP"
+---
+kind: NgrokModuleSet
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+metadata:
+  name: example
+modules:
+  circuitBreaker:
+    trippedDuration: 10s
+    rollingWindow: 10s
+    numBuckets: 10
+    volumeThreshold: 20
+    errorThresholdPercentage: "0.50"
+  compression:
+    enabled: true
+  headers:
+    request:
+      add:
+        a-request-header: "my-custom-value"
+        another-request-header: "my-other-custom-value"
+      remove:
+      - "x-remove-before-upstream"
+    response:
+      add:
+        a-response-header: "a-response-value"
+        another-response-header: "another-response-value"
+      remove:
+      - "x-remove-from-resp-to-client"
+  ipRestriction:
+    policies:
+    - policy-1
+  oauth:
+    google:
+      optionsPassthrough: true
+      inactivityTimeout: 10m
+      maximumDuration: 24h
+      authCheckInterval: 20m
+  tlsTermination:
+    minVersion: "1.3"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example
+  annotations:
+    k8s.ngrok.com/modules: "example"
+spec:
+  ingressClassName: ngrok
+  rules:
+  - host: <my-host>.ngrok.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: <service-name>
+            port:
+              number: <service-port>
+
 ```
