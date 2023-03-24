@@ -1,10 +1,19 @@
 # More info: https://docs.docker.com/engine/reference/builder/#dockerignore-file
 # Ignore all files then explicitly whitelist ones we want
 *
+# Copy in the Makefile to re-use build command
+!Makefile
+# Used to inject version build info
+!VERSION
+# Used to inject git commit build info
+!.git/
+# Code
 !api/
+!cmd/
+!hack/
 !internal/
 !pkg/
-!cmd/
+!scripts/
 !**/*.go
 !**/*.mod
 !**/*.sum

@@ -47,6 +47,7 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/controllers"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
 	"github.com/ngrok/kubernetes-ingress-controller/pkg/tunneldriver"
 	//+kubebuilder:scaffold:imports
 )
@@ -127,8 +128,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return errors.New("NGROK_API_KEY environment variable should be set, but was not")
 	}
 
+	buildInfo := version.Get()
+	setupLog.Info("starting manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
+
 	clientConfigOpts := []ngrok.ClientConfigOption{
-		ngrok.WithUserAgent("ngrok-ingress-controller/0.5.0"),
+		ngrok.WithUserAgent(version.GetUserAgent()),
 	}
 
 	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
