@@ -4,6 +4,8 @@ IMG ?= kubernetes-ingress-controller
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 
+REPO_URL = github.com/ngrok/kubernetes-ingress-controller
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -16,6 +18,9 @@ endif
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
+
+GIT_COMMIT = $(shell git rev-parse HEAD)
+VERSION = $(shell cat VERSION)
 
 # Tools
 
@@ -75,8 +80,13 @@ test: manifests generate fmt vet ## Run tests.
 ##@ Build
 
 .PHONY: build
-build: preflight generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
+build: preflight generate fmt vet _build ## Build manager binary.
+
+.PHONY: _build
+_build:
+	go build -o bin/manager -trimpath -ldflags "-s -w \
+		-X $(REPO_URL)/internal/version.gitCommit=$(GIT_COMMIT) \
+		-X $(REPO_URL)/internal/version.version=$(VERSION)" main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
