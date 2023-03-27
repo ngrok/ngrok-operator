@@ -28,7 +28,6 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 
-	"go.uber.org/zap/zapcore"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
@@ -106,7 +105,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
-	opts.zapOpts = &zap.Options{Development: true, StacktraceLevel: zapcore.DPanicLevel}
+	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
 	c.Flags().AddGoFlagSet(goFlagSet)

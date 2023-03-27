@@ -57,6 +57,9 @@ spec:
         {{- if .Values.watchNamespace }}
         - --watch-namespace={{ .Values.watchNamespace}}
         {{- end }}
+        - --zap-log-level={{ .Values.log.level }}
+        - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
+        - --zap-encoder={{ .Values.log.format }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id={{ include "kubernetes-ingress-controller.fullname" . }}-leader
