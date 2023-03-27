@@ -73,4 +73,8 @@ To uninstall the chart:
 | `serviceAccount.create`      | Specifies whether a ServiceAccount should be created                                                                  | `true`                                |
 | `serviceAccount.name`        | The name of the ServiceAccount to use.                                                                                | `""`                                  |
 | `serviceAccount.annotations` | Additional annotations to add to the ServiceAccount                                                                   | `{}`                                  |
+| `log.level`                  | The level to log at. One of 'debug', 'info', or 'error'.                                                              | `""`                                  |
+| `log.stacktraceLevel`        | The level to report stacktrace logs one of 'info' or 'error'.                                                         | `""`                                  |
+| `log.format`                 | The log format to use. One of console, json.                                                                          | `""`                                  |
+| `log.developmentMode`        | If true, enables development mode in the underlying zap logger.                                                       | `false`                               |
 
