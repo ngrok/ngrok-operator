@@ -85,3 +85,43 @@ tests:
   - matchRegex:
       path: spec.template.spec.containers[0].volumeMounts[0].mountPath
       pattern: /test-volume
+- it: Should pass log level argument if set
+  set:
+    log:
+      level: error
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --zap-log-level=error
+- it: Should pass log format argument if set
+  set:
+    log:
+      format: console
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --zap-encoder=console
+- it: Should pass stacktrace log level argument if set
+  set:
+    log:
+      stacktraceLevel: error
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --zap-stacktrace-level=error
+- it: Should pass log development mode argument if set
+  set:
+    log:
+      developmentMode: true
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --zap-devel=true

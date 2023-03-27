@@ -130,3 +130,15 @@ serviceAccount:
   create: true
   name: ""
   annotations: {}
+
+
+## Logging configuration
+## @param log.level The level to log at. One of 'debug', 'info', or 'error'.
+## @param log.stacktraceLevel The level to report stacktrace logs one of 'info' or 'error'.
+## @param log.format The log format to use. One of console, json.
+## @param log.developmentMode If true, enables development mode in the underlying zap logger.
+log:
+  level: ""
+  stacktraceLevel: ""
+  format: ""
+  developmentMode: false
