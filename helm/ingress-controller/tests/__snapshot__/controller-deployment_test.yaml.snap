@@ -26,7 +26,6 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            kubectl.kubernetes.io/default-container: manager
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
@@ -413,7 +412,6 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            kubectl.kubernetes.io/default-container: manager
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
