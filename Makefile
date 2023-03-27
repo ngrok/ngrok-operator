@@ -113,6 +113,9 @@ deploy: docker-build manifests kustomize ## Deploy controller to the K8s cluster
 		--set image.repository=$(IMG) \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set log.format=console \
+		--set log.level=debug \
+		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile && \
 	kubectl rollout restart deployment ngrok-ingress-controller-kubernetes-ingress-controller-manager -n ngrok-ingress-controller
 
