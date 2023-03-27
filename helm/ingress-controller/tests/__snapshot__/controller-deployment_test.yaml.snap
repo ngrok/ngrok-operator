@@ -38,6 +38,9 @@ Should match all-options snapshot:
           containers:
           - args:
             - --controller-name=k8s.ngrok.com/ingress-controller
+            - --zap-log-level=info
+            - --zap-stacktrace-level=error
+            - --zap-encoder=json
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
@@ -425,6 +428,9 @@ Should match default snapshot:
           containers:
           - args:
             - --controller-name=k8s.ngrok.com/ingress-controller
+            - --zap-log-level=info
+            - --zap-stacktrace-level=error
+            - --zap-encoder=json
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
