@@ -165,7 +165,13 @@ func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, des
 		conn, err := tun.Accept()
 		if err != nil {
 			logger.Error(err, "Error accepting connection")
-			continue
+			// Right now, this can only be "Tunnel closed" https://github.com/ngrok/ngrok-go/blob/e1d90c382/internal/tunnel/client/tunnel.go#L81-L89
+			// Since that's terminal, that means we should give up on this loop to
+			// ensure we don't leak a goroutine after a tunnel goes away.
+			// Unfortunately, it's not an exported error, so we can't verify with
+			// more certainty that's what's going on, but at the time of writing,
+			// that should be true.
+			return
 		}
 		connLogger := logger.WithValues("remoteAddr", conn.RemoteAddr())
 		connLogger.Info("Accepted connection")
