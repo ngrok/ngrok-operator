@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/go-logr/logr"
 	"golang.ngrok.com/ngrok"
 	"golang.ngrok.com/ngrok/config"
 	"golang.org/x/sync/errgroup"
@@ -121,7 +120,7 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels ma
 		return err
 	}
 	td.tunnels[name] = tun
-	go td.startTunnel(ctx, tun, destination)
+	go handleConnections(ctx, &net.Dialer{}, tun, destination)
 	return nil
 }
 
@@ -160,41 +159,54 @@ func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination 
 	return config.LabeledTunnel(opts...)
 }
 
-func (td *TunnelDriver) startTunnel(ctx context.Context, tun ngrok.Tunnel, dest string) {
-	log := log.FromContext(ctx).WithValues("id", tun.ID())
+func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, dest string) {
+	logger := log.FromContext(ctx).WithValues("id", tun.ID(), "dest", dest)
 	for {
 		conn, err := tun.Accept()
 		if err != nil {
-			log.Error(err, "Error accepting connection")
+			logger.Error(err, "Error accepting connection")
+			continue
 		}
+		connLogger := logger.WithValues("remoteAddr", conn.RemoteAddr())
+		connLogger.Info("Accepted connection")
 
-		cnxnLogger := log.WithValues("remoteAddr", conn.RemoteAddr())
-		cnxnLogger.Info("Accepted connection")
-
-		go func(address string, logger logr.Logger) {
-			err := handleConn(context.Background(), address, conn)
+		go func() {
+			ctx := log.IntoContext(ctx, connLogger)
+			err := handleConn(ctx, dest, dialer, conn)
 			if err != nil {
 				logger.Error(err, "Error handling connection")
 			} else {
-				logger.Info("Connection closed")
+				logger.Info("Connection handled")
 			}
-		}(dest, cnxnLogger)
+		}()
 	}
 }
 
-func handleConn(ctx context.Context, dest string, conn net.Conn) error {
-	next, err := net.Dial("tcp", dest)
+func handleConn(ctx context.Context, dest string, dialer Dialer, conn net.Conn) error {
+	log := log.FromContext(ctx)
+	next, err := dialer.DialContext(ctx, "tcp", dest)
 	if err != nil {
 		return err
 	}
 
-	g, _ := errgroup.WithContext(ctx)
-
+	var g errgroup.Group
 	g.Go(func() error {
+		defer func() {
+			if err := next.Close(); err != nil {
+				log.Info("Error closing connection to destination: %v", err)
+			}
+		}()
+
 		_, err := io.Copy(next, conn)
 		return err
 	})
 	g.Go(func() error {
+		defer func() {
+			if err := conn.Close(); err != nil {
+				log.Info("Error closing connection from ngrok: %v", err)
+			}
+		}()
+
 		_, err := io.Copy(conn, next)
 		return err
 	})

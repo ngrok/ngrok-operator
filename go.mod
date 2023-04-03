@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/go-logr/logr v1.2.3
+	github.com/golang/mock v1.4.4
 	github.com/imdario/mergo v0.3.13
 	github.com/ngrok/ngrok-api-go/v5 v5.0.0
 	github.com/onsi/ginkgo/v2 v2.7.0
