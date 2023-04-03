@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.0
+### Changed
+- Added Ingress controller version to user-agent [#198](https://github.com/ngrok/kubernetes-ingress-controller/pull/198).
+- Don't default to development mode for logging [#199](https://github.com/ngrok/kubernetes-ingress-controller/pull/199).
+
+### Fixed
+- Leaking TCP connections for every tunnel dial [#203](https://github.com/ngrok/kubernetes-ingress-controller/pull/203).
+
+
 ## 0.5.0
 ### Changed
 - Bumped go version to 1.20 [#167](https://github.com/ngrok/kubernetes-ingress-controller/pull/167)
