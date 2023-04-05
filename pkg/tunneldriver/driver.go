@@ -3,6 +3,7 @@ package tunneldriver
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net"
@@ -179,11 +180,12 @@ func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, des
 		go func() {
 			ctx := log.IntoContext(ctx, connLogger)
 			err := handleConn(ctx, dest, dialer, conn)
-			if err != nil {
-				logger.Error(err, "Error handling connection")
-			} else {
-				logger.Info("Connection handled")
+			if err == nil || errors.Is(err, net.ErrClosed) {
+				connLogger.Info("Connection closed")
+				return
 			}
+
+			connLogger.Error(err, "Error handling connection")
 		}()
 	}
 }
