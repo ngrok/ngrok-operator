@@ -54,9 +54,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: example-ingress
-  annotations:
-    kubernetes.io/ingress.class: "ngrok"
 spec:
+  ingressClassName: ngrok
   rules:
   - host: example.com
     http:
