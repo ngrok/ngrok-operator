@@ -68,9 +68,9 @@ helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
 You can find the full documentation for the ngrok ingress controller [here](./docs/README.md). You can also visit our comprehensive [get started tutorial in ngrok's official docs](https://ngrok.com/docs/using-ngrok-with/k8s/).
 
 For more in depth guides, see:
-- [Deployment Guide](./deployment-guide/README.md): for installing the controller for the first time
-- [User Guide](./user-guide/README.md): for an in depth view of the ngrok ingress configuration options and primitives
-- [Examples](./examples/README.md): for examples of how to configure ingress in different scenarios (e.g. Hello World, Consul, OAuth, etc.)
+- [Deployment Guide](./docs/deployment-guide/README.md): for installing the controller for the first time
+- [User Guide](./docs/user-guide/README.md): for an in depth view of the ngrok ingress configuration options and primitives
+- [Examples](./docs/examples/README.md): for examples of how to configure ingress in different scenarios (e.g. Hello World, Consul, OAuth, etc.)
 - [Developer Guide](./docs/developer-guide/README.md): for those interested in contributing to the project
 
 ## Quickstart
