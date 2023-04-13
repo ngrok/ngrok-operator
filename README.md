@@ -40,6 +40,8 @@ For more details on the internal architecture, see [here](https://github.com/ngr
 
 ## Installation
 
+> As of today, the ngrok Ingress Controller works only on ngrok accounts with the Pro subscription or above. If you would like to use the ngrok Ingress Controller with a free ngrok account, please [reach us out in our slack community](https://ngrok.com/slack) and we will be happy to help.
+
 The ngrok ingress controller is available as a helm chart. To add the ngrok helm chart repository, run:
 
 ```bash
@@ -72,6 +74,8 @@ For more in depth guides, see:
 - [Developer Guide](./docs/developer-guide/README.md): for those interested in contributing to the project
 
 ## Quickstart
+
+> As of today, the ngrok Ingress Controller works only on ngrok accounts with the Pro subscription or above. If you would like to use the ngrok Ingress Controller with a free ngrok account, please [reach us out in our slack community](https://ngrok.com/slack) and we will be happy to help.
 
 For a quick start, apply the [sample combined manifest](manifest-bundle.yaml) from our repo:
 
