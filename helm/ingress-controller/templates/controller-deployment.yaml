@@ -14,6 +14,9 @@ spec:
   selector:
     matchLabels:
       {{- include "kubernetes-ingress-controller.selectorLabels" . | nindent 6 }}
+      {{- if .Values.podLabels }}
+        {{- toYaml .Values.podLabels | nindent 6 }}
+      {{- end }}
       app.kubernetes.io/component: controller
   template:
     metadata:
@@ -26,6 +29,9 @@ spec:
         prometheus.io/scrape: 'true'
       labels:
         {{- include "kubernetes-ingress-controller.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+          {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- end }}
         app.kubernetes.io/component: controller
     spec:
       serviceAccountName: {{ template "kubernetes-ingress-controller.serviceAccountName" . }}

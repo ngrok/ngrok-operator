@@ -14,12 +14,13 @@ commonAnnotations: {}
 ## @section Controller parameters
 ##
 
-## @param podAnnotations Used to inject custom annotations directly into
-## the ingress pods for things like service mesh integrations.
+## @param podAnnotations Used to apply custom annotations to the ingress pods.
+## @param podLabels Used to apply custom labels to the ingress pods.
 ##
 podAnnotations: {}
+podLabels: {}
 
-## @param replicaCount The number of controllers and agents to run.
+## @param replicaCount The number of controllers to run.
 ## A minimum of 2 is recommended in production for HA.
 ##
 replicaCount: 1

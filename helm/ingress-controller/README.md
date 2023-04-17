@@ -7,8 +7,8 @@ This is the helm chart to install the ngrok ingress controller
 ## Prerequisites
 
 The cluster Must be setup with a secret named `ngrok-ingress-controller-credentials` with the following keys:
-* NGROK_AUTHTOKEN
-* NGROK_API_KEY
+* NGROK\_AUTHTOKEN
+* NGROK\_API\_KEY
 
 ## Install the controller with helm
 
@@ -47,8 +47,9 @@ To uninstall the chart:
 
 | Name                         | Description                                                                                                           | Value                                 |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `podAnnotations`             | Used to inject custom annotations directly into                                                                       | `{}`                                  |
-| `replicaCount`               | The number of controllers and agents to run.                                                                          | `1`                                   |
+| `replicaCount`               | The number of controllers to run.                                                                          | `1`                                   |
+| `podAnnotations`             | Used to apply custom annotations to the controller pods. | `{}`                                  |
+| `podLabels`             | Used to apply custom labels to the controller pods. | `{}`                                  |
 | `image.registry`             | The ngrok ingress controller image registry.                                                                          | `docker.io`                           |
 | `image.repository`           | The ngrok ingress controller image repository.                                                                        | `ngrok/kubernetes-ingress-controller` |
 | `image.tag`                  | The ngrok ingress controller image tag. Defaults to the chart's appVersion if not specified                           | `""`                                  |
@@ -76,4 +77,3 @@ To uninstall the chart:
 | `log.level`                  | The level to log at. One of 'debug', 'info', or 'error'.                                                              | `info`                                |
 | `log.stacktraceLevel`        | The level to report stacktrace logs one of 'info' or 'error'.                                                         | `error`                               |
 | `log.format`                 | The log format to use. One of console, json.                                                                          | `json`                                |
-
