@@ -47,9 +47,9 @@ To uninstall the chart:
 
 | Name                         | Description                                                                                                           | Value                                 |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `replicaCount`               | The number of controllers to run.                                                                          | `1`                                   |
-| `podAnnotations`             | Used to apply custom annotations to the controller pods. | `{}`                                  |
-| `podLabels`             | Used to apply custom labels to the controller pods. | `{}`                                  |
+| `podAnnotations`             | Used to apply custom annotations to the ingress pods.                                                                 | `{}`                                  |
+| `podLabels`                  | Used to apply custom labels to the ingress pods.                                                                      | `{}`                                  |
+| `replicaCount`               | The number of controllers to run.                                                                                     | `1`                                   |
 | `image.registry`             | The ngrok ingress controller image registry.                                                                          | `docker.io`                           |
 | `image.repository`           | The ngrok ingress controller image repository.                                                                        | `ngrok/kubernetes-ingress-controller` |
 | `image.tag`                  | The ngrok ingress controller image tag. Defaults to the chart's appVersion if not specified                           | `""`                                  |
@@ -77,3 +77,4 @@ To uninstall the chart:
 | `log.level`                  | The level to log at. One of 'debug', 'info', or 'error'.                                                              | `info`                                |
 | `log.stacktraceLevel`        | The level to report stacktrace logs one of 'info' or 'error'.                                                         | `error`                               |
 | `log.format`                 | The log format to use. One of console, json.                                                                          | `json`                                |
+
