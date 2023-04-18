@@ -9,7 +9,7 @@ This tutorial walks you through setting up the ngrok Kubernetes Ingress and prov
 
 ## Install the Controller
 
-First we need to install the controller in the cluster. We'll export our credentials as environment variables
+First we need to install the controller in the cluster. We'll export our credentials as environment variables and use helm to install the controller in its own namespace.
 
 ```bash
 export NGROK_API_KEY=<YOUR Secret API KEY>
