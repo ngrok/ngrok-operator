@@ -30,7 +30,7 @@ and can be installed by following the instructions in the chart's [README](../he
 ## Semantic Versioning
 
 This project uses [semantic versioning](https://semver.org/) for both the the docker image
-and helm chart. Please note that this project is still under development(pre 1.0.0) and considered `alpha` status at this time.
+and helm chart.
 
 From the [semver spec](https://semver.org/#spec-item-4):
 
