@@ -1,6 +1,6 @@
 # Hello World - Game 2048
 
-This tutorial will walk through setting up the ngrok Kubernetes Ingress and providing ingress to a simple 2048 game service.
+This tutorial walks you through setting up the ngrok Kubernetes Ingress and providing ingress to a simple 2048 game service.
 
 ## Prerequisites
 - access to a remote or local kubernetes cluster such as [MiniKube](https://minikube.sigs.k8s.io/docs/start/)
@@ -11,13 +11,11 @@ This tutorial will walk through setting up the ngrok Kubernetes Ingress and prov
 
 First we need to install the controller in the cluster. We'll export our credentials as environment variables and use helm to install the controller in its own namespace.
 
-
 ```bash
 export NGROK_API_KEY=<YOUR Secret API KEY>
 export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
-
 helm repo add ngrok https://ngrok.github.io/kubernetes-ingress-controller
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller --version 0.6.0 \
+helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller --version 0.8.0 \
   --set image.tag=0.4.0 \
   --namespace ngrok-ingress-controller \
   --create-namespace \
@@ -29,6 +27,10 @@ Verify the controller is running and healthy:
 
 ```bash
 kubectl get pods -n ngrok-ingress-controller
+```
+
+You should see something like this:
+```bash
 NAME                                                              READY   STATUS    RESTARTS   AGE
 ngrok-ingress-controller-kubernetes-ingress-controller-mank8zgx   1/1     Running   0          104s
 ```
@@ -38,6 +40,7 @@ ngrok-ingress-controller-kubernetes-ingress-controller-mank8zgx   1/1     Runnin
 Next, lets deploy a simple demo service and expose it via the controller. First, we'll create a Deployment and Service for the 2048 game.
 
 ```yaml
+cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Service
 metadata:
@@ -70,12 +73,18 @@ spec:
           ports:
             - name: http
               containerPort: 80
+EOF
 ```
 
-Verify the pod is running and healthy:
+Verify the pod is running and healthy.
 
 ```bash
 kubectl get pods
+```
+
+should display
+
+```
 NAME                         READY   STATUS    RESTARTS   AGE
 game-2048-6bb9fc59d9-rdpz7   1/1     Running   0          6s
 ```
@@ -84,7 +93,7 @@ Now we'll create an Ingress resource that will route traffic to the 2048 game se
 
 For the `$SUBDOMAIN` variable, pick something unique that will be used for ingress to your service. This must be globally unique to be reserved in your account.
 
-```yaml
+```bash
 export SUBDOMAIN="your-unique-subdomain"
 cat <<EOF | kubectl apply -f -
 apiVersion: networking.k8s.io/v1
