@@ -89,7 +89,6 @@ For a comprehensive, step-by-step quick start, check our [get started guide in n
 ## Known Limitations
 
 1. This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads.
-1. As of today, the ngrok Ingress Controller works only on ngrok accounts with the Pro subscription or above. If you would like to use the ngrok Ingress Controller with a free ngrok account, please [reach us out in our slack community](https://ngrok.com/slack) and we will be happy to help.
 
 ## Support
 
