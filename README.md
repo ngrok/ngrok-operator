@@ -28,6 +28,9 @@
   </a>
 </p>
 
+> _*Warning*_: Currently this project has an issue being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/208) which can cause the controller to provide ingress to a service even if it failed to configure an authentication module like Oauth on a particular route due to a configuration or intermittent error. Until this issue is resolved, its not recommended to use this with security sensitive applications.
+
+
 # ngrok Ingress Controller for Kubernetes
 
 ngrok is a simplified API-first ingress-as-a-service that adds connectivity, security, and observability to your apps and services.
@@ -37,6 +40,7 @@ The ngrok Ingress Controller for Kubernetes is an open source controller for add
 The ngrok Ingress Controller for Kubernetes lets developers define public and secure ingress traffic to their K8s resources directly from the deployment manifest, without configuring low-level network primitives — like DNS, IPs, NAT, and VPCs — outside of their K8s cluster. This makes it easy to add global traffic with security and scalability into K8s resources regardless of the underlying network infrastructure.
 
 For more details on the internal architecture, see [here](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/developer-guide/README.md).
+
 
 ## Installation
 
