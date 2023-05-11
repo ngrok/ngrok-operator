@@ -2,6 +2,7 @@ package tunneldriver
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	"golang.ngrok.com/ngrok"
 	"golang.ngrok.com/ngrok/config"
@@ -195,6 +197,20 @@ func handleConn(ctx context.Context, dest string, dialer Dialer, conn net.Conn) 
 	next, err := dialer.DialContext(ctx, "tcp", dest)
 	if err != nil {
 		return err
+	}
+
+	// Temporary hack to support HTTPS backends
+	if strings.Contains(dest, ":") {
+		_, port, err := net.SplitHostPort(dest)
+		if err != nil {
+			return err
+		}
+		if port == "443" {
+			next = tls.Client(next, &tls.Config{
+				ServerName:         dest,
+				InsecureSkipVerify: true,
+			})
+		}
 	}
 
 	var g errgroup.Group
