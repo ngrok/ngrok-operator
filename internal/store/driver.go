@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -68,6 +69,7 @@ func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
 // each calculation will be based on an incomplete state of the world. It currently relies on:
 // - Ingresses
 // - IngressClasses
+// - Services
 // - Secrets
 // - Domains
 // - Edges
@@ -89,6 +91,16 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	}
 	for _, ingClass := range ingressClasses.Items {
 		if err := d.Update(&ingClass); err != nil {
+			return err
+		}
+	}
+
+	services := &corev1.ServiceList{}
+	if err := c.List(ctx, services); err != nil {
+		return err
+	}
+	for _, svc := range services.Items {
+		if err := d.Update(&svc); err != nil {
 			return err
 		}
 	}
