@@ -21,6 +21,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -38,6 +39,7 @@ type Storer interface {
 
 	GetIngressClassV1(name string) (*netv1.IngressClass, error)
 	GetIngressV1(name, namespace string) (*netv1.Ingress, error)
+	GetServiceV1(name, namespace string) (*corev1.Service, error)
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error)
 
@@ -117,6 +119,17 @@ func (s Store) GetIngressV1(name, namespcae string) (*netv1.Ingress, error) {
 		return nil, errors.NewErrorNotFound(fmt.Sprintf("Ingress %v not found", name))
 	}
 	return p.(*netv1.Ingress), nil
+}
+
+func (s Store) GetServiceV1(name, namespace string) (*corev1.Service, error) {
+	p, exists, err := s.stores.ServiceV1.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("Service %v not found", name))
+	}
+	return p.(*corev1.Service), nil
 }
 
 // GetNgrokIngressV1 looks up the Ingress resource by name and namespace and returns it if it's found

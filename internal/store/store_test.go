@@ -70,6 +70,27 @@ var _ = Describe("Store", func() {
 		})
 	})
 
+	var _ = Describe("GetServiceV1", func() {
+		Context("when the service exists", func() {
+			BeforeEach(func() {
+				svc := NewTestServiceV1("test-service", "test-namespace")
+				store.Add(&svc)
+			})
+			It("returns the service", func() {
+				svc, err := store.GetServiceV1("test-service", "test-namespace")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(svc.Name).To(Equal("test-service"))
+			})
+		})
+		Context("when the service does not exist", func() {
+			It("returns an error", func() {
+				svc, err := store.GetServiceV1("does-not-exist", "does-not-exist")
+				Expect(err).To(HaveOccurred())
+				Expect(svc).To(BeNil())
+			})
+		})
+	})
+
 	var _ = Describe("GetNgrokIngressV1", func() {
 		Context("when the ngrok ingress exists", func() {
 			BeforeEach(func() {
