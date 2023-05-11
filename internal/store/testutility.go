@@ -2,8 +2,10 @@ package store
 
 import (
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func NewTestIngressClass(name string, isDefault bool, isNgrok bool) netv1.IngressClass {
@@ -64,6 +66,25 @@ func NewTestIngressV1(name string, namespace string) netv1.Ingress {
 							},
 						},
 					},
+				},
+			},
+		},
+	}
+}
+
+func NewTestServiceV1(name string, namespace string) corev1.Service {
+	return corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "http",
+					Protocol:   "TCP",
+					Port:       80,
+					TargetPort: intstr.FromString("http"),
 				},
 			},
 		},

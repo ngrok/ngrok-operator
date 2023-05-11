@@ -8,6 +8,7 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	internalerrors "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -32,6 +33,7 @@ type IngressReconciler struct {
 func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	storedResources := []client.Object{
 		&netv1.IngressClass{},
+		&corev1.Service{},
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
 		&ingressv1alpha1.Tunnel{},
@@ -49,11 +51,12 @@ func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses/status,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingressclasses,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=ngrokmodulesets,verbs=get;list;watch
 
 // This reconcile function is called by the controller-runtime manager.

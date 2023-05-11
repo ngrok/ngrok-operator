@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
@@ -31,6 +32,7 @@ type CacheStores struct {
 	// Core Kubernetes Stores
 	IngressV1      cache.Store
 	IngressClassV1 cache.Store
+	ServiceV1      cache.Store
 
 	// Ngrok Stores
 	DomainV1      cache.Store
@@ -47,6 +49,7 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 	return CacheStores{
 		IngressV1:      cache.NewStore(keyFunc),
 		IngressClassV1: cache.NewStore(clusterResourceKeyFunc),
+		ServiceV1:      cache.NewStore(keyFunc),
 		DomainV1:       cache.NewStore(keyFunc),
 		TunnelV1:       cache.NewStore(keyFunc),
 		HTTPSEdgeV1:    cache.NewStore(keyFunc),
@@ -86,7 +89,10 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 		return c.IngressV1.Get(obj)
 	case *netv1.IngressClass:
 		return c.IngressClassV1.Get(obj)
-		// ----------------------------------------------------------------------------
+	case *corev1.Service:
+		return c.ServiceV1.Get(obj)
+
+	// ----------------------------------------------------------------------------
 	// Ngrok API Support
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
@@ -114,10 +120,12 @@ func (c CacheStores) Add(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	case *netv1.Ingress:
 		return c.IngressV1.Add(obj)
-
 	case *netv1.IngressClass:
 		return c.IngressClassV1.Add(obj)
-		// ----------------------------------------------------------------------------
+	case *corev1.Service:
+		return c.ServiceV1.Add(obj)
+
+	// ----------------------------------------------------------------------------
 	// Ngrok API Support
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
@@ -148,7 +156,10 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.IngressV1.Delete(obj)
 	case *netv1.IngressClass:
 		return c.IngressClassV1.Delete(obj)
-		// ----------------------------------------------------------------------------
+	case *corev1.Service:
+		return c.ServiceV1.Delete(obj)
+
+	// ----------------------------------------------------------------------------
 	// Ngrok API Support
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
