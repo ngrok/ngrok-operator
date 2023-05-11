@@ -445,10 +445,35 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 	tunnelMap := make(map[string]ingressv1alpha1.Tunnel)
 	ingresses := d.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
+		namespace := ingress.Namespace
+
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
 				serviceName := path.Backend.Service.Name
 				servicePort := path.Backend.Service.Port.Number
+				if servicePort <= 0 {
+					// Look for named port
+					service, err := d.GetServiceV1(serviceName, namespace)
+					if err != nil {
+						d.log.Error(err, "error getting service", "service", serviceName)
+						// No service, skip creating tunnel for now
+						continue
+					}
+
+					d.log.V(3).Info("Searching service for named port", "service", service.Name, "port", path.Backend.Service.Port.Name)
+					for _, port := range service.Spec.Ports {
+						if port.Name == path.Backend.Service.Port.Name {
+							servicePort = port.Port
+							break
+						}
+					}
+					if servicePort <= 0 {
+						d.log.Error(fmt.Errorf("could not find port for service"), "could not find port for service", "service", serviceName, "port", path.Backend.Service.Port.Name)
+						// No port, skip creating tunnel for now
+						continue
+					}
+				}
+
 				tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, ingress.Namespace, clusterDomain, servicePort)
 				tunnelName := fmt.Sprintf("%s-%d", serviceName, servicePort)
 
