@@ -460,15 +460,16 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 						continue
 					}
 
-					d.log.V(3).Info("Searching service for named port", "service", service.Name, "port", path.Backend.Service.Port.Name)
+					d.log.V(3).Info("Searching service for named port", "namespace", namespace, "service", service.Name, "port.name", path.Backend.Service.Port.Name)
 					for _, port := range service.Spec.Ports {
 						if port.Name == path.Backend.Service.Port.Name {
 							servicePort = port.Port
+							d.log.V(3).Info("Found named port for service", "namespace", namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
 							break
 						}
 					}
 					if servicePort <= 0 {
-						d.log.Error(fmt.Errorf("could not find port for service"), "could not find port for service", "service", serviceName, "port", path.Backend.Service.Port.Name)
+						d.log.Error(fmt.Errorf("could not find port for service"), "could not find port for service", "namespace", namespace, "service", serviceName, "port", path.Backend.Service.Port.Name)
 						// No port, skip creating tunnel for now
 						continue
 					}
