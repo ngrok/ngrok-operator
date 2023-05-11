@@ -377,6 +377,8 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 		edge.Spec.Metadata = d.customMetadata
 		var ngrokRoutes []ingressv1alpha1.HTTPSEdgeRouteSpec
 		for _, ingress := range ingresses {
+			namespace := ingress.Namespace
+
 			modSet, err := d.getNgrokModuleSetForIngress(ingress)
 			if err != nil {
 				d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
@@ -409,11 +411,23 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 							}
 						}
 
+						// We only support service backends right now. TODO: support resource backends
+						if httpIngressPath.Backend.Service == nil {
+							continue
+						}
+
+						serviceName := httpIngressPath.Backend.Service.Name
+						servicePort, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, namespace)
+						if err != nil {
+							d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
+							continue
+						}
+
 						route := ingressv1alpha1.HTTPSEdgeRouteSpec{
 							Match:     httpIngressPath.Path,
 							MatchType: matchType,
 							Backend: ingressv1alpha1.TunnelGroupBackend{
-								Labels: backendToLabelMap(httpIngressPath.Backend, ingress.Namespace),
+								Labels: d.backendToLabelMap(namespace, serviceName, servicePort),
 							},
 							CircuitBreaker:      modSet.Modules.CircuitBreaker,
 							Compression:         modSet.Modules.Compression,
@@ -449,33 +463,18 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
-				serviceName := path.Backend.Service.Name
-				servicePort := path.Backend.Service.Port.Number
-				if servicePort <= 0 {
-					// Look for named port
-					service, err := d.GetServiceV1(serviceName, namespace)
-					if err != nil {
-						d.log.Error(err, "error getting service", "service", serviceName)
-						// No service, skip creating tunnel for now
-						continue
-					}
-
-					d.log.V(3).Info("Searching service for named port", "namespace", namespace, "service", service.Name, "port.name", path.Backend.Service.Port.Name)
-					for _, port := range service.Spec.Ports {
-						if port.Name == path.Backend.Service.Port.Name {
-							servicePort = port.Port
-							d.log.V(3).Info("Found named port for service", "namespace", namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
-							break
-						}
-					}
-					if servicePort <= 0 {
-						d.log.Error(fmt.Errorf("could not find port for service"), "could not find port for service", "namespace", namespace, "service", serviceName, "port", path.Backend.Service.Port.Name)
-						// No port, skip creating tunnel for now
-						continue
-					}
+				// We only support service backends right now. TODO: support resource backends
+				if path.Backend.Service == nil {
+					continue
 				}
 
-				tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, ingress.Namespace, clusterDomain, servicePort)
+				serviceName := path.Backend.Service.Name
+				servicePort, err := d.getBackendServicePort(*path.Backend.Service, namespace)
+				if err != nil {
+					d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
+				}
+
+				tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
 				tunnelName := fmt.Sprintf("%s-%d", serviceName, servicePort)
 
 				tunnelMap[tunnelName] = ingressv1alpha1.Tunnel{
@@ -485,7 +484,7 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 					},
 					Spec: ingressv1alpha1.TunnelSpec{
 						ForwardsTo: tunnelAddr,
-						Labels:     backendToLabelMap(path.Backend, ingress.Namespace),
+						Labels:     d.backendToLabelMap(namespace, serviceName, servicePort),
 					},
 				}
 			}
@@ -523,11 +522,33 @@ func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c clie
 	return status
 }
 
+func (d *Driver) getBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (int32, error) {
+	servicePort := backendSvc.Port.Number
+	if servicePort > 0 {
+		return servicePort, nil
+	}
+
+	d.log.V(3).Info("Searching service for named port", "namespace", namespace, "service", backendSvc.Name, "port.name", backendSvc.Port.Name)
+	service, err := d.GetServiceV1(backendSvc.Name, namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, port := range service.Spec.Ports {
+		if port.Name == backendSvc.Port.Name {
+			d.log.V(3).Info("Found named port for service", "namespace", namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
+			return port.Port, nil
+		}
+	}
+
+	return 0, fmt.Errorf("could not find named port for service %s", backendSvc.Name)
+}
+
 // Generates a labels map for matching ngrok Routes to Agent Tunnels
-func backendToLabelMap(backend netv1.IngressBackend, namespace string) map[string]string {
+func (d *Driver) backendToLabelMap(namespace, serviceName string, port int32) map[string]string {
 	return map[string]string{
 		"k8s.ngrok.com/namespace": namespace,
-		"k8s.ngrok.com/service":   backend.Service.Name,
-		"k8s.ngrok.com/port":      strconv.Itoa(int(backend.Service.Port.Number)),
+		"k8s.ngrok.com/service":   serviceName,
+		"k8s.ngrok.com/port":      strconv.Itoa(int(port)),
 	}
 }
