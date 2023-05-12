@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.0
+
+### Changed
+- Don't log errors on normal connection closing [#206](https://github.com/ngrok/kubernetes-ingress-controller/pull/206).
+- Updated `golang.org/x/net` to `0.9.0` [#215](https://github.com/ngrok/kubernetes-ingress-controller/pull/215).
+
+### Fixed
+- Add support for named service ports [#222](https://github.com/ngrok/kubernetes-ingress-controller/pull/222).
+
+
 ## 0.6.0
 ### Changed
 - Added Ingress controller version to user-agent [#198](https://github.com/ngrok/kubernetes-ingress-controller/pull/198).
