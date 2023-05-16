@@ -103,10 +103,6 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if tunnel == nil {
-		return ctrl.Result{}, nil
-	}
-
 	tunnelName := req.NamespacedName.String()
 
 	if isDelete(tunnel.ObjectMeta) {

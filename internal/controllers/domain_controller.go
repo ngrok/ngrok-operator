@@ -79,10 +79,6 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if domain == nil {
-		return ctrl.Result{}, nil
-	}
-
 	if domain.ObjectMeta.DeletionTimestamp.IsZero() {
 		if err := registerAndSyncFinalizer(ctx, r.Client, domain); err != nil {
 			return ctrl.Result{}, err
