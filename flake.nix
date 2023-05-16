@@ -15,7 +15,7 @@
           gotools
           go-tools
           golangci-lint
-          helm
+          kubernetes-helm
         ];
       };
     }));
