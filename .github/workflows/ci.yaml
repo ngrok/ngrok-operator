@@ -125,10 +125,8 @@ jobs:
         kubectl get nodes
         kubectl get pods -A
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: ${{ env.GO_VERSION }}
+    - name: Run direnv
+      uses: jrobsonchase/direnv-action@0.7
 
     - name: Build
       run: make build
