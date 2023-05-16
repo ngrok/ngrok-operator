@@ -148,7 +148,7 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 
 		// If the labels don't match, update the backend with the desired labels
 		if !reflect.DeepEqual(backend.Labels, specBackend.Labels) {
-			backend, err = r.NgrokClientset.TunnelGroupBackends().Update(ctx, &ngrok.TunnelGroupBackendUpdate{
+			_, err = r.NgrokClientset.TunnelGroupBackends().Update(ctx, &ngrok.TunnelGroupBackendUpdate{
 				ID:          backend.ID,
 				Metadata:    pointer.String(specBackend.Metadata),
 				Description: pointer.String(specBackend.Description),
