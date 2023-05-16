@@ -80,8 +80,7 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	mgr.Add(cont)
-	return nil
+	return mgr.Add(cont)
 }
 
 //+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tunnels,verbs=get;list;watch;create;update;patch;delete

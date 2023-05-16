@@ -140,6 +140,7 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 			if ngrok.IsNotFound(err) {
 				r.Log.Info("TunnelGroupBackend not found, clearing ID and requeuing", "TunnelGroupBackend.ID", edge.Status.Backend.ID)
 				edge.Status.Backend.ID = ""
+				//nolint:errcheck
 				r.Status().Update(ctx, edge)
 			}
 			return err
@@ -184,6 +185,7 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 			if ngrok.IsNotFound(err) {
 				r.Log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
 				edge.Status.ID = ""
+				//nolint:errcheck
 				r.Status().Update(ctx, edge)
 			}
 			return err
