@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -79,7 +78,7 @@ func caCerts() (*x509.CertPool, error) {
 	customCertPool := systemCertPool.Clone()
 
 	// Read each .crt file in the custom cert directory
-	files, err := ioutil.ReadDir(customCertsPath)
+	files, err := os.ReadDir(customCertsPath)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +89,7 @@ func caCerts() (*x509.CertPool, error) {
 		}
 
 		// Read the contents of the .crt file
-		certBytes, err := ioutil.ReadFile(filepath.Join(customCertsPath, file.Name()))
+		certBytes, err := os.ReadFile(filepath.Join(customCertsPath, file.Name()))
 		if err != nil {
 			return nil, err
 		}
@@ -113,6 +112,7 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels ma
 			return nil
 		}
 		// There is already a tunnel with this name, start the new one and defer closing the old one
+		//nolint:errcheck
 		defer td.stopTunnel(context.Background(), tun)
 	}
 
