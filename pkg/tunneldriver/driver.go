@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"golang.ngrok.com/ngrok"
-	"golang.ngrok.com/ngrok/config"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"golang.ngrok.com/ngrok"
+	"golang.ngrok.com/ngrok/config"
 )
 
 const (
@@ -37,6 +39,7 @@ type TunnelDriverOpts struct {
 // New creates and initializes a new TunnelDriver
 func New(opts TunnelDriverOpts) (*TunnelDriver, error) {
 	connOpts := []ngrok.ConnectOption{
+		ngrok.WithChildClient("ngrok-ingress-controller", version.GetVersion()),
 		ngrok.WithAuthtokenFromEnv(),
 	}
 
