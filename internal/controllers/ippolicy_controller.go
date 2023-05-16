@@ -90,10 +90,6 @@ func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if policy == nil {
-		return ctrl.Result{}, nil
-	}
-
 	if policy.ObjectMeta.DeletionTimestamp.IsZero() {
 		if err := registerAndSyncFinalizer(ctx, r.Client, policy); err != nil {
 			return ctrl.Result{}, err
@@ -131,6 +127,7 @@ func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, r.createOrUpdateIPPolicyRules(ctx, policy)
 }
 
+//nolint:unused
 func (r *IPPolicyReconciler) deleteRemoteResoures(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
 	return r.IPPoliciesClient.Delete(ctx, policy.Status.ID)
 }

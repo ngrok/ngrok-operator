@@ -90,10 +90,6 @@ func (r *TCPEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if edge == nil {
-		return ctrl.Result{}, nil
-	}
-
 	if edge.ObjectMeta.DeletionTimestamp.IsZero() {
 		if err := registerAndSyncFinalizer(ctx, r.Client, edge); err != nil {
 			return ctrl.Result{}, err
@@ -144,6 +140,7 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 			if ngrok.IsNotFound(err) {
 				r.Log.Info("TunnelGroupBackend not found, clearing ID and requeuing", "TunnelGroupBackend.ID", edge.Status.Backend.ID)
 				edge.Status.Backend.ID = ""
+				//nolint:errcheck
 				r.Status().Update(ctx, edge)
 			}
 			return err
@@ -151,7 +148,7 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 
 		// If the labels don't match, update the backend with the desired labels
 		if !reflect.DeepEqual(backend.Labels, specBackend.Labels) {
-			backend, err = r.NgrokClientset.TunnelGroupBackends().Update(ctx, &ngrok.TunnelGroupBackendUpdate{
+			_, err = r.NgrokClientset.TunnelGroupBackends().Update(ctx, &ngrok.TunnelGroupBackendUpdate{
 				ID:          backend.ID,
 				Metadata:    pointer.String(specBackend.Metadata),
 				Description: pointer.String(specBackend.Description),
@@ -188,6 +185,7 @@ func (r *TCPEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1al
 			if ngrok.IsNotFound(err) {
 				r.Log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
 				edge.Status.ID = ""
+				//nolint:errcheck
 				r.Status().Update(ctx, edge)
 			}
 			return err

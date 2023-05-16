@@ -79,10 +79,6 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if domain == nil {
-		return ctrl.Result{}, nil
-	}
-
 	if domain.ObjectMeta.DeletionTimestamp.IsZero() {
 		if err := registerAndSyncFinalizer(ctx, r.Client, domain); err != nil {
 			return ctrl.Result{}, err
@@ -135,6 +131,8 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 // Deletes the external resources associated with the ReservedDomain. This is just the reserved domain itself.
+//
+//nolint:unused
 func (r *DomainReconciler) deleteExternalResources(ctx context.Context, domain *ingressv1alpha1.Domain) error {
 	return r.DomainsClient.Delete(ctx, domain.Status.ID)
 }

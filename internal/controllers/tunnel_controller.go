@@ -80,8 +80,7 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	mgr.Add(cont)
-	return nil
+	return mgr.Add(cont)
 }
 
 //+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tunnels,verbs=get;list;watch;create;update;patch;delete
@@ -101,10 +100,6 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if err := r.Client.Get(ctx, req.NamespacedName, tunnel); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	if tunnel == nil {
-		return ctrl.Result{}, nil
 	}
 
 	tunnelName := req.NamespacedName.String()
