@@ -131,6 +131,8 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 // Deletes the external resources associated with the ReservedDomain. This is just the reserved domain itself.
+//
+//nolint:unused
 func (r *DomainReconciler) deleteExternalResources(ctx context.Context, domain *ingressv1alpha1.Domain) error {
 	return r.DomainsClient.Delete(ctx, domain.Status.ID)
 }
