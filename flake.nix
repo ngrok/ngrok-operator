@@ -15,6 +15,7 @@
           gotools
           go-tools
           golangci-lint
+          helm
         ];
       };
     }));
