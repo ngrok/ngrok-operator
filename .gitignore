@@ -26,3 +26,5 @@ testbin/*
 .DS_Store
 
 e2e-fixtures/*/config*.yaml
+
+/.direnv
