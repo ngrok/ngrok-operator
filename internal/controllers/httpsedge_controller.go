@@ -550,7 +550,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 
 	var remoteIPPolicies []string
 	if route.IpRestriction != nil && len(route.IpRestriction.IPPolicies) > 0 {
-		remoteIPPolicies := make([]string, 0, len(route.IpRestriction.IPPolicies))
+		remoteIPPolicies = make([]string, 0, len(route.IpRestriction.IPPolicies))
 		for _, policy := range route.IpRestriction.IPPolicies {
 			remoteIPPolicies = append(remoteIPPolicies, policy.ID)
 		}
