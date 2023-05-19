@@ -16,6 +16,8 @@
           go-tools
           golangci-lint
           kubernetes-helm
+          jq
+          yq
         ];
       };
     }));

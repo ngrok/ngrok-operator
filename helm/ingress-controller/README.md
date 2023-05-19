@@ -7,8 +7,8 @@ This is the helm chart to install the ngrok ingress controller
 ## Prerequisites
 
 The cluster Must be setup with a secret named `ngrok-ingress-controller-credentials` with the following keys:
-* NGROK\_AUTHTOKEN
-* NGROK\_API\_KEY
+* AUTHTOKEN
+* API\_KEY
 
 ## Install the controller with helm
 
