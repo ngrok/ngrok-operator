@@ -8,3 +8,9 @@ patchesJson6902:
     kind: Ingress
     name: minimal-ingress
   path: config.yaml
+- target:
+    group: networking.k8s.io
+    version: v1
+    kind: Ingress
+    name: minimal-ingress-pt2
+  path: config-pt2.yaml

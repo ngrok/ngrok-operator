@@ -38,7 +38,7 @@ Several examples are provided in the [`e2e-fixtures` folder](https://github.com/
 Then, you need to update the `value` field in that new file.
 
 You can then apply the given example via `kubectl apply -k e2e-fixtures/<example in question>`, i.e.
-`kubectl apply -k e2e-fixtures/hello-world-ingess`.
+`kubectl apply -k e2e-fixtures/hello-world-ingress`.
 
 ### E2E Tests
 

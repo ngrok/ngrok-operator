@@ -3,4 +3,4 @@ config.yaml:
     "/": "HTTP/2 200"
 config-different.yaml:
   paths:
-    "/": "HTTP/1.1 404 Not Found"
+    "/": "HTTP/2 404"

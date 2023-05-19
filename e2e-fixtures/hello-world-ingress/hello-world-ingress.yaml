@@ -28,7 +28,7 @@ spec:
             name: nginx
             port:
               number: 80
-  - host: bezek-hello-world-ingress-2.ngrok.io
+  - host: SET-VIA-config.yaml
     http:
       paths:
       - path: /test
@@ -59,7 +59,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-  - host: bezek-hello-world-ingress-2.ngrok.io
+  - host: SET-VIA-config.yaml
     http:
       paths:
       - path: /second
