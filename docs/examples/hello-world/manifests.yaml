@@ -5,7 +5,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-    - host: ${NGROK_SUBDOMAIN}.ngrok.io
+    - host: ${NGROK_SUBDOMAIN}.ngrok.app
       http:
         paths:
           - path: /
