@@ -103,7 +103,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-    - host: $SUBDOMAIN-game-2048.ngrok.io
+    - host: $SUBDOMAIN-game-2048.ngrok.app
       http:
         paths:
           - path: /
@@ -119,5 +119,5 @@ EOF
 Open your hostname in a browser and you should see the 2048 game running!
 
 ```bash
-open https://$SUBDOMAIN-game-2048.ngrok.io
+open https://$SUBDOMAIN-game-2048.ngrok.app
 ```
