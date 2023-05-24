@@ -382,7 +382,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 			modSet, err := d.getNgrokModuleSetForIngress(ingress)
 			if err != nil {
 				d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
-				continue
+				panic(err)
 			}
 
 			// Set edge specific modules
@@ -420,7 +420,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 						servicePort, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, namespace)
 						if err != nil {
 							d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
-							continue
+							panic(err)
 						}
 
 						route := ingressv1alpha1.HTTPSEdgeRouteSpec{

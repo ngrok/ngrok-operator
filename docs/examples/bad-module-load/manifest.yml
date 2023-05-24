@@ -1,0 +1,87 @@
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: IPPolicy
+metadata:
+  name: test-policy
+spec:
+  description: "Deny all policy"
+  rules:
+  - action: "deny"
+    cidr: 0.0.0.0/0
+    description: "Deny all"
+---
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: NgrokModuleSet
+metadata:
+  name: ip-restrictions
+modules:
+  ipRestriction:
+    policies:
+    - "test-policy-typo"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ing-1
+spec:
+  ingressClassName: ngrok
+  rules:
+    - host: test-ing1.ngrok.io
+      http:
+        paths:
+          - path: /working
+            pathType: Prefix
+            backend:
+              service:
+                name: svc-1
+                port:
+                  number: 80
+    - host: test-ing2.ngrok.app
+      http:
+        paths:
+          - path: /working
+            pathType: Prefix
+            backend:
+              service:
+                name: svc-2
+                port:
+                  number: 80                  
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ing-2
+  annotations:
+    k8s.ngrok.com/modules: ip-restrictions-typo
+spec:
+  ingressClassName: ngrok
+  rules:
+    - host: test-ing1.ngrok.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: svc-1
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ing-3
+  annotations:
+    k8s.ngrok.com/modules: ip-restrictions
+spec:
+  ingressClassName: ngrok
+  rules:
+    - host: test-ing2.ngrok.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: svc-2
+                port:
+                  number: 80
