@@ -15,6 +15,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
@@ -36,10 +37,11 @@ type Driver struct {
 	reentranceFlag        int64
 	bypassReentranceCheck bool
 	customMetadata        string
+	recorder              record.EventRecorder
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
-func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string) *Driver {
+func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, recorder record.EventRecorder) *Driver {
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
@@ -47,6 +49,7 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 		cacheStores: cacheStores,
 		log:         logger,
 		scheme:      scheme,
+		recorder:    recorder,
 	}
 }
 
@@ -162,8 +165,8 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 	d.log.Info("syncing driver state!!")
 	desiredDomains := d.calculateDomains()
-	desiredEdges := d.calculateHTTPSEdges()
-	desiredTunnels := d.calculateTunnels()
+	desiredEdges, failedEdgeServices := d.calculateHTTPSEdges(desiredDomains)
+	desiredTunnels := d.calculateTunnels(failedEdgeServices)
 
 	currDomains := &ingressv1alpha1.DomainList{}
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
@@ -182,6 +185,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
+	// ---- Domain Creation -----
 	for _, desiredDomain := range desiredDomains {
 		found := false
 		for _, currDomain := range currDomains.Items {
@@ -206,8 +210,10 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 			break
 		}
 	}
+
 	// Don't delete domains to prevent accidentally de-registering them and making people re-do DNS
 
+	// ---- Edge Creation -----
 	for _, desiredEdge := range desiredEdges {
 		found := false
 		for _, currEdge := range currEdges.Items {
@@ -232,6 +238,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		}
 	}
 
+	// ---- Edge Deletion -----
 	for _, existingEdge := range currEdges.Items {
 		found := false
 		for _, desiredEdge := range desiredEdges {
@@ -248,6 +255,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		}
 	}
 
+	// ---- Tunnel Creation -----
 	for _, desiredTunnel := range desiredTunnels {
 		found := false
 		for _, currTunnel := range currTunnels.Items {
@@ -273,6 +281,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		}
 	}
 
+	// ---- Tunnel Deletion -----
 	for _, existingTunnel := range currTunnels.Items {
 		found := false
 		for _, desiredTunnel := range desiredTunnels {
@@ -360,10 +369,11 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	return computedModSet, nil
 }
 
-func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
-	domains := d.calculateDomains()
+func (d *Driver) calculateHTTPSEdges(domains []ingressv1alpha1.Domain) ([]ingressv1alpha1.HTTPSEdge, map[string]struct{}) {
 	ingresses := d.ListNgrokIngressesV1()
 	edges := make([]ingressv1alpha1.HTTPSEdge, 0, len(domains))
+	failedServices := make(map[string]struct{})
+
 	for _, domain := range domains {
 		edge := ingressv1alpha1.HTTPSEdge{
 			ObjectMeta: metav1.ObjectMeta{
@@ -379,10 +389,12 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 		for _, ingress := range ingresses {
 			namespace := ingress.Namespace
 
+			module_load_failure := false
 			modSet, err := d.getNgrokModuleSetForIngress(ingress)
 			if err != nil {
 				d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
-				panic(err)
+				module_load_failure = true
+				d.recorder.Event(&edge, corev1.EventTypeWarning, "NgrokModuleLoadFailure", err.Error())
 			}
 
 			// Set edge specific modules
@@ -396,6 +408,25 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 				if rule.Host == domain.Spec.Domain {
 
 					for _, httpIngressPath := range rule.HTTP.Paths {
+						// We only support service backends right now. TODO: support resource backends
+						if httpIngressPath.Backend.Service == nil {
+							continue
+						}
+
+						serviceName := httpIngressPath.Backend.Service.Name
+						// If we failed to load the module, then we don't want to continue creating the edge route
+						if module_load_failure {
+							// Add new entries to the failedServices map
+							failedServices[serviceName] = struct{}{}
+							continue
+						}
+
+						servicePort, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, namespace)
+						if err != nil {
+							d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
+							continue
+						}
+
 						matchType := "path_prefix"
 						if httpIngressPath.PathType != nil {
 							switch *httpIngressPath.PathType {
@@ -409,18 +440,6 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 								d.log.Error(fmt.Errorf("unknown path type"), "unknown path type", "pathType", *httpIngressPath.PathType)
 								continue
 							}
-						}
-
-						// We only support service backends right now. TODO: support resource backends
-						if httpIngressPath.Backend.Service == nil {
-							continue
-						}
-
-						serviceName := httpIngressPath.Backend.Service.Name
-						servicePort, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, namespace)
-						if err != nil {
-							d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
-							panic(err)
 						}
 
 						route := ingressv1alpha1.HTTPSEdgeRouteSpec{
@@ -450,10 +469,10 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 		edges = append(edges, edge)
 	}
 
-	return edges
+	return edges, failedServices
 }
 
-func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
+func (d *Driver) calculateTunnels(failedServices map[string]struct{}) []ingressv1alpha1.Tunnel {
 	// Tunnels should be unique on a service and port basis so if they are referenced more than once, we
 	// only create one tunnel per service and port.
 	tunnelMap := make(map[string]ingressv1alpha1.Tunnel)
@@ -469,6 +488,11 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 				}
 
 				serviceName := path.Backend.Service.Name
+				// Skip services that failed to load
+				if _, ok := failedServices[serviceName]; ok {
+					continue
+				}
+
 				servicePort, err := d.getBackendServicePort(*path.Backend.Service, namespace)
 				if err != nil {
 					d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
