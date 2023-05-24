@@ -2,6 +2,7 @@ package tunneldriver
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"io"
@@ -124,7 +125,8 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels ma
 		return err
 	}
 	td.tunnels[name] = tun
-	go handleConnections(ctx, &net.Dialer{}, tun, destination)
+	protocol := labels["k8s.ngrok.com/protocol"]
+	go handleConnections(ctx, &net.Dialer{}, tun, destination, protocol)
 	return nil
 }
 
@@ -163,7 +165,7 @@ func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination 
 	return config.LabeledTunnel(opts...)
 }
 
-func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, dest string) {
+func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, dest string, protocol string) {
 	logger := log.FromContext(ctx).WithValues("id", tun.ID(), "dest", dest)
 	for {
 		conn, err := tun.Accept()
@@ -182,7 +184,7 @@ func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, des
 
 		go func() {
 			ctx := log.IntoContext(ctx, connLogger)
-			err := handleConn(ctx, dest, dialer, conn)
+			err := handleConn(ctx, dest, protocol, dialer, conn)
 			if err == nil || errors.Is(err, net.ErrClosed) {
 				connLogger.Info("Connection closed")
 				return
@@ -193,11 +195,19 @@ func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, des
 	}
 }
 
-func handleConn(ctx context.Context, dest string, dialer Dialer, conn net.Conn) error {
+func handleConn(ctx context.Context, dest string, protocol string, dialer Dialer, conn net.Conn) error {
 	log := log.FromContext(ctx)
 	next, err := dialer.DialContext(ctx, "tcp", dest)
 	if err != nil {
 		return err
+	}
+
+	// Support HTTPS backends
+	if protocol == "HTTPS" {
+		next = tls.Client(next, &tls.Config{
+			ServerName:         dest,
+			InsecureSkipVerify: true,
+		})
 	}
 
 	var g errgroup.Group

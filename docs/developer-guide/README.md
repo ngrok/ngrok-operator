@@ -14,7 +14,7 @@ Have a look at the architecture guide on the internal workings of the ingress co
 Both of these can be obtained via [nix-direnv](https://github.com/nix-community/nix-direnv), which will automatically configure your shell for you.
 
 - A k8s cluster is available via your kubectl client. This can be a remote cluster or a local cluster like [minikube](https://minikube.sigs.k8s.io/docs/start/)
-  - NOTE: Depending on your cluster, you may have to take additional steps to make the image available. For example with minikube, you may need to run `eval $(minikube docker-env)` to make the image available to the cluster.
+  - NOTE: Depending on your cluster, you may have to take additional steps to make the image available. For example with minikube, you may need to run `eval $(minikube docker-env)` in each terminal session to make the image from `make deploy` available to the cluster.
 
 ### Setup
 
