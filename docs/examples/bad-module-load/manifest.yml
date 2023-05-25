@@ -25,7 +25,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-    - host: test-ing1.ngrok.io
+    - host: test-ing1.ngrok.app
       http:
         paths:
           - path: /working

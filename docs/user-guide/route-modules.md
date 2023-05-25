@@ -5,29 +5,30 @@ ngrok's Cloud Edge [Modules](https://ngrok.com/docs/cloud-edge/modules/) allow y
 
 <!-- TOC depthfrom:2 -->
 
-- [Design](#design)
+- [Modules](#modules)
+  - [Design](#design)
     - [Reusable](#reusable)
     - [Composable](#composable)
     - [RBAC](#rbac)
-- [Supported Modules](#supported-modules)
+  - [Supported Modules](#supported-modules)
     - [Circuit Breaker](#circuit-breaker)
     - [Compression](#compression)
-        - [Enabled](#enabled)
-        - [Disabled](#disabled)
+      - [Enabled](#enabled)
+      - [Disabled](#disabled)
     - [Headers](#headers)
-        - [Request](#request)
-        - [Response](#response)
+      - [Request](#request)
+      - [Response](#response)
     - [IP Restrictions](#ip-restrictions)
     - [OAuth](#oauth)
-        - [Ngrok Managed OAuth Application](#ngrok-managed-oauth-application)
-            - [Google](#google)
-        - [User Managed OAuth Application](#user-managed-oauth-application)
-            - [Google](#google)
-    - [OpenID Connect OIDC](#openid-connect-oidc)
+      - [Ngrok Managed OAuth Application](#ngrok-managed-oauth-application)
+        - [Google](#google)
+      - [User Managed OAuth Application](#user-managed-oauth-application)
+        - [Google](#google-1)
+    - [OpenID Connect (OIDC)](#openid-connect-oidc)
     - [SAML](#saml)
     - [TLS Termination](#tls-termination)
     - [Webhook Verification](#webhook-verification)
-- [Examples](#examples)
+  - [Examples](#examples)
     - [Configuring Multiple Modules](#configuring-multiple-modules)
 
 <!-- /TOC -->
@@ -457,7 +458,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-  - host: <my-host>.ngrok.io
+  - host: <my-host>.ngrok.app
     http:
       paths:
       - path: /
