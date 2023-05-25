@@ -59,7 +59,7 @@ metadata:
   labels:
     app: https-echo-app
   annotations:
-    k8s.ngrok.com/app-protocols: '{"https-echo-app-tls-port":"HTTPS","https-echo-app-plain-port":"HTTP"}'
+    k8s.ngrok.com/app-protocols: '{"https-echo-app-tls-port":"hTTPS","https-echo-app-plain-port":"http"}'
 spec:
   ports:
   - name: https-echo-app-plain-port

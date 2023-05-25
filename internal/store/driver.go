@@ -559,14 +559,17 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 			m := map[string]string{}
 			err := json.Unmarshal([]byte(annotation), &m)
 			if err != nil {
-				return "", fmt.Errorf("could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
+				return "", fmt.Errorf("Could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
 			}
 
 			if protocol, ok := m[portName]; ok {
 				d.log.V(3).Info("Found protocol for port name", "protocol", protocol, "namespace", service.Namespace, "service", service.Name)
-				// only allow "HTTPS" through, otherwise return the default "HTTP"
-				if protocol == "HTTPS" {
-					return protocol, nil
+				// only allow cases through where we are sure of intent
+				switch upperProto := strings.ToUpper(protocol); upperProto {
+				case "HTTP", "HTTPS":
+					return upperProto, nil
+				default:
+					return "", fmt.Errorf("Unhandled protocol annotation: '%s', must be 'HTTP' or 'HTTPS'. From: %s service: %s", upperProto, service.Namespace, service.Name)
 				}
 			}
 		}
