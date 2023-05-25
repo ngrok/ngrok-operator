@@ -166,6 +166,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 	}
 
 	if err = r.reconcileRoutes(ctx, edge, remoteEdge); err != nil {
+		r.Recorder.Event(edge, v1.EventTypeWarning, "RouteReconcileFailed", err.Error())
 		return err
 	}
 

@@ -37,11 +37,10 @@ type Driver struct {
 	reentranceFlag        int64
 	bypassReentranceCheck bool
 	customMetadata        string
-	recorder              record.EventRecorder
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
-func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, recorder record.EventRecorder) *Driver {
+func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string) *Driver {
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
@@ -49,7 +48,6 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 		cacheStores: cacheStores,
 		log:         logger,
 		scheme:      scheme,
-		recorder:    recorder,
 	}
 }
 
@@ -394,7 +392,6 @@ func (d *Driver) calculateHTTPSEdges(domains []ingressv1alpha1.Domain) ([]ingres
 			if err != nil {
 				d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
 				module_load_failure = true
-				d.recorder.Event(&edge, corev1.EventTypeWarning, "NgrokModuleLoadFailure", err.Error())
 			}
 
 			// Set edge specific modules
