@@ -40,7 +40,7 @@ For custom domains, the domain resource contains the CNAME target value that nee
 Status:
   loadBalancer:
     ingress:
-      hostname:  12jkh25.cname.ngrok.io
+      hostname:  12jkh25.cname.ngrok.app
 ```
 
 From here you can create the DNS record and everything should work as expected. To automate this fully though, see the [example on integrating with external-dns](../examples/external-dns.md).
