@@ -457,7 +457,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-  - host: <my-host>.ngrok.io
+  - host: <my-host>.ngrok.app
     http:
       paths:
       - path: /

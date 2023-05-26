@@ -103,7 +103,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-  - host: YOUR-CUSTOM-SUBDOMAIN-consul-ngrok-demo.ngrok.io
+  - host: YOUR-CUSTOM-SUBDOMAIN-consul-ngrok-demo.ngrok.app
     http:
       paths:
       - path: /
@@ -119,7 +119,7 @@ spec:
 Once applied, your domain should be available almost instantaneously! Open your hostname in a browser and you should see the Consul counter application.
 
 ```bash
-open YOUR-CUSTOM-SUBDOMAIN-consul-ngrok-demo.ngrok.io
+open YOUR-CUSTOM-SUBDOMAIN-consul-ngrok-demo.ngrok.app
 ```
 
 Stay tuned and next week we'll expose the Consul Dashboard protected by google oauth!

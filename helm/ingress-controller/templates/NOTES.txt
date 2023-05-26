@@ -28,7 +28,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-  - host: {{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.io
+  - host: {{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.app
     http:
       paths:
       - path: /
@@ -40,7 +40,7 @@ spec:
               number: {{ $portMap.port }}
 --------------------------------------------------------------------------------
 Applying this manifest will make the service {{ $service.metadata.name | quote }}
-available on the public internet at "https://{{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.io/".
+available on the public internet at "https://{{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.app/".
         {{- end }}
       {{- end }}
     {{- end }}

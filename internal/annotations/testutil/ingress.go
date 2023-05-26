@@ -16,7 +16,7 @@ func NewIngress() *networking.Ingress {
 		Spec: networking.IngressSpec{
 			Rules: []networking.IngressRule{
 				{
-					Host: "test.ngrok.io",
+					Host: "test.ngrok.app",
 					IngressRuleValue: networking.IngressRuleValue{
 						HTTP: &networking.HTTPIngressRuleValue{
 							Paths: []networking.HTTPIngressPath{
