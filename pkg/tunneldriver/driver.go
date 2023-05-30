@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -107,7 +108,7 @@ func caCerts() (*x509.CertPool, error) {
 
 // CreateTunnel creates and starts a new tunnel in a goroutine. If a tunnel with the same name already exists,
 // it will be stopped and replaced with a new tunnel unless the labels match.
-func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels map[string]string, destination string) error {
+func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels map[string]string, backend *ingressv1alpha1.BackendConfig, destination string) error {
 	log := log.FromContext(ctx)
 
 	if tun, ok := td.tunnels[name]; ok {
@@ -125,8 +126,7 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels ma
 		return err
 	}
 	td.tunnels[name] = tun
-	protocol := labels["k8s.ngrok.com/protocol"]
-	go handleConnections(ctx, &net.Dialer{}, tun, destination, protocol)
+	go handleConnections(ctx, &net.Dialer{}, tun, destination, backend.Protocol)
 	return nil
 }
 
@@ -166,7 +166,7 @@ func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination 
 }
 
 func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, dest string, protocol string) {
-	logger := log.FromContext(ctx).WithValues("id", tun.ID(), "dest", dest)
+	logger := log.FromContext(ctx).WithValues("id", tun.ID(), "protocol", protocol, "dest", dest)
 	for {
 		conn, err := tun.Accept()
 		if err != nil {

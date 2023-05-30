@@ -44,6 +44,12 @@ spec:
           spec:
             description: TunnelSpec defines the desired state of Tunnel
             properties:
+              backend:
+                description: The configuration for backend connections to services
+                properties:
+                  protocol:
+                    type: string
+                type: object
               forwardsTo:
                 description: ForwardsTo is the name and port of the service to forward
                   traffic to

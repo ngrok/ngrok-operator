@@ -417,7 +417,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 						}
 
 						serviceName := httpIngressPath.Backend.Service.Name
-						servicePort, protocol, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, namespace)
+						servicePort, _, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, namespace)
 						if err != nil {
 							d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
 							continue
@@ -427,7 +427,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 							Match:     httpIngressPath.Path,
 							MatchType: matchType,
 							Backend: ingressv1alpha1.TunnelGroupBackend{
-								Labels: d.backendToLabelMap(namespace, serviceName, servicePort, protocol),
+								Labels: d.backendToLabelMap(namespace, serviceName, servicePort),
 							},
 							CircuitBreaker:      modSet.Modules.CircuitBreaker,
 							Compression:         modSet.Modules.Compression,
@@ -484,7 +484,10 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 					},
 					Spec: ingressv1alpha1.TunnelSpec{
 						ForwardsTo: tunnelAddr,
-						Labels:     d.backendToLabelMap(namespace, serviceName, servicePort, protocol),
+						Labels:     d.backendToLabelMap(namespace, serviceName, servicePort),
+						BackendConfig: &ingressv1alpha1.BackendConfig{
+							Protocol: protocol,
+						},
 					},
 				}
 			}
@@ -578,11 +581,10 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 }
 
 // Generates a labels map for matching ngrok Routes to Agent Tunnels
-func (d *Driver) backendToLabelMap(namespace, serviceName string, port int32, protocol string) map[string]string {
+func (d *Driver) backendToLabelMap(namespace, serviceName string, port int32) map[string]string {
 	return map[string]string{
 		"k8s.ngrok.com/namespace": namespace,
 		"k8s.ngrok.com/service":   serviceName,
 		"k8s.ngrok.com/port":      strconv.Itoa(int(port)),
-		"k8s.ngrok.com/protocol":  protocol,
 	}
 }

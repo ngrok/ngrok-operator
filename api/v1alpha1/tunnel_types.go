@@ -42,6 +42,15 @@ type TunnelSpec struct {
 
 	// Labels are key/value pairs that are attached to the tunnel
 	Labels map[string]string `json:"labels,omitempty"`
+
+	// The configuration for backend connections to services
+	BackendConfig *BackendConfig `json:"backend,omitempty"`
+}
+
+// BackendConfig defines the configuration for backend connections to services.
+// This can be extended to include ServerName, InsecureSkipVerify, etc. down the road.
+type BackendConfig struct {
+	Protocol string `json:"protocol,omitempty"`
 }
 
 // TunnelStatus defines the observed state of Tunnel
