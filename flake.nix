@@ -18,6 +18,7 @@
           kubernetes-helm
           jq
           yq
+          graphite-cli
         ];
       };
     }));
