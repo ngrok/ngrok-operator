@@ -30,6 +30,7 @@ import (
 	"reflect"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -192,6 +193,18 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 
 	// TODO: clean this up. This is way too much nesting
 	for i, routeSpec := range edge.Spec.Routes {
+
+    if routeSpec.IPRestriction != nil {
+			if err := routeModuleUpdater.ipPolicyResolver.validateIPPolicyNames(ctx, edge.Namespace, routeSpec.IPRestriction.IPPolicies); err != nil {
+				if apierrors.IsNotFound(err) {
+					r.Recorder.Eventf(edge, v1.EventTypeWarning, "FailedValidate", "Could not validate ip restriction: %v", err)
+					continue
+				}
+
+				return err
+			}
+		}
+    
 		match := r.getMatchingRouteFromEdgeStatus(edge, routeSpec)
 		var route *ngrok.HTTPSEdgeRoute
 		if match == nil {
