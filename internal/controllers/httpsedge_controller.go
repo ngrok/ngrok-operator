@@ -194,7 +194,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 	// TODO: clean this up. This is way too much nesting
 	for i, routeSpec := range edge.Spec.Routes {
 
-    if routeSpec.IPRestriction != nil {
+		if routeSpec.IPRestriction != nil {
 			if err := routeModuleUpdater.ipPolicyResolver.validateIPPolicyNames(ctx, edge.Namespace, routeSpec.IPRestriction.IPPolicies); err != nil {
 				if apierrors.IsNotFound(err) {
 					r.Recorder.Eventf(edge, v1.EventTypeWarning, "FailedValidate", "Could not validate ip restriction: %v", err)
@@ -204,7 +204,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 				return err
 			}
 		}
-    
+
 		match := r.getMatchingRouteFromEdgeStatus(edge, routeSpec)
 		var route *ngrok.HTTPSEdgeRoute
 		if match == nil {
