@@ -188,6 +188,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		secretResolver:   secretResolver{r.Client},
 	}
 
+	edgeRoutes := r.NgrokClientset.HTTPSEdgeRoutes()
+
 	// TODO: clean this up. This is way too much nesting
 	for i, routeSpec := range edge.Spec.Routes {
 		match := r.getMatchingRouteFromEdgeStatus(edge, routeSpec)
@@ -200,7 +202,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 				Match:     routeSpec.Match,
 				MatchType: routeSpec.MatchType,
 			}
-			route, err = r.NgrokClientset.HTTPSEdgeRoutes().Create(ctx, req)
+			route, err = edgeRoutes.Create(ctx, req)
 		} else {
 			// Otherwise, update the current route to disable its backend
 			req := &ngrok.HTTPSEdgeRouteUpdate{
@@ -209,7 +211,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 				Match:     routeSpec.Match,
 				MatchType: routeSpec.MatchType,
 			}
-			route, err = r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, req)
+			route, err = edgeRoutes.Update(ctx, req)
 		}
 		if err != nil {
 			return err
@@ -246,7 +248,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 				BackendID: backend.ID,
 			},
 		}
-		route, err = r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, req)
+		route, err = edgeRoutes.Update(ctx, req)
 		if err != nil {
 			return err
 		}
@@ -270,7 +272,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		}
 		if !found {
 			r.Log.Info("Deleting route", "edgeID", edge.Status.ID, "routeID", remoteRoute.ID)
-			if err := r.NgrokClientset.HTTPSEdgeRoutes().Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edge.Status.ID, ID: remoteRoute.ID}); err != nil {
+			if err := edgeRoutes.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edge.Status.ID, ID: remoteRoute.ID}); err != nil {
 				return err
 			}
 		}
