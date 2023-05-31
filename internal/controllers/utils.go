@@ -52,8 +52,8 @@ type ipPolicyResolver struct {
 
 func (r *ipPolicyResolver) validateIPPolicyNames(ctx context.Context, namespace string, namesOrIds []string) error {
 	for _, nameOrId := range namesOrIds {
-		if strings.HasPrefix(nameOrId, "ipp_") && len(nameOrId) == 31 { // TODO better validate
-			// assume this is direct reference to an ngrok object, skip it for now
+		if strings.HasPrefix(nameOrId, "ipp_") && len(nameOrId) == 31 {
+			// assume this is direct reference to an ngrok object (e.g. by ID), skip it for now
 			continue
 		}
 

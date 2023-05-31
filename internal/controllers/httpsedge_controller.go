@@ -199,7 +199,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		if routeSpec.IPRestriction != nil {
 			if err := routeModuleUpdater.ipPolicyResolver.validateIPPolicyNames(ctx, edge.Namespace, routeSpec.IPRestriction.IPPolicies); err != nil {
 				if apierrors.IsNotFound(err) {
-					r.Recorder.Eventf(edge, v1.EventTypeWarning, "Validate", "Could not validate ip restriction: ", err)
+					r.Recorder.Eventf(edge, v1.EventTypeWarning, "FailedValidate", "Could not validate ip restriction: %w", err)
 				}
 
 				return err
