@@ -190,57 +190,72 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 
 	// TODO: clean this up. This is way too much nesting
 	for i, routeSpec := range edge.Spec.Routes {
-		backend, err := tunnelGroupReconciler.findOrCreate(ctx, routeSpec.Backend)
-		if err != nil {
-			return err
-		}
-
 		match := r.getMatchingRouteFromEdgeStatus(edge, routeSpec)
 		var route *ngrok.HTTPSEdgeRoute
 		if match == nil {
-			r.Log.Info("Creating new route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
+			r.Log.Info("Creating new route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
 			// This is a new route, so we need to create it
 			req := &ngrok.HTTPSEdgeRouteCreate{
 				EdgeID:    edge.Status.ID,
 				Match:     routeSpec.Match,
 				MatchType: routeSpec.MatchType,
-				Backend: &ngrok.EndpointBackendMutate{
-					BackendID: backend.ID,
-				},
 			}
 			route, err = r.NgrokClientset.HTTPSEdgeRoutes().Create(ctx, req)
 		} else {
-			r.Log.Info("Updating route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
-			// This is an existing route, so we need to update it
+			// Otherwise, update the current route to disable its backend
 			req := &ngrok.HTTPSEdgeRouteUpdate{
 				EdgeID:    edge.Status.ID,
 				ID:        match.ID,
 				Match:     routeSpec.Match,
 				MatchType: routeSpec.MatchType,
-				Backend: &ngrok.EndpointBackendMutate{
-					BackendID: backend.ID,
-				},
 			}
 			route, err = r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, req)
 		}
 		if err != nil {
 			return err
 		}
+
+		// Update route status, sans backend
 		routeStatuses[i] = ingressv1alpha1.HTTPSEdgeRouteStatus{
 			ID:        route.ID,
 			URI:       route.URI,
 			Match:     route.Match,
 			MatchType: route.MatchType,
 		}
+
+		// Attempt to apply module updates for a given route
+		r.Log.Info("Evaluating route module updates", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
+		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
+			r.Recorder.Event(edge, v1.EventTypeWarning, "RouteModuleUpdateFailed", err.Error())
+			return err
+		}
+
+		// Route modules successfully updated, so now we can update the route with the specified backend
+		backend, err := tunnelGroupReconciler.findOrCreate(ctx, routeSpec.Backend)
+		if err != nil {
+			return err
+		}
+		r.Log.Info("Updating route backend", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
+
+		req := &ngrok.HTTPSEdgeRouteUpdate{
+			EdgeID:    edge.Status.ID,
+			ID:        match.ID,
+			Match:     routeSpec.Match,
+			MatchType: routeSpec.MatchType,
+			Backend: &ngrok.EndpointBackendMutate{
+				BackendID: backend.ID,
+			},
+		}
+		route, err = r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, req)
+		if err != nil {
+			return err
+		}
+
+		// Update route status with backend ID
 		if route.Backend != nil {
 			routeStatuses[i].Backend = ingressv1alpha1.TunnelGroupBackendStatus{
 				ID: route.Backend.Backend.ID,
 			}
-		}
-
-		// Update all route modules for a given route
-		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
-			return err
 		}
 	}
 
