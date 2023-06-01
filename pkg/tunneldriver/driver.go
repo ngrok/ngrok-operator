@@ -126,7 +126,11 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels ma
 		return err
 	}
 	td.tunnels[name] = tun
-	go handleConnections(ctx, &net.Dialer{}, tun, destination, backend.Protocol)
+	protocol := ""
+	if backend != nil {
+		protocol = backend.Protocol
+	}
+	go handleConnections(ctx, &net.Dialer{}, tun, destination, protocol)
 	return nil
 }
 
