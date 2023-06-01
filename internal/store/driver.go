@@ -547,7 +547,7 @@ func (d *Driver) getBackendServicePort(backendSvc netv1.IngressServiceBackend, n
 func (d *Driver) findServicesPort(service *corev1.Service, backendSvcPort netv1.ServiceBackendPort) (*corev1.ServicePort, error) {
 	for _, port := range service.Spec.Ports {
 		if (backendSvcPort.Number > 0 && port.Port == backendSvcPort.Number) || port.Name == backendSvcPort.Name {
-			d.log.V(3).Info("Found matching port for service", service.Name, "namespace", service.Namespace, "port.name", port.Name, "port.number", port.Port)
+			d.log.V(3).Info("Found matching port for service", "namespace", service.Namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
 			return &port, nil
 		}
 	}
