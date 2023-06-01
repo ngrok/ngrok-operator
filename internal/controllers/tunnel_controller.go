@@ -116,7 +116,7 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	r.Recorder.Event(tunnel, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating tunnel %s", tunnelName))
-	err := r.TunnelDriver.CreateTunnel(ctx, tunnelName, tunnel.Spec.Labels, tunnel.Spec.ForwardsTo)
+	err := r.TunnelDriver.CreateTunnel(ctx, tunnelName, tunnel.Spec.Labels, tunnel.Spec.BackendConfig, tunnel.Spec.ForwardsTo)
 	if err != nil {
 		r.Recorder.Event(tunnel, v1.EventTypeWarning, "CreateError", fmt.Sprintf("Failed to create tunnel %s: %s", tunnelName, err.Error()))
 		return ctrl.Result{}, err

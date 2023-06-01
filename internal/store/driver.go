@@ -417,7 +417,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 						}
 
 						serviceName := httpIngressPath.Backend.Service.Name
-						servicePort, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, namespace)
+						servicePort, _, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, namespace)
 						if err != nil {
 							d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
 							continue
@@ -469,7 +469,7 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 				}
 
 				serviceName := path.Backend.Service.Name
-				servicePort, err := d.getBackendServicePort(*path.Backend.Service, namespace)
+				servicePort, protocol, err := d.getBackendServicePort(*path.Backend.Service, namespace)
 				if err != nil {
 					d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
 				}
@@ -485,6 +485,9 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 					Spec: ingressv1alpha1.TunnelSpec{
 						ForwardsTo: tunnelAddr,
 						Labels:     d.backendToLabelMap(namespace, serviceName, servicePort),
+						BackendConfig: &ingressv1alpha1.BackendConfig{
+							Protocol: protocol,
+						},
 					},
 				}
 			}
@@ -522,26 +525,59 @@ func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c clie
 	return status
 }
 
-func (d *Driver) getBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (int32, error) {
-	servicePort := backendSvc.Port.Number
-	if servicePort > 0 {
-		return servicePort, nil
-	}
-
-	d.log.V(3).Info("Searching service for named port", "namespace", namespace, "service", backendSvc.Name, "port.name", backendSvc.Port.Name)
+func (d *Driver) getBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (int32, string, error) {
 	service, err := d.GetServiceV1(backendSvc.Name, namespace)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 
+	servicePort, err := d.findServicesPort(service, backendSvc.Port)
+	if err != nil {
+		return 0, "", err
+	}
+
+	protocol, err := d.getPortAnnotatedProtocol(service, servicePort.Name)
+	if err != nil {
+		return 0, "", err
+	}
+
+	return servicePort.Port, protocol, nil
+}
+
+func (d *Driver) findServicesPort(service *corev1.Service, backendSvcPort netv1.ServiceBackendPort) (*corev1.ServicePort, error) {
 	for _, port := range service.Spec.Ports {
-		if port.Name == backendSvc.Port.Name {
-			d.log.V(3).Info("Found named port for service", "namespace", namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
-			return port.Port, nil
+		if (backendSvcPort.Number > 0 && port.Port == backendSvcPort.Number) || port.Name == backendSvcPort.Name {
+			d.log.V(3).Info("Found matching port for service", "namespace", service.Namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
+			return &port, nil
 		}
 	}
+	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, backendSvcPort.Number, backendSvcPort.Name)
+}
 
-	return 0, fmt.Errorf("could not find named port for service %s", backendSvc.Name)
+func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName string) (string, error) {
+	if service.Annotations != nil {
+		annotation := service.Annotations["k8s.ngrok.com/app-protocols"]
+		if annotation != "" {
+			d.log.V(3).Info("Annotated app-protocols found", "annotation", annotation, "namespace", service.Namespace, "service", service.Name, "portName", portName)
+			m := map[string]string{}
+			err := json.Unmarshal([]byte(annotation), &m)
+			if err != nil {
+				return "", fmt.Errorf("Could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
+			}
+
+			if protocol, ok := m[portName]; ok {
+				d.log.V(3).Info("Found protocol for port name", "protocol", protocol, "namespace", service.Namespace, "service", service.Name)
+				// only allow cases through where we are sure of intent
+				switch upperProto := strings.ToUpper(protocol); upperProto {
+				case "HTTP", "HTTPS":
+					return upperProto, nil
+				default:
+					return "", fmt.Errorf("Unhandled protocol annotation: '%s', must be 'HTTP' or 'HTTPS'. From: %s service: %s", upperProto, service.Namespace, service.Name)
+				}
+			}
+		}
+	}
+	return "HTTP", nil
 }
 
 // Generates a labels map for matching ngrok Routes to Agent Tunnels

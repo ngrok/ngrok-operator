@@ -111,7 +111,8 @@ var _ = Describe("Driver", func() {
 				i2 := NewTestIngressV1("test-ingress-2", "test-namespace")
 				ic1 := NewTestIngressClass("test-ingress-class", true, true)
 				ic2 := NewTestIngressClass("test-ingress-class-2", true, true)
-				obs := []runtime.Object{&ic1, &ic2, &i1, &i2}
+				s := NewTestServiceV1("example", "test-namespace")
+				obs := []runtime.Object{&ic1, &ic2, &i1, &i2, &s}
 				c := fake.NewFakeClientWithScheme(scheme, obs...)
 
 				for _, obj := range obs {
