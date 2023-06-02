@@ -207,9 +207,10 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 
 		match := r.getMatchingRouteFromEdgeStatus(edge, routeSpec)
 		var route *ngrok.HTTPSEdgeRoute
+		// Search for the route by edge status. 
 		if match == nil {
 			r.Log.Info("Creating new route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
-			// This is a new route, so we need to create it
+			// Route not found, so we need to create it. Note that we aren't setting the route's backend here yet.
 			req := &ngrok.HTTPSEdgeRouteCreate{
 				EdgeID:    edge.Status.ID,
 				Match:     routeSpec.Match,
@@ -217,7 +218,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			}
 			route, err = edgeRoutes.Create(ctx, req)
 		} else {
-			// Otherwise, update the current route to disable its backend
+			r.Log.Info("Route found, disabling backend to prepare for module updates", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
+			// If the route is found, update the it to disable its backend
 			req := &ngrok.HTTPSEdgeRouteUpdate{
 				EdgeID:    edge.Status.ID,
 				ID:        match.ID,
@@ -238,19 +240,19 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			MatchType: route.MatchType,
 		}
 
-		// Attempt to apply module updates for a given route
-		r.Log.Info("Evaluating route module updates", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
+		// With the route now created and backend disabled, we now attempt to apply module updates for a given route
+		r.Log.Info("Updating route modules", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
 		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
 			r.Recorder.Event(edge, v1.EventTypeWarning, "RouteModuleUpdateFailed", err.Error())
 			return err
 		}
 
-		// Route modules successfully updated, so now we can update the route with the specified backend
+		// The route modules were successfully applied, so now we update the route with its specified backend
 		backend, err := tunnelGroupReconciler.findOrCreate(ctx, routeSpec.Backend)
 		if err != nil {
 			return err
 		}
-		r.Log.Info("Updating route backend", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
+		r.Log.Info("Setting route backend", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
 
 		req := &ngrok.HTTPSEdgeRouteUpdate{
 			EdgeID:    edge.Status.ID,
