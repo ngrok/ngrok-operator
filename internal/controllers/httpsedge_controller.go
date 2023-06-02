@@ -209,8 +209,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		var route *ngrok.HTTPSEdgeRoute
 		// Now we go ahead and create the route if it doesn't exist, or find the existing route.
 		// It's important to note here that we are intentionally ommiting the `route.Backend` for new routes, and
-		//  removing it from existing routes. This is because we depend on the route modules being successfully applied
-		//  before we apply the new route. This ensures that any route with a backend is considered to be successfully configured.
+		//  removing it from existing routes. The success or failure of applying a route's modules is then strongly 
+		//  linked the state of its backend. Thus, any route with a backend is considered properly configured.
 		//  See https://github.com/ngrok/kubernetes-ingress-controller/issues/208 for additional context.
 		if match == nil {
 			r.Log.Info("Creating new route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
