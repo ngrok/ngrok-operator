@@ -234,7 +234,6 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			return err
 		}
 
-		// With the route in hand, we now update its status
 		routeStatuses[i] = ingressv1alpha1.HTTPSEdgeRouteStatus{
 			ID:        route.ID,
 			URI:       route.URI,
@@ -242,7 +241,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			MatchType: route.MatchType,
 		}
 
-		// With the route now created and backend disabled, we now attempt to apply module updates for a given route
+		// With the route properly staged, we now attempt to apply its module updates
 		r.Log.Info("Updating route modules", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
 		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
 			r.Recorder.Event(edge, v1.EventTypeWarning, "RouteModuleUpdateFailed", err.Error())
