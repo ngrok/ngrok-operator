@@ -207,10 +207,13 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 
 		match := r.getMatchingRouteFromEdgeStatus(edge, routeSpec)
 		var route *ngrok.HTTPSEdgeRoute
-		// Search for the route by edge status. 
+		// Now we go ahead and create the route if it doesn't exist, or find the existing route.
+		// It's important to note here that we are intentionally ommiting the `route.Backend` for new routes, and
+		//  removing it from existing routes. This is because we depend on the route modules being successfully applied
+		//	before we apply the new route. This ensures that any route with a backend is considered to be successfully configured.
+		//  See https://github.com/ngrok/kubernetes-ingress-controller/issues/208 for additional context.
 		if match == nil {
 			r.Log.Info("Creating new route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
-			// Route not found, so we need to create it. Note that we aren't setting the route's backend here yet.
 			req := &ngrok.HTTPSEdgeRouteCreate{
 				EdgeID:    edge.Status.ID,
 				Match:     routeSpec.Match,
@@ -219,7 +222,6 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			route, err = edgeRoutes.Create(ctx, req)
 		} else {
 			r.Log.Info("Route found, disabling backend to prepare for module updates", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
-			// If the route is found, update the it to disable its backend
 			req := &ngrok.HTTPSEdgeRouteUpdate{
 				EdgeID:    edge.Status.ID,
 				ID:        match.ID,
@@ -232,7 +234,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			return err
 		}
 
-		// Update route status, sans backend
+		// With the route in hand, we now update its status
 		routeStatuses[i] = ingressv1alpha1.HTTPSEdgeRouteStatus{
 			ID:        route.ID,
 			URI:       route.URI,
@@ -268,7 +270,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			return err
 		}
 
-		// Update route status with backend ID
+		// With the route modules successfully applied and the edge updated, we now update the route's backend status
 		if route.Backend != nil {
 			routeStatuses[i].Backend = ingressv1alpha1.TunnelGroupBackendStatus{
 				ID: route.Backend.Backend.ID,
