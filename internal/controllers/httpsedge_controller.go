@@ -122,8 +122,8 @@ func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Configuration errors can't be resolved, so don't requeue
 	case errors.IsErrInvalidConfiguration(err):
 		return ctrl.Result{}, nil
+	// No error or is a retryable error, so return as normal
 	default:
-		// No error or is a retryable error, so return as normal
 		return ctrl.Result{}, err
 	}
 }
@@ -264,7 +264,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		// TODO: Do an entropy check here to avoid unnecessary updates
 		req := &ngrok.HTTPSEdgeRouteUpdate{
 			EdgeID:    edge.Status.ID,
-			ID:        match.ID,
+			ID:        route.ID,
 			Match:     routeSpec.Match,
 			MatchType: routeSpec.MatchType,
 			Backend: &ngrok.EndpointBackendMutate{
