@@ -117,7 +117,15 @@ func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	return ctrl.Result{}, r.reconcileEdge(ctx, edge)
+	err := r.reconcileEdge(ctx, edge)
+	switch {
+	// Configuration errors can't be resolved, so don't requeue
+	case errors.IsErrInvalidConfiguration(err):
+		return ctrl.Result{}, nil
+	default:
+		// No error or is a retryable error, so return as normal
+		return ctrl.Result{}, err
+	}
 }
 
 func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
@@ -200,17 +208,16 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 					r.Recorder.Eventf(edge, v1.EventTypeWarning, "FailedValidate", "Could not validate ip restriction: %v", err)
 					continue
 				}
-
-				return err
+				return errors.NewErrInvalidConfiguration(err.Error())
 			}
 		}
 
 		match := r.getMatchingRouteFromEdgeStatus(edge, routeSpec)
 		var route *ngrok.HTTPSEdgeRoute
-		// Now we go ahead and create the route if it doesn't exist, or find the existing route.
-		// It's important to note here that we are intentionally ommiting the `route.Backend` for new routes, and
-		//  removing it from existing routes. The success or failure of applying a route's modules is then strongly 
-		//  linked the state of its backend. Thus, any route with a backend is considered properly configured.
+		// Now we go ahead and create the route if it doesn't exist.
+		// It's important to note here that we are intentionally ommiting the `route.Backend` for new routes.
+		//  The success or failure of applying a route's modules is then strongly linked the state of its backend.
+		//  Thus, any route with a backend is considered properly configured.
 		//  See https://github.com/ngrok/kubernetes-ingress-controller/issues/208 for additional context.
 		if match == nil {
 			r.Log.Info("Creating new route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
@@ -220,32 +227,31 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 				MatchType: routeSpec.MatchType,
 			}
 			route, err = edgeRoutes.Create(ctx, req)
-		} else {
-			r.Log.Info("Route found, disabling backend to prepare for module updates", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
-			req := &ngrok.HTTPSEdgeRouteUpdate{
-				EdgeID:    edge.Status.ID,
-				ID:        match.ID,
-				Match:     routeSpec.Match,
-				MatchType: routeSpec.MatchType,
+
+			// Update status for newly created route
+			routeStatuses[i] = ingressv1alpha1.HTTPSEdgeRouteStatus{
+				ID:        route.ID,
+				URI:       route.URI,
+				Match:     route.Match,
+				MatchType: route.MatchType,
 			}
-			route, err = edgeRoutes.Update(ctx, req)
+		} else {
+			req := &ngrok.EdgeRouteItem{
+				ID:     match.ID,
+				EdgeID: edge.Status.ID,
+			}
+			route, err = edgeRoutes.Get(ctx, req)
 		}
 		if err != nil {
 			return err
 		}
 
-		routeStatuses[i] = ingressv1alpha1.HTTPSEdgeRouteStatus{
-			ID:        route.ID,
-			URI:       route.URI,
-			Match:     route.Match,
-			MatchType: route.MatchType,
-		}
-
 		// With the route properly staged, we now attempt to apply its module updates
-		r.Log.Info("Updating route modules", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
+		// TODO: Check if there are no updates to apply here to skip any unnecessary disruption
+		r.Log.Info("Applying route modules", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
 		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
 			r.Recorder.Event(edge, v1.EventTypeWarning, "RouteModuleUpdateFailed", err.Error())
-			return err
+			return errors.NewErrInvalidConfiguration(err.Error())
 		}
 
 		// The route modules were successfully applied, so now we update the route with its specified backend
@@ -253,8 +259,9 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		if err != nil {
 			return err
 		}
-		r.Log.Info("Setting route backend", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
+		r.Log.Info("Updating route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
 
+		// TODO: Do an entropy check here to avoid unnecessary updates
 		req := &ngrok.HTTPSEdgeRouteUpdate{
 			EdgeID:    edge.Status.ID,
 			ID:        match.ID,

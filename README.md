@@ -28,7 +28,7 @@
   </a>
 </p>
 
-> _*Warning*_: Currently this project has an issue being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/208) which can cause the controller to provide ingress to a service even if it failed to configure an authentication module like Oauth on a particular route due to a configuration or intermittent error. Additionally, even when there aren't errors, the controller first sets up ingress and then applies route modules like Oauth immediately after, but there is a brief period where ingress without authentication is provided. This issue is being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/219). Until this issue is resolved, it's not recommended to use this with security sensitive applications.
+> _*Warning*_: The controller first sets up ingress and then applies route modules like Oauth immediately after, but there is a brief period where ingress without authentication is provided. This issue is being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/219). Until this issue is resolved, it's not recommended to use this with security sensitive applications.
 
 # ngrok Ingress Controller for Kubernetes
 

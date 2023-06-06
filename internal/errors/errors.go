@@ -135,3 +135,21 @@ func IsErrMissingRequiredSecret(err error) bool {
 	_, ok := err.(ErrMissingRequiredSecret)
 	return ok
 }
+
+type ErrInvalidConfiguration struct {
+	message string
+}
+
+func NewErrInvalidConfiguration(message string) ErrInvalidConfiguration {
+	return ErrInvalidConfiguration{message: message}
+}
+
+func (e ErrInvalidConfiguration) Error() string {
+	return fmt.Sprintf("invalid configuration: %s", e.message)
+}
+
+// IsErrInvalidConfiguration: Reflect: returns true if the error is a ErrInvalidConfiguration
+func IsErrInvalidConfiguration(err error) bool {
+	_, ok := err.(ErrInvalidConfiguration)
+	return ok
+}
