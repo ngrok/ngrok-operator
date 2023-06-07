@@ -252,17 +252,11 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
 			r.Recorder.Event(edge, v1.EventTypeWarning, "RouteModuleUpdateFailed", err.Error())
 
-			codes := make([]int, 0, 100)
-			for i := 400; i <= 500; i++ {
-				codes = append(codes, i)
-			}
-
-			// Ignore 400 error codes as unretryable
-			if ngrok.IsErrorCode(err, codes...) {
+			if errors.IsRetryable(err) {
+				return err
+			} else {
 				return errors.NewErrInvalidConfiguration(err)
 			}
-
-			return err
 		}
 
 		// The route modules were successfully applied, so now we update the route with its specified backend

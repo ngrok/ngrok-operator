@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ngrok/ngrok-api-go/v5"
 	netv1 "k8s.io/api/networking/v1"
 )
 
@@ -152,4 +153,18 @@ func (e ErrInvalidConfiguration) Error() string {
 func IsErrInvalidConfiguration(err error) bool {
 	_, ok := err.(ErrInvalidConfiguration)
 	return ok
+}
+
+func IsRetryable(err error) bool {
+	if IsErrInvalidConfiguration(err) {
+		return false
+	}
+
+	// Ignore 400 error codes as unretryable
+	codes := make([]int, 0, 100)
+	for i := 400; i <= 500; i++ {
+		codes = append(codes, i)
+	}
+
+	return !ngrok.IsErrorCode(err, codes...)
 }
