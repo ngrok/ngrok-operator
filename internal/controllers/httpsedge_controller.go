@@ -251,6 +251,17 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		r.Log.Info("Applying route modules", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
 		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
 			r.Recorder.Event(edge, v1.EventTypeWarning, "RouteModuleUpdateFailed", err.Error())
+
+			codes := make([]int, 0, 100)
+			for i := 400; i <= 500; i++ {
+				codes = append(codes, i)
+			}
+
+			// Ignore 400 error codes as unretryable
+			if ngrok.IsErrorCode(err, codes...) {
+				return errors.NewErrInvalidConfiguration(err)
+			}
+
 			return err
 		}
 
@@ -735,7 +746,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	if module == nil {
-		return errors.NewErrInvalidConfiguration("no OAuth provider found")
+		return errors.NewErrInvalidConfiguration(fmt.Errorf("no OAuth provider found"))
 	}
 
 	if reflect.DeepEqual(module, route.OAuth) {
