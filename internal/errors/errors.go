@@ -140,8 +140,8 @@ type ErrInvalidConfiguration struct {
 	message string
 }
 
-func NewErrInvalidConfiguration(message string) ErrInvalidConfiguration {
-	return ErrInvalidConfiguration{message: message}
+func NewErrInvalidConfiguration(cause error) ErrInvalidConfiguration {
+	return ErrInvalidConfiguration{message: cause.Error()}
 }
 
 func (e ErrInvalidConfiguration) Error() string {

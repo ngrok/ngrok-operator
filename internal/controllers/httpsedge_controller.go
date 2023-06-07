@@ -208,7 +208,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 					r.Recorder.Eventf(edge, v1.EventTypeWarning, "FailedValidate", "Could not validate ip restriction: %v", err)
 					continue
 				}
-				return errors.NewErrInvalidConfiguration(err.Error())
+				return err
 			}
 		}
 
@@ -227,14 +227,6 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 				MatchType: routeSpec.MatchType,
 			}
 			route, err = edgeRoutes.Create(ctx, req)
-
-			// Update status for newly created route
-			routeStatuses[i] = ingressv1alpha1.HTTPSEdgeRouteStatus{
-				ID:        route.ID,
-				URI:       route.URI,
-				Match:     route.Match,
-				MatchType: route.MatchType,
-			}
 		} else {
 			req := &ngrok.EdgeRouteItem{
 				ID:     match.ID,
@@ -246,12 +238,20 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			return err
 		}
 
+		// Update status for newly created route
+		routeStatuses[i] = ingressv1alpha1.HTTPSEdgeRouteStatus{
+			ID:        route.ID,
+			URI:       route.URI,
+			Match:     route.Match,
+			MatchType: route.MatchType,
+		}
+
 		// With the route properly staged, we now attempt to apply its module updates
 		// TODO: Check if there are no updates to apply here to skip any unnecessary disruption
 		r.Log.Info("Applying route modules", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
 		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
 			r.Recorder.Event(edge, v1.EventTypeWarning, "RouteModuleUpdateFailed", err.Error())
-			return errors.NewErrInvalidConfiguration(err.Error())
+			return err
 		}
 
 		// The route modules were successfully applied, so now we update the route with its specified backend
@@ -735,7 +735,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	if module == nil {
-		return fmt.Errorf("no OAuth provider configured")
+		return errors.NewErrInvalidConfiguration("no OAuth provider found")
 	}
 
 	if reflect.DeepEqual(module, route.OAuth) {
