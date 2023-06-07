@@ -1,19 +1,16 @@
-<p align="center">
+<p>
   <a href="https://ngrok.com">
-    <img src="docs/assets/images/ngrok-blue-lrg.png" alt="ngrok Logo" width="500" url="https://ngrok.com" />
+    <img src="docs/assets/images/ngrok-blue-lrg.png" alt="ngrok Logo" width="300" url="https://ngrok.com" />
   </a>
   <a href="https://kubernetes.io/">
-  <img src="docs/assets/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="250" />
+  <img src="docs/assets/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="150" />
   </a>
 </p>
 
-<p align="center">
+<p>
   <a href="https://github.com/ngrok/kubernetes-ingress-controller/actions?query=branch%3Amain+event%3Apush">
       <img src="https://github.com/ngrok/kubernetes-ingress-controller/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
   </a>
-  <!-- TODO: Add badges for things like docker build status, image pulls, helm build status, latest stable release version, etc -->
-</p>
-<p align="center">
   <a href="https://github.com/ngrok/kubernetes-ingress-controller/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"/>
   </a>
@@ -28,69 +25,75 @@
   </a>
 </p>
 
-> _*Warning*_: Currently this project has an issue being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/208) which can cause the controller to provide ingress to a service even if it failed to configure an authentication module like Oauth on a particular route due to a configuration or intermittent error. Additionally, even when there aren't errors, the controller first sets up ingress and then applies route modules like Oauth immediately after, but there is a brief period where ingress without authentication is provided. This issue is being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/219). Until this issue is resolved, it's not recommended to use this with security sensitive applications.
+# ngrok Kubernetes Ingress Controller
 
-# ngrok Ingress Controller for Kubernetes
+> As of today, the ngrok Ingress Controller only works with an ngrok Pro subscription or above. If you would like to test out the ngrok Ingress Controller with a free ngrok account, please [reach out to us via slack](https://ngrok.com/slack) and we will be happy to help.
 
-ngrok is a simplified API-first ingress-as-a-service that adds connectivity, security, and observability to your apps and services.
+Leverage [ngrok](https://ngrok.com/) for your [Kubernetes Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/). Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling.
 
-The ngrok Ingress Controller for Kubernetes is an open source controller for adding public and secure ingress traffic to your K8s services. If you’ve used ngrok in the past, you can think of the ingress controller as the ngrok agent built as an idiomatic K8s resource — available as a helm chart, configurable via K8s manifests, scalable for production usage, and leveraging Kubernetes best practices.
-
-The ngrok Ingress Controller for Kubernetes lets developers define public and secure ingress traffic to their K8s resources directly from the deployment manifest, without configuring low-level network primitives — like DNS, IPs, NAT, and VPCs — outside of their K8s cluster. This makes it easy to add global traffic with security and scalability into K8s resources regardless of the underlying network infrastructure.
-
-For more details on the internal architecture, see [here](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/developer-guide/README.md).
+[Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
 
 ## Installation
 
-> As of today, the ngrok Ingress Controller works only on ngrok accounts with the Pro subscription or above. If you would like to use the ngrok Ingress Controller with a free ngrok account, please [reach us out in our slack community](https://ngrok.com/slack) and we will be happy to help.
+### Helm
 
-The ngrok ingress controller is available as a helm chart. To add the ngrok helm chart repository, run:
+> **Note** We recommend using the Helm chart to install the controller for a better experience through changes.
 
-```bash
+Add the ngrok Ingress Controller Helm chart:
+
+```sh
 helm repo add ngrok https://ngrok.github.io/kubernetes-ingress-controller
 ```
 
-To install the latest version of the ngrok ingress controller, run the following command (setting the appropriate values for your environment):
+Then, install the latest version (setting the appropriate values for your environment):
 
-```bash
+```sh
 export NAMESPACE=[YOUR_K8S_NAMESPACE]
 export NGROK_AUTHTOKEN=[AUTHTOKEN]
 export NGROK_API_KEY=[API_KEY]
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+
+helm install ngrok/kubernetes-ingress-controller \
+  --generate-name \
   --namespace $NAMESPACE \
   --create-namespace \
   --set credentials.apiKey=$NGROK_API_KEY \
   --set credentials.authtoken=$NGROK_AUTHTOKEN
 ```
 
-**Note:** The `NGROK_API_KEY` and `NGROK_AUTHTOKEN` are used by your ingress controller to authenticate with ngrok for configuring and running your network ingress traffic at the edge. You can find these values in your [ngrok dashboard](https://dashboard.ngrok.com/get-started/setup).
+> **Note** The values for `NGROK_API_KEY` and `NGROK_AUTHTOKEN` can be found in your [ngrok dashboard](https://dashboard.ngrok.com/get-started/setup) and are used by your ingress controller to authenticate with ngrok for configuring and running your network ingress traffic at the edge.
+
+For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
+
+### YAML Manifests
+
+Apply the [sample combined manifest](manifest-bundle.yaml) from our repo:
+
+```sh
+kubectl apply -n ngrok-ingress-controller \
+  -f https://raw.githubusercontent.com/ngrok/kubernetes-ingress-controller/main/manifest-bundle.yaml
+```
+
+For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 
 ## Documentation
 
-You can find the full documentation for the ngrok ingress controller [here](./docs/README.md). You can also visit our comprehensive [get started tutorial in ngrok's official docs](https://ngrok.com/docs/using-ngrok-with/k8s/).
+You can find the full documentation for the ngrok Ingress Controller can be found [under the docs directory](./docs/README.md). Pull requests for corrections and additions are always welcomed.
 
-For more in depth guides, see:
+###  Guides and Tutorials
 - [Deployment Guide](./docs/deployment-guide/README.md): for installing the controller for the first time
 - [User Guide](./docs/user-guide/README.md): for an in depth view of the ngrok ingress configuration options and primitives
 - [Examples](./docs/examples/README.md): for examples of how to configure ingress in different scenarios (e.g. Hello World, Consul, OAuth, etc.)
 - [Developer Guide](./docs/developer-guide/README.md): for those interested in contributing to the project
 
-## Quickstart
 
-> As of today, the ngrok Ingress Controller works only on ngrok accounts with the Pro subscription or above. If you would like to use the ngrok Ingress Controller with a free ngrok account, please [reach us out in our slack community](https://ngrok.com/slack) and we will be happy to help.
+## Known Issues
 
-For a quick start, apply the [sample combined manifest](manifest-bundle.yaml) from our repo:
+> **Note** 
+>
+> This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads. 
 
-```bash
-kubectl apply -n ngrok-ingress-controller -f https://raw.githubusercontent.com/ngrok/kubernetes-ingress-controller/main/manifest-bundle.yaml
-```
-
-For a comprehensive, step-by-step quick start, check our [get started guide in ngrok's official docs](https://ngrok.com/docs/using-ngrok-with/k8s/).
-
-
-## Known Limitations
-
-1. This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads.
+1. The ngrok Ingress Controller requires a ngrok Pro or Enterprise subscription.
+1. Current issues of concern for production workloads are being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/208) and [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/219).
 
 ## Support
 
