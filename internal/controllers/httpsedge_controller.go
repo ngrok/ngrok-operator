@@ -118,13 +118,10 @@ func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	err := r.reconcileEdge(ctx, edge)
-	switch {
-	// Configuration errors can't be resolved, so don't requeue
-	case errors.IsErrInvalidConfiguration(err):
-		return ctrl.Result{}, nil
-	// No error or is a retryable error, so return as normal
-	default:
+	if errors.IsErrorReconcilable(err) {
 		return ctrl.Result{}, err
+	} else {
+		return ctrl.Result{}, nil
 	}
 }
 
@@ -251,12 +248,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		r.Log.Info("Applying route modules", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
 		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
 			r.Recorder.Event(edge, v1.EventTypeWarning, "RouteModuleUpdateFailed", err.Error())
-
-			if errors.IsRetryable(err) {
-				return err
-			} else {
-				return errors.NewErrInvalidConfiguration(err)
-			}
+			return err
 		}
 
 		// The route modules were successfully applied, so now we update the route with its specified backend
@@ -740,7 +732,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	if module == nil {
-		return errors.NewErrInvalidConfiguration(fmt.Errorf("no OAuth provider found"))
+		return errors.NewErrInvalidConfiguration(fmt.Errorf("no OAuth provider configured"))
 	}
 
 	if reflect.DeepEqual(module, route.OAuth) {

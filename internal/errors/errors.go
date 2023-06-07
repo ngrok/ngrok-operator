@@ -155,7 +155,11 @@ func IsErrInvalidConfiguration(err error) bool {
 	return ok
 }
 
-func IsRetryable(err error) bool {
+func IsErrorReconcilable(err error) bool {
+	if err == nil {
+		return true
+	}
+
 	if IsErrInvalidConfiguration(err) {
 		return false
 	}
