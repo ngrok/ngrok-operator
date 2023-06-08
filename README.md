@@ -27,7 +27,6 @@
 
 # ngrok Kubernetes Ingress Controller
 
-> As of today, the ngrok Ingress Controller only works with an ngrok Pro subscription or above. If you would like to test out the ngrok Ingress Controller with a free ngrok account, please [reach out to us via slack](https://ngrok.com/slack) and we will be happy to help.
 
 Leverage [ngrok](https://ngrok.com/) for your [Kubernetes Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/). Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling.
 
