@@ -139,15 +139,19 @@ func IsErrMissingRequiredSecret(err error) bool {
 }
 
 type ErrInvalidConfiguration struct {
-	message string
+	cause error
 }
 
-func NewErrInvalidConfiguration(cause error) ErrInvalidConfiguration {
-	return ErrInvalidConfiguration{message: cause.Error()}
+func NewErrInvalidConfiguration(cause error) error {
+	return ErrInvalidConfiguration{cause: cause}
 }
 
 func (e ErrInvalidConfiguration) Error() string {
-	return fmt.Sprintf("invalid configuration: %s", e.message)
+	return fmt.Sprintf("invalid configuration: %s", e.cause.Error())
+}
+
+func (e ErrInvalidConfiguration) Unwrap() error {
+	return e.cause
 }
 
 func IsErrorReconcilable(err error) bool {
