@@ -76,7 +76,7 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 
 ## Documentation
 
-You can find the full documentation for the ngrok Ingress Controller can be found [under the docs directory](./docs/README.md). Pull requests for corrections and additions are always welcomed.
+The full documentation for the ngrok Ingress Controller can be found [under the docs directory](./docs/README.md). Pull requests for corrections and additions are always welcomed.
 
 ###  Guides and Tutorials
 - [Deployment Guide](./docs/deployment-guide/README.md): for installing the controller for the first time
