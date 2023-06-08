@@ -36,7 +36,7 @@ Leverage [ngrok](https://ngrok.com/) for your [Kubernetes Ingress](https://kuber
 
 ### Helm
 
-> **Note** We recommend using the Helm chart to install the controller for a better experience through changes.
+> **Note** We recommend using the Helm chart to install the controller for a better experience for upgrades.
 
 Add the ngrok Ingress Controller Helm chart:
 
