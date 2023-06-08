@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -149,26 +150,19 @@ func (e ErrInvalidConfiguration) Error() string {
 	return fmt.Sprintf("invalid configuration: %s", e.message)
 }
 
-// IsErrInvalidConfiguration: Reflect: returns true if the error is a ErrInvalidConfiguration
-func IsErrInvalidConfiguration(err error) bool {
-	_, ok := err.(ErrInvalidConfiguration)
-	return ok
-}
-
 func IsErrorReconcilable(err error) bool {
 	if err == nil {
 		return true
 	}
 
-	if IsErrInvalidConfiguration(err) {
+	if errors.As(err, &ErrInvalidConfiguration{}) {
 		return false
 	}
 
-	// Ignore 400 error codes as unretryable
-	codes := make([]int, 0, 100)
-	for i := 400; i <= 500; i++ {
-		codes = append(codes, i)
+	var nerr *ngrok.Error
+	if errors.As(err, &nerr) {
+		return nerr.StatusCode >= 500
 	}
 
-	return !ngrok.IsErrorCode(err, codes...)
+	return true
 }
