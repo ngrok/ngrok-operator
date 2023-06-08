@@ -51,8 +51,7 @@ export NAMESPACE=[YOUR_K8S_NAMESPACE]
 export NGROK_AUTHTOKEN=[AUTHTOKEN]
 export NGROK_API_KEY=[API_KEY]
 
-helm install ngrok/kubernetes-ingress-controller \
-  --generate-name \
+helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
   --namespace $NAMESPACE \
   --create-namespace \
   --set credentials.apiKey=$NGROK_API_KEY \
