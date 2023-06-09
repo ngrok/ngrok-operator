@@ -90,7 +90,6 @@ The full documentation for the ngrok Ingress Controller can be found [under the 
 >
 > This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads. 
 
-1. The ngrok Ingress Controller requires a ngrok Pro or Enterprise subscription.
 1. Current issues of concern for production workloads are being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/208) and [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/219).
 
 ## Support
