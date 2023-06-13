@@ -2,6 +2,25 @@ apiVersion: v1
 entries:
   kubernetes-ingress-controller:
   - apiVersion: v2
+    appVersion: 0.8.0
+    created: "2023-06-13T19:31:01.052999001Z"
+    description: A Kubernetes ingress controller built using ngrok.
+    digest: 1680edec47078e6da75ce40d0b210e031773410a48a7047c5b2daaf5aea91c29
+    home: https://ngrok.com
+    icon: https://ngrok.com/static/img/brand/ngrok-favicon.svg
+    keywords:
+    - ngrok
+    - networking
+    - ingress
+    - edge
+    - api gateway
+    name: kubernetes-ingress-controller
+    sources:
+    - https://github.com/ngrok/kubernetes-ingress-controller
+    urls:
+    - https://github.com/ngrok/kubernetes-ingress-controller/releases/download/helm-chart-0.10.0/kubernetes-ingress-controller-0.10.0.tgz
+    version: 0.10.0
+  - apiVersion: v2
     appVersion: 0.7.0
     created: "2023-05-12T16:30:14.160875631Z"
     description: A Kubernetes ingress controller built using ngrok.
@@ -249,4 +268,4 @@ entries:
     urls:
     - https://github.com/ngrok/ngrok-ingress-controller/releases/download/ngrok-ingress-controller-0.1.0/ngrok-ingress-controller-0.1.0.tgz
     version: 0.1.0
-generated: "2023-05-12T16:30:14.160899731Z"
+generated: "2023-06-13T19:31:01.053053302Z"
