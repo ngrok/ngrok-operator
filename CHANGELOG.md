@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - tunneldriver: plumb the version through ngrok-go [#228](https://github.com/ngrok/kubernetes-ingress-controller/pull/228)
+- Support HTTPS backends via service annotation [#238](https://github.com/ngrok/kubernetes-ingress-controller/pull/238)
 
 ### Fixed
 
