@@ -57,7 +57,7 @@ preflight: ## Verifies required things like the go version
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=ngrok-ingress-controller-manager-role crd webhook paths="./..." \
+	$(CONTROLLER_GEN) rbac:roleName=ngrok-ingress-controller-manager-role crd webhook paths="./api/v1alpha1/" \
 		output:crd:artifacts:config=$(HELM_TEMPLATES_DIR)/crds \
 		output:rbac:artifacts:config=$(HELM_TEMPLATES_DIR)/rbac
 
