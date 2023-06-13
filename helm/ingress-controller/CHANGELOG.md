@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.0
+
+### Added
+- Support HTTPS backends via service annotation [#238](https://github.com/ngrok/kubernetes-ingress-controller/pull/238)
+
+### Changed
+- Normalize all ngrok `.io` TLD to `.app` TLD [#240](https://github.com/ngrok/kubernetes-ingress-controller/pull/240)
+- Chart Icon
+
+### Fixed
+- Add namespace to secret [#244](https://github.com/ngrok/kubernetes-ingress-controller/pull/244). Thank you for the contribution, @vincetse!
+
 ## 0.9.0
 ### Added
 - Add a 'podLabels' option to the helm chart [#212](https://github.com/ngrok/kubernetes-ingress-controller/pull/212).
