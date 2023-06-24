@@ -34,6 +34,19 @@ Should match all-options snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/name: kubernetes-ingress-controller
         spec:
+          affinity:
+            nodeAffinity: null
+            podAffinity: null
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/component: controller
+                      app.kubernetes.io/instance: RELEASE-NAME
+                      app.kubernetes.io/name: kubernetes-ingress-controller
+                  topologyKey: kubernetes.io/hostname
+                weight: 1
           containers:
           - args:
             - --controller-name=k8s.ngrok.com/ingress-controller
@@ -431,6 +444,19 @@ Should match default snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/name: kubernetes-ingress-controller
         spec:
+          affinity:
+            nodeAffinity: null
+            podAffinity: null
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/component: controller
+                      app.kubernetes.io/instance: RELEASE-NAME
+                      app.kubernetes.io/name: kubernetes-ingress-controller
+                  topologyKey: kubernetes.io/hostname
+                weight: 1
           containers:
           - args:
             - --controller-name=k8s.ngrok.com/ingress-controller
