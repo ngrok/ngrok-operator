@@ -1,9 +1,10 @@
+{{- $component := "controller" }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     {{- include "kubernetes-ingress-controller.labels" . | nindent 4 }}
-    app.kubernetes.io/component: controller
+    app.kubernetes.io/component: {{ $component }}
   name: {{ include "kubernetes-ingress-controller.fullname" . }}-manager
   namespace: {{ .Release.Namespace }}
   annotations:
@@ -17,7 +18,7 @@ spec:
       {{- if .Values.podLabels }}
         {{- toYaml .Values.podLabels | nindent 6 }}
       {{- end }}
-      app.kubernetes.io/component: controller
+      app.kubernetes.io/component: {{ $component }}
   template:
     metadata:
       annotations:
@@ -32,8 +33,16 @@ spec:
         {{- if .Values.podLabels }}
           {{- toYaml .Values.podLabels | nindent 8 }}
         {{- end }}
-        app.kubernetes.io/component: controller
+        app.kubernetes.io/component: {{ $component }}
     spec:
+      {{- if .Values.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+      {{- end }}
       serviceAccountName: {{ template "kubernetes-ingress-controller.serviceAccountName" . }}
       {{- if .Values.image.pullSecrets }}
       imagePullSecrets:
