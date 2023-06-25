@@ -56,6 +56,9 @@ jobs:
         with:
           version: v3.10.0
 
+      - name: Setup Helm
+        run: make _helm_setup
+
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.4.1
         env:

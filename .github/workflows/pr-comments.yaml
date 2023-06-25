@@ -63,7 +63,7 @@ jobs:
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: ":wave: Looks like there are changes in the Helm Chart's Chart.yaml file. Upon merge, a new release of the helm chart will be created. Please make sure the version is updated appropriately."
+            body: ":wave: Looks like there are changes in the Helm Chart's Chart.yaml file. Upon merge, a new release of the helm chart will be created if the Chart's version was changed."
           })
     - if: needs.changes.outputs.tag == 'true'
       name: Notify about version change
