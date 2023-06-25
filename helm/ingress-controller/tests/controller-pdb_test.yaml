@@ -1,0 +1,35 @@
+suite: test controller-pdb
+templates:
+- controller-pdb.yaml
+release:
+  name: test-release
+  namespace: test-namespace
+tests:
+- it: should match snapshot
+  set:
+    podDisruptionBudget:
+      create: true
+  asserts:
+  - matchSnapshot: {}
+- it: Defaults to 1 maxUnavailable
+  template: controller-pdb.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  set:
+    podDisruptionBudget:
+      create: true
+  asserts:
+  - equal:
+      path: spec.maxUnavailable
+      value: 1
+- it: Allows changing the minAvailable value
+  template: controller-pdb.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  set:
+    podDisruptionBudget:
+      create: true
+      minAvailable: 1
+      maxUnavailable: ""
+  asserts:
+  - equal:
+      path: spec.minAvailable
+      value: 1

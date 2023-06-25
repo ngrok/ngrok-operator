@@ -110,6 +110,17 @@ nodeAffinityPreset:
 ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#priorityclass
 priorityClassName: ""
 
+## Pod Disruption Budget configuration
+## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+## @param podDisruptionBudget.create Enable a Pod Disruption Budget creation
+## @param podDisruptionBudget.minAvailable Minimum number/percentage of pods that should remain scheduled
+## @param podDisruptionBudget.maxUnavailable Maximum number/percentage of pods that may be made unavailable
+##
+podDisruptionBudget:
+  create: false
+  minAvailable: ""
+  maxUnavailable: 1
+
 ## Controller container resource requests and limits
 ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
 ## We usually recommend not to specify default resources and to leave this as a conscious
