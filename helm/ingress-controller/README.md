@@ -66,6 +66,12 @@ To uninstall the chart:
 | `region`                     | ngrok region to create tunnels in. Defaults to connect to the closest geographical region.                            | `""`                                  |
 | `serverAddr`                 | This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.         | `""`                                  |
 | `metaData`                   | This is a map of key/value pairs that will be added as meta data to all ngrok api resources created                   | `{}`                                  |
+| `affinity`                   | Affinity for the controller pod assignment                                                                            | `{}`                                  |
+| `podAffinityPreset`          | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                   | `""`                                  |
+| `podAntiAffinityPreset`      | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                              | `soft`                                |
+| `nodeAffinityPreset.type`    | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                             | `""`                                  |
+| `nodeAffinityPreset.key`     | Node label key to match. Ignored if `affinity` is set.                                                                | `""`                                  |
+| `nodeAffinityPreset.values`  | Node label values to match. Ignored if `affinity` is set.                                                             | `[]`                                  |
 | `resources.limits`           | The resources limits for the container                                                                                | `{}`                                  |
 | `resources.requests`         | The requested resources for the container                                                                             | `{}`                                  |
 | `extraVolumes`               | An array of extra volumes to add to the controller.                                                                   | `[]`                                  |
