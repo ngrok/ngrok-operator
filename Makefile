@@ -168,16 +168,19 @@ $(ENVTEST): $(LOCALBIN)
 
 ##@ Helm
 
+.PHONY: _helm_setup
+_helm_setup:
+	./scripts/helm-setup.sh
+	helm dependency update $(HELM_CHART_DIR)
+
 .PHONY: helm-lint
-helm-lint: ## Lint the helm chart
+helm-lint: _helm_setup ## Lint the helm chart
 	helm lint $(HELM_CHART_DIR)
 
 .PHONY: helm-test
-helm-test: ## Run helm unittest plugin
-	./scripts/helm-setup.sh
+helm-test: _helm_setup ## Run helm unittest plugin
 	helm unittest --helm3 $(HELM_CHART_DIR)
 
 .PHONY: helm-update-snapshots
-helm-update-snapshots: ## Update helm unittest snapshots
-	./scripts/helm-setup.sh
+helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
 	helm unittest --helm3 -u $(HELM_CHART_DIR)
