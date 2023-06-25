@@ -190,3 +190,18 @@ tests:
                 operator: In
                 values:
                 - another-node-label-value
+- it: Defaults to not specifying a priority class
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - isNull:
+      path: spec.template.spec.priorityClassName
+- it: Allows setting a priority class
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  set:
+    priorityClassName: "high-priority"
+  asserts:
+  - equal:
+      path: spec.template.spec.priorityClassName
+      value: high-priority

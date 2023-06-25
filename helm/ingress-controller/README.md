@@ -72,6 +72,7 @@ To uninstall the chart:
 | `nodeAffinityPreset.type`    | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                             | `""`                                  |
 | `nodeAffinityPreset.key`     | Node label key to match. Ignored if `affinity` is set.                                                                | `""`                                  |
 | `nodeAffinityPreset.values`  | Node label values to match. Ignored if `affinity` is set.                                                             | `[]`                                  |
+| `priorityClassName`          | Priority class for pod scheduling                                                                                     | `""`                                  |
 | `resources.limits`           | The resources limits for the container                                                                                | `{}`                                  |
 | `resources.requests`         | The requested resources for the container                                                                             | `{}`                                  |
 | `extraVolumes`               | An array of extra volumes to add to the controller.                                                                   | `[]`                                  |
