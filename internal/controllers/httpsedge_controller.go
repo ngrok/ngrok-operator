@@ -938,24 +938,21 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 	}
 
 	if route.OAuth != nil {
-		err = routeClientSet.OAuth().Delete(ctx, edgeRouteItem(route))
-		if err != nil {
+		if err := routeClientSet.OAuth().Delete(ctx, edgeRouteItem(route)); err != nil {
 			return err
 		}
 		route.OAuth = nil
 	}
 
 	if route.OIDC != nil {
-		err = routeClientSet.OIDC().Delete(ctx, edgeRouteItem(route))
-		if err != nil {
+		if err := routeClientSet.OIDC().Delete(ctx, edgeRouteItem(route)); err != nil {
 			return err
 		}
 		route.OIDC = nil
 	}
 
 	if route.SAML != nil {
-		err = routeClientSet.SAML().Delete(ctx, edgeRouteItem(route))
-		if err != nil {
+		if err := routeClientSet.SAML().Delete(ctx, edgeRouteItem(route)); err != nil {
 			return err
 		}
 		route.SAML = nil
