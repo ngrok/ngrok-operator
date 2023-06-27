@@ -34,6 +34,7 @@ type IPPolicyRule struct {
 	// +kubebuilder:validation:Required
 	CIDR string `json:"cidr,omitempty"`
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=allow;deny
 	Action string `json:"action,omitempty"`
 }
 
