@@ -34,7 +34,7 @@ func TestIPPolicyDiff(t *testing.T) {
 	assert.Empty(t, diff.NeedsDelete())
 	assert.Empty(t, diff.NeedsUpdate())
 	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: "10.0.0.0/8", Action: pointer.String(IPPolicyRuleActionDeny)}},
+		{IPPolicyID: "test", CIDR: specRules[2].CIDR, Action: pointer.String(IPPolicyRuleActionDeny)}},
 		diff.NeedsCreate(),
 	)
 

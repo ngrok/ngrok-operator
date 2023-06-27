@@ -335,26 +335,12 @@ func (d *IPPolicyDiff) Next() bool {
 	case 5: // Update any rules that exist in the spec and remote but have only different metadata/description.
 		for cidr, rule := range d.specAllow {
 			if remoteRule, ok := d.remoteAllow[cidr]; ok {
-				if d.shouldBeUpdated(rule, remoteRule) {
-					d.updates = append(d.updates, &ngrok.IPPolicyRuleUpdate{
-						ID:          remoteRule.ID,
-						Metadata:    pointer.String(rule.Metadata),
-						Description: pointer.String(rule.Description),
-						CIDR:        pointer.String(rule.CIDR),
-					})
-				}
+				d.addUpdateIfNeeded(rule, remoteRule)
 			}
 		}
 		for cidr, rule := range d.specDeny {
 			if remoteRule, ok := d.remoteDeny[cidr]; ok {
-				if d.shouldBeUpdated(rule, remoteRule) {
-					d.updates = append(d.updates, &ngrok.IPPolicyRuleUpdate{
-						ID:          remoteRule.ID,
-						Metadata:    pointer.String(rule.Metadata),
-						Description: pointer.String(rule.Description),
-						CIDR:        pointer.String(rule.CIDR),
-					})
-				}
+				d.addUpdateIfNeeded(rule, remoteRule)
 			}
 		}
 		return true
@@ -400,8 +386,18 @@ func (d *IPPolicyDiff) createRule(rule ingressv1alpha1.IPPolicyRule) *ngrok.IPPo
 	}
 }
 
-func (d *IPPolicyDiff) shouldBeUpdated(rule ingressv1alpha1.IPPolicyRule, remoteRule *ngrok.IPPolicyRule) bool {
-	return rule.CIDR == remoteRule.CIDR &&
+func (d *IPPolicyDiff) addUpdateIfNeeded(rule ingressv1alpha1.IPPolicyRule, remoteRule *ngrok.IPPolicyRule) {
+	updatedNeeded := rule.CIDR == remoteRule.CIDR &&
 		rule.Action == remoteRule.Action &&
 		(rule.Metadata != remoteRule.Metadata || rule.Description != remoteRule.Description)
+	if !updatedNeeded {
+		return
+	}
+
+	d.updates = append(d.updates, &ngrok.IPPolicyRuleUpdate{
+		ID:          remoteRule.ID,
+		Metadata:    pointer.String(rule.Metadata),
+		Description: pointer.String(rule.Description),
+		CIDR:        pointer.String(rule.CIDR),
+	})
 }
