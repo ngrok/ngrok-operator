@@ -923,21 +923,22 @@ func isMigratingAuthProviders(current *ngrok.HTTPSEdgeRoute, desired *ingressv1a
 // It will save the route without the backend so its offline. Then for each of the auth types (OAuth, OIDC, SAML)
 // it will try to remove them if nil. If removed, it will set the route to nil for that auth type.
 func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route *ngrok.HTTPSEdgeRoute) error {
-	req := &ngrok.HTTPSEdgeRouteUpdate{
+	routeUpdate := &ngrok.HTTPSEdgeRouteUpdate{
 		EdgeID:    route.EdgeID,
 		ID:        route.ID,
 		Match:     route.Match,
 		MatchType: route.MatchType,
 		Backend:   nil,
 	}
+	routeClientSet := r.NgrokClientset.EdgeModules().HTTPS().Routes()
 
-	route, err := r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, req)
+	route, err := r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, routeUpdate)
 	if err != nil {
 		return err
 	}
 
 	if route.OAuth != nil {
-		err = r.NgrokClientset.EdgeModules().HTTPS().Routes().OAuth().Delete(ctx, edgeRouteItem(route))
+		err = routeClientSet.OAuth().Delete(ctx, edgeRouteItem(route))
 		if err != nil {
 			return err
 		}
@@ -945,7 +946,7 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 	}
 
 	if route.OIDC != nil {
-		err = r.NgrokClientset.EdgeModules().HTTPS().Routes().OIDC().Delete(ctx, edgeRouteItem(route))
+		err = routeClientSet.OIDC().Delete(ctx, edgeRouteItem(route))
 		if err != nil {
 			return err
 		}
@@ -953,7 +954,7 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 	}
 
 	if route.SAML != nil {
-		err = r.NgrokClientset.EdgeModules().HTTPS().Routes().SAML().Delete(ctx, edgeRouteItem(route))
+		err = routeClientSet.SAML().Delete(ctx, edgeRouteItem(route))
 		if err != nil {
 			return err
 		}
