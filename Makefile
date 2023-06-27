@@ -115,7 +115,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: docker-build manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	helm upgrade ngrok-ingress-controller $(HELM_CHART_DIR) --install \
 		--namespace ngrok-ingress-controller \
 		--create-namespace \
@@ -168,16 +168,20 @@ $(ENVTEST): $(LOCALBIN)
 
 ##@ Helm
 
+.PHONY: _helm_setup
+_helm_setup:
+	./scripts/helm-setup.sh
+	helm repo add bitnami https://charts.bitnami.com/bitnami
+	helm dependency update $(HELM_CHART_DIR)
+
 .PHONY: helm-lint
-helm-lint: ## Lint the helm chart
+helm-lint: _helm_setup ## Lint the helm chart
 	helm lint $(HELM_CHART_DIR)
 
 .PHONY: helm-test
-helm-test: ## Run helm unittest plugin
-	./scripts/helm-setup.sh
+helm-test: _helm_setup ## Run helm unittest plugin
 	helm unittest --helm3 $(HELM_CHART_DIR)
 
 .PHONY: helm-update-snapshots
-helm-update-snapshots: ## Update helm unittest snapshots
-	./scripts/helm-setup.sh
+helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
 	helm unittest --helm3 -u $(HELM_CHART_DIR)
