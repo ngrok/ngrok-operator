@@ -271,7 +271,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			EdgeID:    edge.Status.ID,
 			ID:        route.ID,
 			Match:     routeSpec.Match,
-			MatchType: routeSpec.MatchType, // TODO: Check the Match Type here. Otherwise Updates can fail with this error: "HTTP 400: Route match expression '/' must be unique across all routes for HTTPS edge
+			MatchType: routeSpec.MatchType,
 			Backend: &ngrok.EndpointBackendMutate{
 				BackendID: backend.ID,
 			},
