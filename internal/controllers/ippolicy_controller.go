@@ -179,19 +179,33 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 	if err != nil {
 		return err
 	}
-	diff := newIPPolicyDiff(remoteRules, policy.Spec.Rules)
-	for _, rule := range diff.needCreate {
-		rule.IPPolicyID = policy.Status.ID
-		_, err := r.IPPolicyRulesClient.Create(ctx, rule)
-		if err != nil {
-			return err
-		}
-	}
+	iter := newIPPolicyDiff(policy.Status.ID, remoteRules, policy.Spec.Rules)
 
-	for _, rule := range diff.needDelete {
-		err := r.IPPolicyRulesClient.Delete(ctx, rule.ID)
-		if err != nil {
-			return err
+	for iter.Next() {
+		for _, d := range iter.NeedsDelete() {
+			r.Log.V(3).Info("Deleting IP Policy Rule", "id", d.ID, "policy.id", policy.Status.ID, "cidr", d.CIDR, "action", d.Action)
+			if err := r.IPPolicyRulesClient.Delete(ctx, d.ID); err != nil {
+				return err
+			}
+			r.Log.V(3).Info("Deleted IP Policy Rule", "id", d.ID)
+		}
+
+		for _, c := range iter.NeedsCreate() {
+			r.Log.V(3).Info("Creating IP Policy Rule", "policy.id", policy.Status.ID, "cidr", c.CIDR, "action", c.Action)
+			rule, err := r.IPPolicyRulesClient.Create(ctx, c)
+			if err != nil {
+				return err
+			}
+			r.Log.V(3).Info("Created IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID, "cidr", rule.CIDR, "action", rule.Action)
+		}
+
+		for _, u := range iter.NeedsUpdate() {
+			r.Log.V(3).Info("Updating IP Policy Rule", "id", u.ID, "policy.id", policy.Status.ID, "cidr", u.CIDR, "metadata", u.Metadata, "description", u.Description)
+			rule, err := r.IPPolicyRulesClient.Update(ctx, u)
+			if err != nil {
+				return err
+			}
+			r.Log.V(3).Info("Updated IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID)
 		}
 	}
 
@@ -213,71 +227,177 @@ func (r *IPPolicyReconciler) getRemotePolicyRules(ctx context.Context, policyID 
 	return rules, iter.Err()
 }
 
+// IPPolicyDiff represents the diff between the remote and spec rules for an IPPolicy.
+// From the ngrok docs:
+//
+//	"IP Restrictions allow you to attach one or more IP policies to the route.
+//	 If multiple IP policies are attached, a connection will be allowed only if
+//	 its source IP matches at least one policy with an 'allow' action and
+//	 does not match any policy with a 'deny' action."
+//
+// This provides an iterator of the rules that need to be created,updated, and deleted in order to update the remote securely.
 type IPPolicyDiff struct {
-	needCreate []*ngrok.IPPolicyRuleCreate
-	needDelete []*ngrok.IPPolicyRule
+	idx int
+
+	policyID string
+
+	remoteDeny  map[string]*ngrok.IPPolicyRule
+	remoteAllow map[string]*ngrok.IPPolicyRule
+	specDeny    map[string]ingressv1alpha1.IPPolicyRule
+	specAllow   map[string]ingressv1alpha1.IPPolicyRule
+
+	creates []*ngrok.IPPolicyRuleCreate
+	deletes []*ngrok.IPPolicyRule
+	updates []*ngrok.IPPolicyRuleUpdate
 }
 
-func newIPPolicyDiff(remote []*ngrok.IPPolicyRule, spec []ingressv1alpha1.IPPolicyRule) *IPPolicyDiff {
-	remoteDeny := make(map[string]*ngrok.IPPolicyRule)
-	remoteAllow := make(map[string]*ngrok.IPPolicyRule)
-	specDeny := make(map[string]ingressv1alpha1.IPPolicyRule)
-	specAllow := make(map[string]ingressv1alpha1.IPPolicyRule)
+func newIPPolicyDiff(policyID string, remote []*ngrok.IPPolicyRule, spec []ingressv1alpha1.IPPolicyRule) *IPPolicyDiff {
+	diff := &IPPolicyDiff{
+		policyID:    policyID,
+		remoteDeny:  make(map[string]*ngrok.IPPolicyRule),
+		remoteAllow: make(map[string]*ngrok.IPPolicyRule),
+		specDeny:    make(map[string]ingressv1alpha1.IPPolicyRule),
+		specAllow:   make(map[string]ingressv1alpha1.IPPolicyRule),
+	}
 
+	// Group the remote rules by their CIDR
 	for _, rule := range remote {
 		if rule.Action == IPPolicyRuleActionDeny {
-			remoteDeny[rule.CIDR] = rule
+			diff.remoteDeny[rule.CIDR] = rule
 		} else {
-			remoteAllow[rule.CIDR] = rule
+			diff.remoteAllow[rule.CIDR] = rule
 		}
 	}
 
+	// Group the spec rules by their CIDR
 	for _, rule := range spec {
 		if rule.Action == IPPolicyRuleActionDeny {
-			specDeny[rule.CIDR] = rule
+			diff.specDeny[rule.CIDR] = rule
 		} else {
-			specAllow[rule.CIDR] = rule
-		}
-	}
-
-	diff := &IPPolicyDiff{
-		needCreate: make([]*ngrok.IPPolicyRuleCreate, 0),
-		needDelete: make([]*ngrok.IPPolicyRule, 0),
-	}
-
-	for cidr, specRule := range specAllow {
-		if _, ok := remoteAllow[cidr]; !ok {
-			diff.needCreate = append(diff.needCreate, &ngrok.IPPolicyRuleCreate{
-				Action:      pointer.String(IPPolicyRuleActionAllow),
-				Description: specRule.Description,
-				Metadata:    specRule.Metadata,
-				CIDR:        cidr,
-			})
-		}
-	}
-
-	for cidr, specRule := range specDeny {
-		if _, ok := remoteDeny[cidr]; !ok {
-			diff.needCreate = append(diff.needCreate, &ngrok.IPPolicyRuleCreate{
-				Action:      pointer.String(IPPolicyRuleActionDeny),
-				Description: specRule.Description,
-				Metadata:    specRule.Metadata,
-				CIDR:        cidr,
-			})
-		}
-	}
-
-	for cidr, rule := range remoteAllow {
-		if _, ok := specAllow[cidr]; !ok {
-			diff.needDelete = append(diff.needDelete, rule)
-		}
-	}
-
-	for cidr, rule := range remoteDeny {
-		if _, ok := specDeny[cidr]; !ok {
-			diff.needDelete = append(diff.needDelete, rule)
+			diff.specAllow[rule.CIDR] = rule
 		}
 	}
 
 	return diff
+}
+
+func (d *IPPolicyDiff) Next() bool {
+	defer func() { d.idx++ }()
+
+	// Reset the diff
+	d.creates = make([]*ngrok.IPPolicyRuleCreate, 0)
+	d.deletes = make([]*ngrok.IPPolicyRule, 0)
+	d.updates = make([]*ngrok.IPPolicyRuleUpdate, 0)
+
+	switch d.idx {
+	case 0: // Create all new deny rules that don't exist in the remote with a matching CIDR.
+		for cidr, rule := range d.specDeny {
+			if !d.existsInRemote(cidr) {
+				d.creates = append(d.creates, d.createRule(rule))
+			}
+		}
+		return true
+	case 1: // Delete any allow rules with matching CIDRs that will be changing to deny rules. Then create the deny rules.
+		for cidr, rule := range d.specDeny {
+			if _, ok := d.remoteAllow[cidr]; ok {
+				d.deletes = append(d.deletes, d.remoteAllow[cidr])
+				d.creates = append(d.creates, d.createRule(rule))
+			}
+		}
+		return true
+	case 2: // Delete any deny rules with matching CIDRs that will be changing to allow rules. Then create the allow rules.
+		for cidr, rule := range d.specAllow {
+			if _, ok := d.remoteDeny[cidr]; ok {
+				d.deletes = append(d.deletes, d.remoteDeny[cidr])
+				d.creates = append(d.creates, d.createRule(rule))
+			}
+		}
+		return true
+	case 3: // Create all new allow rules that don't exist in the remote with a matching CIDR.
+		for cidr, rule := range d.specAllow {
+			if !d.existsInRemote(cidr) {
+				d.creates = append(d.creates, d.createRule(rule))
+			}
+		}
+		return true
+	case 4: // Delete any remaining rules that are not in the spec.
+		for cidr, rule := range d.remoteAllow {
+			if !d.existsInSpec(cidr) {
+				d.deletes = append(d.deletes, rule)
+			}
+		}
+		for cidr, rule := range d.remoteDeny {
+			if !d.existsInSpec(cidr) {
+				d.deletes = append(d.deletes, rule)
+			}
+		}
+		return true
+	case 5: // Update any rules that exist in the spec and remote but have only different metadata/description.
+		for cidr, rule := range d.specAllow {
+			if remoteRule, ok := d.remoteAllow[cidr]; ok {
+				d.addUpdateIfNeeded(rule, remoteRule)
+			}
+		}
+		for cidr, rule := range d.specDeny {
+			if remoteRule, ok := d.remoteDeny[cidr]; ok {
+				d.addUpdateIfNeeded(rule, remoteRule)
+			}
+		}
+		return true
+	default:
+	}
+
+	return false
+}
+
+func (d *IPPolicyDiff) NeedsCreate() []*ngrok.IPPolicyRuleCreate {
+	return d.creates
+}
+
+func (d *IPPolicyDiff) NeedsDelete() []*ngrok.IPPolicyRule {
+	return d.deletes
+}
+
+func (d *IPPolicyDiff) NeedsUpdate() []*ngrok.IPPolicyRuleUpdate {
+	return d.updates
+}
+
+// existsInSpec returns true if the CIDR exists in the spec for either an allow or deny rule.
+func (d *IPPolicyDiff) existsInSpec(cidr string) bool {
+	_, okDeny := d.specDeny[cidr]
+	_, okAllow := d.specAllow[cidr]
+	return okDeny || okAllow
+}
+
+// existsInRemote returns true if the CIDR exists in the remote for either an allow or deny rule.
+func (d *IPPolicyDiff) existsInRemote(cidr string) bool {
+	_, okDeny := d.remoteDeny[cidr]
+	_, okAllow := d.remoteAllow[cidr]
+	return okDeny || okAllow
+}
+
+func (d *IPPolicyDiff) createRule(rule ingressv1alpha1.IPPolicyRule) *ngrok.IPPolicyRuleCreate {
+	return &ngrok.IPPolicyRuleCreate{
+		IPPolicyID:  d.policyID,
+		CIDR:        rule.CIDR,
+		Action:      pointer.String(rule.Action),
+		Metadata:    rule.Metadata,
+		Description: rule.Description,
+	}
+}
+
+func (d *IPPolicyDiff) addUpdateIfNeeded(rule ingressv1alpha1.IPPolicyRule, remoteRule *ngrok.IPPolicyRule) {
+	updatedNeeded := rule.CIDR == remoteRule.CIDR &&
+		rule.Action == remoteRule.Action &&
+		(rule.Metadata != remoteRule.Metadata || rule.Description != remoteRule.Description)
+	if !updatedNeeded {
+		return
+	}
+
+	d.updates = append(d.updates, &ngrok.IPPolicyRuleUpdate{
+		ID:          remoteRule.ID,
+		Metadata:    pointer.String(rule.Metadata),
+		Description: pointer.String(rule.Description),
+		CIDR:        pointer.String(rule.CIDR),
+	})
 }

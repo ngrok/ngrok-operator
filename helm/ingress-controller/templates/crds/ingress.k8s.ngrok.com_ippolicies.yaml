@@ -59,6 +59,9 @@ spec:
                 items:
                   properties:
                     action:
+                      enum:
+                      - allow
+                      - deny
                       type: string
                     cidr:
                       type: string
