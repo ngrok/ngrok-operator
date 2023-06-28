@@ -13,7 +13,7 @@ Should match all-options snapshot:
         app.kubernetes.io/name: kubernetes-ingress-controller
         app.kubernetes.io/part-of: kubernetes-ingress-controller
         app.kubernetes.io/version: 0.8.0
-        helm.sh/chart: kubernetes-ingress-controller-0.10.0
+        helm.sh/chart: kubernetes-ingress-controller-0.11.0-rc.1
       name: RELEASE-NAME-kubernetes-ingress-controller-manager
       namespace: NAMESPACE
     spec:
@@ -423,7 +423,7 @@ Should match default snapshot:
         app.kubernetes.io/name: kubernetes-ingress-controller
         app.kubernetes.io/part-of: kubernetes-ingress-controller
         app.kubernetes.io/version: 0.8.0
-        helm.sh/chart: kubernetes-ingress-controller-0.10.0
+        helm.sh/chart: kubernetes-ingress-controller-0.11.0-rc.1
       name: RELEASE-NAME-kubernetes-ingress-controller-manager
       namespace: NAMESPACE
     spec:
