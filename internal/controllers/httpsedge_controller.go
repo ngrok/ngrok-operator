@@ -77,6 +77,7 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("V1Alpha1HTTPSEdge", req.NamespacedName)
+	ctx = ctrl.LoggerInto(ctx, log)
 
 	edge := new(ingressv1alpha1.HTTPSEdge)
 	if err := r.Get(ctx, req.NamespacedName, edge); err != nil {
@@ -118,6 +119,9 @@ func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	err := r.reconcileEdge(ctx, edge)
+	if err != nil {
+		log.Error(err, "error reconciling Edge")
+	}
 	if errors.IsErrorReconcilable(err) {
 		return ctrl.Result{}, err
 	} else {
@@ -129,14 +133,20 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 	var remoteEdge *ngrok.HTTPSEdge
 	var err error
 
+	logger := ctrl.LoggerFrom(ctx)
+
 	if edge.Status.ID != "" {
+		logger = logger.WithValues("ngrok.edge.id", edge.Status.ID)
 		// We already have an ID, so we can just update the resource
+		logger.V(1).Info("Getting existing edge")
 		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
 		if err != nil {
 			return err
 		}
+		logger.V(1).Info("Found existing edge")
 
 		if !edge.Equal(remoteEdge) {
+			logger.Info("Updating edge")
 			remoteEdge, err = r.NgrokClientset.HTTPSEdges().Update(ctx, &ngrok.HTTPSEdgeUpdate{
 				ID:          edge.Status.ID,
 				Metadata:    &edge.Spec.Metadata,
@@ -146,9 +156,10 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 			if err != nil {
 				return err
 			}
+			logger.Info("Updated edge")
 		}
 	} else {
-		// Try to find the edge by Hostports
+		logger.Info("Searching for existing edge by hostports", "hostports", edge.Spec.Hostports)
 		remoteEdge, err = r.findEdgeByHostports(ctx, edge.Spec.Hostports)
 		if err != nil {
 			return err
@@ -156,6 +167,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 
 		// Not found, so create it
 		if remoteEdge == nil {
+			logger.Info("No existing edge found. Creating new edge")
 			remoteEdge, err = r.NgrokClientset.HTTPSEdges().Create(ctx, &ngrok.HTTPSEdgeCreate{
 				Metadata:    edge.Spec.Metadata,
 				Description: edge.Spec.Description,
@@ -164,8 +176,14 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 			if err != nil {
 				return err
 			}
+			logger.Info("Created new edge", "ngrok.edge.id", remoteEdge.ID)
+		} else {
+			logger.Info("Found existing edge", "ngrok.edge.id", remoteEdge.ID)
 		}
+		logger = logger.WithValues("ngrok.edge.id", remoteEdge.ID)
 	}
+
+	ctx = ctrl.LoggerInto(ctx, logger)
 
 	if err = r.updateStatus(ctx, edge, remoteEdge); err != nil {
 		return err
@@ -180,6 +198,8 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 
 // TODO: This is going to be a bit messy right now, come back and make this cleaner
 func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, remoteEdge *ngrok.HTTPSEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	routeStatuses := make([]ingressv1alpha1.HTTPSEdgeRouteStatus, len(edge.Spec.Routes))
 	tunnelGroupReconciler, err := newTunnelGroupBackendReconciler(r.NgrokClientset.TunnelGroupBackends())
 	if err != nil {
@@ -187,7 +207,6 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 	}
 
 	routeModuleUpdater := &edgeRouteModuleUpdater{
-		log:              r.Log,
 		edge:             edge,
 		clientset:        r.NgrokClientset.EdgeModules().HTTPS().Routes(),
 		ipPolicyResolver: ipPolicyResolver{r.Client},
@@ -198,6 +217,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 
 	// TODO: clean this up. This is way too much nesting
 	for i, routeSpec := range edge.Spec.Routes {
+
+		routeLog := log.WithValues("route.match", routeSpec.Match, "route.match_type", routeSpec.MatchType)
 
 		if routeSpec.IPRestriction != nil {
 			if err := routeModuleUpdater.ipPolicyResolver.validateIPPolicyNames(ctx, edge.Namespace, routeSpec.IPRestriction.IPPolicies); err != nil {
@@ -217,27 +238,35 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		//  Thus, any route with a backend is considered properly configured.
 		//  See https://github.com/ngrok/kubernetes-ingress-controller/issues/208 for additional context.
 		if match == nil {
-			r.Log.Info("Creating new route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
+			routeLog.Info("Creating new route")
 			req := &ngrok.HTTPSEdgeRouteCreate{
 				EdgeID:    edge.Status.ID,
 				Match:     routeSpec.Match,
 				MatchType: routeSpec.MatchType,
 			}
 			route, err = edgeRoutes.Create(ctx, req)
+			if err != nil {
+				return err
+			}
+			routeLog.Info("Created new route", "ngrok.route.id", route.ID)
 		} else {
 			req := &ngrok.EdgeRouteItem{
 				ID:     match.ID,
 				EdgeID: edge.Status.ID,
 			}
 			route, err = edgeRoutes.Get(ctx, req)
-		}
-		if err != nil {
-			return err
+			if err != nil {
+				return err
+			}
+			routeLog.Info("Got existing route", "ngrok.route.id", route.ID)
 		}
 
+		routeLog = routeLog.WithValues("ngrok.route.id", route.ID)
+		routeCtx := ctrl.LoggerInto(ctx, routeLog)
+
 		if isMigratingAuthProviders(route, &routeSpec) {
-			r.Log.Info("Route is migrating auth types. Taking offline before updating", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
-			if err := r.takeOfflineWithoutAuth(ctx, route); err != nil {
+			routeLog.Info("Route is migrating auth types. Taking offline before updating")
+			if err := r.takeOfflineWithoutAuth(routeCtx, route); err != nil {
 				r.Recorder.Event(edge, v1.EventTypeWarning, "RouteTakeOfflineFailed", err.Error())
 				return err
 			}
@@ -253,18 +282,18 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 
 		// With the route properly staged, we now attempt to apply its module updates
 		// TODO: Check if there are no updates to apply here to skip any unnecessary disruption
-		r.Log.Info("Applying route modules", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
-		if err := routeModuleUpdater.updateModulesForRoute(ctx, route, &routeSpec); err != nil {
+		routeLog.Info("Applying route modules")
+		if err := routeModuleUpdater.updateModulesForRoute(routeCtx, route, &routeSpec); err != nil {
 			r.Recorder.Event(edge, v1.EventTypeWarning, "RouteModuleUpdateFailed", err.Error())
 			return err
 		}
 
 		// The route modules were successfully applied, so now we update the route with its specified backend
-		backend, err := tunnelGroupReconciler.findOrCreate(ctx, routeSpec.Backend)
+		backend, err := tunnelGroupReconciler.findOrCreate(routeCtx, routeSpec.Backend)
 		if err != nil {
 			return err
 		}
-		r.Log.Info("Updating route", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType, "backendID", backend.ID)
+		routeLog.Info("Updating route", "ngrok.backend.id", backend.ID)
 
 		// TODO: Do an entropy check here to avoid unnecessary updates
 		req := &ngrok.HTTPSEdgeRouteUpdate{
@@ -276,10 +305,11 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 				BackendID: backend.ID,
 			},
 		}
-		route, err = edgeRoutes.Update(ctx, req)
+		route, err = edgeRoutes.Update(routeCtx, req)
 		if err != nil {
 			return err
 		}
+		routeLog.Info("Updated route")
 
 		// With the route modules successfully applied and the edge updated, we now update the route's backend status
 		if route.Backend != nil {
@@ -289,7 +319,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		}
 	}
 
-	// Delete any routes that are no longer in the spec
+	log.V(1).Info("Deleting routes that are no longer in the spec")
 	for _, remoteRoute := range remoteEdge.Routes {
 		found := false
 		for _, routeStatus := range routeStatuses {
@@ -299,10 +329,12 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			}
 		}
 		if !found {
-			r.Log.Info("Deleting route", "edgeID", edge.Status.ID, "routeID", remoteRoute.ID)
+			routeLog := log.WithValues("ngrok.route.id", remoteRoute.ID)
+			routeLog.Info("Deleting route")
 			if err := edgeRoutes.Delete(ctx, &ngrok.EdgeRouteItem{EdgeID: edge.Status.ID, ID: remoteRoute.ID}); err != nil {
 				return err
 			}
+			routeLog.Info("Deleted route")
 		}
 	}
 
@@ -312,8 +344,16 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 }
 
 func (r *HTTPSEdgeReconciler) setEdgeTLSTermination(ctx context.Context, edge *ngrok.HTTPSEdge, tlsTermination *ingressv1alpha1.EndpointTLSTerminationAtEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	client := r.NgrokClientset.EdgeModules().HTTPS().TLSTermination()
 	if tlsTermination == nil {
+		if edge.TlsTermination == nil {
+			log.V(1).Info("Edge TLS termination matches spec")
+			return nil
+		}
+
+		log.Info("Deleting Edge TLS termination")
 		return client.Delete(ctx, edge.ID)
 	}
 
@@ -455,13 +495,17 @@ func newTunnelGroupBackendReconciler(client *tunnel_group.Client) (*tunnelGroupB
 }
 
 func (r *tunnelGroupBackendReconciler) findOrCreate(ctx context.Context, backend ingressv1alpha1.TunnelGroupBackend) (*ngrok.TunnelGroupBackend, error) {
+	log := ctrl.LoggerFrom(ctx).WithValues("backend.labels", backend.Labels)
+	log.V(3).Info("Searching for tunnel group backend with matching labels")
 	for _, b := range r.backends {
 		// The labels match, so we can use this backend
 		if reflect.DeepEqual(b.Labels, backend.Labels) {
+			log.V(3).Info("Found matching tunnel group backend", "id", b.ID)
 			return b, nil
 		}
 	}
 
+	log.V(3).Info("No matching tunnel group backend found, creating a new one")
 	be, err := r.client.Create(ctx, &ngrok.TunnelGroupBackendCreate{
 		Description: backend.Description,
 		Metadata:    backend.Metadata,
@@ -470,13 +514,12 @@ func (r *tunnelGroupBackendReconciler) findOrCreate(ctx context.Context, backend
 	if err != nil {
 		return nil, err
 	}
+	log.V(3).Info("Created new tunnel group backend", "id", be.ID)
 	r.backends = append(r.backends, be)
 	return be, nil
 }
 
 type edgeRouteModuleUpdater struct {
-	log logr.Logger
-
 	edge *ingressv1alpha1.HTTPSEdge
 
 	clientset ngrokapi.HTTPSEdgeRouteModulesClientset
@@ -514,6 +557,7 @@ func edgeRouteItem(route *ngrok.HTTPSEdgeRoute) *ngrok.EdgeRouteItem {
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
 	circuitBreaker := routeSpec.CircuitBreaker
 
 	client := u.clientset.CircuitBreaker()
@@ -521,10 +565,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context,
 	// Early return if nothing to be done
 	if circuitBreaker == nil {
 		if route.CircuitBreaker == nil {
-			u.log.Info("CircuitBreaker matches desired state, skipping update")
+			log.V(1).Info("CircuitBreaker matches desired state, skipping update")
 			return nil
 		}
 
+		log.Info("Deleting CircuitBreaker module")
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
@@ -537,10 +582,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context,
 	}
 
 	if reflect.DeepEqual(module, route.CircuitBreaker) {
-		u.log.Info("CircuitBreaker matches desired state, skipping update")
+		log.V(1).Info("CircuitBreaker matches desired state, skipping update")
 		return nil
 	}
 
+	log.Info("Updating CircuitBreaker", "module", module)
 	_, err := client.Replace(ctx, &ngrok.EdgeRouteCircuitBreakerReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -550,6 +596,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context,
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteCompression(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
 	compression := routeSpec.Compression
 
 	client := u.clientset.Compression()
@@ -557,13 +604,15 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCompression(ctx context.Context, ro
 	// Early return if nothing to be done
 	if compression == nil {
 		if route.Compression == nil {
-			u.log.Info("Compression matches desired state, skipping update")
+			log.V(1).Info("Compression matches desired state, skipping update")
 			return nil
 		}
 
+		log.Info("Deleting Compression module")
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
+	log.Info("Updating Compression", "module", compression)
 	_, err := client.Replace(ctx, &ngrok.EdgeRouteCompressionReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -575,15 +624,17 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCompression(ctx context.Context, ro
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
 	ipRestriction := routeSpec.IPRestriction
 	client := u.clientset.IPRestriction()
 
 	if ipRestriction == nil || len(ipRestriction.IPPolicies) == 0 {
 		if route.IpRestriction == nil || len(route.IpRestriction.IPPolicies) == 0 {
-			u.log.Info("IP Restriction matches desired state, skipping update")
+			log.V(1).Info("IP Restriction matches desired state, skipping update")
 			return nil
 		}
 
+		log.Info("Deleting IP Restriction module")
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
@@ -591,7 +642,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	u.log.Info("Resolved IP Policy NamesOrIDs to IDs", "NamesOrIds", ipRestriction.IPPolicies, "policyIds", policyIds)
+	log.V(1).Info("Resolved IP Policy NamesOrIDs to IDs", "NamesOrIds", ipRestriction.IPPolicies, "policyIds", policyIds)
 
 	var remoteIPPolicies []string
 	if route.IpRestriction != nil && len(route.IpRestriction.IPPolicies) > 0 {
@@ -602,10 +653,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 	}
 
 	if reflect.DeepEqual(remoteIPPolicies, policyIds) {
-		u.log.Info("IP Restriction matches desired state, skipping update")
+		log.V(1).Info("IP Restriction matches desired state, skipping update")
 		return nil
 	}
 
+	log.Info("Updating IP Restriction", "policyIDs", policyIds)
 	_, err = client.Replace(ctx, &ngrok.EdgeRouteIPRestrictionReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -617,6 +669,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteRequestHeaders(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
 	var requestHeaders *ingressv1alpha1.EndpointRequestHeaders
 	if routeSpec.Headers != nil {
 		requestHeaders = routeSpec.Headers.Request
@@ -626,10 +679,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteRequestHeaders(ctx context.Context,
 
 	if requestHeaders == nil {
 		if route.RequestHeaders == nil {
-			u.log.Info("Request Headers matches desired state, skipping update")
+			log.V(1).Info("Request Headers matches desired state, skipping update")
 			return nil
 		}
 
+		log.Info("Deleting Request Headers module")
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
@@ -642,10 +696,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteRequestHeaders(ctx context.Context,
 	}
 
 	if reflect.DeepEqual(&module, route.RequestHeaders) {
-		u.log.Info("Request Headers matches desired state, skipping update")
+		log.V(1).Info("Request Headers matches desired state, skipping update")
 		return nil
 	}
 
+	log.Info("Updating Request Headers", "module", module)
 	_, err := client.Replace(ctx, &ngrok.EdgeRouteRequestHeadersReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -655,6 +710,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteRequestHeaders(ctx context.Context,
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
 	var responseHeaders *ingressv1alpha1.EndpointResponseHeaders
 	if routeSpec.Headers != nil {
 		responseHeaders = routeSpec.Headers.Response
@@ -663,10 +719,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context
 	client := u.clientset.ResponseHeaders()
 	if responseHeaders == nil {
 		if route.ResponseHeaders == nil {
-			u.log.Info("Response Headers matches desired state, skipping update")
+			log.V(1).Info("Response Headers matches desired state, skipping update")
 			return nil
 		}
 
+		log.Info("Deleting Response Headers module")
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
@@ -679,10 +736,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context
 	}
 
 	if reflect.DeepEqual(&module, route.ResponseHeaders) {
-		u.log.Info("Response Headers matches desired state, skipping update")
+		log.V(1).Info("Response Headers matches desired state, skipping update")
 		return nil
 	}
 
+	log.Info("Updating Response Headers", "module", module)
 	_, err := client.Replace(ctx, &ngrok.EdgeRouteResponseHeadersReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -692,15 +750,17 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
 	oauth := routeSpec.OAuth
 	oauthClient := u.clientset.OAuth()
 
 	if oauth == nil {
 		if route.OAuth == nil {
-			u.log.Info("OAuth matches desired state, skipping update")
+			log.V(1).Info("OAuth matches desired state, skipping update")
 			return nil
 		}
 
+		log.Info("Deleting OAuth module")
 		return oauthClient.Delete(ctx, edgeRouteItem(route))
 	}
 
@@ -744,10 +804,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	if reflect.DeepEqual(module, route.OAuth) {
-		u.log.Info("OAuth matches desired state, skipping update")
+		log.V(1).Info("OAuth matches desired state, skipping update")
 		return nil
 	}
 
+	log.Info("Updating OAuth module")
 	_, err = oauthClient.Replace(ctx, &ngrok.EdgeRouteOAuthReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -757,15 +818,17 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
 	oidc := routeSpec.OIDC
 	client := u.clientset.OIDC()
 
 	if oidc == nil {
 		if route.OIDC == nil {
-			u.log.Info("OIDC matches desired state, skipping update")
+			log.V(1).Info("OIDC matches desired state, skipping update")
 			return nil
 		}
 
+		log.Info("Deleting OIDC module")
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
@@ -789,10 +852,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 	}
 
 	if reflect.DeepEqual(&module, route.OIDC) {
-		u.log.Info("OIDC matches desired state, skipping update")
+		log.V(1).Info("OIDC matches desired state, skipping update")
 		return nil
 	}
 
+	log.Info("Updating OIDC module")
 	_, err = client.Replace(ctx, &ngrok.EdgeRouteOIDCReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -802,15 +866,17 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteSAML(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
 	saml := routeSpec.SAML
 	client := u.clientset.SAML()
 
 	if saml == nil {
 		if route.SAML == nil {
-			u.log.Info("SAML matches desired state, skipping update")
+			log.V(1).Info("SAML matches desired state, skipping update")
 			return nil
 		}
 
+		log.Info("Deleting SAML module")
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
@@ -827,10 +893,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteSAML(ctx context.Context, route *ng
 	}
 
 	if reflect.DeepEqual(&module, route.SAML) {
-		u.log.Info("SAML matches desired state, skipping update")
+		log.V(1).Info("SAML matches desired state, skipping update")
 		return nil
 	}
 
+	log.Info("Updating SAML module")
 	_, err := client.Replace(ctx, &ngrok.EdgeRouteSAMLReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -840,16 +907,18 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteSAML(ctx context.Context, route *ng
 }
 
 func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
 	webhookVerification := routeSpec.WebhookVerification
 
 	client := u.clientset.WebhookVerification()
 
 	if webhookVerification == nil {
 		if route.WebhookVerification == nil {
-			u.log.Info("Webhook Verification matches desired state, skipping update")
+			log.V(1).Info("Webhook Verification matches desired state, skipping update")
 			return nil
 		}
 
+		log.Info("Deleting Webhook Verification module")
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
@@ -871,10 +940,11 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 	}
 
 	if reflect.DeepEqual(&module, route.WebhookVerification) {
-		u.log.Info("Webhook Verification matches desired state, skipping update")
+		log.V(1).Info("Webhook Verification matches desired state, skipping update")
 		return nil
 	}
 
+	log.Info("Updating Webhook Verification module")
 	_, err := client.Replace(ctx, &ngrok.EdgeRouteWebhookVerificationReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -923,6 +993,8 @@ func isMigratingAuthProviders(current *ngrok.HTTPSEdgeRoute, desired *ingressv1a
 // It will save the route without the backend so its offline. Then for each of the auth types (OAuth, OIDC, SAML)
 // it will try to remove them if nil. If removed, it will set the route to nil for that auth type.
 func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route *ngrok.HTTPSEdgeRoute) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	routeUpdate := &ngrok.HTTPSEdgeRouteUpdate{
 		EdgeID:    route.EdgeID,
 		ID:        route.ID,
@@ -932,30 +1004,38 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 	}
 	routeClientSet := r.NgrokClientset.EdgeModules().HTTPS().Routes()
 
+	log.V(1).Info("Setting route backend to nil to take offline")
 	route, err := r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, routeUpdate)
 	if err != nil {
 		return err
 	}
+	log.V(1).Info("Successfully set route backend to nil")
 
 	if route.OAuth != nil {
+		log.V(1).Info("Removing OAuth from route")
 		if err := routeClientSet.OAuth().Delete(ctx, edgeRouteItem(route)); err != nil {
 			return err
 		}
 		route.OAuth = nil
+		log.V(1).Info("Successfully removed OAuth from route")
 	}
 
 	if route.OIDC != nil {
+		log.V(1).Info("Removing OIDC from route")
 		if err := routeClientSet.OIDC().Delete(ctx, edgeRouteItem(route)); err != nil {
 			return err
 		}
 		route.OIDC = nil
+		log.V(1).Info("Successfully removed OIDC from route")
 	}
 
 	if route.SAML != nil {
+		log.V(1).Info("Removing SAML from route")
 		if err := routeClientSet.SAML().Delete(ctx, edgeRouteItem(route)); err != nil {
 			return err
 		}
 		route.SAML = nil
+		log.V(1).Info("Successfully removed SAML from route")
 	}
 
 	return nil
