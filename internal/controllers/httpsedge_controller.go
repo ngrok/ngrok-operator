@@ -235,6 +235,14 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 			return err
 		}
 
+		if isMigratingAuthProviders(route, &routeSpec) {
+			r.Log.Info("Route is migrating auth types. Taking offline before updating", "edgeID", edge.Status.ID, "match", routeSpec.Match, "matchType", routeSpec.MatchType)
+			if err := r.takeOfflineWithoutAuth(ctx, route); err != nil {
+				r.Recorder.Event(edge, v1.EventTypeWarning, "RouteTakeOfflineFailed", err.Error())
+				return err
+			}
+		}
+
 		// Update status for newly created route
 		routeStatuses[i] = ingressv1alpha1.HTTPSEdgeRouteStatus{
 			ID:        route.ID,
@@ -498,7 +506,7 @@ func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, rout
 	return nil
 }
 
-func (u *edgeRouteModuleUpdater) edgeRouteItem(route *ngrok.HTTPSEdgeRoute) *ngrok.EdgeRouteItem {
+func edgeRouteItem(route *ngrok.HTTPSEdgeRoute) *ngrok.EdgeRouteItem {
 	return &ngrok.EdgeRouteItem{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
@@ -517,7 +525,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context,
 			return nil
 		}
 
-		return client.Delete(ctx, u.edgeRouteItem(route))
+		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
 	module := ngrok.EndpointCircuitBreaker{
@@ -553,7 +561,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCompression(ctx context.Context, ro
 			return nil
 		}
 
-		return client.Delete(ctx, u.edgeRouteItem(route))
+		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
 	_, err := client.Replace(ctx, &ngrok.EdgeRouteCompressionReplace{
@@ -576,7 +584,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 			return nil
 		}
 
-		return client.Delete(ctx, u.edgeRouteItem(route))
+		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
 	policyIds, err := u.ipPolicyResolver.resolveIPPolicyNamesorIds(ctx, u.edge.Namespace, ipRestriction.IPPolicies)
@@ -622,7 +630,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteRequestHeaders(ctx context.Context,
 			return nil
 		}
 
-		return client.Delete(ctx, u.edgeRouteItem(route))
+		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
 	module := ngrok.EndpointRequestHeaders{}
@@ -659,7 +667,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context
 			return nil
 		}
 
-		return client.Delete(ctx, u.edgeRouteItem(route))
+		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
 	module := ngrok.EndpointResponseHeaders{}
@@ -693,7 +701,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 			return nil
 		}
 
-		return oauthClient.Delete(ctx, u.edgeRouteItem(route))
+		return oauthClient.Delete(ctx, edgeRouteItem(route))
 	}
 
 	var module *ngrok.EndpointOAuth
@@ -758,7 +766,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 			return nil
 		}
 
-		return client.Delete(ctx, u.edgeRouteItem(route))
+		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
 	clientSecret, err := u.getSecret(ctx, oidc.ClientSecret)
@@ -803,7 +811,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteSAML(ctx context.Context, route *ng
 			return nil
 		}
 
-		return client.Delete(ctx, u.edgeRouteItem(route))
+		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
 	module := ngrok.EndpointSAMLMutate{
@@ -842,7 +850,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 			return nil
 		}
 
-		return client.Delete(ctx, u.edgeRouteItem(route))
+		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
 	// Some WebhookVerification providers don't require a secret,
@@ -887,4 +895,68 @@ func (u *edgeRouteModuleUpdater) getSecret(ctx context.Context, secretRef ingres
 type OAuthProvider interface {
 	ClientSecretKeyRef() *ingressv1alpha1.SecretKeyRef
 	ToNgrok(*string) *ngrok.EndpointOAuth
+}
+
+// isMigratingAuthProviders returns true if the auth provider is changing
+// It takes in the current ngrok.HTTPSEdgeRoute and the desired ingressv1alpha1.HTTPSEdgeRouteSpec
+// if the current and desired have different auth types (OAuth, OIDC, SAML), it returns true
+func isMigratingAuthProviders(current *ngrok.HTTPSEdgeRoute, desired *ingressv1alpha1.HTTPSEdgeRouteSpec) bool {
+	modifiedAuthTypes := 0
+	if (current.OAuth == nil && desired.OAuth != nil) || (current.OAuth != nil && desired.OAuth == nil) {
+		modifiedAuthTypes += 1
+	}
+	if (current.OIDC == nil && desired.OIDC != nil) || (current.OIDC != nil && desired.OIDC == nil) {
+		modifiedAuthTypes += 1
+	}
+	if (current.SAML == nil && desired.SAML != nil) || (current.SAML != nil && desired.SAML == nil) {
+		modifiedAuthTypes += 1
+	}
+
+	// Each check above tells if that auth type is being added or removed in some way.
+	// If it happens 0 times, no modifications happened. If it happens only once, then its
+	// just being added or removed, so there is no chance of conflict. But if multiple are triggered
+	// then it must be moving from 1 type to another, so we can return true.
+	return modifiedAuthTypes > 1
+}
+
+// takeOfflineWithoutAuth takes an ngrok.HTTPSEdgeRoute and will remove the backed first.
+// It will save the route without the backend so its offline. Then for each of the auth types (OAuth, OIDC, SAML)
+// it will try to remove them if nil. If removed, it will set the route to nil for that auth type.
+func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route *ngrok.HTTPSEdgeRoute) error {
+	routeUpdate := &ngrok.HTTPSEdgeRouteUpdate{
+		EdgeID:    route.EdgeID,
+		ID:        route.ID,
+		Match:     route.Match,
+		MatchType: route.MatchType,
+		Backend:   nil,
+	}
+	routeClientSet := r.NgrokClientset.EdgeModules().HTTPS().Routes()
+
+	route, err := r.NgrokClientset.HTTPSEdgeRoutes().Update(ctx, routeUpdate)
+	if err != nil {
+		return err
+	}
+
+	if route.OAuth != nil {
+		if err := routeClientSet.OAuth().Delete(ctx, edgeRouteItem(route)); err != nil {
+			return err
+		}
+		route.OAuth = nil
+	}
+
+	if route.OIDC != nil {
+		if err := routeClientSet.OIDC().Delete(ctx, edgeRouteItem(route)); err != nil {
+			return err
+		}
+		route.OIDC = nil
+	}
+
+	if route.SAML != nil {
+		if err := routeClientSet.SAML().Delete(ctx, edgeRouteItem(route)); err != nil {
+			return err
+		}
+		route.SAML = nil
+	}
+
+	return nil
 }
