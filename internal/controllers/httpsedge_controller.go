@@ -384,10 +384,12 @@ func (r *HTTPSEdgeReconciler) updateStatus(ctx context.Context, edge *ingressv1a
 }
 
 // getMatchingRouteFromEdgeStatus returns the route status for the given ingressv1alpha1.HTTPSEdgeRouteSpec. If there is
-// no match in the ingressv1alpha1.HTTPSEdge.Status.Routes, then nil is returned.
+// no match in the ingressv1alpha1.HTTPSEdge.Status.Routes, then nil is returned. In the Ingress Spec, we can have both
+// a Prefix and Exact match for the same path. In ngrok, Route match expressions must be unique across all routes for the
+// edge. So we match on just the Match field and ignore the MatchType field.
 func (r *HTTPSEdgeReconciler) getMatchingRouteFromEdgeStatus(edge *ingressv1alpha1.HTTPSEdge, route ingressv1alpha1.HTTPSEdgeRouteSpec) *ingressv1alpha1.HTTPSEdgeRouteStatus {
 	for _, routeStatus := range edge.Status.Routes {
-		if route.MatchType == routeStatus.MatchType && route.Match == routeStatus.Match {
+		if route.Match == routeStatus.Match {
 			return &routeStatus
 		}
 	}
