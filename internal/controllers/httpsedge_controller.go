@@ -47,6 +47,14 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
 )
 
+type routeModuleComparision string
+
+const (
+	routeModuleComparisonBothNil        routeModuleComparision = "both nil"
+	routeModuleComparisonBothNilOrEmpty routeModuleComparision = "both nil or empty"
+	routeModuleComparisonDeepEqual      routeModuleComparision = "deep equal"
+)
+
 // HTTPSEdgeReconciler reconciles a HTTPSEdge object
 type HTTPSEdgeReconciler struct {
 	client.Client
@@ -556,6 +564,10 @@ func edgeRouteItem(route *ngrok.HTTPSEdgeRoute) *ngrok.EdgeRouteItem {
 	}
 }
 
+func (u *edgeRouteModuleUpdater) logMatches(log logr.Logger, module string, checkType routeModuleComparision) {
+	log.V(1).Info("Module matches desired state, skipping update", "module", module, "comparison", checkType)
+}
+
 func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
 	log := ctrl.LoggerFrom(ctx)
 	circuitBreaker := routeSpec.CircuitBreaker
@@ -565,7 +577,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context,
 	// Early return if nothing to be done
 	if circuitBreaker == nil {
 		if route.CircuitBreaker == nil {
-			log.V(1).Info("CircuitBreaker matches desired state, skipping update")
+			u.logMatches(log, "CircuitBreaker", routeModuleComparisonBothNil)
 			return nil
 		}
 
@@ -582,7 +594,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCircuitBreaker(ctx context.Context,
 	}
 
 	if reflect.DeepEqual(module, route.CircuitBreaker) {
-		log.V(1).Info("CircuitBreaker matches desired state, skipping update")
+		u.logMatches(log, "CircuitBreaker", routeModuleComparisonDeepEqual)
 		return nil
 	}
 
@@ -604,7 +616,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCompression(ctx context.Context, ro
 	// Early return if nothing to be done
 	if compression == nil {
 		if route.Compression == nil {
-			log.V(1).Info("Compression matches desired state, skipping update")
+			u.logMatches(log, "Compression", routeModuleComparisonBothNil)
 			return nil
 		}
 
@@ -630,7 +642,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 
 	if ipRestriction == nil || len(ipRestriction.IPPolicies) == 0 {
 		if route.IpRestriction == nil || len(route.IpRestriction.IPPolicies) == 0 {
-			log.V(1).Info("IP Restriction matches desired state, skipping update")
+			u.logMatches(log, "IP Restriction", routeModuleComparisonBothNilOrEmpty)
 			return nil
 		}
 
@@ -653,7 +665,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 	}
 
 	if reflect.DeepEqual(remoteIPPolicies, policyIds) {
-		log.V(1).Info("IP Restriction matches desired state, skipping update")
+		u.logMatches(log, "IP Restriction", routeModuleComparisonDeepEqual)
 		return nil
 	}
 
@@ -679,7 +691,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteRequestHeaders(ctx context.Context,
 
 	if requestHeaders == nil {
 		if route.RequestHeaders == nil {
-			log.V(1).Info("Request Headers matches desired state, skipping update")
+			u.logMatches(log, "Request Headers", routeModuleComparisonBothNil)
 			return nil
 		}
 
@@ -696,7 +708,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteRequestHeaders(ctx context.Context,
 	}
 
 	if reflect.DeepEqual(&module, route.RequestHeaders) {
-		log.V(1).Info("Request Headers matches desired state, skipping update")
+		u.logMatches(log, "Request Headers", routeModuleComparisonDeepEqual)
 		return nil
 	}
 
@@ -719,7 +731,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context
 	client := u.clientset.ResponseHeaders()
 	if responseHeaders == nil {
 		if route.ResponseHeaders == nil {
-			log.V(1).Info("Response Headers matches desired state, skipping update")
+			u.logMatches(log, "Response Headers", routeModuleComparisonBothNil)
 			return nil
 		}
 
@@ -736,7 +748,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteResponseHeaders(ctx context.Context
 	}
 
 	if reflect.DeepEqual(&module, route.ResponseHeaders) {
-		log.V(1).Info("Response Headers matches desired state, skipping update")
+		u.logMatches(log, "Response Headers", routeModuleComparisonDeepEqual)
 		return nil
 	}
 
@@ -756,7 +768,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 
 	if oauth == nil {
 		if route.OAuth == nil {
-			log.V(1).Info("OAuth matches desired state, skipping update")
+			u.logMatches(log, "OAuth", routeModuleComparisonBothNil)
 			return nil
 		}
 
@@ -804,7 +816,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	if reflect.DeepEqual(module, route.OAuth) {
-		log.V(1).Info("OAuth matches desired state, skipping update")
+		u.logMatches(log, "OAuth", routeModuleComparisonDeepEqual)
 		return nil
 	}
 
@@ -824,7 +836,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 
 	if oidc == nil {
 		if route.OIDC == nil {
-			log.V(1).Info("OIDC matches desired state, skipping update")
+			u.logMatches(log, "OIDC", routeModuleComparisonBothNil)
 			return nil
 		}
 
@@ -852,7 +864,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 	}
 
 	if reflect.DeepEqual(&module, route.OIDC) {
-		log.V(1).Info("OIDC matches desired state, skipping update")
+		u.logMatches(log, "OIDC", routeModuleComparisonDeepEqual)
 		return nil
 	}
 
@@ -872,7 +884,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteSAML(ctx context.Context, route *ng
 
 	if saml == nil {
 		if route.SAML == nil {
-			log.V(1).Info("SAML matches desired state, skipping update")
+			u.logMatches(log, "SAML", routeModuleComparisonBothNil)
 			return nil
 		}
 
@@ -893,7 +905,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteSAML(ctx context.Context, route *ng
 	}
 
 	if reflect.DeepEqual(&module, route.SAML) {
-		log.V(1).Info("SAML matches desired state, skipping update")
+		u.logMatches(log, "SAML", routeModuleComparisonDeepEqual)
 		return nil
 	}
 
@@ -914,7 +926,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 
 	if webhookVerification == nil {
 		if route.WebhookVerification == nil {
-			log.V(1).Info("Webhook Verification matches desired state, skipping update")
+			u.logMatches(log, "Webhook Verification", routeModuleComparisonBothNil)
 			return nil
 		}
 
@@ -940,7 +952,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 	}
 
 	if reflect.DeepEqual(&module, route.WebhookVerification) {
-		log.V(1).Info("Webhook Verification matches desired state, skipping update")
+		u.logMatches(log, "Webhook Verification", routeModuleComparisonDeepEqual)
 		return nil
 	}
 
