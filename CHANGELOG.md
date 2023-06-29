@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.1
+### Fixed
+- Handle special case for changing auth types that causes an error during state transition [#259](https://github.com/ngrok/kubernetes-ingress-controller/pull/259)
+- Handle IP Policy CRD state transitions in a safer way [#260](https://github.com/ngrok/kubernetes-ingress-controller/pull/260)
+- Better handling when changing pathType between 'Exact' and 'Prefix' [#262](https://github.com/ngrok/kubernetes-ingress-controller/pull/262)
+
 ## 0.8.0
 
 ### Changed
