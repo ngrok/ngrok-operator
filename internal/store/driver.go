@@ -188,7 +188,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		for _, currDomain := range currDomains.Items {
 			if desiredDomain.Name == currDomain.Name && desiredDomain.Namespace == currDomain.Namespace {
 				// It matches so lets update it if anything is different
-				// or if it doesn't have a an annotation that its managed by
+				// or if it doesn't have an annotation that it is managed by
 				// the ingress controller.
 				if !reflect.DeepEqual(desiredDomain.Spec, currDomain.Spec) || !hasControllerManagedAnnotation(&currDomain) {
 					currDomain.Spec = desiredDomain.Spec
