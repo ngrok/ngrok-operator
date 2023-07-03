@@ -184,11 +184,15 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 	for _, desiredDomain := range desiredDomains {
 		found := false
+
 		for _, currDomain := range currDomains.Items {
 			if desiredDomain.Name == currDomain.Name && desiredDomain.Namespace == currDomain.Namespace {
 				// It matches so lets update it if anything is different
-				if !reflect.DeepEqual(desiredDomain.Spec, currDomain.Spec) {
+				// or if it doesn't have a an annotation that its managed by
+				// the ingress controller.
+				if !reflect.DeepEqual(desiredDomain.Spec, currDomain.Spec) || !hasControllerManagedAnnotation(&currDomain) {
 					currDomain.Spec = desiredDomain.Spec
+					currDomain.Annotations = desiredDomain.Annotations
 					if err := c.Update(ctx, &currDomain); err != nil {
 						d.log.Error(err, "error updating domain", "domain", desiredDomain)
 						return err
@@ -212,8 +216,9 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		for _, currEdge := range currEdges.Items {
 			if desiredEdge.Name == currEdge.Name && desiredEdge.Namespace == currEdge.Namespace {
 				// It matches so lets update it if anything is different
-				if !reflect.DeepEqual(desiredEdge.Spec, currEdge.Spec) {
+				if !reflect.DeepEqual(desiredEdge.Spec, currEdge.Spec) || !hasControllerManagedAnnotation(&currEdge) {
 					currEdge.Spec = desiredEdge.Spec
+					currEdge.SetAnnotations(desiredEdge.GetAnnotations())
 					if err := c.Update(ctx, &currEdge); err != nil {
 						d.log.Error(err, "error updating edge", "desiredEdge", desiredEdge, "currEdge", currEdge)
 						return err
@@ -238,10 +243,18 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 				break
 			}
 		}
+
 		if !found {
-			if err := c.Delete(ctx, &existingEdge); client.IgnoreNotFound(err) != nil {
-				d.log.Error(err, "error deleting edge", "edge", existingEdge)
-				return err
+			log := d.log.WithValues("V1Alpha1HTTPSEdge", fmt.Sprintf("%s/%s", existingEdge.Namespace, existingEdge.Name))
+
+			if hasControllerManagedAnnotation(&existingEdge) {
+				if err := c.Delete(ctx, &existingEdge); client.IgnoreNotFound(err) != nil {
+					log.Error(err, "error deleting edge", "edge", existingEdge)
+					return err
+				}
+				log.Info("Deleted edge")
+			} else {
+				log.V(3).Info("Not deleting edge because it is not managed by ingress controller")
 			}
 		}
 	}
@@ -251,8 +264,9 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		for _, currTunnel := range currTunnels.Items {
 			if desiredTunnel.Name == currTunnel.Name && desiredTunnel.Namespace == currTunnel.Namespace {
 				// It matches so lets update it if anything is different
-				if !reflect.DeepEqual(desiredTunnel.Spec, currTunnel.Spec) {
+				if !reflect.DeepEqual(desiredTunnel.Spec, currTunnel.Spec) || !hasControllerManagedAnnotation(&currTunnel) {
 					currTunnel.Spec = desiredTunnel.Spec
+					currTunnel.SetAnnotations(desiredTunnel.GetAnnotations())
 					if err := c.Update(ctx, &currTunnel); err != nil {
 						d.log.Error(err, "error updating tunnel", "tunnel", desiredTunnel)
 						return err
@@ -279,9 +293,16 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 			}
 		}
 		if !found {
-			if err := c.Delete(ctx, &existingTunnel); client.IgnoreNotFound(err) != nil {
-				d.log.Error(err, "error deleting tunnel", "tunnel", existingTunnel)
-				return err
+			log := d.log.WithValues("V1Alpha1Tunnel", fmt.Sprintf("%s/%s", existingTunnel.Namespace, existingTunnel.Name))
+
+			if hasControllerManagedAnnotation(&existingTunnel) {
+				if err := c.Delete(ctx, &existingTunnel); client.IgnoreNotFound(err) != nil {
+					log.Error(err, "error deleting tunnel", "tunnel", existingTunnel)
+					return err
+				}
+				log.Info("Deleted tunnel")
+			} else {
+				log.V(3).Info("Not deleting tunnel because it is not managed by ingress controller")
 			}
 		}
 	}
@@ -317,6 +338,9 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      strings.Replace(rule.Host, ".", "-", -1),
 					Namespace: ingress.Namespace,
+					Annotations: map[string]string{
+						annotationIngressControllerManaged: "true",
+					},
 				},
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: rule.Host,
@@ -366,6 +390,9 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      domain.Name,
 				Namespace: domain.Namespace,
+				Annotations: map[string]string{
+					annotationIngressControllerManaged: "true",
+				},
 			},
 			Spec: ingressv1alpha1.HTTPSEdgeSpec{
 				Hostports: []string{domain.Spec.Domain + ":443"},
@@ -478,6 +505,9 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      tunnelName,
 						Namespace: ingress.Namespace,
+						Annotations: map[string]string{
+							annotationIngressControllerManaged: "true",
+						},
 					},
 					Spec: ingressv1alpha1.TunnelSpec{
 						ForwardsTo: tunnelAddr,
