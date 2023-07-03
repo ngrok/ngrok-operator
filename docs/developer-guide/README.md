@@ -11,10 +11,13 @@ Have a look at the architecture guide on the internal workings of the ingress co
 - [Go 1.20](https://go.dev/dl/)
 - [Helm](https://helm.sh/docs/intro/install/)
 
-Both of these can be obtained via [nix-direnv](https://github.com/nix-community/nix-direnv), which will automatically configure your shell for you.
+Both of these can be obtained via [nix-direnv](https://github.com/nix-community/nix-direnv), which will automatically configure your shell for you. Note that it will also set `KUBECONFIG` to a file "owned" by direnv, so as not to pollute the configuration in your `$HOME`.
 
-- A k8s cluster is available via your kubectl client. This can be a remote cluster or a local cluster like [minikube](https://minikube.sigs.k8s.io/docs/start/)
-  - NOTE: Depending on your cluster, you may have to take additional steps to make the image available. For example with minikube, you may need to run `eval $(minikube docker-env)` in each terminal session to make the image from `make deploy` available to the cluster.
+A k8s cluster is available via your kubectl client. This can be a remote cluster or a local cluster like [kind](https://kind.sigs.k8s.io/) or [minikube](https://minikube.sigs.k8s.io/docs/start/).
+
+Depending on your cluster, you may have to take additional steps to make the image available. For example with minikube, you may need to run `eval $(minikube docker-env)` in each terminal session to make the image from `make deploy` available to the cluster.
+
+Support for `kind` is provided out of the box. `scripts/kind-up.sh` will create a kind cluster and an accompanying docker registry, and `scripts/kind-down.sh` will tear both down. The `docker-push` and `deploy` tasks in the provided `Makefile` are configured to use this registry.
 
 ### Setup
 
