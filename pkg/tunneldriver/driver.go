@@ -55,7 +55,7 @@ type TunnelDriverOpts struct {
 // New creates and initializes a new TunnelDriver
 func New(logger logr.Logger, opts TunnelDriverOpts) (*TunnelDriver, error) {
 	connOpts := []ngrok.ConnectOption{
-		ngrok.WithChildClient("ngrok-ingress-controller", version.GetVersion()),
+		ngrok.WithClientInfo("ngrok-ingress-controller", version.GetVersion()),
 		ngrok.WithAuthtokenFromEnv(),
 		ngrok.WithLogger(k8sLogger{logger}),
 	}
