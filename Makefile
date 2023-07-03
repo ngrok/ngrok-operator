@@ -123,6 +123,7 @@ deploy: _deploy-check-env-vars docker-push manifests kustomize _helm_setup ## De
 		--set image.registry=$(REGISTRY) \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
+		--set image.pullPolicy="Always" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
