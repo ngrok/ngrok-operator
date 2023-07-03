@@ -191,7 +191,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		os.Exit(1)
 	}
 
-	td, err := tunneldriver.New(tunneldriver.TunnelDriverOpts{
+	td, err := tunneldriver.New(ctrl.Log.WithName("drivers").WithName("tunnel"), tunneldriver.TunnelDriverOpts{
 		ServerAddr: opts.serverAddr,
 		Region:     opts.region,
 	})
