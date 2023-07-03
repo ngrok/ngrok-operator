@@ -15,6 +15,8 @@
           gotools
           go-tools
           golangci-lint
+          kind
+          kubectl
           kubernetes-helm
           kubebuilder
           jq
