@@ -203,7 +203,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 				d.log.Error(err, "error creating domain", "domain", desiredDomain)
 				return err
 			}
-			break
 		}
 	}
 	// Don't delete domains to prevent accidentally de-registering them and making people re-do DNS
@@ -228,7 +227,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 			if err := c.Create(ctx, &desiredEdge); err != nil {
 				return err
 			}
-			break
 		}
 	}
 
@@ -269,7 +267,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 				d.log.Error(err, "error creating tunnel", "tunnel", desiredTunnel)
 				return err
 			}
-			break
 		}
 	}
 
