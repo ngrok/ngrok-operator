@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Run from root project directory as `./scripts/init_e2e_configs.sh <subdomain>`
 
@@ -26,6 +26,6 @@ find "./e2e-fixtures" -type f -name "$prefix*" -print0 | while IFS= read -r -d '
     cp "$file" "$target_file"
 
     # Replace text within the copied file
-    sed -i "s/<UNIQUE SUBDOMAIN>/$domain/g" "$target_file"
-    sed -i "s/<UNIQUE SUBDOMAIN 2>/$domain2/g" "$target_file"
+    sed -i "s/<UNIQUE DOMAIN>/$domain/g" "$target_file"
+    sed -i "s/<UNIQUE DOMAIN 2>/$domain2/g" "$target_file"
 done
