@@ -18,38 +18,17 @@ do
   fi
 done
 
-echo "~~~ Cleaning up previous deploy of e2e-fixtures"
-for example in $(ls -d e2e-fixtures/*)
-do
-    kubectl delete -k $example --ignore-not-found --wait=false || true
-done
-sleep 10
+./scripts/cleanup-fixtures.sh
 
 echo "~~~ Cleaning up previous deploy of ngrok-ingress-controller"
 make undeploy || true
 
-# Remove finalizers from ingress in namespace
-kubectl get ingress -A -o custom-columns=NAMESPACE:metadata.namespace,NAME:metadata.name --no-headers | \
-while read -r i
-do
-  echo "kubectl get ingress -n $i -o=json | jq '.metadata.finalizers = null' | kubectl apply -f -"
-  kubectl get ingress -n $i -o=json | jq '.metadata.finalizers = null' | kubectl apply -f -
-done
+./scripts/remove-finalizers.sh
 
 echo "--- Deploying ngrok-ingress-controller"
 make deploy
 
-echo "--- Deploying e2e-fixtures"
-if [ "${GOOGLE_CLIENT_ID:-}" != "" ]
-then
-  kubectl create secret generic ngrok-corp-ingress-oauth-credentials \
-    --from-literal=ClientID=$GOOGLE_CLIENT_ID \
-    --from-literal=ClientSecret=$GOOGLE_CLIENT_SECRET || true
-fi
-for example in $(ls -d e2e-fixtures/*)
-do
-    kubectl apply -k $example || true
-done
+./scripts/create-fixtures.sh
 
 echo "--- Waiting for deployment"
 sleep 120
