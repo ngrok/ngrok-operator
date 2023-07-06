@@ -4,7 +4,6 @@ This guide is meant as the starting point for configuring, deploying, and operat
 
 
 ## Prerequisites
-- An ngrok account - Currently, the controller only works with paid accounts. We are working on a free tier settings that will work with the controller.
 - A k8s cluster and access to it via kubectl - We recommend using a recent version of k8s and will specify and test past versions as a part of https://github.com/ngrok/kubernetes-ingress-controller/issues/154
 - helm - 3.0.0 or later.
 
@@ -37,11 +36,6 @@ For a quick install, you can also use the combined manifests directly from the r
 ```bash
 kubectl apply -n ngrok-ingress-controller -f https://raw.githubusercontent.com/ngrok/kubernetes-ingress-controller/main/manifest-bundle.yaml
 ```
-
-## Known Limits
-
-A limitation is that it doesn't work with free accounts. Additionally there are soft limitation in places that we still need to stress test and document and look at changing.
-
 
 ## Other Topics
 
