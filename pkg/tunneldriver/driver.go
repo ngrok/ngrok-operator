@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
 	"golang.org/x/sync/errgroup"
@@ -18,7 +19,20 @@ import (
 
 	"golang.ngrok.com/ngrok"
 	"golang.ngrok.com/ngrok/config"
+	logrok "golang.ngrok.com/ngrok/log"
 )
+
+type k8sLogger struct {
+	logger logr.Logger
+}
+
+func (l k8sLogger) Log(ctx context.Context, level logrok.LogLevel, msg string, kvs map[string]interface{}) {
+	keysAndValues := []any{}
+	for k, v := range kvs {
+		keysAndValues = append(keysAndValues, k, v)
+	}
+	l.logger.V(level-4).Info(msg, keysAndValues...)
+}
 
 const (
 	// TODO: Make this configurable via helm and document it so users can
@@ -39,10 +53,11 @@ type TunnelDriverOpts struct {
 }
 
 // New creates and initializes a new TunnelDriver
-func New(opts TunnelDriverOpts) (*TunnelDriver, error) {
+func New(logger logr.Logger, opts TunnelDriverOpts) (*TunnelDriver, error) {
 	connOpts := []ngrok.ConnectOption{
-		ngrok.WithChildClient("ngrok-ingress-controller", version.GetVersion()),
+		ngrok.WithClientInfo("ngrok-ingress-controller", version.GetVersion()),
 		ngrok.WithAuthtokenFromEnv(),
+		ngrok.WithLogger(k8sLogger{logger}),
 	}
 
 	if opts.Region != "" {
