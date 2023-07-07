@@ -27,6 +27,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"net"
 	"reflect"
 
 	v1 "k8s.io/api/core/v1"
@@ -40,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
@@ -64,6 +66,8 @@ type HTTPSEdgeReconciler struct {
 	Recorder record.EventRecorder
 
 	NgrokClientset ngrokapi.Clientset
+
+	DomainReconciler *DomainReconciler
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -129,6 +133,28 @@ func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	err := r.reconcileEdge(ctx, edge)
 	if err != nil {
 		log.Error(err, "error reconciling Edge")
+	}
+	if err == nil {
+		domains := &v1alpha1.DomainList{}
+		if err := r.DomainReconciler.List(ctx, domains); err != nil {
+			log.Error(err, "error looking up domains")
+			return ctrl.Result{}, err
+		}
+		hostports := map[string]struct{}{}
+		for _, hp := range edge.Spec.Hostports {
+			host, _, _ := net.SplitHostPort(hp)
+			hostports[host] = struct{}{}
+		}
+		for _, domain := range domains.Items {
+			if _, ok := hostports[domain.Spec.Domain]; ok {
+				if domain.Status.ID == "" {
+					err := r.DomainReconciler.markStatic(ctx, &domain, false)
+					if err != nil {
+						log.Error(err, "error updating domain")
+					}
+				}
+			}
+		}
 	}
 	if errors.IsErrorReconcilable(err) {
 		return ctrl.Result{}, err

@@ -180,13 +180,15 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
 
-	if err = (&controllers.DomainReconciler{
+	domainReconciler := &controllers.DomainReconciler{
 		Client:        mgr.GetClient(),
 		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
 		Scheme:        mgr.GetScheme(),
 		Recorder:      mgr.GetEventRecorderFor("domain-controller"),
 		DomainsClient: ngrokClientset.Domains(),
-	}).SetupWithManager(mgr); err != nil {
+	}
+
+	if err = domainReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Domain")
 		os.Exit(1)
 	}
@@ -220,11 +222,12 @@ func runController(ctx context.Context, opts managerOpts) error {
 		os.Exit(1)
 	}
 	if err = (&controllers.HTTPSEdgeReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("https-edge"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("https-edge-controller"),
-		NgrokClientset: ngrokClientset,
+		Client:           mgr.GetClient(),
+		Log:              ctrl.Log.WithName("controllers").WithName("https-edge"),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("https-edge-controller"),
+		NgrokClientset:   ngrokClientset,
+		DomainReconciler: domainReconciler,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HTTPSEdge")
 		os.Exit(1)

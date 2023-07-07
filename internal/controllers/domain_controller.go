@@ -27,6 +27,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -86,7 +87,7 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	} else {
 		// The object is being deleted
 		if hasFinalizer(domain) {
-			if domain.Status.ID != "" {
+			if domain.Status.ID != "" && !strings.HasPrefix(domain.Status.ID, "static") {
 				log.Info("Deleting reserved domain", "ID", domain.Status.ID)
 				r.Recorder.Event(domain, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting Domain %s", domain.Name))
 				// Question: Do we actually want to delete the reserved domains for real? Or maybe just delete the resource and have the user delete the reserved domain from
@@ -112,7 +113,12 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	if domain.Status.ID != "" {
+	if domain.Status.ID == "static" {
+		log.Info("Domain is marked 'static', assuming it's up-to-date.")
+		return ctrl.Result{}, nil
+	}
+
+	if domain.Status.ID != "" && domain.Status.ID != "static?" {
 		if err := r.updateExternalResources(ctx, domain); err != nil {
 			r.Recorder.Event(domain, v1.EventTypeWarning, "UpdateFailed", fmt.Sprintf("Failed to update Domain %s: %s", domain.Name, err.Error()))
 			return ctrl.Result{}, err
@@ -120,14 +126,34 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	} else {
 		// Create
 		if err := r.createExternalResources(ctx, domain); err != nil {
-			r.Recorder.Event(domain, v1.EventTypeWarning, "CreateFailed", fmt.Sprintf("Failed to create Domain %s: %s", domain.Name, err.Error()))
-			return ctrl.Result{}, err
+			// If the domain is one of the special static ones, you'll either see a license error (401), or "already owned" (413).
+			if domain.Status.ID == "static?" && (strings.Contains(err.Error(), "ERR_NGROK_401") || strings.Contains(err.Error(), "ERR_NGROK_413")) {
+				if err := r.markStatic(ctx, domain, true); err != nil {
+					r.Recorder.Event(domain, v1.EventTypeWarning, "UpdateFailed", fmt.Sprintf("Failed to update Domain %s: %s", domain.Name, err.Error()))
+					return ctrl.Result{}, err
+				}
+			} else {
+				r.Recorder.Event(domain, v1.EventTypeWarning, "CreateFailed", fmt.Sprintf("Failed to create Domain %s: %s", domain.Name, err.Error()))
+				return ctrl.Result{}, err
+			}
+		} else {
+			r.Recorder.Event(domain, v1.EventTypeNormal, "Created", fmt.Sprintf("Created Domain %s", domain.Name))
 		}
-
-		r.Recorder.Event(domain, v1.EventTypeNormal, "Created", fmt.Sprintf("Created Domain %s", domain.Name))
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *DomainReconciler) markStatic(ctx context.Context, domain *ingressv1alpha1.Domain, confirmed bool) error {
+	id := "static?"
+	if confirmed {
+		id = "static"
+	}
+	return r.updateStatus(ctx, domain, &ngrok.ReservedDomain{
+		ID:     id,
+		Domain: domain.Spec.Domain,
+		Region: "US",
+	})
 }
 
 // Deletes the external resources associated with the ReservedDomain. This is just the reserved domain itself.
@@ -194,7 +220,7 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 			return domain, nil
 		}
 	}
-	return nil, nil
+	return nil, iter.Err()
 }
 
 // updateStatus updates the status fields of the domain resource only if any values have changed
