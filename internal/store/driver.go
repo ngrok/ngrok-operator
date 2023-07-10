@@ -454,12 +454,17 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 	// Tunnels should be unique on a service and port basis so if they are referenced more than once, we
 	// only create one tunnel per service and port.
-	var tunnels []ingressv1alpha1.Tunnel
+	var tunnels = map[string]map[string]ingressv1alpha1.Tunnel{}
 
 	ingresses := d.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		namespace := ingress.Namespace
-		tunnelMap := make(map[string]ingressv1alpha1.Tunnel)
+
+		namespaceTunnels, namespaceOk := tunnels[namespace]
+		if !namespaceOk {
+			namespaceTunnels = make(map[string]ingressv1alpha1.Tunnel)
+			tunnels[namespace] = namespaceTunnels
+		}
 
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
@@ -477,7 +482,7 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 				tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
 				tunnelName := fmt.Sprintf("%s-%d", serviceName, servicePort)
 
-				tunnelMap[tunnelName] = ingressv1alpha1.Tunnel{
+				namespaceTunnels[tunnelName] = ingressv1alpha1.Tunnel{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      tunnelName,
 						Namespace: ingress.Namespace,
@@ -492,11 +497,13 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 				}
 			}
 		}
-
-		tunnels = append(tunnels, maps.Values(tunnelMap)...)
 	}
 
-	return tunnels
+	var allTunnels []ingressv1alpha1.Tunnel
+	for _, namespaceTunnels := range maps.Values(tunnels) {
+		allTunnels = append(allTunnels, maps.Values(namespaceTunnels)...)
+	}
+	return allTunnels
 }
 
 func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c client.Reader) []netv1.IngressLoadBalancerIngress {
