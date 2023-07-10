@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -453,10 +454,12 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 	// Tunnels should be unique on a service and port basis so if they are referenced more than once, we
 	// only create one tunnel per service and port.
-	tunnelMap := make(map[string]ingressv1alpha1.Tunnel)
+	var tunnels []ingressv1alpha1.Tunnel
+
 	ingresses := d.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		namespace := ingress.Namespace
+		tunnelMap := make(map[string]ingressv1alpha1.Tunnel)
 
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
@@ -489,12 +492,10 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 				}
 			}
 		}
+
+		tunnels = append(tunnels, maps.Values(tunnelMap)...)
 	}
 
-	tunnels := make([]ingressv1alpha1.Tunnel, 0, len(tunnelMap))
-	for _, tunnel := range tunnelMap {
-		tunnels = append(tunnels, tunnel)
-	}
 	return tunnels
 }
 
