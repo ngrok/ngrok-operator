@@ -29,8 +29,7 @@ const clusterDomain = "svc.cluster.local" // TODO: We can technically figure thi
 // Driver maintains the store of information, can derive new information from the store, and can
 // synchronize the desired state of the store to the actual state of the cluster.
 type Driver struct {
-	Storer
-
+	store                 Storer
 	cacheStores           CacheStores
 	log                   logr.Logger
 	scheme                *runtime.Scheme
@@ -44,7 +43,7 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
-		Storer:      s,
+		store:       s,
 		cacheStores: cacheStores,
 		log:         logger,
 		scheme:      scheme,
@@ -81,7 +80,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, ing := range ingresses.Items {
-		if err := d.Update(&ing); err != nil {
+		if err := d.store.Update(&ing); err != nil {
 			return err
 		}
 	}
@@ -91,7 +90,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, ingClass := range ingressClasses.Items {
-		if err := d.Update(&ingClass); err != nil {
+		if err := d.store.Update(&ingClass); err != nil {
 			return err
 		}
 	}
@@ -101,7 +100,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, svc := range services.Items {
-		if err := d.Update(&svc); err != nil {
+		if err := d.store.Update(&svc); err != nil {
 			return err
 		}
 	}
@@ -111,7 +110,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, domain := range domains.Items {
-		if err := d.Update(&domain); err != nil {
+		if err := d.store.Update(&domain); err != nil {
 			return err
 		}
 	}
@@ -121,7 +120,17 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, edge := range edges.Items {
-		if err := d.Update(&edge); err != nil {
+		if err := d.store.Update(&edge); err != nil {
+			return err
+		}
+	}
+
+	tunnels := &ingressv1alpha1.TunnelList{}
+	if err := c.List(ctx, tunnels); err != nil {
+		return err
+	}
+	for _, tun := range tunnels.Items {
+		if err := d.store.Update(&tun); err != nil {
 			return err
 		}
 	}
@@ -129,10 +138,92 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	return nil
 }
 
+func (d *Driver) Migrate(ctx context.Context, c client.Client) error {
+	var migrated bool
+
+	for _, domain := range d.store.ListDomainsV1() {
+		migrated = migrated || isControllerManaged(domain)
+	}
+	for _, edge := range d.store.ListHTTPSEdgesV1() {
+		migrated = migrated || isControllerManaged(edge)
+	}
+	for _, tun := range d.store.ListTunnelsV1() {
+		migrated = migrated || isControllerManaged(tun)
+	}
+
+	if migrated {
+		return nil
+	}
+
+	for _, domain := range d.store.ListDomainsV1() {
+		d.log.Info("adopting domain", "namespace", domain.Namespace, "name", domain.Name)
+
+		setControllerManaged(domain)
+		if err := c.Update(ctx, domain); err != nil {
+			return err
+		}
+		if err := d.store.Update(domain); err != nil {
+			return err
+		}
+	}
+
+	for _, edge := range d.store.ListHTTPSEdgesV1() {
+		d.log.Info("adopting edge", "namespace", edge.Namespace, "name", edge.Name)
+
+		setControllerManaged(edge)
+		if err := c.Update(ctx, edge); err != nil {
+			return err
+		}
+		if err := d.store.Update(edge); err != nil {
+			return err
+		}
+	}
+
+	for _, tun := range d.store.ListTunnelsV1() {
+		d.log.Info("adopting tunnel", "namespace", tun.Namespace, "name", tun.Name)
+
+		setControllerManaged(tun)
+		if err := c.Update(ctx, tun); err != nil {
+			return err
+		}
+		if err := d.store.Update(tun); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (d *Driver) UpdateIngress(ingress *netv1.Ingress) (bool, error) {
+	// Ensure the ingress object is up to date in the store
+	if err := d.store.Update(ingress); err != nil {
+		return false, err
+	}
+
+	// Even though we already have the ingress object, leverage the store to ensure this works off the same data as everything else
+	ingress, err := d.store.GetNgrokIngressV1(ingress.Name, ingress.Namespace)
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.IsErrDifferentIngressClass(err):
+		d.log.Info("Ingress is not of type ngrok so skipping it")
+		return false, nil
+	case errors.IsErrInvalidIngressSpec(err):
+		d.log.Info("Ingress is not valid so skipping it")
+		return false, nil
+	default:
+		return false, err
+	}
+}
+
+func (d *Driver) DeleteIngress(ingress *netv1.Ingress) error {
+	return d.store.Delete(ingress)
+}
+
 // Delete an ingress object given the NamespacedName
 // Takes a namespacedName string as a parameter and
 // deletes the ingress object from the cacheStores map
-func (d *Driver) DeleteIngress(n types.NamespacedName) error {
+func (d *Driver) DeleteNamedIngress(n types.NamespacedName) error {
 	ingress := &netv1.Ingress{}
 	// set NamespacedName on the ingress object
 	ingress.SetNamespace(n.Namespace)
@@ -239,7 +330,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 				break
 			}
 		}
-		if !found {
+		if !found && isControllerManaged(&existingEdge) {
 			if err := c.Delete(ctx, &existingEdge); client.IgnoreNotFound(err) != nil {
 				d.log.Error(err, "error deleting edge", "edge", existingEdge)
 				return err
@@ -279,7 +370,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 				break
 			}
 		}
-		if !found {
+		if !found && isControllerManaged(&existingTunnel) {
 			if err := c.Delete(ctx, &existingTunnel); client.IgnoreNotFound(err) != nil {
 				d.log.Error(err, "error deleting tunnel", "tunnel", existingTunnel)
 				return err
@@ -291,7 +382,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 }
 
 func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) error {
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		newLBIPStatus := d.calculateIngressLoadBalancerIPStatus(ingress, c)
 		if !reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
@@ -308,7 +399,7 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 	// make a map of string to domains
 	domainMap := make(map[string]ingressv1alpha1.Domain)
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == "" {
@@ -348,7 +439,7 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	}
 
 	for _, module := range modules {
-		resolvedMod, err := d.Storer.GetNgrokModuleSetV1(module, ing.Namespace)
+		resolvedMod, err := d.store.GetNgrokModuleSetV1(module, ing.Namespace)
 		if err != nil {
 			return computedModSet, err
 		}
@@ -360,7 +451,7 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 
 func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 	domains := d.calculateDomains()
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	edges := make([]ingressv1alpha1.HTTPSEdge, 0, len(domains))
 	for _, domain := range domains {
 		edge := ingressv1alpha1.HTTPSEdge{
@@ -456,7 +547,7 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 	// only create one tunnel per service and port.
 	var tunnels = map[string]map[string]ingressv1alpha1.Tunnel{}
 
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		namespace := ingress.Namespace
 
@@ -531,7 +622,7 @@ func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c clie
 }
 
 func (d *Driver) getBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (int32, string, error) {
-	service, err := d.GetServiceV1(backendSvc.Name, namespace)
+	service, err := d.store.GetServiceV1(backendSvc.Name, namespace)
 	if err != nil {
 		return 0, "", err
 	}

@@ -6,7 +6,6 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
-	internalerrors "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -14,7 +13,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
@@ -66,6 +64,7 @@ func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := irec.Log.WithValues("ingress", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
+
 	ingress := &netv1.Ingress{}
 	err := irec.Client.Get(ctx, req.NamespacedName, ingress)
 	if err != nil {
@@ -73,7 +72,7 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, err // its a real error
 		}
 		// Otherwise its a not found errors. If its fully gone, delete it from the store
-		if err := irec.Driver.DeleteIngress(req.NamespacedName); err != nil {
+		if err := irec.Driver.DeleteNamedIngress(req.NamespacedName); err != nil {
 			log.Error(err, "Failed to delete ingress from store")
 			return ctrl.Result{}, err
 		}
@@ -88,25 +87,10 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// Ensure the ingress object is up to date in the store
-	err = irec.Driver.Update(ingress)
-	if err != nil {
+	if ok, err := irec.Driver.UpdateIngress(ingress); err != nil {
 		return ctrl.Result{}, err
-	}
-
-	// Even though we already have the ingress object, leverage the store to ensure this works off the same data as everything else
-	ingress, err = irec.Driver.GetNgrokIngressV1(ingress.Name, ingress.Namespace)
-	if internalerrors.IsErrDifferentIngressClass(err) {
-		log.Info("Ingress is not of type ngrok so skipping it")
+	} else if !ok {
 		return ctrl.Result{}, nil
-	}
-
-	if internalerrors.IsErrInvalidIngressSpec(err) {
-		log.Info("Ingress is not valid so skipping it")
-		return ctrl.Result{}, nil
-	}
-	if err != nil {
-		log.Error(err, "Failed to get ingress from store")
-		return ctrl.Result{}, err
 	}
 
 	if ingress.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -118,43 +102,19 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	} else {
 		if hasFinalizer(ingress) {
 			log.Info("Deleting ingress from store")
-			if err := irec.delete(ctx, ingress); err != nil {
-				log.Error(err, "Failed to delete ingress")
+			if err := removeAndSyncFinalizer(ctx, irec.Client, ingress); err != nil {
+				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}
 		}
 
 		// Stop reconciliation as the item is being deleted and remove it from the store
-		return ctrl.Result{}, irec.Driver.Delete(ingress)
-	}
-
-	return irec.reconcileAll(ctx, ingress)
-}
-
-// Delete is called when the ingress object is being deleted
-func (irec *IngressReconciler) delete(ctx context.Context, ingress *netv1.Ingress) error {
-	if err := removeAndSyncFinalizer(ctx, irec.Client, ingress); err != nil {
-		irec.Log.Error(err, "Failed to remove finalizer")
-		return err
-	}
-	// Remove the ingress object from the store
-	return irec.Driver.Delete(ingress)
-}
-
-func (irec *IngressReconciler) reconcileAll(ctx context.Context, ingress *netv1.Ingress) (reconcile.Result, error) {
-	log := irec.Log
-	// First Update the store
-	err := irec.Driver.Update(ingress)
-	if err != nil {
-		log.Error(err, "Failed to add ingress to store")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, irec.Driver.DeleteIngress(ingress)
 	}
 
 	err = irec.Driver.Sync(ctx, irec.Client)
 	if err != nil {
 		log.Error(err, "Failed to sync ingress to store")
-		return ctrl.Result{}, err
 	}
-
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, err
 }

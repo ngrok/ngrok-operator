@@ -338,12 +338,8 @@ func (s Store) shouldHandleIngressCheckClass(ing *netv1.Ingress) (bool, error) {
 // shouldHandleIngressIsValid checks if the ingress should be handled by the controller based on the ingress spec
 func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 	errs := errors.NewErrInvalidIngressSpec()
-	if len(ing.Spec.Rules) > 1 {
-		errs.AddError(fmt.Sprintf("A maximum of one rule is required to be set"))
-	}
-	if len(ing.Spec.Rules) == 0 {
-		errs.AddError(fmt.Sprintf("At least one rule is required to be set"))
-	} else {
+	switch len(ing.Spec.Rules) {
+	case 1:
 		if ing.Spec.Rules[0].Host == "" {
 			errs.AddError(fmt.Sprintf("A host is required to be set"))
 		}
@@ -353,6 +349,10 @@ func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 				errs.AddError(fmt.Sprintf("Resource backends are not supported"))
 			}
 		}
+	case 0:
+		errs.AddError(fmt.Sprintf("At least one rule is required to be set"))
+	default:
+		errs.AddError(fmt.Sprintf("A maximum of one rule is required to be set"))
 	}
 
 	if errs.HasErrors() {

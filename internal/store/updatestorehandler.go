@@ -30,7 +30,7 @@ func NewUpdateStoreHandler(resourceName string, d *Driver) *UpdateStoreHandler {
 
 // Create is called in response to an create event - e.g. Edge Creation.
 func (e *UpdateStoreHandler) Create(evt event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if err := e.driver.Update(evt.Object); err != nil {
+	if err := e.driver.store.Update(evt.Object); err != nil {
 		e.log.Error(err, "error updating object in create", "object", evt.Object)
 		return
 	}
@@ -38,7 +38,7 @@ func (e *UpdateStoreHandler) Create(evt event.CreateEvent, q workqueue.RateLimit
 
 // Update is called in response to an update event -  e.g. Edge Updated.
 func (e *UpdateStoreHandler) Update(evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	if err := e.driver.Update(evt.ObjectNew); err != nil {
+	if err := e.driver.store.Update(evt.ObjectNew); err != nil {
 		e.log.Error(err, "error updating object in update", "object", evt.ObjectNew)
 		return
 	}
@@ -46,7 +46,7 @@ func (e *UpdateStoreHandler) Update(evt event.UpdateEvent, q workqueue.RateLimit
 
 // Delete is called in response to a delete event - e.g. Edge Deleted.
 func (e *UpdateStoreHandler) Delete(evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	if err := e.driver.Delete(evt.Object); err != nil {
+	if err := e.driver.store.Delete(evt.Object); err != nil {
 		e.log.Error(err, "error deleting object", "object", evt.Object)
 		return
 	}
@@ -55,7 +55,7 @@ func (e *UpdateStoreHandler) Delete(evt event.DeleteEvent, q workqueue.RateLimit
 // Generic is called in response to an event of an unknown type or a synthetic event triggered as a cron or
 // external trigger request
 func (e *UpdateStoreHandler) Generic(evt event.GenericEvent, q workqueue.RateLimitingInterface) {
-	if err := e.driver.Update(evt.Object); err != nil {
+	if err := e.driver.store.Update(evt.Object); err != nil {
 		e.log.Error(err, "error updating object in generic", "object", evt.Object)
 		return
 	}
