@@ -414,6 +414,7 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 					Domain: rule.Host,
 				},
 			}
+			setControllerManaged(&domain)
 			domain.Spec.Metadata = d.customMetadata
 			domainMap[rule.Host] = domain
 		}
@@ -463,6 +464,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 				Hostports: []string{domain.Spec.Domain + ":443"},
 			},
 		}
+		setControllerManaged(&edge)
 		edge.Spec.Metadata = d.customMetadata
 		var ngrokRoutes []ingressv1alpha1.HTTPSEdgeRouteSpec
 		for _, ingress := range ingresses {
@@ -573,7 +575,7 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 				tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
 				tunnelName := fmt.Sprintf("%s-%d", serviceName, servicePort)
 
-				namespaceTunnels[tunnelName] = ingressv1alpha1.Tunnel{
+				tunnel := ingressv1alpha1.Tunnel{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      tunnelName,
 						Namespace: ingress.Namespace,
@@ -586,6 +588,8 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 						},
 					},
 				}
+				setControllerManaged(&tunnel)
+				namespaceTunnels[tunnelName] = tunnel
 			}
 		}
 	}
