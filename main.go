@@ -285,24 +285,7 @@ func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*
 		return nil, fmt.Errorf("unable to migrate store: %w", err)
 	}
 
-	// ings := d.ListNgrokIngressesV1()
-	// for _, ing := range ings {
-	// 	setupLog.Info("found matching ingress", "ingress-name", ing.Name, "ingress-namespace", ing.Namespace)
-	// }
-
-	// // Helpful debug information if someone doesn't have their ingress class set up correctly.
-	// if len(ings) == 0 {
-	// 	ingresses := d.ListIngressesV1()
-	// 	ngrokIngresses := d.ListNgrokIngressesV1()
-	// 	ingressClasses := d.ListIngressClassesV1()
-	// 	ngrokIngressClasses := d.ListNgrokIngressClassesV1()
-	// 	setupLog.Info("no matching ingresses found",
-	// 		"all ingresses", ingresses,
-	// 		"all ngrok ingresses", ngrokIngresses,
-	// 		"all ingress classes", ingressClasses,
-	// 		"all ngrok ingress classes", ngrokIngressClasses,
-	// 	)
-	// }
+	d.PrintDebug(setupLog)
 
 	return d, nil
 }

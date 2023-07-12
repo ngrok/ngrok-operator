@@ -194,6 +194,27 @@ func (d *Driver) Migrate(ctx context.Context, c client.Client) error {
 	return nil
 }
 
+func (d *Driver) PrintDebug(log logr.Logger) {
+	ings := d.store.ListNgrokIngressesV1()
+	for _, ing := range ings {
+		log.Info("found matching ingress", "ingress-name", ing.Name, "ingress-namespace", ing.Namespace)
+	}
+
+	// Helpful debug information if someone doesn't have their ingress class set up correctly.
+	if len(ings) == 0 {
+		ingresses := d.store.ListIngressesV1()
+		ngrokIngresses := d.store.ListNgrokIngressesV1()
+		ingressClasses := d.store.ListIngressClassesV1()
+		ngrokIngressClasses := d.store.ListNgrokIngressClassesV1()
+		log.Info("no matching ingresses found",
+			"all ingresses", ingresses,
+			"all ngrok ingresses", ngrokIngresses,
+			"all ingress classes", ingressClasses,
+			"all ngrok ingress classes", ngrokIngressClasses,
+		)
+	}
+}
+
 func (d *Driver) UpdateIngress(ingress *netv1.Ingress) (bool, error) {
 	// Ensure the ingress object is up to date in the store
 	if err := d.store.Update(ingress); err != nil {
