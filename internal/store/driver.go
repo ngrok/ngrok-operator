@@ -138,22 +138,22 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	return nil
 }
 
-func (d *Driver) Migrate(ctx context.Context, c client.Client) error {
-	var migrated bool
+func (d *Driver) Migrate(ctx context.Context, log logr.Logger, c client.Client, namespace, configMapName string) error {
+	config := &corev1.ConfigMap{}
+	err := c.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, config)
+	switch {
+	case err == nil:
+		// check if we already migated
+		if config.Data["migrate-resources-adopt"] == "true" {
+			log.Info("resources already adopted")
+			return nil
+		}
+	case client.IgnoreNotFound(err) == nil:
+	default:
+		return err
+	}
 
-	for _, domain := range d.store.ListDomainsV1() {
-		migrated = migrated || isControllerManaged(domain)
-	}
-	for _, edge := range d.store.ListHTTPSEdgesV1() {
-		migrated = migrated || isControllerManaged(edge)
-	}
-	for _, tun := range d.store.ListTunnelsV1() {
-		migrated = migrated || isControllerManaged(tun)
-	}
-
-	if migrated {
-		return nil
-	}
+	log.Info("adopting ingress controller resources")
 
 	for _, domain := range d.store.ListDomainsV1() {
 		d.log.Info("adopting domain", "namespace", domain.Namespace, "name", domain.Name)
@@ -191,7 +191,20 @@ func (d *Driver) Migrate(ctx context.Context, c client.Client) error {
 		}
 	}
 
-	return nil
+	if config.Data == nil {
+		config.Data = make(map[string]string)
+	}
+	config.Data["migrate-resources-adopt"] = "true"
+
+	if config.Name == configMapName {
+		// already existing, just update
+		return c.Update(ctx, config)
+	}
+
+	config.Name = configMapName
+	config.Namespace = namespace
+
+	return c.Create(ctx, config)
 }
 
 func (d *Driver) PrintDebug(log logr.Logger) {

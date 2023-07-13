@@ -72,14 +72,15 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	metricsAddr    string
-	electionID     string
-	probeAddr      string
-	serverAddr     string
-	controllerName string
-	watchNamespace string
-	metaData       string
-	zapOpts        *zap.Options
+	metricsAddr       string
+	electionID        string
+	probeAddr         string
+	serverAddr        string
+	controllerName    string
+	watchNamespace    string
+	metaData          string
+	zapOpts           *zap.Options
+	runtimeConfigName string
 
 	// env vars
 	namespace   string
@@ -105,6 +106,8 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
+	c.Flags().StringVar(&opts.runtimeConfigName, "runtime-config-name", "ngrok-ingress-controller-runtime-config", "The name of the configmap used for storing runtime configration")
+
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -281,7 +284,7 @@ func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*
 		return nil, fmt.Errorf("unable to seed cache store: %w", err)
 	}
 
-	if err := d.Migrate(ctx, mgr.GetClient()); err != nil {
+	if err := d.Migrate(ctx, setupLog, mgr.GetClient(), options.namespace, options.runtimeConfigName); err != nil {
 		return nil, fmt.Errorf("unable to migrate store: %w", err)
 	}
 
