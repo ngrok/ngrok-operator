@@ -249,20 +249,34 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 	for _, desiredTunnel := range desiredTunnels {
 		found := false
+
 		for _, currTunnel := range currTunnels.Items {
-			if desiredTunnel.Name == currTunnel.Name && desiredTunnel.Namespace == currTunnel.Namespace {
-				// It matches so lets update it if anything is different
+			if desiredTunnel.Namespace == currTunnel.Namespace && reflect.DeepEqual(desiredTunnel.Labels, currTunnel.Labels) {
+				needsUpdate := false
+
+				if !reflect.DeepEqual(desiredTunnel.OwnerReferences, currTunnel.OwnerReferences) {
+				}
+
 				if !reflect.DeepEqual(desiredTunnel.Spec, currTunnel.Spec) {
+					needsUpdate = true
 					currTunnel.Spec = desiredTunnel.Spec
+				}
+
+				if needsUpdate {
 					if err := c.Update(ctx, &currTunnel); err != nil {
 						d.log.Error(err, "error updating tunnel", "tunnel", desiredTunnel)
 						return err
 					}
 				}
+
 				found = true
-				break
+			}
+
+			if desiredTunnel.Namespace == currTunnel.Namespace && desiredTunnel.GenerateName == currTunnel.Name {
+				d.log.Info("found matching tunnel by name, ignore changes", "namespace", currTunnel.Namespace, "name", currTunnel.Name)
 			}
 		}
+
 		if !found {
 			if err := c.Create(ctx, &desiredTunnel); err != nil {
 				d.log.Error(err, "error creating tunnel", "tunnel", desiredTunnel)
@@ -425,7 +439,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 							Match:     httpIngressPath.Path,
 							MatchType: matchType,
 							Backend: ingressv1alpha1.TunnelGroupBackend{
-								Labels: d.backendToLabelMap(namespace, serviceName, servicePort),
+								Labels: d.ngrokLabels(namespace, serviceName, servicePort),
 							},
 							CircuitBreaker:      modSet.Modules.CircuitBreaker,
 							Compression:         modSet.Modules.Compression,
@@ -479,21 +493,48 @@ func (d *Driver) calculateTunnels() []ingressv1alpha1.Tunnel {
 					d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
 				}
 
-				tunnelAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
+				targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, namespace, clusterDomain, servicePort)
 				tunnelName := fmt.Sprintf("%s-%d", serviceName, servicePort)
 
-				namespaceTunnels[tunnelName] = ingressv1alpha1.Tunnel{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      tunnelName,
-						Namespace: ingress.Namespace,
-					},
-					Spec: ingressv1alpha1.TunnelSpec{
-						ForwardsTo: tunnelAddr,
-						Labels:     d.backendToLabelMap(namespace, serviceName, servicePort),
-						BackendConfig: &ingressv1alpha1.BackendConfig{
-							Protocol: protocol,
+				if tunnel, ok := namespaceTunnels[tunnelName]; ok {
+					needsIngressRef := true
+					for _, ref := range tunnel.OwnerReferences {
+						if ref.UID == ingress.UID {
+							needsIngressRef = false
+							break
+						}
+					}
+
+					if needsIngressRef {
+						tunnel.OwnerReferences = append(tunnel.OwnerReferences, metav1.OwnerReference{
+							APIVersion: ingress.APIVersion,
+							Kind:       ingress.Kind,
+							Name:       ingress.Name,
+							UID:        ingress.UID,
+						})
+						namespaceTunnels[tunnelName] = tunnel
+					}
+				} else {
+					namespaceTunnels[tunnelName] = ingressv1alpha1.Tunnel{
+						ObjectMeta: metav1.ObjectMeta{
+							GenerateName: tunnelName,
+							Namespace:    ingress.Namespace,
+							OwnerReferences: []metav1.OwnerReference{{
+								APIVersion: ingress.APIVersion,
+								Kind:       ingress.Kind,
+								Name:       ingress.Name,
+								UID:        ingress.UID,
+							}},
+							Labels: d.k8sLabels(serviceName, servicePort),
 						},
-					},
+						Spec: ingressv1alpha1.TunnelSpec{
+							ForwardsTo: targetAddr,
+							Labels:     d.ngrokLabels(namespace, serviceName, servicePort),
+							BackendConfig: &ingressv1alpha1.BackendConfig{
+								Protocol: protocol,
+							},
+						},
+					}
 				}
 			}
 		}
@@ -585,8 +626,16 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 	return "HTTP", nil
 }
 
+func (d *Driver) k8sLabels(serviceName string, port int32) map[string]string {
+	return map[string]string{
+		"k8s.ngrok.com/managed": "true",
+		"k8s.ngrok.com/service": serviceName,
+		"k8s.ngrok.com/port":    strconv.Itoa(int(port)),
+	}
+}
+
 // Generates a labels map for matching ngrok Routes to Agent Tunnels
-func (d *Driver) backendToLabelMap(namespace, serviceName string, port int32) map[string]string {
+func (d *Driver) ngrokLabels(namespace, serviceName string, port int32) map[string]string {
 	return map[string]string{
 		"k8s.ngrok.com/namespace": namespace,
 		"k8s.ngrok.com/service":   serviceName,

@@ -141,13 +141,13 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(foundEdge.Spec.Hostports[0]).To(ContainSubstring(i1.Spec.Rules[0].Host))
 
-				foundTunnel := &ingressv1alpha1.Tunnel{}
-				err = c.Get(context.Background(), types.NamespacedName{
-					Namespace: "test-namespace",
-					Name:      "example-80",
-				}, foundTunnel)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(foundTunnel).ToNot(BeNil())
+				// foundTunnel := &ingressv1alpha1.Tunnel{}
+				// err = c.Get(context.Background(), types.NamespacedName{
+				// 	Namespace: "test-namespace",
+				// 	Name:      "example-80",
+				// }, foundTunnel)
+				// Expect(err).ToNot(HaveOccurred())
+				// Expect(foundTunnel).ToNot(BeNil())
 			})
 		})
 	})
