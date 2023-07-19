@@ -94,6 +94,8 @@ spec:
             secretKeyRef:
               key: AUTHTOKEN
               name: {{ include "kubernetes-ingress-controller.credentialsSecretName" . }}
+        - name: DEPLOYMENT_NAME
+          value: {{ include "kubernetes-ingress-controller.fullname" . }}-manager
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

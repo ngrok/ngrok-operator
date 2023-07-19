@@ -32,6 +32,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -82,6 +83,7 @@ type managerOpts struct {
 	zapOpts        *zap.Options
 
 	// env vars
+	deployment  string
 	namespace   string
 	ngrokAPIKey string
 
@@ -117,6 +119,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	var ok bool
+	opts.deployment, ok = os.LookupEnv("DEPLOYMENT_NAME")
+	if !ok {
+		return errors.New("DEPLOYMENT_NAME environment variable should be set, but was not")
+	}
+
 	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
 	if !ok {
 		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
@@ -277,7 +284,7 @@ func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*
 		d.WithMetaData(customMetaData)
 	}
 
-	if err := d.Seed(ctx, mgr.GetAPIReader()); err != nil {
+	if err := d.Seed(ctx, mgr.GetAPIReader(), types.NamespacedName{Namespace: options.namespace, Name: options.deployment}); err != nil {
 		return nil, fmt.Errorf("unable to seed cache store: %w", err)
 	}
 
