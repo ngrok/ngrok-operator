@@ -283,10 +283,6 @@ func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*
 		d.WithMetaData(customMetaData)
 	}
 
-	if err := d.Migrate(ctx, mgr.GetAPIReader(), mgr.GetClient(), setupLog); err != nil {
-		return nil, fmt.Errorf("unable to migrate driver: %w", err)
-	}
-
 	if err := d.Seed(ctx, mgr.GetAPIReader()); err != nil {
 		return nil, fmt.Errorf("unable to seed cache store: %w", err)
 	}
