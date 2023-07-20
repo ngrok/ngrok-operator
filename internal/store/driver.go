@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	appsv1 "k8s.io/api/apps/v1"
+	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,11 +37,11 @@ type Driver struct {
 	reentranceFlag        int64
 	bypassReentranceCheck bool
 	customMetadata        string
-	deploymentRef         metav1.OwnerReference
+	managerName           string
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
-func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string) *Driver {
+func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName, managerName string) *Driver {
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
@@ -49,6 +49,7 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 		cacheStores: cacheStores,
 		log:         logger,
 		scheme:      scheme,
+		managerName: managerName,
 	}
 }
 
@@ -76,27 +77,7 @@ func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
 // - Domains
 // - Edges
 // When the sync method becomes a background process, this likely won't be needed anymore
-func (d *Driver) Seed(ctx context.Context, c client.Reader, deploymentName types.NamespacedName) error {
-	if deploymentName.Name != "test-deployment" {
-		deployment := appsv1.Deployment{}
-		if err := c.Get(ctx, deploymentName, &deployment); err != nil {
-			return err
-		}
-		if deployment.APIVersion == "" {
-			deployment.APIVersion = "apps/v1"
-		}
-		if deployment.Kind == "" {
-			deployment.Kind = "Deployment"
-		}
-		b := true
-		d.deploymentRef.APIVersion = deployment.APIVersion
-		d.deploymentRef.Kind = deployment.Kind
-		d.deploymentRef.Name = deployment.Name
-		d.deploymentRef.UID = deployment.UID
-		d.deploymentRef.Controller = &b
-		d.log.Info("loaded reference to deployment", "ref", d)
-	}
-
+func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	ingresses := &netv1.IngressList{}
 	if err := c.List(ctx, ingresses); err != nil {
 		return err
@@ -271,7 +252,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	// update or delete tunnels we don't need anymore
 	for _, currTunnel := range currTunnels.Items {
 		// extract tunnel key and check if its controller managed
-		if tkey, ok := tunnelKeyFromTunnel(currTunnel); ok {
+		if tkey, ok := d.tunnelKeyFromTunnel(currTunnel); ok {
 			// check if new state needs this tunnel
 			if desiredTunnel, ok := desiredTunnels[tkey]; ok {
 				needsUpdate := false
@@ -451,7 +432,7 @@ func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
 							Match:     httpIngressPath.Path,
 							MatchType: matchType,
 							Backend: ingressv1alpha1.TunnelGroupBackend{
-								Labels: ngrokLabels(namespace, serviceName, servicePort),
+								Labels: d.ngrokLabels(namespace, serviceName, servicePort),
 							},
 							CircuitBreaker:      modSet.Modules.CircuitBreaker,
 							Compression:         modSet.Modules.Compression,
@@ -483,8 +464,8 @@ type tunnelKey struct {
 	port      int32
 }
 
-func tunnelKeyFromTunnel(tunnel ingressv1alpha1.Tunnel) (tunnelKey, bool) {
-	if tunnel.Labels["k8s.ngrok.com/managed"] != "true" {
+func (d *Driver) tunnelKeyFromTunnel(tunnel ingressv1alpha1.Tunnel) (tunnelKey, bool) {
+	if tunnel.Labels["k8s.ngrok.com/controller"] != d.managerName {
 		return tunnelKey{}, false
 	}
 
@@ -521,14 +502,14 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, clusterDomain, servicePort)
 					tunnel = ingressv1alpha1.Tunnel{
 						ObjectMeta: metav1.ObjectMeta{
-							GenerateName:    fmt.Sprintf("%s-%d", serviceName, servicePort),
+							GenerateName:    fmt.Sprintf("%s-%d-", serviceName, servicePort),
 							Namespace:       ingress.Namespace,
-							OwnerReferences: []metav1.OwnerReference{d.deploymentRef},
-							Labels:          k8sLabels(serviceName, servicePort),
+							OwnerReferences: nil, // fill that below separately
+							Labels:          d.k8sLabels(serviceName, servicePort),
 						},
 						Spec: ingressv1alpha1.TunnelSpec{
 							ForwardsTo: targetAddr,
-							Labels:     ngrokLabels(ingress.Namespace, serviceName, servicePort),
+							Labels:     d.ngrokLabels(ingress.Namespace, serviceName, servicePort),
 							BackendConfig: &ingressv1alpha1.BackendConfig{
 								Protocol: protocol,
 							},
@@ -536,12 +517,24 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 					}
 				}
 
-				// tval.refs[metav1.OwnerReference{
-				// 	APIVersion: ingress.APIVersion,
-				// 	Kind:       ingress.Kind,
-				// 	Name:       ingress.Name,
-				// 	UID:        ingress.UID,
-				// }] = struct{}{}
+				hasIngressReference := false
+				for _, ref := range tunnel.OwnerReferences {
+					if ref.UID == ingress.UID {
+						hasIngressReference = true
+						break
+					}
+				}
+				if !hasIngressReference {
+					tunnel.OwnerReferences = append(tunnel.OwnerReferences, metav1.OwnerReference{
+						APIVersion: ingress.APIVersion,
+						Kind:       ingress.Kind,
+						Name:       ingress.Name,
+						UID:        ingress.UID,
+					})
+					slices.SortStableFunc(tunnel.OwnerReferences, func(i, j metav1.OwnerReference) bool {
+						return i.UID < j.UID
+					})
+				}
 
 				tunnels[key] = tunnel
 			}
@@ -630,16 +623,16 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 	return "HTTP", nil
 }
 
-func k8sLabels(serviceName string, port int32) map[string]string {
+func (d *Driver) k8sLabels(serviceName string, port int32) map[string]string {
 	return map[string]string{
-		"k8s.ngrok.com/managed": "true", // TODO should we replace with owner reference?
-		"k8s.ngrok.com/service": serviceName,
-		"k8s.ngrok.com/port":    strconv.Itoa(int(port)),
+		"k8s.ngrok.com/controller": d.managerName,
+		"k8s.ngrok.com/service":    serviceName,
+		"k8s.ngrok.com/port":       strconv.Itoa(int(port)),
 	}
 }
 
 // Generates a labels map for matching ngrok Routes to Agent Tunnels
-func ngrokLabels(namespace, serviceName string, port int32) map[string]string {
+func (d *Driver) ngrokLabels(namespace, serviceName string, port int32) map[string]string {
 	return map[string]string{
 		"k8s.ngrok.com/namespace": namespace,
 		"k8s.ngrok.com/service":   serviceName,

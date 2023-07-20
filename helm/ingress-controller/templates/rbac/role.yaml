@@ -40,14 +40,6 @@ rules:
   - list
   - watch
 - apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - domains

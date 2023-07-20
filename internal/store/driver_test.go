@@ -18,6 +18,8 @@ import (
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 )
 
+const defaultManagerName = "ngrok-ingress-controller"
+
 var _ = Describe("Driver", func() {
 
 	var driver *Driver
@@ -28,14 +30,13 @@ var _ = Describe("Driver", func() {
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())
-		driver = NewDriver(logger, scheme, defaultControllerName)
+		driver = NewDriver(logger, scheme, defaultControllerName, defaultManagerName)
 		driver.bypassReentranceCheck = true
 	})
-	dref := types.NamespacedName{Namespace: "test-namespace", Name: "test-deployment"}
 
 	Describe("Seed", func() {
 		It("Should not error", func() {
-			err := driver.Seed(context.Background(), fake.NewFakeClientWithScheme(scheme), dref)
+			err := driver.Seed(context.Background(), fake.NewFakeClientWithScheme(scheme))
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should add all the found items to the store", func() {
@@ -50,7 +51,7 @@ var _ = Describe("Driver", func() {
 			obs := []runtime.Object{&ic1, &ic2, &i1, &i2, &d1, &d2, &e1, &e2}
 
 			c := fake.NewFakeClientWithScheme(scheme, obs...)
-			err := driver.Seed(context.Background(), c, dref)
+			err := driver.Seed(context.Background(), c)
 			Expect(err).ToNot(HaveOccurred())
 
 			for _, obj := range obs {
@@ -67,7 +68,7 @@ var _ = Describe("Driver", func() {
 		It("Should remove the ingress from the store", func() {
 			i1 := NewTestIngressV1("test-ingress", "test-namespace")
 			c := fake.NewFakeClientWithScheme(scheme, &i1)
-			err := driver.Seed(context.Background(), c, dref)
+			err := driver.Seed(context.Background(), c)
 			Expect(err).ToNot(HaveOccurred())
 
 			err = driver.DeleteIngress(types.NamespacedName{
@@ -120,7 +121,7 @@ var _ = Describe("Driver", func() {
 					err := driver.Update(obj)
 					Expect(err).ToNot(HaveOccurred())
 				}
-				err := driver.Seed(context.Background(), c, dref)
+				err := driver.Seed(context.Background(), c)
 				Expect(err).ToNot(HaveOccurred())
 
 				err = driver.Sync(context.Background(), c)
