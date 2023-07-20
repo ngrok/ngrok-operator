@@ -67,6 +67,56 @@ func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
 	return d
 }
 
+func (d *Driver) Migrate(ctx context.Context, r client.Reader, c client.Client, setupLog logr.Logger) error {
+	runtimeName := types.NamespacedName{
+		Namespace: d.managerName.Namespace,
+		Name:      fmt.Sprintf("%s-runtime", d.managerName.Name),
+	}
+	runtimeConfig := &corev1.ConfigMap{}
+	if err := r.Get(ctx, runtimeName, runtimeConfig); client.IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	if runtimeConfig.Data == nil {
+		runtimeConfig.Data = map[string]string{}
+	}
+
+	// TODO once we have more then one migration (httpsedge?) we should add light abstraction
+	if runtimeConfig.Data["tunnels-adopt"] == "true" {
+		// already adopted all tunnels
+		return nil
+	}
+
+	tunnels := &ingressv1alpha1.TunnelList{}
+	if err := r.List(ctx, tunnels); err != nil {
+		return err
+	}
+	for _, tunnel := range tunnels.Items {
+		setupLog.Info("adopting tunnel", "namespace", tunnel.Namespace, "name", tunnel.Name)
+
+		if tunnel.Labels == nil {
+			tunnel.Labels = map[string]string{}
+		}
+		tunnel.Labels["k8s.ngrok.com/controller-namespace"] = d.managerName.Namespace
+		tunnel.Labels["k8s.ngrok.com/controller-name"] = d.managerName.Name
+		tunnel.Labels["k8s.ngrok.com/service"] = tunnel.Spec.Labels["k8s.ngrok.com/service"]
+		tunnel.Labels["k8s.ngrok.com/port"] = tunnel.Spec.Labels["k8s.ngrok.com/port"]
+
+		if err := c.Update(ctx, &tunnel); err != nil {
+			return err
+		}
+	}
+	runtimeConfig.Data["tunnels-adopt"] = "true"
+
+	if runtimeConfig.Name == "" {
+		runtimeConfig.Namespace = runtimeName.Namespace
+		runtimeConfig.Name = runtimeName.Name
+		return c.Create(ctx, runtimeConfig)
+	} else {
+		return c.Update(ctx, runtimeConfig)
+	}
+}
+
 // Seed fetches all the upfront information the driver needs to operate
 // It needs to be seeded fully before it can be used to make calculations otherwise
 // each calculation will be based on an incomplete state of the world. It currently relies on:
