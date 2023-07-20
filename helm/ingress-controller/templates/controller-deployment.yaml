@@ -81,6 +81,7 @@ spec:
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id={{ include "kubernetes-ingress-controller.fullname" . }}-leader
+        - --manager-name={{ include "kubernetes-ingress-controller.fullname" . }}-manager
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -94,8 +95,6 @@ spec:
             secretKeyRef:
               key: AUTHTOKEN
               name: {{ include "kubernetes-ingress-controller.credentialsSecretName" . }}
-        - name: DEPLOYMENT_NAME
-          value: {{ include "kubernetes-ingress-controller.fullname" . }}-manager
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

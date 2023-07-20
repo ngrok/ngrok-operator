@@ -32,6 +32,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -79,10 +80,10 @@ type managerOpts struct {
 	controllerName string
 	watchNamespace string
 	metaData       string
+	managerName    string
 	zapOpts        *zap.Options
 
 	// env vars
-	deployment  string
 	namespace   string
 	ngrokAPIKey string
 
@@ -106,6 +107,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
+	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -118,11 +120,6 @@ func runController(ctx context.Context, opts managerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	var ok bool
-	opts.deployment, ok = os.LookupEnv("DEPLOYMENT_NAME")
-	if !ok {
-		return errors.New("DEPLOYMENT_NAME environment variable should be set, but was not")
-	}
-
 	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
 	if !ok {
 		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
@@ -266,7 +263,10 @@ func runController(ctx context.Context, opts managerOpts) error {
 // getDriver returns a new Driver instance that is seeded with the current state of the cluster.
 func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
-	d := store.NewDriver(logger, mgr.GetScheme(), options.controllerName, options.deployment)
+	d := store.NewDriver(logger, mgr.GetScheme(), options.controllerName, types.NamespacedName{
+		Namespace: options.namespace,
+		Name:      options.managerName,
+	})
 	if options.metaData != "" {
 		metaData := strings.TrimSuffix(options.metaData, ",")
 		// metadata is a comma separated list of key=value pairs.

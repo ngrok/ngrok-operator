@@ -30,7 +30,9 @@ var _ = Describe("Driver", func() {
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())
-		driver = NewDriver(logger, scheme, defaultControllerName, defaultManagerName)
+		driver = NewDriver(logger, scheme, defaultControllerName, types.NamespacedName{
+			Name: defaultManagerName,
+		})
 		driver.bypassReentranceCheck = true
 	})
 
@@ -150,7 +152,7 @@ var _ = Describe("Driver", func() {
 				foundTunnel := foundTunnels.Items[0]
 				Expect(foundTunnel.Namespace).To(Equal("test-namespace"))
 				Expect(foundTunnel.Name).To(HavePrefix("example-80-"))
-				Expect(foundTunnel.Labels["k8s.ngrok.com/controller"]).To(Equal(defaultManagerName))
+				Expect(foundTunnel.Labels["k8s.ngrok.com/controller-name"]).To(Equal(defaultManagerName))
 			})
 		})
 	})
