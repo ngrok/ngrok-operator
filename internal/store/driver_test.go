@@ -150,6 +150,7 @@ var _ = Describe("Driver", func() {
 				foundTunnel := foundTunnels.Items[0]
 				Expect(foundTunnel.Namespace).To(Equal("test-namespace"))
 				Expect(foundTunnel.Name).To(HavePrefix("example-80-"))
+				Expect(foundTunnel.Labels["k8s.ngrok.com/controller"]).To(Equal(defaultManagerName))
 			})
 		})
 	})
