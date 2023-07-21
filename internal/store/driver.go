@@ -26,6 +26,14 @@ import (
 
 const clusterDomain = "svc.cluster.local" // TODO: We can technically figure this out by looking at things like our resolv.conf or we can just take this as a helm option
 
+const (
+	labelControllerNamespace = "k8s.ngrok.com/controller-namespace"
+	labelControllerName      = "k8s.ngrok.com/controller-name"
+	labelNamespace           = "k8s.ngrok.com/namespace"
+	labelService             = "k8s.ngrok.com/service"
+	labelPort                = "k8s.ngrok.com/port"
+)
+
 // Driver maintains the store of information, can derive new information from the store, and can
 // synchronize the desired state of the store to the actual state of the cluster.
 type Driver struct {
@@ -181,8 +189,8 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 	if err := c.List(ctx, currTunnels, client.MatchingLabels{
-		"k8s.ngrok.com/controller-namespace": d.managerName.Namespace,
-		"k8s.ngrok.com/controller-name":      d.managerName.Name,
+		labelControllerNamespace: d.managerName.Namespace,
+		labelControllerName:      d.managerName.Name,
 	}); err != nil {
 		d.log.Error(err, "error listing tunnels")
 		return err
@@ -471,8 +479,8 @@ type tunnelKey struct {
 func (d *Driver) tunnelKeyFromTunnel(tunnel ingressv1alpha1.Tunnel) tunnelKey {
 	return tunnelKey{
 		namespace: tunnel.Namespace,
-		service:   tunnel.Labels["k8s.ngrok.com/service"],
-		port:      tunnel.Labels["k8s.ngrok.com/port"],
+		service:   tunnel.Labels[labelService],
+		port:      tunnel.Labels[labelPort],
 	}
 }
 
@@ -622,18 +630,18 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 
 func (d *Driver) k8sLabels(serviceName string, port int32) map[string]string {
 	return map[string]string{
-		"k8s.ngrok.com/controller-namespace": d.managerName.Namespace,
-		"k8s.ngrok.com/controller-name":      d.managerName.Name,
-		"k8s.ngrok.com/service":              serviceName,
-		"k8s.ngrok.com/port":                 strconv.Itoa(int(port)),
+		labelControllerNamespace: d.managerName.Namespace,
+		labelControllerName:      d.managerName.Name,
+		labelService:             serviceName,
+		labelPort:                strconv.Itoa(int(port)),
 	}
 }
 
 // Generates a labels map for matching ngrok Routes to Agent Tunnels
 func (d *Driver) ngrokLabels(namespace, serviceName string, port int32) map[string]string {
 	return map[string]string{
-		"k8s.ngrok.com/namespace": namespace,
-		"k8s.ngrok.com/service":   serviceName,
-		"k8s.ngrok.com/port":      strconv.Itoa(int(port)),
+		labelNamespace: namespace,
+		labelService:   serviceName,
+		labelPort:      strconv.Itoa(int(port)),
 	}
 }
