@@ -56,6 +56,7 @@ Should match all-options snapshot:
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
+            - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
             command:
             - /manager
             env:
@@ -466,6 +467,7 @@ Should match default snapshot:
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
+            - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
             command:
             - /manager
             env:

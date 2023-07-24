@@ -28,3 +28,4 @@ testbin/*
 e2e-fixtures/*/config*.yaml
 
 /.direnv
+.env

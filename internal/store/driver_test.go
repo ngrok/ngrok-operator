@@ -18,6 +18,8 @@ import (
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 )
 
+const defaultManagerName = "ngrok-ingress-controller"
+
 var _ = Describe("Driver", func() {
 
 	var driver *Driver
@@ -28,7 +30,9 @@ var _ = Describe("Driver", func() {
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())
-		driver = NewDriver(logger, scheme, defaultControllerName)
+		driver = NewDriver(logger, scheme, defaultControllerName, types.NamespacedName{
+			Name: defaultManagerName,
+		})
 		driver.bypassReentranceCheck = true
 	})
 
@@ -141,13 +145,14 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(foundEdge.Spec.Hostports[0]).To(ContainSubstring(i1.Spec.Rules[0].Host))
 
-				foundTunnel := &ingressv1alpha1.Tunnel{}
-				err = c.Get(context.Background(), types.NamespacedName{
-					Namespace: "test-namespace",
-					Name:      "example-80",
-				}, foundTunnel)
+				foundTunnels := &ingressv1alpha1.TunnelList{}
+				err = c.List(context.Background(), foundTunnels)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(foundTunnel).ToNot(BeNil())
+				Expect(len(foundTunnels.Items)).To(Equal(1))
+				foundTunnel := foundTunnels.Items[0]
+				Expect(foundTunnel.Namespace).To(Equal("test-namespace"))
+				Expect(foundTunnel.Name).To(HavePrefix("example-80-"))
+				Expect(foundTunnel.Labels["k8s.ngrok.com/controller-name"]).To(Equal(defaultManagerName))
 			})
 		})
 	})
