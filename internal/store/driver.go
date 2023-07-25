@@ -411,7 +411,7 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 			// TODO: Handle routes without hosts that then apply to all edges
 			edge, ok := edgeMap[rule.Host]
 			if !ok {
-				// TODO a rule that didn't match any domain?
+				d.log.Error(err, "could not find edge associated with rule", "host", rule.Host)
 				continue
 			}
 
