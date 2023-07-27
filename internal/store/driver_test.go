@@ -137,13 +137,16 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(foundDomain.Spec.Domain).To(Equal(i1.Spec.Rules[0].Host))
 
-				foundEdge := &ingressv1alpha1.HTTPSEdge{}
-				err = c.Get(context.Background(), types.NamespacedName{
-					Namespace: "test-namespace",
-					Name:      "example-com",
-				}, foundEdge)
+				foundEdges := &ingressv1alpha1.HTTPSEdgeList{}
+				err = c.List(context.Background(), foundEdges)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(foundEdges.Items)).To(Equal(1))
+				foundEdge := foundEdges.Items[0]
 				Expect(err).ToNot(HaveOccurred())
 				Expect(foundEdge.Spec.Hostports[0]).To(ContainSubstring(i1.Spec.Rules[0].Host))
+				Expect(foundEdge.Namespace).To(Equal("test-namespace"))
+				Expect(foundEdge.Name).To(HavePrefix("example-com-"))
+				Expect(foundEdge.Labels["k8s.ngrok.com/controller-name"]).To(Equal(defaultManagerName))
 
 				foundTunnels := &ingressv1alpha1.TunnelList{}
 				err = c.List(context.Background(), foundTunnels)

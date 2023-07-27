@@ -29,6 +29,7 @@ const clusterDomain = "svc.cluster.local" // TODO: We can technically figure thi
 const (
 	labelControllerNamespace = "k8s.ngrok.com/controller-namespace"
 	labelControllerName      = "k8s.ngrok.com/controller-name"
+	labelDomain              = "k8s.ngrok.com/domain"
 	labelNamespace           = "k8s.ngrok.com/namespace"
 	labelService             = "k8s.ngrok.com/service"
 	labelPort                = "k8s.ngrok.com/port"
@@ -184,7 +185,10 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		d.log.Error(err, "error listing domains")
 		return err
 	}
-	if err := c.List(ctx, currEdges); err != nil {
+	if err := c.List(ctx, currEdges, client.MatchingLabels{
+		labelControllerNamespace: d.managerName.Namespace,
+		labelControllerName:      d.managerName.Name,
+	}); err != nil {
 		d.log.Error(err, "error listing edges")
 		return err
 	}
@@ -221,42 +225,40 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	}
 	// Don't delete domains to prevent accidentally de-registering them and making people re-do DNS
 
-	for _, desiredEdge := range desiredEdges {
-		found := false
-		for _, currEdge := range currEdges.Items {
-			if desiredEdge.Name == currEdge.Name && desiredEdge.Namespace == currEdge.Namespace {
-				// It matches so lets update it if anything is different
-				if !reflect.DeepEqual(desiredEdge.Spec, currEdge.Spec) {
-					currEdge.Spec = desiredEdge.Spec
-					if err := c.Update(ctx, &currEdge); err != nil {
-						d.log.Error(err, "error updating edge", "desiredEdge", desiredEdge, "currEdge", currEdge)
-						return err
-					}
-				}
-				found = true
-				break
+	// update or delete edge we don't need anymore
+	for _, currEdge := range currEdges.Items {
+		domain := currEdge.Labels[labelDomain]
+
+		if desiredEdge, ok := desiredEdges[domain]; ok {
+			needsUpdate := false
+
+			if !reflect.DeepEqual(desiredEdge.Spec, currEdge.Spec) {
+				currEdge.Spec = desiredEdge.Spec
+				needsUpdate = true
 			}
-		}
-		if !found {
-			if err := c.Create(ctx, &desiredEdge); err != nil {
+
+			if needsUpdate {
+				if err := c.Update(ctx, &currEdge); err != nil {
+					d.log.Error(err, "error updating edge", "desiredEdge", desiredEdge, "currEdge", currEdge)
+					return err
+				}
+			}
+
+			// matched and updated the edge, no longer desired
+			delete(desiredEdges, domain)
+		} else {
+			if err := c.Delete(ctx, &currEdge); client.IgnoreNotFound(err) != nil {
+				d.log.Error(err, "error deleting edge", "edge", currEdge)
 				return err
 			}
 		}
 	}
 
-	for _, existingEdge := range currEdges.Items {
-		found := false
-		for _, desiredEdge := range desiredEdges {
-			if desiredEdge.Name == existingEdge.Name && desiredEdge.Namespace == existingEdge.Namespace {
-				found = true
-				break
-			}
-		}
-		if !found {
-			if err := c.Delete(ctx, &existingEdge); client.IgnoreNotFound(err) != nil {
-				d.log.Error(err, "error deleting edge", "edge", existingEdge)
-				return err
-			}
+	// the set of desired edges now only contains new edges, create them
+	for _, edge := range desiredEdges {
+		if err := c.Create(ctx, &edge); err != nil {
+			d.log.Error(err, "error creating edge", "edge", edge)
+			return err
 		}
 	}
 
@@ -268,6 +270,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		// check if new state still needs this tunnel
 		if desiredTunnel, ok := desiredTunnels[tkey]; ok {
 			needsUpdate := false
+
 			// compare/update owner references
 			if !reflect.DeepEqual(desiredTunnel.OwnerReferences, currTunnel.OwnerReferences) {
 				needsUpdate = true
@@ -377,97 +380,99 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	return computedModSet, nil
 }
 
-func (d *Driver) calculateHTTPSEdges() []ingressv1alpha1.HTTPSEdge {
+func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 	domains := d.calculateDomains()
-	ingresses := d.ListNgrokIngressesV1()
-	edges := make([]ingressv1alpha1.HTTPSEdge, 0, len(domains))
+
+	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(domains))
 	for _, domain := range domains {
 		edge := ingressv1alpha1.HTTPSEdge{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      domain.Name,
-				Namespace: domain.Namespace,
+				GenerateName: domain.Name + "-",
+				Namespace:    domain.Namespace,
+				Labels:       d.edgeLabels(domain.Spec.Domain),
 			},
 			Spec: ingressv1alpha1.HTTPSEdgeSpec{
 				Hostports: []string{domain.Spec.Domain + ":443"},
 			},
 		}
 		edge.Spec.Metadata = d.customMetadata
-		var ngrokRoutes []ingressv1alpha1.HTTPSEdgeRouteSpec
-		for _, ingress := range ingresses {
-			namespace := ingress.Namespace
+		edgeMap[domain.Spec.Domain] = edge
+	}
 
-			modSet, err := d.getNgrokModuleSetForIngress(ingress)
-			if err != nil {
-				d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
+	ingresses := d.ListNgrokIngressesV1()
+	for _, ingress := range ingresses {
+		modSet, err := d.getNgrokModuleSetForIngress(ingress)
+		if err != nil {
+			d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
+			continue
+		}
+
+		for _, rule := range ingress.Spec.Rules {
+			// TODO: Handle routes without hosts that then apply to all edges
+			edge, ok := edgeMap[rule.Host]
+			if !ok {
+				d.log.Error(err, "could not find edge associated with rule", "host", rule.Host)
 				continue
 			}
 
-			// Set edge specific modules
 			if modSet.Modules.TLSTermination != nil {
 				edge.Spec.TLSTermination = modSet.Modules.TLSTermination
 			}
 
-			for _, rule := range ingress.Spec.Rules {
-				// If any rule for an ingress matches, then it applies to this ingress
-				// TODO: Handle routes without hosts that then apply to all edges
-				if rule.Host == domain.Spec.Domain {
-
-					for _, httpIngressPath := range rule.HTTP.Paths {
-						matchType := "path_prefix"
-						if httpIngressPath.PathType != nil {
-							switch *httpIngressPath.PathType {
-							case netv1.PathTypePrefix:
-								matchType = "path_prefix"
-							case netv1.PathTypeExact:
-								matchType = "exact_path"
-							case netv1.PathTypeImplementationSpecific:
-								matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
-							default:
-								d.log.Error(fmt.Errorf("unknown path type"), "unknown path type", "pathType", *httpIngressPath.PathType)
-								continue
-							}
-						}
-
-						// We only support service backends right now. TODO: support resource backends
-						if httpIngressPath.Backend.Service == nil {
-							continue
-						}
-
-						serviceName := httpIngressPath.Backend.Service.Name
-						servicePort, _, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, namespace)
-						if err != nil {
-							d.log.Error(err, "could not find port for service", "namespace", namespace, "service", serviceName)
-							continue
-						}
-
-						route := ingressv1alpha1.HTTPSEdgeRouteSpec{
-							Match:     httpIngressPath.Path,
-							MatchType: matchType,
-							Backend: ingressv1alpha1.TunnelGroupBackend{
-								Labels: d.ngrokLabels(namespace, serviceName, servicePort),
-							},
-							CircuitBreaker:      modSet.Modules.CircuitBreaker,
-							Compression:         modSet.Modules.Compression,
-							IPRestriction:       modSet.Modules.IPRestriction,
-							Headers:             modSet.Modules.Headers,
-							OAuth:               modSet.Modules.OAuth,
-							OIDC:                modSet.Modules.OIDC,
-							SAML:                modSet.Modules.SAML,
-							WebhookVerification: modSet.Modules.WebhookVerification,
-						}
-						route.Metadata = d.customMetadata
-
-						ngrokRoutes = append(ngrokRoutes, route)
+			// If any rule for an ingress matches, then it applies to this ingress
+			for _, httpIngressPath := range rule.HTTP.Paths {
+				matchType := "path_prefix"
+				if httpIngressPath.PathType != nil {
+					switch *httpIngressPath.PathType {
+					case netv1.PathTypePrefix:
+						matchType = "path_prefix"
+					case netv1.PathTypeExact:
+						matchType = "exact_path"
+					case netv1.PathTypeImplementationSpecific:
+						matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
+					default:
+						d.log.Error(fmt.Errorf("unknown path type"), "unknown path type", "pathType", *httpIngressPath.PathType)
+						continue
 					}
 				}
+
+				// We only support service backends right now. TODO: support resource backends
+				if httpIngressPath.Backend.Service == nil {
+					continue
+				}
+
+				serviceName := httpIngressPath.Backend.Service.Name
+				servicePort, _, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, ingress.Namespace)
+				if err != nil {
+					d.log.Error(err, "could not find port for service", "namespace", ingress.Namespace, "service", serviceName)
+					continue
+				}
+
+				route := ingressv1alpha1.HTTPSEdgeRouteSpec{
+					Match:     httpIngressPath.Path,
+					MatchType: matchType,
+					Backend: ingressv1alpha1.TunnelGroupBackend{
+						Labels: d.ngrokLabels(ingress.Namespace, serviceName, servicePort),
+					},
+					CircuitBreaker:      modSet.Modules.CircuitBreaker,
+					Compression:         modSet.Modules.Compression,
+					IPRestriction:       modSet.Modules.IPRestriction,
+					Headers:             modSet.Modules.Headers,
+					OAuth:               modSet.Modules.OAuth,
+					OIDC:                modSet.Modules.OIDC,
+					SAML:                modSet.Modules.SAML,
+					WebhookVerification: modSet.Modules.WebhookVerification,
+				}
+				route.Metadata = d.customMetadata
+
+				edge.Spec.Routes = append(edge.Spec.Routes, route)
 			}
+
+			edgeMap[rule.Host] = edge
 		}
-		// After all the ingresses, update the edge with the routes
-		edge.Spec.Routes = ngrokRoutes
-		edges = append(edges, edge)
 	}
 
-	return edges
+	return edgeMap
 }
 
 type tunnelKey struct {
@@ -510,7 +515,7 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 							GenerateName:    fmt.Sprintf("%s-%d-", serviceName, servicePort),
 							Namespace:       ingress.Namespace,
 							OwnerReferences: nil, // fill owner references below
-							Labels:          d.k8sLabels(serviceName, servicePort),
+							Labels:          d.tunnelLabels(serviceName, servicePort),
 						},
 						Spec: ingressv1alpha1.TunnelSpec{
 							ForwardsTo: targetAddr,
@@ -628,7 +633,15 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 	return "HTTP", nil
 }
 
-func (d *Driver) k8sLabels(serviceName string, port int32) map[string]string {
+func (d *Driver) edgeLabels(domain string) map[string]string {
+	return map[string]string{
+		labelControllerNamespace: d.managerName.Namespace,
+		labelControllerName:      d.managerName.Name,
+		labelDomain:              domain,
+	}
+}
+
+func (d *Driver) tunnelLabels(serviceName string, port int32) map[string]string {
 	return map[string]string{
 		labelControllerNamespace: d.managerName.Namespace,
 		labelControllerName:      d.managerName.Name,
