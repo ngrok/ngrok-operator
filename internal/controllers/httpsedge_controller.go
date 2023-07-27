@@ -84,116 +84,79 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("V1Alpha1HTTPSEdge", req.NamespacedName)
-	ctx = ctrl.LoggerInto(ctx, log)
-
-	edge := new(ingressv1alpha1.HTTPSEdge)
-	if err := r.Get(ctx, req.NamespacedName, edge); err != nil {
-		log.Error(err, "unable to fetch Edge")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	if isUpsert(edge) {
-		if err := registerAndSyncFinalizer(ctx, r.Client, edge); err != nil {
-			return ctrl.Result{}, err
-		}
-
-		return r.reconcileEdge(ctx, edge)
-	} else {
-		// The object is being deleted
-		if hasFinalizer(edge) {
-			if edge.Status.ID != "" {
-				r.Recorder.Event(edge, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting Edge %s", edge.Name))
-				if err := r.NgrokClientset.HTTPSEdges().Delete(ctx, edge.Status.ID); err != nil {
-					if !ngrok.IsNotFound(err) {
-						r.Recorder.Event(edge, v1.EventTypeWarning, "FailedDelete", fmt.Sprintf("Failed to delete Edge %s: %s", edge.Name, err.Error()))
-						return ctrl.Result{}, err
-					}
-				}
-				edge.Status.ID = ""
-			}
-
-			if err := removeAndSyncFinalizer(ctx, r.Client, edge); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-
-		r.Recorder.Event(edge, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted Edge %s", edge.Name))
-
-		// Stop reconciliation as the item is being deleted
-		return ctrl.Result{}, nil
-	}
+	var controller ngrokController[*ingressv1alpha1.HTTPSEdge] = r
+	return doReconcile(ctx, req, new(ingressv1alpha1.HTTPSEdge), controller)
+	// TODO event recording
 }
 
-func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) (ctrl.Result, error) {
-	var remoteEdge *ngrok.HTTPSEdge
-	var err error
+func (r *HTTPSEdgeReconciler) client() client.Client {
+	return r.Client
+}
 
-	logger := ctrl.LoggerFrom(ctx)
+func (r *HTTPSEdgeReconciler) getStatusID(edge *ingressv1alpha1.HTTPSEdge) string {
+	return edge.Status.ID
+}
 
-	if edge.Status.ID != "" {
-		logger = logger.WithValues("ngrok.edge.id", edge.Status.ID)
-		// We already have an ID, so we can just update the resource
-		logger.V(1).Info("Getting existing edge")
-		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
+func (r *HTTPSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
+	remoteEdge, err := r.findEdgeByHostports(ctx, edge.Spec.Hostports)
+	if err != nil {
+		return err
+	}
+
+	if remoteEdge == nil {
+		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Create(ctx, &ngrok.HTTPSEdgeCreate{
+			Metadata:    edge.Spec.Metadata,
+			Description: edge.Spec.Description,
+			Hostports:   edge.Spec.Hostports,
+		})
 		if err != nil {
-			return ngrokControllerError(err)
+			// TODO 7117
+			return err
 		}
-		logger.V(1).Info("Found existing edge")
+	}
 
-		if !edge.Equal(remoteEdge) {
-			logger.Info("Updating edge")
-			remoteEdge, err = r.NgrokClientset.HTTPSEdges().Update(ctx, &ngrok.HTTPSEdgeUpdate{
-				ID:          edge.Status.ID,
-				Metadata:    &edge.Spec.Metadata,
-				Description: &edge.Spec.Description,
-				Hostports:   edge.Spec.Hostports,
-			})
-			if err != nil {
-				return ngrokControllerError(err)
-			}
-			logger.Info("Updated edge")
-		}
-	} else {
-		logger.Info("Searching for existing edge by hostports", "hostports", edge.Spec.Hostports)
-		remoteEdge, err = r.findEdgeByHostports(ctx, edge.Spec.Hostports)
+	return r.upsert(ctx, edge, remoteEdge)
+}
+
+func (r *HTTPSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
+	remoteEdge, err := r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
+	if err != nil {
+		return err
+	}
+
+	if !edge.Equal(remoteEdge) {
+		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Update(ctx, &ngrok.HTTPSEdgeUpdate{
+			ID:          edge.Status.ID,
+			Metadata:    &edge.Spec.Metadata,
+			Description: &edge.Spec.Description,
+			Hostports:   edge.Spec.Hostports,
+		})
 		if err != nil {
-			return ngrokControllerError(err)
+			return err
 		}
-
-		// Not found, so create it
-		if remoteEdge == nil {
-			logger.Info("No existing edge found. Creating new edge")
-			remoteEdge, err = r.NgrokClientset.HTTPSEdges().Create(ctx, &ngrok.HTTPSEdgeCreate{
-				Metadata:    edge.Spec.Metadata,
-				Description: edge.Spec.Description,
-				Hostports:   edge.Spec.Hostports,
-			})
-			if err != nil {
-				return ngrokControllerError(err, 7117)
-			}
-			logger.Info("Created new edge", "ngrok.edge.id", remoteEdge.ID)
-		} else {
-			logger.Info("Found existing edge", "ngrok.edge.id", remoteEdge.ID)
-		}
-		logger = logger.WithValues("ngrok.edge.id", remoteEdge.ID)
 	}
 
-	ctx = ctrl.LoggerInto(ctx, logger)
+	return r.upsert(ctx, edge, remoteEdge)
+}
 
-	if err = r.updateStatus(ctx, edge, remoteEdge); err != nil {
-		return ngrokControllerError(err)
+func (r *HTTPSEdgeReconciler) upsert(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, remoteEdge *ngrok.HTTPSEdge) error {
+	if err := r.updateStatus(ctx, edge, remoteEdge); err != nil {
+		return err
 	}
 
-	if err = r.reconcileRoutes(ctx, edge, remoteEdge); err != nil {
-		return ngrokControllerError(err)
+	if err := r.reconcileRoutes(ctx, edge, remoteEdge); err != nil {
+		return err
 	}
 
-	if err = r.setEdgeTLSTermination(ctx, remoteEdge, edge.Spec.TLSTermination); err != nil {
-		return ngrokControllerError(err)
+	if err := r.setEdgeTLSTermination(ctx, remoteEdge, edge.Spec.TLSTermination); err != nil {
+		return err
 	}
 
-	return ctrl.Result{}, nil
+	return nil
+}
+
+func (r *HTTPSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
+	return r.NgrokClientset.HTTPSEdges().Delete(ctx, edge.Status.ID)
 }
 
 // TODO: This is going to be a bit messy right now, come back and make this cleaner

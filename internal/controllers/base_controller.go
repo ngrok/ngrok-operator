@@ -10,7 +10,7 @@ import (
 type ngrokController[T client.Object] interface {
 	client() client.Client
 
-	getStatusID(ct T) string
+	getStatusID(cr T) string
 	create(ctx context.Context, cr T) error
 	update(ctx context.Context, cr T) error
 	delete(ctx context.Context, cr T) error
