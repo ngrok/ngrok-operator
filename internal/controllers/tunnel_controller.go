@@ -104,7 +104,7 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	tunnelName := req.NamespacedName.String()
 
-	if isDelete(tunnel.ObjectMeta) {
+	if isDelete(tunnel) {
 		r.Recorder.Event(tunnel, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting tunnel %s", tunnelName))
 		err := r.TunnelDriver.DeleteTunnel(ctx, tunnelName)
 		if err != nil {

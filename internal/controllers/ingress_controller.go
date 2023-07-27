@@ -109,7 +109,7 @@ func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	if ingress.ObjectMeta.DeletionTimestamp.IsZero() {
+	if isUpsert(ingress) {
 		// The object is not being deleted, so register and sync finalizer
 		if err := registerAndSyncFinalizer(ctx, irec.Client, ingress); err != nil {
 			log.Error(err, "Failed to register finalizer")

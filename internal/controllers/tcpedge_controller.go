@@ -90,7 +90,7 @@ func (r *TCPEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if edge.ObjectMeta.DeletionTimestamp.IsZero() {
+	if isUpsert(edge) {
 		if err := registerAndSyncFinalizer(ctx, r.Client, edge); err != nil {
 			return ctrl.Result{}, err
 		}

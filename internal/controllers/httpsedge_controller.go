@@ -93,14 +93,12 @@ func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if edge == nil {
-		return ctrl.Result{}, nil
-	}
-
-	if edge.ObjectMeta.DeletionTimestamp.IsZero() {
+	if isUpsert(edge) {
 		if err := registerAndSyncFinalizer(ctx, r.Client, edge); err != nil {
 			return ctrl.Result{}, err
 		}
+
+		return r.reconcileEdge(ctx, edge)
 	} else {
 		// The object is being deleted
 		if hasFinalizer(edge) {
@@ -125,19 +123,9 @@ func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// Stop reconciliation as the item is being deleted
 		return ctrl.Result{}, nil
 	}
-
-	err := r.reconcileEdge(ctx, edge)
-	if err != nil {
-		log.Error(err, "error reconciling Edge")
-	}
-	if errors.IsErrorReconcilable(err) {
-		return ctrl.Result{}, err
-	} else {
-		return ctrl.Result{}, nil
-	}
 }
 
-func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
+func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) (ctrl.Result, error) {
 	var remoteEdge *ngrok.HTTPSEdge
 	var err error
 
@@ -149,7 +137,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 		logger.V(1).Info("Getting existing edge")
 		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
 		if err != nil {
-			return err
+			return ngrokControllerError(err)
 		}
 		logger.V(1).Info("Found existing edge")
 
@@ -162,7 +150,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 				Hostports:   edge.Spec.Hostports,
 			})
 			if err != nil {
-				return err
+				return ngrokControllerError(err)
 			}
 			logger.Info("Updated edge")
 		}
@@ -170,7 +158,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 		logger.Info("Searching for existing edge by hostports", "hostports", edge.Spec.Hostports)
 		remoteEdge, err = r.findEdgeByHostports(ctx, edge.Spec.Hostports)
 		if err != nil {
-			return err
+			return ngrokControllerError(err)
 		}
 
 		// Not found, so create it
@@ -182,7 +170,7 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 				Hostports:   edge.Spec.Hostports,
 			})
 			if err != nil {
-				return err
+				return ngrokControllerError(err, 7117)
 			}
 			logger.Info("Created new edge", "ngrok.edge.id", remoteEdge.ID)
 		} else {
@@ -194,14 +182,18 @@ func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1
 	ctx = ctrl.LoggerInto(ctx, logger)
 
 	if err = r.updateStatus(ctx, edge, remoteEdge); err != nil {
-		return err
+		return ngrokControllerError(err)
 	}
 
 	if err = r.reconcileRoutes(ctx, edge, remoteEdge); err != nil {
-		return err
+		return ngrokControllerError(err)
 	}
 
-	return r.setEdgeTLSTermination(ctx, remoteEdge, edge.Spec.TLSTermination)
+	if err = r.setEdgeTLSTermination(ctx, remoteEdge, edge.Spec.TLSTermination); err != nil {
+		return ngrokControllerError(err)
+	}
+
+	return ctrl.Result{}, nil
 }
 
 // TODO: This is going to be a bit messy right now, come back and make this cleaner

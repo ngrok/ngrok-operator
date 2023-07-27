@@ -2,13 +2,18 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	ierr "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
+	"github.com/ngrok/ngrok-api-go/v5"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -17,8 +22,12 @@ const (
 	finalizerName = "k8s.ngrok.com/finalizer"
 )
 
-func isDelete(meta metav1.ObjectMeta) bool {
-	return meta.DeletionTimestamp != nil && !meta.DeletionTimestamp.IsZero()
+func isUpsert(o client.Object) bool {
+	return o.GetDeletionTimestamp().IsZero()
+}
+
+func isDelete(o client.Object) bool {
+	return !o.GetDeletionTimestamp().IsZero()
 }
 
 func hasFinalizer(o client.Object) bool {
@@ -44,6 +53,28 @@ func registerAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Obj
 func removeAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
 	removeFinalizer(o)
 	return c.Update(ctx, o)
+}
+
+func ngrokControllerError(err error, retryCodes ...int) (ctrl.Result, error) {
+	if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
+		return ctrl.Result{Requeue: false}, nil
+	}
+
+	var nerr *ngrok.Error
+	if errors.As(err, &nerr) {
+		switch {
+		case nerr.StatusCode >= 500:
+			return ctrl.Result{Requeue: true}, err
+		case nerr.StatusCode == http.StatusTooManyRequests:
+			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, nil
+		case ngrok.IsErrorCode(err, retryCodes...):
+			return ctrl.Result{Requeue: true}, nil
+		default:
+			return ctrl.Result{Requeue: false}, nil
+		}
+	}
+
+	return ctrl.Result{Requeue: true}, err
 }
 
 type ipPolicyResolver struct {

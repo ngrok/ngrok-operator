@@ -90,7 +90,7 @@ func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if policy.ObjectMeta.DeletionTimestamp.IsZero() {
+	if isUpsert(policy) {
 		if err := registerAndSyncFinalizer(ctx, r.Client, policy); err != nil {
 			return ctrl.Result{}, err
 		}

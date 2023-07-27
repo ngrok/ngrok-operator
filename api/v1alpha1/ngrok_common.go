@@ -412,3 +412,7 @@ func (amazon *EndpointOAuthAmazon) ToNgrok(clientSecret *string) *ngrok.Endpoint
 	}
 	return mod
 }
+
+func (d *Domain) GetStatusID() string {
+	return d.Status.ID
+}
