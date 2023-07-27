@@ -7,20 +7,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ngrokObject interface {
-	client.Object
-	GetStatusID() string
-}
-
-type ngrokController[T ngrokObject] interface {
+type ngrokController[T client.Object] interface {
 	client() client.Client
 
+	getStatusID(ct T) string
 	create(ctx context.Context, cr T) error
 	update(ctx context.Context, cr T) error
 	delete(ctx context.Context, cr T) error
 }
 
-func doReconcile[T ngrokObject](ctx context.Context, req ctrl.Request, cr T, d ngrokController[T]) (ctrl.Result, error) {
+func doReconcile[T client.Object](ctx context.Context, req ctrl.Request, cr T, d ngrokController[T]) (ctrl.Result, error) {
 	if err := d.client().Get(ctx, req.NamespacedName, cr); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -30,7 +26,7 @@ func doReconcile[T ngrokObject](ctx context.Context, req ctrl.Request, cr T, d n
 			return ctrl.Result{}, err
 		}
 
-		if cr.GetStatusID() == "" {
+		if d.getStatusID(cr) == "" {
 			if err := d.create(ctx, cr); err != nil {
 				return reconcileResultFromError(err)
 			}
@@ -41,7 +37,7 @@ func doReconcile[T ngrokObject](ctx context.Context, req ctrl.Request, cr T, d n
 		}
 	} else {
 		if hasFinalizer(cr) {
-			if cr.GetStatusID() != "" {
+			if d.getStatusID(cr) != "" {
 				if err := d.delete(ctx, cr); err != nil {
 					return reconcileResultFromError(err)
 				}

@@ -31,7 +31,6 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/pkg/tunneldriver"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -93,35 +92,27 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("V1Alpha1Tunnel", req.NamespacedName)
-	ctx = ctrl.LoggerInto(ctx, log)
+	var controller ngrokController[*ingressv1alpha1.Tunnel] = r
+	return doReconcile(ctx, req, new(ingressv1alpha1.Tunnel), controller)
+	// TODO events/logging
+}
 
-	tunnel := &ingressv1alpha1.Tunnel{}
+func (r *TunnelReconciler) client() client.Client {
+	return r.Client
+}
 
-	if err := r.Client.Get(ctx, req.NamespacedName, tunnel); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
+func (r *TunnelReconciler) getStatusID(tunnel *ingressv1alpha1.Tunnel) string {
+	return fmt.Sprintf("%s/%s", tunnel.Namespace, tunnel.Name)
+}
 
-	tunnelName := req.NamespacedName.String()
+func (r *TunnelReconciler) create(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {
+	return r.update(ctx, tunnel)
+}
 
-	if isDelete(tunnel) {
-		r.Recorder.Event(tunnel, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting tunnel %s", tunnelName))
-		err := r.TunnelDriver.DeleteTunnel(ctx, tunnelName)
-		if err != nil {
-			r.Recorder.Event(tunnel, v1.EventTypeWarning, "DeleteError", fmt.Sprintf("Failed to delete tunnel %s: %s", tunnelName, err.Error()))
-			return ctrl.Result{}, err
-		}
-		r.Recorder.Event(tunnel, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted tunnel %s", tunnelName))
-		return ctrl.Result{}, nil
-	}
+func (r *TunnelReconciler) update(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {
+	return r.TunnelDriver.CreateTunnel(ctx, r.getStatusID(tunnel), tunnel.Spec.Labels, tunnel.Spec.BackendConfig, tunnel.Spec.ForwardsTo)
+}
 
-	r.Recorder.Event(tunnel, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating tunnel %s", tunnelName))
-	err := r.TunnelDriver.CreateTunnel(ctx, tunnelName, tunnel.Spec.Labels, tunnel.Spec.BackendConfig, tunnel.Spec.ForwardsTo)
-	if err != nil {
-		r.Recorder.Event(tunnel, v1.EventTypeWarning, "CreateError", fmt.Sprintf("Failed to create tunnel %s: %s", tunnelName, err.Error()))
-		return ctrl.Result{}, err
-	}
-	r.Recorder.Event(tunnel, v1.EventTypeNormal, "Created", fmt.Sprintf("Created tunnel %s", tunnelName))
-
-	return ctrl.Result{}, nil
+func (r *TunnelReconciler) delete(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {
+	return r.TunnelDriver.DeleteTunnel(ctx, r.getStatusID(tunnel))
 }
