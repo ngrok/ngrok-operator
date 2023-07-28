@@ -2,7 +2,11 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"time"
 
+	"github.com/ngrok/ngrok-api-go/v5"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -53,6 +57,20 @@ func doReconcile[T client.Object](ctx context.Context, req ctrl.Request, cr T, d
 }
 
 func reconcileResultFromError(err error) (ctrl.Result, error) {
+	var nerr *ngrok.Error
+	if errors.As(err, &nerr) {
+		switch {
+		case nerr.StatusCode >= 500:
+			return ctrl.Result{}, err
+		case nerr.StatusCode == http.StatusTooManyRequests:
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
+		// case ngrok.IsErrorCode(err, retryCodes...):
+		// 	return ctrl.Result{Requeue: true}, nil
+		default:
+			return ctrl.Result{}, nil
+		}
+	}
+
 	// TODO implement this
 	return ctrl.Result{}, err
 }
