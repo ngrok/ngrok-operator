@@ -49,6 +49,8 @@ type TunnelReconciler struct {
 	Scheme       *runtime.Scheme
 	Recorder     record.EventRecorder
 	TunnelDriver *tunneldriver.TunnelDriver
+
+	controller *baseController[*ingressv1alpha1.Tunnel]
 }
 
 // SetupWithManager sets up the controller with the Manager
@@ -57,6 +59,15 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if r.TunnelDriver == nil {
 		return fmt.Errorf("TunnelDriver is nil")
+	}
+
+	r.controller = &baseController[*ingressv1alpha1.Tunnel]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		update: r.update,
+		delete: r.delete,
 	}
 
 	cont, err := controller.NewUnmanaged("tunnel-controller", mgr, controller.Options{
@@ -92,27 +103,16 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var controller ngrokController[*ingressv1alpha1.Tunnel] = r
-	return doReconcile(ctx, req, new(ingressv1alpha1.Tunnel), controller)
+	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.Tunnel))
 	// TODO events/logging
 }
 
-func (r *TunnelReconciler) client() client.Client {
-	return r.Client
-}
-
-func (r *TunnelReconciler) getStatusID(tunnel *ingressv1alpha1.Tunnel) string {
-	return fmt.Sprintf("%s/%s", tunnel.Namespace, tunnel.Name)
-}
-
-func (r *TunnelReconciler) create(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {
-	return r.update(ctx, tunnel)
-}
-
 func (r *TunnelReconciler) update(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {
-	return r.TunnelDriver.CreateTunnel(ctx, r.getStatusID(tunnel), tunnel.Spec.Labels, tunnel.Spec.BackendConfig, tunnel.Spec.ForwardsTo)
+	tunnelName := fmt.Sprintf("%s/%s", tunnel.Namespace, tunnel.Name)
+	return r.TunnelDriver.CreateTunnel(ctx, tunnelName, tunnel.Spec.Labels, tunnel.Spec.BackendConfig, tunnel.Spec.ForwardsTo)
 }
 
 func (r *TunnelReconciler) delete(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {
-	return r.TunnelDriver.DeleteTunnel(ctx, r.getStatusID(tunnel))
+	tunnelName := fmt.Sprintf("%s/%s", tunnel.Namespace, tunnel.Name)
+	return r.TunnelDriver.DeleteTunnel(ctx, tunnelName)
 }

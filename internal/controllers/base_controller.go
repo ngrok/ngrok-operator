@@ -6,48 +6,52 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v5"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ngrokController[T client.Object] interface {
-	client() client.Client
+type baseController[T client.Object] struct {
+	Kube     client.Client
+	Log      logr.Logger
+	Recorder record.EventRecorder
 
-	getStatusID(cr T) string
-	create(ctx context.Context, cr T) error
-	update(ctx context.Context, cr T) error
-	delete(ctx context.Context, cr T) error
+	statusID func(ct T) string
+	create   func(ctx context.Context, cr T) error
+	update   func(ctx context.Context, cr T) error
+	delete   func(ctx context.Context, cr T) error
 }
 
-func doReconcile[T client.Object](ctx context.Context, req ctrl.Request, cr T, d ngrokController[T]) (ctrl.Result, error) {
-	if err := d.client().Get(ctx, req.NamespacedName, cr); err != nil {
+func (r *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, cr T) (ctrl.Result, error) {
+	if err := r.Kube.Get(ctx, req.NamespacedName, cr); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	if isUpsert(cr) {
-		if err := registerAndSyncFinalizer(ctx, d.client(), cr); err != nil {
+		if err := registerAndSyncFinalizer(ctx, r.Kube, cr); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		if d.getStatusID(cr) == "" {
-			if err := d.create(ctx, cr); err != nil {
+		if r.statusID != nil && r.statusID(cr) == "" {
+			if err := r.create(ctx, cr); err != nil {
 				return reconcileResultFromError(err)
 			}
 		} else {
-			if err := d.update(ctx, cr); err != nil {
+			if err := r.update(ctx, cr); err != nil {
 				return reconcileResultFromError(err)
 			}
 		}
 	} else {
 		if hasFinalizer(cr) {
-			if d.getStatusID(cr) != "" {
-				if err := d.delete(ctx, cr); err != nil {
+			if r.statusID == nil || r.statusID(cr) != "" {
+				if err := r.delete(ctx, cr); err != nil {
 					return reconcileResultFromError(err)
 				}
 			}
 
-			if err := removeAndSyncFinalizer(ctx, d.client(), cr); err != nil {
+			if err := removeAndSyncFinalizer(ctx, r.Kube, cr); err != nil {
 				return ctrl.Result{}, err
 			}
 		}

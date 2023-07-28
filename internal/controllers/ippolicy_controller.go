@@ -57,6 +57,8 @@ type IPPolicyReconciler struct {
 
 	IPPoliciesClient    *ip_policies.Client
 	IPPolicyRulesClient *ip_policy_rules.Client
+
+	controller *baseController[*ingressv1alpha1.IPPolicy]
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -66,6 +68,17 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	if r.IPPolicyRulesClient == nil {
 		return fmt.Errorf("IPPolicyRulesClient must be set")
+	}
+
+	r.controller = &baseController[*ingressv1alpha1.IPPolicy]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		statusID: func(cr *ingressv1alpha1.IPPolicy) string { return cr.Status.ID },
+		create:   r.create,
+		update:   r.update,
+		delete:   r.delete,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -83,17 +96,8 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
 func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var controller ngrokController[*ingressv1alpha1.IPPolicy] = r
-	return doReconcile(ctx, req, new(ingressv1alpha1.IPPolicy), controller)
+	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.IPPolicy))
 	// TODO events/logging
-}
-
-func (r *IPPolicyReconciler) client() client.Client {
-	return r.Client
-}
-
-func (r *IPPolicyReconciler) getStatusID(policy *ingressv1alpha1.IPPolicy) string {
-	return policy.Status.ID
 }
 
 func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {

@@ -48,12 +48,25 @@ type DomainReconciler struct {
 	Scheme        *runtime.Scheme
 	Recorder      record.EventRecorder
 	DomainsClient *reserved_domains.Client
+
+	controller *baseController[*ingressv1alpha1.Domain]
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.DomainsClient == nil {
 		return fmt.Errorf("DomainsClient must be set")
+	}
+
+	r.controller = &baseController[*ingressv1alpha1.Domain]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		statusID: func(cr *ingressv1alpha1.Domain) string { return cr.Status.ID },
+		create:   r.create,
+		update:   r.update,
+		delete:   r.delete,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -72,17 +85,8 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var controller ngrokController[*ingressv1alpha1.Domain] = r
-	return doReconcile(ctx, req, new(ingressv1alpha1.Domain), controller)
+	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.Domain))
 	// TODO event recording
-}
-
-func (r *DomainReconciler) client() client.Client {
-	return r.Client
-}
-
-func (r *DomainReconciler) getStatusID(domain *ingressv1alpha1.Domain) string {
-	return domain.Status.ID
 }
 
 func (r *DomainReconciler) create(ctx context.Context, domain *ingressv1alpha1.Domain) error {

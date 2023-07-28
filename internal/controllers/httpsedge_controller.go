@@ -64,10 +64,23 @@ type HTTPSEdgeReconciler struct {
 	Recorder record.EventRecorder
 
 	NgrokClientset ngrokapi.Clientset
+
+	controller *baseController[*ingressv1alpha1.HTTPSEdge]
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.controller = &baseController[*ingressv1alpha1.HTTPSEdge]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		statusID: func(cr *ingressv1alpha1.HTTPSEdge) string { return cr.Status.ID },
+		create:   r.create,
+		update:   r.update,
+		delete:   r.delete,
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.HTTPSEdge{}).
 		WithEventFilter(commonPredicateFilters).
@@ -84,17 +97,8 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var controller ngrokController[*ingressv1alpha1.HTTPSEdge] = r
-	return doReconcile(ctx, req, new(ingressv1alpha1.HTTPSEdge), controller)
+	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.HTTPSEdge))
 	// TODO event recording
-}
-
-func (r *HTTPSEdgeReconciler) client() client.Client {
-	return r.Client
-}
-
-func (r *HTTPSEdgeReconciler) getStatusID(edge *ingressv1alpha1.HTTPSEdge) string {
-	return edge.Status.ID
 }
 
 func (r *HTTPSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
