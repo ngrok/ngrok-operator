@@ -26,6 +26,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -41,7 +42,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
+	ierr "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
@@ -75,10 +76,20 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
+		kubeType: "v1alpha1.HTTPSEdge",
 		statusID: func(cr *ingressv1alpha1.HTTPSEdge) string { return cr.Status.ID },
 		create:   r.create,
 		update:   r.update,
 		delete:   r.delete,
+		errResult: func(op baseControllerOp, cr *ingressv1alpha1.HTTPSEdge, err error) (ctrl.Result, error) {
+			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
+				return ctrl.Result{}, nil
+			}
+			if ngrok.IsErrorCode(err, 7117) { // https://ngrok.com/docs/errors/err_ngrok_7117, domain not found
+				return ctrl.Result{}, err
+			}
+			return reconcileResultFromError(err)
+		},
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -98,7 +109,6 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.HTTPSEdge))
-	// TODO event recording
 }
 
 func (r *HTTPSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
@@ -160,7 +170,11 @@ func (r *HTTPSEdgeReconciler) upsert(ctx context.Context, edge *ingressv1alpha1.
 }
 
 func (r *HTTPSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
-	return r.NgrokClientset.HTTPSEdges().Delete(ctx, edge.Status.ID)
+	err := r.NgrokClientset.HTTPSEdges().Delete(ctx, edge.Status.ID)
+	if err == nil || ngrok.IsNotFound(err) {
+		edge.Status.ID = ""
+	}
+	return err
 }
 
 // TODO: This is going to be a bit messy right now, come back and make this cleaner
@@ -773,7 +787,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	if module == nil {
-		return errors.NewErrInvalidConfiguration(fmt.Errorf("no OAuth provider configured"))
+		return ierr.NewErrInvalidConfiguration(fmt.Errorf("no OAuth provider configured"))
 	}
 
 	if reflect.DeepEqual(module, route.OAuth) {
@@ -810,7 +824,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 		return err
 	}
 	if clientSecret == nil {
-		return errors.NewErrMissingRequiredSecret("missing clientSecret for OIDC")
+		return ierr.NewErrMissingRequiredSecret("missing clientSecret for OIDC")
 	}
 
 	module := ngrok.EndpointOIDC{

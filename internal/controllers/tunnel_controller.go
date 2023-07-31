@@ -66,8 +66,9 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		update: r.update,
-		delete: r.delete,
+		kubeType: "v1alpha1.Tunnel",
+		update:   r.update,
+		delete:   r.delete,
 	}
 
 	cont, err := controller.NewUnmanaged("tunnel-controller", mgr, controller.Options{
@@ -104,7 +105,6 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.Tunnel))
-	// TODO events/logging
 }
 
 func (r *TunnelReconciler) update(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {

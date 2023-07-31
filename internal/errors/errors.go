@@ -1,11 +1,9 @@
 package errors
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v5"
 	netv1 "k8s.io/api/networking/v1"
 )
 
@@ -152,21 +150,4 @@ func (e ErrInvalidConfiguration) Error() string {
 
 func (e ErrInvalidConfiguration) Unwrap() error {
 	return e.cause
-}
-
-func IsErrorReconcilable(err error) bool {
-	if err == nil {
-		return true
-	}
-
-	if errors.As(err, &ErrInvalidConfiguration{}) {
-		return false
-	}
-
-	var nerr *ngrok.Error
-	if errors.As(err, &nerr) {
-		return nerr.StatusCode >= 500
-	}
-
-	return true
 }

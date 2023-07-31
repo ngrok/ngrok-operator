@@ -75,6 +75,7 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
+		kubeType: "v1alpha1.IPPolicy",
 		statusID: func(cr *ingressv1alpha1.IPPolicy) string { return cr.Status.ID },
 		create:   r.create,
 		update:   r.update,
@@ -97,7 +98,6 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
 func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.IPPolicy))
-	// TODO events/logging
 }
 
 func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
@@ -139,7 +139,11 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 }
 
 func (r *IPPolicyReconciler) delete(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
-	return r.IPPoliciesClient.Delete(ctx, policy.Status.ID)
+	err := r.IPPoliciesClient.Delete(ctx, policy.Status.ID)
+	if err == nil || ngrok.IsNotFound(err) {
+		policy.Status.ID = ""
+	}
+	return err
 }
 
 func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {

@@ -69,6 +69,7 @@ func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
+		kubeType: "v1alpha1.TCPEdge",
 		statusID: func(cr *ingressv1alpha1.TCPEdge) string { return cr.Status.ID },
 		create:   r.create,
 		update:   r.update,
@@ -95,7 +96,6 @@ func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *TCPEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.TCPEdge))
-	// TODO events/logging
 }
 
 func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
@@ -181,7 +181,11 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 }
 
 func (r *TCPEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
-	return r.NgrokClientset.TCPEdges().Delete(ctx, edge.Status.ID)
+	err := r.NgrokClientset.TCPEdges().Delete(ctx, edge.Status.ID)
+	if err == nil || ngrok.IsNotFound(err) {
+		edge.Status.ID = ""
+	}
+	return err
 }
 
 func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {

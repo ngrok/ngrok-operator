@@ -63,6 +63,7 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
+		kubeType: "v1alpha1.Domain",
 		statusID: func(cr *ingressv1alpha1.Domain) string { return cr.Status.ID },
 		create:   r.create,
 		update:   r.update,
@@ -86,7 +87,6 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.Domain))
-	// TODO event recording
 }
 
 func (r *DomainReconciler) create(ctx context.Context, domain *ingressv1alpha1.Domain) error {
@@ -124,7 +124,6 @@ func (r *DomainReconciler) update(ctx context.Context, domain *ingressv1alpha1.D
 		return nil
 	}
 
-	r.Log.Info("Updating reserved domain", "ID", domain.Status.ID)
 	req := &ngrok.ReservedDomainUpdate{
 		ID:          domain.Status.ID,
 		Description: &domain.Spec.Description,
@@ -138,7 +137,11 @@ func (r *DomainReconciler) update(ctx context.Context, domain *ingressv1alpha1.D
 }
 
 func (r *DomainReconciler) delete(ctx context.Context, domain *ingressv1alpha1.Domain) error {
-	return r.DomainsClient.Delete(ctx, domain.Status.ID)
+	err := r.DomainsClient.Delete(ctx, domain.Status.ID)
+	if err == nil || ngrok.IsNotFound(err) {
+		domain.Status.ID = ""
+	}
+	return err
 }
 
 // finds the reserved domain by the hostname. If it doesn't exist, returns nil
