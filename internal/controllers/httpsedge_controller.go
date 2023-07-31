@@ -124,7 +124,6 @@ func (r *HTTPSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.
 			Hostports:   edge.Spec.Hostports,
 		})
 		if err != nil {
-			// TODO 7117
 			return err
 		}
 	}

@@ -106,9 +106,8 @@ func reconcileResultFromError(err error) (ctrl.Result, error) {
 			return ctrl.Result{}, err
 		case nerr.StatusCode == http.StatusTooManyRequests:
 			return ctrl.Result{RequeueAfter: time.Minute}, nil
-		// case ngrok.IsErrorCode(err, retryCodes...):
-		// 	return ctrl.Result{Requeue: true}, nil
 		default:
+			// the rest are client errors, we don't retry by default
 			return ctrl.Result{}, nil
 		}
 	}
