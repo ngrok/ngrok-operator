@@ -57,7 +57,7 @@ var _ = Describe("Driver", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			for _, obj := range obs {
-				foundObj, found, err := driver.Get(obj)
+				foundObj, found, err := driver.store.Get(obj)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(found).To(BeTrue())
 				Expect(foundObj).ToNot(BeNil())
@@ -73,13 +73,13 @@ var _ = Describe("Driver", func() {
 			err := driver.Seed(context.Background(), c)
 			Expect(err).ToNot(HaveOccurred())
 
-			err = driver.DeleteIngress(types.NamespacedName{
+			err = driver.DeleteNamedIngress(types.NamespacedName{
 				Namespace: "test-namespace",
 				Name:      "test-ingress",
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			foundObj, found, err := driver.Get(&i1)
+			foundObj, found, err := driver.store.Get(&i1)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeFalse())
 			Expect(foundObj).To(BeNil())
@@ -120,7 +120,7 @@ var _ = Describe("Driver", func() {
 				c := fake.NewFakeClientWithScheme(scheme, obs...)
 
 				for _, obj := range obs {
-					err := driver.Update(obj)
+					err := driver.store.Update(obj)
 					Expect(err).ToNot(HaveOccurred())
 				}
 				err := driver.Seed(context.Background(), c)
@@ -372,14 +372,14 @@ var _ = Describe("Driver", func() {
 					},
 				},
 			}
-			driver.Add(ms1)
-			driver.Add(ms2)
-			driver.Add(ms3)
+			driver.store.Add(ms1)
+			driver.store.Add(ms2)
+			driver.store.Add(ms3)
 		})
 
 		It("Should return an empty module set if the ingress has no modules annotaion", func() {
 			ing := NewTestIngressV1("test-ingress", "test")
-			Expect(driver.Add(&ing)).To(BeNil())
+			Expect(driver.store.Add(&ing)).To(BeNil())
 
 			ms, err := driver.getNgrokModuleSetForIngress(&ing)
 			Expect(err).To(BeNil())
@@ -393,7 +393,7 @@ var _ = Describe("Driver", func() {
 		It("Should return the matching module set if the ingress has a modules annotaion", func() {
 			ing := NewTestIngressV1("test-ingress", "test")
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1"})
-			Expect(driver.Add(&ing)).To(BeNil())
+			Expect(driver.store.Add(&ing)).To(BeNil())
 
 			ms, err := driver.getNgrokModuleSetForIngress(&ing)
 			Expect(err).To(BeNil())
@@ -403,7 +403,7 @@ var _ = Describe("Driver", func() {
 		It("merges modules with the last one winning if multiple module sets are specified", func() {
 			ing := NewTestIngressV1("test-ingress", "test")
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1,ms2,ms3"})
-			Expect(driver.Add(&ing)).To(BeNil())
+			Expect(driver.store.Add(&ing)).To(BeNil())
 
 			ms, err := driver.getNgrokModuleSetForIngress(&ing)
 			Expect(err).To(BeNil())

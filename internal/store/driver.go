@@ -39,7 +39,7 @@ const (
 // Driver maintains the store of information, can derive new information from the store, and can
 // synchronize the desired state of the store to the actual state of the cluster.
 type Driver struct {
-	Storer
+	store Storer
 
 	cacheStores    CacheStores
 	log            logr.Logger
@@ -56,7 +56,7 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
-		Storer:      s,
+		store:       s,
 		cacheStores: cacheStores,
 		log:         logger,
 		scheme:      scheme,
@@ -94,7 +94,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, ing := range ingresses.Items {
-		if err := d.Update(&ing); err != nil {
+		if err := d.store.Update(&ing); err != nil {
 			return err
 		}
 	}
@@ -104,7 +104,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, ingClass := range ingressClasses.Items {
-		if err := d.Update(&ingClass); err != nil {
+		if err := d.store.Update(&ingClass); err != nil {
 			return err
 		}
 	}
@@ -114,7 +114,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, svc := range services.Items {
-		if err := d.Update(&svc); err != nil {
+		if err := d.store.Update(&svc); err != nil {
 			return err
 		}
 	}
@@ -124,7 +124,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, domain := range domains.Items {
-		if err := d.Update(&domain); err != nil {
+		if err := d.store.Update(&domain); err != nil {
 			return err
 		}
 	}
@@ -134,7 +134,17 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, edge := range edges.Items {
-		if err := d.Update(&edge); err != nil {
+		if err := d.store.Update(&edge); err != nil {
+			return err
+		}
+	}
+
+	tunnels := &ingressv1alpha1.TunnelList{}
+	if err := c.List(ctx, tunnels); err != nil {
+		return err
+	}
+	for _, tunnel := range tunnels.Items {
+		if err := d.store.Update(&tunnel); err != nil {
 			return err
 		}
 	}
@@ -142,10 +152,21 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	return nil
 }
 
+func (d *Driver) UpdateIngress(ingress *netv1.Ingress) (*netv1.Ingress, error) {
+	if err := d.store.Update(ingress); err != nil {
+		return nil, err
+	}
+	return d.store.GetNgrokIngressV1(ingress.Name, ingress.Namespace)
+}
+
+func (d *Driver) DeleteIngress(ingress *netv1.Ingress) error {
+	return d.store.Delete(ingress)
+}
+
 // Delete an ingress object given the NamespacedName
 // Takes a namespacedName string as a parameter and
 // deletes the ingress object from the cacheStores map
-func (d *Driver) DeleteIngress(n types.NamespacedName) error {
+func (d *Driver) DeleteNamedIngress(n types.NamespacedName) error {
 	ingress := &netv1.Ingress{}
 	// set NamespacedName on the ingress object
 	ingress.SetNamespace(n.Namespace)
@@ -312,7 +333,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 }
 
 func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) error {
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		newLBIPStatus := d.calculateIngressLoadBalancerIPStatus(ingress, c)
 		if !reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
@@ -329,7 +350,7 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 	// make a map of string to domains
 	domainMap := make(map[string]ingressv1alpha1.Domain)
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == "" {
@@ -369,7 +390,7 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	}
 
 	for _, module := range modules {
-		resolvedMod, err := d.Storer.GetNgrokModuleSetV1(module, ing.Namespace)
+		resolvedMod, err := d.store.GetNgrokModuleSetV1(module, ing.Namespace)
 		if err != nil {
 			return computedModSet, err
 		}
@@ -398,7 +419,7 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 		edgeMap[domain.Spec.Domain] = edge
 	}
 
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		modSet, err := d.getNgrokModuleSetForIngress(ingress)
 		if err != nil {
@@ -491,7 +512,7 @@ func (d *Driver) tunnelKeyFromTunnel(tunnel ingressv1alpha1.Tunnel) tunnelKey {
 func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 	tunnels := map[tunnelKey]ingressv1alpha1.Tunnel{}
 
-	for _, ingress := range d.ListNgrokIngressesV1() {
+	for _, ingress := range d.store.ListNgrokIngressesV1() {
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
 				// We only support service backends right now. TODO: support resource backends
@@ -578,7 +599,7 @@ func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c clie
 }
 
 func (d *Driver) getBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (int32, string, error) {
-	service, err := d.GetServiceV1(backendSvc.Name, namespace)
+	service, err := d.store.GetServiceV1(backendSvc.Name, namespace)
 	if err != nil {
 		return 0, "", err
 	}

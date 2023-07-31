@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
@@ -30,7 +29,7 @@ type IngressReconciler struct {
 	Driver               *store.Driver
 }
 
-func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	storedResources := []client.Object{
 		&netv1.IngressClass{},
 		&corev1.Service{},
@@ -44,10 +43,10 @@ func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	for _, obj := range storedResources {
 		builder = builder.Watches(
 			&source.Kind{Type: obj},
-			store.NewUpdateStoreHandler(obj.GetObjectKind().GroupVersionKind().Kind, irec.Driver))
+			store.NewUpdateStoreHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver))
 	}
 
-	return builder.Complete(irec)
+	return builder.Complete(r)
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -63,98 +62,72 @@ func (irec *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // It is invoked whenever there is an event that occurs for a resource
 // being watched (in our case, ingress objects). If you tail the controller
 // logs and delete, update, edit ingress objects, you see the events come in.
-func (irec *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := irec.Log.WithValues("ingress", req.NamespacedName)
+func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log.WithValues("ingress", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
+
 	ingress := &netv1.Ingress{}
-	err := irec.Client.Get(ctx, req.NamespacedName, ingress)
-	if err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			return ctrl.Result{}, err // its a real error
-		}
-		// Otherwise its a not found errors. If its fully gone, delete it from the store
-		if err := irec.Driver.DeleteIngress(req.NamespacedName); err != nil {
+	err := r.Client.Get(ctx, req.NamespacedName, ingress)
+	switch {
+	case err == nil:
+		// all good, continue
+	case client.IgnoreNotFound(err) == nil:
+		if err := r.Driver.DeleteNamedIngress(req.NamespacedName); err != nil {
 			log.Error(err, "Failed to delete ingress from store")
 			return ctrl.Result{}, err
 		}
 
-		err = irec.Driver.Sync(ctx, irec.Client)
+		err = r.Driver.Sync(ctx, r.Client)
 		if err != nil {
 			log.Error(err, "Failed to sync after removing ingress from store")
 			return ctrl.Result{}, err
 		}
 
 		return ctrl.Result{}, nil
-	}
-
-	// Ensure the ingress object is up to date in the store
-	err = irec.Driver.Update(ingress)
-	if err != nil {
+	default:
 		return ctrl.Result{}, err
 	}
 
-	// Even though we already have the ingress object, leverage the store to ensure this works off the same data as everything else
-	ingress, err = irec.Driver.GetNgrokIngressV1(ingress.Name, ingress.Namespace)
-	if internalerrors.IsErrDifferentIngressClass(err) {
+	// Ensure the ingress object is up to date in the store
+	// Leverage the store to ensure this works off the same data as everything else
+	ingress, err = r.Driver.UpdateIngress(ingress)
+	switch {
+	case err == nil:
+		// all good, continue
+	case internalerrors.IsErrDifferentIngressClass(err):
 		log.Info("Ingress is not of type ngrok so skipping it")
 		return ctrl.Result{}, nil
-	}
-
-	if internalerrors.IsErrInvalidIngressSpec(err) {
+	case internalerrors.IsErrInvalidIngressSpec(err):
 		log.Info("Ingress is not valid so skipping it")
 		return ctrl.Result{}, nil
-	}
-	if err != nil {
+	default:
 		log.Error(err, "Failed to get ingress from store")
 		return ctrl.Result{}, err
 	}
 
 	if isUpsert(ingress) {
 		// The object is not being deleted, so register and sync finalizer
-		if err := registerAndSyncFinalizer(ctx, irec.Client, ingress); err != nil {
+		if err := registerAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
+
+		err = r.Driver.Sync(ctx, r.Client)
+		if err != nil {
+			log.Error(err, "Failed to sync ingress to store")
+		}
+
+		return ctrl.Result{}, err
 	} else {
+		log.Info("Deleting ingress from store")
 		if hasFinalizer(ingress) {
-			log.Info("Deleting ingress from store")
-			if err := irec.delete(ctx, ingress); err != nil {
-				log.Error(err, "Failed to delete ingress")
+			if err := removeAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}
 		}
 
 		// Stop reconciliation as the item is being deleted and remove it from the store
-		return ctrl.Result{}, irec.Driver.Delete(ingress)
+		return ctrl.Result{}, r.Driver.DeleteIngress(ingress)
 	}
-
-	return irec.reconcileAll(ctx, ingress)
-}
-
-// Delete is called when the ingress object is being deleted
-func (irec *IngressReconciler) delete(ctx context.Context, ingress *netv1.Ingress) error {
-	if err := removeAndSyncFinalizer(ctx, irec.Client, ingress); err != nil {
-		irec.Log.Error(err, "Failed to remove finalizer")
-		return err
-	}
-	// Remove the ingress object from the store
-	return irec.Driver.Delete(ingress)
-}
-
-func (irec *IngressReconciler) reconcileAll(ctx context.Context, ingress *netv1.Ingress) (reconcile.Result, error) {
-	log := irec.Log
-	// First Update the store
-	err := irec.Driver.Update(ingress)
-	if err != nil {
-		log.Error(err, "Failed to add ingress to store")
-		return ctrl.Result{}, err
-	}
-
-	err = irec.Driver.Sync(ctx, irec.Client)
-	if err != nil {
-		log.Error(err, "Failed to sync ingress to store")
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
 }
