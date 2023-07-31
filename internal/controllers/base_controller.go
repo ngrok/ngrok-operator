@@ -65,7 +65,7 @@ func (r *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, cr 
 			if err := r.update(ctx, cr); err != nil {
 				r.Recorder.Event(cr, v1.EventTypeWarning, "UpdateError", fmt.Sprintf("Failed to update %s %s: %s", r.kubeType, crName, err.Error()))
 				if r.errResult != nil {
-					return r.errResult(createOp, cr, err)
+					return r.errResult(updateOp, cr, err)
 				}
 				return reconcileResultFromError(err)
 			}
@@ -80,7 +80,7 @@ func (r *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, cr 
 					if !ngrok.IsNotFound(err) {
 						r.Recorder.Event(cr, v1.EventTypeWarning, "DeleteError", fmt.Sprintf("Failed to delete %s %s: %s", r.kubeType, crName, err.Error()))
 						if r.errResult != nil {
-							return r.errResult(createOp, cr, err)
+							return r.errResult(deleteOp, cr, err)
 						}
 						return reconcileResultFromError(err)
 					}
