@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -41,13 +41,14 @@ const (
 type Driver struct {
 	Storer
 
-	cacheStores           CacheStores
-	log                   logr.Logger
-	scheme                *runtime.Scheme
-	reentranceFlag        int64
-	bypassReentranceCheck bool
-	customMetadata        string
-	managerName           types.NamespacedName
+	cacheStores    CacheStores
+	log            logr.Logger
+	scheme         *runtime.Scheme
+	customMetadata string
+	managerName    types.NamespacedName
+
+	syncMu              sync.Mutex
+	allowConcurrentSync bool
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
@@ -160,13 +161,10 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	// its noisy and can make us hit ngrok api limits. We should probably just change this to be
 	// a periodic sync instead of a sync on every reconcile event, but for now this debouncer
 	// keeps it in check and syncs in batches
-	if !d.bypassReentranceCheck {
-		if atomic.CompareAndSwapInt64(&d.reentranceFlag, 0, 1) {
-
-			defer func() {
-				time.Sleep(10 * time.Second)
-				atomic.StoreInt64(&(d.reentranceFlag), 0)
-			}()
+	if !d.allowConcurrentSync {
+		if d.syncMu.TryLock() {
+			defer d.syncMu.Unlock()
+			defer time.Sleep(10 * time.Second)
 		} else {
 			d.log.Info("sync already in progress, skipping")
 			return nil

@@ -33,7 +33,7 @@ var _ = Describe("Driver", func() {
 		driver = NewDriver(logger, scheme, defaultControllerName, types.NamespacedName{
 			Name: defaultManagerName,
 		})
-		driver.bypassReentranceCheck = true
+		driver.allowConcurrentSync = true
 	})
 
 	Describe("Seed", func() {
