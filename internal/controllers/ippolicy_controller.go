@@ -57,6 +57,8 @@ type IPPolicyReconciler struct {
 
 	IPPoliciesClient    *ip_policies.Client
 	IPPolicyRulesClient *ip_policy_rules.Client
+
+	controller *baseController[*ingressv1alpha1.IPPolicy]
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -66,6 +68,18 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	if r.IPPolicyRulesClient == nil {
 		return fmt.Errorf("IPPolicyRulesClient must be set")
+	}
+
+	r.controller = &baseController[*ingressv1alpha1.IPPolicy]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		kubeType: "v1alpha1.IPPolicy",
+		statusID: func(cr *ingressv1alpha1.IPPolicy) string { return cr.Status.ID },
+		create:   r.create,
+		update:   r.update,
+		delete:   r.delete,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -83,72 +97,22 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
 func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("V1Alpha1IPPolicy", req.NamespacedName)
-
-	policy := new(ingressv1alpha1.IPPolicy)
-	if err := r.Get(ctx, req.NamespacedName, policy); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	if policy.ObjectMeta.DeletionTimestamp.IsZero() {
-		if err := registerAndSyncFinalizer(ctx, r.Client, policy); err != nil {
-			return ctrl.Result{}, err
-		}
-	} else {
-		// The object is being deleted
-		if hasFinalizer(policy) {
-			if policy.Status.ID != "" {
-				log.Info("Deleting IP Policy", "ID", policy.Status.ID)
-				r.Recorder.Event(policy, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting policy %s", policy.Name))
-				if err := r.IPPoliciesClient.Delete(ctx, policy.Status.ID); err != nil {
-					if !ngrok.IsNotFound(err) {
-						r.Recorder.Event(policy, v1.EventTypeWarning, "FailedDelete", fmt.Sprintf("Failed to delete IPPolicy %s: %s", policy.Name, err.Error()))
-						return ctrl.Result{}, err
-					}
-					log.Info("Domain not found, assuming it was already deleted", "ID", policy.Status.ID)
-				}
-				policy.Status.ID = ""
-			}
-
-			if err := removeAndSyncFinalizer(ctx, r.Client, policy); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-
-		r.Recorder.Event(policy, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted IPPolicy %s", policy.Name))
-
-		// Stop reconciliation as the item is being deleted
-		return ctrl.Result{}, nil
-	}
-
-	if err := r.createOrUpdateIPPolicy(ctx, policy); err != nil {
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, r.createOrUpdateIPPolicyRules(ctx, policy)
+	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.IPPolicy))
 }
 
-//nolint:unused
-func (r *IPPolicyReconciler) deleteRemoteResoures(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
-	return r.IPPoliciesClient.Delete(ctx, policy.Status.ID)
+func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
+	remotePolicy, err := r.IPPoliciesClient.Create(ctx, &ngrok.IPPolicyCreate{
+		Description: policy.Spec.Description,
+		Metadata:    policy.Spec.Metadata,
+	})
+	if err != nil {
+		return err
+	}
+	policy.Status.ID = remotePolicy.ID
+	return r.Status().Update(ctx, policy)
 }
 
-func (r *IPPolicyReconciler) createOrUpdateIPPolicy(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
-	if policy.Status.ID == "" {
-		r.Recorder.Event(policy, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating IPPolicy %s", policy.Name))
-		// Create the IP Policy since it doesn't exist
-		remotePolicy, err := r.IPPoliciesClient.Create(ctx, &ngrok.IPPolicyCreate{
-			Description: policy.Spec.Description,
-			Metadata:    policy.Spec.Metadata,
-		})
-		if err != nil {
-			return err
-		}
-		r.Recorder.Event(policy, v1.EventTypeNormal, "Created", fmt.Sprintf("Created IPPolicy %s", policy.Name))
-		policy.Status.ID = remotePolicy.ID
-		return r.Status().Update(ctx, policy)
-	}
-
-	// Update the IP Policy since it already exists
+func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
 	remotePolicy, err := r.IPPoliciesClient.Get(ctx, policy.Status.ID)
 	if err != nil {
 		if ngrok.IsNotFound(err) {
@@ -172,6 +136,14 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicy(ctx context.Context, policy 
 	}
 
 	return nil
+}
+
+func (r *IPPolicyReconciler) delete(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
+	err := r.IPPoliciesClient.Delete(ctx, policy.Status.ID)
+	if err == nil || ngrok.IsNotFound(err) {
+		policy.Status.ID = ""
+	}
+	return err
 }
 
 func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {

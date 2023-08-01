@@ -26,6 +26,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -41,7 +42,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
+	ierr "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
@@ -64,10 +65,33 @@ type HTTPSEdgeReconciler struct {
 	Recorder record.EventRecorder
 
 	NgrokClientset ngrokapi.Clientset
+
+	controller *baseController[*ingressv1alpha1.HTTPSEdge]
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.controller = &baseController[*ingressv1alpha1.HTTPSEdge]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		kubeType: "v1alpha1.HTTPSEdge",
+		statusID: func(cr *ingressv1alpha1.HTTPSEdge) string { return cr.Status.ID },
+		create:   r.create,
+		update:   r.update,
+		delete:   r.delete,
+		errResult: func(op baseControllerOp, cr *ingressv1alpha1.HTTPSEdge, err error) (ctrl.Result, error) {
+			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
+				return ctrl.Result{}, nil
+			}
+			if ngrok.IsErrorCode(err, 7117) { // https://ngrok.com/docs/errors/err_ngrok_7117, domain not found
+				return ctrl.Result{}, err
+			}
+			return reconcileResultFromError(err)
+		},
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.HTTPSEdge{}).
 		WithEventFilter(commonPredicateFilters).
@@ -84,124 +108,72 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("V1Alpha1HTTPSEdge", req.NamespacedName)
-	ctx = ctrl.LoggerInto(ctx, log)
-
-	edge := new(ingressv1alpha1.HTTPSEdge)
-	if err := r.Get(ctx, req.NamespacedName, edge); err != nil {
-		log.Error(err, "unable to fetch Edge")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	if edge == nil {
-		return ctrl.Result{}, nil
-	}
-
-	if edge.ObjectMeta.DeletionTimestamp.IsZero() {
-		if err := registerAndSyncFinalizer(ctx, r.Client, edge); err != nil {
-			return ctrl.Result{}, err
-		}
-	} else {
-		// The object is being deleted
-		if hasFinalizer(edge) {
-			if edge.Status.ID != "" {
-				r.Recorder.Event(edge, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting Edge %s", edge.Name))
-				if err := r.NgrokClientset.HTTPSEdges().Delete(ctx, edge.Status.ID); err != nil {
-					if !ngrok.IsNotFound(err) {
-						r.Recorder.Event(edge, v1.EventTypeWarning, "FailedDelete", fmt.Sprintf("Failed to delete Edge %s: %s", edge.Name, err.Error()))
-						return ctrl.Result{}, err
-					}
-				}
-				edge.Status.ID = ""
-			}
-
-			if err := removeAndSyncFinalizer(ctx, r.Client, edge); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-
-		r.Recorder.Event(edge, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted Edge %s", edge.Name))
-
-		// Stop reconciliation as the item is being deleted
-		return ctrl.Result{}, nil
-	}
-
-	err := r.reconcileEdge(ctx, edge)
-	if err != nil {
-		log.Error(err, "error reconciling Edge")
-	}
-	if errors.IsErrorReconcilable(err) {
-		return ctrl.Result{}, err
-	} else {
-		return ctrl.Result{}, nil
-	}
+	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.HTTPSEdge))
 }
 
-func (r *HTTPSEdgeReconciler) reconcileEdge(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
-	var remoteEdge *ngrok.HTTPSEdge
-	var err error
-
-	logger := ctrl.LoggerFrom(ctx)
-
-	if edge.Status.ID != "" {
-		logger = logger.WithValues("ngrok.edge.id", edge.Status.ID)
-		// We already have an ID, so we can just update the resource
-		logger.V(1).Info("Getting existing edge")
-		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
-		if err != nil {
-			return err
-		}
-		logger.V(1).Info("Found existing edge")
-
-		if !edge.Equal(remoteEdge) {
-			logger.Info("Updating edge")
-			remoteEdge, err = r.NgrokClientset.HTTPSEdges().Update(ctx, &ngrok.HTTPSEdgeUpdate{
-				ID:          edge.Status.ID,
-				Metadata:    &edge.Spec.Metadata,
-				Description: &edge.Spec.Description,
-				Hostports:   edge.Spec.Hostports,
-			})
-			if err != nil {
-				return err
-			}
-			logger.Info("Updated edge")
-		}
-	} else {
-		logger.Info("Searching for existing edge by hostports", "hostports", edge.Spec.Hostports)
-		remoteEdge, err = r.findEdgeByHostports(ctx, edge.Spec.Hostports)
-		if err != nil {
-			return err
-		}
-
-		// Not found, so create it
-		if remoteEdge == nil {
-			logger.Info("No existing edge found. Creating new edge")
-			remoteEdge, err = r.NgrokClientset.HTTPSEdges().Create(ctx, &ngrok.HTTPSEdgeCreate{
-				Metadata:    edge.Spec.Metadata,
-				Description: edge.Spec.Description,
-				Hostports:   edge.Spec.Hostports,
-			})
-			if err != nil {
-				return err
-			}
-			logger.Info("Created new edge", "ngrok.edge.id", remoteEdge.ID)
-		} else {
-			logger.Info("Found existing edge", "ngrok.edge.id", remoteEdge.ID)
-		}
-		logger = logger.WithValues("ngrok.edge.id", remoteEdge.ID)
-	}
-
-	ctx = ctrl.LoggerInto(ctx, logger)
-
-	if err = r.updateStatus(ctx, edge, remoteEdge); err != nil {
+func (r *HTTPSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
+	remoteEdge, err := r.findEdgeByHostports(ctx, edge.Spec.Hostports)
+	if err != nil {
 		return err
 	}
 
-	if err = r.reconcileRoutes(ctx, edge, remoteEdge); err != nil {
+	if remoteEdge == nil {
+		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Create(ctx, &ngrok.HTTPSEdgeCreate{
+			Metadata:    edge.Spec.Metadata,
+			Description: edge.Spec.Description,
+			Hostports:   edge.Spec.Hostports,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return r.upsert(ctx, edge, remoteEdge)
+}
+
+func (r *HTTPSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
+	remoteEdge, err := r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
+	if err != nil {
 		return err
 	}
 
-	return r.setEdgeTLSTermination(ctx, remoteEdge, edge.Spec.TLSTermination)
+	if !edge.Equal(remoteEdge) {
+		remoteEdge, err = r.NgrokClientset.HTTPSEdges().Update(ctx, &ngrok.HTTPSEdgeUpdate{
+			ID:          edge.Status.ID,
+			Metadata:    &edge.Spec.Metadata,
+			Description: &edge.Spec.Description,
+			Hostports:   edge.Spec.Hostports,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return r.upsert(ctx, edge, remoteEdge)
+}
+
+func (r *HTTPSEdgeReconciler) upsert(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge, remoteEdge *ngrok.HTTPSEdge) error {
+	if err := r.updateStatus(ctx, edge, remoteEdge); err != nil {
+		return err
+	}
+
+	if err := r.reconcileRoutes(ctx, edge, remoteEdge); err != nil {
+		return err
+	}
+
+	if err := r.setEdgeTLSTermination(ctx, remoteEdge, edge.Spec.TLSTermination); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *HTTPSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
+	err := r.NgrokClientset.HTTPSEdges().Delete(ctx, edge.Status.ID)
+	if err == nil || ngrok.IsNotFound(err) {
+		edge.Status.ID = ""
+	}
+	return err
 }
 
 // TODO: This is going to be a bit messy right now, come back and make this cleaner
@@ -814,7 +786,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	if module == nil {
-		return errors.NewErrInvalidConfiguration(fmt.Errorf("no OAuth provider configured"))
+		return ierr.NewErrInvalidConfiguration(fmt.Errorf("no OAuth provider configured"))
 	}
 
 	if reflect.DeepEqual(module, route.OAuth) {
@@ -851,7 +823,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOIDC(ctx context.Context, route *ng
 		return err
 	}
 	if clientSecret == nil {
-		return errors.NewErrMissingRequiredSecret("missing clientSecret for OIDC")
+		return ierr.NewErrMissingRequiredSecret("missing clientSecret for OIDC")
 	}
 
 	module := ngrok.EndpointOIDC{

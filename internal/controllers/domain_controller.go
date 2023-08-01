@@ -48,12 +48,26 @@ type DomainReconciler struct {
 	Scheme        *runtime.Scheme
 	Recorder      record.EventRecorder
 	DomainsClient *reserved_domains.Client
+
+	controller *baseController[*ingressv1alpha1.Domain]
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.DomainsClient == nil {
 		return fmt.Errorf("DomainsClient must be set")
+	}
+
+	r.controller = &baseController[*ingressv1alpha1.Domain]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		kubeType: "v1alpha1.Domain",
+		statusID: func(cr *ingressv1alpha1.Domain) string { return cr.Status.ID },
+		create:   r.create,
+		update:   r.update,
+		delete:   r.delete,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -72,72 +86,10 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("V1Alpha1Domain", req.NamespacedName)
-
-	domain := new(ingressv1alpha1.Domain)
-	if err := r.Get(ctx, req.NamespacedName, domain); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	if domain.ObjectMeta.DeletionTimestamp.IsZero() {
-		if err := registerAndSyncFinalizer(ctx, r.Client, domain); err != nil {
-			return ctrl.Result{}, err
-		}
-	} else {
-		// The object is being deleted
-		if hasFinalizer(domain) {
-			if domain.Status.ID != "" {
-				log.Info("Deleting reserved domain", "ID", domain.Status.ID)
-				r.Recorder.Event(domain, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting Domain %s", domain.Name))
-				// Question: Do we actually want to delete the reserved domains for real? Or maybe just delete the resource and have the user delete the reserved domain from
-				// the ngrok dashboard manually?
-				if err := r.DomainsClient.Delete(ctx, domain.Status.ID); err != nil {
-					if !ngrok.IsNotFound(err) {
-						r.Recorder.Event(domain, v1.EventTypeWarning, "FailedDelete", fmt.Sprintf("Failed to delete Domain %s: %s", domain.Name, err.Error()))
-						return ctrl.Result{}, err
-					}
-					log.Info("Domain not found, assuming it was already deleted", "ID", domain.Status.ID)
-				}
-				domain.Status.ID = ""
-			}
-
-			if err := removeAndSyncFinalizer(ctx, r.Client, domain); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-
-		r.Recorder.Event(domain, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted Domain %s", domain.Name))
-
-		// Stop reconciliation as the item is being deleted
-		return ctrl.Result{}, nil
-	}
-
-	if domain.Status.ID != "" {
-		if err := r.updateExternalResources(ctx, domain); err != nil {
-			r.Recorder.Event(domain, v1.EventTypeWarning, "UpdateFailed", fmt.Sprintf("Failed to update Domain %s: %s", domain.Name, err.Error()))
-			return ctrl.Result{}, err
-		}
-	} else {
-		// Create
-		if err := r.createExternalResources(ctx, domain); err != nil {
-			r.Recorder.Event(domain, v1.EventTypeWarning, "CreateFailed", fmt.Sprintf("Failed to create Domain %s: %s", domain.Name, err.Error()))
-			return ctrl.Result{}, err
-		}
-
-		r.Recorder.Event(domain, v1.EventTypeNormal, "Created", fmt.Sprintf("Created Domain %s", domain.Name))
-	}
-
-	return ctrl.Result{}, nil
+	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.Domain))
 }
 
-// Deletes the external resources associated with the ReservedDomain. This is just the reserved domain itself.
-//
-//nolint:unused
-func (r *DomainReconciler) deleteExternalResources(ctx context.Context, domain *ingressv1alpha1.Domain) error {
-	return r.DomainsClient.Delete(ctx, domain.Status.ID)
-}
-
-func (r *DomainReconciler) createExternalResources(ctx context.Context, domain *ingressv1alpha1.Domain) error {
+func (r *DomainReconciler) create(ctx context.Context, domain *ingressv1alpha1.Domain) error {
 	// First check if the reserved domain already exists. The API is sometimes returning dangling CNAME records
 	// errors right now, so we'll check if the domain already exists before trying to create it.
 	resp, err := r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
@@ -162,27 +114,34 @@ func (r *DomainReconciler) createExternalResources(ctx context.Context, domain *
 	return r.updateStatus(ctx, domain, resp)
 }
 
-func (r *DomainReconciler) updateExternalResources(ctx context.Context, domain *ingressv1alpha1.Domain) error {
+func (r *DomainReconciler) update(ctx context.Context, domain *ingressv1alpha1.Domain) error {
 	resp, err := r.DomainsClient.Get(ctx, domain.Status.ID)
 	if err != nil {
 		return err
 	}
 
-	if !domain.Equal(resp) {
-		r.Log.Info("Updating reserved domain", "ID", domain.Status.ID)
-		req := &ngrok.ReservedDomainUpdate{
-			ID:          domain.Status.ID,
-			Description: &domain.Spec.Description,
-			Metadata:    &domain.Spec.Metadata,
-		}
-		resp, err = r.DomainsClient.Update(ctx, req)
-		if err != nil {
-			return err
-		}
-		return r.updateStatus(ctx, domain, resp)
+	if domain.Equal(resp) {
+		return nil
 	}
 
-	return nil
+	req := &ngrok.ReservedDomainUpdate{
+		ID:          domain.Status.ID,
+		Description: &domain.Spec.Description,
+		Metadata:    &domain.Spec.Metadata,
+	}
+	resp, err = r.DomainsClient.Update(ctx, req)
+	if err != nil {
+		return err
+	}
+	return r.updateStatus(ctx, domain, resp)
+}
+
+func (r *DomainReconciler) delete(ctx context.Context, domain *ingressv1alpha1.Domain) error {
+	err := r.DomainsClient.Delete(ctx, domain.Status.ID)
+	if err == nil || ngrok.IsNotFound(err) {
+		domain.Status.ID = ""
+	}
+	return err
 }
 
 // finds the reserved domain by the hostname. If it doesn't exist, returns nil
