@@ -111,13 +111,6 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
-
-		err = r.Driver.Sync(ctx, r.Client)
-		if err != nil {
-			log.Error(err, "Failed to sync ingress to store")
-		}
-
-		return ctrl.Result{}, err
 	} else {
 		log.Info("Deleting ingress from store")
 		if hasFinalizer(ingress) {
@@ -127,7 +120,16 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 		}
 
-		// Stop reconciliation as the item is being deleted and remove it from the store
-		return ctrl.Result{}, r.Driver.DeleteIngress(ingress)
+		// Remove it from the store
+		if err := r.Driver.DeleteIngress(ingress); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
+
+	err = r.Driver.Sync(ctx, r.Client)
+	if err != nil {
+		log.Error(err, "Failed to sync")
+	}
+
+	return ctrl.Result{}, err
 }

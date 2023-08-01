@@ -253,10 +253,17 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	return d.updateIngressStatuses(ctx, c)
+	if err := d.updateIngressStatuses(ctx, c); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
+	if !d.allowConcurrentSync {
+	}
+
 	d.log.Info("syncing edges state!!")
 
 	desiredEdges := d.calculateHTTPSEdges()
@@ -269,7 +276,11 @@ func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	return d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items)
+	if err := d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomains, currentDomains []ingressv1alpha1.Domain) error {
