@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/go-logr/logr"
 	"golang.org/x/exp/slices"
@@ -48,7 +47,9 @@ type Driver struct {
 	managerName    types.NamespacedName
 
 	syncMu              sync.Mutex
-	allowConcurrentSync bool
+	syncRunning         bool
+	syncWaiter          chan error
+	syncAllowConcurrent bool
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
@@ -203,14 +204,47 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	// its noisy and can make us hit ngrok api limits. We should probably just change this to be
 	// a periodic sync instead of a sync on every reconcile event, but for now this debouncer
 	// keeps it in check and syncs in batches
-	if !d.allowConcurrentSync {
-		if d.syncMu.TryLock() {
-			defer d.syncMu.Unlock()
-			defer time.Sleep(10 * time.Second)
+	if !d.syncAllowConcurrent {
+		// TODO a concurreny primitive which:
+		//  * allows the first to continue
+		//  * any subsequent calls will:
+		//    * intermediate will return nil
+		//    * the last one will wait for first to complete then will return error to retriger reconciliation
+		var waiter chan error
+		d.syncMu.Lock()
+		if d.syncRunning {
+			if d.syncWaiter != nil {
+				close(d.syncWaiter)
+			}
+			waiter = make(chan error)
+			d.syncWaiter = waiter
 		} else {
-			d.log.Info("sync already in progress, skipping")
-			return nil
+			d.syncRunning = true
 		}
+		d.syncMu.Unlock()
+
+		if waiter != nil {
+			d.log.Info("syncing already in progress, wait for completion")
+			err := <-waiter
+			if err != nil {
+				d.log.Info(fmt.Sprintf("requeue sync with err: %v", err))
+			} else {
+				d.log.Info("cancel sync, another incoming")
+			}
+			return err
+		}
+
+		defer func() {
+			d.log.Info("syncing done")
+			d.syncMu.Lock()
+			if d.syncWaiter != nil {
+				d.syncWaiter <- fmt.Errorf("sync done")
+				close(d.syncWaiter)
+				d.syncWaiter = nil
+			}
+			d.syncRunning = false
+			d.syncMu.Unlock()
+		}()
 	}
 
 	d.log.Info("syncing driver state!!")
@@ -261,7 +295,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 }
 
 func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
-	if !d.allowConcurrentSync {
+	if !d.syncAllowConcurrent {
 	}
 
 	d.log.Info("syncing edges state!!")
