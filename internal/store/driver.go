@@ -48,7 +48,8 @@ type Driver struct {
 
 	syncMu              sync.Mutex
 	syncRunning         bool
-	syncWaiter          chan error
+	syncFullCh          chan error
+	syncPartialCh       chan error
 	syncAllowConcurrent bool
 }
 
@@ -196,6 +197,71 @@ func (d *Driver) DeleteNamedIngress(n types.NamespacedName) error {
 	return d.cacheStores.Delete(ingress)
 }
 
+// syncStart will let the first caller proceed, but then will batch further calls to the last one
+func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error) {
+	d.log.Info("sync start")
+	d.syncMu.Lock()
+	defer d.syncMu.Unlock()
+
+	if !d.syncRunning {
+		// not running, we can take action
+		d.syncRunning = true
+		return true, nil
+	}
+
+	// already running, overtake any other waiters
+	if d.syncFullCh != nil {
+		if partial {
+			// a full sync is already waiting, ignore non-full ones
+			return false, func(ctx context.Context) error {
+				return nil
+			}
+		}
+		close(d.syncFullCh)
+		d.syncFullCh = nil
+	}
+	if d.syncPartialCh != nil {
+		close(d.syncPartialCh)
+		d.syncPartialCh = nil
+	}
+
+	// put yourself in waiting position
+	ch := make(chan error)
+	if partial {
+		d.syncPartialCh = ch
+	} else {
+		d.syncFullCh = ch
+	}
+
+	return false, func(ctx context.Context) error {
+		select {
+		case err := <-ch:
+			d.log.Info("sync done", "err", err)
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (d *Driver) syncDone() {
+	d.log.Info("sync done")
+	d.syncMu.Lock()
+	defer d.syncMu.Unlock()
+
+	if d.syncFullCh != nil {
+		d.syncFullCh <- fmt.Errorf("sync done")
+		close(d.syncFullCh)
+		d.syncFullCh = nil
+	}
+	if d.syncPartialCh != nil {
+		d.syncPartialCh <- fmt.Errorf("sync done")
+		close(d.syncPartialCh)
+		d.syncPartialCh = nil
+	}
+	d.syncRunning = false
+}
+
 // Sync calculates what the desired state for each of our CRDs should be based on the ingresses and other
 // objects in the store. It then compares that to the actual state of the cluster and updates the cluster
 func (d *Driver) Sync(ctx context.Context, c client.Client) error {
@@ -205,46 +271,11 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	// a periodic sync instead of a sync on every reconcile event, but for now this debouncer
 	// keeps it in check and syncs in batches
 	if !d.syncAllowConcurrent {
-		// TODO a concurreny primitive which:
-		//  * allows the first to continue
-		//  * any subsequent calls will:
-		//    * intermediate will return nil
-		//    * the last one will wait for first to complete then will return error to retriger reconciliation
-		var waiter chan error
-		d.syncMu.Lock()
-		if d.syncRunning {
-			if d.syncWaiter != nil {
-				close(d.syncWaiter)
-			}
-			waiter = make(chan error)
-			d.syncWaiter = waiter
+		if proceed, wait := d.syncStart(false); proceed {
+			defer d.syncDone()
 		} else {
-			d.syncRunning = true
+			return wait(ctx)
 		}
-		d.syncMu.Unlock()
-
-		if waiter != nil {
-			d.log.Info("syncing already in progress, wait for completion")
-			err := <-waiter
-			if err != nil {
-				d.log.Info(fmt.Sprintf("requeue sync with err: %v", err))
-			} else {
-				d.log.Info("cancel sync, another incoming")
-			}
-			return err
-		}
-
-		defer func() {
-			d.log.Info("syncing done")
-			d.syncMu.Lock()
-			if d.syncWaiter != nil {
-				d.syncWaiter <- fmt.Errorf("sync done")
-				close(d.syncWaiter)
-				d.syncWaiter = nil
-			}
-			d.syncRunning = false
-			d.syncMu.Unlock()
-		}()
 	}
 
 	d.log.Info("syncing driver state!!")
@@ -296,6 +327,11 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
 	if !d.syncAllowConcurrent {
+		if proceed, wait := d.syncStart(true); proceed {
+			defer d.syncDone()
+		} else {
+			return wait(ctx)
+		}
 	}
 
 	d.log.Info("syncing edges state!!")
