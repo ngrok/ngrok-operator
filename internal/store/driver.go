@@ -241,9 +241,41 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
+	if err := d.applyDomains(ctx, c, desiredDomains, currDomains.Items); err != nil {
+		return err
+	}
+
+	if err := d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items); err != nil {
+		return err
+	}
+
+	if err := d.applyTunnels(ctx, c, desiredTunnels, currTunnels.Items); err != nil {
+		return err
+	}
+
+	return d.updateIngressStatuses(ctx, c)
+}
+
+func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
+	d.log.Info("syncing edges state!!")
+
+	desiredEdges := d.calculateHTTPSEdges()
+	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
+	if err := c.List(ctx, currEdges, client.MatchingLabels{
+		labelControllerNamespace: d.managerName.Namespace,
+		labelControllerName:      d.managerName.Name,
+	}); err != nil {
+		d.log.Error(err, "error listing edges")
+		return err
+	}
+
+	return d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items)
+}
+
+func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomains, currentDomains []ingressv1alpha1.Domain) error {
 	for _, desiredDomain := range desiredDomains {
 		found := false
-		for _, currDomain := range currDomains.Items {
+		for _, currDomain := range currentDomains {
 			if desiredDomain.Name == currDomain.Name && desiredDomain.Namespace == currDomain.Namespace {
 				// It matches so lets update it if anything is different
 				if !reflect.DeepEqual(desiredDomain.Spec, currDomain.Spec) {
@@ -264,10 +296,15 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 			}
 		}
 	}
+
 	// Don't delete domains to prevent accidentally de-registering them and making people re-do DNS
 
+	return nil
+}
+
+func (d *Driver) applyHTTPSEdges(ctx context.Context, c client.Client, desiredEdges map[string]ingressv1alpha1.HTTPSEdge, currentEdges []ingressv1alpha1.HTTPSEdge) error {
 	// update or delete edge we don't need anymore
-	for _, currEdge := range currEdges.Items {
+	for _, currEdge := range currentEdges {
 		domain := currEdge.Labels[labelDomain]
 
 		if desiredEdge, ok := desiredEdges[domain]; ok {
@@ -303,8 +340,12 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		}
 	}
 
+	return nil
+}
+
+func (d *Driver) applyTunnels(ctx context.Context, c client.Client, desiredTunnels map[tunnelKey]ingressv1alpha1.Tunnel, currentTunnels []ingressv1alpha1.Tunnel) error {
 	// update or delete tunnels we don't need anymore
-	for _, currTunnel := range currTunnels.Items {
+	for _, currTunnel := range currentTunnels {
 		// extract tunnel key
 		tkey := d.tunnelKeyFromTunnel(currTunnel)
 
@@ -350,7 +391,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		}
 	}
 
-	return d.updateIngressStatuses(ctx, c)
+	return nil
 }
 
 func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) error {

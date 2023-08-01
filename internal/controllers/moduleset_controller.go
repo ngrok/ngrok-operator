@@ -35,6 +35,6 @@ func (r *ModuleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // being watched (in our case, NgrokModuleSets). If you tail the controller
 // logs and delete, update, edit ingress objects, you see the events come in.
 func (r *ModuleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	err := r.Driver.Sync(ctx, r.Client)
+	err := r.Driver.SyncEdges(ctx, r.Client)
 	return ctrl.Result{}, err
 }
