@@ -197,7 +197,11 @@ func (d *Driver) DeleteNamedIngress(n types.NamespacedName) error {
 	return d.cacheStores.Delete(ingress)
 }
 
-// syncStart will let the first caller proceed, but then will batch further calls to the last one
+// syncStart will:
+//   - let the first caller proceed, indicated by returning true
+//   - while the first one is running any subsequent calls will be batched to the last call
+//   - the callers between first and last will be assumed "success" and wait will return nil
+//   - the last one will return an error, which will retrigger reconciliation
 func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error) {
 	d.log.Info("sync start")
 	d.syncMu.Lock()
