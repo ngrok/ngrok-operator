@@ -20,6 +20,7 @@ func isUpsert(o client.Object) bool {
 	return o.GetDeletionTimestamp().IsZero()
 }
 
+//nolint:unused
 func isDelete(o client.Object) bool {
 	return !o.GetDeletionTimestamp().IsZero()
 }

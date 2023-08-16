@@ -146,6 +146,7 @@ func (r *IPPolicyReconciler) delete(ctx context.Context, policy *ingressv1alpha1
 	return err
 }
 
+//nolint:unused
 func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
 	remoteRules, err := r.getRemotePolicyRules(ctx, policy.Status.ID)
 	if err != nil {
@@ -184,6 +185,7 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 	return nil
 }
 
+//nolint:unused
 func (r *IPPolicyReconciler) getRemotePolicyRules(ctx context.Context, policyID string) ([]*ngrok.IPPolicyRule, error) {
 	iter := r.IPPolicyRulesClient.List(&ngrok.Paging{})
 	rules := make([]*ngrok.IPPolicyRule, 0)
