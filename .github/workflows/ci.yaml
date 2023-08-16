@@ -113,8 +113,7 @@ jobs:
     - kubebuilder-diff
     if: |
       (needs.changes.outputs.go == 'true') ||
-      (needs.changes.outputs.charts == 'true') ||
-      ('true' == 'true')
+      (needs.changes.outputs.charts == 'true')
     steps:
     - uses: actions/checkout@v3
 
