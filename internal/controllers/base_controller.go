@@ -73,7 +73,7 @@ func (r *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, cr 
 		}
 	} else {
 		if hasFinalizer(cr) {
-			if r.statusID == nil || r.statusID(cr) != "" {
+			if r.statusID != nil && r.statusID(cr) != "" {
 				sid := r.statusID(cr)
 				r.Recorder.Event(cr, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s: %s", r.kubeType, crName))
 				if err := r.delete(ctx, cr); err != nil {
