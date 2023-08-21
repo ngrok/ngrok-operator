@@ -9,11 +9,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"reflect"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -127,7 +127,7 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels ma
 	log := log.FromContext(ctx)
 
 	if tun, ok := td.tunnels[name]; ok {
-		if reflect.DeepEqual(tun.Labels(), labels) {
+		if maps.Equal(tun.Labels(), labels) {
 			log.Info("Tunnel labels match existing tunnel, doing nothing")
 			return nil
 		}

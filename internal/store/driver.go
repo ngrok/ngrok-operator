@@ -272,7 +272,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 			needsUpdate := false
 
 			// compare/update owner references
-			if !reflect.DeepEqual(desiredTunnel.OwnerReferences, currTunnel.OwnerReferences) {
+			if !slices.Equal(desiredTunnel.OwnerReferences, currTunnel.OwnerReferences) {
 				needsUpdate = true
 				currTunnel.OwnerReferences = desiredTunnel.OwnerReferences
 			}

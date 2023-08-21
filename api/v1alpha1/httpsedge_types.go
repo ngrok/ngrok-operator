@@ -25,9 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
-	"reflect"
-
 	"github.com/ngrok/ngrok-api-go/v5"
+	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -161,7 +160,7 @@ func (e *HTTPSEdge) Equal(edge *ngrok.HTTPSEdge) bool {
 	}
 
 	// check if the hostports match
-	if !reflect.DeepEqual(e.Spec.Hostports, edge.Hostports) {
+	if !slices.Equal(e.Spec.Hostports, edge.Hostports) {
 		return false
 	}
 
