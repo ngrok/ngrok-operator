@@ -115,7 +115,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	helm upgrade ngrok-ingress-controller $(HELM_CHART_DIR) --install \
 		--namespace ngrok-ingress-controller \
 		--create-namespace \
@@ -129,6 +129,16 @@ deploy: docker-build manifests kustomize _helm_setup ## Deploy controller to the
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile && \
 	kubectl rollout restart deployment ngrok-ingress-controller-kubernetes-ingress-controller-manager -n ngrok-ingress-controller
+
+.PHONY: _deploy-check-env-vars
+_deploy-check-env-vars:
+ifndef NGROK_API_KEY
+	$(error An NGROK_API_KEY must be set)
+endif
+ifndef NGROK_AUTHTOKEN
+	$(error An NGROK_AUTHTOKEN must be set)
+endif
+
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
