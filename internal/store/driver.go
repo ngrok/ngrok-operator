@@ -31,6 +31,7 @@ const (
 	labelControllerName      = "k8s.ngrok.com/controller-name"
 	labelDomain              = "k8s.ngrok.com/domain"
 	labelNamespace           = "k8s.ngrok.com/namespace"
+	labelIngressUid          = "k8s.ngrok.com/ingress-uid"
 	labelService             = "k8s.ngrok.com/service"
 	labelPort                = "k8s.ngrok.com/port"
 )
@@ -452,7 +453,7 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 					Match:     httpIngressPath.Path,
 					MatchType: matchType,
 					Backend: ingressv1alpha1.TunnelGroupBackend{
-						Labels: d.ngrokLabels(ingress.Namespace, serviceName, servicePort),
+						Labels: d.ngrokLabels(ingress, serviceName, servicePort),
 					},
 					CircuitBreaker:      modSet.Modules.CircuitBreaker,
 					Compression:         modSet.Modules.Compression,
@@ -519,7 +520,7 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 						},
 						Spec: ingressv1alpha1.TunnelSpec{
 							ForwardsTo: targetAddr,
-							Labels:     d.ngrokLabels(ingress.Namespace, serviceName, servicePort),
+							Labels:     d.ngrokLabels(ingress, serviceName, servicePort),
 							BackendConfig: &ingressv1alpha1.BackendConfig{
 								Protocol: protocol,
 							},
@@ -651,10 +652,11 @@ func (d *Driver) tunnelLabels(serviceName string, port int32) map[string]string 
 }
 
 // Generates a labels map for matching ngrok Routes to Agent Tunnels
-func (d *Driver) ngrokLabels(namespace, serviceName string, port int32) map[string]string {
+func (d *Driver) ngrokLabels(ingress *netv1.Ingress, serviceName string, port int32) map[string]string {
 	return map[string]string{
-		labelNamespace: namespace,
-		labelService:   serviceName,
-		labelPort:      strconv.Itoa(int(port)),
+		labelNamespace:  ingress.Namespace,
+		labelIngressUid: string(ingress.UID),
+		labelService:    serviceName,
+		labelPort:       strconv.Itoa(int(port)),
 	}
 }
