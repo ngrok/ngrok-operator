@@ -419,4 +419,69 @@ var _ = Describe("Driver", func() {
 			))
 		})
 	})
+
+	Describe("When not running concurrently", func() {
+		It("starts one", func() {
+			proceed, wait := driver.syncStart(false)
+			Expect(proceed).To(BeTrue())
+			Expect(wait).To(BeNil())
+			driver.syncDone()
+		})
+
+		It("second waits, then returns error", func() {
+			firstProceed, _ := driver.syncStart(false)
+			Expect(firstProceed).To(BeTrue())
+
+			secondProceed, secondWait := driver.syncStart(false)
+			Expect(secondProceed).To(BeFalse())
+			Expect(secondWait).To(Not(BeNil()))
+
+			driver.syncDone()
+
+			err := secondWait(context.Background())
+			Expect(err).To(Equal(errSyncDone))
+		})
+
+		It("third releases second, no error", func() {
+			firstProceed, _ := driver.syncStart(false)
+			Expect(firstProceed).To(BeTrue())
+
+			secondProceed, secondWait := driver.syncStart(false)
+			Expect(secondProceed).To(BeFalse())
+			Expect(secondWait).To(Not(BeNil()))
+
+			thirdProceed, thirdWait := driver.syncStart(false)
+			Expect(thirdProceed).To(BeFalse())
+			Expect(thirdWait).To(Not(BeNil()))
+
+			secondErr := secondWait(context.Background())
+			Expect(secondErr).To(BeNil())
+
+			driver.syncDone()
+
+			err := thirdWait(context.Background())
+			Expect(err).To(Equal(errSyncDone))
+		})
+
+		It("partial third does not wait, no error", func() {
+			firstProceed, _ := driver.syncStart(true)
+			Expect(firstProceed).To(BeTrue())
+
+			secondProceed, secondWait := driver.syncStart(false)
+			Expect(secondProceed).To(BeFalse())
+			Expect(secondWait).To(Not(BeNil()))
+
+			thirdProceed, thirdWait := driver.syncStart(true)
+			Expect(thirdProceed).To(BeFalse())
+			Expect(thirdWait).To(Not(BeNil()))
+
+			thirdErr := thirdWait(context.Background())
+			Expect(thirdErr).To(BeNil())
+
+			driver.syncDone()
+
+			err := secondWait(context.Background())
+			Expect(err).To(Equal(errSyncDone))
+		})
+	})
 })

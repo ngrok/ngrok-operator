@@ -230,7 +230,7 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 	}
 
 	// put yourself in waiting position
-	ch := make(chan error)
+	ch := make(chan error, 1)
 	if partial {
 		d.syncPartialCh = ch
 	} else {
@@ -248,18 +248,20 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 	}
 }
 
+var errSyncDone = errors.New("sync done")
+
 func (d *Driver) syncDone() {
 	d.log.Info("sync done")
 	d.syncMu.Lock()
 	defer d.syncMu.Unlock()
 
 	if d.syncFullCh != nil {
-		d.syncFullCh <- fmt.Errorf("sync done")
+		d.syncFullCh <- errSyncDone
 		close(d.syncFullCh)
 		d.syncFullCh = nil
 	}
 	if d.syncPartialCh != nil {
-		d.syncPartialCh <- fmt.Errorf("sync done")
+		d.syncPartialCh <- errSyncDone
 		close(d.syncPartialCh)
 		d.syncPartialCh = nil
 	}
