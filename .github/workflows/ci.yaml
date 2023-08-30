@@ -140,7 +140,7 @@ jobs:
       run: make docker-build
 
     - name: Deploy controller to local cluster
-      run: make deploy
+      run: make _deploy # do not check env vars
 
     - name: Check if controller is up
       run: |
