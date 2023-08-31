@@ -140,7 +140,7 @@ jobs:
       run: make docker-build
 
     - name: Deploy controller to local cluster
-      run: make deploy
+      run: make deploy NGROK_API_KEY=fake-ci-key NGROK_AUTHTOKEN=fake-ci-token
 
     - name: Check if controller is up
       run: |

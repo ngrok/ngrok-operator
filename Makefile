@@ -139,7 +139,6 @@ ifndef NGROK_AUTHTOKEN
 	$(error An NGROK_AUTHTOKEN must be set)
 endif
 
-
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	helm uninstall ngrok-ingress-controller
