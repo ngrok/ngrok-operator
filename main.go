@@ -243,6 +243,16 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "IPPolicy")
 		os.Exit(1)
 	}
+	if err = (&controllers.ModuleSetReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("ngrok-module-set"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("ngrok-module-set-controller"),
+		Driver:   driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NgrokModuleSet")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -287,24 +297,7 @@ func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*
 		return nil, fmt.Errorf("unable to seed cache store: %w", err)
 	}
 
-	ings := d.ListNgrokIngressesV1()
-	for _, ing := range ings {
-		setupLog.Info("found matching ingress", "ingress-name", ing.Name, "ingress-namespace", ing.Namespace)
-	}
-
-	// Helpful debug information if someone doesn't have their ingress class set up correctly.
-	if len(ings) == 0 {
-		ingresses := d.ListIngressesV1()
-		ngrokIngresses := d.ListNgrokIngressesV1()
-		ingressClasses := d.ListIngressClassesV1()
-		ngrokIngressClasses := d.ListNgrokIngressClassesV1()
-		setupLog.Info("no matching ingresses found",
-			"all ingresses", ingresses,
-			"all ngrok ingresses", ngrokIngresses,
-			"all ingress classes", ingressClasses,
-			"all ngrok ingress classes", ngrokIngressClasses,
-		)
-	}
+	d.PrintState(setupLog)
 
 	return d, nil
 }

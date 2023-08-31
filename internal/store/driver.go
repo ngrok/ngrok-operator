@@ -7,8 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync/atomic"
-	"time"
+	"sync"
 
 	"github.com/go-logr/logr"
 	"golang.org/x/exp/slices"
@@ -39,15 +38,19 @@ const (
 // Driver maintains the store of information, can derive new information from the store, and can
 // synchronize the desired state of the store to the actual state of the cluster.
 type Driver struct {
-	Storer
+	store Storer
 
-	cacheStores           CacheStores
-	log                   logr.Logger
-	scheme                *runtime.Scheme
-	reentranceFlag        int64
-	bypassReentranceCheck bool
-	customMetadata        string
-	managerName           types.NamespacedName
+	cacheStores    CacheStores
+	log            logr.Logger
+	scheme         *runtime.Scheme
+	customMetadata string
+	managerName    types.NamespacedName
+
+	syncMu              sync.Mutex
+	syncRunning         bool
+	syncFullCh          chan error
+	syncPartialCh       chan error
+	syncAllowConcurrent bool
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
@@ -55,7 +58,7 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
-		Storer:      s,
+		store:       s,
 		cacheStores: cacheStores,
 		log:         logger,
 		scheme:      scheme,
@@ -93,7 +96,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, ing := range ingresses.Items {
-		if err := d.Update(&ing); err != nil {
+		if err := d.store.Update(&ing); err != nil {
 			return err
 		}
 	}
@@ -103,7 +106,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, ingClass := range ingressClasses.Items {
-		if err := d.Update(&ingClass); err != nil {
+		if err := d.store.Update(&ingClass); err != nil {
 			return err
 		}
 	}
@@ -113,7 +116,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, svc := range services.Items {
-		if err := d.Update(&svc); err != nil {
+		if err := d.store.Update(&svc); err != nil {
 			return err
 		}
 	}
@@ -123,7 +126,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, domain := range domains.Items {
-		if err := d.Update(&domain); err != nil {
+		if err := d.store.Update(&domain); err != nil {
 			return err
 		}
 	}
@@ -133,7 +136,17 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		return err
 	}
 	for _, edge := range edges.Items {
-		if err := d.Update(&edge); err != nil {
+		if err := d.store.Update(&edge); err != nil {
+			return err
+		}
+	}
+
+	tunnels := &ingressv1alpha1.TunnelList{}
+	if err := c.List(ctx, tunnels); err != nil {
+		return err
+	}
+	for _, tunnel := range tunnels.Items {
+		if err := d.store.Update(&tunnel); err != nil {
 			return err
 		}
 	}
@@ -141,15 +154,118 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	return nil
 }
 
+func (d *Driver) PrintState(setupLog logr.Logger) {
+	ings := d.store.ListNgrokIngressesV1()
+	for _, ing := range ings {
+		setupLog.Info("found matching ingress", "ingress-name", ing.Name, "ingress-namespace", ing.Namespace)
+	}
+
+	// Helpful debug information if someone doesn't have their ingress class set up correctly.
+	if len(ings) == 0 {
+		ingresses := d.store.ListIngressesV1()
+		ngrokIngresses := d.store.ListNgrokIngressesV1()
+		ingressClasses := d.store.ListIngressClassesV1()
+		ngrokIngressClasses := d.store.ListNgrokIngressClassesV1()
+		setupLog.Info("no matching ingresses found",
+			"all ingresses", ingresses,
+			"all ngrok ingresses", ngrokIngresses,
+			"all ingress classes", ingressClasses,
+			"all ngrok ingress classes", ngrokIngressClasses,
+		)
+	}
+}
+
+func (d *Driver) UpdateIngress(ingress *netv1.Ingress) (*netv1.Ingress, error) {
+	if err := d.store.Update(ingress); err != nil {
+		return nil, err
+	}
+	return d.store.GetNgrokIngressV1(ingress.Name, ingress.Namespace)
+}
+
+func (d *Driver) DeleteIngress(ingress *netv1.Ingress) error {
+	return d.store.Delete(ingress)
+}
+
 // Delete an ingress object given the NamespacedName
 // Takes a namespacedName string as a parameter and
 // deletes the ingress object from the cacheStores map
-func (d *Driver) DeleteIngress(n types.NamespacedName) error {
+func (d *Driver) DeleteNamedIngress(n types.NamespacedName) error {
 	ingress := &netv1.Ingress{}
 	// set NamespacedName on the ingress object
 	ingress.SetNamespace(n.Namespace)
 	ingress.SetName(n.Name)
 	return d.cacheStores.Delete(ingress)
+}
+
+// syncStart will:
+//   - let the first caller proceed, indicated by returning true
+//   - while the first one is running any subsequent calls will be batched to the last call
+//   - the callers between first and last will be assumed "success" and wait will return nil
+//   - the last one will return an error, which will retrigger reconciliation
+func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error) {
+	d.log.Info("sync start")
+	d.syncMu.Lock()
+	defer d.syncMu.Unlock()
+
+	if !d.syncRunning {
+		// not running, we can take action
+		d.syncRunning = true
+		return true, nil
+	}
+
+	// already running, overtake any other waiters
+	if d.syncFullCh != nil {
+		if partial {
+			// a full sync is already waiting, ignore non-full ones
+			return false, func(ctx context.Context) error {
+				return nil
+			}
+		}
+		close(d.syncFullCh)
+		d.syncFullCh = nil
+	}
+	if d.syncPartialCh != nil {
+		close(d.syncPartialCh)
+		d.syncPartialCh = nil
+	}
+
+	// put yourself in waiting position
+	ch := make(chan error, 1)
+	if partial {
+		d.syncPartialCh = ch
+	} else {
+		d.syncFullCh = ch
+	}
+
+	return false, func(ctx context.Context) error {
+		select {
+		case err := <-ch:
+			d.log.Info("sync done", "err", err)
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+var errSyncDone = errors.New("sync done")
+
+func (d *Driver) syncDone() {
+	d.log.Info("sync done")
+	d.syncMu.Lock()
+	defer d.syncMu.Unlock()
+
+	if d.syncFullCh != nil {
+		d.syncFullCh <- errSyncDone
+		close(d.syncFullCh)
+		d.syncFullCh = nil
+	}
+	if d.syncPartialCh != nil {
+		d.syncPartialCh <- errSyncDone
+		close(d.syncPartialCh)
+		d.syncPartialCh = nil
+	}
+	d.syncRunning = false
 }
 
 // Sync calculates what the desired state for each of our CRDs should be based on the ingresses and other
@@ -160,16 +276,11 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	// its noisy and can make us hit ngrok api limits. We should probably just change this to be
 	// a periodic sync instead of a sync on every reconcile event, but for now this debouncer
 	// keeps it in check and syncs in batches
-	if !d.bypassReentranceCheck {
-		if atomic.CompareAndSwapInt64(&d.reentranceFlag, 0, 1) {
-
-			defer func() {
-				time.Sleep(10 * time.Second)
-				atomic.StoreInt64(&(d.reentranceFlag), 0)
-			}()
+	if !d.syncAllowConcurrent {
+		if proceed, wait := d.syncStart(false); proceed {
+			defer d.syncDone()
 		} else {
-			d.log.Info("sync already in progress, skipping")
-			return nil
+			return wait(ctx)
 		}
 	}
 
@@ -201,9 +312,57 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
+	if err := d.applyDomains(ctx, c, desiredDomains, currDomains.Items); err != nil {
+		return err
+	}
+
+	if err := d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items); err != nil {
+		return err
+	}
+
+	if err := d.applyTunnels(ctx, c, desiredTunnels, currTunnels.Items); err != nil {
+		return err
+	}
+
+	if err := d.updateIngressStatuses(ctx, c); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
+	if !d.syncAllowConcurrent {
+		if proceed, wait := d.syncStart(true); proceed {
+			defer d.syncDone()
+		} else {
+			return wait(ctx)
+		}
+	}
+
+	d.log.Info("syncing edges state!!")
+
+	desiredEdges := d.calculateHTTPSEdges()
+	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
+	if err := c.List(ctx, currEdges, client.MatchingLabels{
+		labelControllerNamespace: d.managerName.Namespace,
+		labelControllerName:      d.managerName.Name,
+	}); err != nil {
+		d.log.Error(err, "error listing edges")
+		return err
+	}
+
+	if err := d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomains, currentDomains []ingressv1alpha1.Domain) error {
 	for _, desiredDomain := range desiredDomains {
 		found := false
-		for _, currDomain := range currDomains.Items {
+		for _, currDomain := range currentDomains {
 			if desiredDomain.Name == currDomain.Name && desiredDomain.Namespace == currDomain.Namespace {
 				// It matches so lets update it if anything is different
 				if !reflect.DeepEqual(desiredDomain.Spec, currDomain.Spec) {
@@ -224,10 +383,15 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 			}
 		}
 	}
+
 	// Don't delete domains to prevent accidentally de-registering them and making people re-do DNS
 
+	return nil
+}
+
+func (d *Driver) applyHTTPSEdges(ctx context.Context, c client.Client, desiredEdges map[string]ingressv1alpha1.HTTPSEdge, currentEdges []ingressv1alpha1.HTTPSEdge) error {
 	// update or delete edge we don't need anymore
-	for _, currEdge := range currEdges.Items {
+	for _, currEdge := range currentEdges {
 		domain := currEdge.Labels[labelDomain]
 
 		if desiredEdge, ok := desiredEdges[domain]; ok {
@@ -263,8 +427,12 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		}
 	}
 
+	return nil
+}
+
+func (d *Driver) applyTunnels(ctx context.Context, c client.Client, desiredTunnels map[tunnelKey]ingressv1alpha1.Tunnel, currentTunnels []ingressv1alpha1.Tunnel) error {
 	// update or delete tunnels we don't need anymore
-	for _, currTunnel := range currTunnels.Items {
+	for _, currTunnel := range currentTunnels {
 		// extract tunnel key
 		tkey := d.tunnelKeyFromTunnel(currTunnel)
 
@@ -310,11 +478,11 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		}
 	}
 
-	return d.updateIngressStatuses(ctx, c)
+	return nil
 }
 
 func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) error {
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		newLBIPStatus := d.calculateIngressLoadBalancerIPStatus(ingress, c)
 		if !reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
@@ -331,7 +499,7 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 	// make a map of string to domains
 	domainMap := make(map[string]ingressv1alpha1.Domain)
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == "" {
@@ -371,7 +539,7 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	}
 
 	for _, module := range modules {
-		resolvedMod, err := d.Storer.GetNgrokModuleSetV1(module, ing.Namespace)
+		resolvedMod, err := d.store.GetNgrokModuleSetV1(module, ing.Namespace)
 		if err != nil {
 			return computedModSet, err
 		}
@@ -400,7 +568,7 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 		edgeMap[domain.Spec.Domain] = edge
 	}
 
-	ingresses := d.ListNgrokIngressesV1()
+	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		modSet, err := d.getNgrokModuleSetForIngress(ingress)
 		if err != nil {
@@ -493,7 +661,7 @@ func (d *Driver) tunnelKeyFromTunnel(tunnel ingressv1alpha1.Tunnel) tunnelKey {
 func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 	tunnels := map[tunnelKey]ingressv1alpha1.Tunnel{}
 
-	for _, ingress := range d.ListNgrokIngressesV1() {
+	for _, ingress := range d.store.ListNgrokIngressesV1() {
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
 				// We only support service backends right now. TODO: support resource backends
@@ -580,7 +748,7 @@ func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c clie
 }
 
 func (d *Driver) getBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (int32, string, error) {
-	service, err := d.GetServiceV1(backendSvc.Name, namespace)
+	service, err := d.store.GetServiceV1(backendSvc.Name, namespace)
 	if err != nil {
 		return 0, "", err
 	}
