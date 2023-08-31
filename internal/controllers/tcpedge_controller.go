@@ -27,8 +27,9 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"reflect"
 
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -162,7 +163,7 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 
 	// If the backend or hostports do not match, update the edge with the desired backend and hostports
 	if resp.Backend.Backend.ID != edge.Status.Backend.ID ||
-		!reflect.DeepEqual(resp.Hostports, edge.Status.Hostports) {
+		!slices.Equal(resp.Hostports, edge.Status.Hostports) {
 		resp, err = r.NgrokClientset.TCPEdges().Update(ctx, &ngrok.TCPEdgeUpdate{
 			ID:          resp.ID,
 			Description: pointer.String(edge.Spec.Description),
@@ -205,7 +206,7 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 		}
 
 		// If the labels don't match, update the backend with the desired labels
-		if !reflect.DeepEqual(backend.Labels, specBackend.Labels) {
+		if !maps.Equal(backend.Labels, specBackend.Labels) {
 			_, err = r.NgrokClientset.TunnelGroupBackends().Update(ctx, &ngrok.TunnelGroupBackendUpdate{
 				ID:          backend.ID,
 				Metadata:    pointer.String(specBackend.Metadata),
@@ -252,7 +253,7 @@ func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backend
 			continue
 		}
 
-		if reflect.DeepEqual(backend.Labels, backendLabels) {
+		if maps.Equal(backend.Labels, backendLabels) {
 			r.Log.Info("Found existing TCPEdge with matching backend labels", "labels", backendLabels, "edge.ID", edge.ID)
 			return edge, nil
 		}

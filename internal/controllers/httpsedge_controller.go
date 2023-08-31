@@ -30,6 +30,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -481,7 +483,7 @@ func (r *tunnelGroupBackendReconciler) findOrCreate(ctx context.Context, backend
 	log.V(3).Info("Searching for tunnel group backend with matching labels")
 	for _, b := range r.backends {
 		// The labels match, so we can use this backend
-		if reflect.DeepEqual(b.Labels, backend.Labels) {
+		if maps.Equal(b.Labels, backend.Labels) {
 			log.V(3).Info("Found matching tunnel group backend", "id", b.ID)
 			return b, nil
 		}
@@ -638,7 +640,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 		}
 	}
 
-	if reflect.DeepEqual(remoteIPPolicies, policyIds) {
+	if slices.Equal(remoteIPPolicies, policyIds) {
 		u.logMatches(log, "IP Restriction", routeModuleComparisonDeepEqual)
 		return nil
 	}
