@@ -18,6 +18,13 @@ type ngrokAPICommon struct {
 
 // Route Module Types
 
+type EndpointUserAgentFilter struct {
+	// a list of regexular expressions that will be used to allow traffic from HTTP Requests
+	Allow []string `json:"allow,omitempty"`
+	// a list of regexular expressions that will be used to deny traffic from HTTP Requests
+	Deny []string `json:"deny,omitempty"`
+}
+
 type EndpointCompression struct {
 	// Enabled is whether or not to enable compression for this endpoint
 	Enabled bool `json:"enabled,omitempty"`

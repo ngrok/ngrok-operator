@@ -73,6 +73,9 @@ type HTTPSEdgeRouteSpec struct {
 
 	// WebhookVerification is webhook verification configuration to apply to this route
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
+
+	// UserAgentFilter is the User Agent filter configuration to apply to this route
+	UserAgentFilter *EndpointUserAgentFilter `json:"userAgentFilter,omitempty"`
 }
 
 // HTTPSEdgeSpec defines the desired state of HTTPSEdge

@@ -47,6 +47,8 @@ type NgrokModuleSetModules struct {
 	TLSTermination *EndpointTLSTerminationAtEdge `json:"tlsTermination,omitempty"`
 	// WebhookVerification configuration for this module set
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
+	// UserAgentFilter configuration for this module set
+	UserAgentFilter *EndpointUserAgentFilter `json:"userAgentFilter,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -94,6 +96,9 @@ func (ms *NgrokModuleSet) Merge(o *NgrokModuleSet) {
 	}
 	if omod.WebhookVerification != nil {
 		msmod.WebhookVerification = omod.WebhookVerification
+	}
+	if omod.UserAgentFilter != nil {
+		msmod.UserAgentFilter = omod.UserAgentFilter
 	}
 }
 
