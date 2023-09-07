@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.0
+### Changed
+
+- Update ngrok-go to 1.4.0 [#298](https://github.com/ngrok/kubernetes-ingress-controller/pull/298)
+- Tunnels are now unique in their respective namespace, not across the cluster [#281](https://github.com/ngrok/kubernetes-ingress-controller/pull/281)
+- The ingress controller will now label tunnels it creates and will only manage tunnels that match its labels. It also moves away from using the tunnel CR name as a distinguishing piece of information [#285](https://github.com/ngrok/kubernetes-ingress-controller/pull/285)
+- Similar to tunnels, the ingress controller now labels https edges and manages only the ones matching its labels [#286](https://github.com/ngrok/kubernetes-ingress-controller/pull/286)
+- Better error handling and retry, specifically for the case where we try to create an https edge for a domain which is not created yet [#288](https://github.com/ngrok/kubernetes-ingress-controller/pull/288)
+- Watch and apply ngrok module set CR changes [#290](https://github.com/ngrok/kubernetes-ingress-controller/pull/290)
+
+### Fixed
+
+- The controller stopping at the first resource create [#270](https://github.com/ngrok/kubernetes-ingress-controller/pull/270)
+- Using `make deploy` now requires `NGROK_AUTHTOKEN` and `NGROK_API_KEY` to be set [#292](https://github.com/ngrok/kubernetes-ingress-controller/pull/292)
+
 ## 0.8.1
 ### Fixed
 - Handle special case for changing auth types that causes an error during state transition [#259](https://github.com/ngrok/kubernetes-ingress-controller/pull/259)
@@ -12,7 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better handling when changing pathType between 'Exact' and 'Prefix' [#262](https://github.com/ngrok/kubernetes-ingress-controller/pull/262)
 
 ## 0.8.0
-
 ### Changed
 - tunneldriver: plumb the version through ngrok-go [#228](https://github.com/ngrok/kubernetes-ingress-controller/pull/228)
 - Support HTTPS backends via service annotation [#238](https://github.com/ngrok/kubernetes-ingress-controller/pull/238)
@@ -36,7 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Some updates to handle different cases for e2e run [#226](https://github.com/ngrok/kubernetes-ingress-controller/pull/226).
 
 ## 0.7.0
-
 ### Changed
 - Don't log errors on normal connection closing [#206](https://github.com/ngrok/kubernetes-ingress-controller/pull/206).
 - Updated `golang.org/x/net` to `0.9.0` [#215](https://github.com/ngrok/kubernetes-ingress-controller/pull/215).
@@ -67,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added support for OIDC route module [#173](https://github.com/ngrok/kubernetes-ingress-controller/pull/173)
 - Added support for SAML route module [#186](https://github.com/ngrok/kubernetes-ingress-controller/pull/186)
 - Added support for OAuth route module [#192](https://github.com/ngrok/kubernetes-ingress-controller/pull/192)
+
 ## 0.4.0
 ### Changed
 - When no region override is passed to helm, the controller now does not default to the US and instead uses the closes geographic edge servers [#160](https://github.com/ngrok/kubernetes-ingress-controller/pull/160)
@@ -104,7 +118,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved from calling ngrok-agent sidecar to using the ngrok-go library in process.
 
 ## 0.1.X
-
 ### Initial Alpha Releases
 
 The ngrok ingress controller is currently in alpha. Releases will have varying features with breaking changes.
