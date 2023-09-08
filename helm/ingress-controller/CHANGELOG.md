@@ -5,13 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## 0.11.0
+
+** Important ** This version of the controller changes the ownership model for https edge and tunnel CRs. To ease out the transition to the new ownership, make sure to run `migrate-edges.sh` and `migrate-tunnels.sh` scripts before installing the new version.
 
 ### Changed
 - Specify IPPolicyRule action as an enum of (allow,deny) as part of [#260](https://github.com/ngrok/kubernetes-ingress-controller/pull/260)
+- Handle special case for changing auth types that causes an error during state transition [#259](https://github.com/ngrok/kubernetes-ingress-controller/pull/259)
+- Better handling when changing pathType between 'Exact' and 'Prefix' [#262](https://github.com/ngrok/kubernetes-ingress-controller/pull/262)
+- Update ngrok-go to 1.4.0 [#298](https://github.com/ngrok/kubernetes-ingress-controller/pull/298)
+- Tunnels are now unique in their respective namespace, not across the cluster [#281](https://github.com/ngrok/kubernetes-ingress-controller/pull/281)
+- The CRs that ingress controller creates are uniquely marked and managed by it. Other CRs created manually are no longer deleted when the ingress controller is not using them [#267](https://github.com/ngrok/kubernetes-ingress-controller/issues/267); fixed for tunnel in [#285](https://github.com/ngrok/kubernetes-ingress-controller/pull/285) and for https edges in [#286](https://github.com/ngrok/kubernetes-ingress-controller/pull/286)
+- Better error handling and retry, specifically for the case where we try to create an https edge for a domain which is not created yet [#283](https://github.com/ngrok/kubernetes-ingress-controller/issues/283); fixed in [#288](https://github.com/ngrok/kubernetes-ingress-controller/pull/288)
+- Watch and apply ngrok module set CR changes [#287](https://github.com/ngrok/kubernetes-ingress-controller/issues/287); fixed in [#290](https://github.com/ngrok/kubernetes-ingress-controller/pull/290)
+- Label https edges and tunnels with service UID to make them more unique within ngrok [#291](https://github.com/ngrok/kubernetes-ingress-controller/issues/291); fixed in [#293](https://github.com/ngrok/kubernetes-ingress-controller/pull/293) and [#302](https://github.com/ngrok/kubernetes-ingress-controller/pull/302)
 
 ### Added
 - Add support for configuring pod affinities, pod disruption budget, and priorityClassName [#258](https://github.com/ngrok/kubernetes-ingress-controller/pull/258)
+- The controller stopping at the first resource create [#270](https://github.com/ngrok/kubernetes-ingress-controller/pull/270)
+- Using `make deploy` now requires `NGROK_AUTHTOKEN` and `NGROK_API_KEY` to be set [#292](https://github.com/ngrok/kubernetes-ingress-controller/pull/292)
 
 ## 0.10.0
 
