@@ -87,4 +87,5 @@ To uninstall the chart:
 | `log.level`                          | The level to log at. One of 'debug', 'info', or 'error'.                                                              | `info`                                |
 | `log.stacktraceLevel`                | The level to report stacktrace logs one of 'info' or 'error'.                                                         | `error`                               |
 | `log.format`                         | The log format to use. One of console, json.                                                                          | `json`                                |
+| `lifecycle`                           | an object containing lifecycle configuration.                        | `{}`                                  |
 
