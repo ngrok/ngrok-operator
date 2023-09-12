@@ -225,7 +225,7 @@ func handleConn(ctx context.Context, dest string, protocol string, dialer Dialer
 	if protocol == "HTTPS" {
 		host, _, err := net.SplitHostPort(dest)
 		if err != nil {
-			return err
+			host = dest
 		}
 		next = tls.Client(next, &tls.Config{
 			ServerName:         host,
