@@ -191,6 +191,6 @@ log:
   stacktraceLevel: error
 
 ## @param lifecycle an object containing lifecycle configuration
-## ref: https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#lifecycle-1
+## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
 ##
 lifecycle: {}
