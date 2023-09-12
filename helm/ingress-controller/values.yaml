@@ -189,3 +189,7 @@ log:
   format: json
   level: info
   stacktraceLevel: error
+
+## Lifecycle configuration
+## Refer to https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#lifecycle-1
+lifecycle: {}
