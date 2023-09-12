@@ -223,8 +223,12 @@ func handleConn(ctx context.Context, dest string, protocol string, dialer Dialer
 
 	// Support HTTPS backends
 	if protocol == "HTTPS" {
+		host, _, err := net.SplitHostPort(dest)
+		if err != nil {
+			host = dest
+		}
 		next = tls.Client(next, &tls.Config{
-			ServerName:         dest,
+			ServerName:         host,
 			InsecureSkipVerify: true,
 		})
 	}
