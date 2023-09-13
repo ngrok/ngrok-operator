@@ -109,7 +109,7 @@ spec:
         {{- end }}
         {{- if .Values.lifecycle }}
         lifecycle:
-        {{- toYaml .Value.lifecycle | nindent 10 }}
+        {{ toYaml .Values.lifecycle | nindent 10 }}
         {{- end }}
         livenessProbe:
           httpGet:
