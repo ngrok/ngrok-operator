@@ -1,24 +1,21 @@
-<p align="center">
+<p>
   <a href="https://ngrok.com">
-    <img src="docs/images/ngrok-blue-lrg.png" alt="Ngrok Logo" width="500" url="https://ngrok.com" />
+    <img src="docs/assets/images/ngrok-blue-lrg.png" alt="ngrok Logo" width="300" url="https://ngrok.com" />
   </a>
   <a href="https://kubernetes.io/">
-  <img src="docs/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="250" />
+  <img src="docs/assets/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="150" />
   </a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/ngrok/ngrok-ingress-controller/actions?query=branch%3Amain+event%3Apush">
-      <img src="https://github.com/ngrok/ngrok-ingress-controller/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
+<p>
+  <a href="https://github.com/ngrok/kubernetes-ingress-controller/actions?query=branch%3Amain+event%3Apush">
+      <img src="https://github.com/ngrok/kubernetes-ingress-controller/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
   </a>
-  <!-- TODO: Add badges for things like docker build status, image pulls, helm build status, latest stable release version, etc -->
-</p>
-<p align="center">
-  <a href="https://github.com/ngrok/ngrok-ingress-controller/blob/master/LICENSE">
+  <a href="https://github.com/ngrok/kubernetes-ingress-controller/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"/>
   </a>
-  <a href="#features-and-alpha-status">
-    <img src="https://img.shields.io/badge/Status-Alpha-orange.svg" alt="Status"/>
+  <a href="#features-and-beta-status">
+    <img src="https://img.shields.io/badge/Status-Beta-orange.svg" alt="Status"/>
   </a>
   <a href="https://ngrok.com/slack">
     <img src="https://img.shields.io/badge/Join%20Our%20Community-Slack-blue" alt="Slack"/>
@@ -28,141 +25,79 @@
   </a>
 </p>
 
+# ngrok Kubernetes Ingress Controller
 
 
-# Ngrok Ingress Controller
+Leverage [ngrok](https://ngrok.com/) for your [Kubernetes Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/). Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling.
 
-This is a general purpose [kubernetes ingress controller](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/) provides to workloads running in a kubernetes cluster with a public URL via [ngrok](https://ngrok.com/). It dynamically provisions and deprovisions multiple highly available Ngrok [tunnels](https://ngrok.com/docs/secure-tunnels#labeled-tunnels) and [edges](https://ngrok.com/docs/secure-tunnels#integrating-with-cloud-edge) as ingress resources are created and deleted.
+[Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
 
-## Features and Alpha Status
+## Installation
 
-This project is currently in alpha status. It is not yet recommended for production use. The following features are currently supported:
-* Create, update, and delete ingress objects and have their corresponding tunnels and edges to be updated in response.
-* Install via Helm
-* Supports multiple routes, BUT ONLY ONE host per ingress object at this time.
-* MUST have a pro account to use this controller. The controller will not work with a free account right now as it requires the usage of Ngrok Edges.
+### Helm
 
-### Looking Forward
+> **Note** We recommend using the Helm chart to install the controller for a better experience for upgrades.
 
-An official roadmap is coming soon. In the meantime, here are some of the features we are working on:
-* Stability and HA testing and improvements. Especially during ingress updates, or controller rollouts.
-* Support for multiple hosts per ingress object.
-* Support for all of Ngrok's Edge Modules such as [Oauth](https://ngrok.com/docs/api#api-edge-route-o-auth-module)
-* Free tier support
+Add the ngrok Ingress Controller Helm chart:
 
-
-## Getting Started
-
-Get your [Ngrok API Key](https://ngrok.com/docs/api#authentication) and [Ngrok Auth Token](https://dashboard.ngrok.com/) and export them as environment variables
-
-  ```bash
-export NGROK_API_KEY=<YOUR Secret API KEY>
-export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
-  ```
-
-Create a namespace for the controller to run in
-
-```bash
-kubectl create namespace ngrok-ingress-controller
-kubectl config set-context --current --namespace=ngrok-ingress-controller
+```sh
+helm repo add ngrok https://ngrok.github.io/kubernetes-ingress-controller
 ```
 
-Create a secret with your API key and Auth Token
+Then, install the latest version (setting the appropriate values for your environment):
 
-```bash
-kubectl create secret generic ngrok-ingress-controller-secrets \
-  --from-literal=api-key=$NGROK_API_KEY \
-  --from-literal=auth-token=$NGROK_AUTHTOKEN
+```sh
+export NAMESPACE=[YOUR_K8S_NAMESPACE]
+export NGROK_AUTHTOKEN=[AUTHTOKEN]
+export NGROK_API_KEY=[API_KEY]
+
+helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+  --namespace $NAMESPACE \
+  --create-namespace \
+  --set credentials.apiKey=$NGROK_API_KEY \
+  --set credentials.authtoken=$NGROK_AUTHTOKEN
 ```
-Install via Helm:
-See [Helm Chart](./helm/ingress-controller/README.md#install-the-controller-with-helm)
 
+> **Note** The values for `NGROK_API_KEY` and `NGROK_AUTHTOKEN` can be found in your [ngrok dashboard](https://dashboard.ngrok.com/get-started/setup) and are used by your ingress controller to authenticate with ngrok for configuring and running your network ingress traffic at the edge.
+
+For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
+
+### YAML Manifests
+
+Apply the [sample combined manifest](manifest-bundle.yaml) from our repo:
+
+```sh
+kubectl apply -n ngrok-ingress-controller \
+  -f https://raw.githubusercontent.com/ngrok/kubernetes-ingress-controller/main/manifest-bundle.yaml
+```
+
+For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 
 ## Documentation
 
-<!-- TODO: https://ngrok.com/docs/ngrok-ingress-controller -->
-  <img src="./docs/images/Under-Construction-Sign.png" alt="Kubernetes logo" width="350" />
+The full documentation for the ngrok Ingress Controller can be found [under the docs directory](./docs/README.md). Pull requests for corrections and additions are always welcomed.
+
+###  Guides and Tutorials
+- [Deployment Guide](./docs/deployment-guide/README.md): for installing the controller for the first time
+- [User Guide](./docs/user-guide/README.md): for an in depth view of the ngrok ingress configuration options and primitives
+- [Examples](./docs/examples/README.md): for examples of how to configure ingress in different scenarios (e.g. Hello World, Consul, OAuth, etc.)
+- [Developer Guide](./docs/developer-guide/README.md): for those interested in contributing to the project
 
 
-## Local Development
+## Known Issues
 
-Ensure you have the following prerequisites installed:
+> **Note** 
+>
+> This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads. 
 
-* [Go 1.19](https://go.dev/dl/)
-* [Helm](https://helm.sh/docs/intro/install/)
-* A k8s cluster is available via your kubectl client. This can be a remote cluster or a local cluster like [minikube](https://minikube.sigs.k8s.io/docs/start/)
-  * NOTE: Depending on your cluster, you may have to take additional steps to make the image available. For example with minikube, you may need to run `eval $(minikube docker-env)` to make the image available to the cluster.
+1. Current issues of concern for production workloads are being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/208) and [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/219).
 
-### Setup
+## Support
 
-```sh
-export NGROK_API_KEY=<YOUR Secret API KEY>
-export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
-# kubectl can connect to your cluster and images built locally are available to the cluster
-kubectl create namespace ngrok-ingress-controller
-kubectl config set-context --current --namespace=ngrok-ingress-controller
-kubectl create secret generic ngrok-ingress-controller-credentials \
-  --from-literal=API_KEY=$NGROK_API_KEY  \
-  --from-literal=AUTHTOKEN=$NGROK_AUTHTOKEN
+The best place to get support using the ngrok Ingress Controller is through the [ngrok Slack Community](https://ngrok.com/slack). If you find bugs or would like to contribute code, please follow the instructions in the [contributing guide](./docs/developer-guide/README.md).
 
-make deploy
-```
+## License
 
-### Auth and Credentials
+The ngrok ingress controller is licensed under the terms of the MIT license.
 
-The controller assumes a k8s secret named `ngrok-ingress-controller-credentials` exists with the following keys:
-  * AUTHTOKEN
-  * API_KEY
-
-The name can technically be changed via a helm value, but for now its required while we still use ngrok Cloud Edges and Edges are a pro feature.
-
-Example:
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ngrok-ingress-controller-credentials
-  namespace: ngrok-ingress-controller
-data:
-  API_KEY: "YOUR-API-KEY-BASE64"
-  AUTHTOKEN: "YOUR-AUTHTOKEN-BASE64"
-```
-
-## How to Configure the Agent
-
-> Warning: This will be deprecated soon when moving to the new lib-ngrok library
-* assumes configs will be in a config map named `ngrok-ingress-controller-agent-cm` in the same namespace
-* setup automatically via helm. Values and config map name can be configured in the future via helm
-* subset of these that should be configurable https://ngrok.com/docs/ngrok-agent/config#config-full-example
-* example config map showing all optional values with their defaults.
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ngrok-ingress-controller-agent-cm
-  namespace: ngrok-ingress-controller
-data:
-  LOG: stdout
-  METADATA: "{}"
-  REGION: us
-  REMOTE_MANAGEMENT: true
-```
-
-## Using the Examples
-Several examples are provided in the [`examples` folder](./examples).  To use an example, make a copy of the included `EXAMPLE*config.yaml` in the same directory, like this:
-- `cp examples/hello-world-ingress/EXAMPLE-config.yaml examples/hello-world-ingress/config.yaml`
-- `cp examples/ingress-class/EXAMPLE-config-different.yaml examples/ingress-class/config-different.yaml`
-
-Then, you need to update the `value` field in that new file.
-
-You can then apply the given example via `kubectl apply -k examples/<example in question>`, i.e.
-`kubectl apply -k examples/hello-world-ingess`.
-
-## E2E Tests
-
-If you run the script `./scripts/e2e.sh` it will run the e2e tests against your current kubectl context. These tests tear down any existing ingress controller and examples, re-installs them, and then runs the tests. It creates a set of different ingresses and verifies that they all behave as expected
-
-[ngrok-url]: https://ngrok.com
-[ngrok-logo]: ./docs/images/ngrok-blue-lrg.png
+See [LICENSE](./LICENSE.txt) for details.
