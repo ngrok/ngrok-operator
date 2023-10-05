@@ -170,6 +170,14 @@ func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TL
 		}
 	}
 
+	if err := r.setTLSTermination(ctx, resp, edge.Spec.TLSTermination); err != nil {
+		return err
+	}
+
+	if err := r.setMutualTLS(ctx, resp, edge.Spec.MutualTLS); err != nil {
+		return err
+	}
+
 	return r.updateEdgeStatus(ctx, edge, resp)
 }
 
@@ -224,6 +232,53 @@ func (r *TLSEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 	edge.Status.Backend.ID = backend.ID
 
 	return r.Status().Update(ctx, edge)
+}
+
+func (r *TLSEdgeReconciler) setMutualTLS(ctx context.Context, edge *ngrok.TLSEdge, mutualTls *ingressv1alpha1.EndpointMutualTLS) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	client := r.NgrokClientset.EdgeModules().TLS().MutualTLS()
+	if mutualTls == nil {
+		if edge.MutualTls == nil {
+			log.V(1).Info("Edge Mutual TLS matches spec")
+			return nil
+		}
+
+		log.Info("Deleting Edge Mutual TLS")
+		return client.Delete(ctx, edge.ID)
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeMutualTLSReplace{
+		ID: edge.ID,
+		Module: ngrok.EndpointMutualTLSMutate{
+			CertificateAuthorityIDs: mutualTls.CertificateAuthorities,
+		},
+	})
+	return err
+}
+
+func (r *TLSEdgeReconciler) setTLSTermination(ctx context.Context, edge *ngrok.TLSEdge, tlsTermination *ingressv1alpha1.EndpointTLSTermination) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	client := r.NgrokClientset.EdgeModules().TLS().TLSTermination()
+	if tlsTermination == nil {
+		if edge.TlsTermination == nil {
+			log.V(1).Info("Edge TLS termination matches spec")
+			return nil
+		}
+
+		log.Info("Deleting Edge TLS termination")
+		return client.Delete(ctx, edge.ID)
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeTLSTerminationReplace{
+		ID: edge.ID,
+		Module: ngrok.EndpointTLSTermination{
+			TerminateAt: tlsTermination.TerminateAt,
+			MinVersion:  tlsTermination.MinVersion,
+		},
+	})
+	return err
 }
 
 func (r *TLSEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backendLabels map[string]string) (*ngrok.TLSEdge, error) {

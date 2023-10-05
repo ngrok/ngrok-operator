@@ -47,7 +47,9 @@ type TLSEdgeSpec struct {
 	// IPRestriction is an IPRestriction to apply to this route
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
 
-	// TODO: mutual tls, tls termination
+	TLSTermination *EndpointTLSTermination `json:"tlsTermination,omitempty"`
+
+	MutualTLS *EndpointMutualTLS `json:"mutualTls,omitempty"`
 }
 
 // TLSEdgeStatus defines the observed state of TLSEdge
