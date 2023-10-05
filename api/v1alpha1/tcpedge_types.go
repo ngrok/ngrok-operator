@@ -31,13 +31,6 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type TunnelGroupBackend struct {
-	ngrokAPICommon `json:",inline"`
-
-	// Labels to watch for tunnels on this backend
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
 // TCPEdgeSpec defines the desired state of TCPEdge
 type TCPEdgeSpec struct {
 	ngrokAPICommon `json:",inline"`
@@ -49,11 +42,6 @@ type TCPEdgeSpec struct {
 
 	// IPRestriction is an IPRestriction to apply to this route
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
-}
-
-type TunnelGroupBackendStatus struct {
-	// ID is the unique identifier for this backend
-	ID string `json:"id,omitempty"`
 }
 
 // TCPEdgeStatus defines the observed state of TCPEdge
