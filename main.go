@@ -222,6 +222,16 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "TCPEdge")
 		os.Exit(1)
 	}
+	if err = (&controllers.TLSEdgeReconciler{
+		Client:         mgr.GetClient(),
+		Log:            ctrl.Log.WithName("controllers").WithName("tls-edge"),
+		Scheme:         mgr.GetScheme(),
+		Recorder:       mgr.GetEventRecorderFor("tls-edge-controller"),
+		NgrokClientset: ngrokClientset,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TLSEdge")
+		os.Exit(1)
+	}
 	if err = (&controllers.HTTPSEdgeReconciler{
 		Client:         mgr.GetClient(),
 		Log:            ctrl.Log.WithName("controllers").WithName("https-edge"),

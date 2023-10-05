@@ -6,6 +6,7 @@ import (
 	https_edges "github.com/ngrok/ngrok-api-go/v5/edges/https"
 	https_edge_routes "github.com/ngrok/ngrok-api-go/v5/edges/https_routes"
 	tcp_edges "github.com/ngrok/ngrok-api-go/v5/edges/tcp"
+	tls_edges "github.com/ngrok/ngrok-api-go/v5/edges/tls"
 	"github.com/ngrok/ngrok-api-go/v5/ip_policies"
 	"github.com/ngrok/ngrok-api-go/v5/ip_policy_rules"
 	"github.com/ngrok/ngrok-api-go/v5/reserved_addrs"
@@ -21,6 +22,7 @@ type Clientset interface {
 	IPPolicyRules() *ip_policy_rules.Client
 	TCPAddresses() *reserved_addrs.Client
 	TCPEdges() *tcp_edges.Client
+	TLSEdges() *tls_edges.Client
 	TunnelGroupBackends() *tunnel_group_backends.Client
 }
 
@@ -33,6 +35,7 @@ type DefaultClientset struct {
 	ipPolicyRulesClient       *ip_policy_rules.Client
 	tcpAddrsClient            *reserved_addrs.Client
 	tcpEdgesClient            *tcp_edges.Client
+	tlsEdgesClient            *tls_edges.Client
 	tunnelGroupBackendsClient *tunnel_group_backends.Client
 }
 
@@ -47,6 +50,7 @@ func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
 		ipPolicyRulesClient:       ip_policy_rules.NewClient(config),
 		tcpAddrsClient:            reserved_addrs.NewClient(config),
 		tcpEdgesClient:            tcp_edges.NewClient(config),
+		tlsEdgesClient:            tls_edges.NewClient(config),
 		tunnelGroupBackendsClient: tunnel_group_backends.NewClient(config),
 	}
 }
@@ -77,6 +81,10 @@ func (c *DefaultClientset) IPPolicyRules() *ip_policy_rules.Client {
 
 func (c *DefaultClientset) TCPAddresses() *reserved_addrs.Client {
 	return c.tcpAddrsClient
+}
+
+func (c *DefaultClientset) TLSEdges() *tls_edges.Client {
+	return c.tlsEdgesClient
 }
 
 func (c *DefaultClientset) TCPEdges() *tcp_edges.Client {
