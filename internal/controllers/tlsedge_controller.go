@@ -26,6 +26,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -41,6 +42,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	ierr "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
 )
@@ -74,6 +76,15 @@ func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		create:   r.create,
 		update:   r.update,
 		delete:   r.delete,
+		errResult: func(op baseControllerOp, cr *ingressv1alpha1.TLSEdge, err error) (ctrl.Result, error) {
+			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
+				return ctrl.Result{}, nil
+			}
+			if ngrok.IsErrorCode(err, 7117) { // https://ngrok.com/docs/errors/err_ngrok_7117, domain not found
+				return ctrl.Result{}, err
+			}
+			return reconcileResultFromError(err)
+		},
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
