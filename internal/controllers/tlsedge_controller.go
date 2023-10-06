@@ -110,7 +110,7 @@ func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TL
 	}
 
 	if resp != nil {
-		return r.updateEdgeStatus(ctx, edge, resp)
+		return r.updateEdge(ctx, edge, resp)
 	}
 
 	// No edge has been created for this edge, create one
@@ -128,11 +128,7 @@ func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TL
 	}
 	r.Log.Info("Created new TLSEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
 
-	if err := r.updateEdgeStatus(ctx, edge, resp); err != nil {
-		return err
-	}
-
-	return r.updateIPRestrictionModule(ctx, edge, resp)
+	return r.updateEdge(ctx, edge, resp)
 }
 
 func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
@@ -147,8 +143,7 @@ func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TL
 		if ngrok.IsNotFound(err) {
 			r.Log.Info("TLSEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
 			edge.Status.ID = ""
-			//nolint:errcheck
-			r.Status().Update(ctx, edge)
+			err = r.Status().Update(ctx, edge)
 		}
 		return err
 	}
@@ -170,6 +165,15 @@ func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TL
 		}
 	}
 
+	return r.updateEdge(ctx, edge, resp)
+}
+
+// Update the edge status and modules, called from both create and update.
+func (r *TLSEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha1.TLSEdge, resp *ngrok.TLSEdge) error {
+	if err := r.updateEdgeStatus(ctx, edge, resp); err != nil {
+		return err
+	}
+
 	if err := r.setTLSTermination(ctx, resp, edge.Spec.TLSTermination); err != nil {
 		return err
 	}
@@ -178,7 +182,11 @@ func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TL
 		return err
 	}
 
-	return r.updateEdgeStatus(ctx, edge, resp)
+	if err := r.updateIPRestrictionModule(ctx, edge, resp); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *TLSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {

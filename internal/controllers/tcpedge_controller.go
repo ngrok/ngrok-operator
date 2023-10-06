@@ -115,7 +115,7 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 	}
 
 	if resp != nil {
-		return r.updateEdgeStatus(ctx, edge, resp)
+		return r.updateEdge(ctx, edge, resp)
 	}
 
 	// No edge has been created for this edge, create one
@@ -132,11 +132,7 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 	}
 	r.Log.Info("Created new TCPEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
 
-	if err := r.updateEdgeStatus(ctx, edge, resp); err != nil {
-		return err
-	}
-
-	return r.updateIPRestrictionModule(ctx, edge, resp)
+	return r.updateEdge(ctx, edge, resp)
 }
 
 func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
@@ -155,8 +151,7 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 		if ngrok.IsNotFound(err) {
 			r.Log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
 			edge.Status.ID = ""
-			//nolint:errcheck
-			r.Status().Update(ctx, edge)
+			err = r.Status().Update(ctx, edge)
 		}
 		return err
 	}
@@ -178,7 +173,7 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 		}
 	}
 
-	return r.updateEdgeStatus(ctx, edge, resp)
+	return r.updateEdge(ctx, edge, resp)
 }
 
 func (r *TCPEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
@@ -259,6 +254,19 @@ func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backend
 		}
 	}
 	return nil, iter.Err()
+}
+
+// Update the edge status and modules, called from both create and update.
+func (r *TCPEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
+	if err := r.updateEdgeStatus(ctx, edge, remoteEdge); err != nil {
+		return err
+	}
+
+	if err := r.updateIPRestrictionModule(ctx, edge, remoteEdge); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *TCPEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
