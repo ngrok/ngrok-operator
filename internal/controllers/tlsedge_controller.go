@@ -132,7 +132,7 @@ func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TL
 		return err
 	}
 
-	return r.updateIPRestrictionRouteModule(ctx, edge, resp)
+	return r.updateIPRestrictionModule(ctx, edge, resp)
 }
 
 func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
@@ -317,7 +317,7 @@ func (r *TLSEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv
 	return r.Status().Update(ctx, edge)
 }
 
-func (r *TLSEdgeReconciler) updateIPRestrictionRouteModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
+func (r *TLSEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TLS().IPRestriction().Delete(ctx, edge.Status.ID)
 	}

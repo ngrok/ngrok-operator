@@ -44,7 +44,7 @@ type TLSEdgeSpec struct {
 	// +kubebuilder:validation:Required
 	Hostports []string `json:"hostports,omitempty"`
 
-	// IPRestriction is an IPRestriction to apply to this route
+	// IPRestriction is an IPRestriction to apply to this edge
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
 
 	TLSTermination *EndpointTLSTermination `json:"tlsTermination,omitempty"`

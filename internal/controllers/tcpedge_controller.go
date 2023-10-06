@@ -136,7 +136,7 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 		return err
 	}
 
-	return r.updateIPRestrictionRouteModule(ctx, edge, resp)
+	return r.updateIPRestrictionModule(ctx, edge, resp)
 }
 
 func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
@@ -317,7 +317,7 @@ func (r *TCPEdgeReconciler) descriptionForEdge(edge *ingressv1alpha1.TCPEdge) st
 	return fmt.Sprintf("Reserved for %s/%s", edge.Namespace, edge.Name)
 }
 
-func (r *TCPEdgeReconciler) updateIPRestrictionRouteModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
+func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TCP().IPRestriction().Delete(ctx, edge.Status.ID)
 	}

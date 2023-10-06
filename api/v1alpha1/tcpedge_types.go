@@ -40,7 +40,7 @@ type TCPEdgeSpec struct {
 	// +kubebuilder:validation:Required
 	Backend TunnelGroupBackend `json:"backend,omitempty"`
 
-	// IPRestriction is an IPRestriction to apply to this route
+	// IPRestriction is an IPRestriction to apply to this edge
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
 }
 
