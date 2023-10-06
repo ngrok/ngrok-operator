@@ -78,7 +78,7 @@ spec:
                   in the ngrok API/Dashboard
                 type: string
               ipRestriction:
-                description: IPRestriction is an IPRestriction to apply to this route
+                description: IPRestriction is an IPRestriction to apply to this edge
                 properties:
                   policies:
                     items:
