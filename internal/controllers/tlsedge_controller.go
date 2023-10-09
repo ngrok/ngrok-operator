@@ -154,7 +154,8 @@ func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TL
 		if ngrok.IsNotFound(err) {
 			r.Log.Info("TLSEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
 			edge.Status.ID = ""
-			err = r.Status().Update(ctx, edge)
+			//nolint:errcheck
+			r.Status().Update(ctx, edge)
 		}
 		return err
 	}

@@ -151,7 +151,8 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 		if ngrok.IsNotFound(err) {
 			r.Log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
 			edge.Status.ID = ""
-			err = r.Status().Update(ctx, edge)
+			//nolint:errcheck
+			r.Status().Update(ctx, edge)
 		}
 		return err
 	}
