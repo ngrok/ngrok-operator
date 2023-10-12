@@ -31,8 +31,8 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// TCPEdgeSpec defines the desired state of TCPEdge
-type TCPEdgeSpec struct {
+// TLSEdgeSpec defines the desired state of TLSEdge
+type TLSEdgeSpec struct {
 	ngrokAPICommon `json:",inline"`
 
 	// Backend is the definition for the tunnel group backend
@@ -40,12 +40,20 @@ type TCPEdgeSpec struct {
 	// +kubebuilder:validation:Required
 	Backend TunnelGroupBackend `json:"backend,omitempty"`
 
+	// Hostports is a list of hostports served by this edge
+	// +kubebuilder:validation:Required
+	Hostports []string `json:"hostports,omitempty"`
+
 	// IPRestriction is an IPRestriction to apply to this edge
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
+
+	TLSTermination *EndpointTLSTermination `json:"tlsTermination,omitempty"`
+
+	MutualTLS *EndpointMutualTLS `json:"mutualTls,omitempty"`
 }
 
-// TCPEdgeStatus defines the observed state of TCPEdge
-type TCPEdgeStatus struct {
+// TLSEdgeStatus defines the observed state of TLSEdge
+type TLSEdgeStatus struct {
 	// ID is the unique identifier for this edge
 	ID string `json:"id,omitempty"`
 
@@ -67,24 +75,24 @@ type TCPEdgeStatus struct {
 //+kubebuilder:printcolumn:name="Backend ID",type=string,JSONPath=`.status.backend.id`,description="Tunnel Group Backend ID"
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
-// TCPEdge is the Schema for the tcpedges API
-type TCPEdge struct {
+// TLSEdge is the Schema for the tlsedges API
+type TLSEdge struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TCPEdgeSpec   `json:"spec,omitempty"`
-	Status TCPEdgeStatus `json:"status,omitempty"`
+	Spec   TLSEdgeSpec   `json:"spec,omitempty"`
+	Status TLSEdgeStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// TCPEdgeList contains a list of TCPEdge
-type TCPEdgeList struct {
+// TLSEdgeList contains a list of TLSEdge
+type TLSEdgeList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []TCPEdge `json:"items"`
+	Items           []TLSEdge `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&TCPEdge{}, &TCPEdgeList{})
+	SchemeBuilder.Register(&TLSEdge{}, &TLSEdgeList{})
 }

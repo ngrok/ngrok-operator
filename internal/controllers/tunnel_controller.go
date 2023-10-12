@@ -69,6 +69,7 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		kubeType: "v1alpha1.Tunnel",
 		update:   r.update,
 		delete:   r.delete,
+		statusID: r.statusID,
 	}
 
 	cont, err := controller.NewUnmanaged("tunnel-controller", mgr, controller.Options{
@@ -108,11 +109,15 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (r *TunnelReconciler) update(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {
-	tunnelName := fmt.Sprintf("%s/%s", tunnel.Namespace, tunnel.Name)
+	tunnelName := r.statusID(tunnel)
 	return r.TunnelDriver.CreateTunnel(ctx, tunnelName, tunnel.Spec.Labels, tunnel.Spec.BackendConfig, tunnel.Spec.ForwardsTo)
 }
 
 func (r *TunnelReconciler) delete(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {
-	tunnelName := fmt.Sprintf("%s/%s", tunnel.Namespace, tunnel.Name)
+	tunnelName := r.statusID(tunnel)
 	return r.TunnelDriver.DeleteTunnel(ctx, tunnelName)
+}
+
+func (r *TunnelReconciler) statusID(tunnel *ingressv1alpha1.Tunnel) string {
+	return fmt.Sprintf("%s/%s", tunnel.Namespace, tunnel.Name)
 }

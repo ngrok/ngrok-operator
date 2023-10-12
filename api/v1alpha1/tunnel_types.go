@@ -82,6 +82,18 @@ type TunnelList struct {
 	Items           []Tunnel `json:"items"`
 }
 
+type TunnelGroupBackend struct {
+	ngrokAPICommon `json:",inline"`
+
+	// Labels to watch for tunnels on this backend
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type TunnelGroupBackendStatus struct {
+	// ID is the unique identifier for this backend
+	ID string `json:"id,omitempty"`
+}
+
 func init() {
 	SchemeBuilder.Register(&Tunnel{}, &TunnelList{})
 }

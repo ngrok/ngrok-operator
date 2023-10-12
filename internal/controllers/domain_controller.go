@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
@@ -68,6 +69,15 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		create:   r.create,
 		update:   r.update,
 		delete:   r.delete,
+		errResult: func(op baseControllerOp, cr *ingressv1alpha1.Domain, err error) (reconcile.Result, error) {
+			// Domain still attached to an edge, probably a race condition.
+			// Schedule for retry, and hopefully the edge will be gone
+			// eventually.
+			if ngrok.IsErrorCode(err, 446) {
+				return ctrl.Result{}, err
+			}
+			return reconcileResultFromError(err)
+		},
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).

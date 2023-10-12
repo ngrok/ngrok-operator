@@ -154,6 +154,32 @@ rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
+  - tlsedges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tlsedges/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tlsedges/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
   - tunnels
   verbs:
   - create
