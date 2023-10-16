@@ -230,6 +230,7 @@ func handleConn(ctx context.Context, dest string, protocol string, dialer Dialer
 		next = tls.Client(next, &tls.Config{
 			ServerName:         host,
 			InsecureSkipVerify: true,
+			Renegotiation:      tls.RenegotiateFreelyAsClient,
 		})
 	}
 
