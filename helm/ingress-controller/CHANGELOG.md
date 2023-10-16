@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.0
+
+- Update to version 0.10.0 of the ingress controller, this includes:
+  - TLSEdge support - see the [TCP and TLS Edges Guide](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/user-guide/tcp-tls-edges.md) for more details.
+  - A fix for renegotiating TLS backends
+
 ## 0.11.0
 
 ** Important ** This version of the controller changes the ownership model for https edge and tunnel CRs. To ease out the transition to the new ownership, make sure to run `migrate-edges.sh` and `migrate-tunnels.sh` scripts before installing the new version.
