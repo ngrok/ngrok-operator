@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.0
+
+### Added
+
+- TLSEdge CRD, see the [TCP and TLS Edges Guide](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/user-guide/tcp-tls-edges.md) for more details.
+
+### Fixed
+
+- Added support for TLS Renegotiation for backends that use it [#314](https://github.com/ngrok/kubernetes-ingress-controller/pull/314)
+
 ## 0.9.1
 
 ### Fixed
