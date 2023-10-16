@@ -125,7 +125,7 @@ The Kubernetes ingress spec does not directly support TCP traffic. The ngrok Kub
 | --- | --- | --- | --- |
 | ngrokAPICommon | [ngrokAPICommon](#ngrokapicommon) | No | Common fields shared by all ngrok resources. |
 | backend | [TunnelGroupBackend](#tunnelgroupbackend) | Yes | The definition for the tunnel group backend that serves traffic for this edge. |
-| ipRestriction | [EndpointIPPolicy](https://ngrok.com/docs/api#type-EndpointIPPolicy) | No | An IPRestriction to apply to this route. |
+| ipRestriction | [EndpointIPPolicy](https://ngrok.com/docs/api/resources/tcp-edge-ip-restriction-module/) | No | An IPRestriction to apply to this route. |
 
 ### TunnelGroupBackend
 | Field | Type | Required | Description |
@@ -164,9 +164,9 @@ ngrok's TLS Edges function similarly to TCP Edges in that they may contain arbit
 | ngrokAPICommon | [ngrokAPICommon](#ngrokapicommon) | No | Common fields shared by all ngrok resources. |
 | backend | [TunnelGroupBackend](#tunnelgroupbackend) | Yes | The definition for the tunnel group backend that serves traffic for this edge. |
 | hostports | []string | Yes | A list of hostports served by this edge. |
-| ipRestriction | [EndpointIPPolicy](https://ngrok.com/docs/api#type-EndpointIPPolicy) | No | An IPRestriction to apply to this edge. |
-| tlsTermination | [TLSTermination](https://ngrok.com/docs/api/resources/tls-edge-tls-termination-module/) | No | TLS Termination behaviour for this edge. |
-| mutualTls | [MutualTLS](https://ngrok.com/docs/api/resources/tls-edge-mutual-tls-module/) | No | Mutual TLS validation for this edge. |
+| ipRestriction | [EndpointIPPolicy](https://ngrok.com/docs/api/resources/tls-edge-ip-restriction-module/) | No | An IPRestriction to apply to this edge. |
+| tlsTermination | [TLSTermination](https://ngrok.com/docs/api/resources/edges-tls/#endpointtlstermination-parameters) | No | TLS Termination behaviour for this edge. |
+| mutualTls | [MutualTLS](https://ngrok.com/docs/api/resources/edges-tls/#endpointmutualtlsmutate-parameters) | No | Mutual TLS validation for this edge. |
 
 ### TLSEdgeStatus
 | Field | Type | Required | Description |

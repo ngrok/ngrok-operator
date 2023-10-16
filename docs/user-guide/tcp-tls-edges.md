@@ -1,7 +1,7 @@
 # TCP and TLS Edges
 
-ngrok offers [TCP](https://ngrok.com/docs/cloud-edge/edges/tcp/) and
-[TLS](https://ngrok.com/docs/cloud-edge/edges/tcp/) Edges which can be used to
+ngrok offers [TCP](https://ngrok.com/docs/tcp/) and
+[TLS](https://ngrok.com/docs/tls/) Edges which can be used to
 provide ingress to TCP or TLS based services. Both are implemented as CRDs and
 function similarly in broad strokes, albeit with slightly different
 configuration options offered. [Their CRD reference](./crds.md#tcp-edges) is a
@@ -30,7 +30,7 @@ Create the edge CRD. These resources are fairly similar, and both require you to
 specify a [TunnelGroupBackend](./crds.md#tunnelgroupbackend). This consists of a
 list of labels that determine which specific [Tunnel](./crds.md#tunnels) should
 receive traffic from the edge. Both may also specify [IP
-Policies](https://ngrok.com/docs/api/resources/ip-policies/) for limiting access
+Policies](https://ngrok.com/docs/tls/ip-restrictions/) for limiting access
 to the edge. At the time of writing, these policies must be provided as a
 reference in the form `ipp_<id>`.
 
