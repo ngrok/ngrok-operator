@@ -1,7 +1,7 @@
 # Modules
 
 
-ngrok's Cloud Edge [Modules](https://ngrok.com/docs/cloud-edge/modules/) allow you to configure features like compression, IP Restrictions, OAuth, adding/removing headers, and more.
+ngrok's Cloud Edge [Modules](https://ngrok.com/docs/http/#modules) allow you to configure features like compression, IP Restrictions, OAuth, adding/removing headers, and more.
 
 <!-- TOC depthfrom:2 -->
 
@@ -125,7 +125,7 @@ using pre-made configurations.
 
 ### Circuit Breaker
 
-[Circuit breakers](https://ngrok.com/docs/cloud-edge/modules/circuit-breaker/) are used to protect upstream servers by rejecting traffic to them when they become overwhelmed.
+[Circuit breakers](https://ngrok.com/docs/http/circuit-breaker/) are used to protect upstream servers by rejecting traffic to them when they become overwhelmed.
 
 ```yaml
 kind: NgrokModuleSet
@@ -174,7 +174,7 @@ modules:
 
 #### Request
 
-The [Request Headers](https://ngrok.com/docs/cloud-edge/modules/request-headers/) module allows you to add and remove headers from HTTP requests before they are sent to your upstream server.
+The [Request Headers](https://ngrok.com/docs/http/request-headers/) module allows you to add and remove headers from HTTP requests before they are sent to your upstream server.
 
 ```yaml
 kind: NgrokModuleSet
@@ -193,7 +193,7 @@ modules:
 
 #### Response
 
-The [Response Headers module](https://ngrok.com/docs/cloud-edge/modules/response-headers/) allows you to add and remove headers from HTTP responses before they are returned to the client.
+The [Response Headers module](https://ngrok.com/docs/http/response-headers/) allows you to add and remove headers from HTTP responses before they are returned to the client.
 
 ```yaml
 kind: NgrokModuleSet
@@ -212,7 +212,7 @@ modules:
 
 ### IP Restrictions
 
-[IP Restrictions](https://ngrok.com/docs/cloud-edge/modules/ip-restrictions/) allow you to attach one or more IP policies to the route.
+[IP Restrictions](https://ngrok.com/docs/http/ip-restrictions/) allow you to attach one or more IP policies to the route.
 
 Policies may be specified by either their `ID` in the ngrok API or by the name of an `ippolicy.ingress.k8s.ngrok.com` Custom Resource if managed by the ingress controller.
 
@@ -245,7 +245,7 @@ modules:
 
 ### OAuth
 
-The [OAuth module](https://ngrok.com/docs/cloud-edge/modules/oauth/) enforces an OAuth authentication flow in front of any route it is enabled on.
+The [OAuth module](https://ngrok.com/docs/http/oauth/) enforces an OAuth authentication flow in front of any route it is enabled on.
 
 #### Ngrok Managed OAuth Application
 
@@ -304,7 +304,7 @@ modules:
 
 ### OpenID Connect (OIDC)
 
-The [OIDC module](https://ngrok.com/docs/cloud-edge/modules/openid-connect/) restricts endpoint access to only users authorized by a OpenID Identity Provider.
+The [OIDC module](https://ngrok.com/docs/http/openid-connect/) restricts endpoint access to only users authorized by a OpenID Identity Provider.
 
 ```yaml
 ---
@@ -337,7 +337,7 @@ modules:
 
 ### SAML
 
-The [SAML module](https://ngrok.com/docs/cloud-edge/modules/saml/) restricts endpoint access to only users authorized by a SAML IdP.
+The [SAML module](https://ngrok.com/docs/http/saml/) restricts endpoint access to only users authorized by a SAML IdP.
 
 ### TLS Termination
 
@@ -355,7 +355,7 @@ modules:
 
 ### Webhook Verification
 
-The webhook verification module allows ngrok to assert requests to your endpoint originate from a supported webhook provider like Slack or Github.
+The [webhook verification module](https://ngrok.com/docs/http/webhook-verification/) allows ngrok to assert requests to your endpoint originate from a supported webhook provider like Slack or Github.
 
 ```yaml
 ---
