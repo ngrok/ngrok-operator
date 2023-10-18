@@ -10,6 +10,38 @@ body:
 
       Note, you do not need to create an issue if you have a change ready to submit.
       You can open a [pull request](https://github.com/ngrok/kubernetes-ingress-controller/pulls) immediately instead.
+- type: input
+  attributes:
+    label: Kubernetes Version
+    description: Which Kubernetes Version do you use?
+  validations:
+    required: true
+- type: input
+  attributes:
+    label: Helm Chart Version
+    description: Which version of the Helm chart do you use?
+  validations:
+    required: true
+- type: input
+  attributes:
+    label: Ingress Controller Version
+    description: Which version of the Ingress controller do you use?
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: System Info
+    description: We want to know your OS, architecture etc.
+    placeholder: >
+      Run `uname -srm` or `systeminfo` and copy the output here.
+- type: textarea
+  attributes:
+    label: Helm Chart configuration
+    description: Additional description of your Helm Chart configuration.
+    placeholder: >
+      Enter any relevant details of your Helm Chart configuration. Maybe you can
+      paste your `values.yaml` or important parts of it here? Make sure to surround the code
+      you paste with ``` ```.
 - type: textarea
   attributes:
     label: What happened
