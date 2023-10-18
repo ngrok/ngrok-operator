@@ -33,7 +33,7 @@ body:
     label: System Info
     description: We want to know your OS, architecture etc.
     placeholder: >
-      Run `uname -srm` or `systeminfo` and copy the output here.
+      Run `uname -a` or `systeminfo` and copy the output here.
   validations:
     required: true
 - type: textarea
