@@ -34,6 +34,8 @@ body:
     description: We want to know your OS, architecture etc.
     placeholder: >
       Run `uname -srm` or `systeminfo` and copy the output here.
+  validations:
+    required: true
 - type: textarea
   attributes:
     label: Helm Chart configuration
