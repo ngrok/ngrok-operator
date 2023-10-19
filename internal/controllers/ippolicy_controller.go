@@ -109,7 +109,11 @@ func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1
 		return err
 	}
 	policy.Status.ID = remotePolicy.ID
-	return r.Status().Update(ctx, policy)
+	if err := r.Status().Update(ctx, policy); err != nil {
+		return err
+	}
+
+	return r.createOrUpdateIPPolicyRules(ctx, policy)
 }
 
 func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
@@ -121,6 +125,7 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 		}
 		return err
 	}
+
 	if remotePolicy.Description != policy.Spec.Description ||
 		remotePolicy.Metadata != policy.Spec.Metadata {
 		r.Recorder.Event(policy, v1.EventTypeNormal, "Updating", fmt.Sprintf("Updating IPPolicy %s", policy.Name))
@@ -135,7 +140,7 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 		r.Recorder.Event(policy, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated IPPolicy %s", policy.Name))
 	}
 
-	return nil
+	return r.createOrUpdateIPPolicyRules(ctx, policy)
 }
 
 func (r *IPPolicyReconciler) delete(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
@@ -147,6 +152,8 @@ func (r *IPPolicyReconciler) delete(ctx context.Context, policy *ingressv1alpha1
 }
 
 func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
+	r.Log.Info("updating ippolicy rules", "policy.id", policy.Status.ID)
+	r.Recorder.Event(policy, v1.EventTypeNormal, "Updating", fmt.Sprintf("Updating IPPolicy Rules %s", policy.Name))
 	remoteRules, err := r.getRemotePolicyRules(ctx, policy.Status.ID)
 	if err != nil {
 		return err
