@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.1
+
+- Update to version 0.10.1 of the ingress controller, which includes:
+  - IPPolicy controller wasn't applying the attached rules, leaving the IP policy in its current state [#315](https://github.com/ngrok/kubernetes-ingress-controller/pull/315)
+
 ## 0.12.0
 
 - Update to version 0.10.0 of the ingress controller, this includes:
