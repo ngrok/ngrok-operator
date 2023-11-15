@@ -90,11 +90,13 @@ spec:
             secretKeyRef:
               key: API_KEY
               name: {{ include "kubernetes-ingress-controller.credentialsSecretName" . }}
+              optional: true
         - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
               key: AUTHTOKEN
               name: {{ include "kubernetes-ingress-controller.credentialsSecretName" . }}
+              optional: true
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

@@ -194,6 +194,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		os.Exit(1)
 	}
 
+	// NOTE: Tunnel driver fails to be created and then a crash loop happens
 	td, err := tunneldriver.New(ctrl.Log.WithName("drivers").WithName("tunnel"), tunneldriver.TunnelDriverOpts{
 		ServerAddr: opts.serverAddr,
 		Region:     opts.region,

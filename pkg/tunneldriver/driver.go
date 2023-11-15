@@ -56,7 +56,7 @@ type TunnelDriverOpts struct {
 func New(logger logr.Logger, opts TunnelDriverOpts) (*TunnelDriver, error) {
 	connOpts := []ngrok.ConnectOption{
 		ngrok.WithClientInfo("ngrok-ingress-controller", version.GetVersion()),
-		ngrok.WithAuthtokenFromEnv(),
+		ngrok.WithAuthtokenFromEnv(), // NOTE: This is probably where the crash loop starts
 		ngrok.WithLogger(k8sLogger{logger}),
 	}
 
