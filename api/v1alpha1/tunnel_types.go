@@ -45,6 +45,9 @@ type TunnelSpec struct {
 
 	// The configuration for backend connections to services
 	BackendConfig *BackendConfig `json:"backend,omitempty"`
+
+	// The appProtocol for the backend. Currently only supports `http2`
+	AppProtocol string `json:"appProtocol,omitempty"`
 }
 
 // BackendConfig defines the configuration for backend connections to services.

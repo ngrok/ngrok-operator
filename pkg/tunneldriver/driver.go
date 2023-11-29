@@ -123,7 +123,7 @@ func caCerts() (*x509.CertPool, error) {
 
 // CreateTunnel creates and starts a new tunnel in a goroutine. If a tunnel with the same name already exists,
 // it will be stopped and replaced with a new tunnel unless the labels match.
-func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels map[string]string, backend *ingressv1alpha1.BackendConfig, destination string) error {
+func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels map[string]string, backend *ingressv1alpha1.BackendConfig, destination string, appProtocol string) error {
 	log := log.FromContext(ctx)
 
 	if tun, ok := td.tunnels[name]; ok {
@@ -136,7 +136,7 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels ma
 		defer td.stopTunnel(context.Background(), tun)
 	}
 
-	tun, err := td.session.Listen(ctx, td.buildTunnelConfig(labels, destination))
+	tun, err := td.session.Listen(ctx, td.buildTunnelConfig(labels, destination, appProtocol))
 	if err != nil {
 		return err
 	}
@@ -175,12 +175,13 @@ func (td *TunnelDriver) stopTunnel(ctx context.Context, tun ngrok.Tunnel) error 
 	return tun.CloseWithContext(ctx)
 }
 
-func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination string) config.Tunnel {
+func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination, appProtocol string) config.Tunnel {
 	opts := []config.LabeledTunnelOption{}
 	for key, value := range labels {
 		opts = append(opts, config.WithLabel(key, value))
 	}
 	opts = append(opts, config.WithForwardsTo(destination))
+	opts = append(opts, config.WithAppProtocol(appProtocol))
 	return config.LabeledTunnel(opts...)
 }
 
