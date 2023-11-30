@@ -832,12 +832,12 @@ func (d *Driver) getPortAppProtocol(service *corev1.Service, port *corev1.Servic
 	}
 
 	switch proto := *port.AppProtocol; proto {
-	case "kubernetes.io/h2c":
+	case "k8s.ngrok.com/http2", "kubernetes.io/h2c":
 		return "http2", nil
 	case "":
 		return "", nil
 	default:
-		return "", fmt.Errorf("Unsupported appProtocol: '%s', must be 'kubernetes.io/h2c' or ''. From: %s service: %s", proto, service.Namespace, service.Name)
+		return "", fmt.Errorf("Unsupported appProtocol: '%s', must be 'k8s.ngrok.com/http2', 'kubernetes.io/h2c' or ''. From: %s service: %s", proto, service.Namespace, service.Name)
 	}
 }
 
