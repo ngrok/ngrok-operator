@@ -611,7 +611,7 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 				}
 
 				serviceName := httpIngressPath.Backend.Service.Name
-				serviceUID, servicePort, _, _, err := d.getBackendServicePort(*httpIngressPath.Backend.Service, ingress.Namespace)
+				serviceUID, servicePort, err := d.getEdgeBackend(*httpIngressPath.Backend.Service, ingress.Namespace)
 				if err != nil {
 					d.log.Error(err, "could not find port for service", "namespace", ingress.Namespace, "service", serviceName)
 					continue
@@ -670,7 +670,7 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 				}
 
 				serviceName := path.Backend.Service.Name
-				serviceUID, servicePort, protocol, appProtocol, err := d.getBackendServicePort(*path.Backend.Service, ingress.Namespace)
+				serviceUID, servicePort, protocol, appProtocol, err := d.getTunnelBackend(*path.Backend.Service, ingress.Namespace)
 				if err != nil {
 					d.log.Error(err, "could not find port for service", "namespace", ingress.Namespace, "service", serviceName)
 				}
@@ -748,13 +748,17 @@ func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c clie
 	return status
 }
 
-func (d *Driver) getBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, string, string, error) {
-	service, err := d.store.GetServiceV1(backendSvc.Name, namespace)
+func (d *Driver) getEdgeBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, error) {
+	service, servicePort, err := d.findBackendServicePort(backendSvc, namespace)
 	if err != nil {
-		return "", 0, "", "", err
+		return "", 0, err
 	}
 
-	servicePort, err := d.findServicesPort(service, backendSvc.Port)
+	return string(service.UID), servicePort.Port, nil
+}
+
+func (d *Driver) getTunnelBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, string, string, error) {
+	service, servicePort, err := d.findBackendServicePort(backendSvc, namespace)
 	if err != nil {
 		return "", 0, "", "", err
 	}
@@ -770,6 +774,20 @@ func (d *Driver) getBackendServicePort(backendSvc netv1.IngressServiceBackend, n
 	}
 
 	return string(service.UID), servicePort.Port, protocol, appProtocol, nil
+}
+
+func (d *Driver) findBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (*corev1.Service, *corev1.ServicePort, error) {
+	service, err := d.store.GetServiceV1(backendSvc.Name, namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	servicePort, err := d.findServicesPort(service, backendSvc.Port)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return service, servicePort, nil
 }
 
 func (d *Driver) findServicesPort(service *corev1.Service, backendSvcPort netv1.ServiceBackendPort) (*corev1.ServicePort, error) {
