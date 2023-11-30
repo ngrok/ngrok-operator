@@ -123,11 +123,11 @@ func caCerts() (*x509.CertPool, error) {
 
 // CreateTunnel creates and starts a new tunnel in a goroutine. If a tunnel with the same name already exists,
 // it will be stopped and replaced with a new tunnel unless the labels match.
-func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels map[string]string, backend *ingressv1alpha1.BackendConfig, destination string, appProtocol string) error {
+func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingressv1alpha1.TunnelSpec) error {
 	log := log.FromContext(ctx)
 
 	if tun, ok := td.tunnels[name]; ok {
-		if maps.Equal(tun.Labels(), labels) {
+		if maps.Equal(tun.Labels(), spec.Labels) {
 			log.Info("Tunnel labels match existing tunnel, doing nothing")
 			return nil
 		}
@@ -136,16 +136,18 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, labels ma
 		defer td.stopTunnel(context.Background(), tun)
 	}
 
-	tun, err := td.session.Listen(ctx, td.buildTunnelConfig(labels, destination, appProtocol))
+	tun, err := td.session.Listen(ctx, td.buildTunnelConfig(spec.Labels, spec.ForwardsTo, spec.AppProtocol))
 	if err != nil {
 		return err
 	}
 	td.tunnels[name] = tun
+
 	protocol := ""
-	if backend != nil {
-		protocol = backend.Protocol
+	if spec.BackendConfig != nil {
+		protocol = spec.BackendConfig.Protocol
 	}
-	go handleConnections(ctx, &net.Dialer{}, tun, destination, protocol)
+
+	go handleConnections(ctx, &net.Dialer{}, tun, spec.ForwardsTo, protocol)
 	return nil
 }
 
