@@ -13,7 +13,7 @@ require (
 	github.com/onsi/gomega v1.27.10
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
-	golang.ngrok.com/ngrok v1.7.0
+	golang.ngrok.com/ngrok v1.9.1
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/sync v0.5.0
 	k8s.io/api v0.28.3

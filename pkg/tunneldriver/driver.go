@@ -5,10 +5,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +16,6 @@ import (
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
 	"golang.org/x/exp/maps"
-	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"golang.ngrok.com/ngrok"
@@ -47,7 +44,7 @@ const (
 // TunnelDriver is a driver for creating and deleting ngrok tunnels
 type TunnelDriver struct {
 	session atomic.Pointer[sessionState]
-	tunnels map[string]ngrok.Tunnel
+	tunnels map[string]ngrok.Forwarder
 }
 
 // TunnelDriverOpts are options for creating a new TunnelDriver
@@ -123,7 +120,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 	}
 
 	td := &TunnelDriver{
-		tunnels: make(map[string]ngrok.Tunnel),
+		tunnels: make(map[string]ngrok.Forwarder),
 	}
 
 	td.session.Store(&sessionState{
@@ -267,18 +264,22 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingr
 		defer td.stopTunnel(context.Background(), tun)
 	}
 
-	tun, err := session.Listen(ctx, td.buildTunnelConfig(spec.Labels, spec.ForwardsTo, spec.AppProtocol))
-	if err != nil {
-		return err
-	}
-	td.tunnels[name] = tun
-
-	protocol := ""
+	protocol := "tcp"
 	if spec.BackendConfig != nil {
 		protocol = spec.BackendConfig.Protocol
 	}
 
-	go handleConnections(ctx, &net.Dialer{}, tun, spec.ForwardsTo, protocol, spec.AppProtocol)
+	destUrlStr := fmt.Sprintf("%s://%s", strings.ToLower(protocol), spec.ForwardsTo)
+	destUrl, err := url.Parse(destUrlStr)
+	if err != nil {
+		return err
+	}
+
+	tun, err := session.ListenAndForward(ctx, destUrl, td.buildTunnelConfig(spec.Labels, spec.ForwardsTo, spec.AppProtocol))
+	if err != nil {
+		return err
+	}
+	td.tunnels[name] = tun
 	return nil
 }
 
@@ -301,7 +302,7 @@ func (td *TunnelDriver) DeleteTunnel(ctx context.Context, name string) error {
 	return nil
 }
 
-func (td *TunnelDriver) stopTunnel(ctx context.Context, tun ngrok.Tunnel) error {
+func (td *TunnelDriver) stopTunnel(ctx context.Context, tun ngrok.Forwarder) error {
 	if tun == nil {
 		return nil
 	}
@@ -316,84 +317,4 @@ func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination,
 	opts = append(opts, config.WithForwardsTo(destination))
 	opts = append(opts, config.WithAppProtocol(appProtocol))
 	return config.LabeledTunnel(opts...)
-}
-
-func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, dest string, protocol string, appProtocol string) {
-	logger := log.FromContext(ctx).WithValues("id", tun.ID(), "protocol", protocol, "dest", dest)
-	for {
-		conn, err := tun.Accept()
-		if err != nil {
-			logger.Error(err, "Error accepting connection")
-			// Right now, this can only be "Tunnel closed" https://github.com/ngrok/ngrok-go/blob/e1d90c382/internal/tunnel/client/tunnel.go#L81-L89
-			// Since that's terminal, that means we should give up on this loop to
-			// ensure we don't leak a goroutine after a tunnel goes away.
-			// Unfortunately, it's not an exported error, so we can't verify with
-			// more certainty that's what's going on, but at the time of writing,
-			// that should be true.
-			return
-		}
-		connLogger := logger.WithValues("remoteAddr", conn.RemoteAddr())
-		connLogger.Info("Accepted connection")
-
-		go func() {
-			ctx := log.IntoContext(ctx, connLogger)
-			err := handleConn(ctx, dest, protocol, appProtocol, dialer, conn)
-			if err == nil || errors.Is(err, net.ErrClosed) {
-				connLogger.Info("Connection closed")
-				return
-			}
-
-			connLogger.Error(err, "Error handling connection")
-		}()
-	}
-}
-
-func handleConn(ctx context.Context, dest string, protocol string, appProtocol string, dialer Dialer, conn net.Conn) error {
-	log := log.FromContext(ctx)
-	next, err := dialer.DialContext(ctx, "tcp", dest)
-	if err != nil {
-		return err
-	}
-
-	// Support HTTPS backends
-	if protocol == "HTTPS" {
-		host, _, err := net.SplitHostPort(dest)
-		if err != nil {
-			host = dest
-		}
-		var nextProtos []string
-		if appProtocol == "http2" {
-			nextProtos = []string{"h2", "http/1.1"}
-		}
-
-		next = tls.Client(next, &tls.Config{
-			ServerName:         host,
-			InsecureSkipVerify: true,
-			Renegotiation:      tls.RenegotiateFreelyAsClient,
-			NextProtos:         nextProtos,
-		})
-	}
-
-	var g errgroup.Group
-	g.Go(func() error {
-		defer func() {
-			if err := next.Close(); err != nil {
-				log.Info("Error closing connection to destination: %v", err)
-			}
-		}()
-
-		_, err := io.Copy(next, conn)
-		return err
-	})
-	g.Go(func() error {
-		defer func() {
-			if err := conn.Close(); err != nil {
-				log.Info("Error closing connection from ngrok: %v", err)
-			}
-		}()
-
-		_, err := io.Copy(conn, next)
-		return err
-	})
-	return g.Wait()
 }
