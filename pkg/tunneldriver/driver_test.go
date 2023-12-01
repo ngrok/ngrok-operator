@@ -45,7 +45,7 @@ func TestConnectionIsClosed(t *testing.T) {
 		select {}
 	}).AnyTimes()
 
-	go handleConnections(ctx, mockDialer, mockTun, "target:port", "")
+	go handleConnections(ctx, mockDialer, mockTun, "target:port", "", "")
 
 	bothClosed.Wait()
 	ctrl.Finish()

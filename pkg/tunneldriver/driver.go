@@ -147,7 +147,7 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingr
 		protocol = spec.BackendConfig.Protocol
 	}
 
-	go handleConnections(ctx, &net.Dialer{}, tun, spec.ForwardsTo, protocol)
+	go handleConnections(ctx, &net.Dialer{}, tun, spec.ForwardsTo, protocol, spec.AppProtocol)
 	return nil
 }
 
@@ -187,7 +187,7 @@ func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination,
 	return config.LabeledTunnel(opts...)
 }
 
-func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, dest string, protocol string) {
+func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, dest string, protocol string, appProtocol string) {
 	logger := log.FromContext(ctx).WithValues("id", tun.ID(), "protocol", protocol, "dest", dest)
 	for {
 		conn, err := tun.Accept()
@@ -206,7 +206,7 @@ func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, des
 
 		go func() {
 			ctx := log.IntoContext(ctx, connLogger)
-			err := handleConn(ctx, dest, protocol, dialer, conn)
+			err := handleConn(ctx, dest, protocol, appProtocol, dialer, conn)
 			if err == nil || errors.Is(err, net.ErrClosed) {
 				connLogger.Info("Connection closed")
 				return
@@ -217,7 +217,7 @@ func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, des
 	}
 }
 
-func handleConn(ctx context.Context, dest string, protocol string, dialer Dialer, conn net.Conn) error {
+func handleConn(ctx context.Context, dest string, protocol string, appProtocol string, dialer Dialer, conn net.Conn) error {
 	log := log.FromContext(ctx)
 	next, err := dialer.DialContext(ctx, "tcp", dest)
 	if err != nil {
@@ -230,10 +230,16 @@ func handleConn(ctx context.Context, dest string, protocol string, dialer Dialer
 		if err != nil {
 			host = dest
 		}
+		var nextProtos []string
+		if appProtocol == "http2" {
+			nextProtos = []string{"h2", "http/1.1"}
+		}
+
 		next = tls.Client(next, &tls.Config{
 			ServerName:         host,
 			InsecureSkipVerify: true,
 			Renegotiation:      tls.RenegotiateFreelyAsClient,
+			NextProtos:         nextProtos,
 		})
 	}
 
