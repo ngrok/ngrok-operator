@@ -63,6 +63,22 @@ type EndpointHeaders struct {
 	Response *EndpointResponseHeaders `json:"response,omitempty"`
 }
 
+type EndpointMutualTLS struct {
+	// List of CA IDs that will be used to validate incoming connections to the
+	// edge.
+	CertificateAuthorities []string `json:"certificateAuthorities,omitempty"`
+}
+
+type EndpointTLSTermination struct {
+	// TerminateAt determines where the TLS connection should be terminated.
+	// "edge" if the ngrok edge should terminate TLS traffic, "upstream" if TLS
+	// traffic should be passed through to the upstream ngrok agent /
+	// application server for termination.
+	TerminateAt string `json:"terminateAt,omitempty"`
+	// MinVersion is the minimum TLS version to allow for connections to the edge
+	MinVersion *string `json:"minVersion,omitempty"`
+}
+
 type EndpointTLSTerminationAtEdge struct {
 	// MinVersion is the minimum TLS version to allow for connections to the edge
 	MinVersion string `json:"minVersion,omitempty"`
@@ -78,7 +94,7 @@ type SecretKeyRef struct {
 type EndpointWebhookVerification struct {
 	// a string indicating which webhook provider will be sending webhooks to this
 	// endpoint. Value must be one of the supported providers defined at
-	// https://ngrok.com/docs/cloud-edge#webhook-verification
+	// https://ngrok.com/docs/http/webhook-verification/#supported-providers
 	Provider string `json:"provider,omitempty"`
 	// SecretRef is a reference to a secret containing the secret used to validate
 	// requests from the given provider. All providers except AWS SNS require a secret

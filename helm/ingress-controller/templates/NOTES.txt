@@ -18,7 +18,7 @@ be automatically configured on the internet using ngrok.
 One example, taken from your cluster, is the Service:
    {{ $service.metadata.name | quote }}
 
-You can make this accessible via Ngrok with the following manifest:
+You can make this accessible via ngrok with the following manifest:
 --------------------------------------------------------------------------------
 apiVersion: networking.k8s.io/v1
 kind: Ingress

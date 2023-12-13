@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 55beaaec6ab70343a40b69e51ce45a3c7a1e4c6c48053390666d585b2f0f3458
+        checksum/controller-role: 935bd1fb3894f82f10c4e873691dfb57e2f67cf250ef103844c6dfda7622ded2
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
         app.kubernetes.io/component: controller
@@ -12,8 +12,8 @@ Should match all-options snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: kubernetes-ingress-controller
         app.kubernetes.io/part-of: kubernetes-ingress-controller
-        app.kubernetes.io/version: 0.8.0
-        helm.sh/chart: kubernetes-ingress-controller-0.11.0-rc.1
+        app.kubernetes.io/version: 0.10.1
+        helm.sh/chart: kubernetes-ingress-controller-0.12.1
       name: RELEASE-NAME-kubernetes-ingress-controller-manager
       namespace: NAMESPACE
     spec:
@@ -81,7 +81,7 @@ Should match all-options snapshot:
                 value: test-value
             - name: TEST_ENV_VAR
               value: test
-            image: docker.io/ngrok/kubernetes-ingress-controller:0.8.0
+            image: docker.io/ngrok/kubernetes-ingress-controller:0.10.1
             imagePullPolicy: IfNotPresent
             livenessProbe:
               httpGet:
@@ -360,6 +360,32 @@ Should match all-options snapshot:
     - apiGroups:
       - ingress.k8s.ngrok.com
       resources:
+      - tlsedges
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - tlsedges/finalizers
+      verbs:
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - tlsedges/status
+      verbs:
+      - get
+      - patch
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
       - tunnels
       verbs:
       - create
@@ -415,7 +441,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 55beaaec6ab70343a40b69e51ce45a3c7a1e4c6c48053390666d585b2f0f3458
+        checksum/controller-role: 935bd1fb3894f82f10c4e873691dfb57e2f67cf250ef103844c6dfda7622ded2
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
         app.kubernetes.io/component: controller
@@ -423,8 +449,8 @@ Should match default snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: kubernetes-ingress-controller
         app.kubernetes.io/part-of: kubernetes-ingress-controller
-        app.kubernetes.io/version: 0.8.0
-        helm.sh/chart: kubernetes-ingress-controller-0.11.0-rc.1
+        app.kubernetes.io/version: 0.10.1
+        helm.sh/chart: kubernetes-ingress-controller-0.12.1
       name: RELEASE-NAME-kubernetes-ingress-controller-manager
       namespace: NAMESPACE
     spec:
@@ -485,7 +511,7 @@ Should match default snapshot:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            image: docker.io/ngrok/kubernetes-ingress-controller:0.8.0
+            image: docker.io/ngrok/kubernetes-ingress-controller:0.10.1
             imagePullPolicy: IfNotPresent
             livenessProbe:
               httpGet:
@@ -751,6 +777,32 @@ Should match default snapshot:
       - ingress.k8s.ngrok.com
       resources:
       - tcpedges/status
+      verbs:
+      - get
+      - patch
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - tlsedges
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - tlsedges/finalizers
+      verbs:
+      - update
+    - apiGroups:
+      - ingress.k8s.ngrok.com
+      resources:
+      - tlsedges/status
       verbs:
       - get
       - patch

@@ -45,6 +45,9 @@ type TunnelSpec struct {
 
 	// The configuration for backend connections to services
 	BackendConfig *BackendConfig `json:"backend,omitempty"`
+
+	// The appProtocol for the backend. Currently only supports `http2`
+	AppProtocol string `json:"appProtocol,omitempty"`
 }
 
 // BackendConfig defines the configuration for backend connections to services.
@@ -80,6 +83,18 @@ type TunnelList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Tunnel `json:"items"`
+}
+
+type TunnelGroupBackend struct {
+	ngrokAPICommon `json:",inline"`
+
+	// Labels to watch for tunnels on this backend
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type TunnelGroupBackendStatus struct {
+	// ID is the unique identifier for this backend
+	ID string `json:"id,omitempty"`
 }
 
 func init() {

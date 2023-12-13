@@ -1,6 +1,6 @@
 # Ingress to Edge Relationship
 
-This ingress controller aims to take the [ingress spec](https://kubernetes.io/docs/concepts/services-networking/ingress/#the-ingress-resource) and implement each specified concept into ngrok edges. The concept of an ngrok Edge is documented more [here](https://ngrok.com/docs/cloud-edge/). This document aims to explain how multiple ingress objects with rules and hosts that overlap combine to form edges in the ngrok API.
+This ingress controller aims to take the [ingress spec](https://kubernetes.io/docs/concepts/services-networking/ingress/#the-ingress-resource) and implement each specified concept into ngrok edges. The concept of an ngrok Edge is documented more [here](https://ngrok.com/docs/network-edge/). This document aims to explain how multiple ingress objects with rules and hosts that overlap combine to form edges in the ngrok API.
 
 In Short:
 - a host correlates directly to an edge

@@ -26,7 +26,7 @@ package controllers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -42,12 +42,13 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	ierr "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
 )
 
-// TCPEdgeReconciler reconciles a TCPEdge object
-type TCPEdgeReconciler struct {
+// TLSEdgeReconciler reconciles a TLSEdge object
+type TLSEdgeReconciler struct {
 	client.Client
 
 	Log      logr.Logger
@@ -58,53 +59,58 @@ type TCPEdgeReconciler struct {
 
 	NgrokClientset ngrokapi.Clientset
 
-	controller *baseController[*ingressv1alpha1.TCPEdge]
+	controller *baseController[*ingressv1alpha1.TLSEdge]
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.ipPolicyResolver = ipPolicyResolver{client: mgr.GetClient()}
 
-	r.controller = &baseController[*ingressv1alpha1.TCPEdge]{
+	r.controller = &baseController[*ingressv1alpha1.TLSEdge]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		kubeType: "v1alpha1.TCPEdge",
-		statusID: func(cr *ingressv1alpha1.TCPEdge) string { return cr.Status.ID },
+		kubeType: "v1alpha1.TLSEdge",
+		statusID: func(cr *ingressv1alpha1.TLSEdge) string { return cr.Status.ID },
 		create:   r.create,
 		update:   r.update,
 		delete:   r.delete,
+		errResult: func(op baseControllerOp, cr *ingressv1alpha1.TLSEdge, err error) (ctrl.Result, error) {
+			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
+				return ctrl.Result{}, nil
+			}
+			if ngrok.IsErrorCode(err, 7117) { // https://ngrok.com/docs/errors/err_ngrok_7117, domain not found
+				return ctrl.Result{}, err
+			}
+			return reconcileResultFromError(err)
+		},
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ingressv1alpha1.TCPEdge{}).
+		For(&ingressv1alpha1.TLSEdge{}).
 		Watches(
 			&source.Kind{Type: &ingressv1alpha1.IPPolicy{}},
-			handler.EnqueueRequestsFromMapFunc(r.listTCPEdgesForIPPolicy),
+			handler.EnqueueRequestsFromMapFunc(r.listTLSEdgesForIPPolicy),
 		).
 		Complete(r)
 }
 
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tcpedges,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tcpedges/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tcpedges/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
-func (r *TCPEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.TCPEdge))
+func (r *TLSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.TLSEdge))
 }
 
-func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
 	if err := r.reconcileTunnelGroupBackend(ctx, edge); err != nil {
-		return err
-	}
-
-	if err := r.reserveAddrIfEmpty(ctx, edge); err != nil {
 		return err
 	}
 
@@ -119,8 +125,9 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 	}
 
 	// No edge has been created for this edge, create one
-	r.Log.Info("Creating new TCPEdge", "namespace", edge.Namespace, "name", edge.Name)
-	resp, err = r.NgrokClientset.TCPEdges().Create(ctx, &ngrok.TCPEdgeCreate{
+	r.Log.Info("Creating new TLSEdge", "namespace", edge.Namespace, "name", edge.Name)
+	resp, err = r.NgrokClientset.TLSEdges().Create(ctx, &ngrok.TLSEdgeCreate{
+		Hostports:   edge.Spec.Hostports,
 		Description: edge.Spec.Description,
 		Metadata:    edge.Spec.Metadata,
 		Backend: &ngrok.EndpointBackendMutate{
@@ -130,26 +137,22 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 	if err != nil {
 		return err
 	}
-	r.Log.Info("Created new TCPEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
+	r.Log.Info("Created new TLSEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
 
 	return r.updateEdge(ctx, edge, resp)
 }
 
-func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
 	if err := r.reconcileTunnelGroupBackend(ctx, edge); err != nil {
 		return err
 	}
 
-	if err := r.reserveAddrIfEmpty(ctx, edge); err != nil {
-		return err
-	}
-
-	resp, err := r.NgrokClientset.TCPEdges().Get(ctx, edge.Status.ID)
+	resp, err := r.NgrokClientset.TLSEdges().Get(ctx, edge.Status.ID)
 	if err != nil {
 		// If we can't find the edge in the ngrok API, it's been deleted, so clear the ID
 		// and requeue the edge. When it gets reconciled again, it will be recreated.
 		if ngrok.IsNotFound(err) {
-			r.Log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
+			r.Log.Info("TLSEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
 			edge.Status.ID = ""
 			//nolint:errcheck
 			r.Status().Update(ctx, edge)
@@ -160,11 +163,11 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 	// If the backend or hostports do not match, update the edge with the desired backend and hostports
 	if resp.Backend.Backend.ID != edge.Status.Backend.ID ||
 		!slices.Equal(resp.Hostports, edge.Status.Hostports) {
-		resp, err = r.NgrokClientset.TCPEdges().Update(ctx, &ngrok.TCPEdgeUpdate{
+		resp, err = r.NgrokClientset.TLSEdges().Update(ctx, &ngrok.TLSEdgeUpdate{
 			ID:          resp.ID,
 			Description: pointer.String(edge.Spec.Description),
 			Metadata:    pointer.String(edge.Spec.Metadata),
-			Hostports:   edge.Status.Hostports,
+			Hostports:   edge.Spec.Hostports,
 			Backend: &ngrok.EndpointBackendMutate{
 				BackendID: edge.Status.Backend.ID,
 			},
@@ -177,15 +180,36 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 	return r.updateEdge(ctx, edge, resp)
 }
 
-func (r *TCPEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
-	err := r.NgrokClientset.TCPEdges().Delete(ctx, edge.Status.ID)
+// Update the edge status and modules, called from both create and update.
+func (r *TLSEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha1.TLSEdge, resp *ngrok.TLSEdge) error {
+	if err := r.updateEdgeStatus(ctx, edge, resp); err != nil {
+		return err
+	}
+
+	if err := r.setTLSTermination(ctx, resp, edge.Spec.TLSTermination); err != nil {
+		return err
+	}
+
+	if err := r.setMutualTLS(ctx, resp, edge.Spec.MutualTLS); err != nil {
+		return err
+	}
+
+	if err := r.updateIPRestrictionModule(ctx, edge, resp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *TLSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
+	err := r.NgrokClientset.TLSEdges().Delete(ctx, edge.Status.ID)
 	if err == nil || ngrok.IsNotFound(err) {
 		edge.Status.ID = ""
 	}
 	return err
 }
 
-func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+func (r *TLSEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
 	specBackend := edge.Spec.Backend
 	// First make sure the tunnel group backend matches
 	if edge.Status.Backend.ID != "" {
@@ -230,9 +254,56 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 	return r.Status().Update(ctx, edge)
 }
 
-func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backendLabels map[string]string) (*ngrok.TCPEdge, error) {
-	r.Log.Info("Searching for existing TCPEdge with backend labels", "labels", backendLabels)
-	iter := r.NgrokClientset.TCPEdges().List(&ngrok.Paging{})
+func (r *TLSEdgeReconciler) setMutualTLS(ctx context.Context, edge *ngrok.TLSEdge, mutualTls *ingressv1alpha1.EndpointMutualTLS) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	client := r.NgrokClientset.EdgeModules().TLS().MutualTLS()
+	if mutualTls == nil {
+		if edge.MutualTls == nil {
+			log.V(1).Info("Edge Mutual TLS matches spec")
+			return nil
+		}
+
+		log.Info("Deleting Edge Mutual TLS")
+		return client.Delete(ctx, edge.ID)
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeMutualTLSReplace{
+		ID: edge.ID,
+		Module: ngrok.EndpointMutualTLSMutate{
+			CertificateAuthorityIDs: mutualTls.CertificateAuthorities,
+		},
+	})
+	return err
+}
+
+func (r *TLSEdgeReconciler) setTLSTermination(ctx context.Context, edge *ngrok.TLSEdge, tlsTermination *ingressv1alpha1.EndpointTLSTermination) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	client := r.NgrokClientset.EdgeModules().TLS().TLSTermination()
+	if tlsTermination == nil {
+		if edge.TlsTermination == nil {
+			log.V(1).Info("Edge TLS termination matches spec")
+			return nil
+		}
+
+		log.Info("Deleting Edge TLS termination")
+		return client.Delete(ctx, edge.ID)
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeTLSTerminationReplace{
+		ID: edge.ID,
+		Module: ngrok.EndpointTLSTermination{
+			TerminateAt: tlsTermination.TerminateAt,
+			MinVersion:  tlsTermination.MinVersion,
+		},
+	})
+	return err
+}
+
+func (r *TLSEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backendLabels map[string]string) (*ngrok.TLSEdge, error) {
+	r.Log.Info("Searching for existing TLSEdge with backend labels", "labels", backendLabels)
+	iter := r.NgrokClientset.TLSEdges().List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		edge := iter.Item()
 		if edge.Backend == nil {
@@ -250,27 +321,14 @@ func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backend
 		}
 
 		if maps.Equal(backend.Labels, backendLabels) {
-			r.Log.Info("Found existing TCPEdge with matching backend labels", "labels", backendLabels, "edge.ID", edge.ID)
+			r.Log.Info("Found existing TLSEdge with matching backend labels", "labels", backendLabels, "edge.ID", edge.ID)
 			return edge, nil
 		}
 	}
 	return nil, iter.Err()
 }
 
-// Update the edge status and modules, called from both create and update.
-func (r *TCPEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
-	if err := r.updateEdgeStatus(ctx, edge, remoteEdge); err != nil {
-		return err
-	}
-
-	if err := r.updateIPRestrictionModule(ctx, edge, remoteEdge); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *TCPEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
+func (r *TLSEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
 	edge.Status.ID = remoteEdge.ID
 	edge.Status.URI = remoteEdge.URI
 	edge.Status.Hostports = remoteEdge.Hostports
@@ -279,56 +337,9 @@ func (r *TCPEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv
 	return r.Status().Update(ctx, edge)
 }
 
-func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
-	if edge.Status.Hostports == nil || len(edge.Status.Hostports) == 0 {
-		addr, err := r.findAddrWithMatchingMetadata(ctx, r.metadataForEdge(edge))
-		if err != nil {
-			return err
-		}
-
-		// If we found an addr with matching metadata, use it
-		if addr != nil {
-			edge.Status.Hostports = []string{addr.Addr}
-			return r.Status().Update(ctx, edge)
-		}
-
-		// No hostports have been assigned to this edge, assign one
-		addr, err = r.NgrokClientset.TCPAddresses().Create(ctx, &ngrok.ReservedAddrCreate{
-			Description: r.descriptionForEdge(edge),
-			Metadata:    r.metadataForEdge(edge),
-		})
-		if err != nil {
-			return err
-		}
-
-		edge.Status.Hostports = []string{addr.Addr}
-		return r.Status().Update(ctx, edge)
-	}
-	return nil
-}
-
-func (r *TCPEdgeReconciler) findAddrWithMatchingMetadata(ctx context.Context, metadata string) (*ngrok.ReservedAddr, error) {
-	iter := r.NgrokClientset.TCPAddresses().List(&ngrok.Paging{})
-	for iter.Next(ctx) {
-		addr := iter.Item()
-		if addr.Metadata == metadata {
-			return addr, nil
-		}
-	}
-	return nil, iter.Err()
-}
-
-func (r *TCPEdgeReconciler) metadataForEdge(edge *ingressv1alpha1.TCPEdge) string {
-	return fmt.Sprintf(`{"namespace": "%s", "name": "%s"}`, edge.Namespace, edge.Name)
-}
-
-func (r *TCPEdgeReconciler) descriptionForEdge(edge *ingressv1alpha1.TCPEdge) string {
-	return fmt.Sprintf("Reserved for %s/%s", edge.Namespace, edge.Name)
-}
-
-func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
+func (r *TLSEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
-		return r.NgrokClientset.EdgeModules().TCP().IPRestriction().Delete(ctx, edge.Status.ID)
+		return r.NgrokClientset.EdgeModules().TLS().IPRestriction().Delete(ctx, edge.Status.ID)
 	}
 	policyIds, err := r.ipPolicyResolver.resolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
 	if err != nil {
@@ -336,7 +347,7 @@ func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 	}
 	r.Log.Info("Resolved IP Policy NamesOrIDs to IDs", "policyIds", policyIds)
 
-	_, err = r.NgrokClientset.EdgeModules().TCP().IPRestriction().Replace(ctx, &ngrok.EdgeIPRestrictionReplace{
+	_, err = r.NgrokClientset.EdgeModules().TLS().IPRestriction().Replace(ctx, &ngrok.EdgeIPRestrictionReplace{
 		ID: edge.Status.ID,
 		Module: ngrok.EndpointIPPolicyMutate{
 			IPPolicyIDs: policyIds,
@@ -345,17 +356,17 @@ func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 	return err
 }
 
-func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(obj client.Object) []reconcile.Request {
-	r.Log.Info("Listing TCPEdges for ip policy to determine if they need to be reconciled")
+func (r *TLSEdgeReconciler) listTLSEdgesForIPPolicy(obj client.Object) []reconcile.Request {
+	r.Log.Info("Listing TLSEdges for ip policy to determine if they need to be reconciled")
 	policy, ok := obj.(*ingressv1alpha1.IPPolicy)
 	if !ok {
 		r.Log.Error(nil, "failed to convert object to IPPolicy", "object", obj)
 		return []reconcile.Request{}
 	}
 
-	edges := &ingressv1alpha1.TCPEdgeList{}
+	edges := &ingressv1alpha1.TLSEdgeList{}
 	if err := r.Client.List(context.Background(), edges); err != nil {
-		r.Log.Error(err, "failed to list TCPEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
+		r.Log.Error(err, "failed to list TLSEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
 		return []reconcile.Request{}
 	}
 
@@ -378,6 +389,6 @@ func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(obj client.Object) []reconci
 		}
 	}
 
-	r.Log.Info("IPPolicy change triggered TCPEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
+	r.Log.Info("IPPolicy change triggered TLSEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
 	return recs
 }
