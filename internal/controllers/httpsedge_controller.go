@@ -941,6 +941,45 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 	return err
 }
 
+func (u *edgeRouteModuleUpdater) setEdgeRouteUserAgentFilter(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
+	userAgentFilter := routeSpec.UserAgentFilter
+
+	client := u.clientset.UserAgentFilter()
+
+	if userAgentFilter == nil {
+		if route.UserAgentFilter == nil {
+			u.logMatches(log, "User Agent Filter", routeModuleComparisonBothNil)
+			return nil
+		}
+
+		log.Info("Deleting User Agent Filter module")
+		return client.Delete(ctx, edgeRouteItem(route))
+	}
+
+	module := ngrok.EndpointUserAgentFilter{}
+	if len(userAgentFilter.Allow) > 0 {
+		module.UserAgentFilterAllow = userAgentFilter.Allow
+	}
+	if len(userAgentFilter.Deny) > 0 {
+		module.UserAgentFilterDeny = userAgentFilter.Deny
+	}
+
+	if reflect.DeepEqual(&module, route.UserAgentFilter) {
+		u.logMatches(log, "User Agent Filter", routeModuleComparisonDeepEqual)
+		return nil
+	}
+
+	log.Info("Updating User Agent Filter", "module", module)
+	_, err := client.Replace(ctx, &ngrok.EdgeRouteUserAgentFilterReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: module,
+	})
+	return err
+
+}
+
 func (u *edgeRouteModuleUpdater) getSecret(ctx context.Context, secretRef ingressv1alpha1.SecretKeyRef) (*string, error) {
 	secret, err := u.secretResolver.getSecret(ctx,
 		u.edge.Namespace,

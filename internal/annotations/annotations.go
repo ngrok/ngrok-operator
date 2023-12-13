@@ -24,6 +24,7 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/ip_policies"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/tls"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/user_agent_filter"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/webhook_verification"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	networking "k8s.io/api/networking/v1"
@@ -39,6 +40,7 @@ type RouteModules struct {
 	IPRestriction       *ingressv1alpha1.EndpointIPPolicy
 	TLSTermination      *ingressv1alpha1.EndpointTLSTerminationAtEdge
 	WebhookVerification *ingressv1alpha1.EndpointWebhookVerification
+	UserAgentFilter     *ingressv1alpha1.EndpointUserAgentFilter
 }
 
 type Extractor struct {
@@ -53,6 +55,7 @@ func NewAnnotationsExtractor() Extractor {
 			"IPRestriction":       ip_policies.NewParser(),
 			"TLSTermination":      tls.NewParser(),
 			"WebhookVerification": webhook_verification.NewParser(),
+			"UserAgentFilter":     user_agent_filter.NewParser(),
 		},
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_request_headers"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_response_headers"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_saml"
+	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_user_agent_filter"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_webhook_verification"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_websocket_tcp_converter"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_tls_termination"
@@ -59,6 +60,7 @@ type HTTPSEdgeRouteModulesClientset interface {
 	RequestHeaders() *https_edge_route_request_headers.Client
 	ResponseHeaders() *https_edge_route_response_headers.Client
 	SAML() *https_edge_route_saml.Client
+	UserAgentFilter() *https_edge_route_user_agent_filter.Client
 	WebhookVerification() *https_edge_route_webhook_verification.Client
 	WebsocketTCPConverter() *https_edge_route_websocket_tcp_converter.Client
 }
@@ -73,6 +75,7 @@ type defaultHTTPSEdgeRouteModulesClientset struct {
 	requestHeaders        *https_edge_route_request_headers.Client
 	responseHeaders       *https_edge_route_response_headers.Client
 	saml                  *https_edge_route_saml.Client
+	userAgentFilter       *https_edge_route_user_agent_filter.Client
 	webhookVerification   *https_edge_route_webhook_verification.Client
 	websocketTCPConverter *https_edge_route_websocket_tcp_converter.Client
 }
@@ -88,6 +91,7 @@ func newHTTPSEdgeRouteModulesClient(config *ngrok.ClientConfig) *defaultHTTPSEdg
 		requestHeaders:        https_edge_route_request_headers.NewClient(config),
 		responseHeaders:       https_edge_route_response_headers.NewClient(config),
 		saml:                  https_edge_route_saml.NewClient(config),
+		userAgentFilter:       https_edge_route_user_agent_filter.NewClient(config),
 		webhookVerification:   https_edge_route_webhook_verification.NewClient(config),
 		websocketTCPConverter: https_edge_route_websocket_tcp_converter.NewClient(config),
 	}
