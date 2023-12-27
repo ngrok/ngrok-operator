@@ -16,6 +16,7 @@
           go-tools
           golangci-lint
           kubernetes-helm
+          kubebuilder
           jq
           yq
         ];

@@ -44,7 +44,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/controllers"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
