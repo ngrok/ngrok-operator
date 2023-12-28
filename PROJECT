@@ -70,4 +70,9 @@ resources:
   kind: NgrokModuleSet
   path: github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1
   version: v1alpha1
+- controller: true
+  domain: k8s.ngrok.com
+  group: gateway
+  kind: Gateway
+  version: v1
 version: "3"

@@ -44,7 +44,8 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/ingress"
+	gatewaycontroller "github.com/ngrok/kubernetes-ingress-controller/internal/controller/gateway"
+	controllers "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ingress"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
@@ -261,6 +262,13 @@ func runController(ctx context.Context, opts managerOpts) error {
 		Driver:   driver,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NgrokModuleSet")
+		os.Exit(1)
+	}
+	if err = (&gatewaycontroller.GatewayReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
