@@ -18,7 +18,7 @@ import (
 	"sort"
 	"strings"
 
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 
 	corev1 "k8s.io/api/core/v1"

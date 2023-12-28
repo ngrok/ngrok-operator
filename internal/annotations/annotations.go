@@ -18,7 +18,7 @@ package annotations
 
 import (
 	"github.com/imdario/mergo"
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/compression"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/headers"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/ip_policies"

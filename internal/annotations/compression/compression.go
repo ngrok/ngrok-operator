@@ -1,7 +1,7 @@
 package compression
 
 import (
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
 	networking "k8s.io/api/networking/v1"
 )
