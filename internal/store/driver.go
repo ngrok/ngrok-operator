@@ -711,8 +711,8 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 						Name:       ingress.Name,
 						UID:        ingress.UID,
 					})
-					slices.SortStableFunc(tunnel.OwnerReferences, func(i, j metav1.OwnerReference) bool {
-						return i.UID < j.UID
+					slices.SortStableFunc(tunnel.OwnerReferences, func(i, j metav1.OwnerReference) int {
+						return strings.Compare(string(i.UID), string(j.UID))
 					})
 				}
 

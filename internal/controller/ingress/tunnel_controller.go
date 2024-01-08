@@ -85,7 +85,7 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	cont = NonLeaderElectedController{cont}
 
 	if err := cont.Watch(
-		&source.Kind{Type: &ingressv1alpha1.Tunnel{}},
+		source.Kind(mgr.GetCache(), &ingressv1alpha1.Tunnel{}),
 		&handler.EnqueueRequestForObject{},
 		commonPredicateFilters,
 	); err != nil {

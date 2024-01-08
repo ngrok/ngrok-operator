@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // This implements the Reconciler for the controller-runtime
@@ -42,7 +41,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).For(&netv1.Ingress{})
 	for _, obj := range storedResources {
 		builder = builder.Watches(
-			&source.Kind{Type: obj},
+			obj,
 			store.NewUpdateStoreHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver))
 	}
 

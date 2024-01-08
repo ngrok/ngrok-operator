@@ -36,9 +36,12 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/ngrok/ngrok-api-go/v5"
 
@@ -150,16 +153,22 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
 	options := ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     opts.metricsAddr,
-		Port:                   9443,
+		Scheme: scheme,
+		Metrics: server.Options{
+			BindAddress: opts.metricsAddr,
+		},
+		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         opts.electionID != "",
 		LeaderElectionID:       opts.electionID,
 	}
 
 	if opts.watchNamespace != "" {
-		options.Namespace = opts.watchNamespace
+		options.Cache = cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				opts.watchNamespace: {},
+			},
+		}
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), options)

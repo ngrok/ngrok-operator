@@ -33,12 +33,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
@@ -80,7 +79,7 @@ func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.TCPEdge{}).
 		Watches(
-			&source.Kind{Type: &ingressv1alpha1.IPPolicy{}},
+			&ingressv1alpha1.IPPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.listTCPEdgesForIPPolicy),
 		).
 		Complete(r)
@@ -162,8 +161,8 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 		!slices.Equal(resp.Hostports, edge.Status.Hostports) {
 		resp, err = r.NgrokClientset.TCPEdges().Update(ctx, &ngrok.TCPEdgeUpdate{
 			ID:          resp.ID,
-			Description: pointer.String(edge.Spec.Description),
-			Metadata:    pointer.String(edge.Spec.Metadata),
+			Description: ptr.To(edge.Spec.Description),
+			Metadata:    ptr.To(edge.Spec.Metadata),
 			Hostports:   edge.Status.Hostports,
 			Backend: &ngrok.EndpointBackendMutate{
 				BackendID: edge.Status.Backend.ID,
@@ -205,8 +204,8 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 		if !maps.Equal(backend.Labels, specBackend.Labels) {
 			_, err = r.NgrokClientset.TunnelGroupBackends().Update(ctx, &ngrok.TunnelGroupBackendUpdate{
 				ID:          backend.ID,
-				Metadata:    pointer.String(specBackend.Metadata),
-				Description: pointer.String(specBackend.Description),
+				Metadata:    ptr.To(specBackend.Metadata),
+				Description: ptr.To(specBackend.Description),
 				Labels:      specBackend.Labels,
 			})
 			if err != nil {
@@ -345,7 +344,7 @@ func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 	return err
 }
 
-func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(obj client.Object) []reconcile.Request {
+func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
 	r.Log.Info("Listing TCPEdges for ip policy to determine if they need to be reconciled")
 	policy, ok := obj.(*ingressv1alpha1.IPPolicy)
 	if !ok {
