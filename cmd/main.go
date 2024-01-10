@@ -77,15 +77,16 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	metricsAddr    string
-	electionID     string
-	probeAddr      string
-	serverAddr     string
-	controllerName string
-	watchNamespace string
-	metaData       string
-	managerName    string
-	zapOpts        *zap.Options
+	metricsAddr               string
+	electionID                string
+	probeAddr                 string
+	serverAddr                string
+	controllerName            string
+	watchNamespace            string
+	metaData                  string
+	managerName               string
+	useExperimentalGatewayAPI bool
+	zapOpts                   *zap.Options
 
 	// env vars
 	namespace   string
@@ -112,6 +113,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
+	c.Flags().BoolVar(&opts.useExperimentalGatewayAPI, "use-experimental-gateway-api", false, "sets up experemental gatewayAPI")
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -273,12 +275,14 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "NgrokModuleSet")
 		os.Exit(1)
 	}
-	if err = (&gatewaycontroller.GatewayReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
-		os.Exit(1)
+	if opts.useExperimentalGatewayAPI {
+		if err = (&gatewaycontroller.GatewayReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+			os.Exit(1)
+		}
 	}
 	//+kubebuilder:scaffold:builder
 
