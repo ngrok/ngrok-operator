@@ -12,7 +12,7 @@ keywords:
 home: https://ngrok.com
 sources:
   - https://github.com/ngrok/kubernetes-ingress-controller
-icon: https://ngrok.com/static/img/brand/ngrok-favicon.svg
+icon: https://ngrok.github.io/kubernetes-ingress-controller/ngrok-favicon.svg
 dependencies:
   - name: common
     repository: https://charts.bitnami.com/bitnami
