@@ -364,7 +364,7 @@ func (r *TLSEdgeReconciler) listTLSEdgesForIPPolicy(ctx context.Context, obj cli
 	}
 
 	edges := &ingressv1alpha1.TLSEdgeList{}
-	if err := r.Client.List(context.Background(), edges); err != nil {
+	if err := r.Client.List(ctx, edges); err != nil {
 		r.Log.Error(err, "failed to list TLSEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
 		return []reconcile.Request{}
 	}
