@@ -15,7 +15,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 )
 
 const defaultManagerName = "ngrok-ingress-controller"

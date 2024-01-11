@@ -36,7 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
 )
