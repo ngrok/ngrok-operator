@@ -69,7 +69,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if err := r.Client.Get(ctx, req.NamespacedName, gw); err != nil {
 		if errors.IsNotFound(err) {
-			log.V(1).Info("reconciliation triggered but gateway does not exist, ingnoring")
+			log.V(1).Info("reconciliation triggered but gateway does not exist, ignoring")
 			return ctrl.Result{Requeue: false}, nil
 		}
 		return ctrl.Result{Requeue: true}, nil
