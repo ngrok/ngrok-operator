@@ -1,6 +1,7 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -712,7 +713,7 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 						UID:        ingress.UID,
 					})
 					slices.SortStableFunc(tunnel.OwnerReferences, func(i, j metav1.OwnerReference) int {
-						return strings.Compare(string(i.UID), string(j.UID))
+						return cmp.Compare(string(i.UID), string(j.UID))
 					})
 				}
 
