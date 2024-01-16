@@ -36,15 +36,19 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/ngrok/ngrok-api-go/v5"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/ingress"
+	gatewaycontroller "github.com/ngrok/kubernetes-ingress-controller/internal/controller/gateway"
+	controllers "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ingress"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
@@ -73,15 +77,16 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	metricsAddr    string
-	electionID     string
-	probeAddr      string
-	serverAddr     string
-	controllerName string
-	watchNamespace string
-	metaData       string
-	managerName    string
-	zapOpts        *zap.Options
+	metricsAddr               string
+	electionID                string
+	probeAddr                 string
+	serverAddr                string
+	controllerName            string
+	watchNamespace            string
+	metaData                  string
+	managerName               string
+	useExperimentalGatewayAPI bool
+	zapOpts                   *zap.Options
 
 	// env vars
 	namespace   string
@@ -108,6 +113,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
+	c.Flags().BoolVar(&opts.useExperimentalGatewayAPI, "use-experimental-gateway-api", false, "sets up experemental gatewayAPI")
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -149,16 +155,22 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
 	options := ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     opts.metricsAddr,
-		Port:                   9443,
+		Scheme: scheme,
+		Metrics: server.Options{
+			BindAddress: opts.metricsAddr,
+		},
+		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         opts.electionID != "",
 		LeaderElectionID:       opts.electionID,
 	}
 
 	if opts.watchNamespace != "" {
-		options.Namespace = opts.watchNamespace
+		options.Cache = cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				opts.watchNamespace: {},
+			},
+		}
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), options)
@@ -262,6 +274,15 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NgrokModuleSet")
 		os.Exit(1)
+	}
+	if opts.useExperimentalGatewayAPI {
+		if err = (&gatewaycontroller.GatewayReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+			os.Exit(1)
+		}
 	}
 	//+kubebuilder:scaffold:builder
 

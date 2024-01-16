@@ -38,7 +38,7 @@ var _ = Describe("Driver", func() {
 
 	Describe("Seed", func() {
 		It("Should not error", func() {
-			err := driver.Seed(context.Background(), fake.NewFakeClientWithScheme(scheme))
+			err := driver.Seed(context.Background(), fake.NewClientBuilder().WithScheme(scheme).Build())
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should add all the found items to the store", func() {
@@ -52,7 +52,7 @@ var _ = Describe("Driver", func() {
 			e2 := NewHTTPSEdge("test-edge-2", "test-namespace", "test-domain-2.com")
 			obs := []runtime.Object{&ic1, &ic2, &i1, &i2, &d1, &d2, &e1, &e2}
 
-			c := fake.NewFakeClientWithScheme(scheme, obs...)
+			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
 			err := driver.Seed(context.Background(), c)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -69,7 +69,7 @@ var _ = Describe("Driver", func() {
 	Describe("DeleteIngress", func() {
 		It("Should remove the ingress from the store", func() {
 			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			c := fake.NewFakeClientWithScheme(scheme, &i1)
+			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&i1).Build()
 			err := driver.Seed(context.Background(), c)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -89,7 +89,7 @@ var _ = Describe("Driver", func() {
 	Describe("Sync", func() {
 		Context("When there are no ingresses in the store", func() {
 			It("Should not create anything or error", func() {
-				c := fake.NewFakeClientWithScheme(scheme)
+				c := fake.NewClientBuilder().WithScheme(scheme).Build()
 				err := driver.Sync(context.Background(), c)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -117,7 +117,7 @@ var _ = Describe("Driver", func() {
 				ic2 := NewTestIngressClass("test-ingress-class-2", true, true)
 				s := NewTestServiceV1("example", "test-namespace")
 				obs := []runtime.Object{&ic1, &ic2, &i1, &i2, &s}
-				c := fake.NewFakeClientWithScheme(scheme, obs...)
+				c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
 
 				for _, obj := range obs {
 					err := driver.store.Update(obj)
