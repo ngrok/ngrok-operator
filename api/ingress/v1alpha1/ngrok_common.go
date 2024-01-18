@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	"github.com/ngrok/ngrok-api-go/v5"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -427,4 +429,82 @@ func (amazon *EndpointOAuthAmazon) ToNgrok(clientSecret *string) *ngrok.Endpoint
 		EmailDomains:   amazon.EmailDomains,
 	}
 	return mod
+}
+
+type EndpointPolicies struct {
+	// Determines if the policy will be applied to traffic
+	Enabled *bool `json:"enabled,omitempty"`
+	// Policies for inbound traffic
+	Inbound []EndpointPolicy `json:"inbound,omitempty"`
+	// Policies for outbound traffic
+	Outbound []EndpointPolicy `json:"outbound,omitempty"`
+}
+
+type EndpointPolicy struct {
+	// Expressions
+	Expressions []string `json:"expressions,omitempty"`
+	// Actions
+	Actions []EndpointAction `json:"actions,omitempty"`
+	// Name
+	Name string `json:"name,omitempty"`
+}
+
+type EndpointAction struct {
+	Type string `json:"type,omitempty"`
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Type=object
+	Config json.RawMessage `json:"config,omitempty"`
+}
+
+func (policies *EndpointPolicies) ToNgrok() *ngrok.EndpointPolicies {
+	if policies == nil {
+		return nil
+	}
+
+	var inbound []ngrok.EndpointPolicy
+	for _, policy := range policies.Inbound {
+		p := policy
+		inbound = append(inbound, *p.ToNgrok())
+	}
+	var outbound []ngrok.EndpointPolicy
+	for _, policy := range policies.Outbound {
+		p := policy
+		outbound = append(outbound, *p.ToNgrok())
+	}
+
+	return &ngrok.EndpointPolicies{
+		Enabled:  policies.Enabled,
+		Inbound:  inbound,
+		Outbound: outbound,
+	}
+}
+
+func (policy *EndpointPolicy) ToNgrok() *ngrok.EndpointPolicy {
+	if policy == nil {
+		return nil
+	}
+
+	var actions []ngrok.EndpointAction
+	for _, action := range policy.Actions {
+		a := action
+		actions = append(actions, *a.ToNgrok())
+	}
+
+	return &ngrok.EndpointPolicy{
+		Expressions: policy.Expressions,
+		Actions:     actions,
+		Name:        policy.Name,
+	}
+}
+
+func (action *EndpointAction) ToNgrok() *ngrok.EndpointAction {
+	if action == nil {
+		return nil
+	}
+
+	return &ngrok.EndpointAction{
+		Type:   action.Type,
+		Config: action.Config,
+	}
 }
