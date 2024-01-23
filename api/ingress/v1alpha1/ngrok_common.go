@@ -470,7 +470,10 @@ func (policies *EndpointPolicies) ToNgrok() *ngrok.EndpointPolicies {
 	var outbound []ngrok.EndpointPolicy
 	for _, policy := range policies.Outbound {
 		p := policy
-		outbound = append(outbound, *p.ToNgrok())
+		mod := p.ToNgrok()
+		if mod != nil {
+			outbound = append(outbound, *mod)
+		}
 	}
 
 	return &ngrok.EndpointPolicies{
@@ -488,7 +491,10 @@ func (policy *EndpointPolicy) ToNgrok() *ngrok.EndpointPolicy {
 	var actions []ngrok.EndpointAction
 	for _, action := range policy.Actions {
 		a := action
-		actions = append(actions, *a.ToNgrok())
+		mod := a.ToNgrok()
+		if mod != nil {
+			actions = append(actions, *mod)
+		}
 	}
 
 	return &ngrok.EndpointPolicy{
