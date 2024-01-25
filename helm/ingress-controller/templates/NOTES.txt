@@ -13,7 +13,7 @@ be automatically configured on the internet using ngrok.
       {{- if eq $portMap.port 80 443 }}
         {{- if ne $service.metadata.name "kubernetes" }}
           {{- $found = true -}}
-          {{- $randomStr := randAlphaNum 8 }}
+          {{- $randomStr := randAlphaNum 8 | lower }}
 
 One example, taken from your cluster, is the Service:
    {{ $service.metadata.name | quote }}
