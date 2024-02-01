@@ -523,7 +523,7 @@ func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, rout
 		u.setEdgeRouteOIDC,
 		u.setEdgeRouteSAML,
 		u.setEdgeRouteWebhookVerification,
-		u.setEdgeRoutePolicies,
+		u.setEdgeRoutePolicy,
 	}
 
 	for _, f := range funcs {
@@ -1030,26 +1030,26 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 	return nil
 }
 
-func (u *edgeRouteModuleUpdater) setEdgeRoutePolicies(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
 	log := ctrl.LoggerFrom(ctx)
-	policies := routeSpec.Policies
-	client := u.clientset.Policies()
+	policy := routeSpec.Policy
+	client := u.clientset.Policy()
 
-	module := policies.ToNgrok()
+	module := policy.ToNgrok()
 
 	// Early return if nothing to be done
 	if module == nil {
-		if route.Policies == nil {
-			u.logMatches(log, "Policies", routeModuleComparisonBothNil)
+		if route.Policy == nil {
+			u.logMatches(log, "Policy", routeModuleComparisonBothNil)
 			return nil
 		}
 
-		log.Info("Deleting Policies module")
+		log.Info("Deleting Policy module")
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
-	log.Info("Updating Policies module")
-	_, err := client.Replace(ctx, &ngrok.EdgeRoutePoliciesReplace{
+	log.Info("Updating Policy module")
+	_, err := client.Replace(ctx, &ngrok.EdgeRoutePolicyReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
 		Module: *module,

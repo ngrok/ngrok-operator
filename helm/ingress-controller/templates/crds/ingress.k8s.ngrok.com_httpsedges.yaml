@@ -908,14 +908,13 @@ spec:
                             type: string
                           type: array
                       type: object
-                    policies:
+                    policy:
                       properties:
                         enabled:
-                          description: Determines if the policy will be applied to
-                            traffic
+                          description: Determines if the rule will be applied to traffic
                           type: boolean
                         inbound:
-                          description: Policies for inbound traffic
+                          description: Inbound traffic rule
                           items:
                             properties:
                               actions:
@@ -940,7 +939,7 @@ spec:
                             type: object
                           type: array
                         outbound:
-                          description: Policies for outbound traffic
+                          description: Outbound traffic rule
                           items:
                             properties:
                               actions:

@@ -431,16 +431,16 @@ func (amazon *EndpointOAuthAmazon) ToNgrok(clientSecret *string) *ngrok.Endpoint
 	return mod
 }
 
-type EndpointPolicies struct {
-	// Determines if the policy will be applied to traffic
+type EndpointPolicy struct {
+	// Determines if the rule will be applied to traffic
 	Enabled *bool `json:"enabled,omitempty"`
-	// Policies for inbound traffic
-	Inbound []EndpointPolicy `json:"inbound,omitempty"`
-	// Policies for outbound traffic
-	Outbound []EndpointPolicy `json:"outbound,omitempty"`
+	// Inbound traffic rule
+	Inbound []EndpointRule `json:"inbound,omitempty"`
+	// Outbound traffic rule
+	Outbound []EndpointRule `json:"outbound,omitempty"`
 }
 
-type EndpointPolicy struct {
+type EndpointRule struct {
 	// Expressions
 	Expressions []string `json:"expressions,omitempty"`
 	// Actions
@@ -457,39 +457,39 @@ type EndpointAction struct {
 	Config json.RawMessage `json:"config,omitempty"`
 }
 
-func (policies *EndpointPolicies) ToNgrok() *ngrok.EndpointPolicies {
-	if policies == nil {
+func (policy *EndpointPolicy) ToNgrok() *ngrok.EndpointPolicy {
+	if policy == nil {
 		return nil
 	}
 
-	var inbound []ngrok.EndpointPolicy
-	for _, policy := range policies.Inbound {
-		p := policy
+	var inbound []ngrok.EndpointRule
+	for _, rule := range policy.Inbound {
+		p := rule
 		inbound = append(inbound, *p.ToNgrok())
 	}
-	var outbound []ngrok.EndpointPolicy
-	for _, policy := range policies.Outbound {
-		p := policy
+	var outbound []ngrok.EndpointRule
+	for _, rule := range policy.Outbound {
+		p := rule
 		mod := p.ToNgrok()
 		if mod != nil {
 			outbound = append(outbound, *mod)
 		}
 	}
 
-	return &ngrok.EndpointPolicies{
-		Enabled:  policies.Enabled,
+	return &ngrok.EndpointPolicy{
+		Enabled:  policy.Enabled,
 		Inbound:  inbound,
 		Outbound: outbound,
 	}
 }
 
-func (policy *EndpointPolicy) ToNgrok() *ngrok.EndpointPolicy {
-	if policy == nil {
+func (rule *EndpointRule) ToNgrok() *ngrok.EndpointRule {
+	if rule == nil {
 		return nil
 	}
 
 	var actions []ngrok.EndpointAction
-	for _, action := range policy.Actions {
+	for _, action := range rule.Actions {
 		a := action
 		mod := a.ToNgrok()
 		if mod != nil {
@@ -497,10 +497,10 @@ func (policy *EndpointPolicy) ToNgrok() *ngrok.EndpointPolicy {
 		}
 	}
 
-	return &ngrok.EndpointPolicy{
-		Expressions: policy.Expressions,
+	return &ngrok.EndpointRule{
+		Expressions: rule.Expressions,
 		Actions:     actions,
-		Name:        policy.Name,
+		Name:        rule.Name,
 	}
 }
 

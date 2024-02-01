@@ -39,8 +39,8 @@ type NgrokModuleSetModules struct {
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
 	// OAuth configuration for this module set
 	OAuth *EndpointOAuth `json:"oauth,omitempty"`
-	// Policies configuration for this module set
-	Policies *EndpointPolicies `json:"policies,omitempty"`
+	// Policy configuration for this module set
+	Policy *EndpointPolicy `json:"policy,omitempty"`
 	// OIDC configuration for this module set
 	OIDC *EndpointOIDC `json:"oidc,omitempty"`
 	// SAML configuration for this module set
@@ -85,8 +85,8 @@ func (ms *NgrokModuleSet) Merge(o *NgrokModuleSet) {
 	if omod.OAuth != nil {
 		msmod.OAuth = omod.OAuth
 	}
-	if omod.Policies != nil {
-		msmod.Policies = omod.Policies
+	if omod.Policy != nil {
+		msmod.Policy = omod.Policy
 	}
 	if omod.OIDC != nil {
 		msmod.OIDC = omod.OIDC

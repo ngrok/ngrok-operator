@@ -629,7 +629,7 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 					IPRestriction:       modSet.Modules.IPRestriction,
 					Headers:             modSet.Modules.Headers,
 					OAuth:               modSet.Modules.OAuth,
-					Policies:            modSet.Modules.Policies,
+					Policy:              modSet.Modules.Policy,
 					OIDC:                modSet.Modules.OIDC,
 					SAML:                modSet.Modules.SAML,
 					WebhookVerification: modSet.Modules.WebhookVerification,
