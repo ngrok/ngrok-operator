@@ -1035,10 +1035,10 @@ func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *
 	policy := routeSpec.Policy
 	client := u.clientset.Policy()
 
-	module := policy.ToNgrok()
+	endpointPolicy := policy.ToNgrok()
 
 	// Early return if nothing to be done
-	if module == nil {
+	if endpointPolicy == nil {
 		if route.Policy == nil {
 			u.logMatches(log, "Policy", routeModuleComparisonBothNil)
 			return nil
@@ -1052,7 +1052,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *
 	_, err := client.Replace(ctx, &ngrok.EdgeRoutePolicyReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
-		Module: *module,
+		Module: *endpointPolicy,
 	})
 	return err
 }
