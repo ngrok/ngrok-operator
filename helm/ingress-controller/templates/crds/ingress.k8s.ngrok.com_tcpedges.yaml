@@ -90,6 +90,62 @@ spec:
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
+              policy:
+                properties:
+                  enabled:
+                    description: Determines if the rule will be applied to traffic
+                    type: boolean
+                  inbound:
+                    description: Inbound traffic rule
+                    items:
+                      properties:
+                        actions:
+                          description: Actions
+                          items:
+                            properties:
+                              config:
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              type:
+                                type: string
+                            type: object
+                          type: array
+                        expressions:
+                          description: Expressions
+                          items:
+                            type: string
+                          type: array
+                        name:
+                          description: Name
+                          type: string
+                      type: object
+                    type: array
+                  outbound:
+                    description: Outbound traffic rule
+                    items:
+                      properties:
+                        actions:
+                          description: Actions
+                          items:
+                            properties:
+                              config:
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              type:
+                                type: string
+                            type: object
+                          type: array
+                        expressions:
+                          description: Expressions
+                          items:
+                            type: string
+                          type: array
+                        name:
+                          description: Name
+                          type: string
+                      type: object
+                    type: array
+                type: object
             type: object
           status:
             description: TCPEdgeStatus defines the observed state of TCPEdge
