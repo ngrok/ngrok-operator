@@ -8,7 +8,7 @@ require (
 	github.com/go-logr/logr v1.2.4
 	github.com/golang/mock v1.4.4
 	github.com/imdario/mergo v0.3.16
-	github.com/ngrok/ngrok-api-go/v5 v5.2.1-0.20240202164311-e46cf17c1b3b
+	github.com/ngrok/ngrok-api-go/v5 v5.3.0
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.10
 	github.com/spf13/cobra v1.7.0
