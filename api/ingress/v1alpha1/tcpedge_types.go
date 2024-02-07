@@ -42,6 +42,8 @@ type TCPEdgeSpec struct {
 
 	// IPRestriction is an IPRestriction to apply to this edge
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
+
+	Policy *EndpointPolicy `json:"policy,omitempty"`
 }
 
 // TCPEdgeStatus defines the observed state of TCPEdge

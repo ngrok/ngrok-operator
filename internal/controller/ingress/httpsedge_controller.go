@@ -37,7 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -342,7 +342,7 @@ func (r *HTTPSEdgeReconciler) setEdgeTLSTermination(ctx context.Context, edge *n
 	_, err := client.Replace(ctx, &ngrok.EdgeTLSTerminationAtEdgeReplace{
 		ID: edge.ID,
 		Module: ngrok.EndpointTLSTerminationAtEdge{
-			MinVersion: pointer.String(tlsTermination.MinVersion),
+			MinVersion: ptr.To(tlsTermination.MinVersion),
 		},
 	})
 	return err
@@ -523,6 +523,7 @@ func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, rout
 		u.setEdgeRouteOIDC,
 		u.setEdgeRouteSAML,
 		u.setEdgeRouteWebhookVerification,
+		u.setEdgeRoutePolicy,
 	}
 
 	for _, f := range funcs {
@@ -605,7 +606,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteCompression(ctx context.Context, ro
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
 		Module: ngrok.EndpointCompression{
-			Enabled: pointer.Bool(routeSpec.Compression.Enabled),
+			Enabled: ptr.To(routeSpec.Compression.Enabled),
 		},
 	})
 	return err
@@ -1027,4 +1028,31 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 	}
 
 	return nil
+}
+
+func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	log := ctrl.LoggerFrom(ctx)
+	policy := routeSpec.Policy
+	client := u.clientset.Policy()
+
+	endpointPolicy := policy.ToNgrok()
+
+	// Early return if nothing to be done
+	if endpointPolicy == nil {
+		if route.Policy == nil {
+			u.logMatches(log, "Policy", routeModuleComparisonBothNil)
+			return nil
+		}
+
+		log.Info("Deleting Policy module")
+		return client.Delete(ctx, edgeRouteItem(route))
+	}
+
+	log.Info("Updating Policy module")
+	_, err := client.Replace(ctx, &ngrok.EdgeRoutePolicyReplace{
+		EdgeID: route.EdgeID,
+		ID:     route.ID,
+		Module: *endpointPolicy,
+	})
+	return err
 }

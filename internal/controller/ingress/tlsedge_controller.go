@@ -197,6 +197,10 @@ func (r *TLSEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha
 		return err
 	}
 
+	if err := r.updatePolicyModule(ctx, edge, resp); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -390,4 +394,30 @@ func (r *TLSEdgeReconciler) listTLSEdgesForIPPolicy(ctx context.Context, obj cli
 
 	r.Log.Info("IPPolicy change triggered TLSEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
 	return recs
+}
+
+func (r *TLSEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
+	policy := edge.Spec.Policy
+	client := r.NgrokClientset.EdgeModules().TLS().Policy()
+
+	endpointPolicy := policy.ToNgrok()
+
+	// Early return if nothing to be done
+	if endpointPolicy == nil {
+		if remoteEdge.Policy == nil {
+			r.Log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
+
+			return nil
+		}
+
+		r.Log.Info("Deleting Policy module")
+		return client.Delete(ctx, edge.Status.ID)
+	}
+
+	r.Log.Info("Updating Policy module")
+	_, err := client.Replace(ctx, &ngrok.EdgePolicyReplace{
+		ID:     remoteEdge.ID,
+		Module: *endpointPolicy,
+	})
+	return err
 }

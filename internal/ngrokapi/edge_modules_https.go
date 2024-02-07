@@ -9,6 +9,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_ip_restriction"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_oauth"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_oidc"
+	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_policy"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_request_headers"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_response_headers"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_saml"
@@ -55,6 +56,7 @@ type HTTPSEdgeRouteModulesClientset interface {
 	Compression() *https_edge_route_compression.Client
 	IPRestriction() *https_edge_route_ip_restriction.Client
 	OAuth() *https_edge_route_oauth.Client
+	Policy() *https_edge_route_policy.Client
 	OIDC() *https_edge_route_oidc.Client
 	RequestHeaders() *https_edge_route_request_headers.Client
 	ResponseHeaders() *https_edge_route_response_headers.Client
@@ -69,6 +71,7 @@ type defaultHTTPSEdgeRouteModulesClientset struct {
 	compression           *https_edge_route_compression.Client
 	ipRestriction         *https_edge_route_ip_restriction.Client
 	oauth                 *https_edge_route_oauth.Client
+	policy                *https_edge_route_policy.Client
 	oidc                  *https_edge_route_oidc.Client
 	requestHeaders        *https_edge_route_request_headers.Client
 	responseHeaders       *https_edge_route_response_headers.Client
@@ -84,6 +87,7 @@ func newHTTPSEdgeRouteModulesClient(config *ngrok.ClientConfig) *defaultHTTPSEdg
 		compression:           https_edge_route_compression.NewClient(config),
 		ipRestriction:         https_edge_route_ip_restriction.NewClient(config),
 		oauth:                 https_edge_route_oauth.NewClient(config),
+		policy:                https_edge_route_policy.NewClient(config),
 		oidc:                  https_edge_route_oidc.NewClient(config),
 		requestHeaders:        https_edge_route_request_headers.NewClient(config),
 		responseHeaders:       https_edge_route_response_headers.NewClient(config),
@@ -111,6 +115,10 @@ func (c *defaultHTTPSEdgeRouteModulesClientset) IPRestriction() *https_edge_rout
 
 func (c *defaultHTTPSEdgeRouteModulesClientset) OAuth() *https_edge_route_oauth.Client {
 	return c.oauth
+}
+
+func (c *defaultHTTPSEdgeRouteModulesClientset) Policy() *https_edge_route_policy.Client {
+	return c.policy
 }
 
 func (c *defaultHTTPSEdgeRouteModulesClientset) OIDC() *https_edge_route_oidc.Client {

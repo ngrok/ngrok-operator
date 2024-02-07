@@ -50,6 +50,8 @@ type TLSEdgeSpec struct {
 	TLSTermination *EndpointTLSTermination `json:"tlsTermination,omitempty"`
 
 	MutualTLS *EndpointMutualTLS `json:"mutualTls,omitempty"`
+
+	Policy *EndpointPolicy `json:"policy,omitempty"`
 }
 
 // TLSEdgeStatus defines the observed state of TLSEdge

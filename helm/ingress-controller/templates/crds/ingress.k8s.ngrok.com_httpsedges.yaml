@@ -908,6 +908,62 @@ spec:
                             type: string
                           type: array
                       type: object
+                    policy:
+                      properties:
+                        enabled:
+                          description: Determines if the rule will be applied to traffic
+                          type: boolean
+                        inbound:
+                          description: Inbound traffic rule
+                          items:
+                            properties:
+                              actions:
+                                description: Actions
+                                items:
+                                  properties:
+                                    config:
+                                      type: object
+                                      x-kubernetes-preserve-unknown-fields: true
+                                    type:
+                                      type: string
+                                  type: object
+                                type: array
+                              expressions:
+                                description: Expressions
+                                items:
+                                  type: string
+                                type: array
+                              name:
+                                description: Name
+                                type: string
+                            type: object
+                          type: array
+                        outbound:
+                          description: Outbound traffic rule
+                          items:
+                            properties:
+                              actions:
+                                description: Actions
+                                items:
+                                  properties:
+                                    config:
+                                      type: object
+                                      x-kubernetes-preserve-unknown-fields: true
+                                    type:
+                                      type: string
+                                  type: object
+                                type: array
+                              expressions:
+                                description: Expressions
+                                items:
+                                  type: string
+                                type: array
+                              name:
+                                description: Name
+                                type: string
+                            type: object
+                          type: array
+                      type: object
                     saml:
                       description: SAML is the SAML configuration to apply to this
                         route
