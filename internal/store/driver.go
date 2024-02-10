@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"os"
 
 	"github.com/go-logr/logr"
 	"golang.org/x/exp/slices"
@@ -24,7 +25,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const clusterDomain = "svc.cluster.local" // TODO: We can technically figure this out by looking at things like our resolv.conf or we can just take this as a helm option
+const defaultClusterDomain = "svc.cluster.local"
+const clusterDomainEnvKey = "NGROK_CLUSTER_DOMAIN"
 
 const (
 	labelControllerNamespace = "k8s.ngrok.com/controller-namespace"
@@ -680,6 +682,10 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 				key := tunnelKey{ingress.Namespace, serviceName, strconv.Itoa(int(servicePort))}
 				tunnel, found := tunnels[key]
 				if !found {
+					clusterDomain := os.Getenv(clusterDomainEnvKey)
+					if clusterDomain == "" {
+						clusterDomain = defaultClusterDomain
+					}
 					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, clusterDomain, servicePort)
 					tunnel = ingressv1alpha1.Tunnel{
 						ObjectMeta: metav1.ObjectMeta{
