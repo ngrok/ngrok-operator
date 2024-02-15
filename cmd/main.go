@@ -115,7 +115,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
 	c.Flags().BoolVar(&opts.useExperimentalGatewayAPI, "use-experimental-gateway-api", false, "sets up experemental gatewayAPI")
-	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", ".svc.cluster.local", "Cluster domain used in the cluster")
+	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", "svc.cluster.local", "Cluster domain used in the cluster")
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)

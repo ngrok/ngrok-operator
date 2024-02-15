@@ -71,7 +71,7 @@ region: ""
 serverAddr: ""
 
 ## @param clusterDomain. Injects the cluster domain name for service discovery.
-clusterDomain: .svc.cluster.local
+clusterDomain: svc.cluster.local
 
 ## @param metaData This is a map of key/value pairs that will be added as meta data to all ngrok api resources created
 metaData: {}

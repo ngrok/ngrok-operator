@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.11.0
 
-- Addded support for cluster domain config option. Defaults to .svc.cluster.local. [#339](https://github.com/ngrok/kubernetes-ingress-controller/pull/339)
+- Addded support for cluster domain config option. Defaults to svc.cluster.local. [#339](https://github.com/ngrok/kubernetes-ingress-controller/pull/339)
 
 ## 0.10.1
 

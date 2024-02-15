@@ -25,7 +25,7 @@ var _ = Describe("Driver", func() {
 	var driver *Driver
 	var scheme = runtime.NewScheme()
 	cname := "cnametarget.com"
-	clusterDomain := ".svc.cluster.local"
+	clusterDomain := "svc.cluster.local"
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	BeforeEach(func() {
