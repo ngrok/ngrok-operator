@@ -42,7 +42,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	for _, obj := range storedResources {
 		builder = builder.Watches(
 			obj,
-			store.NewUpdateStoreHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver))
+			store.NewUpdateStoreHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver, r.Client))
 	}
 
 	return builder.Complete(r)
