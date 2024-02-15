@@ -65,7 +65,7 @@ To uninstall the chart:
 | `credentials.authtoken`              | Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.  | `""`                                  |
 | `region`                             | ngrok region to create tunnels in. Defaults to connect to the closest geographical region.                            | `""`                                  |
 | `serverAddr`                         | This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.         | `""`                                  |
-| `clusterDomain`                      | Defines the cluster domain name                                                                                       | `"svc.cluster.local"`                |
+| `clusterDomain`                      | Defines the cluster domain name                                                                                       | `svc.cluster.local`                   |
 | `metaData`                           | This is a map of key/value pairs that will be added as meta data to all ngrok api resources created                   | `{}`                                  |
 | `affinity`                           | Affinity for the controller pod assignment                                                                            | `{}`                                  |
 | `podAffinityPreset`                  | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                   | `""`                                  |
