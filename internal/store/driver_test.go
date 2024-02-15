@@ -25,12 +25,13 @@ var _ = Describe("Driver", func() {
 	var driver *Driver
 	var scheme = runtime.NewScheme()
 	cname := "cnametarget.com"
+	clusterDomain := ".svc.cluster.local"
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())
-		driver = NewDriver(logger, scheme, defaultControllerName, types.NamespacedName{
+		driver = NewDriver(logger, scheme, defaultControllerName, clusterDomain, types.NamespacedName{
 			Name: defaultManagerName,
 		})
 		driver.syncAllowConcurrent = true

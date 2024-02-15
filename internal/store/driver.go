@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -24,9 +23,6 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-const defaultClusterDomain = "svc.cluster.local"
-const clusterDomainEnvKey = "NGROK_CLUSTER_DOMAIN"
 
 const (
 	labelControllerNamespace = "k8s.ngrok.com/controller-namespace"
@@ -48,6 +44,7 @@ type Driver struct {
 	scheme         *runtime.Scheme
 	customMetadata string
 	managerName    types.NamespacedName
+	clusterDomain  string
 
 	syncMu              sync.Mutex
 	syncRunning         bool
@@ -57,15 +54,16 @@ type Driver struct {
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
-func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName) *Driver {
+func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, clusterDomain string, managerName types.NamespacedName) *Driver {
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
-		store:       s,
-		cacheStores: cacheStores,
-		log:         logger,
-		scheme:      scheme,
-		managerName: managerName,
+		store:         s,
+		cacheStores:   cacheStores,
+		log:           logger,
+		scheme:        scheme,
+		managerName:   managerName,
+		clusterDomain: clusterDomain,
 	}
 }
 
@@ -682,11 +680,7 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 				key := tunnelKey{ingress.Namespace, serviceName, strconv.Itoa(int(servicePort))}
 				tunnel, found := tunnels[key]
 				if !found {
-					clusterDomain := os.Getenv(clusterDomainEnvKey)
-					if clusterDomain == "" {
-						clusterDomain = defaultClusterDomain
-					}
-					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, clusterDomain, servicePort)
+					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, d.clusterDomain, servicePort)
 					tunnel = ingressv1alpha1.Tunnel{
 						ObjectMeta: metav1.ObjectMeta{
 							GenerateName:    fmt.Sprintf("%s-%d-", serviceName, servicePort),

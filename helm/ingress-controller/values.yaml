@@ -70,6 +70,9 @@ region: ""
 ## @param serverAddr  This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.
 serverAddr: ""
 
+## @param clusterDomain. Injects the cluster domain name for service discovery.
+clusterDomain: .svc.cluster.local
+
 ## @param metaData This is a map of key/value pairs that will be added as meta data to all ngrok api resources created
 metaData: {}
 

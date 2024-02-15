@@ -87,6 +87,7 @@ type managerOpts struct {
 	managerName               string
 	useExperimentalGatewayAPI bool
 	zapOpts                   *zap.Options
+	clusterDomain             string
 
 	// env vars
 	namespace   string
@@ -114,6 +115,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
 	c.Flags().BoolVar(&opts.useExperimentalGatewayAPI, "use-experimental-gateway-api", false, "sets up experemental gatewayAPI")
+	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", ".svc.cluster.local", "Cluster domain used in the cluster")
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -304,7 +306,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 // getDriver returns a new Driver instance that is seeded with the current state of the cluster.
 func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
-	d := store.NewDriver(logger, mgr.GetScheme(), options.controllerName, types.NamespacedName{
+	d := store.NewDriver(logger, mgr.GetScheme(), options.controllerName, options.clusterDomain, types.NamespacedName{
 		Namespace: options.namespace,
 		Name:      options.managerName,
 	})
