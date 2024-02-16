@@ -127,7 +127,8 @@ deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## D
 		--set log.format=console \
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile && \
+		--set metaData.env=local,metaData.from=makefile \
+		--set useExperimentalGatewayApi=true &&\
 	kubectl rollout restart deployment ngrok-ingress-controller-kubernetes-ingress-controller-manager -n ngrok-ingress-controller
 
 .PHONY: _deploy-check-env-vars
