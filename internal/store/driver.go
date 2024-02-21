@@ -555,16 +555,9 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 }
 
 //func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) error {
-//	ingresses := d.store.ListNgrokIngressesV1()
-//	for _, ingress := range ingresses {
-//		newLBIPStatus := d.calculateIngressLoadBalancerIPStatus(ingress, c)
-//		if !reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
-//			ingress.Status.LoadBalancer.Ingress = newLBIPStatus
-//			if err := c.Status().Update(ctx, ingress); err != nil {
-//				d.log.Error(err, "error updating ingress status", "ingress", ingress)
-//				return err
-//			}
-//		}
+//	gateways := d.store.ListGateways()
+//	for _, gw := range gateways {
+//    // update gw.Status.Conditions here
 //	}
 //	return nil
 //}
@@ -572,8 +565,18 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 	// make a map of string to domains
 	domainMap := make(map[string]ingressv1alpha1.Domain)
+	d.calculateDomainsFromIngress(domainMap)
+	d.calculateDomainsFromGateway(domainMap)
+
+	domains := make([]ingressv1alpha1.Domain, 0, len(domainMap))
+	for _, domain := range domainMap {
+		domains = append(domains, domain)
+	}
+	return domains
+}
+
+func (d *Driver) calculateDomainsFromIngress(domainMap map[string]ingressv1alpha1.Domain) {
 	ingresses := d.store.ListNgrokIngressesV1()
-	gateways := d.store.ListGateways()
 	for _, ingress := range ingresses {
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == "" {
@@ -592,35 +595,35 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 			domainMap[rule.Host] = domain
 		}
 	}
+}
 
-	d.log.Info("CALCULATING DOMAINS FROM GATEWAYS", "length: ", len(gateways))
+func (d *Driver) calculateDomainsFromGateway(domainMap map[string]ingressv1alpha1.Domain) {
+	// make a map of string to domains
+	gateways := d.store.ListGateways()
+
 	for _, gw := range gateways {
-		d.log.Info("FOUND GATEWAY")
-		for _, listner := range gw.Spec.Listeners {
-			d.log.Info("FOUND LISTENER")
-			if string(*listner.Hostname) == "" {
+		for _, listener := range gw.Spec.Listeners {
+			if string(*listener.Hostname) == "" {
 				continue
 			}
-			d.log.Info("LISTENER", "HOSTNAME", string(*listner.Hostname))
+			if _, hasVal := domainMap[string(*listener.Hostname)]; hasVal {
+				// TODO update gateway status
+				// also add error to error page
+				continue
+			}
 			domain := ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      strings.Replace(string(*listner.Hostname), ".", "-", -1),
+					Name:      strings.Replace(string(*listener.Hostname), ".", "-", -1),
 					Namespace: gw.Namespace,
 				},
 				Spec: ingressv1alpha1.DomainSpec{
-					Domain: string(*listner.Hostname),
+					Domain: string(*listener.Hostname),
 				},
 			}
 			domain.Spec.Metadata = d.customMetadata
-			// TODO catch if hostname is already in domainMap
-			domainMap[string(*listner.Hostname)] = domain
+			domainMap[string(*listener.Hostname)] = domain
 		}
 	}
-	domains := make([]ingressv1alpha1.Domain, 0, len(domainMap))
-	for _, domain := range domainMap {
-		domains = append(domains, domain)
-	}
-	return domains
 }
 
 // Given an ingress, it will resolve any ngrok modulesets defined on the ingress to the
@@ -665,7 +668,12 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 		edge.Spec.Metadata = d.customMetadata
 		edgeMap[domain.Spec.Domain] = edge
 	}
+	d.calculateHTTPSEdgesFromIngress(edgeMap)
+	d.calculateHTTPSEdgesFromGateway(edgeMap)
+	return edgeMap
+}
 
+func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		modSet, err := d.getNgrokModuleSetForIngress(ingress)
@@ -739,27 +747,94 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 			edgeMap[rule.Host] = edge
 		}
 	}
+}
 
-	//gateways := d.store.ListGateways()
-	//for _, gtw := range gateways {
-	//	for _, listner := range gtw.Spec.Listeners {
-	//		// TODO: Handle routes without hosts that then apply to all edges
-	//		edge, _ := edgeMap[string(*listner.Hostname)]
+func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
+	gateways := d.store.ListGateways()
 
-	//		route := ingressv1alpha1.HTTPSEdgeRouteSpec{
-	//			Backend: ingressv1alpha1.TunnelGroupBackend{
-	//				Labels: d.ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
-	//			},
-	//		}
-	//		route.Metadata = d.customMetadata
+	// get ingress domains since we don't want gateway to interact with them
+	ingressDomains := make(map[string]ingressv1alpha1.Domain)
+	d.calculateDomainsFromIngress(ingressDomains)
 
-	//		edge.Spec.Routes = append(edge.Spec.Routes, route)
+	for _, gateway := range gateways {
+		//skip module set for now
+		//modSet, err := d.getNgrokModuleSetForIngress(ingress)
+		//if err != nil {
+		//	d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
+		//	continue
+		//}
 
-	//		edgeMap[rule.Host] = edge
-	//	}
-	//}
+		for _, listener := range gateway.Spec.Listeners {
+			if _, hasVal := ingressDomains[string(*listener.Hostname)]; hasVal {
+				// TODO update gateway status if not already updated
+				continue
+			}
+			edge, ok := edgeMap[string(*listener.Hostname)]
+			if !ok {
+				err := errors.NewErrorNotFound(fmt.Sprintf("hostname %v nto found", string(*listener.Hostname)))
+				d.log.Error(err, "could not find edge associated with rule", "host", string(*listener.Hostname))
+				continue
+			}
 
-	return edgeMap
+			// skip moduleset and ignore TLS termination for now
+			//if modSet.Modules.TLSTermination != nil {
+			//	edge.Spec.TLSTermination = modSet.Modules.TLSTermination
+			//}
+
+			// this will correspond to HTTPRoute rules
+			//for _, httpIngressPath := range rule.HTTP.Paths {
+			//	matchType := "path_prefix"
+			//	if httpIngressPath.PathType != nil {
+			//		switch *httpIngressPath.PathType {
+			//		case netv1.PathTypePrefix:
+			//			matchType = "path_prefix"
+			//		case netv1.PathTypeExact:
+			//			matchType = "exact_path"
+			//		case netv1.PathTypeImplementationSpecific:
+			//			matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
+			//		default:
+			//			d.log.Error(fmt.Errorf("unknown path type"), "unknown path type", "pathType", *httpIngressPath.PathType)
+			//			continue
+			//		}
+			//	}
+
+			//	// We only support service backends right now. TODO: support resource backends
+			//  // TODO: this will correspond to backendref
+			//	if httpIngressPath.Backend.Service == nil {
+			//		continue
+			//	}
+
+			//	serviceName := httpIngressPath.Backend.Service.Name
+			//	serviceUID, servicePort, err := d.getEdgeBackend(*httpIngressPath.Backend.Service, ingress.Namespace)
+			//	if err != nil {
+			//		d.log.Error(err, "could not find port for service", "namespace", ingress.Namespace, "service", serviceName)
+			//		continue
+			//	}
+
+			//	route := ingressv1alpha1.HTTPSEdgeRouteSpec{
+			//		Match:     httpIngressPath.Path,
+			//		MatchType: matchType,
+			//		Backend: ingressv1alpha1.TunnelGroupBackend{
+			//			Labels: d.ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
+			//		},
+			//		CircuitBreaker:      modSet.Modules.CircuitBreaker,
+			//		Compression:         modSet.Modules.Compression,
+			//		IPRestriction:       modSet.Modules.IPRestriction,
+			//		Headers:             modSet.Modules.Headers,
+			//		OAuth:               modSet.Modules.OAuth,
+			//		Policy:              modSet.Modules.Policy,
+			//		OIDC:                modSet.Modules.OIDC,
+			//		SAML:                modSet.Modules.SAML,
+			//		WebhookVerification: modSet.Modules.WebhookVerification,
+			//	}
+			//	route.Metadata = d.customMetadata
+
+			//	edge.Spec.Routes = append(edge.Spec.Routes, route)
+			//}
+
+			edgeMap[string(*listener.Hostname)] = edge
+		}
+	}
 }
 
 type tunnelKey struct {
