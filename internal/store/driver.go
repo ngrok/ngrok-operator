@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
@@ -86,6 +87,7 @@ func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
 // each calculation will be based on an incomplete state of the world. It currently relies on:
 // - Ingresses
 // - IngressClasses
+// - Gateways
 // - Services
 // - Secrets
 // - Domains
@@ -108,6 +110,16 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	}
 	for _, ingClass := range ingressClasses.Items {
 		if err := d.store.Update(&ingClass); err != nil {
+			return err
+		}
+	}
+
+	gateways := &gatewayv1.GatewayList{}
+	if err := c.List(ctx, gateways); err != nil {
+		return err
+	}
+	for _, gtw := range gateways.Items {
+		if err := d.store.Update(&gtw); err != nil {
 			return err
 		}
 	}
@@ -183,8 +195,21 @@ func (d *Driver) UpdateIngress(ingress *netv1.Ingress) (*netv1.Ingress, error) {
 	return d.store.GetNgrokIngressV1(ingress.Name, ingress.Namespace)
 }
 
+func (d *Driver) UpdateGateway(gateway *gatewayv1.Gateway) (*gatewayv1.Gateway, error) {
+	d.log.Info("IS THIS EVEN THE RIGHT VALUE?", "NAME", gateway.Name, "NAMESPACE", gateway.Namespace)
+	if err := d.store.Update(gateway); err != nil {
+		return nil, err
+	}
+	d.log.Info("UPDATED didn't fail")
+	return d.store.GetGateway(gateway.Name, gateway.Namespace)
+}
+
 func (d *Driver) DeleteIngress(ingress *netv1.Ingress) error {
 	return d.store.Delete(ingress)
+}
+
+func (d *Driver) DeleteGateway(gateway *gatewayv1.Gateway) error {
+	return d.store.Delete(gateway)
 }
 
 // Delete an ingress object given the NamespacedName
@@ -328,6 +353,11 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	if err := d.updateIngressStatuses(ctx, c); err != nil {
 		return err
 	}
+
+	// UpdateGatewayStatuses
+	//if err := d.updateGatewayStatuses(ctx, c); err != nil {
+	//	return err
+	//}
 
 	return nil
 }
@@ -496,6 +526,7 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 	}
 	return nil
 }
+
 
 func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 	// make a map of string to domains

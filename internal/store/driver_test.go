@@ -14,6 +14,7 @@ import (
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 )
@@ -27,6 +28,7 @@ var _ = Describe("Driver", func() {
 	cname := "cnametarget.com"
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.AddToScheme(scheme))
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())

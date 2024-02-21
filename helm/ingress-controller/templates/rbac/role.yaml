@@ -40,6 +40,42 @@ rules:
   - list
   - watch
 - apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - domains
@@ -203,34 +239,6 @@ rules:
   - get
   - patch
   - update
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - gatewayclasses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - gatewayclasses/status
-  verbs:
-  - get
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - gateways
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - gateways/status
-  verbs:
-  - get
 - apiGroups:
   - networking.k8s.io
   resources:

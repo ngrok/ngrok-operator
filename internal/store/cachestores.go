@@ -24,6 +24,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 // CacheStores stores cache.Store for all Kinds of k8s objects that
@@ -33,6 +34,9 @@ type CacheStores struct {
 	IngressV1      cache.Store
 	IngressClassV1 cache.Store
 	ServiceV1      cache.Store
+
+	// Gateway API Stores
+	Gateway   cache.Store
 
 	// Ngrok Stores
 	DomainV1      cache.Store
@@ -47,15 +51,19 @@ type CacheStores struct {
 // NewCacheStores is a convenience function for CacheStores to initialize all attributes with new cache stores.
 func NewCacheStores(logger logr.Logger) CacheStores {
 	return CacheStores{
+		// Core Kubernetes Stores
 		IngressV1:      cache.NewStore(keyFunc),
 		IngressClassV1: cache.NewStore(clusterResourceKeyFunc),
 		ServiceV1:      cache.NewStore(keyFunc),
-		DomainV1:       cache.NewStore(keyFunc),
-		TunnelV1:       cache.NewStore(keyFunc),
-		HTTPSEdgeV1:    cache.NewStore(keyFunc),
-		NgrokModuleV1:  cache.NewStore(keyFunc),
-		l:              &sync.RWMutex{},
-		log:            logger,
+		// Gateway API Stores
+		Gateway:   cache.NewStore(keyFunc),
+		// Ngrok Stores
+		DomainV1:      cache.NewStore(keyFunc),
+		TunnelV1:      cache.NewStore(keyFunc),
+		HTTPSEdgeV1:   cache.NewStore(keyFunc),
+		NgrokModuleV1: cache.NewStore(keyFunc),
+		l:             &sync.RWMutex{},
+		log:           logger,
 	}
 }
 
@@ -93,6 +101,12 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 		return c.ServiceV1.Get(obj)
 
 	// ----------------------------------------------------------------------------
+	// Kubernetes Gateway API Support
+	// ----------------------------------------------------------------------------
+	case *gatewayv1.Gateway:
+		return c.Gateway.Get(obj)
+
+	// ----------------------------------------------------------------------------
 	// Ngrok API Support
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
@@ -124,6 +138,12 @@ func (c CacheStores) Add(obj runtime.Object) error {
 		return c.IngressClassV1.Add(obj)
 	case *corev1.Service:
 		return c.ServiceV1.Add(obj)
+
+	// ----------------------------------------------------------------------------
+	// Kubernetes Gateway API Support
+	// ----------------------------------------------------------------------------
+	case *gatewayv1.Gateway:
+		return c.Gateway.Add(obj)
 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
@@ -158,6 +178,12 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.IngressClassV1.Delete(obj)
 	case *corev1.Service:
 		return c.ServiceV1.Delete(obj)
+
+	// ----------------------------------------------------------------------------
+	// Kubernetes Gateway API Support
+	// ----------------------------------------------------------------------------
+	case *gatewayv1.Gateway:
+		return c.Gateway.Delete(obj)
 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support

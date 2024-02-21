@@ -23,7 +23,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/go-logr/logr"
 )
@@ -42,12 +45,15 @@ type Storer interface {
 	GetServiceV1(name, namespace string) (*corev1.Service, error)
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error)
+	GetGateway(name string, namespace string) (*gatewayv1.Gateway, error)
 
 	ListIngressClassesV1() []*netv1.IngressClass
 	ListNgrokIngressClassesV1() []*netv1.IngressClass
 
 	ListIngressesV1() []*netv1.Ingress
 	ListNgrokIngressesV1() []*netv1.Ingress
+
+	ListGateways() []*gatewayv1.Gateway
 
 	ListDomainsV1() []*ingressv1alpha1.Domain
 	ListTunnelsV1() []*ingressv1alpha1.Tunnel
@@ -157,6 +163,17 @@ func (s Store) GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.Ngr
 	return p.(*ingressv1alpha1.NgrokModuleSet), nil
 }
 
+func (s Store) GetGateway(name string, namespace string) (*gatewayv1.Gateway, error) {
+	gtw, exists, err := s.stores.Gateway.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("Gateway %v not found", name))
+	}
+	return gtw.(*gatewayv1.Gateway), nil
+}
+
 // ListIngressClassesV1 returns the list of Ingresses in the Ingress v1 store.
 func (s Store) ListIngressClassesV1() []*netv1.IngressClass {
 	// filter ingress rules
@@ -212,6 +229,27 @@ func (s Store) ListIngressesV1() []*netv1.Ingress {
 	})
 
 	return ingresses
+}
+
+func (s Store) ListGateways() []*gatewayv1.Gateway {
+	var gateways []*gatewayv1.Gateway
+
+	for _, item := range s.stores.Gateway.List() {
+		gtw, ok := item.(*gatewayv1.Gateway)
+		if !ok {
+			e := fmt.Sprintf("Gateway: dropping object of unexpected type: %#v", item)
+			s.log.Error(fmt.Errorf(e), e)
+			continue
+		}
+		gateways = append(gateways, gtw)
+	}
+
+	sort.SliceStable(gateways, func(i, j int) bool {
+		return strings.Compare(fmt.Sprintf("%s/%s", gateways[i].Namespace, gateways[i].Name),
+			fmt.Sprintf("%s/%s", gateways[j].Namespace, gateways[j].Name)) < 0
+	})
+
+	return gateways
 }
 
 func (s Store) ListNgrokIngressesV1() []*netv1.Ingress {
