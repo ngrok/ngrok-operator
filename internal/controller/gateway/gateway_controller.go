@@ -27,13 +27,16 @@ package gateway
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	//internalerrors "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 )
 
 const (
@@ -44,35 +47,46 @@ const (
 type GatewayReconciler struct {
 	client.Client
 
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log      logr.Logger
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
+	Driver   *store.Driver
 }
 
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=gateways,verbs=get;list;watch;
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=gateways/status,verbs=get
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=gatewayclasses/status,verbs=get
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;list;watch;update
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/status,verbs=get;list;watch;update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Gateway object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.4/pkg/reconcile
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("Gateway", req.NamespacedName)
+	ctx = ctrl.LoggerInto(ctx, log)
 
 	gw := new(gatewayv1.Gateway)
-
-	if err := r.Client.Get(ctx, req.NamespacedName, gw); err != nil {
-		if errors.IsNotFound(err) {
-			log.V(1).Info("reconciliation triggered but gateway does not exist, ignoring")
-			return ctrl.Result{Requeue: false}, nil
+	err := r.Client.Get(ctx, req.NamespacedName, gw)
+	r.Log.Info("the request", "rq", req)
+	switch {
+	case err == nil:
+		// all good, continue
+	case client.IgnoreNotFound(err) == nil:
+		if err := r.Driver.DeleteNamedIngress(req.NamespacedName); err != nil {
+			log.Error(err, "Failed to delete gateway from store")
+			return ctrl.Result{}, err
 		}
-		return ctrl.Result{Requeue: true}, nil
+
+		err = r.Driver.Sync(ctx, r.Client)
+		if err != nil {
+			log.Error(err, "Failed to sync after removing ingress from store")
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{}, nil
+	default:
+		return ctrl.Result{}, err
 	}
 
 	log.V(1).Info("verifying gatewayclass")
@@ -85,12 +99,77 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.V(1).Info("unsupported gatewayclass controllername, ignoring", "gatewayclass", gwClass.Name, "controllername", gwClass.Spec.ControllerName)
 	}
 
+	// Ensure the ingress object is up to date in the store
+	// Leverage the store to ensure this works off the same data as everything else
+	log.V(1).Info("Updating Gateway from store")
+	gw, err = r.Driver.UpdateGateway(gw)
+	if err != nil {
+		log.V(1).Info("FAILED TO UPDATE", "ERROR", err)
+		return ctrl.Result{}, err
+	}
+	//switch {
+	//case err == nil:
+	//	// all good, continue
+	//case internalerrors.IsErrDifferentIngressClass(err):
+	//	log.Info("Ingress is not of type ngrok so skipping it")
+	//	return ctrl.Result{}, nil
+	//case internalerrors.IsErrInvalidIngressSpec(err):
+	//	log.Info("Ingress is not valid so skipping it")
+	//	return ctrl.Result{}, nil
+	//default:
+	//	log.Error(err, "Failed to get ingress from store")
+	//	return ctrl.Result{}, err
+	//}
+
+	if isUpsert(gw) {
+		// The object is not being deleted, so register and sync finalizer
+		if err := registerAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+			log.Error(err, "Failed to register finalizer")
+			return ctrl.Result{}, err
+		}
+	} else {
+		log.Info("Deleting gateway from store")
+		if hasFinalizer(gw) {
+			if err := removeAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+				log.Error(err, "Failed to remove finalizer")
+				return ctrl.Result{}, err
+			}
+		}
+
+		// Remove it from the store
+		if err := r.Driver.DeleteGateway(gw); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	log.V(1).Info("SYNCING DRIVER FROM GATEWAY")
+	if err := r.Driver.Sync(ctx, r.Client); err != nil {
+		log.Error(err, "Faild to sync")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1.Gateway{}).
-		Complete(r)
+	storedResources := []client.Object{
+		//&gatewayv1.GatewayClass{},
+		//&gatewayv1.HTTPRoute{},
+		//&corev1.Service{},
+		&ingressv1alpha1.Domain{},
+		&ingressv1alpha1.HTTPSEdge{},
+		//&ingressv1alpha1.Tunnel{},
+		//&ingressv1alpha1.NgrokModuleSet{},
+	}
+
+	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{})
+	for _, obj := range storedResources {
+		builder = builder.Watches(
+			obj,
+			store.NewUpdateStoreHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver),
+		)
+	}
+
+	return builder.Complete(r)
 }
