@@ -88,6 +88,7 @@ func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
 // - Ingresses
 // - IngressClasses
 // - Gateways
+// - HTTPRoutes
 // - Services
 // - Secrets
 // - Domains
@@ -123,6 +124,16 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 			return err
 		}
 	}
+
+	//httproutes := &gatewayv1.HTTPRouteList{}
+	//if err := c.List(ctx, httproutes); err != nil {
+	//	return err
+	//}
+	//for _, httproute := range httproutes.Items {
+	//	if err := d.store.Update(&httproute); err != nil {
+	//		return err
+	//	}
+	//}
 
 	services := &corev1.ServiceList{}
 	if err := c.List(ctx, services); err != nil {
@@ -204,12 +215,23 @@ func (d *Driver) UpdateGateway(gateway *gatewayv1.Gateway) (*gatewayv1.Gateway, 
 	return d.store.GetGateway(gateway.Name, gateway.Namespace)
 }
 
+func (d *Driver) UpdateHTTPRoute(httproute *gatewayv1.HTTPRoute) (*gatewayv1.HTTPRoute, error) {
+	if err := d.store.Update(httproute); err != nil {
+		return nil, err
+	}
+	return d.store.GetHTTPRoute(httproute.Name, httproute.Namespace)
+}
+
 func (d *Driver) DeleteIngress(ingress *netv1.Ingress) error {
 	return d.store.Delete(ingress)
 }
 
 func (d *Driver) DeleteGateway(gateway *gatewayv1.Gateway) error {
 	return d.store.Delete(gateway)
+}
+
+func (d *Driver) DeleteHTTPRoute(httproute *gatewayv1.HTTPRoute) error {
+	return d.store.Delete(httproute)
 }
 
 // Delete an ingress object given the NamespacedName
@@ -356,6 +378,11 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 	// UpdateGatewayStatuses
 	//if err := d.updateGatewayStatuses(ctx, c); err != nil {
+	//	return err
+	//}
+
+	// UpdateHTTPRouteStatuses
+	//if err := d.updateHTTPRouteStatuses(ctx, c); err != nil {
 	//	return err
 	//}
 
@@ -527,11 +554,26 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 	return nil
 }
 
+//func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) error {
+//	ingresses := d.store.ListNgrokIngressesV1()
+//	for _, ingress := range ingresses {
+//		newLBIPStatus := d.calculateIngressLoadBalancerIPStatus(ingress, c)
+//		if !reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
+//			ingress.Status.LoadBalancer.Ingress = newLBIPStatus
+//			if err := c.Status().Update(ctx, ingress); err != nil {
+//				d.log.Error(err, "error updating ingress status", "ingress", ingress)
+//				return err
+//			}
+//		}
+//	}
+//	return nil
+//}
 
 func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 	// make a map of string to domains
 	domainMap := make(map[string]ingressv1alpha1.Domain)
 	ingresses := d.store.ListNgrokIngressesV1()
+	gateways := d.store.ListGateways()
 	for _, ingress := range ingresses {
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == "" {
@@ -548,6 +590,30 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 			}
 			domain.Spec.Metadata = d.customMetadata
 			domainMap[rule.Host] = domain
+		}
+	}
+
+	d.log.Info("CALCULATING DOMAINS FROM GATEWAYS", "length: ", len(gateways))
+	for _, gw := range gateways {
+		d.log.Info("FOUND GATEWAY")
+		for _, listner := range gw.Spec.Listeners {
+			d.log.Info("FOUND LISTENER")
+			if string(*listner.Hostname) == "" {
+				continue
+			}
+			d.log.Info("LISTENER", "HOSTNAME", string(*listner.Hostname))
+			domain := ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      strings.Replace(string(*listner.Hostname), ".", "-", -1),
+					Namespace: gw.Namespace,
+				},
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: string(*listner.Hostname),
+				},
+			}
+			domain.Spec.Metadata = d.customMetadata
+			// TODO catch if hostname is already in domainMap
+			domainMap[string(*listner.Hostname)] = domain
 		}
 	}
 	domains := make([]ingressv1alpha1.Domain, 0, len(domainMap))
@@ -673,6 +739,25 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 			edgeMap[rule.Host] = edge
 		}
 	}
+
+	//gateways := d.store.ListGateways()
+	//for _, gtw := range gateways {
+	//	for _, listner := range gtw.Spec.Listeners {
+	//		// TODO: Handle routes without hosts that then apply to all edges
+	//		edge, _ := edgeMap[string(*listner.Hostname)]
+
+	//		route := ingressv1alpha1.HTTPSEdgeRouteSpec{
+	//			Backend: ingressv1alpha1.TunnelGroupBackend{
+	//				Labels: d.ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
+	//			},
+	//		}
+	//		route.Metadata = d.customMetadata
+
+	//		edge.Spec.Routes = append(edge.Spec.Routes, route)
+
+	//		edgeMap[rule.Host] = edge
+	//	}
+	//}
 
 	return edgeMap
 }

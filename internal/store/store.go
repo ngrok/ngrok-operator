@@ -46,6 +46,7 @@ type Storer interface {
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error)
 	GetGateway(name string, namespace string) (*gatewayv1.Gateway, error)
+	GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error)
 
 	ListIngressClassesV1() []*netv1.IngressClass
 	ListNgrokIngressClassesV1() []*netv1.IngressClass
@@ -54,6 +55,7 @@ type Storer interface {
 	ListNgrokIngressesV1() []*netv1.Ingress
 
 	ListGateways() []*gatewayv1.Gateway
+	ListHTTPRoutes() []*gatewayv1.HTTPRoute
 
 	ListDomainsV1() []*ingressv1alpha1.Domain
 	ListTunnelsV1() []*ingressv1alpha1.Tunnel
@@ -174,6 +176,17 @@ func (s Store) GetGateway(name string, namespace string) (*gatewayv1.Gateway, er
 	return gtw.(*gatewayv1.Gateway), nil
 }
 
+func (s Store) GetHTTPRoute(namespace string, name string) (*gatewayv1.HTTPRoute, error) {
+	obj, exists, err := s.stores.HTTPRoute.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("Service %v not found", name))
+	}
+	return obj.(*gatewayv1.HTTPRoute), nil
+}
+
 // ListIngressClassesV1 returns the list of Ingresses in the Ingress v1 store.
 func (s Store) ListIngressClassesV1() []*netv1.IngressClass {
 	// filter ingress rules
@@ -250,6 +263,21 @@ func (s Store) ListGateways() []*gatewayv1.Gateway {
 	})
 
 	return gateways
+}
+
+func (s Store) ListHTTPRoutes() []*gatewayv1.HTTPRoute {
+	var httproutes []*gatewayv1.HTTPRoute
+
+	cache.ListAll(s.stores.HTTPRoute, labels.NewSelector(),
+		func(ob interface{}) {
+			httproute, ok := ob.(*gatewayv1.HTTPRoute)
+			if ok {
+				httproutes = append(httproutes, httproute)
+			}
+		},
+	)
+
+	return httproutes
 }
 
 func (s Store) ListNgrokIngressesV1() []*netv1.Ingress {

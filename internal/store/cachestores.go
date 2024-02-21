@@ -36,7 +36,9 @@ type CacheStores struct {
 	ServiceV1      cache.Store
 
 	// Gateway API Stores
+	//HTTPRoute cache.Store
 	Gateway   cache.Store
+	HTTPRoute cache.Store
 
 	// Ngrok Stores
 	DomainV1      cache.Store
@@ -57,6 +59,7 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		ServiceV1:      cache.NewStore(keyFunc),
 		// Gateway API Stores
 		Gateway:   cache.NewStore(keyFunc),
+		HTTPRoute: cache.NewStore(keyFunc),
 		// Ngrok Stores
 		DomainV1:      cache.NewStore(keyFunc),
 		TunnelV1:      cache.NewStore(keyFunc),
@@ -103,6 +106,8 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 	// ----------------------------------------------------------------------------
 	// Kubernetes Gateway API Support
 	// ----------------------------------------------------------------------------
+	case *gatewayv1.HTTPRoute:
+		return c.HTTPRoute.Get(obj)
 	case *gatewayv1.Gateway:
 		return c.Gateway.Get(obj)
 
@@ -142,6 +147,8 @@ func (c CacheStores) Add(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	// Kubernetes Gateway API Support
 	// ----------------------------------------------------------------------------
+	case *gatewayv1.HTTPRoute:
+		return c.HTTPRoute.Add(obj)
 	case *gatewayv1.Gateway:
 		return c.Gateway.Add(obj)
 
@@ -182,6 +189,8 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	// Kubernetes Gateway API Support
 	// ----------------------------------------------------------------------------
+	case *gatewayv1.HTTPRoute:
+		return c.HTTPRoute.Delete(obj)
 	case *gatewayv1.Gateway:
 		return c.Gateway.Delete(obj)
 
