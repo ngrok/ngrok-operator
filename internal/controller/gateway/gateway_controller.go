@@ -167,7 +167,10 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	for _, obj := range storedResources {
 		builder = builder.Watches(
 			obj,
-			store.NewUpdateStoreHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver),
+			store.NewUpdateStoreHandler(
+				obj.GetObjectKind().GroupVersionKind().Kind,
+				r.Driver,
+			),
 		)
 	}
 
