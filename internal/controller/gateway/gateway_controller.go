@@ -170,6 +170,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			store.NewUpdateStoreHandler(
 				obj.GetObjectKind().GroupVersionKind().Kind,
 				r.Driver,
+				r.Client,
 			),
 		)
 	}
