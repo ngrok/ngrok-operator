@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 0a1e75c014211969f113568bf1144b8a87df34ac771c95d667b1dbb7961e9ce6
+        checksum/controller-role: af67eab6508281e10c79d03376e1f7526f2930469e97f570efee4035b8e5ecbe
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
         app.kubernetes.io/component: controller
@@ -246,6 +246,42 @@ Should match all-options snapshot:
       - list
       - watch
     - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gatewayclasses
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gatewayclasses/status
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gateways
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gateways/status
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
       - ingress.k8s.ngrok.com
       resources:
       - domains
@@ -412,34 +448,6 @@ Should match all-options snapshot:
     - apiGroups:
       - networking.k8s.io
       resources:
-      - gatewayclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - gatewayclasses/status
-      verbs:
-      - get
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - gateways
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - gateways/status
-      verbs:
-      - get
-    - apiGroups:
-      - networking.k8s.io
-      resources:
       - ingressclasses
       verbs:
       - get
@@ -469,7 +477,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 0a1e75c014211969f113568bf1144b8a87df34ac771c95d667b1dbb7961e9ce6
+        checksum/controller-role: af67eab6508281e10c79d03376e1f7526f2930469e97f570efee4035b8e5ecbe
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
         app.kubernetes.io/component: controller
@@ -698,6 +706,42 @@ Should match default snapshot:
       - list
       - watch
     - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gatewayclasses
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gatewayclasses/status
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gateways
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gateways/status
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
       - ingress.k8s.ngrok.com
       resources:
       - domains
@@ -861,34 +905,6 @@ Should match default snapshot:
       - get
       - patch
       - update
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - gatewayclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - gatewayclasses/status
-      verbs:
-      - get
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - gateways
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - gateways/status
-      verbs:
-      - get
     - apiGroups:
       - networking.k8s.io
       resources:
