@@ -27,8 +27,6 @@ package gateway
 import (
 	"context"
 
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
-	//internalerrors "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,6 +34,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/go-logr/logr"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/utils"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 )
@@ -69,7 +68,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	gw := new(gatewayv1.Gateway)
 	err := r.Client.Get(ctx, req.NamespacedName, gw)
-	r.Log.Info("the request", "rq", req)
 	switch {
 	case err == nil:
 		// all good, continue
@@ -81,7 +79,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		err = r.Driver.Sync(ctx, r.Client)
 		if err != nil {
-			log.Error(err, "Failed to sync after removing ingress from store")
+			log.Error(err, "Failed to sync after removing gateway from store")
 			return ctrl.Result{}, err
 		}
 
