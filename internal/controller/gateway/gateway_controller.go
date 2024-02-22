@@ -53,10 +53,10 @@ type GatewayReconciler struct {
 	Driver   *store.Driver
 }
 
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;list;watch;update
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
@@ -99,27 +99,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.V(1).Info("unsupported gatewayclass controllername, ignoring", "gatewayclass", gwClass.Name, "controllername", gwClass.Spec.ControllerName)
 	}
 
-	// Ensure the ingress object is up to date in the store
-	// Leverage the store to ensure this works off the same data as everything else
-	log.V(1).Info("Updating Gateway from store")
 	gw, err = r.Driver.UpdateGateway(gw)
 	if err != nil {
-		log.V(1).Info("FAILED TO UPDATE", "ERROR", err)
 		return ctrl.Result{}, err
 	}
-	//switch {
-	//case err == nil:
-	//	// all good, continue
-	//case internalerrors.IsErrDifferentIngressClass(err):
-	//	log.Info("Ingress is not of type ngrok so skipping it")
-	//	return ctrl.Result{}, nil
-	//case internalerrors.IsErrInvalidIngressSpec(err):
-	//	log.Info("Ingress is not valid so skipping it")
-	//	return ctrl.Result{}, nil
-	//default:
-	//	log.Error(err, "Failed to get ingress from store")
-	//	return ctrl.Result{}, err
-	//}
 
 	if isUpsert(gw) {
 		// The object is not being deleted, so register and sync finalizer
@@ -142,7 +125,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	log.V(1).Info("SYNCING DRIVER FROM GATEWAY")
 	if err := r.Driver.Sync(ctx, r.Client); err != nil {
 		log.Error(err, "Faild to sync")
 		return ctrl.Result{}, err

@@ -207,11 +207,9 @@ func (d *Driver) UpdateIngress(ingress *netv1.Ingress) (*netv1.Ingress, error) {
 }
 
 func (d *Driver) UpdateGateway(gateway *gatewayv1.Gateway) (*gatewayv1.Gateway, error) {
-	d.log.Info("IS THIS EVEN THE RIGHT VALUE?", "NAME", gateway.Name, "NAMESPACE", gateway.Namespace)
 	if err := d.store.Update(gateway); err != nil {
 		return nil, err
 	}
-	d.log.Info("UPDATED didn't fail")
 	return d.store.GetGateway(gateway.Name, gateway.Namespace)
 }
 
@@ -756,15 +754,8 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 	ingressDomains := make(map[string]ingressv1alpha1.Domain)
 	d.calculateDomainsFromIngress(ingressDomains)
 
-	for _, gateway := range gateways {
-		//skip module set for now
-		//modSet, err := d.getNgrokModuleSetForIngress(ingress)
-		//if err != nil {
-		//	d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
-		//	continue
-		//}
-
-		for _, listener := range gateway.Spec.Listeners {
+	for _, gtw := range gateways {
+		for _, listener := range gtw.Spec.Listeners {
 			if _, hasVal := ingressDomains[string(*listener.Hostname)]; hasVal {
 				// TODO update gateway status if not already updated
 				continue
@@ -776,61 +767,12 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 				continue
 			}
 
-			// skip moduleset and ignore TLS termination for now
-			//if modSet.Modules.TLSTermination != nil {
-			//	edge.Spec.TLSTermination = modSet.Modules.TLSTermination
-			//}
-
-			// this will correspond to HTTPRoute rules
-			//for _, httpIngressPath := range rule.HTTP.Paths {
-			//	matchType := "path_prefix"
-			//	if httpIngressPath.PathType != nil {
-			//		switch *httpIngressPath.PathType {
-			//		case netv1.PathTypePrefix:
-			//			matchType = "path_prefix"
-			//		case netv1.PathTypeExact:
-			//			matchType = "exact_path"
-			//		case netv1.PathTypeImplementationSpecific:
-			//			matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
-			//		default:
-			//			d.log.Error(fmt.Errorf("unknown path type"), "unknown path type", "pathType", *httpIngressPath.PathType)
-			//			continue
-			//		}
-			//	}
-
-			//	// We only support service backends right now. TODO: support resource backends
-			//  // TODO: this will correspond to backendref
-			//	if httpIngressPath.Backend.Service == nil {
-			//		continue
-			//	}
-
-			//	serviceName := httpIngressPath.Backend.Service.Name
-			//	serviceUID, servicePort, err := d.getEdgeBackend(*httpIngressPath.Backend.Service, ingress.Namespace)
-			//	if err != nil {
-			//		d.log.Error(err, "could not find port for service", "namespace", ingress.Namespace, "service", serviceName)
-			//		continue
-			//	}
-
-			//	route := ingressv1alpha1.HTTPSEdgeRouteSpec{
-			//		Match:     httpIngressPath.Path,
-			//		MatchType: matchType,
-			//		Backend: ingressv1alpha1.TunnelGroupBackend{
-			//			Labels: d.ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
-			//		},
-			//		CircuitBreaker:      modSet.Modules.CircuitBreaker,
-			//		Compression:         modSet.Modules.Compression,
-			//		IPRestriction:       modSet.Modules.IPRestriction,
-			//		Headers:             modSet.Modules.Headers,
-			//		OAuth:               modSet.Modules.OAuth,
-			//		Policy:              modSet.Modules.Policy,
-			//		OIDC:                modSet.Modules.OIDC,
-			//		SAML:                modSet.Modules.SAML,
-			//		WebhookVerification: modSet.Modules.WebhookVerification,
-			//	}
-			//	route.Metadata = d.customMetadata
-
-			//	edge.Spec.Routes = append(edge.Spec.Routes, route)
-			//}
+			// skip moduleset and ignore TLS termination for now.
+			if string(*listener.TLS.Mode) != "Terminate" {
+				// set gateway class status here
+				// gtw.Status.Conditions
+				continue
+			}
 
 			edgeMap[string(*listener.Hostname)] = edge
 		}
