@@ -179,7 +179,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	driver, err := getDriver(ctx, mgr, opts)
+	driver, err := getDriver(ctx, mgr, opts, opts.useExperimentalGatewayAPI)
 	if err != nil {
 		return fmt.Errorf("unable to create Driver: %w", err)
 	}
@@ -306,12 +306,18 @@ func runController(ctx context.Context, opts managerOpts) error {
 }
 
 // getDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
+func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts, gatewayEnabled bool) (*store.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
-	d := store.NewDriver(logger, mgr.GetScheme(), options.controllerName, types.NamespacedName{
-		Namespace: options.namespace,
-		Name:      options.managerName,
-	})
+	d := store.NewDriver(
+		logger,
+		mgr.GetScheme(),
+		options.controllerName,
+		types.NamespacedName{
+			Namespace: options.namespace,
+			Name:      options.managerName,
+		},
+		gatewayEnabled,
+	)
 	if options.metaData != "" {
 		metaData := strings.TrimSuffix(options.metaData, ",")
 		// metadata is a comma separated list of key=value pairs.
