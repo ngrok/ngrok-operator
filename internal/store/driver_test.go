@@ -32,9 +32,13 @@ var _ = Describe("Driver", func() {
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())
-		driver = NewDriver(logger, scheme, defaultControllerName, types.NamespacedName{
-			Name: defaultManagerName,
-		})
+		driver = NewDriver(
+			logger,
+			scheme,
+			defaultControllerName,
+			types.NamespacedName{Name: defaultManagerName},
+			false,
+		)
 		driver.syncAllowConcurrent = true
 	})
 

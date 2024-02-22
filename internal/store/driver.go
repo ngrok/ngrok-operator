@@ -53,18 +53,21 @@ type Driver struct {
 	syncFullCh          chan error
 	syncPartialCh       chan error
 	syncAllowConcurrent bool
+
+	gatewayEnabled bool
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
-func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName) *Driver {
+func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName, gatewayEnabled bool) *Driver {
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
-		store:       s,
-		cacheStores: cacheStores,
-		log:         logger,
-		scheme:      scheme,
-		managerName: managerName,
+		store:          s,
+		cacheStores:    cacheStores,
+		log:            logger,
+		scheme:         scheme,
+		managerName:    managerName,
+		gatewayEnabled: gatewayEnabled,
 	}
 }
 
@@ -115,25 +118,27 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		}
 	}
 
-	gateways := &gatewayv1.GatewayList{}
-	if err := c.List(ctx, gateways); err != nil {
-		return err
-	}
-	for _, gtw := range gateways.Items {
-		if err := d.store.Update(&gtw); err != nil {
+	if d.gatewayEnabled {
+		gateways := &gatewayv1.GatewayList{}
+		if err := c.List(ctx, gateways); err != nil {
 			return err
 		}
-	}
+		for _, gtw := range gateways.Items {
+			if err := d.store.Update(&gtw); err != nil {
+				return err
+			}
+		}
 
-	//httproutes := &gatewayv1.HTTPRouteList{}
-	//if err := c.List(ctx, httproutes); err != nil {
-	//	return err
-	//}
-	//for _, httproute := range httproutes.Items {
-	//	if err := d.store.Update(&httproute); err != nil {
-	//		return err
-	//	}
-	//}
+		httproutes := &gatewayv1.HTTPRouteList{}
+		if err := c.List(ctx, httproutes); err != nil {
+			return err
+		}
+		for _, httproute := range httproutes.Items {
+			if err := d.store.Update(&httproute); err != nil {
+				return err
+			}
+		}
+	}
 
 	services := &corev1.ServiceList{}
 	if err := c.List(ctx, services); err != nil {
@@ -564,7 +569,9 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 	// make a map of string to domains
 	domainMap := make(map[string]ingressv1alpha1.Domain)
 	d.calculateDomainsFromIngress(domainMap)
-	d.calculateDomainsFromGateway(domainMap)
+	if d.gatewayEnabled {
+		d.calculateDomainsFromGateway(domainMap)
+	}
 
 	domains := make([]ingressv1alpha1.Domain, 0, len(domainMap))
 	for _, domain := range domainMap {
@@ -667,7 +674,9 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 		edgeMap[domain.Spec.Domain] = edge
 	}
 	d.calculateHTTPSEdgesFromIngress(edgeMap)
-	d.calculateHTTPSEdgesFromGateway(edgeMap)
+	if d.gatewayEnabled {
+		d.calculateHTTPSEdgesFromGateway(edgeMap)
+	}
 	return edgeMap
 }
 
