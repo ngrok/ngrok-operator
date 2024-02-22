@@ -1,4 +1,4 @@
-package controllers
+package utils
 
 import (
 	"context"
@@ -16,44 +16,44 @@ const (
 	finalizerName = "k8s.ngrok.com/finalizer"
 )
 
-func isUpsert(o client.Object) bool {
+func IsUpsert(o client.Object) bool {
 	return o.GetDeletionTimestamp().IsZero()
 }
 
-func isDelete(o client.Object) bool {
+func IsDelete(o client.Object) bool {
 	return !o.GetDeletionTimestamp().IsZero()
 }
 
-func hasFinalizer(o client.Object) bool {
+func HasFinalizer(o client.Object) bool {
 	return controllerutil.ContainsFinalizer(o, finalizerName)
 }
 
-func addFinalizer(o client.Object) bool {
+func AddFinalizer(o client.Object) bool {
 	return controllerutil.AddFinalizer(o, finalizerName)
 }
 
-func removeFinalizer(o client.Object) bool {
+func RemoveFinalizer(o client.Object) bool {
 	return controllerutil.RemoveFinalizer(o, finalizerName)
 }
 
-func registerAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
-	if !hasFinalizer(o) {
-		addFinalizer(o)
+func RegisterAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
+	if !HasFinalizer(o) {
+		AddFinalizer(o)
 		return c.Update(ctx, o)
 	}
 	return nil
 }
 
-func removeAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
-	removeFinalizer(o)
+func RemoveAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
+	RemoveFinalizer(o)
 	return c.Update(ctx, o)
 }
 
-type ipPolicyResolver struct {
-	client client.Reader
+type IpPolicyResolver struct {
+	Client client.Reader
 }
 
-func (r *ipPolicyResolver) validateIPPolicyNames(ctx context.Context, namespace string, namesOrIds []string) error {
+func (r *IpPolicyResolver) ValidateIPPolicyNames(ctx context.Context, namespace string, namesOrIds []string) error {
 	for _, nameOrId := range namesOrIds {
 		if strings.HasPrefix(nameOrId, "ipp_") && len(nameOrId) == 31 {
 			// assume this is direct reference to an ngrok object (e.g. by ID), skip it for now
@@ -61,7 +61,7 @@ func (r *ipPolicyResolver) validateIPPolicyNames(ctx context.Context, namespace 
 		}
 
 		policy := new(ingressv1alpha1.IPPolicy)
-		if err := r.client.Get(ctx, types.NamespacedName{Name: nameOrId, Namespace: namespace}, policy); err != nil {
+		if err := r.Client.Get(ctx, types.NamespacedName{Name: nameOrId, Namespace: namespace}, policy); err != nil {
 			return err
 		}
 	}
@@ -69,12 +69,12 @@ func (r *ipPolicyResolver) validateIPPolicyNames(ctx context.Context, namespace 
 }
 
 // Resolves and IP policy names or IDs to IDs. If the input is not found, it is assumed to be an ID and is returned as is.
-func (r *ipPolicyResolver) resolveIPPolicyNamesorIds(ctx context.Context, namespace string, namesOrIds []string) ([]string, error) {
+func (r *IpPolicyResolver) ResolveIPPolicyNamesorIds(ctx context.Context, namespace string, namesOrIds []string) ([]string, error) {
 	m := make(map[string]bool)
 
 	for _, nameOrId := range namesOrIds {
 		policy := new(ingressv1alpha1.IPPolicy)
-		if err := r.client.Get(ctx, types.NamespacedName{Name: nameOrId, Namespace: namespace}, policy); err != nil {
+		if err := r.Client.Get(ctx, types.NamespacedName{Name: nameOrId, Namespace: namespace}, policy); err != nil {
 			if client.IgnoreNotFound(err) == nil {
 				m[nameOrId] = true // assume it's an ID
 				continue
@@ -93,13 +93,13 @@ func (r *ipPolicyResolver) resolveIPPolicyNamesorIds(ctx context.Context, namesp
 	return policyIds, nil
 }
 
-type secretResolver struct {
-	client client.Reader
+type SecretResolver struct {
+	Client client.Reader
 }
 
-func (r *secretResolver) getSecret(ctx context.Context, namespace, name, key string) (string, error) {
+func (r *SecretResolver) GetSecret(ctx context.Context, namespace, name, key string) (string, error) {
 	secret := &v1.Secret{}
-	err := r.client.Get(ctx, types.NamespacedName{
+	err := r.Client.Get(ctx, types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
 	}, secret)

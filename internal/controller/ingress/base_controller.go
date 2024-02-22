@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/utils"
 	"github.com/ngrok/ngrok-api-go/v5"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
@@ -45,8 +46,8 @@ func (r *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, cr 
 	}
 
 	crName := req.NamespacedName.String()
-	if isUpsert(cr) {
-		if err := registerAndSyncFinalizer(ctx, r.Kube, cr); err != nil {
+	if utils.IsUpsert(cr) {
+		if err := utils.RegisterAndSyncFinalizer(ctx, r.Kube, cr); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -72,7 +73,7 @@ func (r *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, cr 
 			r.Recorder.Event(cr, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s: %s", r.kubeType, crName))
 		}
 	} else {
-		if hasFinalizer(cr) {
+		if utils.HasFinalizer(cr) {
 			if r.statusID != nil && r.statusID(cr) != "" {
 				sid := r.statusID(cr)
 				r.Recorder.Event(cr, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s: %s", r.kubeType, crName))
@@ -89,7 +90,7 @@ func (r *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, cr 
 				r.Recorder.Event(cr, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted %s: %s", r.kubeType, crName))
 			}
 
-			if err := removeAndSyncFinalizer(ctx, r.Kube, cr); err != nil {
+			if err := utils.RemoveAndSyncFinalizer(ctx, r.Kube, cr); err != nil {
 				return ctrl.Result{}, err
 			}
 		}

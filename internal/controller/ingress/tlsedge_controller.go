@@ -41,6 +41,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/utils"
 	ierr "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
@@ -54,7 +55,7 @@ type TLSEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	ipPolicyResolver
+	utils.IpPolicyResolver
 
 	NgrokClientset ngrokapi.Clientset
 
@@ -63,7 +64,7 @@ type TLSEdgeReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.ipPolicyResolver = ipPolicyResolver{client: mgr.GetClient()}
+	r.IpPolicyResolver = utils.IpPolicyResolver{Client: mgr.GetClient()}
 
 	r.controller = &baseController[*ingressv1alpha1.TLSEdge]{
 		Kube:     r.Client,
@@ -344,7 +345,7 @@ func (r *TLSEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TLS().IPRestriction().Delete(ctx, edge.Status.ID)
 	}
-	policyIds, err := r.ipPolicyResolver.resolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
+	policyIds, err := r.IpPolicyResolver.ResolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
 	if err != nil {
 		return err
 	}
