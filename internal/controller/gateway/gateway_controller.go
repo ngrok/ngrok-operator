@@ -72,7 +72,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	case err == nil:
 		// all good, continue
 	case client.IgnoreNotFound(err) == nil:
-		if err := r.Driver.DeleteNamedIngress(req.NamespacedName); err != nil {
+		if err := r.Driver.DeleteNamedGateway(req.NamespacedName); err != nil {
 			log.Error(err, "Failed to delete gateway from store")
 			return ctrl.Result{}, err
 		}
