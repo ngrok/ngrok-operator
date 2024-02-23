@@ -616,25 +616,26 @@ func (d *Driver) calculateDomainsFromGateway(domainMap map[string]ingressv1alpha
 
 	for _, gw := range gateways {
 		for _, listener := range gw.Spec.Listeners {
-			if string(*listener.Hostname) == "" {
+			domainName := string(*listener.Hostname)
+			if domainName == "" {
 				continue
 			}
-			if _, hasVal := domainMap[string(*listener.Hostname)]; hasVal {
+			if _, hasVal := domainMap[domainName]; hasVal {
 				// TODO update gateway status
 				// also add error to error page
 				continue
 			}
 			domain := ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      strings.Replace(string(*listener.Hostname), ".", "-", -1),
+					Name:      strings.Replace(domainName, ".", "-", -1),
 					Namespace: gw.Namespace,
 				},
 				Spec: ingressv1alpha1.DomainSpec{
-					Domain: string(*listener.Hostname),
+					Domain: domainName,
 				},
 			}
 			domain.Spec.Metadata = d.customMetadata
-			domainMap[string(*listener.Hostname)] = domain
+			domainMap[domainName] = domain
 		}
 	}
 }
@@ -773,14 +774,15 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 
 	for _, gtw := range gateways {
 		for _, listener := range gtw.Spec.Listeners {
-			if _, hasVal := ingressDomains[string(*listener.Hostname)]; hasVal {
+			domainName := string(*listener.Hostname)
+			if _, hasVal := ingressDomains[domainName]; hasVal {
 				// TODO update gateway status if not already updated
 				continue
 			}
-			edge, ok := edgeMap[string(*listener.Hostname)]
+			edge, ok := edgeMap[domainName]
 			if !ok {
-				err := errors.NewErrorNotFound(fmt.Sprintf("hostname %v nto found", string(*listener.Hostname)))
-				d.log.Error(err, "could not find edge associated with rule", "host", string(*listener.Hostname))
+				err := errors.NewErrorNotFound(fmt.Sprintf("hostname %v nto found", domainName))
+				d.log.Error(err, "could not find edge associated with rule", "host", domainName)
 				continue
 			}
 
@@ -791,7 +793,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 				continue
 			}
 
-			edgeMap[string(*listener.Hostname)] = edge
+			edgeMap[domainName] = edge
 		}
 	}
 }
