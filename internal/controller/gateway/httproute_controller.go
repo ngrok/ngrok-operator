@@ -27,13 +27,16 @@ package gateway
 import (
 	"context"
 
-	"github.com/go-logr/logr"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/go-logr/logr"
+	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/utils"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 )
 
 // HTTPRouteReconciler reconciles a HTTPRoute object
@@ -46,21 +49,90 @@ type HTTPRouteReconciler struct {
 	Driver   *store.Driver
 }
 
-//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;list;watch;update;patch
-//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/finalizers,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;list;watch;update;patch
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := r.Log.WithValues("HTTPRoute", req.NamespacedName)
+	ctx = ctrl.LoggerInto(ctx, log)
 
-	// TODO(user): your logic here
+	httproute := new(gatewayv1.HTTPRoute)
+	err := r.Client.Get(ctx, req.NamespacedName, httproute)
+	switch {
+	case err == nil:
+		// all good, continue
+	case client.IgnoreNotFound(err) == nil:
+		if err := r.Driver.DeleteNamedHTTPRoute(req.NamespacedName); err != nil {
+			log.Error(err, "Failed to delete httproute from store")
+			return ctrl.Result{}, err
+		}
+
+		err = r.Driver.Sync(ctx, r.Client)
+		if err != nil {
+			log.Error(err, "Failed to sync after removing httproute from store")
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{}, nil
+	default:
+		return ctrl.Result{}, err
+	}
+
+	httproute, err = r.Driver.UpdateHTTPRoute(httproute)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if utils.IsUpsert(httproute) {
+		// The object is not being deleted, so register and sync finalizer
+		if err := utils.RegisterAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
+			log.Error(err, "Failed to register finalizer")
+			return ctrl.Result{}, err
+		}
+	} else {
+		log.Info("Deleting gateway from store")
+		if utils.HasFinalizer(httproute) {
+			if err := utils.RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
+				log.Error(err, "Failed to remove finalizer")
+				return ctrl.Result{}, err
+			}
+		}
+
+		// Remove it from the store
+		if err := r.Driver.DeleteHTTPRoute(httproute); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	if err := r.Driver.Sync(ctx, r.Client); err != nil {
+		log.Error(err, "Faild to sync")
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Complete(r)
+	storedResources := []client.Object{
+		&gatewayv1.GatewayClass{},
+		&gatewayv1.Gateway{},
+		//&corev1.Service{},
+		&ingressv1alpha1.Domain{},
+		&ingressv1alpha1.HTTPSEdge{},
+		//&ingressv1alpha1.Tunnel{},
+		//&ingressv1alpha1.NgrokModuleSet{},
+	}
+
+	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.HTTPRoute{})
+	for _, obj := range storedResources {
+		builder = builder.Watches(
+			obj,
+			store.NewUpdateStoreHandler(
+				obj.GetObjectKind().GroupVersionKind().Kind,
+				r.Driver,
+				r.Client,
+			),
+		)
+	}
+	return builder.Complete(r)
 }

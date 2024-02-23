@@ -256,6 +256,14 @@ func (d *Driver) DeleteNamedGateway(n types.NamespacedName) error {
 	return d.cacheStores.Delete(gtw)
 }
 
+func (d *Driver) DeleteNamedHTTPRoute(n types.NamespacedName) error {
+	httproute := &gatewayv1.HTTPRoute{}
+	// set NamespacedName on the httproute object
+	httproute.SetNamespace(n.Namespace)
+	httproute.SetName(n.Name)
+	return d.cacheStores.Delete(httproute)
+}
+
 // syncStart will:
 //   - let the first caller proceed, indicated by returning true
 //   - while the first one is running any subsequent calls will be batched to the last call
@@ -782,6 +790,18 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 
 	for _, gtw := range gateways {
 		for _, listener := range gtw.Spec.Listeners {
+			allowedRoutes := listener.AllowedRoutes.Kinds
+			if len(allowedRoutes) > 0 {
+				createHttpsedge := false
+				for _, routeKind := range allowedRoutes {
+					if routeKind.Kind == "HTTPRoute" {
+						createHttpsedge = true
+					}
+				}
+				if !createHttpsedge {
+					continue
+				}
+			}
 			domainName := string(*listener.Hostname)
 			edge, ok := edgeMap[domainName]
 			if !ok {
@@ -789,12 +809,73 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 				d.log.Error(err, "could not find edge associated with rule", "host", domainName)
 				continue
 			}
-
+			// TODO: Set policy from rules.matches and rules.fitlers
 			// skip moduleset and ignore TLS termination for now.
 			if string(*listener.TLS.Mode) != "Terminate" {
 				// set gateway class status here
 				// gtw.Status.Conditions
 				continue
+			}
+			// TODO: Calculate routes from httpRoutes
+			// TODO: skip if no backend services
+			httproutes := d.store.ListHTTPRoutes()
+			for _, httproute := range httproutes {
+				for _, parent := range httproute.Spec.ParentRefs {
+					if string(parent.Name) != gtw.Name {
+						// not our gateway so skip
+						continue
+					}
+					// matches our gateway
+					for _, hostname := range httproute.Spec.Hostnames {
+						if string(hostname) != string(*listener.Hostname) {
+							// doesn't match this listener
+							continue
+						}
+						// matches gateway and listener
+						for _, rule := range httproute.Spec.Rules {
+							// TODO: resolve rule.Matches
+							// TODO: resolve rule.Filters
+							// for v0 we will only resolve the first backendRef
+							for idx, backendref := range rule.BackendRefs {
+								if idx > 0 {
+									break
+								}
+								// handle backendref
+								refKind := string(*backendref.Kind)
+								if refKind != "Serivce" {
+									// only support services currently
+									continue
+								}
+								refName := string(backendref.Name)
+								//refNamespace := string(*backendref.Namespace)
+								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, gtw.Namespace)
+								if err != nil {
+									d.log.Error(err, "could not find port for service", "namespace", gtw.Namespace, "service", refName)
+								}
+
+								route := ingressv1alpha1.HTTPSEdgeRouteSpec{
+									Match:     "/",           // change based on the rule.match
+									MatchType: "path_prefix", // change based on rule.Matches
+									Backend: ingressv1alpha1.TunnelGroupBackend{
+										Labels: d.ngrokLabels(gtw.Namespace, serviceUID, refName, servicePort),
+									},
+									// TODO: set with values from rules.Filters + rules.Matches
+									//CircuitBreaker:      modSet.Modules.CircuitBreaker,
+									//Compression:         modSet.Modules.Compression,
+									//IPRestriction:       modSet.Modules.IPRestriction,
+									//Headers:             modSet.Modules.Headers,
+									//OAuth:               modSet.Modules.OAuth,
+									//Policy:              modSet.Modules.Policy,
+									//OIDC:                modSet.Modules.OIDC,
+									//SAML:                modSet.Modules.SAML,
+									//WebhookVerification: modSet.Modules.WebhookVerification,
+								}
+								// set different customMetadata for gateways next
+								route.Metadata = d.customMetadata
+							}
+						}
+					}
+				}
 			}
 
 			edgeMap[domainName] = edge
@@ -913,6 +994,39 @@ func (d *Driver) getEdgeBackend(backendSvc netv1.IngressServiceBackend, namespac
 	}
 
 	return string(service.UID), servicePort.Port, nil
+}
+
+func (d *Driver) getEdgeBackendRef(backendRef gatewayv1.BackendRef, namespace string) (string, int32, error) {
+	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return string(service.UID), servicePort.Port, nil
+}
+
+func (d *Driver) findBackendRefServicePort(backendRef gatewayv1.BackendRef, namespace string) (*corev1.Service, *corev1.ServicePort, error) {
+	service, err := d.store.GetServiceV1(string(backendRef.Name), namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	servicePort, err := d.findBackendRefServicesPort(service, &backendRef)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return service, servicePort, nil
+}
+
+func (d *Driver) findBackendRefServicesPort(service *corev1.Service, backendRef *gatewayv1.BackendRef) (*corev1.ServicePort, error) {
+	for _, port := range service.Spec.Ports {
+		if (int32(*backendRef.Port) > 0 && port.Port == int32(*backendRef.Port)) || port.Name == string(backendRef.Name) {
+			d.log.V(3).Info("Found matching port for service", "namespace", service.Namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
+			return &port, nil
+		}
+	}
+	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, int32(*backendRef.Port), string(backendRef.Name))
 }
 
 func (d *Driver) getTunnelBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, string, string, error) {

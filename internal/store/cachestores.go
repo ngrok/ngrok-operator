@@ -36,7 +36,6 @@ type CacheStores struct {
 	ServiceV1      cache.Store
 
 	// Gateway API Stores
-	//HTTPRoute cache.Store
 	Gateway   cache.Store
 	HTTPRoute cache.Store
 
