@@ -248,6 +248,14 @@ func (d *Driver) DeleteNamedIngress(n types.NamespacedName) error {
 	return d.cacheStores.Delete(ingress)
 }
 
+func (d *Driver) DeleteNamedGateway(n types.NamespacedName) error {
+	gtw := &gatewayv1.Gateway{}
+	// set NamespacedName on the gateway object
+	gtw.SetNamespace(n.Namespace)
+	gtw.SetName(n.Name)
+	return d.cacheStores.Delete(gtw)
+}
+
 // syncStart will:
 //   - let the first caller proceed, indicated by returning true
 //   - while the first one is running any subsequent calls will be batched to the last call
