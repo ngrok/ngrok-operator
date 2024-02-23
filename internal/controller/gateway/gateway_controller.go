@@ -135,8 +135,8 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	storedResources := []client.Object{
-		//&gatewayv1.GatewayClass{},
-		//&gatewayv1.HTTPRoute{},
+		&gatewayv1.GatewayClass{},
+		&gatewayv1.HTTPRoute{},
 		//&corev1.Service{},
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
