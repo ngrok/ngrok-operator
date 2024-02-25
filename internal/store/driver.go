@@ -129,15 +129,15 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 			}
 		}
 
-		httproutes := &gatewayv1.HTTPRouteList{}
-		if err := c.List(ctx, httproutes); err != nil {
-			return err
-		}
-		for _, httproute := range httproutes.Items {
-			if err := d.store.Update(&httproute); err != nil {
-				return err
-			}
-		}
+		//httproutes := &gatewayv1.HTTPRouteList{}
+		//if err := c.List(ctx, httproutes); err != nil {
+		//	return err
+		//}
+		//for _, httproute := range httproutes.Items {
+		//	if err := d.store.Update(&httproute); err != nil {
+		//		return err
+		//	}
+		//}
 	}
 
 	services := &corev1.ServiceList{}
