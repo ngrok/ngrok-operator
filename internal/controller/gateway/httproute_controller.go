@@ -27,6 +27,7 @@ package gateway
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -49,8 +50,10 @@ type HTTPRouteReconciler struct {
 	Driver   *store.Driver
 }
 
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;update
+
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("HTTPRoute", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
@@ -116,10 +119,10 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	storedResources := []client.Object{
 		&gatewayv1.GatewayClass{},
 		&gatewayv1.Gateway{},
-		//&corev1.Service{},
+		&corev1.Service{},
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
-		//&ingressv1alpha1.Tunnel{},
+		&ingressv1alpha1.Tunnel{},
 		//&ingressv1alpha1.NgrokModuleSet{},
 	}
 
