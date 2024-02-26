@@ -176,7 +176,7 @@ func (s Store) GetGateway(name string, namespace string) (*gatewayv1.Gateway, er
 	return gtw.(*gatewayv1.Gateway), nil
 }
 
-func (s Store) GetHTTPRoute(namespace string, name string) (*gatewayv1.HTTPRoute, error) {
+func (s Store) GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error) {
 	obj, exists, err := s.stores.HTTPRoute.GetByKey(getKey(name, namespace))
 	if err != nil {
 		return nil, err

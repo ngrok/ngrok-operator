@@ -129,15 +129,15 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 			}
 		}
 
-		//httproutes := &gatewayv1.HTTPRouteList{}
-		//if err := c.List(ctx, httproutes); err != nil {
-		//	return err
-		//}
-		//for _, httproute := range httproutes.Items {
-		//	if err := d.store.Update(&httproute); err != nil {
-		//		return err
-		//	}
-		//}
+		httproutes := &gatewayv1.HTTPRouteList{}
+		if err := c.List(ctx, httproutes); err != nil {
+			return err
+		}
+		for _, httproute := range httproutes.Items {
+			if err := d.store.Update(&httproute); err != nil {
+				return err
+			}
+		}
 	}
 
 	services := &corev1.ServiceList{}
@@ -811,11 +811,11 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 			}
 			// TODO: Set policy from rules.matches and rules.fitlers
 			// skip moduleset and ignore TLS termination for now.
-			if string(*listener.TLS.Mode) != "Terminate" {
-				// set gateway class status here
-				// gtw.Status.Conditions
-				continue
-			}
+			//if string(*listener.TLS.Mode) != "Terminate" {
+			//	// set gateway class status here
+			//	// gtw.Status.Conditions
+			//	continue
+			//}
 			// TODO: Calculate routes from httpRoutes
 			// TODO: skip if no backend services
 			httproutes := d.store.ListHTTPRoutes()
@@ -842,7 +842,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								}
 								// handle backendref
 								refKind := string(*backendref.Kind)
-								if refKind != "Serivce" {
+								if refKind != "Service" {
 									// only support services currently
 									continue
 								}
@@ -860,18 +860,12 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 										Labels: d.ngrokLabels(gtw.Namespace, serviceUID, refName, servicePort),
 									},
 									// TODO: set with values from rules.Filters + rules.Matches
-									//CircuitBreaker:      modSet.Modules.CircuitBreaker,
-									//Compression:         modSet.Modules.Compression,
-									//IPRestriction:       modSet.Modules.IPRestriction,
-									//Headers:             modSet.Modules.Headers,
-									//OAuth:               modSet.Modules.OAuth,
 									//Policy:              modSet.Modules.Policy,
-									//OIDC:                modSet.Modules.OIDC,
-									//SAML:                modSet.Modules.SAML,
-									//WebhookVerification: modSet.Modules.WebhookVerification,
 								}
 								// set different customMetadata for gateways next
 								route.Metadata = d.customMetadata
+
+								edge.Spec.Routes = append(edge.Spec.Routes, route)
 							}
 						}
 					}
@@ -899,7 +893,12 @@ func (d *Driver) tunnelKeyFromTunnel(tunnel ingressv1alpha1.Tunnel) tunnelKey {
 
 func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 	tunnels := map[tunnelKey]ingressv1alpha1.Tunnel{}
+	d.calculateTunnelsFromIngress(tunnels)
+	d.calculateTunnelsFromGateway(tunnels)
+	return tunnels
+}
 
+func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alpha1.Tunnel) {
 	for _, ingress := range d.store.ListNgrokIngressesV1() {
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
@@ -959,8 +958,70 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 			}
 		}
 	}
+}
 
-	return tunnels
+func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alpha1.Tunnel) {
+	httproutes := d.store.ListHTTPRoutes()
+
+	for _, httproute := range httproutes {
+		for _, rule := range httproute.Spec.Rules {
+			for _, backendRef := range rule.BackendRefs {
+				// We only support service backends right now. TODO: support resource backends
+				//if path.Backend.Service == nil {
+				//	continue
+				//}
+
+				serviceName := string(backendRef.Name)
+				serviceUID, servicePort, protocol, appProtocol, err := d.getTunnelBackendFromGateway(backendRef.BackendRef, httproute.Namespace)
+				if err != nil {
+					d.log.Error(err, "could not find port for service", "namespace", httproute.Namespace, "service", serviceName)
+				}
+
+				key := tunnelKey{httproute.Namespace, serviceName, strconv.Itoa(int(servicePort))}
+				tunnel, found := tunnels[key]
+				if !found {
+					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, clusterDomain, servicePort)
+					tunnel = ingressv1alpha1.Tunnel{
+						ObjectMeta: metav1.ObjectMeta{
+							GenerateName:    fmt.Sprintf("%s-%d-", serviceName, servicePort),
+							Namespace:       httproute.Namespace,
+							OwnerReferences: nil, // fill owner references below
+							Labels:          d.tunnelLabels(serviceName, servicePort),
+						},
+						Spec: ingressv1alpha1.TunnelSpec{
+							ForwardsTo: targetAddr,
+							Labels:     d.ngrokLabels(httproute.Namespace, serviceUID, serviceName, servicePort),
+							BackendConfig: &ingressv1alpha1.BackendConfig{
+								Protocol: protocol,
+							},
+							AppProtocol: appProtocol,
+						},
+					}
+				}
+
+				hasIngressReference := false
+				for _, ref := range tunnel.OwnerReferences {
+					if ref.UID == httproute.UID {
+						hasIngressReference = true
+						break
+					}
+				}
+				if !hasIngressReference {
+					tunnel.OwnerReferences = append(tunnel.OwnerReferences, metav1.OwnerReference{
+						APIVersion: httproute.APIVersion,
+						Kind:       httproute.Kind,
+						Name:       httproute.Name,
+						UID:        httproute.UID,
+					})
+					slices.SortStableFunc(tunnel.OwnerReferences, func(i, j metav1.OwnerReference) int {
+						return cmp.Compare(string(i.UID), string(j.UID))
+					})
+				}
+
+				tunnels[key] = tunnel
+			}
+		}
+	}
 }
 
 func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c client.Reader) []netv1.IngressLoadBalancerIngress {
@@ -1010,7 +1071,7 @@ func (d *Driver) findBackendRefServicePort(backendRef gatewayv1.BackendRef, name
 	if err != nil {
 		return nil, nil, err
 	}
-
+	d.log.Info("TESTING", "backendRef.Name", backendRef.Name)
 	servicePort, err := d.findBackendRefServicesPort(service, &backendRef)
 	if err != nil {
 		return nil, nil, err
@@ -1031,6 +1092,25 @@ func (d *Driver) findBackendRefServicesPort(service *corev1.Service, backendRef 
 
 func (d *Driver) getTunnelBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, string, string, error) {
 	service, servicePort, err := d.findBackendServicePort(backendSvc, namespace)
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	protocol, err := d.getPortAnnotatedProtocol(service, servicePort.Name)
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	appProtocol, err := d.getPortAppProtocol(service, servicePort)
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	return string(service.UID), servicePort.Port, protocol, appProtocol, nil
+}
+
+func (d *Driver) getTunnelBackendFromGateway(backendRef gatewayv1.BackendRef, namespace string) (string, int32, string, string, error) {
+	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
 	if err != nil {
 		return "", 0, "", "", err
 	}
