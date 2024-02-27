@@ -9,7 +9,6 @@
     - [Helm Chart](#helm-chart-1)
     - [Controller](#controller)
 
-
 ## Artifacts
 
 The ngrok Ingress Controller has 2 main artifacts, a docker image and a helm chart.
@@ -36,6 +35,7 @@ From the [semver spec](https://semver.org/#spec-item-4):
 
 > Major version zero (0.y.z) is for initial development. Anything MAY change at any time. The public API SHOULD NOT be considered stable.
 
+That said, we will treat changes in "y" as major releases and changes in "z" as minor releases until version 1.0 is reached.
 
 ## Release Process
 
