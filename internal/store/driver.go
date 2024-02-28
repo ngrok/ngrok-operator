@@ -909,6 +909,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 							for idx, backendref := range rule.BackendRefs {
 								// currently the ingress controller doesn't support weighted backends
 								// so we'll only support one backendref per rule
+								// TODO: remove when tested with multiple backends
 								if idx > 0 {
 									break
 								}
@@ -918,6 +919,13 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 									// only support services currently
 									continue
 								}
+
+								modSet, err := d.createNgrokModuleSetForGateway(&rule)
+								if err != nil {
+									d.log.Error(err, "error creating ngrok moduleset for HTTPRouteRule", "rule", rule)
+									continue
+								}
+
 								refName := string(backendref.Name)
 								//refNamespace := string(*backendref.Namespace)
 								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, gtw.Namespace)
@@ -927,7 +935,9 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 
 								route.Backend = ingressv1alpha1.TunnelGroupBackend{
 									Labels: d.ngrokLabels(gtw.Namespace, serviceUID, refName, servicePort),
+									// TODO: set with values from rules.Filters + rules.Matches
 								}
+								route.Policy = modSet.Modules.Policy
 
 							}
 							// set different customMetadata for gateways next
@@ -942,6 +952,88 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 			edgeMap[domainName] = edge
 		}
 	}
+}
+
+func (d *Driver) createNgrokModuleSetForGateway(rule *gatewayv1.HTTPRouteRule) (*ingressv1alpha1.NgrokModuleSet, error) {
+	enabled := true
+	modSet := ingressv1alpha1.NgrokModuleSet{
+		Modules: ingressv1alpha1.NgrokModuleSetModules{
+			Policy: &ingressv1alpha1.EndpointPolicy{
+				Enabled: &enabled,
+				// Mapping each HTTPRouteRule to one Inbound endpoint rule
+				Inbound: []ingressv1alpha1.EndpointRule{
+					{
+						Expressions: []string{},
+						Actions:     []ingressv1alpha1.EndpointAction{},
+						Name:        "Inbound HTTPRouteRule",
+					},
+				},
+				// Mapping each HTTPRouteRule to one Outbound endpoint rule
+				Outbound: []ingressv1alpha1.EndpointRule{
+					{
+						Expressions: []string{},
+						Actions:     []ingressv1alpha1.EndpointAction{},
+						Name:        "Outbound HTTPRouteRule",
+					},
+				},
+			},
+		},
+	}
+
+	// NOTE: matches are only defined on requests, and fitlers are only triggered by matches,
+	// but some fitlers define transformations on responses, so we need to define matches on both
+	// Policy.Inbound and Policy.Outbound when possible to work with ngrok's system
+	for _, match := range rule.Matches {
+		// TODO: add path matching when ngrok policy supports it
+		//if match.Path != nil {
+		//
+		//}
+		for _, header := range match.Headers {
+			var expression string
+			name := string(header.Name)
+			if strings.EqualFold(name, "Location") {
+				expression = fmt.Sprintf("req.Location['%s'] == '%s'", name, header.Value)
+			} else {
+				expression = fmt.Sprintf("%s in req.Headers['%s']", header.Value, header.Name)
+			}
+			// this operation is pretty repetative might want to split it up
+			modSet.Modules.Policy.Inbound[0].Expressions = append(
+				modSet.Modules.Policy.Inbound[0].Expressions,
+				expression,
+			)
+			modSet.Modules.Policy.Outbound[0].Expressions = append(
+				modSet.Modules.Policy.Inbound[0].Expressions,
+				expression,
+			)
+		}
+
+		for _, queryParam := range match.QueryParams {
+			expression := fmt.Sprintf("%s in req.Params['%s']", queryParam.Value, string(queryParam.Name))
+			// this operation is pretty repetative might want to split it up
+			modSet.Modules.Policy.Inbound[0].Expressions = append(
+				modSet.Modules.Policy.Inbound[0].Expressions,
+				expression,
+			)
+			modSet.Modules.Policy.Outbound[0].Expressions = append(
+				modSet.Modules.Policy.Inbound[0].Expressions,
+				expression,
+			)
+		}
+
+		if match.Method != nil {
+			expression := fmt.Sprintf("req.Method == '%s'", string(*match.Method))
+			// this operation is pretty repetative might want to split it up
+			modSet.Modules.Policy.Inbound[0].Expressions = append(
+				modSet.Modules.Policy.Inbound[0].Expressions,
+				expression,
+			)
+			modSet.Modules.Policy.Outbound[0].Expressions = append(
+				modSet.Modules.Policy.Inbound[0].Expressions,
+				expression,
+			)
+		}
+	}
+	return &modSet, nil
 }
 
 type tunnelKey struct {
