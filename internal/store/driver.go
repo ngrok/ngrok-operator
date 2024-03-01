@@ -646,6 +646,34 @@ func (d *Driver) calculateDomainsFromGateway(domainMap map[string]ingressv1alpha
 			domainMap[domainName] = domain
 		}
 	}
+
+	httproutes := d.store.ListHTTPRoutes()
+	for _, httproute := range httproutes {
+		for _, hostnames := range httproute.Spec.Hostnames {
+			for _, host := range hostnames {
+				domainName := string(host)
+				if domainName == "" {
+					continue
+				}
+				if _, hasVal := domainMap[domainName]; hasVal {
+					// TODO update gateway status
+					// also add error to error page
+					continue
+				}
+				domain := ingressv1alpha1.Domain{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      strings.Replace(domainName, ".", "-", -1),
+						Namespace: httproute.Namespace,
+					},
+					Spec: ingressv1alpha1.DomainSpec{
+						Domain: domainName,
+					},
+				}
+				domain.Spec.Metadata = d.customMetadata
+				domainMap[domainName] = domain
+			}
+		}
+	}
 }
 
 // Given an ingress, it will resolve any ngrok modulesets defined on the ingress to the
@@ -816,6 +844,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 			// TODO: Calculate routes from httpRoutes
 			// TODO: skip if no backend services
 			httproutes := d.store.ListHTTPRoutes()
+			// lets map httproutes to multiple ngrok edges
 			for _, httproute := range httproutes {
 				for _, parent := range httproute.Spec.ParentRefs {
 					if string(parent.Name) != gtw.Name {
@@ -824,15 +853,16 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 					}
 					// matches our gateway
 					for _, hostname := range httproute.Spec.Hostnames {
-						if string(hostname) != string(*listener.Hostname) {
-							// doesn't match this listener
+						if !d.hostsMatch(string(hostname), domainName) {
 							continue
 						}
+						// lets match a rule to a ngrok route
 						// matches gateway and listener
 						for _, rule := range httproute.Spec.Rules {
-							// TODO: resolve rule.Matches
-							// TODO: resolve rule.Filters
 							// for v0 we will only resolve the first backendRef
+							policy, err := d.createNgrokModuleSetForGateway(&rule)
+							var backendLable map[string]string
+							// this will represent a tunnel
 							for idx, backendref := range rule.BackendRefs {
 								// TODO: remove when tested with multiple backends
 								if idx > 0 {
@@ -845,7 +875,6 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 									continue
 								}
 
-								policy, err := d.createNgrokModuleSetForGateway(&rule)
 								if err != nil {
 									d.log.Error(err, "error creating ngrok moduleset for HTTPRouteRule", "rule", rule)
 									continue
@@ -856,22 +885,30 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, gtw.Namespace)
 								if err != nil {
 									d.log.Error(err, "could not find port for service", "namespace", gtw.Namespace, "service", refName)
+                  continue
 								}
+                backendLable = d.ngrokLabels(gtw.Namespace, serviceUID, refName, servicePort)
 
-								route := ingressv1alpha1.HTTPSEdgeRouteSpec{
-									Match:     "/",           // change based on the rule.match
-									MatchType: "path_prefix", // change based on rule.Matches
-									Backend: ingressv1alpha1.TunnelGroupBackend{
-										Labels: d.ngrokLabels(gtw.Namespace, serviceUID, refName, servicePort),
-									},
-									// TODO: set with values from rules.Filters + rules.Matches
-									Policy: policy,
-								}
-								// set different customMetadata for gateways next
-								route.Metadata = d.customMetadata
-
-								edge.Spec.Routes = append(edge.Spec.Routes, route)
 							}
+              if len(backendLable) == 0 {
+                continue
+              }
+
+              path := "/"
+              matchType := "path_prefix"
+							route := ingressv1alpha1.HTTPSEdgeRouteSpec{
+								Match:     path,           // change based on the rule.match
+								MatchType: "path_prefix", // change based on rule.Matches
+								Backend: ingressv1alpha1.TunnelGroupBackend{
+									Labels: backendLable,
+								},
+								// TODO: set with values from rules.Filters + rules.Matches
+								Policy: policy,
+							}
+							// set different customMetadata for gateways next
+							route.Metadata = d.customMetadata
+
+							edge.Spec.Routes = append(edge.Spec.Routes, route)
 						}
 					}
 				}
@@ -880,6 +917,37 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 			edgeMap[domainName] = edge
 		}
 	}
+}
+
+func (d *Driver) hostsMatch(hostX string, hostY string) bool {
+	var x, y int
+	var wildcard bool
+	hostXSegments := strings.Split(hostY, ".")
+	hostYSegments := strings.Split(hostX, ".")
+
+	for x, y = 0, 0; x < len(hostXSegments) && y < len(hostYSegments); x, y = x+1, y+1 {
+		var matchFound bool
+		if wildcard {
+			for ; x < len(hostYSegments); x++ {
+				if hostXSegments[x] == hostYSegments[y] {
+					matchFound = true
+					break
+				}
+			}
+		}
+		if wildcard && !matchFound {
+			return false
+		}
+		if hostXSegments[x] == "*" {
+			wildcard = true
+			continue
+		}
+		wildcard = false
+		if hostXSegments[x] != hostYSegments[y] {
+			return false
+		}
+	}
+	return len(hostYSegments)-y == len(hostXSegments)-x
 }
 
 func (d *Driver) createNgrokModuleSetForGateway(rule *gatewayv1.HTTPRouteRule) (*ingressv1alpha1.EndpointPolicy, error) {
@@ -923,13 +991,24 @@ func (d *Driver) createNgrokModuleSetForGateway(rule *gatewayv1.HTTPRouteRule) (
 		}
 	}
 
+	d.log.Info("EXPRESSIONS", "expressions", expressions)
+	d.log.Info("GETTING FILTERS", "length:", len(rule.Filters))
 	for _, filter := range rule.Filters {
+		d.log.Info("FILTER:", "type", filter.Type)
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestRedirect:
+			d.log.Info("REDIRECTING REQUEST")
 			d.handleRequestRedirectFilter(filter.RequestRedirect, pathPrefixMatches, inboundActions)
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
+			d.log.Info("MODIFYING REQUEST HEADER")
 			d.handleHTTPHeaderFilter(filter.RequestHeaderModifier, &inboundActions)
+			if inboundActions != nil {
+				d.log.Info("INBOUND ACTIONS", "length:", len(*inboundActions))
+			} else {
+				d.log.Info("INBOUND ACTIONS ARE NIL!!!!!")
+			}
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
+			d.log.Info("MODIFYING RESPONSE HEADER")
 			d.handleHTTPHeaderFilter(filter.ResponseHeaderModifier, &outboundActions)
 		case gatewayv1.HTTPRouteFilterURLRewrite:
 			d.log.Error(fmt.Errorf("Unsupported filter type"), "unsupported filter type", "HTTPRouteFilterType", filter.Type)
@@ -1161,6 +1240,7 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 				Config: config,
 			},
 		)
+
 	}
 }
 
