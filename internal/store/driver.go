@@ -898,13 +898,30 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 							// TODO: resolve rule.Matches
 							// TODO: resolve rule.Filters
 							// for v0 we will only resolve the first backendRef
-							route := ingressv1alpha1.HTTPSEdgeRouteSpec{
-								Match:     "/",           // change based on the rule.match
-								MatchType: "path_prefix", // change based on rule.Matches
-								//},
-								// TODO: set with values from rules.Filters + rules.Matches
-								//Policy:              modSet.Modules.Policy,
+							pathMatch := "/"
+							pathMatchType := "path_prefix"
+							// first match with a path will be accepted as the route's path
+							for _, match := range rule.Matches {
+								if match.Path != nil {
+									pathMatch = *match.Path.Value
+									if *match.Path.Type == gatewayv1.PathMatchExact {
+										pathMatchType = "exact_path"
+									}
+									break
+								}
 							}
+							route := ingressv1alpha1.HTTPSEdgeRouteSpec{
+								Match:     pathMatch,     // change based on the rule.match
+								MatchType: pathMatchType, // change based on rule.Matches
+							}
+
+							// TODO: set with values from rules.Filters + rules.Matches
+							policy, err := d.createNgrokModuleSetForGateway(&rule)
+							if err != nil {
+								d.log.Error(err, "error creating ngrok moduleset for HTTPRouteRule", "rule", rule)
+								continue
+							}
+							route.Policy = policy
 
 							for idx, backendref := range rule.BackendRefs {
 								// currently the ingress controller doesn't support weighted backends
@@ -919,14 +936,6 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 									// only support services currently
 									continue
 								}
-
-								// TODO: set with values from rules.Filters + rules.Matches
-								policy, err := d.createNgrokModuleSetForGateway(&rule)
-								if err != nil {
-									d.log.Error(err, "error creating ngrok moduleset for HTTPRouteRule", "rule", rule)
-									continue
-								}
-								route.Policy = policy
 
 								refName := string(backendref.Name)
 								//refNamespace := string(*backendref.Namespace)
@@ -998,7 +1007,7 @@ func (d *Driver) createNgrokModuleSetForGateway(rule *gatewayv1.HTTPRouteRule) (
 	for _, filter := range rule.Filters {
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestRedirect:
-			d.handleRequestRedirectFilter(filter.RequestRedirect, pathPrefixMatches, inboundActions)
+			d.handleRequestRedirectFilter(filter.RequestRedirect, pathPrefixMatches, &inboundActions)
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
 			d.handleHTTPHeaderFilter(filter.RequestHeaderModifier, &inboundActions)
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
@@ -1135,12 +1144,12 @@ type RequestRedirectConfig struct {
 	StatusCode *int                    `json:"status_code"`
 }
 
-func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions *[]ingressv1alpha1.EndpointAction) {
+func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions **[]ingressv1alpha1.EndpointAction) {
 	if filter == nil {
 		return
 	}
-	if actions == nil {
-		actions = &[]ingressv1alpha1.EndpointAction{}
+	if *actions == nil {
+		*actions = &[]ingressv1alpha1.EndpointAction{}
 
 	}
 
@@ -1170,8 +1179,8 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 					d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", redirectAction)
 					continue
 				}
-				*actions = append(
-					*actions,
+				**actions = append(
+					**actions,
 					ingressv1alpha1.EndpointAction{
 						// TODO: replace with url-redirect
 						Type:   "request-redirect",
@@ -1201,8 +1210,8 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 				d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", redirectAction)
 				return
 			}
-			*actions = append(
-				*actions,
+			**actions = append(
+				**actions,
 				ingressv1alpha1.EndpointAction{
 					// TODO: replace with url-redirect
 					Type:   "request-redirect",
@@ -1225,8 +1234,8 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 			d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", redirectAction)
 			return
 		}
-		*actions = append(
-			*actions,
+		**actions = append(
+			**actions,
 			ingressv1alpha1.EndpointAction{
 				// TODO: replace with url-redirect
 				Type:   "request-redirect",
