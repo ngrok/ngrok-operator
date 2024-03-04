@@ -1071,7 +1071,6 @@ func (d *Driver) findBackendRefServicePort(backendRef gatewayv1.BackendRef, name
 	if err != nil {
 		return nil, nil, err
 	}
-	d.log.Info("TESTING", "backendRef.Name", backendRef.Name)
 	servicePort, err := d.findBackendRefServicesPort(service, &backendRef)
 	if err != nil {
 		return nil, nil, err
