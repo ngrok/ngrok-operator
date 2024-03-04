@@ -344,8 +344,9 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing driver state!!")
-	desiredDomains := d.calculateDomains()
-	desiredEdges := d.calculateHTTPSEdges()
+	desiredDomains, desiredIngressDomains, desiredGatewayDomains := d.calculateDomains()
+
+	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, &desiredGatewayDomains)
 	desiredTunnels := d.calculateTunnels()
 
 	currDomains := &ingressv1alpha1.DomainList{}
@@ -410,8 +411,9 @@ func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing edges state!!")
+	_, desiredIngressDomains, desiredGatewayDomains := d.calculateDomains()
 
-	desiredEdges := d.calculateHTTPSEdges()
+	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, &desiredGatewayDomains)
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
 	if err := c.List(ctx, currEdges, client.MatchingLabels{
 		labelControllerNamespace: d.managerName.Namespace,
@@ -573,22 +575,32 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 //	return nil
 //}
 
-func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
-	// make a map of string to domains
-	domainMap := make(map[string]ingressv1alpha1.Domain)
-	d.calculateDomainsFromIngress(domainMap)
-	if d.gatewayEnabled {
-		d.calculateDomainsFromGateway(domainMap)
-	}
+func (d *Driver) calculateDomains() ([]ingressv1alpha1.Domain, []ingressv1alpha1.Domain, []ingressv1alpha1.Domain) {
+	var domains, ingressDomains, gatewayDomains []ingressv1alpha1.Domain
+	ingressDomainMap := d.calculateDomainsFromIngress()
 
-	domains := make([]ingressv1alpha1.Domain, 0, len(domainMap))
-	for _, domain := range domainMap {
+	ingressDomains = make([]ingressv1alpha1.Domain, 0, len(ingressDomainMap))
+	for _, domain := range ingressDomainMap {
+		ingressDomains = append(ingressDomains, domain)
 		domains = append(domains, domain)
 	}
-	return domains
+
+	if d.gatewayEnabled {
+		gatewayDomainMap := d.calculateDomainsFromGateway(ingressDomainMap)
+
+		domains := make([]ingressv1alpha1.Domain, 0, len(gatewayDomainMap))
+		for _, domain := range gatewayDomainMap {
+			domains = append(domains, domain)
+			gatewayDomains = append(gatewayDomains, domain)
+		}
+	}
+
+	return domains, ingressDomains, gatewayDomains
 }
 
-func (d *Driver) calculateDomainsFromIngress(domainMap map[string]ingressv1alpha1.Domain) {
+func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain {
+	domainMap := make(map[string]ingressv1alpha1.Domain)
+
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		for _, rule := range ingress.Spec.Rules {
@@ -608,19 +620,21 @@ func (d *Driver) calculateDomainsFromIngress(domainMap map[string]ingressv1alpha
 			domainMap[rule.Host] = domain
 		}
 	}
+
+	return domainMap
 }
 
-func (d *Driver) calculateDomainsFromGateway(domainMap map[string]ingressv1alpha1.Domain) {
-	// make a map of string to domains
-	gateways := d.store.ListGateways()
+func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.Domain {
+	domainMap := make(map[string]ingressv1alpha1.Domain)
 
+	gateways := d.store.ListGateways()
 	for _, gw := range gateways {
 		for _, listener := range gw.Spec.Listeners {
 			domainName := string(*listener.Hostname)
 			if domainName == "" {
 				continue
 			}
-			if _, hasVal := domainMap[domainName]; hasVal {
+			if _, hasVal := ingressDomains[domainName]; hasVal {
 				// TODO update gateway status
 				// also add error to error page
 				continue
@@ -638,6 +652,8 @@ func (d *Driver) calculateDomainsFromGateway(domainMap map[string]ingressv1alpha
 			domainMap[domainName] = domain
 		}
 	}
+
+	return domainMap
 }
 
 // Given an ingress, it will resolve any ngrok modulesets defined on the ingress to the
@@ -664,11 +680,9 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	return computedModSet, nil
 }
 
-func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
-	domains := d.calculateDomains()
-
-	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(domains))
-	for _, domain := range domains {
+func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, gatewayDomains *[]ingressv1alpha1.Domain) map[string]ingressv1alpha1.HTTPSEdge {
+	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(*ingressDomains))
+	for _, domain := range *ingressDomains {
 		edge := ingressv1alpha1.HTTPSEdge{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: domain.Name + "-",
@@ -683,9 +697,7 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 		edgeMap[domain.Spec.Domain] = edge
 	}
 	d.calculateHTTPSEdgesFromIngress(edgeMap)
-	if d.gatewayEnabled {
-		d.calculateHTTPSEdgesFromGateway(edgeMap)
-	}
+
 	return edgeMap
 }
 
@@ -765,20 +777,12 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 	}
 }
 
-func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
+func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge, gatewayDomains *[]ingressv1alpha1.Domain) {
 	gateways := d.store.ListGateways()
-
-	// get ingress domains since we don't want gateway to interact with them
-	ingressDomains := make(map[string]ingressv1alpha1.Domain)
-	d.calculateDomainsFromIngress(ingressDomains)
 
 	for _, gtw := range gateways {
 		for _, listener := range gtw.Spec.Listeners {
 			domainName := string(*listener.Hostname)
-			if _, hasVal := ingressDomains[domainName]; hasVal {
-				// TODO update gateway status if not already updated
-				continue
-			}
 			edge, ok := edgeMap[domainName]
 			if !ok {
 				err := errors.NewErrorNotFound(fmt.Sprintf("hostname %v nto found", domainName))
