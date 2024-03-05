@@ -1030,6 +1030,10 @@ func (d *Driver) createNgrokModuleSetForGateway(rule *gatewayv1.HTTPRouteRule) (
 	var policy *ingressv1alpha1.EndpointPolicy
 	enabled := true
 
+	if len(expressions) > 1 {
+		expressions = []string{strings.Join(expressions[:], " || ")}
+	}
+
 	if inboundActions != nil {
 		policy = &ingressv1alpha1.EndpointPolicy{
 			Enabled: &enabled,
@@ -1156,15 +1160,10 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 	if filter.Path != nil {
 		if filter.Path.Type == "ReplacePrefixMatch" {
 			for _, pathPrefix := range pathPrefixMatches {
-
-				var path *HttpPathModifierConfig
-
-				if path != nil {
-					path = &HttpPathModifierConfig{
-						Type:               "ReplacePrefixMatch",
-						Prefix:             &pathPrefix,
-						ReplacePrefixMatch: filter.Path.ReplacePrefixMatch,
-					}
+				path := &HttpPathModifierConfig{
+					Type:               "ReplacePrefixMatch",
+					Prefix:             &pathPrefix,
+					ReplacePrefixMatch: filter.Path.ReplacePrefixMatch,
 				}
 
 				redirectAction := RequestRedirectConfig{
@@ -1188,14 +1187,10 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 					},
 				)
 			}
-		} else if filter.Path.Type == "ReplacePrefixMatch" {
-			var path *HttpPathModifierConfig
-
-			if path != nil {
-				path = &HttpPathModifierConfig{
-					Type:            "ReplaceFullPath",
-					ReplaceFullPath: filter.Path.ReplacePrefixMatch,
-				}
+		} else if filter.Path.Type == "ReplaceFullPath" {
+			path := &HttpPathModifierConfig{
+				Type:            "ReplaceFullPath",
+				ReplaceFullPath: filter.Path.ReplaceFullPath,
 			}
 
 			redirectAction := RequestRedirectConfig{
