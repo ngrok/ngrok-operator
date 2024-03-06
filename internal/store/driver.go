@@ -353,7 +353,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 	d.log.Info("syncing driver state!!")
 	desiredDomains, desiredIngressDomains, desiredGatewayDomainMap := d.calculateDomains()
-
 	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, desiredGatewayDomainMap)
 	desiredTunnels := d.calculateTunnels()
 
@@ -596,8 +595,6 @@ func (d *Driver) calculateDomains() ([]ingressv1alpha1.Domain, []ingressv1alpha1
 	var gatewayDomainMap map[string]ingressv1alpha1.Domain
 	if d.gatewayEnabled {
 		gatewayDomainMap := d.calculateDomainsFromGateway(ingressDomainMap)
-
-		domains := make([]ingressv1alpha1.Domain, 0, len(gatewayDomainMap))
 		for _, domain := range gatewayDomainMap {
 			domains = append(domains, domain)
 		}
