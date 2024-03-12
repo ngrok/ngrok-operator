@@ -864,8 +864,6 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 			domainName := string(*listener.Hostname)
 			edge, ok := edgeMap[domainName]
 			if !ok {
-				//err := errors.NewErrorNotFound(fmt.Sprintf("hostname %v not found", domainName))
-				d.log.Info("could not find edge associated with rule", "host", domainName)
 				continue
 			}
 			// TODO: Set policy from rules.matches and rules.fitlers
