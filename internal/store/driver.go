@@ -1001,14 +1001,16 @@ func (d *Driver) createNgrokModuleSetForGateway(rule *gatewayv1.HTTPRouteRule) (
 		}
 	}
 
+	responseHeaders := make(map[string]string)
 	for _, filter := range rule.Filters {
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestRedirect:
-			d.handleRequestRedirectFilter(filter.RequestRedirect, pathPrefixMatches, &inboundActions)
+			// request redirecrt is a special case, and is subject to change
+			d.handleRequestRedirectFilter(filter.RequestRedirect, pathPrefixMatches, &inboundActions, responseHeaders)
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
-			d.handleHTTPHeaderFilter(filter.RequestHeaderModifier, &inboundActions)
+			d.handleHTTPHeaderFilter(filter.RequestHeaderModifier, &inboundActions, nil)
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
-			d.handleHTTPHeaderFilter(filter.ResponseHeaderModifier, &outboundActions)
+			d.handleHTTPHeaderFilter(filter.ResponseHeaderModifier, &outboundActions, responseHeaders)
 		case gatewayv1.HTTPRouteFilterURLRewrite:
 			d.log.Error(fmt.Errorf("Unsupported filter type"), "unsupported filter type", "HTTPRouteFilterType", filter.Type)
 			continue
@@ -1071,14 +1073,14 @@ type AddHeadersConfig struct {
 	Headers map[string]string `json:"headers"`
 }
 
-func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions **[]ingressv1alpha1.EndpointAction) {
+func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions **[]ingressv1alpha1.EndpointAction, requestRedirectHeaders map[string]string) {
 	if *actions == nil {
 		*actions = &[]ingressv1alpha1.EndpointAction{}
 	}
 	if filter != nil {
 		d.handleHTTPHeaderFilterRemove(filter.Remove, actions)
-		d.handleHTTPHeaderFilterAdd(filter.Add, actions)
-		d.handleHTTPHeaderFilterSet(filter, actions)
+		d.handleHTTPHeaderFilterAdd(filter.Add, actions, requestRedirectHeaders)
+		d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders)
 	}
 }
 
@@ -1096,10 +1098,16 @@ func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions 
 	}
 }
 
-func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, actions **[]ingressv1alpha1.EndpointAction) {
+func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, actions **[]ingressv1alpha1.EndpointAction, requestRedirectHeaders map[string]string) {
 	config := AddHeadersConfig{Headers: make(map[string]string)}
 	for _, header := range headersToAdd {
 		config.Headers[string(header.Name)] = header.Value
+	}
+
+	if requestRedirectHeaders != nil {
+		for k, v := range config.Headers {
+			requestRedirectHeaders[k] = v
+		}
 	}
 
 	if len(config.Headers) > 0 {
@@ -1115,9 +1123,7 @@ func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, 
 	}
 }
 
-func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, actions **[]ingressv1alpha1.EndpointAction) {
-	// TODO: whenever the set-headers action is defined use it
-	// remove headers
+func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, actions **[]ingressv1alpha1.EndpointAction, requestRedirectHeaders map[string]string) {
 	if filter == nil {
 		return
 	}
@@ -1127,114 +1133,82 @@ func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, a
 	}
 	d.handleHTTPHeaderFilterRemove(removeHeaders, actions)
 	// add headers
-	d.handleHTTPHeaderFilterAdd(filter.Set, actions)
+	d.handleHTTPHeaderFilterAdd(filter.Set, actions, requestRedirectHeaders)
 }
 
-type HttpPathModifierConfig struct {
-	Type               string  `json:"type"`
-	ReplaceFullPath    *string `json:"replace_full_path"`
-	ReplacePrefixMatch *string `json:"replace_prefix_match"`
-	Prefix             *string `json:"prefix"`
+type URLRedirectConfig struct {
+	To         *string `json:"to"`
+	From       *string `json:"from"`
+	StatusCode *int    `json:"status_code"`
+	// convert to response headers
+	Headers map[string]string `json:"headers"`
 }
 
-type RequestRedirectConfig struct {
-	Scheme     *string                 `json:"scheme"`
-	Hostname   *string                 `json:"hostname"`
-	Path       *HttpPathModifierConfig `json:"path"`
-	Port       *int32                  `json:"port"`
-	StatusCode *int                    `json:"status_code"`
+func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders map[string]string, statusCode *int, actions **[]ingressv1alpha1.EndpointAction) {
+	urlRedirectAction := URLRedirectConfig{
+		To:         &to,
+		From:       &from,
+		StatusCode: statusCode,
+		Headers:    requestHeaders,
+	}
+	config, err := json.Marshal(urlRedirectAction)
+
+	if err != nil {
+		d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", urlRedirectAction)
+		return
+	}
+	**actions = append(
+		**actions,
+		ingressv1alpha1.EndpointAction{
+			Type:   "redirect",
+			Config: config,
+		},
+	)
 }
 
-func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions **[]ingressv1alpha1.EndpointAction) {
+func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions **[]ingressv1alpha1.EndpointAction, requestHeaders map[string]string) {
 	if filter == nil {
 		return
 	}
 	if *actions == nil {
 		*actions = &[]ingressv1alpha1.EndpointAction{}
+	}
 
+	scheme := "$scheme"
+	if filter.Scheme != nil {
+		scheme = *filter.Scheme
+	}
+	hostname := "$host"
+	if filter.Hostname != nil {
+		hostname = string(*filter.Hostname)
+	}
+	port := "$1" // (:[0-9]*)?
+	if filter.Port != nil {
+		port = string(*filter.Port)
 	}
 
 	if filter.Path != nil {
-		if filter.Path.Type == "ReplacePrefixMatch" {
+		switch filter.Path.Type {
+		case "ReplacePrefixMatch":
 			for _, pathPrefix := range pathPrefixMatches {
-				path := &HttpPathModifierConfig{
-					Type:               "ReplacePrefixMatch",
-					Prefix:             &pathPrefix,
-					ReplacePrefixMatch: filter.Path.ReplacePrefixMatch,
-				}
-
-				redirectAction := RequestRedirectConfig{
-					Scheme:     filter.Scheme,
-					Hostname:   (*string)(filter.Hostname),
-					Path:       path,
-					Port:       (*int32)(filter.Port),
-					StatusCode: filter.StatusCode,
-				}
-				config, err := json.Marshal(redirectAction)
-				if err != nil {
-					d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", redirectAction)
-					continue
-				}
-				**actions = append(
-					**actions,
-					ingressv1alpha1.EndpointAction{
-						// TODO: replace with url-redirect
-						Type:   "request-redirect",
-						Config: config,
-					},
-				)
+				from := fmt.Sprintf("^https?://[^/:]+(:[0-9]*)?(%s)([^\\?]*)(\\?.*)?$", pathPrefix)
+				to := fmt.Sprintf("%s://%s%s%s$3$is_args$args", scheme, hostname, port, *filter.Path.ReplacePrefixMatch)
+				d.createUrlRedirectConfig(from, to, requestHeaders, filter.StatusCode, actions)
 			}
-		} else if filter.Path.Type == "ReplaceFullPath" {
-			path := &HttpPathModifierConfig{
-				Type:            "ReplaceFullPath",
-				ReplaceFullPath: filter.Path.ReplaceFullPath,
-			}
-
-			redirectAction := RequestRedirectConfig{
-				Scheme:     filter.Scheme,
-				Hostname:   (*string)(filter.Hostname),
-				Path:       path,
-				Port:       (*int32)(filter.Port),
-				StatusCode: filter.StatusCode,
-			}
-			config, err := json.Marshal(redirectAction)
-			if err != nil {
-				d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", redirectAction)
-				return
-			}
-			**actions = append(
-				**actions,
-				ingressv1alpha1.EndpointAction{
-					// TODO: replace with url-redirect
-					Type:   "request-redirect",
-					Config: config,
-				},
-			)
-		} else {
+		case "ReplaceFullPath":
+			from := ".*" //"^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
+			to := fmt.Sprintf("%s://%s%s%s$is_args$args", scheme, hostname, port, *filter.Path.ReplaceFullPath)
+			d.createUrlRedirectConfig(from, to, requestHeaders, filter.StatusCode, actions)
+		default:
 			d.log.Error(fmt.Errorf("Unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
 			return
 		}
 	} else {
-		redirectAction := RequestRedirectConfig{
-			Scheme:     filter.Scheme,
-			Hostname:   (*string)(filter.Hostname),
-			Port:       (*int32)(filter.Port),
-			StatusCode: filter.StatusCode,
-		}
-		config, err := json.Marshal(redirectAction)
-		if err != nil {
-			d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", redirectAction)
-			return
-		}
-		**actions = append(
-			**actions,
-			ingressv1alpha1.EndpointAction{
-				// TODO: replace with url-redirect
-				Type:   "request-redirect",
-				Config: config,
-			},
-		)
+		from := ".*" //"^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
+		to := fmt.Sprintf("%s://%s%s$uri", scheme, hostname, port)
+		d.createUrlRedirectConfig(from, to, requestHeaders, filter.StatusCode, actions)
 	}
+	d.log.Info("REDIRECT HEADERS", "headers", requestHeaders)
 }
 
 type tunnelKey struct {
@@ -1262,7 +1236,8 @@ func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alph
 	for _, ingress := range d.store.ListNgrokIngressesV1() {
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
-				// We only support service backends right now. TODO: support resource backends
+				// We only support service backends right now.
+				// TODO: support resource backends
 				if path.Backend.Service == nil {
 					continue
 				}
@@ -1326,7 +1301,8 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 	for _, httproute := range httproutes {
 		for _, rule := range httproute.Spec.Rules {
 			for _, backendRef := range rule.BackendRefs {
-				// We only support service backends right now. TODO: support resource backends
+				// We only support service backends right now.
+				// TODO: support resource backends
 				//if path.Backend.Service == nil {
 				//	continue
 				//}
