@@ -987,25 +987,15 @@ func (d *Driver) createNgrokModuleSetForGateway(rule *gatewayv1.HTTPRouteRule) (
 		}
 
 		if match.Method != nil {
-			expression := fmt.Sprintf("req.Method == '%s'", string(*match.Method))
-			// this operation is pretty repetative might want to split it up
-			expressions = append(expressions, expression)
+			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPMethod", *match.Method)
 		}
 
-		for _, header := range match.Headers {
-			var expression string
-			name := string(header.Name)
-			if strings.EqualFold(name, "Location") {
-				expression = fmt.Sprintf("req.Location['%s'] == '%s'", name, header.Value)
-			} else {
-				expression = fmt.Sprintf("'%s' in req.Headers['%s']", header.Value, header.Name)
-			}
-			expressions = append(expressions, expression)
+		if len(match.Headers) > 0 {
+			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPHeaderMatch", match.Headers)
 		}
 
-		for _, queryParam := range match.QueryParams {
-			expression := fmt.Sprintf("'%s' in req.Params['%s']", queryParam.Value, string(queryParam.Name))
-			expressions = append(expressions, expression)
+		if len(match.QueryParams) > 0 {
+			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPQueryParamMatch", match.QueryParams)
 		}
 	}
 
