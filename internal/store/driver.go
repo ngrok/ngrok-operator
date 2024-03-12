@@ -969,11 +969,21 @@ func (d *Driver) createNgrokModuleSetForGateway(rule *gatewayv1.HTTPRouteRule) (
 	// Policy.Inbound and Policy.Outbound when possible to work with ngrok's system
 	for _, match := range rule.Matches {
 		if match.Path != nil {
-			// TODO: add path matching when ngrok policy supports it
-			if match.Path.Type != nil && *match.Path.Type == "PathPrefix" && match.Path.Value != nil {
-				pathPrefixMatches = append(pathPrefixMatches, *match.Path.Value)
+			if match.Path.Type != nil {
+				switch *match.Path.Type {
+				case gatewayv1.PathMatchExact:
+				case gatewayv1.PathMatchPathPrefix:
+					if match.Path.Value != nil {
+						pathPrefixMatches = append(pathPrefixMatches, *match.Path.Value)
+					}
+				case gatewayv1.PathMatchRegularExpression:
+					d.log.Error(fmt.Errorf("Unsupported match type"), "unsupported match type", "PathMatchType", *match.Path.Type)
+					continue
+				default:
+					d.log.Error(fmt.Errorf("Unknown match type"), "Unknown match type", "PathMatchType", *match.Path.Type)
+					continue
+				}
 			}
-			// TODO handle Exact path match type here whenever traffic polices supports it
 		}
 
 		if match.Method != nil {
