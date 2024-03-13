@@ -1316,6 +1316,7 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 			for _, backendRef := range rule.BackendRefs {
 				// We only support service backends right now.
 				// TODO: support resource backends
+
 				//if path.Backend.Service == nil {
 				//	continue
 				//}
