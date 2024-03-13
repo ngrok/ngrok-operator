@@ -129,15 +129,15 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 			}
 		}
 
-		//httproutes := &gatewayv1.HTTPRouteList{}
-		//if err := c.List(ctx, httproutes); err != nil {
-		//	return err
-		//}
-		//for _, httproute := range httproutes.Items {
-		//	if err := d.store.Update(&httproute); err != nil {
-		//		return err
-		//	}
-		//}
+		httproutes := &gatewayv1.HTTPRouteList{}
+		if err := c.List(ctx, httproutes); err != nil {
+			return err
+		}
+		for _, httproute := range httproutes.Items {
+			if err := d.store.Update(&httproute); err != nil {
+				return err
+			}
+		}
 	}
 
 	services := &corev1.ServiceList{}
@@ -256,6 +256,14 @@ func (d *Driver) DeleteNamedGateway(n types.NamespacedName) error {
 	return d.cacheStores.Delete(gtw)
 }
 
+func (d *Driver) DeleteNamedHTTPRoute(n types.NamespacedName) error {
+	httproute := &gatewayv1.HTTPRoute{}
+	// set NamespacedName on the httproute object
+	httproute.SetNamespace(n.Namespace)
+	httproute.SetName(n.Name)
+	return d.cacheStores.Delete(httproute)
+}
+
 // syncStart will:
 //   - let the first caller proceed, indicated by returning true
 //   - while the first one is running any subsequent calls will be batched to the last call
@@ -344,9 +352,9 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing driver state!!")
-	desiredDomains, desiredIngressDomains, desiredGatewayDomains := d.calculateDomains()
+	desiredDomains, desiredIngressDomains, desiredGatewayDomainMap := d.calculateDomains()
 
-	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, &desiredGatewayDomains)
+	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, desiredGatewayDomainMap)
 	desiredTunnels := d.calculateTunnels()
 
 	currDomains := &ingressv1alpha1.DomainList{}
@@ -411,9 +419,9 @@ func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing edges state!!")
-	_, desiredIngressDomains, desiredGatewayDomains := d.calculateDomains()
+	_, desiredIngressDomains, desiredGatewayDomainMap := d.calculateDomains()
 
-	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, &desiredGatewayDomains)
+	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, desiredGatewayDomainMap)
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
 	if err := c.List(ctx, currEdges, client.MatchingLabels{
 		labelControllerNamespace: d.managerName.Namespace,
@@ -575,8 +583,8 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 //	return nil
 //}
 
-func (d *Driver) calculateDomains() ([]ingressv1alpha1.Domain, []ingressv1alpha1.Domain, []ingressv1alpha1.Domain) {
-	var domains, ingressDomains, gatewayDomains []ingressv1alpha1.Domain
+func (d *Driver) calculateDomains() ([]ingressv1alpha1.Domain, []ingressv1alpha1.Domain, map[string]ingressv1alpha1.Domain) {
+	var domains, ingressDomains []ingressv1alpha1.Domain
 	ingressDomainMap := d.calculateDomainsFromIngress()
 
 	ingressDomains = make([]ingressv1alpha1.Domain, 0, len(ingressDomainMap))
@@ -585,17 +593,17 @@ func (d *Driver) calculateDomains() ([]ingressv1alpha1.Domain, []ingressv1alpha1
 		domains = append(domains, domain)
 	}
 
+	var gatewayDomainMap map[string]ingressv1alpha1.Domain
 	if d.gatewayEnabled {
 		gatewayDomainMap := d.calculateDomainsFromGateway(ingressDomainMap)
 
 		domains := make([]ingressv1alpha1.Domain, 0, len(gatewayDomainMap))
 		for _, domain := range gatewayDomainMap {
 			domains = append(domains, domain)
-			gatewayDomains = append(gatewayDomains, domain)
 		}
 	}
 
-	return domains, ingressDomains, gatewayDomains
+	return domains, ingressDomains, gatewayDomainMap
 }
 
 func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain {
@@ -680,7 +688,7 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	return computedModSet, nil
 }
 
-func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, gatewayDomains *[]ingressv1alpha1.Domain) map[string]ingressv1alpha1.HTTPSEdge {
+func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, gatewayDomainMap map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.HTTPSEdge {
 	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(*ingressDomains))
 	for _, domain := range *ingressDomains {
 		edge := ingressv1alpha1.HTTPSEdge{
@@ -697,6 +705,68 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 		edgeMap[domain.Spec.Domain] = edge
 	}
 	d.calculateHTTPSEdgesFromIngress(edgeMap)
+
+	if d.gatewayEnabled {
+
+		httproutes := d.store.ListHTTPRoutes()
+		gateways := d.store.ListGateways()
+		for _, gtw := range gateways {
+			var gatewayDomains []string
+			for _, listener := range gtw.Spec.Listeners {
+				if listener.Hostname == nil {
+					continue
+				}
+				gatewayDomains = append(gatewayDomains, string(*listener.Hostname))
+			}
+			if len(gatewayDomains) <= 0 {
+				continue
+			}
+			for _, httproute := range httproutes {
+				var routeDomains []string
+				for _, parent := range httproute.Spec.ParentRefs {
+					if string(parent.Name) != gtw.Name {
+						continue
+					}
+					var domainOverlap []string
+					for _, hostname := range httproute.Spec.Hostnames {
+						for _, parentDomain := range gatewayDomains {
+							if parentDomain == string(hostname) {
+								domainOverlap = append(domainOverlap, parentDomain)
+							}
+						}
+					}
+					if len(domainOverlap) <= 0 {
+						// no hostnames overlap with gateway
+						continue
+					}
+					routeDomains = append(routeDomains, domainOverlap...)
+				}
+				if len(routeDomains) <= 0 {
+					// no usable domains in route
+					continue
+				}
+				var hostPorts []string
+
+				for _, domain := range routeDomains {
+					hostPorts = append(hostPorts, domain+":443")
+				}
+				edge := ingressv1alpha1.HTTPSEdge{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: httproute.Name + "-",
+						Namespace:    httproute.Namespace,
+						Labels:       d.edgeLabels(routeDomains[0]),
+					},
+					Spec: ingressv1alpha1.HTTPSEdgeSpec{
+						Hostports: hostPorts,
+					},
+				}
+				edge.Spec.Metadata = d.customMetadata
+				edgeMap[routeDomains[0]] = edge
+
+			}
+		}
+		d.calculateHTTPSEdgesFromGateway(edgeMap)
+	}
 
 	return edgeMap
 }
@@ -777,24 +847,96 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 	}
 }
 
-func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge, gatewayDomains *[]ingressv1alpha1.Domain) {
+func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	gateways := d.store.ListGateways()
 
 	for _, gtw := range gateways {
 		for _, listener := range gtw.Spec.Listeners {
+			allowedRoutes := listener.AllowedRoutes.Kinds
+			if len(allowedRoutes) > 0 {
+				createHttpsedge := false
+				for _, routeKind := range allowedRoutes {
+					if routeKind.Kind == "HTTPRoute" {
+						createHttpsedge = true
+					}
+				}
+				if !createHttpsedge {
+					continue
+				}
+			}
 			domainName := string(*listener.Hostname)
 			edge, ok := edgeMap[domainName]
 			if !ok {
-				err := errors.NewErrorNotFound(fmt.Sprintf("hostname %v nto found", domainName))
-				d.log.Error(err, "could not find edge associated with rule", "host", domainName)
+				//err := errors.NewErrorNotFound(fmt.Sprintf("hostname %v not found", domainName))
+				d.log.Info("could not find edge associated with rule", "host", domainName)
 				continue
 			}
-
+			// TODO: Set policy from rules.matches and rules.fitlers
 			// skip moduleset and ignore TLS termination for now.
-			if string(*listener.TLS.Mode) != "Terminate" {
-				// set gateway class status here
-				// gtw.Status.Conditions
-				continue
+			//if string(*listener.TLS.Mode) != "Terminate" {
+			//	// set gateway class status here
+			//	// gtw.Status.Conditions
+			//	continue
+			//}
+			// TODO: Calculate routes from httpRoutes
+			// TODO: skip if no backend services
+			httproutes := d.store.ListHTTPRoutes()
+			for _, httproute := range httproutes {
+				for _, parent := range httproute.Spec.ParentRefs {
+					if string(parent.Name) != gtw.Name {
+						// not our gateway so skip
+						continue
+					}
+					// matches our gateway
+					for _, hostname := range httproute.Spec.Hostnames {
+						if string(hostname) != string(*listener.Hostname) {
+							// doesn't match this listener
+							continue
+						}
+						// matches gateway and listener
+						for _, rule := range httproute.Spec.Rules {
+							// TODO: resolve rule.Matches
+							// TODO: resolve rule.Filters
+							// for v0 we will only resolve the first backendRef
+							route := ingressv1alpha1.HTTPSEdgeRouteSpec{
+								Match:     "/",           // change based on the rule.match
+								MatchType: "path_prefix", // change based on rule.Matches
+								//},
+								// TODO: set with values from rules.Filters + rules.Matches
+								//Policy:              modSet.Modules.Policy,
+							}
+
+							for idx, backendref := range rule.BackendRefs {
+								// currently the ingress controller doesn't support weighted backends
+								// so we'll only support one backendref per rule
+								if idx > 0 {
+									break
+								}
+								// handle backendref
+								refKind := string(*backendref.Kind)
+								if refKind != "Service" {
+									// only support services currently
+									continue
+								}
+								refName := string(backendref.Name)
+								//refNamespace := string(*backendref.Namespace)
+								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, gtw.Namespace)
+								if err != nil {
+									d.log.Error(err, "could not find port for service", "namespace", gtw.Namespace, "service", refName)
+								}
+
+								route.Backend = ingressv1alpha1.TunnelGroupBackend{
+									Labels: d.ngrokLabels(gtw.Namespace, serviceUID, refName, servicePort),
+								}
+
+							}
+							// set different customMetadata for gateways next
+							route.Metadata = d.customMetadata
+
+							edge.Spec.Routes = append(edge.Spec.Routes, route)
+						}
+					}
+				}
 			}
 
 			edgeMap[domainName] = edge
@@ -818,7 +960,12 @@ func (d *Driver) tunnelKeyFromTunnel(tunnel ingressv1alpha1.Tunnel) tunnelKey {
 
 func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 	tunnels := map[tunnelKey]ingressv1alpha1.Tunnel{}
+	d.calculateTunnelsFromIngress(tunnels)
+	d.calculateTunnelsFromGateway(tunnels)
+	return tunnels
+}
 
+func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alpha1.Tunnel) {
 	for _, ingress := range d.store.ListNgrokIngressesV1() {
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
@@ -878,8 +1025,70 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 			}
 		}
 	}
+}
 
-	return tunnels
+func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alpha1.Tunnel) {
+	httproutes := d.store.ListHTTPRoutes()
+
+	for _, httproute := range httproutes {
+		for _, rule := range httproute.Spec.Rules {
+			for _, backendRef := range rule.BackendRefs {
+				// We only support service backends right now. TODO: support resource backends
+				//if path.Backend.Service == nil {
+				//	continue
+				//}
+
+				serviceName := string(backendRef.Name)
+				serviceUID, servicePort, protocol, appProtocol, err := d.getTunnelBackendFromGateway(backendRef.BackendRef, httproute.Namespace)
+				if err != nil {
+					d.log.Error(err, "could not find port for service", "namespace", httproute.Namespace, "service", serviceName)
+				}
+
+				key := tunnelKey{httproute.Namespace, serviceName, strconv.Itoa(int(servicePort))}
+				tunnel, found := tunnels[key]
+				if !found {
+					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, clusterDomain, servicePort)
+					tunnel = ingressv1alpha1.Tunnel{
+						ObjectMeta: metav1.ObjectMeta{
+							GenerateName:    fmt.Sprintf("%s-%d-", serviceName, servicePort),
+							Namespace:       httproute.Namespace,
+							OwnerReferences: nil, // fill owner references below
+							Labels:          d.tunnelLabels(serviceName, servicePort),
+						},
+						Spec: ingressv1alpha1.TunnelSpec{
+							ForwardsTo: targetAddr,
+							Labels:     d.ngrokLabels(httproute.Namespace, serviceUID, serviceName, servicePort),
+							BackendConfig: &ingressv1alpha1.BackendConfig{
+								Protocol: protocol,
+							},
+							AppProtocol: appProtocol,
+						},
+					}
+				}
+
+				hasIngressReference := false
+				for _, ref := range tunnel.OwnerReferences {
+					if ref.UID == httproute.UID {
+						hasIngressReference = true
+						break
+					}
+				}
+				if !hasIngressReference {
+					tunnel.OwnerReferences = append(tunnel.OwnerReferences, metav1.OwnerReference{
+						APIVersion: httproute.APIVersion,
+						Kind:       httproute.Kind,
+						Name:       httproute.Name,
+						UID:        httproute.UID,
+					})
+					slices.SortStableFunc(tunnel.OwnerReferences, func(i, j metav1.OwnerReference) int {
+						return cmp.Compare(string(i.UID), string(j.UID))
+					})
+				}
+
+				tunnels[key] = tunnel
+			}
+		}
+	}
 }
 
 func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c client.Reader) []netv1.IngressLoadBalancerIngress {
@@ -915,8 +1124,59 @@ func (d *Driver) getEdgeBackend(backendSvc netv1.IngressServiceBackend, namespac
 	return string(service.UID), servicePort.Port, nil
 }
 
+func (d *Driver) getEdgeBackendRef(backendRef gatewayv1.BackendRef, namespace string) (string, int32, error) {
+	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return string(service.UID), servicePort.Port, nil
+}
+
+func (d *Driver) findBackendRefServicePort(backendRef gatewayv1.BackendRef, namespace string) (*corev1.Service, *corev1.ServicePort, error) {
+	service, err := d.store.GetServiceV1(string(backendRef.Name), namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+	servicePort, err := d.findBackendRefServicesPort(service, &backendRef)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return service, servicePort, nil
+}
+
+func (d *Driver) findBackendRefServicesPort(service *corev1.Service, backendRef *gatewayv1.BackendRef) (*corev1.ServicePort, error) {
+	for _, port := range service.Spec.Ports {
+		if (int32(*backendRef.Port) > 0 && port.Port == int32(*backendRef.Port)) || port.Name == string(backendRef.Name) {
+			d.log.V(3).Info("Found matching port for service", "namespace", service.Namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
+			return &port, nil
+		}
+	}
+	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, int32(*backendRef.Port), string(backendRef.Name))
+}
+
 func (d *Driver) getTunnelBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, string, string, error) {
 	service, servicePort, err := d.findBackendServicePort(backendSvc, namespace)
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	protocol, err := d.getPortAnnotatedProtocol(service, servicePort.Name)
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	appProtocol, err := d.getPortAppProtocol(service, servicePort)
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	return string(service.UID), servicePort.Port, protocol, appProtocol, nil
+}
+
+func (d *Driver) getTunnelBackendFromGateway(backendRef gatewayv1.BackendRef, namespace string) (string, int32, string, string, error) {
+	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
 	if err != nil {
 		return "", 0, "", "", err
 	}

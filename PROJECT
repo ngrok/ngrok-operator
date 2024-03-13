@@ -75,4 +75,9 @@ resources:
   group: gateway
   kind: Gateway
   version: v1
+- controller: true
+  domain: k8s.ngrok.com
+  group: gateway
+  kind: HTTPRoute
+  version: v1alpha1
 version: "3"

@@ -287,6 +287,17 @@ func runController(ctx context.Context, opts managerOpts) error {
 			setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 			os.Exit(1)
 		}
+
+		if err = (&gatewaycontroller.HTTPRouteReconciler{
+			Client:   mgr.GetClient(),
+			Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor("gateway-controller"),
+			Driver:   driver,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
+			os.Exit(1)
+		}
 	}
 	//+kubebuilder:scaffold:builder
 
