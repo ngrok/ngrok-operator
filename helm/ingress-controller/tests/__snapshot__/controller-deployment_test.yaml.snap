@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: af67eab6508281e10c79d03376e1f7526f2930469e97f570efee4035b8e5ecbe
+        checksum/controller-role: 7e438ed756d7a0c59ca1d3df12a67d9466cc04bc91cf5abae742cc69f17f0342
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
         app.kubernetes.io/component: controller
@@ -232,6 +232,15 @@ Should match all-options snapshot:
     - apiGroups:
       - ""
       resources:
+      - namespaces
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - ""
+      resources:
       - secrets
       verbs:
       - get
@@ -276,6 +285,24 @@ Should match all-options snapshot:
       - gateway.networking.k8s.io
       resources:
       - gateways/status
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - httproutes
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - httproutes/status
       verbs:
       - get
       - list
@@ -477,7 +504,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: af67eab6508281e10c79d03376e1f7526f2930469e97f570efee4035b8e5ecbe
+        checksum/controller-role: 7e438ed756d7a0c59ca1d3df12a67d9466cc04bc91cf5abae742cc69f17f0342
         checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
       labels:
         app.kubernetes.io/component: controller
@@ -692,6 +719,15 @@ Should match default snapshot:
     - apiGroups:
       - ""
       resources:
+      - namespaces
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - ""
+      resources:
       - secrets
       verbs:
       - get
@@ -736,6 +772,24 @@ Should match default snapshot:
       - gateway.networking.k8s.io
       resources:
       - gateways/status
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - httproutes
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - httproutes/status
       verbs:
       - get
       - list
