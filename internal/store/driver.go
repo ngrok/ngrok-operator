@@ -882,6 +882,21 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 						// not our gateway so skip
 						continue
 					}
+
+					if listener.AllowedRoutes != nil && listener.AllowedRoutes.Namespaces.From != nil {
+						switch *listener.AllowedRoutes.Namespaces.From {
+						case gatewayv1.NamespacesFromAll:
+						case gatewayv1.NamespacesFromSame:
+							if httproute.Namespace != gtw.Namespace {
+								continue
+							}
+						case gatewayv1.NamespacesFromSelector:
+							if httproute.Namespace != listener.AllowedRoutes.Namespaces.Selector.String() {
+								continue
+							}
+						}
+					}
+
 					// matches our gateway
 					for _, hostname := range httproute.Spec.Hostnames {
 						if string(hostname) != string(*listener.Hostname) {
