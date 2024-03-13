@@ -635,10 +635,10 @@ func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1
 	gateways := d.store.ListGateways()
 	for _, gw := range gateways {
 		for _, listener := range gw.Spec.Listeners {
-			domainName := string(*listener.Hostname)
-			if domainName == "" {
+			if listener.Hostname == nil {
 				continue
 			}
+			domainName := string(*listener.Hostname)
 			if _, hasVal := ingressDomains[domainName]; hasVal {
 				// TODO update gateway status
 				// also add error to error page
@@ -849,6 +849,9 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 
 	for _, gtw := range gateways {
 		for _, listener := range gtw.Spec.Listeners {
+			if listener.Hostname == nil {
+				continue
+			}
 			allowedRoutes := listener.AllowedRoutes.Kinds
 			if len(allowedRoutes) > 0 {
 				createHttpsedge := false
