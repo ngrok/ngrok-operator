@@ -35,7 +35,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/utils"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/controllers"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 )
 
@@ -103,16 +103,16 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if utils.IsUpsert(gw) {
+	if controllers.IsUpsert(gw) {
 		// The object is not being deleted, so register and sync finalizer
-		if err := utils.RegisterAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+		if err := controllers.RegisterAndSyncFinalizer(ctx, r.Client, gw); err != nil {
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
 	} else {
 		log.Info("Deleting gateway from store")
-		if utils.HasFinalizer(gw) {
-			if err := utils.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+		if controllers.HasFinalizer(gw) {
+			if err := controllers.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
 				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}

@@ -1,4 +1,4 @@
-package utils
+package controllers
 
 import (
 	"context"
@@ -49,10 +49,6 @@ func RemoveAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Objec
 	return c.Update(ctx, o)
 }
 
-type IpPolicyResolver struct {
-	Client client.Reader
-}
-
 func (r *IpPolicyResolver) ValidateIPPolicyNames(ctx context.Context, namespace string, namesOrIds []string) error {
 	for _, nameOrId := range namesOrIds {
 		if strings.HasPrefix(nameOrId, "ipp_") && len(nameOrId) == 31 {
@@ -91,10 +87,6 @@ func (r *IpPolicyResolver) ResolveIPPolicyNamesorIds(ctx context.Context, namesp
 	}
 
 	return policyIds, nil
-}
-
-type SecretResolver struct {
-	Client client.Reader
 }
 
 func (r *SecretResolver) GetSecret(ctx context.Context, namespace, name, key string) (string, error) {
