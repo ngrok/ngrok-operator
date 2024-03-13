@@ -41,7 +41,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/utils"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/controllers"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
 )
@@ -54,7 +54,7 @@ type TCPEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	utils.IpPolicyResolver
+	controllers.IpPolicyResolver
 
 	NgrokClientset ngrokapi.Clientset
 
@@ -63,7 +63,7 @@ type TCPEdgeReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.IpPolicyResolver = utils.IpPolicyResolver{Client: mgr.GetClient()}
+	r.IpPolicyResolver = controllers.IpPolicyResolver{Client: mgr.GetClient()}
 
 	r.controller = &baseController[*ingressv1alpha1.TCPEdge]{
 		Kube:     r.Client,

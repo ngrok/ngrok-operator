@@ -6,7 +6,7 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/utils"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/controllers"
 	internalerrors "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	corev1 "k8s.io/api/core/v1"
@@ -105,16 +105,16 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if utils.IsUpsert(ingress) {
+	if controllers.IsUpsert(ingress) {
 		// The object is not being deleted, so register and sync finalizer
-		if err := utils.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+		if err := controllers.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
 	} else {
 		log.Info("Deleting ingress from store")
-		if utils.HasFinalizer(ingress) {
-			if err := utils.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+		if controllers.HasFinalizer(ingress) {
+			if err := controllers.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
 				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}

@@ -44,7 +44,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/utils"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/controllers"
 	ierr "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
@@ -192,8 +192,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 	routeModuleUpdater := &edgeRouteModuleUpdater{
 		edge:             edge,
 		clientset:        r.NgrokClientset.EdgeModules().HTTPS().Routes(),
-		ipPolicyResolver: utils.IpPolicyResolver{Client: r.Client},
-		secretResolver:   utils.SecretResolver{Client: r.Client},
+		ipPolicyResolver: controllers.IpPolicyResolver{Client: r.Client},
+		secretResolver:   controllers.SecretResolver{Client: r.Client},
 	}
 
 	edgeRoutes := r.NgrokClientset.HTTPSEdgeRoutes()
@@ -509,8 +509,8 @@ type edgeRouteModuleUpdater struct {
 
 	clientset ngrokapi.HTTPSEdgeRouteModulesClientset
 
-	ipPolicyResolver utils.IpPolicyResolver
-	secretResolver   utils.SecretResolver
+	ipPolicyResolver controllers.IpPolicyResolver
+	secretResolver   controllers.SecretResolver
 }
 
 func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
