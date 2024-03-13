@@ -8,8 +8,6 @@ type IpPolicyResolver struct {
 	Client client.Reader
 }
 
-
 type SecretResolver struct {
 	Client client.Reader
 }
-
