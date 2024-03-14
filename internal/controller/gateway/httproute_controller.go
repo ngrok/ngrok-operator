@@ -27,6 +27,7 @@ package gateway
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -39,12 +40,8 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 )
 
-const (
-	ControllerName gatewayv1.GatewayController = "ngrok.com/gateway-controller"
-)
-
-// GatewayReconciler reconciles a Gateway object
-type GatewayReconciler struct {
+// HTTPRouteReconciler reconciles a HTTPRoute object
+type HTTPRouteReconciler struct {
 	client.Client
 
 	Log      logr.Logger
@@ -53,33 +50,28 @@ type GatewayReconciler struct {
 	Driver   *store.Driver
 }
 
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/status,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;update
 
-func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("Gateway", req.NamespacedName)
+func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log.WithValues("HTTPRoute", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
 
-	gw := new(gatewayv1.Gateway)
-	err := r.Client.Get(ctx, req.NamespacedName, gw)
+	httproute := new(gatewayv1.HTTPRoute)
+	err := r.Client.Get(ctx, req.NamespacedName, httproute)
 	switch {
 	case err == nil:
 		// all good, continue
 	case client.IgnoreNotFound(err) == nil:
-		if err := r.Driver.DeleteNamedGateway(req.NamespacedName); err != nil {
-			log.Error(err, "Failed to delete gateway from store")
+		if err := r.Driver.DeleteNamedHTTPRoute(req.NamespacedName); err != nil {
+			log.Error(err, "Failed to delete httproute from store")
 			return ctrl.Result{}, err
 		}
 
 		err = r.Driver.Sync(ctx, r.Client)
 		if err != nil {
-			log.Error(err, "Failed to sync after removing gateway from store")
+			log.Error(err, "Failed to sync after removing httproute from store")
 			return ctrl.Result{}, err
 		}
 
@@ -88,40 +80,28 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	log.V(1).Info("verifying gatewayclass")
-	gwClass := &gatewayv1.GatewayClass{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwClass); err != nil {
-		log.V(1).Info("could not retrieve gatewayclass for gateway", "gatewayclass", gwClass.Spec.ControllerName)
-		return ctrl.Result{}, nil
-	}
-	if gwClass.Spec.ControllerName != ControllerName {
-		log.V(1).Info("unsupported gatewayclass controllername, ignoring", "gatewayclass", gwClass.Name, "controllername", gwClass.Spec.ControllerName)
-
-		return ctrl.Result{}, nil
-	}
-
-	gw, err = r.Driver.UpdateGateway(gw)
+	httproute, err = r.Driver.UpdateHTTPRoute(httproute)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if controllers.IsUpsert(gw) {
+	if controllers.IsUpsert(httproute) {
 		// The object is not being deleted, so register and sync finalizer
-		if err := controllers.RegisterAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+		if err := controllers.RegisterAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
 	} else {
-		log.Info("Deleting gateway from store")
-		if controllers.HasFinalizer(gw) {
-			if err := controllers.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+		log.Info("Deleting httproute from store")
+		if controllers.HasFinalizer(httproute) {
+			if err := controllers.RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
 				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}
 		}
 
 		// Remove it from the store
-		if err := r.Driver.DeleteGateway(gw); err != nil {
+		if err := r.Driver.DeleteHTTPRoute(httproute); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -135,18 +115,18 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	storedResources := []client.Object{
 		&gatewayv1.GatewayClass{},
-		&gatewayv1.HTTPRoute{},
-		//&corev1.Service{},
+		&gatewayv1.Gateway{},
+		&corev1.Service{},
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
-		//&ingressv1alpha1.Tunnel{},
+		&ingressv1alpha1.Tunnel{},
 		//&ingressv1alpha1.NgrokModuleSet{},
 	}
 
-	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{})
+	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.HTTPRoute{})
 	for _, obj := range storedResources {
 		builder = builder.Watches(
 			obj,
@@ -157,6 +137,5 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		)
 	}
-
 	return builder.Complete(r)
 }

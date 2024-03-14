@@ -42,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/ngrok/ngrok-api-go/v5"
 
@@ -63,9 +64,9 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
-	//+kubebuilder:scaffold:scheme
+	utilruntime.Must(gatewayv1.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
+	//+kubebuilder:scaffold:scheme
 }
 
 func main() {
@@ -277,10 +278,24 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 	if opts.useExperimentalGatewayAPI {
 		if err = (&gatewaycontroller.GatewayReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:   mgr.GetClient(),
+			Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor("gateway-controller"),
+			Driver:   driver,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+			os.Exit(1)
+		}
+
+		if err = (&gatewaycontroller.HTTPRouteReconciler{
+			Client:   mgr.GetClient(),
+			Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor("gateway-controller"),
+			Driver:   driver,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
 			os.Exit(1)
 		}
 	}
@@ -304,10 +319,16 @@ func runController(ctx context.Context, opts managerOpts) error {
 // getDriver returns a new Driver instance that is seeded with the current state of the cluster.
 func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
-	d := store.NewDriver(logger, mgr.GetScheme(), options.controllerName, types.NamespacedName{
-		Namespace: options.namespace,
-		Name:      options.managerName,
-	})
+	d := store.NewDriver(
+		logger,
+		mgr.GetScheme(),
+		options.controllerName,
+		types.NamespacedName{
+			Namespace: options.namespace,
+			Name:      options.managerName,
+		},
+		options.useExperimentalGatewayAPI,
+	)
 	if options.metaData != "" {
 		metaData := strings.TrimSuffix(options.metaData, ",")
 		// metadata is a comma separated list of key=value pairs.

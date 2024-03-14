@@ -44,6 +44,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/controllers"
 	ierr "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
@@ -191,8 +192,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 	routeModuleUpdater := &edgeRouteModuleUpdater{
 		edge:             edge,
 		clientset:        r.NgrokClientset.EdgeModules().HTTPS().Routes(),
-		ipPolicyResolver: ipPolicyResolver{r.Client},
-		secretResolver:   secretResolver{r.Client},
+		ipPolicyResolver: controllers.IpPolicyResolver{Client: r.Client},
+		secretResolver:   controllers.SecretResolver{Client: r.Client},
 	}
 
 	edgeRoutes := r.NgrokClientset.HTTPSEdgeRoutes()
@@ -203,7 +204,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		routeLog := log.WithValues("route.match", routeSpec.Match, "route.match_type", routeSpec.MatchType)
 
 		if routeSpec.IPRestriction != nil {
-			if err := routeModuleUpdater.ipPolicyResolver.validateIPPolicyNames(ctx, edge.Namespace, routeSpec.IPRestriction.IPPolicies); err != nil {
+			if err := routeModuleUpdater.ipPolicyResolver.ValidateIPPolicyNames(ctx, edge.Namespace, routeSpec.IPRestriction.IPPolicies); err != nil {
 				if apierrors.IsNotFound(err) {
 					r.Recorder.Eventf(edge, v1.EventTypeWarning, "FailedValidate", "Could not validate ip restriction: %v", err)
 					continue
@@ -508,8 +509,8 @@ type edgeRouteModuleUpdater struct {
 
 	clientset ngrokapi.HTTPSEdgeRouteModulesClientset
 
-	ipPolicyResolver ipPolicyResolver
-	secretResolver   secretResolver
+	ipPolicyResolver controllers.IpPolicyResolver
+	secretResolver   controllers.SecretResolver
 }
 
 func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
@@ -627,7 +628,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
-	policyIds, err := u.ipPolicyResolver.resolveIPPolicyNamesorIds(ctx, u.edge.Namespace, ipRestriction.IPPolicies)
+	policyIds, err := u.ipPolicyResolver.ResolveIPPolicyNamesorIds(ctx, u.edge.Namespace, ipRestriction.IPPolicies)
 	if err != nil {
 		return err
 	}
@@ -943,7 +944,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 }
 
 func (u *edgeRouteModuleUpdater) getSecret(ctx context.Context, secretRef ingressv1alpha1.SecretKeyRef) (*string, error) {
-	secret, err := u.secretResolver.getSecret(ctx,
+	secret, err := u.secretResolver.GetSecret(ctx,
 		u.edge.Namespace,
 		secretRef.Name,
 		secretRef.Key,

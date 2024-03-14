@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
@@ -52,18 +53,21 @@ type Driver struct {
 	syncFullCh          chan error
 	syncPartialCh       chan error
 	syncAllowConcurrent bool
+
+	gatewayEnabled bool
 }
 
 // NewDriver creates a new driver with a basic logger and cache store setup
-func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName) *Driver {
+func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName, gatewayEnabled bool) *Driver {
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
 	return &Driver{
-		store:       s,
-		cacheStores: cacheStores,
-		log:         logger,
-		scheme:      scheme,
-		managerName: managerName,
+		store:          s,
+		cacheStores:    cacheStores,
+		log:            logger,
+		scheme:         scheme,
+		managerName:    managerName,
+		gatewayEnabled: gatewayEnabled,
 	}
 }
 
@@ -86,6 +90,8 @@ func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
 // each calculation will be based on an incomplete state of the world. It currently relies on:
 // - Ingresses
 // - IngressClasses
+// - Gateways
+// - HTTPRoutes
 // - Services
 // - Secrets
 // - Domains
@@ -109,6 +115,28 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	for _, ingClass := range ingressClasses.Items {
 		if err := d.store.Update(&ingClass); err != nil {
 			return err
+		}
+	}
+
+	if d.gatewayEnabled {
+		gateways := &gatewayv1.GatewayList{}
+		if err := c.List(ctx, gateways); err != nil {
+			return err
+		}
+		for _, gtw := range gateways.Items {
+			if err := d.store.Update(&gtw); err != nil {
+				return err
+			}
+		}
+
+		httproutes := &gatewayv1.HTTPRouteList{}
+		if err := c.List(ctx, httproutes); err != nil {
+			return err
+		}
+		for _, httproute := range httproutes.Items {
+			if err := d.store.Update(&httproute); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -183,8 +211,30 @@ func (d *Driver) UpdateIngress(ingress *netv1.Ingress) (*netv1.Ingress, error) {
 	return d.store.GetNgrokIngressV1(ingress.Name, ingress.Namespace)
 }
 
+func (d *Driver) UpdateGateway(gateway *gatewayv1.Gateway) (*gatewayv1.Gateway, error) {
+	if err := d.store.Update(gateway); err != nil {
+		return nil, err
+	}
+	return d.store.GetGateway(gateway.Name, gateway.Namespace)
+}
+
+func (d *Driver) UpdateHTTPRoute(httproute *gatewayv1.HTTPRoute) (*gatewayv1.HTTPRoute, error) {
+	if err := d.store.Update(httproute); err != nil {
+		return nil, err
+	}
+	return d.store.GetHTTPRoute(httproute.Name, httproute.Namespace)
+}
+
 func (d *Driver) DeleteIngress(ingress *netv1.Ingress) error {
 	return d.store.Delete(ingress)
+}
+
+func (d *Driver) DeleteGateway(gateway *gatewayv1.Gateway) error {
+	return d.store.Delete(gateway)
+}
+
+func (d *Driver) DeleteHTTPRoute(httproute *gatewayv1.HTTPRoute) error {
+	return d.store.Delete(httproute)
 }
 
 // Delete an ingress object given the NamespacedName
@@ -196,6 +246,22 @@ func (d *Driver) DeleteNamedIngress(n types.NamespacedName) error {
 	ingress.SetNamespace(n.Namespace)
 	ingress.SetName(n.Name)
 	return d.cacheStores.Delete(ingress)
+}
+
+func (d *Driver) DeleteNamedGateway(n types.NamespacedName) error {
+	gtw := &gatewayv1.Gateway{}
+	// set NamespacedName on the gateway object
+	gtw.SetNamespace(n.Namespace)
+	gtw.SetName(n.Name)
+	return d.cacheStores.Delete(gtw)
+}
+
+func (d *Driver) DeleteNamedHTTPRoute(n types.NamespacedName) error {
+	httproute := &gatewayv1.HTTPRoute{}
+	// set NamespacedName on the httproute object
+	httproute.SetNamespace(n.Namespace)
+	httproute.SetName(n.Name)
+	return d.cacheStores.Delete(httproute)
 }
 
 // syncStart will:
@@ -286,8 +352,8 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing driver state!!")
-	desiredDomains := d.calculateDomains()
-	desiredEdges := d.calculateHTTPSEdges()
+	desiredDomains, desiredIngressDomains, desiredGatewayDomainMap := d.calculateDomains()
+	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, desiredGatewayDomainMap)
 	desiredTunnels := d.calculateTunnels()
 
 	currDomains := &ingressv1alpha1.DomainList{}
@@ -329,6 +395,16 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
+	// UpdateGatewayStatuses
+	//if err := d.updateGatewayStatuses(ctx, c); err != nil {
+	//	return err
+	//}
+
+	// UpdateHTTPRouteStatuses
+	//if err := d.updateHTTPRouteStatuses(ctx, c); err != nil {
+	//	return err
+	//}
+
 	return nil
 }
 
@@ -342,8 +418,9 @@ func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing edges state!!")
+	_, desiredIngressDomains, desiredGatewayDomainMap := d.calculateDomains()
 
-	desiredEdges := d.calculateHTTPSEdges()
+	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, desiredGatewayDomainMap)
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
 	if err := c.List(ctx, currEdges, client.MatchingLabels{
 		labelControllerNamespace: d.managerName.Namespace,
@@ -497,9 +574,30 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 	return nil
 }
 
-func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
-	// make a map of string to domains
+func (d *Driver) calculateDomains() ([]ingressv1alpha1.Domain, []ingressv1alpha1.Domain, map[string]ingressv1alpha1.Domain) {
+	var domains, ingressDomains []ingressv1alpha1.Domain
+	ingressDomainMap := d.calculateDomainsFromIngress()
+
+	ingressDomains = make([]ingressv1alpha1.Domain, 0, len(ingressDomainMap))
+	for _, domain := range ingressDomainMap {
+		ingressDomains = append(ingressDomains, domain)
+		domains = append(domains, domain)
+	}
+
+	var gatewayDomainMap map[string]ingressv1alpha1.Domain
+	if d.gatewayEnabled {
+		gatewayDomainMap = d.calculateDomainsFromGateway(ingressDomainMap)
+		for _, domain := range gatewayDomainMap {
+			domains = append(domains, domain)
+		}
+	}
+
+	return domains, ingressDomains, gatewayDomainMap
+}
+
+func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain {
 	domainMap := make(map[string]ingressv1alpha1.Domain)
+
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		for _, rule := range ingress.Spec.Rules {
@@ -519,11 +617,40 @@ func (d *Driver) calculateDomains() []ingressv1alpha1.Domain {
 			domainMap[rule.Host] = domain
 		}
 	}
-	domains := make([]ingressv1alpha1.Domain, 0, len(domainMap))
-	for _, domain := range domainMap {
-		domains = append(domains, domain)
+
+	return domainMap
+}
+
+func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.Domain {
+	domainMap := make(map[string]ingressv1alpha1.Domain)
+
+	gateways := d.store.ListGateways()
+	for _, gw := range gateways {
+		for _, listener := range gw.Spec.Listeners {
+			if listener.Hostname == nil {
+				continue
+			}
+			domainName := string(*listener.Hostname)
+			if _, hasVal := ingressDomains[domainName]; hasVal {
+				// TODO update gateway status
+				// also add error to error page
+				continue
+			}
+			domain := ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      strings.Replace(domainName, ".", "-", -1),
+					Namespace: gw.Namespace,
+				},
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: domainName,
+				},
+			}
+			domain.Spec.Metadata = d.customMetadata
+			domainMap[domainName] = domain
+		}
 	}
-	return domains
+
+	return domainMap
 }
 
 // Given an ingress, it will resolve any ngrok modulesets defined on the ingress to the
@@ -550,11 +677,9 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	return computedModSet, nil
 }
 
-func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
-	domains := d.calculateDomains()
-
-	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(domains))
-	for _, domain := range domains {
+func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, gatewayDomainMap map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.HTTPSEdge {
+	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(*ingressDomains))
+	for _, domain := range *ingressDomains {
 		edge := ingressv1alpha1.HTTPSEdge{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: domain.Name + "-",
@@ -568,7 +693,84 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 		edge.Spec.Metadata = d.customMetadata
 		edgeMap[domain.Spec.Domain] = edge
 	}
+	d.calculateHTTPSEdgesFromIngress(edgeMap)
 
+	if d.gatewayEnabled {
+		gatewayEdgeMap := make(map[string]ingressv1alpha1.HTTPSEdge)
+		httproutes := d.store.ListHTTPRoutes()
+		gateways := d.store.ListGateways()
+		for _, gtw := range gateways {
+			gatewayDomains := make(map[string]string)
+			for _, listener := range gtw.Spec.Listeners {
+				if listener.Hostname == nil {
+					continue
+				}
+				if listener.Protocol != gatewayv1.HTTPSProtocolType || int(listener.Port) != 443 {
+					continue
+				}
+				if _, hasDomain := gatewayDomainMap[string(*listener.Hostname)]; !hasDomain {
+					continue
+				}
+				gatewayDomains[string(*listener.Hostname)] = string(*listener.Hostname)
+			}
+			if len(gatewayDomains) == 0 {
+				continue
+			}
+			for _, httproute := range httproutes {
+				var routeDomains []string
+				for _, parent := range httproute.Spec.ParentRefs {
+					if string(parent.Name) != gtw.Name {
+						continue
+					}
+					var domainOverlap []string
+					for _, hostname := range httproute.Spec.Hostnames {
+						domain := string(hostname)
+						if _, hasDomain := gatewayDomains[domain]; hasDomain {
+							domainOverlap = append(domainOverlap, domain)
+						}
+					}
+					if len(domainOverlap) == 0 {
+						// no hostnames overlap with gateway
+						continue
+					}
+					routeDomains = append(routeDomains, domainOverlap...)
+				}
+				if len(routeDomains) == 0 {
+					// no usable domains in route
+					continue
+				}
+				var hostPorts []string
+
+				for _, domain := range routeDomains {
+					hostPorts = append(hostPorts, domain+":443")
+				}
+				edge := ingressv1alpha1.HTTPSEdge{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: httproute.Name + "-",
+						Namespace:    httproute.Namespace,
+						Labels:       d.edgeLabels(routeDomains[0]),
+					},
+					Spec: ingressv1alpha1.HTTPSEdgeSpec{
+						Hostports: hostPorts,
+					},
+				}
+				edge.Spec.Metadata = d.customMetadata
+				gatewayEdgeMap[routeDomains[0]] = edge
+
+			}
+		}
+		d.calculateHTTPSEdgesFromGateway(gatewayEdgeMap)
+
+		// merge edge maps
+		for k, v := range gatewayEdgeMap {
+			edgeMap[k] = v
+		}
+	}
+
+	return edgeMap
+}
+
+func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		modSet, err := d.getNgrokModuleSetForIngress(ingress)
@@ -642,8 +844,424 @@ func (d *Driver) calculateHTTPSEdges() map[string]ingressv1alpha1.HTTPSEdge {
 			edgeMap[rule.Host] = edge
 		}
 	}
+}
 
-	return edgeMap
+func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
+	gateways := d.store.ListGateways()
+
+	for _, gtw := range gateways {
+		for _, listener := range gtw.Spec.Listeners {
+			if listener.Hostname == nil {
+				continue
+			}
+			allowedRoutes := listener.AllowedRoutes.Kinds
+			if len(allowedRoutes) > 0 {
+				createHttpsedge := false
+				for _, routeKind := range allowedRoutes {
+					if routeKind.Kind == "HTTPRoute" {
+						createHttpsedge = true
+					}
+				}
+				if !createHttpsedge {
+					continue
+				}
+			}
+			domainName := string(*listener.Hostname)
+			edge, ok := edgeMap[domainName]
+			if !ok {
+				continue
+			}
+			// TODO: Calculate routes from httpRoutes
+			// TODO: skip if no backend services
+			httproutes := d.store.ListHTTPRoutes()
+			for _, httproute := range httproutes {
+				for _, parent := range httproute.Spec.ParentRefs {
+					if string(parent.Name) != gtw.Name {
+						// not our gateway so skip
+						continue
+					}
+
+					if listener.AllowedRoutes != nil && listener.AllowedRoutes.Namespaces.From != nil {
+						switch *listener.AllowedRoutes.Namespaces.From {
+						case gatewayv1.NamespacesFromAll:
+						case gatewayv1.NamespacesFromSame:
+							if httproute.Namespace != gtw.Namespace {
+								continue
+							}
+						case gatewayv1.NamespacesFromSelector:
+							if httproute.Namespace != listener.AllowedRoutes.Namespaces.Selector.String() {
+								continue
+							}
+						}
+					}
+
+					// matches our gateway
+					for _, hostname := range httproute.Spec.Hostnames {
+						if string(hostname) != string(*listener.Hostname) {
+							// doesn't match this listener
+							continue
+						}
+						// matches gateway and listener
+						for _, rule := range httproute.Spec.Rules {
+							// TODO: resolve rule.Matches
+							// TODO: resolve rule.Filters
+							// for v0 we will only resolve the first backendRef
+							pathMatch := "/"
+							pathMatchType := "path_prefix"
+							// first match with a path will be accepted as the route's path
+							for _, match := range rule.Matches {
+								if match.Path != nil {
+									pathMatch = *match.Path.Value
+									if *match.Path.Type == gatewayv1.PathMatchExact {
+										pathMatchType = "exact_path"
+									}
+									break
+								}
+							}
+							route := ingressv1alpha1.HTTPSEdgeRouteSpec{
+								Match:     pathMatch,     // change based on the rule.match
+								MatchType: pathMatchType, // change based on rule.Matches
+							}
+
+							// TODO: set with values from rules.Filters + rules.Matches
+							policy, err := d.createEndpointPolicyForGateway(&rule)
+							if err != nil {
+								d.log.Error(err, "error creating policy from HTTPRouteRule", "rule", rule)
+								continue
+							}
+							route.Policy = policy
+
+							for idx, backendref := range rule.BackendRefs {
+								// currently the ingress controller doesn't support weighted backends
+								// so we'll only support one backendref per rule
+								// TODO: remove when tested with multiple backends
+								if idx > 0 {
+									break
+								}
+								// handle backendref
+								refKind := string(*backendref.Kind)
+								if refKind != "Service" {
+									// only support services currently
+									continue
+								}
+
+								refName := string(backendref.Name)
+								//refNamespace := string(*backendref.Namespace)
+								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, gtw.Namespace)
+								if err != nil {
+									d.log.Error(err, "could not find port for service", "namespace", gtw.Namespace, "service", refName)
+								}
+
+								route.Backend = ingressv1alpha1.TunnelGroupBackend{
+									Labels: d.ngrokLabels(gtw.Namespace, serviceUID, refName, servicePort),
+								}
+
+							}
+							// set different customMetadata for gateways next
+							route.Metadata = d.customMetadata
+
+							edge.Spec.Routes = append(edge.Spec.Routes, route)
+						}
+					}
+				}
+			}
+
+			edgeMap[domainName] = edge
+		}
+	}
+}
+
+type Actions struct {
+	endpointActions []ingressv1alpha1.EndpointAction
+}
+
+func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (*ingressv1alpha1.EndpointPolicy, error) {
+	inboundActions := Actions{}
+	outboundActions := Actions{}
+	expressions := []string{}
+	pathPrefixMatches := []string{}
+
+	// NOTE: matches are only defined on requests, and fitlers are only triggered by matches,
+	// but some fitlers define transformations on responses, so we need to define matches on both
+	// Policy.Inbound and Policy.Outbound when possible to work with ngrok's system
+	for _, match := range rule.Matches {
+		if match.Path != nil {
+			if match.Path.Type != nil {
+				switch *match.Path.Type {
+				case gatewayv1.PathMatchExact:
+				case gatewayv1.PathMatchPathPrefix:
+					if match.Path.Value != nil {
+						pathPrefixMatches = append(pathPrefixMatches, *match.Path.Value)
+					}
+				case gatewayv1.PathMatchRegularExpression:
+					return nil, errors.NewErrorNotFound(fmt.Sprintf("unsupported match type PathMatchType %v found", *match.Path.Type))
+				default:
+					return nil, errors.NewErrorNotFound(fmt.Sprintf("Unknown match type PathMatchType %v found", *match.Path.Type))
+				}
+			}
+		}
+
+		if match.Method != nil {
+			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPMethod", *match.Method)
+		}
+
+		if len(match.Headers) > 0 {
+			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPHeaderMatch", match.Headers)
+		}
+
+		if len(match.QueryParams) > 0 {
+			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPQueryParamMatch", match.QueryParams)
+		}
+	}
+
+	responseHeaders := make(map[string]string)
+	for _, filter := range rule.Filters {
+		switch filter.Type {
+		case gatewayv1.HTTPRouteFilterRequestRedirect:
+			// NOTE: request redirect is a special case, and is subject to change
+			err := d.handleRequestRedirectFilter(filter.RequestRedirect, pathPrefixMatches, &inboundActions, responseHeaders)
+			if err != nil {
+				return nil, err
+			}
+		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
+			err := d.handleHTTPHeaderFilter(filter.RequestHeaderModifier, &inboundActions, nil)
+			if err != nil {
+				return nil, err
+			}
+		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
+			err := d.handleHTTPHeaderFilter(filter.ResponseHeaderModifier, &outboundActions, responseHeaders)
+			if err != nil {
+				return nil, err
+			}
+		case gatewayv1.HTTPRouteFilterURLRewrite:
+			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
+		case gatewayv1.HTTPRouteFilterRequestMirror:
+			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
+		case gatewayv1.HTTPRouteFilterExtensionRef:
+			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
+		default:
+			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unknown filter HTTPRouteFilterType %v found", filter.Type))
+		}
+	}
+
+	var policy *ingressv1alpha1.EndpointPolicy
+	enabled := true
+
+	if len(expressions) > 1 {
+		expressions = []string{strings.Join(expressions[:], " || ")}
+	}
+
+	if len(inboundActions.endpointActions) > 0 {
+		policy = &ingressv1alpha1.EndpointPolicy{
+			Enabled: &enabled,
+			// NOTE: Mapping each HTTPRouteRule to one Inbound endpoint rule
+			Inbound: []ingressv1alpha1.EndpointRule{
+				{
+					Expressions: expressions,
+					Actions:     inboundActions.endpointActions,
+					Name:        "Inbound HTTPRouteRule",
+				},
+			},
+		}
+	}
+	if len(outboundActions.endpointActions) > 0 {
+		if policy == nil {
+			policy = &ingressv1alpha1.EndpointPolicy{
+				Enabled: &enabled,
+			}
+		}
+
+		policy.Outbound = []ingressv1alpha1.EndpointRule{
+			{
+				Expressions: expressions,
+				Actions:     outboundActions.endpointActions,
+				Name:        "Outbound HTTPRouteRule",
+			},
+		}
+	}
+
+	return policy, nil
+}
+
+type RemoveHeadersConfig struct {
+	Headers []string `json:"headers"`
+}
+
+type AddHeadersConfig struct {
+	Headers map[string]string `json:"headers"`
+}
+
+func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions *Actions, requestRedirectHeaders map[string]string) error {
+	if filter == nil {
+		return nil
+	}
+
+	if err := d.handleHTTPHeaderFilterRemove(filter.Remove, actions); err != nil {
+		return err
+	}
+
+	if err := d.handleHTTPHeaderFilterAdd(filter.Add, actions, requestRedirectHeaders); err != nil {
+		return err
+	}
+
+	if err := d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions *Actions) error {
+	if len(headersToRemove) == 0 {
+		return nil
+	}
+
+	removeHeaders, err := json.Marshal(RemoveHeadersConfig{Headers: headersToRemove})
+	if err != nil {
+		d.log.Error(err, "cannot convert headers to json", "headers", headersToRemove)
+		return err
+	}
+
+	actions.endpointActions = append(actions.endpointActions, ingressv1alpha1.EndpointAction{
+		Type:   "remove-headers",
+		Config: removeHeaders,
+	})
+
+	return nil
+}
+
+func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, actions *Actions, requestRedirectHeaders map[string]string) error {
+	if len(headersToAdd) == 0 {
+		return nil
+	}
+
+	config := AddHeadersConfig{Headers: make(map[string]string)}
+	for _, header := range headersToAdd {
+		config.Headers[string(header.Name)] = header.Value
+	}
+
+	if requestRedirectHeaders != nil {
+		for k, v := range config.Headers {
+			requestRedirectHeaders[k] = v
+		}
+	}
+
+	addHeaders, err := json.Marshal(config)
+	if err != nil {
+		d.log.Error(err, "cannot convert headers to json", "headers", headersToAdd)
+		return err
+	}
+
+	actions.endpointActions = append(actions.endpointActions, ingressv1alpha1.EndpointAction{
+		Type:   "add-headers",
+		Config: addHeaders,
+	})
+
+	return nil
+}
+
+func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, actions *Actions, requestRedirectHeaders map[string]string) error {
+	if filter == nil {
+		return nil
+	}
+	removeHeaders := []string{}
+	for _, header := range filter.Set {
+		removeHeaders = append(removeHeaders, string(header.Name))
+	}
+
+	if err := d.handleHTTPHeaderFilterRemove(removeHeaders, actions); err != nil {
+		return err
+	}
+
+	if err := d.handleHTTPHeaderFilterAdd(filter.Set, actions, requestRedirectHeaders); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type URLRedirectConfig struct {
+	To         *string `json:"to"`
+	From       *string `json:"from"`
+	StatusCode *int    `json:"status_code"`
+	// convert to response headers
+	Headers map[string]string `json:"headers"`
+}
+
+func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders map[string]string, statusCode *int, actions *Actions) error {
+	urlRedirectAction := URLRedirectConfig{
+		To:         &to,
+		From:       &from,
+		StatusCode: statusCode,
+		Headers:    requestHeaders,
+	}
+	config, err := json.Marshal(urlRedirectAction)
+
+	if err != nil {
+		d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", urlRedirectAction)
+		return err
+	}
+	actions.endpointActions = append(
+		actions.endpointActions,
+		ingressv1alpha1.EndpointAction{
+			Type:   "redirect",
+			Config: config,
+		},
+	)
+
+	return nil
+}
+
+func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions *Actions, requestHeaders map[string]string) error {
+	if filter == nil {
+		return nil
+	}
+
+	scheme := "$scheme"
+	if filter.Scheme != nil {
+		scheme = *filter.Scheme
+	}
+	hostname := "$host"
+	if filter.Hostname != nil {
+		hostname = string(*filter.Hostname)
+	}
+	port := "$1" // (:[0-9]*)?
+	if filter.Port != nil {
+		port = string(*filter.Port)
+	}
+
+	if filter.Path == nil {
+		from := ".*" //"^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
+		to := fmt.Sprintf("%s://%s%s$uri", scheme, hostname, port)
+		err := d.createUrlRedirectConfig(from, to, requestHeaders, filter.StatusCode, actions)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	switch filter.Path.Type {
+	case "ReplacePrefixMatch":
+		for _, pathPrefix := range pathPrefixMatches {
+			from := fmt.Sprintf("^https?://[^/:]+(:[0-9]*)?(%s)([^\\?]*)(\\?.*)?$", pathPrefix)
+			to := fmt.Sprintf("%s://%s%s%s$3$is_args$args", scheme, hostname, port, *filter.Path.ReplacePrefixMatch)
+			err := d.createUrlRedirectConfig(from, to, requestHeaders, filter.StatusCode, actions)
+			if err != nil {
+				return err
+			}
+		}
+	case "ReplaceFullPath":
+		from := ".*" //"^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
+		to := fmt.Sprintf("%s://%s%s%s$is_args$args", scheme, hostname, port, *filter.Path.ReplaceFullPath)
+		err := d.createUrlRedirectConfig(from, to, requestHeaders, filter.StatusCode, actions)
+		if err != nil {
+			return err
+		}
+	default:
+		d.log.Error(fmt.Errorf("Unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
+		return nil
+	}
+	return nil
 }
 
 type tunnelKey struct {
@@ -662,11 +1280,17 @@ func (d *Driver) tunnelKeyFromTunnel(tunnel ingressv1alpha1.Tunnel) tunnelKey {
 
 func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 	tunnels := map[tunnelKey]ingressv1alpha1.Tunnel{}
+	d.calculateTunnelsFromIngress(tunnels)
+	d.calculateTunnelsFromGateway(tunnels)
+	return tunnels
+}
 
+func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alpha1.Tunnel) {
 	for _, ingress := range d.store.ListNgrokIngressesV1() {
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
-				// We only support service backends right now. TODO: support resource backends
+				// We only support service backends right now.
+				// TODO: support resource backends
 				if path.Backend.Service == nil {
 					continue
 				}
@@ -722,8 +1346,72 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 			}
 		}
 	}
+}
 
-	return tunnels
+func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alpha1.Tunnel) {
+	httproutes := d.store.ListHTTPRoutes()
+
+	for _, httproute := range httproutes {
+		for _, rule := range httproute.Spec.Rules {
+			for _, backendRef := range rule.BackendRefs {
+				// We only support service backends right now.
+				// TODO: support resource backends
+
+				//if path.Backend.Service == nil {
+				//	continue
+				//}
+
+				serviceName := string(backendRef.Name)
+				serviceUID, servicePort, protocol, appProtocol, err := d.getTunnelBackendFromGateway(backendRef.BackendRef, httproute.Namespace)
+				if err != nil {
+					d.log.Error(err, "could not find port for service", "namespace", httproute.Namespace, "service", serviceName)
+				}
+
+				key := tunnelKey{httproute.Namespace, serviceName, strconv.Itoa(int(servicePort))}
+				tunnel, found := tunnels[key]
+				if !found {
+					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, clusterDomain, servicePort)
+					tunnel = ingressv1alpha1.Tunnel{
+						ObjectMeta: metav1.ObjectMeta{
+							GenerateName:    fmt.Sprintf("%s-%d-", serviceName, servicePort),
+							Namespace:       httproute.Namespace,
+							OwnerReferences: nil, // fill owner references below
+							Labels:          d.tunnelLabels(serviceName, servicePort),
+						},
+						Spec: ingressv1alpha1.TunnelSpec{
+							ForwardsTo: targetAddr,
+							Labels:     d.ngrokLabels(httproute.Namespace, serviceUID, serviceName, servicePort),
+							BackendConfig: &ingressv1alpha1.BackendConfig{
+								Protocol: protocol,
+							},
+							AppProtocol: appProtocol,
+						},
+					}
+				}
+
+				hasReference := false
+				for _, ref := range tunnel.OwnerReferences {
+					if ref.UID == httproute.UID {
+						hasReference = true
+						break
+					}
+				}
+				if !hasReference {
+					tunnel.OwnerReferences = append(tunnel.OwnerReferences, metav1.OwnerReference{
+						APIVersion: httproute.APIVersion,
+						Kind:       httproute.Kind,
+						Name:       httproute.Name,
+						UID:        httproute.UID,
+					})
+					slices.SortStableFunc(tunnel.OwnerReferences, func(i, j metav1.OwnerReference) int {
+						return cmp.Compare(string(i.UID), string(j.UID))
+					})
+				}
+
+				tunnels[key] = tunnel
+			}
+		}
+	}
 }
 
 func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c client.Reader) []netv1.IngressLoadBalancerIngress {
@@ -759,8 +1447,59 @@ func (d *Driver) getEdgeBackend(backendSvc netv1.IngressServiceBackend, namespac
 	return string(service.UID), servicePort.Port, nil
 }
 
+func (d *Driver) getEdgeBackendRef(backendRef gatewayv1.BackendRef, namespace string) (string, int32, error) {
+	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return string(service.UID), servicePort.Port, nil
+}
+
+func (d *Driver) findBackendRefServicePort(backendRef gatewayv1.BackendRef, namespace string) (*corev1.Service, *corev1.ServicePort, error) {
+	service, err := d.store.GetServiceV1(string(backendRef.Name), namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+	servicePort, err := d.findBackendRefServicesPort(service, &backendRef)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return service, servicePort, nil
+}
+
+func (d *Driver) findBackendRefServicesPort(service *corev1.Service, backendRef *gatewayv1.BackendRef) (*corev1.ServicePort, error) {
+	for _, port := range service.Spec.Ports {
+		if (int32(*backendRef.Port) > 0 && port.Port == int32(*backendRef.Port)) || port.Name == string(backendRef.Name) {
+			d.log.V(3).Info("Found matching port for service", "namespace", service.Namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
+			return &port, nil
+		}
+	}
+	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, int32(*backendRef.Port), string(backendRef.Name))
+}
+
 func (d *Driver) getTunnelBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, string, string, error) {
 	service, servicePort, err := d.findBackendServicePort(backendSvc, namespace)
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	protocol, err := d.getPortAnnotatedProtocol(service, servicePort.Name)
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	appProtocol, err := d.getPortAppProtocol(service, servicePort)
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	return string(service.UID), servicePort.Port, protocol, appProtocol, nil
+}
+
+func (d *Driver) getTunnelBackendFromGateway(backendRef gatewayv1.BackendRef, namespace string) (string, int32, string, string, error) {
+	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
 	if err != nil {
 		return "", 0, "", "", err
 	}
