@@ -182,7 +182,7 @@ func (s Store) GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("Service %v not found", name))
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("HTTPRoute %v not found", name))
 	}
 	return obj.(*gatewayv1.HTTPRoute), nil
 }
