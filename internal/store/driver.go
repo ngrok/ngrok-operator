@@ -927,7 +927,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 							}
 
 							// TODO: set with values from rules.Filters + rules.Matches
-							policy, err := d.createNgrokModuleSetForGateway(&rule)
+							policy, err := d.createEndpointPolicyForGateway(&rule)
 							if err != nil {
 								d.log.Error(err, "error creating ngrok moduleset for HTTPRouteRule", "rule", rule)
 								continue
@@ -974,7 +974,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 	}
 }
 
-func (d *Driver) createNgrokModuleSetForGateway(rule *gatewayv1.HTTPRouteRule) (*ingressv1alpha1.EndpointPolicy, error) {
+func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (*ingressv1alpha1.EndpointPolicy, error) {
 	var inboundActions *[]ingressv1alpha1.EndpointAction
 	var outboundActions *[]ingressv1alpha1.EndpointAction
 	expressions := []string{}
