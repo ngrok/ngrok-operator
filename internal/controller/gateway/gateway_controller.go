@@ -127,7 +127,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if err := r.Driver.Sync(ctx, r.Client); err != nil {
-		log.Error(err, "Faild to sync")
+		log.Error(err, "Failed to sync")
 		return ctrl.Result{}, err
 	}
 

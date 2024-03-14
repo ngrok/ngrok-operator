@@ -92,7 +92,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 	} else {
-		log.Info("Deleting gateway from store")
+		log.Info("Deleting httproute from store")
 		if controllers.HasFinalizer(httproute) {
 			if err := controllers.RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
 				log.Error(err, "Failed to remove finalizer")
@@ -107,7 +107,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	if err := r.Driver.Sync(ctx, r.Client); err != nil {
-		log.Error(err, "Faild to sync")
+		log.Error(err, "Failed to sync")
 		return ctrl.Result{}, err
 	}
 
