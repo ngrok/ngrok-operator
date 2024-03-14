@@ -1096,18 +1096,15 @@ func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, acti
 		*actions = &[]ingressv1alpha1.EndpointAction{}
 	}
 
-	err := d.handleHTTPHeaderFilterRemove(filter.Remove, actions)
-	if err != nil {
+	if err := d.handleHTTPHeaderFilterRemove(filter.Remove, actions); err != nil {
 		return err
 	}
 
-	err = d.handleHTTPHeaderFilterAdd(filter.Add, actions, requestRedirectHeaders)
-	if err != nil {
+	if err := d.handleHTTPHeaderFilterAdd(filter.Add, actions, requestRedirectHeaders); err != nil {
 		return err
 	}
 
-	err = d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders)
-	if err != nil {
+	if err := d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders); err != nil {
 		return err
 	}
 
@@ -1171,13 +1168,12 @@ func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, a
 	for _, header := range filter.Set {
 		removeHeaders = append(removeHeaders, string(header.Name))
 	}
-	err := d.handleHTTPHeaderFilterRemove(removeHeaders, actions)
-	if err != nil {
+
+	if err := d.handleHTTPHeaderFilterRemove(removeHeaders, actions); err != nil {
 		return err
 	}
-	// add headers
-	err = d.handleHTTPHeaderFilterAdd(filter.Set, actions, requestRedirectHeaders)
-	if err != nil {
+
+	if err := d.handleHTTPHeaderFilterAdd(filter.Set, actions, requestRedirectHeaders); err != nil {
 		return err
 	}
 
