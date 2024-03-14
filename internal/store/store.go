@@ -268,14 +268,15 @@ func (s Store) ListGateways() []*gatewayv1.Gateway {
 func (s Store) ListHTTPRoutes() []*gatewayv1.HTTPRoute {
 	var httproutes []*gatewayv1.HTTPRoute
 
-	cache.ListAll(s.stores.HTTPRoute, labels.NewSelector(),
-		func(ob interface{}) {
-			httproute, ok := ob.(*gatewayv1.HTTPRoute)
-			if ok {
-				httproutes = append(httproutes, httproute)
-			}
-		},
-	)
+	for _, item := range s.stores.HTTPRoute.List() {
+		httproute, ok := item.(*gatewayv1.HTTPRoute)
+		if !ok {
+			e := fmt.Sprintf("HTTPRoute: dropping object of unexpected type: %#v", item)
+			s.log.Error(fmt.Errorf(e), e)
+			continue
+		}
+		httproutes = append(httproutes, httproute)
+	}
 
 	return httproutes
 }
