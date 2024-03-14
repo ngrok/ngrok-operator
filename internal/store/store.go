@@ -23,9 +23,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/cache"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/go-logr/logr"

@@ -1088,22 +1088,25 @@ type AddHeadersConfig struct {
 }
 
 func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions **[]ingressv1alpha1.EndpointAction, requestRedirectHeaders map[string]string) error {
+	if filter == nil {
+		return nil
+	}
+
 	if *actions == nil {
 		*actions = &[]ingressv1alpha1.EndpointAction{}
 	}
-	if filter != nil {
-		err := d.handleHTTPHeaderFilterRemove(filter.Remove, actions)
-		if err != nil {
-			return err
-		}
-		err = d.handleHTTPHeaderFilterAdd(filter.Add, actions, requestRedirectHeaders)
-		if err != nil {
-			return err
-		}
-		err = d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders)
-		if err != nil {
-			return err
-		}
+
+	err := d.handleHTTPHeaderFilterRemove(filter.Remove, actions)
+	if err != nil {
+		return err
+	}
+	err = d.handleHTTPHeaderFilterAdd(filter.Add, actions, requestRedirectHeaders)
+	if err != nil {
+		return err
+	}
+	err = d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders)
+	if err != nil {
+		return err
 	}
 
 	return nil
