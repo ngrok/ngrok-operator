@@ -971,9 +971,13 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 	}
 }
 
+type Actions struct {
+	endpointActions []ingressv1alpha1.EndpointAction
+}
+
 func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (*ingressv1alpha1.EndpointPolicy, error) {
-	var inboundActions *[]ingressv1alpha1.EndpointAction
-	var outboundActions *[]ingressv1alpha1.EndpointAction
+	inboundActions := Actions{}
+	outboundActions := Actions{}
 	expressions := []string{}
 	pathPrefixMatches := []string{}
 
@@ -1047,20 +1051,20 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 		expressions = []string{strings.Join(expressions[:], " || ")}
 	}
 
-	if inboundActions != nil {
+	if len(inboundActions.endpointActions) > 0 {
 		policy = &ingressv1alpha1.EndpointPolicy{
 			Enabled: &enabled,
 			// NOTE: Mapping each HTTPRouteRule to one Inbound endpoint rule
 			Inbound: []ingressv1alpha1.EndpointRule{
 				{
 					Expressions: expressions,
-					Actions:     *inboundActions,
+					Actions:     inboundActions.endpointActions,
 					Name:        "Inbound HTTPRouteRule",
 				},
 			},
 		}
 	}
-	if outboundActions != nil {
+	if len(outboundActions.endpointActions) > 0 {
 		if policy == nil {
 			policy = &ingressv1alpha1.EndpointPolicy{
 				Enabled: &enabled,
@@ -1070,7 +1074,7 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 		policy.Outbound = []ingressv1alpha1.EndpointRule{
 			{
 				Expressions: expressions,
-				Actions:     *outboundActions,
+				Actions:     outboundActions.endpointActions,
 				Name:        "Outbound HTTPRouteRule",
 			},
 		}
@@ -1087,13 +1091,9 @@ type AddHeadersConfig struct {
 	Headers map[string]string `json:"headers"`
 }
 
-func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions **[]ingressv1alpha1.EndpointAction, requestRedirectHeaders map[string]string) error {
+func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions *Actions, requestRedirectHeaders map[string]string) error {
 	if filter == nil {
 		return nil
-	}
-
-	if *actions == nil {
-		*actions = &[]ingressv1alpha1.EndpointAction{}
 	}
 
 	if err := d.handleHTTPHeaderFilterRemove(filter.Remove, actions); err != nil {
@@ -1111,7 +1111,7 @@ func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, acti
 	return nil
 }
 
-func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions **[]ingressv1alpha1.EndpointAction) error {
+func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions *Actions) error {
 	if len(headersToRemove) == 0 {
 		return nil
 	}
@@ -1122,7 +1122,7 @@ func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions 
 		return err
 	}
 
-	**actions = append(**actions, ingressv1alpha1.EndpointAction{
+	actions.endpointActions = append(actions.endpointActions, ingressv1alpha1.EndpointAction{
 		Type:   "remove-headers",
 		Config: removeHeaders,
 	})
@@ -1130,7 +1130,7 @@ func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions 
 	return nil
 }
 
-func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, actions **[]ingressv1alpha1.EndpointAction, requestRedirectHeaders map[string]string) error {
+func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, actions *Actions, requestRedirectHeaders map[string]string) error {
 	if len(headersToAdd) == 0 {
 		return nil
 	}
@@ -1152,7 +1152,7 @@ func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, 
 		return err
 	}
 
-	**actions = append(**actions, ingressv1alpha1.EndpointAction{
+	actions.endpointActions = append(actions.endpointActions, ingressv1alpha1.EndpointAction{
 		Type:   "add-headers",
 		Config: addHeaders,
 	})
@@ -1160,7 +1160,7 @@ func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, 
 	return nil
 }
 
-func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, actions **[]ingressv1alpha1.EndpointAction, requestRedirectHeaders map[string]string) error {
+func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, actions *Actions, requestRedirectHeaders map[string]string) error {
 	if filter == nil {
 		return nil
 	}
@@ -1188,7 +1188,7 @@ type URLRedirectConfig struct {
 	Headers map[string]string `json:"headers"`
 }
 
-func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders map[string]string, statusCode *int, actions **[]ingressv1alpha1.EndpointAction) error {
+func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders map[string]string, statusCode *int, actions *Actions) error {
 	urlRedirectAction := URLRedirectConfig{
 		To:         &to,
 		From:       &from,
@@ -1201,8 +1201,8 @@ func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders 
 		d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", urlRedirectAction)
 		return err
 	}
-	**actions = append(
-		**actions,
+	actions.endpointActions = append(
+		actions.endpointActions,
 		ingressv1alpha1.EndpointAction{
 			Type:   "redirect",
 			Config: config,
@@ -1212,12 +1212,9 @@ func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders 
 	return nil
 }
 
-func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions **[]ingressv1alpha1.EndpointAction, requestHeaders map[string]string) error {
+func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions *Actions, requestHeaders map[string]string) error {
 	if filter == nil {
 		return nil
-	}
-	if *actions == nil {
-		*actions = &[]ingressv1alpha1.EndpointAction{}
 	}
 
 	scheme := "$scheme"
