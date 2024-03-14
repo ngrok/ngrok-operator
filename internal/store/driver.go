@@ -1396,14 +1396,14 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 					}
 				}
 
-				hasIngressReference := false
+				hasReference := false
 				for _, ref := range tunnel.OwnerReferences {
 					if ref.UID == httproute.UID {
-						hasIngressReference = true
+						hasReference = true
 						break
 					}
 				}
-				if !hasIngressReference {
+				if !hasReference {
 					tunnel.OwnerReferences = append(tunnel.OwnerReferences, metav1.OwnerReference{
 						APIVersion: httproute.APIVersion,
 						Kind:       httproute.Kind,
