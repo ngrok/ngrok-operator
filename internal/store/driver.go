@@ -574,14 +574,6 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 	return nil
 }
 
-//func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) error {
-//	gateways := d.store.ListGateways()
-//	for _, gw := range gateways {
-//    // update gw.Status.Conditions here
-//	}
-//	return nil
-//}
-
 func (d *Driver) calculateDomains() ([]ingressv1alpha1.Domain, []ingressv1alpha1.Domain, map[string]ingressv1alpha1.Domain) {
 	var domains, ingressDomains []ingressv1alpha1.Domain
 	ingressDomainMap := d.calculateDomainsFromIngress()
