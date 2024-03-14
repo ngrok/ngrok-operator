@@ -730,13 +730,13 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain) m
 							}
 						}
 					}
-					if len(domainOverlap) <= 0 {
+					if len(domainOverlap) == 0 {
 						// no hostnames overlap with gateway
 						continue
 					}
 					routeDomains = append(routeDomains, domainOverlap...)
 				}
-				if len(routeDomains) <= 0 {
+				if len(routeDomains) == 0 {
 					// no usable domains in route
 					continue
 				}
