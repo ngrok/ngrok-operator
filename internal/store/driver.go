@@ -867,13 +867,6 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 			if !ok {
 				continue
 			}
-			// TODO: Set policy from rules.matches and rules.fitlers
-			// skip moduleset and ignore TLS termination for now.
-			//if string(*listener.TLS.Mode) != "Terminate" {
-			//	// set gateway class status here
-			//	// gtw.Status.Conditions
-			//	continue
-			//}
 			// TODO: Calculate routes from httpRoutes
 			// TODO: skip if no backend services
 			httproutes := d.store.ListHTTPRoutes()
@@ -1019,7 +1012,7 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 	for _, filter := range rule.Filters {
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestRedirect:
-			// request redirecrt is a special case, and is subject to change
+			// NOTE: request redirect is a special case, and is subject to change
 			d.handleRequestRedirectFilter(filter.RequestRedirect, pathPrefixMatches, &inboundActions, responseHeaders)
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
 			d.handleHTTPHeaderFilter(filter.RequestHeaderModifier, &inboundActions, nil)
