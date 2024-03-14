@@ -594,7 +594,7 @@ func (d *Driver) calculateDomains() ([]ingressv1alpha1.Domain, []ingressv1alpha1
 
 	var gatewayDomainMap map[string]ingressv1alpha1.Domain
 	if d.gatewayEnabled {
-		gatewayDomainMap := d.calculateDomainsFromGateway(ingressDomainMap)
+		gatewayDomainMap = d.calculateDomainsFromGateway(ingressDomainMap)
 		for _, domain := range gatewayDomainMap {
 			domains = append(domains, domain)
 		}
