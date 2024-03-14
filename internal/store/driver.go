@@ -713,7 +713,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				if listener.Hostname == nil {
 					continue
 				}
-				if listener.Protocol != gatewayv1.HTTPSProtocolType || int(listener.Port) !=  443 {
+				if listener.Protocol != gatewayv1.HTTPSProtocolType || int(listener.Port) != 443 {
 					continue
 				}
 				if _, hasDomain := gatewayDomainMap[string(*listener.Hostname)]; !hasDomain {
@@ -929,7 +929,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 							// TODO: set with values from rules.Filters + rules.Matches
 							policy, err := d.createEndpointPolicyForGateway(&rule)
 							if err != nil {
-								d.log.Error(err, "error creating ngrok moduleset for HTTPRouteRule", "rule", rule)
+								d.log.Error(err, "error creating policy from HTTPRouteRule", "rule", rule)
 								continue
 							}
 							route.Policy = policy
@@ -1026,17 +1026,13 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
 			d.handleHTTPHeaderFilter(filter.ResponseHeaderModifier, &outboundActions, responseHeaders)
 		case gatewayv1.HTTPRouteFilterURLRewrite:
-			d.log.Error(fmt.Errorf("Unsupported filter type"), "unsupported filter type", "HTTPRouteFilterType", filter.Type)
-			continue
+			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
 		case gatewayv1.HTTPRouteFilterRequestMirror:
-			d.log.Error(fmt.Errorf("Unsupported filter type"), "unsupported filter type", "HTTPRouteFilterType", filter.Type)
-			continue
+			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
 		case gatewayv1.HTTPRouteFilterExtensionRef:
-			d.log.Error(fmt.Errorf("Unsupported filter type"), "unsupported filter type", "HTTPRouteFilterType", filter.Type)
-			continue
+			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
 		default:
-			d.log.Error(fmt.Errorf("Unknown filter type"), "Unknown filter type", "HTTPRouteFilterType", filter.Type)
-			continue
+			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unknown filter HTTPRouteFilterType %v found", filter.Type))
 		}
 	}
 
