@@ -990,11 +990,9 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 						pathPrefixMatches = append(pathPrefixMatches, *match.Path.Value)
 					}
 				case gatewayv1.PathMatchRegularExpression:
-					d.log.Error(fmt.Errorf("Unsupported match type"), "unsupported match type", "PathMatchType", *match.Path.Type)
-					continue
+					return nil, errors.NewErrorNotFound(fmt.Sprintf("unsupported match type PathMatchType %v found", *match.Path.Type))
 				default:
-					d.log.Error(fmt.Errorf("Unknown match type"), "Unknown match type", "PathMatchType", *match.Path.Type)
-					continue
+					return nil, errors.NewErrorNotFound(fmt.Sprintf("Unknown match type PathMatchType %v found", *match.Path.Type))
 				}
 			}
 		}
