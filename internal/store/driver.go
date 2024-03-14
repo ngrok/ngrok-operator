@@ -704,7 +704,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 	d.calculateHTTPSEdgesFromIngress(edgeMap)
 
 	if d.gatewayEnabled {
-
+		gatewayEdgeMap := make(map[string]ingressv1alpha1.HTTPSEdge)
 		httproutes := d.store.ListHTTPRoutes()
 		gateways := d.store.ListGateways()
 		for _, gtw := range gateways {
@@ -763,11 +763,16 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 					},
 				}
 				edge.Spec.Metadata = d.customMetadata
-				edgeMap[routeDomains[0]] = edge
+				gatewayEdgeMap[routeDomains[0]] = edge
 
 			}
 		}
-		d.calculateHTTPSEdgesFromGateway(edgeMap)
+		d.calculateHTTPSEdgesFromGateway(gatewayEdgeMap)
+
+		// merge edge maps
+		for k, v := range gatewayEdgeMap {
+			edgeMap[k] = v
+		}
 	}
 
 	return edgeMap
