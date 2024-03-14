@@ -715,7 +715,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				}
 				gatewayDomains = append(gatewayDomains, string(*listener.Hostname))
 			}
-			if len(gatewayDomains) <= 0 {
+			if len(gatewayDomains) == 0 {
 				continue
 			}
 			for _, httproute := range httproutes {
