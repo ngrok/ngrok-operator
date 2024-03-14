@@ -708,7 +708,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 		httproutes := d.store.ListHTTPRoutes()
 		gateways := d.store.ListGateways()
 		for _, gtw := range gateways {
-			var gatewayDomains []string
+			gatewayDomains := make(map[string]string)
 			for _, listener := range gtw.Spec.Listeners {
 				if listener.Hostname == nil {
 					continue
@@ -716,7 +716,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				if _, hasDomain := gatewayDomainMap[string(*listener.Hostname)]; !hasDomain {
 					continue
 				}
-				gatewayDomains = append(gatewayDomains, string(*listener.Hostname))
+				gatewayDomains[string(*listener.Hostname)] = string(*listener.Hostname)
 			}
 			if len(gatewayDomains) == 0 {
 				continue
@@ -729,10 +729,9 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 					}
 					var domainOverlap []string
 					for _, hostname := range httproute.Spec.Hostnames {
-						for _, parentDomain := range gatewayDomains {
-							if parentDomain == string(hostname) {
-								domainOverlap = append(domainOverlap, parentDomain)
-							}
+						domain := string(hostname)
+						if _, hasDomain := gatewayDomains[domain]; hasDomain {
+							domainOverlap = append(domainOverlap, domain)
 						}
 					}
 					if len(domainOverlap) == 0 {
