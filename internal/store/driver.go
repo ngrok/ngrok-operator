@@ -713,6 +713,9 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				if listener.Hostname == nil {
 					continue
 				}
+				if listener.Protocol != gatewayv1.HTTPSProtocolType || int(listener.Port) !=  443 {
+					continue
+				}
 				if _, hasDomain := gatewayDomainMap[string(*listener.Hostname)]; !hasDomain {
 					continue
 				}
