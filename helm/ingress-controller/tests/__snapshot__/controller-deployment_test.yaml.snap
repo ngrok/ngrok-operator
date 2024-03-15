@@ -12,8 +12,8 @@ Should match all-options snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: kubernetes-ingress-controller
         app.kubernetes.io/part-of: kubernetes-ingress-controller
-        app.kubernetes.io/version: 0.10.2
-        helm.sh/chart: kubernetes-ingress-controller-0.12.2
+        app.kubernetes.io/version: 0.10.3
+        helm.sh/chart: kubernetes-ingress-controller-0.12.3
       name: RELEASE-NAME-kubernetes-ingress-controller-manager
       namespace: NAMESPACE
     spec:
@@ -81,7 +81,7 @@ Should match all-options snapshot:
                 value: test-value
             - name: TEST_ENV_VAR
               value: test
-            image: docker.io/ngrok/kubernetes-ingress-controller:0.10.2
+            image: docker.io/ngrok/kubernetes-ingress-controller:0.10.3
             imagePullPolicy: IfNotPresent
             livenessProbe:
               httpGet:
@@ -512,8 +512,8 @@ Should match default snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: kubernetes-ingress-controller
         app.kubernetes.io/part-of: kubernetes-ingress-controller
-        app.kubernetes.io/version: 0.10.2
-        helm.sh/chart: kubernetes-ingress-controller-0.12.2
+        app.kubernetes.io/version: 0.10.3
+        helm.sh/chart: kubernetes-ingress-controller-0.12.3
       name: RELEASE-NAME-kubernetes-ingress-controller-manager
       namespace: NAMESPACE
     spec:
@@ -574,7 +574,7 @@ Should match default snapshot:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            image: docker.io/ngrok/kubernetes-ingress-controller:0.10.2
+            image: docker.io/ngrok/kubernetes-ingress-controller:0.10.3
             imagePullPolicy: IfNotPresent
             livenessProbe:
               httpGet:
