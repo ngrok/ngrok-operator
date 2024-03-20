@@ -28,6 +28,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
+        checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
       labels:
         {{- include "kubernetes-ingress-controller.selectorLabels" . | nindent 8 }}
         {{- if .Values.podLabels }}
