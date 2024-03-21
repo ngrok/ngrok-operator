@@ -69,7 +69,7 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 
 To install the developer preview of the gateway api we'll make the following changes to the above instructions.
 
-Install the v1 gateway CRD before helm installing.
+Install the v1 gateway CRD before the helm installation.
 ```sh
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
 ```
