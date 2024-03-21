@@ -17,6 +17,9 @@
   <a href="#features-and-beta-status">
     <img src="https://img.shields.io/badge/Status-Beta-orange.svg" alt="Status"/>
   </a>
+   <a href="#gateway-api-status">
+    <img src="https://img.shields.io/badge/Gateway_API-preview-rgba(159%2C122%2C234)" alt="Gateway API Preivew"/>
+  </a>
   <a href="https://ngrok.com/slack">
     <img src="https://img.shields.io/badge/Join%20Our%20Community-Slack-blue" alt="Slack"/>
   </a>
@@ -62,6 +65,25 @@ helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
 
 For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 
+#### Gateway API Prview
+
+To install the developer preview of the gateway api we'll make the following changes to the above instructions.
+
+Install the v1 gateway CRD before helm installing.
+```sh
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+```
+
+Then, during the helm install set the experimental gateway flag.
+
+```sh
+helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+  --namespace $NAMESPACE \
+  --create-namespace \
+  --set credentials.apiKey=$NGROK_API_KEY \
+  --set credentials.authtoken=$NGROK_AUTHTOKEN \
+  --set useExperimentalGatewayApi=true  # gateway preview
+```
 ### YAML Manifests
 
 Apply the [sample combined manifest](manifest-bundle.yaml) from our repo:
