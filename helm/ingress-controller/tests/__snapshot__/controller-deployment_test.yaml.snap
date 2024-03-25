@@ -26,6 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
+            checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
@@ -526,6 +527,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
+            checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
