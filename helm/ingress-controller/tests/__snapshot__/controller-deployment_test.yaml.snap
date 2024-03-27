@@ -39,75 +39,75 @@ Should match all-options snapshot:
             podAffinity: null
             podAntiAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchLabels:
-                      app.kubernetes.io/component: controller
-                      app.kubernetes.io/instance: RELEASE-NAME
-                      app.kubernetes.io/name: kubernetes-ingress-controller
-                  topologyKey: kubernetes.io/hostname
-                weight: 1
+                - podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/component: controller
+                        app.kubernetes.io/instance: RELEASE-NAME
+                        app.kubernetes.io/name: kubernetes-ingress-controller
+                    topologyKey: kubernetes.io/hostname
+                  weight: 1
           containers:
-          - args:
-            - --controller-name=k8s.ngrok.com/ingress-controller
-            - --zap-log-level=info
-            - --zap-stacktrace-level=error
-            - --zap-encoder=json
-            - --health-probe-bind-address=:8081
-            - --metrics-bind-address=:8080
-            - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
-            - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
-            command:
-            - /manager
-            env:
-            - name: NGROK_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: API_KEY
-                  name: RELEASE-NAME-kubernetes-ingress-controller-credentials
-            - name: NGROK_AUTHTOKEN
-              valueFrom:
-                secretKeyRef:
-                  key: AUTHTOKEN
-                  name: RELEASE-NAME-kubernetes-ingress-controller-credentials
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: SECRET_ENV_VAR
-              value:
-                secretKeyRef:
-                  key: test-key
-                value: test-value
-            - name: TEST_ENV_VAR
-              value: test
-            image: docker.io/ngrok/kubernetes-ingress-controller:0.10.3
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              httpGet:
-                path: /healthz
-                port: 8081
-              initialDelaySeconds: 15
-              periodSeconds: 20
-            name: ngrok-ingress-controller
-            readinessProbe:
-              httpGet:
-                path: /readyz
-                port: 8081
-              initialDelaySeconds: 5
-              periodSeconds: 10
-            resources:
-              limits: {}
-              requests: {}
-            securityContext:
-              allowPrivilegeEscalation: false
-            volumeMounts:
-            - mountPath: /test-volume
-              name: test-volume
+            - args:
+                - --controller-name=k8s.ngrok.com/ingress-controller
+                - --zap-log-level=info
+                - --zap-stacktrace-level=error
+                - --zap-encoder=json
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=:8080
+                - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
+                - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
+              command:
+                - /manager
+              env:
+                - name: NGROK_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: API_KEY
+                      name: RELEASE-NAME-kubernetes-ingress-controller-credentials
+                - name: NGROK_AUTHTOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: AUTHTOKEN
+                      name: RELEASE-NAME-kubernetes-ingress-controller-credentials
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: SECRET_ENV_VAR
+                  value:
+                    secretKeyRef:
+                      key: test-key
+                    value: test-value
+                - name: TEST_ENV_VAR
+                  value: test
+              image: docker.io/ngrok/kubernetes-ingress-controller:0.10.3
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                initialDelaySeconds: 15
+                periodSeconds: 20
+              name: ngrok-ingress-controller
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: 8081
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              resources:
+                limits: {}
+                requests: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+                - mountPath: /test-volume
+                  name: test-volume
           serviceAccountName: RELEASE-NAME-kubernetes-ingress-controller
           volumes:
-          - emptyDir: {}
-            name: test-volume
+            - emptyDir: {}
+              name: test-volume
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
@@ -115,55 +115,55 @@ Should match all-options snapshot:
       name: ngrok-ingress-controller-leader-election-role
       namespace: NAMESPACE
     rules:
-    - apiGroups:
-      - ""
-      resources:
-      - configmaps
-      verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
-    - apiGroups:
-      - coordination.k8s.io
-      resources:
-      - leases
-      verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
-    - apiGroups:
-      - ""
-      resources:
-      - events
-      verbs:
-      - create
-      - patch
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+      - apiGroups:
+          - coordination.k8s.io
+        resources:
+          - leases
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
   3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
       name: ngrok-ingress-controller-proxy-role
     rules:
-    - apiGroups:
-      - authentication.k8s.io
-      resources:
-      - tokenreviews
-      verbs:
-      - create
-    - apiGroups:
-      - authorization.k8s.io
-      resources:
-      - subjectaccessreviews
-      verbs:
-      - create
+      - apiGroups:
+          - authentication.k8s.io
+        resources:
+          - tokenreviews
+        verbs:
+          - create
+      - apiGroups:
+          - authorization.k8s.io
+        resources:
+          - subjectaccessreviews
+        verbs:
+          - create
   4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
@@ -175,9 +175,9 @@ Should match all-options snapshot:
       kind: Role
       name: ngrok-ingress-controller-leader-election-role
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-kubernetes-ingress-controller
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-kubernetes-ingress-controller
+        namespace: NAMESPACE
   5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -188,9 +188,9 @@ Should match all-options snapshot:
       kind: ClusterRole
       name: ngrok-ingress-controller-manager-role
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-kubernetes-ingress-controller
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-kubernetes-ingress-controller
+        namespace: NAMESPACE
   6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -201,9 +201,9 @@ Should match all-options snapshot:
       kind: ClusterRole
       name: ngrok-ingress-controller-proxy-role
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-kubernetes-ingress-controller
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-kubernetes-ingress-controller
+        namespace: NAMESPACE
   7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
@@ -211,293 +211,293 @@ Should match all-options snapshot:
       creationTimestamp: null
       name: ngrok-ingress-controller-manager-role
     rules:
-    - apiGroups:
-      - ""
-      resources:
-      - configmaps
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - ""
-      resources:
-      - events
-      verbs:
-      - create
-      - patch
-    - apiGroups:
-      - ""
-      resources:
-      - namespaces
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - ""
-      resources:
-      - secrets
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - ""
-      resources:
-      - services
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - gatewayclasses
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - gatewayclasses/status
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - gateways
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - gateways/status
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - httproutes
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - httproutes/status
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - domains
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - domains/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - domains/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - httpsedges
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - httpsedges/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - httpsedges/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - ippolicies
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - ippolicies/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - ippolicies/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - ngrokmodulesets
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tcpedges
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tcpedges/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tcpedges/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tlsedges
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tlsedges/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tlsedges/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tunnels
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tunnels/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tunnels/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - ingressclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - ingresses
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - ingresses/status
-      verbs:
-      - get
-      - list
-      - update
-      - watch
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+      - apiGroups:
+          - ""
+        resources:
+          - namespaces
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - services
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - httpsedges
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - httpsedges/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - httpsedges/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ngrokmodulesets
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tcpedges
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tcpedges/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tcpedges/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tlsedges
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tlsedges/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tlsedges/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tunnels
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tunnels/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tunnels/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingressclasses
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingresses
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingresses/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
 Should match default snapshot:
   1: |
     apiVersion: apps/v1
@@ -539,61 +539,61 @@ Should match default snapshot:
             podAffinity: null
             podAntiAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchLabels:
-                      app.kubernetes.io/component: controller
-                      app.kubernetes.io/instance: RELEASE-NAME
-                      app.kubernetes.io/name: kubernetes-ingress-controller
-                  topologyKey: kubernetes.io/hostname
-                weight: 1
+                - podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/component: controller
+                        app.kubernetes.io/instance: RELEASE-NAME
+                        app.kubernetes.io/name: kubernetes-ingress-controller
+                    topologyKey: kubernetes.io/hostname
+                  weight: 1
           containers:
-          - args:
-            - --controller-name=k8s.ngrok.com/ingress-controller
-            - --zap-log-level=info
-            - --zap-stacktrace-level=error
-            - --zap-encoder=json
-            - --health-probe-bind-address=:8081
-            - --metrics-bind-address=:8080
-            - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
-            - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
-            command:
-            - /manager
-            env:
-            - name: NGROK_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: API_KEY
-                  name: RELEASE-NAME-kubernetes-ingress-controller-credentials
-            - name: NGROK_AUTHTOKEN
-              valueFrom:
-                secretKeyRef:
-                  key: AUTHTOKEN
-                  name: RELEASE-NAME-kubernetes-ingress-controller-credentials
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            image: docker.io/ngrok/kubernetes-ingress-controller:0.10.3
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              httpGet:
-                path: /healthz
-                port: 8081
-              initialDelaySeconds: 15
-              periodSeconds: 20
-            name: ngrok-ingress-controller
-            readinessProbe:
-              httpGet:
-                path: /readyz
-                port: 8081
-              initialDelaySeconds: 5
-              periodSeconds: 10
-            resources:
-              limits: {}
-              requests: {}
-            securityContext:
-              allowPrivilegeEscalation: false
+            - args:
+                - --controller-name=k8s.ngrok.com/ingress-controller
+                - --zap-log-level=info
+                - --zap-stacktrace-level=error
+                - --zap-encoder=json
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=:8080
+                - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
+                - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
+              command:
+                - /manager
+              env:
+                - name: NGROK_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: API_KEY
+                      name: RELEASE-NAME-kubernetes-ingress-controller-credentials
+                - name: NGROK_AUTHTOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: AUTHTOKEN
+                      name: RELEASE-NAME-kubernetes-ingress-controller-credentials
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+              image: docker.io/ngrok/kubernetes-ingress-controller:0.10.3
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                initialDelaySeconds: 15
+                periodSeconds: 20
+              name: ngrok-ingress-controller
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: 8081
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              resources:
+                limits: {}
+                requests: {}
+              securityContext:
+                allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-kubernetes-ingress-controller
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
@@ -602,55 +602,55 @@ Should match default snapshot:
       name: ngrok-ingress-controller-leader-election-role
       namespace: NAMESPACE
     rules:
-    - apiGroups:
-      - ""
-      resources:
-      - configmaps
-      verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
-    - apiGroups:
-      - coordination.k8s.io
-      resources:
-      - leases
-      verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
-    - apiGroups:
-      - ""
-      resources:
-      - events
-      verbs:
-      - create
-      - patch
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+      - apiGroups:
+          - coordination.k8s.io
+        resources:
+          - leases
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
   3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
       name: ngrok-ingress-controller-proxy-role
     rules:
-    - apiGroups:
-      - authentication.k8s.io
-      resources:
-      - tokenreviews
-      verbs:
-      - create
-    - apiGroups:
-      - authorization.k8s.io
-      resources:
-      - subjectaccessreviews
-      verbs:
-      - create
+      - apiGroups:
+          - authentication.k8s.io
+        resources:
+          - tokenreviews
+        verbs:
+          - create
+      - apiGroups:
+          - authorization.k8s.io
+        resources:
+          - subjectaccessreviews
+        verbs:
+          - create
   4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
@@ -662,9 +662,9 @@ Should match default snapshot:
       kind: Role
       name: ngrok-ingress-controller-leader-election-role
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-kubernetes-ingress-controller
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-kubernetes-ingress-controller
+        namespace: NAMESPACE
   5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -675,9 +675,9 @@ Should match default snapshot:
       kind: ClusterRole
       name: ngrok-ingress-controller-manager-role
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-kubernetes-ingress-controller
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-kubernetes-ingress-controller
+        namespace: NAMESPACE
   6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -688,9 +688,9 @@ Should match default snapshot:
       kind: ClusterRole
       name: ngrok-ingress-controller-proxy-role
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-kubernetes-ingress-controller
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-kubernetes-ingress-controller
+        namespace: NAMESPACE
   7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
@@ -698,290 +698,290 @@ Should match default snapshot:
       creationTimestamp: null
       name: ngrok-ingress-controller-manager-role
     rules:
-    - apiGroups:
-      - ""
-      resources:
-      - configmaps
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - ""
-      resources:
-      - events
-      verbs:
-      - create
-      - patch
-    - apiGroups:
-      - ""
-      resources:
-      - namespaces
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - ""
-      resources:
-      - secrets
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - ""
-      resources:
-      - services
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - gatewayclasses
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - gatewayclasses/status
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - gateways
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - gateways/status
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - httproutes
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - httproutes/status
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - domains
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - domains/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - domains/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - httpsedges
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - httpsedges/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - httpsedges/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - ippolicies
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - ippolicies/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - ippolicies/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - ngrokmodulesets
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tcpedges
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tcpedges/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tcpedges/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tlsedges
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tlsedges/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tlsedges/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tunnels
-      verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tunnels/finalizers
-      verbs:
-      - update
-    - apiGroups:
-      - ingress.k8s.ngrok.com
-      resources:
-      - tunnels/status
-      verbs:
-      - get
-      - patch
-      - update
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - ingressclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - ingresses
-      verbs:
-      - get
-      - list
-      - update
-      - watch
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - ingresses/status
-      verbs:
-      - get
-      - list
-      - update
-      - watch
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+      - apiGroups:
+          - ""
+        resources:
+          - namespaces
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - services
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - httpsedges
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - httpsedges/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - httpsedges/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ngrokmodulesets
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tcpedges
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tcpedges/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tcpedges/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tlsedges
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tlsedges/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tlsedges/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tunnels
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tunnels/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tunnels/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingressclasses
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingresses
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingresses/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch

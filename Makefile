@@ -206,8 +206,8 @@ helm-lint: _helm_setup ## Lint the helm chart
 
 .PHONY: helm-test
 helm-test: _helm_setup ## Run helm unittest plugin
-	helm unittest --helm3 $(HELM_CHART_DIR)
+	helm unittest $(HELM_CHART_DIR)
 
 .PHONY: helm-update-snapshots
 helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
-	helm unittest --helm3 -u $(HELM_CHART_DIR)
+	helm unittest -u $(HELM_CHART_DIR)

@@ -6,55 +6,55 @@ Should match snapshot:
       name: ngrok-ingress-controller-leader-election-role
       namespace: NAMESPACE
     rules:
-    - apiGroups:
-      - ""
-      resources:
-      - configmaps
-      verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
-    - apiGroups:
-      - coordination.k8s.io
-      resources:
-      - leases
-      verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
-    - apiGroups:
-      - ""
-      resources:
-      - events
-      verbs:
-      - create
-      - patch
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+      - apiGroups:
+          - coordination.k8s.io
+        resources:
+          - leases
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
       name: ngrok-ingress-controller-proxy-role
     rules:
-    - apiGroups:
-      - authentication.k8s.io
-      resources:
-      - tokenreviews
-      verbs:
-      - create
-    - apiGroups:
-      - authorization.k8s.io
-      resources:
-      - subjectaccessreviews
-      verbs:
-      - create
+      - apiGroups:
+          - authentication.k8s.io
+        resources:
+          - tokenreviews
+        verbs:
+          - create
+      - apiGroups:
+          - authorization.k8s.io
+        resources:
+          - subjectaccessreviews
+        verbs:
+          - create
   3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
@@ -66,9 +66,9 @@ Should match snapshot:
       kind: Role
       name: ngrok-ingress-controller-leader-election-role
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-kubernetes-ingress-controller
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-kubernetes-ingress-controller
+        namespace: NAMESPACE
   4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -79,9 +79,9 @@ Should match snapshot:
       kind: ClusterRole
       name: ngrok-ingress-controller-manager-role
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-kubernetes-ingress-controller
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-kubernetes-ingress-controller
+        namespace: NAMESPACE
   5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -92,6 +92,6 @@ Should match snapshot:
       kind: ClusterRole
       name: ngrok-ingress-controller-proxy-role
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-kubernetes-ingress-controller
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-kubernetes-ingress-controller
+        namespace: NAMESPACE
