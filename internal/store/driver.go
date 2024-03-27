@@ -947,7 +947,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 
 								refName := string(backendref.Name)
 								//refNamespace := string(*backendref.Namespace)
-								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, gtw.Namespace)
+								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, httproute.Namespace)
 								if err != nil {
 									d.log.Error(err, "could not find port for service", "namespace", gtw.Namespace, "service", refName)
 								}
