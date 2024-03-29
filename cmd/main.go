@@ -207,10 +207,19 @@ func runController(ctx context.Context, opts managerOpts) error {
 		os.Exit(1)
 	}
 
-	td, err := tunneldriver.New(ctrl.Log.WithName("drivers").WithName("tunnel"), tunneldriver.TunnelDriverOpts{
-		ServerAddr: opts.serverAddr,
-		Region:     opts.region,
-	})
+	var comments []string
+
+	if opts.useExperimentalGatewayAPI {
+		comments = append(comments, "gateway-api")
+	}
+
+	td, err := tunneldriver.New(
+		ctrl.Log.WithName("drivers").WithName("tunnel"), tunneldriver.TunnelDriverOpts{
+			ServerAddr: opts.serverAddr,
+			Region:     opts.region,
+		},
+		comments...,
+	)
 	if err != nil {
 		return fmt.Errorf("unable to create tunnel driver: %w", err)
 	}
