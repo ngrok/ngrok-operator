@@ -82,6 +82,7 @@ type managerOpts struct {
 	electionID                string
 	probeAddr                 string
 	serverAddr                string
+	apiURL                    string
 	controllerName            string
 	watchNamespace            string
 	metaData                  string
@@ -111,6 +112,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metaData, "metadata", "", "A comma separated list of key value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
+	c.Flags().StringVar(&opts.apiURL, "api-url", "", "The base URL to use for the ngrok api")
 	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
@@ -146,6 +148,9 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
 	apiBaseURL := os.Getenv("NGROK_API_ADDR")
+	if opts.apiURL != "" {
+		apiBaseURL = opts.apiURL
+	}
 	if apiBaseURL != "" {
 		u, err := url.Parse(apiBaseURL)
 		if err != nil {
@@ -153,6 +158,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		}
 		ngrokClientConfig.BaseURL = u
 	}
+	setupLog.Info("configured API client", "base_url", ngrokClientConfig.BaseURL)
 
 	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
 	options := ctrl.Options{
