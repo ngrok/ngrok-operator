@@ -1448,6 +1448,9 @@ func (d *Driver) getEdgeBackend(backendSvc netv1.IngressServiceBackend, namespac
 }
 
 func (d *Driver) getEdgeBackendRef(backendRef gatewayv1.BackendRef, namespace string) (string, int32, error) {
+	if backendRef.Namespace != nil && string(*backendRef.Namespace) != namespace {
+		return "", 0, fmt.Errorf("namespace %s not supported", string(*backendRef.Namespace))
+	}
 	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
 	if err != nil {
 		return "", 0, err
