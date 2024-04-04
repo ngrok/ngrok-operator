@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -52,8 +53,27 @@ type TunnelDriverOpts struct {
 	Region     string
 }
 
+type TunnelDriverComments struct {
+	Gateway string `json:"gateway,omitempty"`
+}
+
 // New creates and initializes a new TunnelDriver
-func New(logger logr.Logger, opts TunnelDriverOpts, comments ...string) (*TunnelDriver, error) {
+func New(logger logr.Logger, opts TunnelDriverOpts, tunnelComments []TunnelDriverComments) (*TunnelDriver, error) {
+	comments := []string{}
+
+	for _, tunnelComment := range tunnelComments {
+		commentJson, err := json.Marshal(tunnelComment)
+		if err != nil {
+			return nil, err
+		}
+		commentString := string(commentJson)
+		if commentString != "{}" {
+			comments = append(
+				comments,
+				string(commentString),
+			)
+		}
+	}
 	connOpts := []ngrok.ConnectOption{
 		ngrok.WithClientInfo("ngrok-ingress-controller", version.GetVersion(), comments...),
 		ngrok.WithAuthtokenFromEnv(),
