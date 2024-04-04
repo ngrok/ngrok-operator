@@ -47,9 +47,11 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	gatewaycontroller "github.com/ngrok/kubernetes-ingress-controller/internal/controller/gateway"
 	controllers "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ingress"
+	ngrokcontroller "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ngrok"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
@@ -66,6 +68,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -298,6 +301,13 @@ func runController(ctx context.Context, opts managerOpts) error {
 			setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
 			os.Exit(1)
 		}
+	}
+	if err = (&ngrokcontroller.PolicyReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Policy")
+		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
 

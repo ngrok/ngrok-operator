@@ -292,3 +292,29 @@ rules:
   - list
   - update
   - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - policies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - policies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - policies/status
+  verbs:
+  - get
+  - patch
+  - update
