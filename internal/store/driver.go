@@ -946,10 +946,10 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								}
 
 								refName := string(backendref.Name)
-								//refNamespace := string(*backendref.Namespace)
-								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, gtw.Namespace)
+								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, httproute.Namespace)
 								if err != nil {
-									d.log.Error(err, "could not find port for service", "namespace", gtw.Namespace, "service", refName)
+									d.log.Error(err, "could not find port for service", "namespace", httproute.Namespace, "service", refName)
+									continue
 								}
 
 								route.Backend = ingressv1alpha1.TunnelGroupBackend{
@@ -1448,6 +1448,9 @@ func (d *Driver) getEdgeBackend(backendSvc netv1.IngressServiceBackend, namespac
 }
 
 func (d *Driver) getEdgeBackendRef(backendRef gatewayv1.BackendRef, namespace string) (string, int32, error) {
+	if backendRef.Namespace != nil && string(*backendRef.Namespace) != namespace {
+		return "", 0, fmt.Errorf("namespace %s not supported", string(*backendRef.Namespace))
+	}
 	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
 	if err != nil {
 		return "", 0, err
