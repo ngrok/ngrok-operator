@@ -211,11 +211,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	if opts.useExperimentalGatewayAPI {
 		comments = append(
-      comments,
-      tunneldriver.TunnelDriverComments{
-        Gateway: "gateway-api",
-      },
-    )
+			comments,
+			tunneldriver.TunnelDriverComments{
+				Gateway: "gateway-api",
+			},
+		)
 	}
 
 	td, err := tunneldriver.New(
