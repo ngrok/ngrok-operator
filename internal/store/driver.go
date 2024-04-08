@@ -42,11 +42,12 @@ const (
 type Driver struct {
 	store Storer
 
-	cacheStores    CacheStores
-	log            logr.Logger
-	scheme         *runtime.Scheme
-	customMetadata string
-	managerName    types.NamespacedName
+	cacheStores     CacheStores
+	log             logr.Logger
+	scheme          *runtime.Scheme
+	ingressMetadata string
+	gatewayMetadata string
+	managerName     types.NamespacedName
 
 	syncMu              sync.Mutex
 	syncRunning         bool
@@ -73,16 +74,39 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 
 // WithMetaData allows you to pass in custom metadata to be added to all resources created by the controller
 func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
-	if _, ok := customMetadata["owned-by"]; !ok {
-		customMetadata["owned-by"] = "kubernetes-ingress-controller"
-	}
-	jsonString, err := json.Marshal(customMetadata)
+	ingressMetadata, err := d.setMetadataOwner("kubernetes-ingress-controller", customMetadata)
 	if err != nil {
-		d.log.Error(err, "error marshalling custom metadata", "customMetadata", d.customMetadata)
+		d.log.Error(err, "error marshalling custom metadata", "customMetadata", d.ingressMetadata)
 		return d
 	}
-	d.customMetadata = string(jsonString)
+	d.ingressMetadata = ingressMetadata
+
+	if d.gatewayEnabled {
+		gatewayMetadata, err := d.setMetadataOwner("kubernetes-gateway-api", customMetadata)
+		if err != nil {
+			d.log.Error(err, "error marshalling custom metadata", "customMetadata", d.gatewayMetadata)
+			return d
+		}
+		d.gatewayMetadata = gatewayMetadata
+
+	}
 	return d
+}
+
+func (d *Driver) setMetadataOwner(owner string, customMetadata map[string]string) (string, error) {
+	metaData := make(map[string]string)
+	for k, v := range customMetadata {
+		metaData[k] = v
+	}
+	if _, ok := metaData["owned-by"]; !ok {
+		metaData["owned-by"] = owner
+	}
+	jsonString, err := json.Marshal(metaData)
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonString), nil
 }
 
 // Seed fetches all the upfront information the driver needs to operate
@@ -613,7 +637,7 @@ func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain
 					Domain: rule.Host,
 				},
 			}
-			domain.Spec.Metadata = d.customMetadata
+			domain.Spec.Metadata = d.ingressMetadata
 			domainMap[rule.Host] = domain
 		}
 	}
@@ -645,7 +669,7 @@ func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1
 					Domain: domainName,
 				},
 			}
-			domain.Spec.Metadata = d.customMetadata
+			domain.Spec.Metadata = d.gatewayMetadata
 			domainMap[domainName] = domain
 		}
 	}
@@ -690,7 +714,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				Hostports: []string{domain.Spec.Domain + ":443"},
 			},
 		}
-		edge.Spec.Metadata = d.customMetadata
+		edge.Spec.Metadata = d.ingressMetadata
 		edgeMap[domain.Spec.Domain] = edge
 	}
 	d.calculateHTTPSEdgesFromIngress(edgeMap)
@@ -754,7 +778,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 						Hostports: hostPorts,
 					},
 				}
-				edge.Spec.Metadata = d.customMetadata
+				edge.Spec.Metadata = d.gatewayMetadata
 				gatewayEdgeMap[routeDomains[0]] = edge
 
 			}
@@ -836,7 +860,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					SAML:                modSet.Modules.SAML,
 					WebhookVerification: modSet.Modules.WebhookVerification,
 				}
-				route.Metadata = d.customMetadata
+				route.Metadata = d.ingressMetadata
 
 				edge.Spec.Routes = append(edge.Spec.Routes, route)
 			}
@@ -957,8 +981,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								}
 
 							}
-							// set different customMetadata for gateways next
-							route.Metadata = d.customMetadata
+							route.Metadata = d.gatewayMetadata
 
 							edge.Spec.Routes = append(edge.Spec.Routes, route)
 						}
