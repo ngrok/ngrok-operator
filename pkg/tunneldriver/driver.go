@@ -58,10 +58,10 @@ type TunnelDriverComments struct {
 }
 
 // New creates and initializes a new TunnelDriver
-func New(logger logr.Logger, opts TunnelDriverOpts, tunnelComments []TunnelDriverComments) (*TunnelDriver, error) {
+func New(logger logr.Logger, opts TunnelDriverOpts, tunnelComment *TunnelDriverComments) (*TunnelDriver, error) {
 	comments := []string{}
 
-	for _, tunnelComment := range tunnelComments {
+	if tunnelComment != nil {
 		commentJson, err := json.Marshal(tunnelComment)
 		if err != nil {
 			return nil, err
