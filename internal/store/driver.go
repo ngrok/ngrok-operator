@@ -1057,7 +1057,10 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 				return nil, err
 			}
 		case gatewayv1.HTTPRouteFilterURLRewrite:
-			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
+			err := d.handleURLRewriteFilter(filter.URLRewrite, pathPrefixMatches, &inboundActions)
+			if err != nil {
+				return nil, err
+			}
 		case gatewayv1.HTTPRouteFilterRequestMirror:
 			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
 		case gatewayv1.HTTPRouteFilterExtensionRef:
@@ -1232,6 +1235,76 @@ func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders 
 		},
 	)
 
+	return nil
+}
+
+type URLRewriteConfig struct {
+	To   *string `json:"to"`
+	From *string `json:"from"`
+}
+
+func (d *Driver) createURLRewriteConfig(from string, to string, actions *Actions) error {
+	urlRewriteAction := URLRewriteConfig{
+		To:   &to,
+		From: &from,
+	}
+	config, err := json.Marshal(urlRewriteAction)
+
+	if err != nil {
+		d.log.Error(err, "cannot convert request rewrite filter to json", "HTTPRequestRewriteFilter", urlRewriteAction)
+		return err
+	}
+	actions.endpointActions = append(
+		actions.endpointActions,
+		ingressv1alpha1.EndpointAction{
+			Type:   "url-rewrite",
+			Config: config,
+		},
+	)
+
+	return nil
+}
+
+func (d *Driver) handleURLRewriteFilter(filter *gatewayv1.HTTPURLRewriteFilter, pathPrefixMatches []string, actions *Actions) error {
+	var err error
+	if filter == nil {
+		return nil
+	}
+
+	if filter.Hostname != nil {
+		hostname := string(*filter.Hostname)
+		err = d.handleHTTPHeaderFilterAdd([]gatewayv1.HTTPHeader{{Name: "Host", Value: hostname}}, actions, nil)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if filter.Path == nil {
+		return nil
+	}
+
+	switch filter.Path.Type {
+	case "ReplacePrefixMatch":
+		for _, pathPrefix := range pathPrefixMatches {
+			from := fmt.Sprintf("^https?://[^/:]+(:[0-9]*)?(%s)([^\\?]*)(\\?.*)?$", pathPrefix)
+			to := fmt.Sprintf("$scheme://$authority%s$3$is_args$args", *filter.Path.ReplacePrefixMatch)
+			err := d.createURLRewriteConfig(from, to, actions)
+			if err != nil {
+				return err
+			}
+		}
+	case "ReplaceFullPath":
+		from := ".*" //"^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
+		to := fmt.Sprintf("$scheme://$authority%s$is_args$args", *filter.Path.ReplaceFullPath)
+		err := d.createURLRewriteConfig(from, to, actions)
+		if err != nil {
+			return err
+		}
+	default:
+		d.log.Error(fmt.Errorf("Unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
+		return nil
+	}
 	return nil
 }
 
