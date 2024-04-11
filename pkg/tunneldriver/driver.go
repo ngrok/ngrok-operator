@@ -6,10 +6,12 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
@@ -43,7 +45,7 @@ const (
 
 // TunnelDriver is a driver for creating and deleting ngrok tunnels
 type TunnelDriver struct {
-	session ngrok.Session
+	session atomic.Pointer[ngrok.Session]
 	tunnels map[string]ngrok.Tunnel
 }
 
@@ -58,7 +60,7 @@ type TunnelDriverComments struct {
 }
 
 // New creates and initializes a new TunnelDriver
-func New(logger logr.Logger, opts TunnelDriverOpts, tunnelComment *TunnelDriverComments) (*TunnelDriver, error) {
+func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelComment *TunnelDriverComments) (*TunnelDriver, error) {
 	comments := []string{}
 
 	if tunnelComment != nil {
@@ -97,14 +99,28 @@ func New(logger logr.Logger, opts TunnelDriverOpts, tunnelComment *TunnelDriverC
 		connOpts = append(connOpts, ngrok.WithCA(caCerts))
 	}
 
-	session, err := ngrok.Connect(context.Background(), connOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return &TunnelDriver{
-		session: session,
+	td := &TunnelDriver{
 		tunnels: make(map[string]ngrok.Tunnel),
-	}, nil
+	}
+
+	session, err := ngrok.Connect(ctx, connOpts...)
+	if err == nil {
+		td.session.Store(&session)
+	}
+
+	// check auth error, give up early?
+	go func() {
+		for ctx.Err() == nil {
+			session, err := ngrok.Connect(ctx, connOpts...)
+			if err == nil {
+				td.session.Store(&session)
+				break
+			}
+			// sleep, check error
+		}
+	}()
+
+	return td, nil
 }
 
 // caCerts combines the system ca certs with a directory of custom ca certs
@@ -144,6 +160,13 @@ func caCerts() (*x509.CertPool, error) {
 // CreateTunnel creates and starts a new tunnel in a goroutine. If a tunnel with the same name already exists,
 // it will be stopped and replaced with a new tunnel unless the labels match.
 func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingressv1alpha1.TunnelSpec) error {
+	var session ngrok.Session
+	if sess := td.session.Load(); sess == nil {
+		return fmt.Errorf("ngrok session not connected")
+	} else {
+		session = *sess
+	}
+
 	log := log.FromContext(ctx)
 
 	if tun, ok := td.tunnels[name]; ok {
@@ -156,7 +179,7 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingr
 		defer td.stopTunnel(context.Background(), tun)
 	}
 
-	tun, err := td.session.Listen(ctx, td.buildTunnelConfig(spec.Labels, spec.ForwardsTo, spec.AppProtocol))
+	tun, err := session.Listen(ctx, td.buildTunnelConfig(spec.Labels, spec.ForwardsTo, spec.AppProtocol))
 	if err != nil {
 		return err
 	}

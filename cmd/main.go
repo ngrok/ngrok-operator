@@ -215,8 +215,8 @@ func runController(ctx context.Context, opts managerOpts) error {
 		}
 	}
 
-	td, err := tunneldriver.New(
-		ctrl.Log.WithName("drivers").WithName("tunnel"), tunneldriver.TunnelDriverOpts{
+	td, err := tunneldriver.New(ctx, ctrl.Log.WithName("drivers").WithName("tunnel"),
+		tunneldriver.TunnelDriverOpts{
 			ServerAddr: opts.serverAddr,
 			Region:     opts.region,
 		},
