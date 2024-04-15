@@ -131,24 +131,30 @@ func (td *TunnelDriver) retryConnectLoop(ctx context.Context, connOpts []ngrok.C
 		Max:    15 * time.Second,
 		Jitter: true,
 	}
-	tm := time.NewTicker(boff.Duration())
+	tm := time.NewTimer(boff.Duration())
 	defer tm.Stop()
 
 	for {
 		// pause before trying to connect
 		select {
 		case <-ctx.Done():
+			// cancel the running timer
+			if !tm.Stop() {
+				<-tm.C
+			}
+
 			td.sessionMu.Lock()
 			defer td.sessionMu.Unlock()
 
 			td.sessionErr = ctx.Err()
 			return
 		case <-tm.C:
-			tm.Reset(boff.Duration())
-		}
+			if err := td.retryConnect(ctx, connOpts); err == nil {
+				return
+			}
 
-		if err := td.retryConnect(ctx, connOpts); err == nil {
-			return
+			// reset with the next backoff value
+			tm.Reset(boff.Duration())
 		}
 	}
 }
