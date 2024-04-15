@@ -108,11 +108,13 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelC
 	}
 
 	session, err := ngrok.Connect(ctx, connOpts...)
+	logger.V(0).Info("session connected", "session", session, "err", err)
 	if err == nil {
 		td.session = session
 		return td, nil
 	}
 
+	logger.Error(err, "could not connect to ngrok")
 	var nerr ngrok.Error
 	if errors.As(err, &nerr) {
 		// ngrok specific errors, like auth failed are returned directly
