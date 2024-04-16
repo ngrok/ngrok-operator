@@ -8,7 +8,6 @@ require (
 	github.com/go-logr/logr v1.2.4
 	github.com/golang/mock v1.4.4
 	github.com/imdario/mergo v0.3.16
-	github.com/jpillora/backoff v1.0.0
 	github.com/ngrok/ngrok-api-go/v5 v5.3.0
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.10
@@ -61,6 +60,7 @@ require (
 	github.com/inconshreveable/log15/v3 v3.0.0-testing.5 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
+	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
