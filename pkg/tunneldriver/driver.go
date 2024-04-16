@@ -11,11 +11,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/jpillora/backoff"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
 	"golang.org/x/exp/maps"
@@ -47,10 +44,10 @@ const (
 
 // TunnelDriver is a driver for creating and deleting ngrok tunnels
 type TunnelDriver struct {
-	session    ngrok.Session
-	sessionErr error
-	sessionMu  sync.RWMutex
-	tunnels    map[string]ngrok.Tunnel
+	session      ngrok.Session
+	sessionErr   error
+	sessionReady chan struct{}
+	tunnels      map[string]ngrok.Tunnel
 }
 
 // TunnelDriverOpts are options for creating a new TunnelDriver
@@ -104,81 +101,31 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelC
 	}
 
 	td := &TunnelDriver{
-		tunnels: make(map[string]ngrok.Tunnel),
+		sessionReady: make(chan struct{}),
+		tunnels:      make(map[string]ngrok.Tunnel),
 	}
 
-	session, err := ngrok.Connect(ctx, connOpts...)
-	logger.V(0).Info("session connected", "session", session, "err", err)
-	if err == nil {
-		td.session = session
-		return td, nil
-	}
-
-	logger.Error(err, "could not connect to ngrok")
-	var nerr ngrok.Error
-	if errors.As(err, &nerr) {
-		// ngrok specific errors, like auth failed are returned directly
-		return nil, err
-	}
-	td.sessionErr = err
-
-	go td.retryConnectLoop(ctx, connOpts)
+	go td.connect(ctx, connOpts)
 
 	return td, nil
 }
 
-func (td *TunnelDriver) retryConnectLoop(ctx context.Context, connOpts []ngrok.ConnectOption) {
-	boff := &backoff.Backoff{
-		Min:    100 * time.Millisecond,
-		Max:    15 * time.Second,
-		Jitter: true,
-	}
-	tm := time.NewTimer(boff.Duration())
-	defer tm.Stop()
-
-	for {
-		// pause before trying to connect
-		select {
-		case <-ctx.Done():
-			// cancel the running timer
-			if !tm.Stop() {
-				<-tm.C
-			}
-
-			td.sessionMu.Lock()
-			defer td.sessionMu.Unlock()
-
-			td.sessionErr = ctx.Err()
-			return
-		case <-tm.C:
-			if err := td.retryConnect(ctx, connOpts); err == nil {
-				return
-			}
-
-			// reset with the next backoff value
-			tm.Reset(boff.Duration())
-		}
-	}
+func (td *TunnelDriver) Ready() <-chan struct{} {
+	return td.sessionReady
 }
 
-func (td *TunnelDriver) retryConnect(ctx context.Context, connOpts []ngrok.ConnectOption) error {
-	session, err := ngrok.Connect(ctx, connOpts...)
-
-	td.sessionMu.Lock()
-	defer td.sessionMu.Unlock()
-
-	td.sessionErr = err
-	if err == nil {
-		td.session = session
-	}
-	return td.sessionErr
+func (td *TunnelDriver) connect(ctx context.Context, connOpts []ngrok.ConnectOption) {
+	td.session, td.sessionErr = ngrok.Connect(ctx, connOpts...)
+	close(td.sessionReady)
 }
 
 func (td *TunnelDriver) getSession() (ngrok.Session, error) {
-	td.sessionMu.RLock()
-	defer td.sessionMu.RUnlock()
-
-	return td.session, td.sessionErr
+	select {
+	case <-td.sessionReady:
+		return td.session, td.sessionErr
+	default:
+		return nil, fmt.Errorf("session is trying to connect")
+	}
 }
 
 // caCerts combines the system ca certs with a directory of custom ca certs
@@ -220,7 +167,7 @@ func caCerts() (*x509.CertPool, error) {
 func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingressv1alpha1.TunnelSpec) error {
 	session, err := td.getSession()
 	if err != nil {
-		return fmt.Errorf("ngrok session not yet connected: %w", err)
+		return err
 	}
 
 	log := log.FromContext(ctx)

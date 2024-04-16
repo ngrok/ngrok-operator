@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -312,11 +313,18 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 	//+kubebuilder:scaffold:builder
 
+	if err := mgr.AddReadyzCheck("readyz", func(req *http.Request) error {
+		select {
+		case <-td.Ready():
+			return nil
+		default:
+			return fmt.Errorf("session not connected")
+		}
+	}); err != nil {
+		return fmt.Errorf("error setting up readyz check: %w", err)
+	}
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		return fmt.Errorf("error setting up health check: %w", err)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		return fmt.Errorf("error setting up readyz check: %w", err)
 	}
 
 	setupLog.Info("starting manager")
