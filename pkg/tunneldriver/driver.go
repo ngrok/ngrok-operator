@@ -123,8 +123,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelC
 			state := td.session.Load()
 
 			if state.session != nil {
-				// we already have an established session
-				// if err is nil this session is going away, otherwise it will reconnect by itself
+				// we have established session in the past, so record err only when it is going away
 				if err == nil {
 					td.session.Store(&sessionState{
 						healthErr: fmt.Errorf("session closed"),
@@ -140,6 +139,11 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelC
 						healthErr: fmt.Errorf("session closed"),
 					})
 				}
+				return
+			}
+
+			if state.healthErr != nil {
+				// we are already at a terminal error, just keep the first one
 				return
 			}
 
