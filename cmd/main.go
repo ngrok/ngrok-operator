@@ -47,6 +47,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	gatewaycontroller "github.com/ngrok/kubernetes-ingress-controller/internal/controller/gateway"
 	controllers "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ingress"
@@ -66,6 +67,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

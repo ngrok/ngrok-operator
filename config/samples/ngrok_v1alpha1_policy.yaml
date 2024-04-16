@@ -1,0 +1,12 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: Policy
+metadata:
+  labels:
+    app.kubernetes.io/name: policy
+    app.kubernetes.io/instance: policy-sample
+    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: kubernetes-ingress-controller
+  name: policy-sample
+spec:
+  # TODO(user): Add fields here
