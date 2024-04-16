@@ -11,6 +11,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
@@ -44,10 +46,8 @@ const (
 
 // TunnelDriver is a driver for creating and deleting ngrok tunnels
 type TunnelDriver struct {
-	session      ngrok.Session
-	sessionErr   error
-	sessionReady chan struct{}
-	tunnels      map[string]ngrok.Tunnel
+	session atomic.Pointer[sessionState]
+	tunnels map[string]ngrok.Tunnel
 }
 
 // TunnelDriverOpts are options for creating a new TunnelDriver
@@ -58,6 +58,12 @@ type TunnelDriverOpts struct {
 
 type TunnelDriverComments struct {
 	Gateway string `json:"gateway,omitempty"`
+}
+
+type sessionState struct {
+	session   ngrok.Session
+	readyErr  error
+	healthErr error
 }
 
 // New creates and initializes a new TunnelDriver
@@ -101,30 +107,84 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelC
 	}
 
 	td := &TunnelDriver{
-		sessionReady: make(chan struct{}),
-		tunnels:      make(map[string]ngrok.Tunnel),
+		tunnels: make(map[string]ngrok.Tunnel),
 	}
 
-	go td.connect(ctx, connOpts)
+	td.session.Store(&sessionState{
+		readyErr: fmt.Errorf("attempting to connect"),
+	})
+	connOpts = append(connOpts,
+		ngrok.WithConnectHandler(func(ctx context.Context, sess ngrok.Session) {
+			td.session.Store(&sessionState{
+				session: sess,
+			})
+		}),
+		ngrok.WithDisconnectHandler(func(ctx context.Context, sess ngrok.Session, err error) {
+			state := td.session.Load()
+
+			if state.session != nil {
+				// we already have an established session
+				// if err is nil this session is going away, otherwise it will reconnect by itself
+				if err == nil {
+					td.session.Store(&sessionState{
+						healthErr: fmt.Errorf("session closed"),
+					})
+				}
+				return
+			}
+
+			if err == nil {
+				// session is disconnecting, do not override error
+				if state.healthErr == nil {
+					td.session.Store(&sessionState{
+						healthErr: fmt.Errorf("session closed"),
+					})
+				}
+				return
+			}
+
+			// we didn't have a session and we are seeing disconnect error
+			userErr := strings.HasPrefix(err.Error(), "authentication failed") && !strings.Contains(err.Error(), "internal server error")
+			if userErr {
+				// its a user error (e.g. authentication failure), so stop further
+				td.session.Store(&sessionState{
+					healthErr: err,
+				})
+				sess.Close()
+			} else {
+				// mark this as connecting error to return from readyz
+				td.session.Store(&sessionState{
+					readyErr: err,
+				})
+			}
+		}),
+	)
+	go ngrok.Connect(ctx, connOpts...)
 
 	return td, nil
 }
 
-func (td *TunnelDriver) Ready() <-chan struct{} {
-	return td.sessionReady
+func (td *TunnelDriver) Ready() error {
+	state := td.session.Load()
+	return state.readyErr
 }
 
-func (td *TunnelDriver) connect(ctx context.Context, connOpts []ngrok.ConnectOption) {
-	td.session, td.sessionErr = ngrok.Connect(ctx, connOpts...)
-	close(td.sessionReady)
+func (td *TunnelDriver) Healthy() error {
+	state := td.session.Load()
+	return state.healthErr
 }
 
 func (td *TunnelDriver) getSession() (ngrok.Session, error) {
-	select {
-	case <-td.sessionReady:
-		return td.session, td.sessionErr
+	state := td.session.Load()
+	switch {
+	case state.session != nil:
+		return state.session, nil
+	case state.healthErr != nil:
+		return nil, state.healthErr
+	case state.readyErr != nil:
+		return nil, state.readyErr
 	default:
-		return nil, fmt.Errorf("session is trying to connect")
+		return nil, fmt.Errorf("unexpected state")
 	}
 }
 
