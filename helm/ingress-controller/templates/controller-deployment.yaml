@@ -64,6 +64,9 @@ spec:
         {{- if .Values.region }}
         - --region={{ .Values.region}}
         {{- end }}
+        {{- if .Values.apiURL }}
+        - --api-url={{ .Values.apiURL}}
+        {{- end }}
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}
         {{- end }}
