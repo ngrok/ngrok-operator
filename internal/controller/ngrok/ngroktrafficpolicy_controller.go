@@ -27,18 +27,21 @@ package ngrok
 import (
 	"context"
 
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 )
 
 // NgrokTrafficPolicyReconciler reconciles a NgrokTrafficPolicy object
 type NgrokTrafficPolicyReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
+	Driver   *store.Driver
 }
 
 //+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -57,14 +60,14 @@ type NgrokTrafficPolicyReconciler struct {
 func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// TODO(user): your logic here
-
-	return ctrl.Result{}, nil
+	err := r.Driver.SyncEdges(ctx, r.Client)
+	return ctrl.Result{}, err
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NgrokTrafficPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ngrokv1alpha1.NgrokTrafficPolicy{}).
+		WithEventFilter(commonPredicateFilters).
 		Complete(r)
 }
