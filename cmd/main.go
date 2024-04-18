@@ -51,6 +51,7 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	gatewaycontroller "github.com/ngrok/kubernetes-ingress-controller/internal/controller/gateway"
 	controllers "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ingress"
+	ngrokctr "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ngrok"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
@@ -319,7 +320,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		}
 	}
 
-	if err = (&ngrokv1alpha1.NgrokTrafficPolicyReconciler{
+	if err = (&ngrokctr.NgrokTrafficPolicyReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("Policy"),
 		Scheme:   mgr.GetScheme(),

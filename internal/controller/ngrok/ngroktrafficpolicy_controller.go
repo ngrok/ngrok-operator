@@ -27,6 +27,7 @@ package ngrok
 import (
 	"context"
 
+	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +40,7 @@ import (
 // NgrokTrafficPolicyReconciler reconciles a NgrokTrafficPolicy object
 type NgrokTrafficPolicyReconciler struct {
 	client.Client
+	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 	Driver   *store.Driver
