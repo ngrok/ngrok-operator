@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This sets the ngrok API endpoint used by the controller.
   It corresponds to the `--api-url` argument to the manager binary. 
 
+- Update to version 0.10.4 of the ingress controller.
+  See its changes [here](../../CHANGELOG.md#0104).
+
 ## 0.12.1
 
 - Update to version 0.10.1 of the ingress controller, which includes:
