@@ -65,7 +65,7 @@ helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
 
 For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 
-#### Gateway API Prview
+#### Gateway API Preview
 
 To install the developer preview of the gateway api we'll make the following changes to the above instructions.
 
