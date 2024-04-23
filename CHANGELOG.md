@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.4
+
+### Added
+
+- Add the `--api-url` option
+  This can be used to set the endpoint for the ngrok API.
+  It can be set through via the helm `apiURL` value.
+- Set metadata for edges created by the gateway
+- Add gateway to client info comment
+
+### Changed
+
+- Controller will now start without having session established. Any operations
+  that require tunnels will return error, while it is trying to create a session.
+  Its ready and health checks now depend on the status of this session - `ready`
+  will not return `ok` until connection was established, and `health` check will
+  return error if this connection had authentication issues.
+
+### Fixed
+
+- Search for backend service using the `HTTPRoute` namepace
+
 ## 0.10.3
 
 ### Added
