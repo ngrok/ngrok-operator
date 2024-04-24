@@ -25,6 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -36,8 +38,7 @@ type NgrokTrafficPolicySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of NgrokTrafficPolicy. Edit ngroktrafficpolicy_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
 // NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
