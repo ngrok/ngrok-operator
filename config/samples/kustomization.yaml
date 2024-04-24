@@ -1,4 +1,4 @@
 ## Append samples of your project ##
 resources:
-- ngrok_v1alpha1_policy.yaml
+- ngrok_v1alpha1_ngroktrafficpolicy.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

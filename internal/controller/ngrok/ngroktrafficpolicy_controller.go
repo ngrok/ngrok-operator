@@ -35,26 +35,26 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 )
 
-// PolicyReconciler reconciles a Policy object
-type PolicyReconciler struct {
+// NgrokTrafficPolicyReconciler reconciles a NgrokTrafficPolicy object
+type NgrokTrafficPolicyReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=policies,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=policies/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=policies/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the Policy object against the actual cluster state, and then
+// the NgrokTrafficPolicy object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.3/pkg/reconcile
-func (r *PolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -63,8 +63,8 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *NgrokTrafficPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ngrokv1alpha1.Policy{}).
+		For(&ngrokv1alpha1.NgrokTrafficPolicy{}).
 		Complete(r)
 }

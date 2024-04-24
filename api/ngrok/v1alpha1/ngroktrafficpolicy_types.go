@@ -25,25 +25,23 @@ SOFTWARE.
 package v1alpha1
 
 import (
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// PolicySpec defines the desired state of Policy
-type PolicySpec struct {
+// NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+type NgrokTrafficPolicySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Policy. Edit policy_types.go to remove/update
-	EndpointRule ingressv1alpha1.EndpointRule `json:"endpoint_rule,omitempty"`
-	Direction    string                       `json:"direction,omitempty"`
+	// Foo is an example field of NgrokTrafficPolicy. Edit ngroktrafficpolicy_types.go to remove/update
+	Foo string `json:"foo,omitempty"`
 }
 
-// PolicyStatus defines the observed state of Policy
-type PolicyStatus struct {
+// NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
+type NgrokTrafficPolicyStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -51,24 +49,24 @@ type PolicyStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// Policy is the Schema for the policies API
-type Policy struct {
+// NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API
+type NgrokTrafficPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   PolicySpec   `json:"spec,omitempty"`
-	Status PolicyStatus `json:"status,omitempty"`
+	Spec   NgrokTrafficPolicySpec   `json:"spec,omitempty"`
+	Status NgrokTrafficPolicyStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// PolicyList contains a list of Policy
-type PolicyList struct {
+// NgrokTrafficPolicyList contains a list of NgrokTrafficPolicy
+type NgrokTrafficPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Policy `json:"items"`
+	Items           []NgrokTrafficPolicy `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Policy{}, &PolicyList{})
+	SchemeBuilder.Register(&NgrokTrafficPolicy{}, &NgrokTrafficPolicyList{})
 }

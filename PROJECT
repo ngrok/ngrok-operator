@@ -86,7 +86,7 @@ resources:
   controller: true
   domain: k8s.ngrok.com
   group: ngrok
-  kind: Policy
+  kind: NgrokTrafficPolicy
   path: github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1
   version: v1alpha1
 version: "3"

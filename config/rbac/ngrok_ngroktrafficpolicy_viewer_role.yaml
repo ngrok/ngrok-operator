@@ -1,31 +1,27 @@
-# permissions for end users to edit policies.
+# permissions for end users to view ngroktrafficpolicies.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: policy-editor-role
+    app.kubernetes.io/instance: ngroktrafficpolicy-viewer-role
     app.kubernetes.io/component: rbac
     app.kubernetes.io/created-by: kubernetes-ingress-controller
     app.kubernetes.io/part-of: kubernetes-ingress-controller
     app.kubernetes.io/managed-by: kustomize
-  name: policy-editor-role
+  name: ngroktrafficpolicy-viewer-role
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - policies
+  - ngroktrafficpolicies
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - policies/status
+  - ngroktrafficpolicies/status
   verbs:
   - get
