@@ -295,7 +295,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - policies
+  - ngroktrafficpolicies
   verbs:
   - create
   - delete
@@ -307,13 +307,13 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - policies/finalizers
+  - ngroktrafficpolicies/finalizers
   verbs:
   - update
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - policies/status
+  - ngroktrafficpolicies/status
   verbs:
   - get
   - patch
