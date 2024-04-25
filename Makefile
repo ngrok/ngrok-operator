@@ -57,13 +57,13 @@ preflight: ## Verifies required things like the go version
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=ngrok-ingress-controller-manager-role crd webhook paths="{./api/ingress/v1alpha1/, ./internal/controller/ingress/, ./internal/controller/gateway/}" \
+	$(CONTROLLER_GEN) rbac:roleName=ngrok-ingress-controller-manager-role crd webhook paths="{./api/ingress/v1alpha1/, ./api/ngrok/v1alpha1, ./internal/controller/ingress/, ./internal/controller/ngrok/, ./internal/controller/gateway/}" \
 		output:crd:artifacts:config=$(HELM_TEMPLATES_DIR)/crds \
 		output:rbac:artifacts:config=$(HELM_TEMPLATES_DIR)/rbac
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="{./api/ingress/v1alpha1/, ./internal/controller/ingress/, ./internal/controller/gateway/}"
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="{./api/ingress/v1alpha1/, ./api/ngrok/v1alpha1, ./internal/controller/ingress/, ./internal/controller/ngrok, ./internal/controller/gateway/}"
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
