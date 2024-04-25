@@ -37,21 +37,17 @@ spec:
             description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
             properties:
               policy:
-                description: RawMessage is a raw encoded JSON value. It implements
-                  Marshaler and Unmarshaler and can be used to delay JSON decoding
-                  or precompute a JSON encoding.
-                format: byte
-                type: string
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
             type: object
           status:
             description: NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
             properties:
               policy:
-                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
-                  of cluster Important: Run "make" to regenerate code after modifying
-                  this file'
-                format: byte
-                type: string
+                description: The raw json encoded policy that was applied to the ngrok
+                  API
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
             type: object
         type: object
     served: true
