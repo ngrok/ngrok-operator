@@ -37,6 +37,8 @@ spec:
             description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
             properties:
               policy:
+                description: The raw json encoded policy that was applied to the ngrok
+                  API
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
             type: object
