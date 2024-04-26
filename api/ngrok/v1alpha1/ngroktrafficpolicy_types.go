@@ -38,13 +38,20 @@ type NgrokTrafficPolicySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
+	// The raw json encoded policy that was applied to the ngrok API
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Type=object
 	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
 // NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
 type NgrokTrafficPolicyStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+
+	// The raw json encoded policy that was applied to the ngrok API
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Type=object
 	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
