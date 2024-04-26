@@ -51,7 +51,11 @@ type TLSEdgeSpec struct {
 
 	MutualTLS *EndpointMutualTLS `json:"mutualTls,omitempty"`
 
-	Policy *EndpointPolicy `json:"policy,omitempty"`
+	// raw json policy string that was applied to the ngrok API
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Type=object
+	Policy EndpointTrafficPolicy `json:"policy,omitempty"`
 }
 
 // TLSEdgeStatus defines the observed state of TLSEdge
