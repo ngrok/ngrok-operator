@@ -388,26 +388,25 @@ func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(ctx context.Context, obj cli
 
 func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
 	policy := edge.Spec.Policy
-	client := r.NgrokClientset.EdgeModules().TCP().Policy()
-
-	endpointPolicy := policy.ToNgrok()
+	client := r.NgrokClientset.EdgeModules().TCP().RawPolicy()
 
 	// Early return if nothing to be done
-	if endpointPolicy == nil {
+	if policy == nil {
 		if remoteEdge.Policy == nil {
-			r.Log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
+			r.Log.Info("Module matches desired state, skipping update", "module", "TrafficPolicy", "comparison", routeModuleComparisonBothNil)
 
 			return nil
 		}
 
-		r.Log.Info("Deleting Policy module")
+		r.Log.Info("Deleting TrafficPolicy module")
 		return client.Delete(ctx, edge.Status.ID)
 	}
 
-	r.Log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrok.EdgePolicyReplace{
+	r.Log.Info("Updating TrafficPolicy module")
+	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTCPPolicyReplace{
 		ID:     remoteEdge.ID,
-		Module: *endpointPolicy,
+		Module: ngrokapi.RawTCPModuleSetPolicy(policy),
 	})
+
 	return err
 }

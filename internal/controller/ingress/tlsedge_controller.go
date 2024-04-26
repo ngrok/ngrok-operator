@@ -399,12 +399,10 @@ func (r *TLSEdgeReconciler) listTLSEdgesForIPPolicy(ctx context.Context, obj cli
 
 func (r *TLSEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
 	policy := edge.Spec.Policy
-	client := r.NgrokClientset.EdgeModules().TLS().Policy()
-
-	endpointPolicy := policy.ToNgrok()
+	client := r.NgrokClientset.EdgeModules().TLS().RawPolicy()
 
 	// Early return if nothing to be done
-	if endpointPolicy == nil {
+	if policy == nil {
 		if remoteEdge.Policy == nil {
 			r.Log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
 
@@ -416,9 +414,9 @@ func (r *TLSEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 	}
 
 	r.Log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrok.EdgePolicyReplace{
+	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTLSPolicyReplace{
 		ID:     remoteEdge.ID,
-		Module: *endpointPolicy,
+		Module: ngrokapi.RawTLSModuleSetPolicy(policy),
 	})
 	return err
 }

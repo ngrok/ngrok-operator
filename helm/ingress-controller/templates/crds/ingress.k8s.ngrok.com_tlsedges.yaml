@@ -105,61 +105,10 @@ spec:
                     type: array
                 type: object
               policy:
-                properties:
-                  enabled:
-                    description: Determines if the rule will be applied to traffic
-                    type: boolean
-                  inbound:
-                    description: Inbound traffic rule
-                    items:
-                      properties:
-                        actions:
-                          description: Actions
-                          items:
-                            properties:
-                              config:
-                                type: object
-                                x-kubernetes-preserve-unknown-fields: true
-                              type:
-                                type: string
-                            type: object
-                          type: array
-                        expressions:
-                          description: Expressions
-                          items:
-                            type: string
-                          type: array
-                        name:
-                          description: Name
-                          type: string
-                      type: object
-                    type: array
-                  outbound:
-                    description: Outbound traffic rule
-                    items:
-                      properties:
-                        actions:
-                          description: Actions
-                          items:
-                            properties:
-                              config:
-                                type: object
-                                x-kubernetes-preserve-unknown-fields: true
-                              type:
-                                type: string
-                            type: object
-                          type: array
-                        expressions:
-                          description: Expressions
-                          items:
-                            type: string
-                          type: array
-                        name:
-                          description: Name
-                          type: string
-                      type: object
-                    type: array
+                description: raw json policy string that was applied to the ngrok
+                  API
                 type: object
+                x-kubernetes-preserve-unknown-fields: true
               tlsTermination:
                 properties:
                   minVersion:
