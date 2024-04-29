@@ -393,16 +393,16 @@ func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 	// Early return if nothing to be done
 	if policy == nil {
 		if remoteEdge.Policy == nil {
-			r.Log.Info("Module matches desired state, skipping update", "module", "TrafficPolicy", "comparison", routeModuleComparisonBothNil)
+			r.Log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
 
 			return nil
 		}
 
-		r.Log.Info("Deleting TrafficPolicy module")
+		r.Log.Info("Deleting Policy module")
 		return client.Delete(ctx, edge.Status.ID)
 	}
 
-	r.Log.Info("Updating TrafficPolicy module")
+	r.Log.Info("Updating Policy module")
 	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTCPPolicyReplace{
 		ID:     remoteEdge.ID,
 		Module: ngrokapi.RawTCPModuleSetPolicy(policy),
