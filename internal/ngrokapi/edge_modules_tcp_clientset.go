@@ -14,15 +14,14 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/tcp_edge_policy"
 )
 
-type RawTCPModuleSetPolicy json.RawMessage
 type EdgeRawTCPPolicyReplace struct {
-	ID     string                `json:"id,omitempty"`
-	Module RawTCPModuleSetPolicy `json:"module,omitempty"`
+	ID     string          `json:"id,omitempty"`
+	Module json.RawMessage `json:"module,omitempty"`
 }
 
 type RawTCPEdgePolicyClient interface {
 	Delete(context.Context, string) error
-	Replace(context.Context, EdgeRawTCPPolicyReplace) (*RawTCPModuleSetPolicy, error)
+	Replace(context.Context, EdgeRawTCPPolicyReplace) (*json.RawMessage, error)
 }
 type rawTCPPolicyClient struct {
 	base   *ngrok.BaseClient
@@ -40,7 +39,7 @@ func (c *rawTCPPolicyClient) Delete(ctx context.Context, id string) error {
 	return c.policy.Delete(ctx, id)
 }
 
-func (c *rawTCPPolicyClient) Replace(ctx context.Context, policy *EdgeRawTCPPolicyReplace) (*RawTCPModuleSetPolicy, error) {
+func (c *rawTCPPolicyClient) Replace(ctx context.Context, policy *EdgeRawTCPPolicyReplace) (*json.RawMessage, error) {
 	if policy == nil {
 		return nil, errors.New("tcp edge policy replace cannot be nil")
 	}
@@ -49,7 +48,7 @@ func (c *rawTCPPolicyClient) Replace(ctx context.Context, policy *EdgeRawTCPPoli
 		// api client panics on error also
 		panic(err)
 	}
-	var res RawTCPModuleSetPolicy
+	var res json.RawMessage
 	apiURL := &url.URL{Path: path.String()}
 
 	if err := c.base.Do(ctx, "PUT", apiURL, policy.Module, &res); err != nil {

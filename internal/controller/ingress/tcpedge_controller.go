@@ -26,6 +26,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"golang.org/x/exp/maps"
@@ -405,7 +406,7 @@ func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 	r.Log.Info("Updating Policy module")
 	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTCPPolicyReplace{
 		ID:     remoteEdge.ID,
-		Module: ngrokapi.RawTCPModuleSetPolicy(policy),
+		Module: json.RawMessage(policy),
 	})
 
 	return err

@@ -57,15 +57,14 @@ func (c *defaultHTTPSEdgeModulesClientset) TLSTermination() *https_edge_tls_term
 	return c.tlsTermination
 }
 
-type RawHTTPSModuleSetPolicy json.RawMessage
 type EdgeRoutePolicyRawReplace struct {
-	EdgeID string                  `json:"edge_id,omitempty"`
-	ID     string                  `json:"id,omitempty"`
-	Module RawHTTPSModuleSetPolicy `json:"module,omitempty"`
+	EdgeID string          `json:"edge_id,omitempty"`
+	ID     string          `json:"id,omitempty"`
+	Module json.RawMessage `json:"module,omitempty"`
 }
 type RawHTTPSEdgePolicyClient interface {
 	Delete(context.Context, *ngrok.EdgeRouteItem) error
-	Replace(context.Context, EdgeRoutePolicyRawReplace) (*RawHTTPSModuleSetPolicy, error)
+	Replace(context.Context, EdgeRoutePolicyRawReplace) (*json.RawMessage, error)
 }
 type rawHTTPSPolicyClient struct {
 	base   *ngrok.BaseClient
@@ -83,7 +82,7 @@ func (c *rawHTTPSPolicyClient) Delete(ctx context.Context, arg *ngrok.EdgeRouteI
 	return c.policy.Delete(ctx, arg)
 }
 
-func (c *rawHTTPSPolicyClient) Replace(ctx context.Context, policy *EdgeRoutePolicyRawReplace) (*RawHTTPSModuleSetPolicy, error) {
+func (c *rawHTTPSPolicyClient) Replace(ctx context.Context, policy *EdgeRoutePolicyRawReplace) (*json.RawMessage, error) {
 	if policy == nil {
 		return nil, errors.New("edge route policy replace cannot be nil")
 	}
@@ -92,7 +91,7 @@ func (c *rawHTTPSPolicyClient) Replace(ctx context.Context, policy *EdgeRoutePol
 		// api client panics on error also
 		panic(err)
 	}
-	var res RawHTTPSModuleSetPolicy
+	var res json.RawMessage
 	apiURL := &url.URL{Path: path.String()}
 
 	if err := c.base.Do(ctx, "PUT", apiURL, policy.Module, &res); err != nil {

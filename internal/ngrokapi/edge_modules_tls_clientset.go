@@ -16,15 +16,14 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/tls_edge_tls_termination"
 )
 
-type RawTLSModuleSetPolicy json.RawMessage
 type EdgeRawTLSPolicyReplace struct {
-	ID     string                `json:"id,omitempty"`
-	Module RawTLSModuleSetPolicy `json:"module,omitempty"`
+	ID     string          `json:"id,omitempty"`
+	Module json.RawMessage `json:"module,omitempty"`
 }
 
 type RawTLSEdgePolicyClient interface {
 	Delete(context.Context, string) error
-	Replace(context.Context, EdgeRawTLSPolicyReplace) (*RawTLSModuleSetPolicy, error)
+	Replace(context.Context, EdgeRawTLSPolicyReplace) (*json.RawMessage, error)
 }
 type rawTLSPolicyClient struct {
 	base   *ngrok.BaseClient
@@ -41,7 +40,7 @@ func (c *rawTLSPolicyClient) Delete(ctx context.Context, id string) error {
 	return c.policy.Delete(ctx, id)
 }
 
-func (c *rawTLSPolicyClient) Replace(ctx context.Context, policy *EdgeRawTLSPolicyReplace) (*RawTLSModuleSetPolicy, error) {
+func (c *rawTLSPolicyClient) Replace(ctx context.Context, policy *EdgeRawTLSPolicyReplace) (*json.RawMessage, error) {
 	if policy == nil {
 		return nil, errors.New("tls edge policy replace cannot be nil")
 	}
@@ -50,7 +49,7 @@ func (c *rawTLSPolicyClient) Replace(ctx context.Context, policy *EdgeRawTLSPoli
 		// api client panics on error also
 		panic(err)
 	}
-	var res RawTLSModuleSetPolicy
+	var res json.RawMessage
 	apiURL := &url.URL{Path: path.String()}
 
 	if err := c.base.Do(ctx, "PUT", apiURL, policy.Module, &res); err != nil {
