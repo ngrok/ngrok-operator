@@ -880,11 +880,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 						continue
 					}
 				} else {
-					policyStr, err = json.Marshal(trafficPolicy)
-					if err != nil {
-						d.log.Error(err, "cannot convert traffic policy json", "NgrokTrafficPolicy", trafficPolicy)
-						continue
-					}
+					policyStr = []byte(trafficPolicy.Spec.Policy)
 				}
 
 				route := ingressv1alpha1.HTTPSEdgeRouteSpec{
