@@ -1,0 +1,33 @@
+---
+kind: NgrokTrafficPolicy
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+metadata:
+  name: traffic-policy-2
+spec:
+    policy:
+      inbound:
+        - name: "test_in"
+          expressions:
+            - "req.Method === 'PUT'"
+          actions:
+            - type: "deny"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-ingress
+  annotations:
+    k8s.ngrok.com/traffic-policy: traffic-policy-2
+spec:
+  ingressClassName: ngrok
+  rules:
+    - host: trafficpolicyingress-test.ngrok.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: game-2048
+                port:
+                  number: 80
