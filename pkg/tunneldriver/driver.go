@@ -54,6 +54,9 @@ type TunnelDriver struct {
 type TunnelDriverOpts struct {
 	ServerAddr string
 	Region     string
+	HostCA     bool
+	CAPool     *x509.CertPool
+	Comments   *TunnelDriverComments
 }
 
 type TunnelDriverComments struct {
@@ -67,7 +70,8 @@ type sessionState struct {
 }
 
 // New creates and initializes a new TunnelDriver
-func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelComment *TunnelDriverComments) (*TunnelDriver, error) {
+func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*TunnelDriver, error) {
+	tunnelComment := opts.Comments
 	comments := []string{}
 
 	if tunnelComment != nil {
@@ -87,6 +91,20 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelC
 		ngrok.WithClientInfo("ngrok-ingress-controller", version.GetVersion(), comments...),
 		ngrok.WithAuthtokenFromEnv(),
 		ngrok.WithLogger(k8sLogger{logger}),
+	}
+
+	if opts.HostCA && opts.CAPool != nil {
+		return nil, errors.New("Cannot specify both HostCA and CAPool")
+	}
+
+	if opts.HostCA {
+		connOpts = append(connOpts, ngrok.WithTLSConfig(func(c *tls.Config) {
+			c.RootCAs = nil
+		}))
+	}
+
+	if opts.CAPool != nil {
+		connOpts = append(connOpts, ngrok.WithCA(opts.CAPool))
 	}
 
 	if opts.Region != "" {
