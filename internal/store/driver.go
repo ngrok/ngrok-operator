@@ -844,6 +844,13 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					continue
 				}
 
+				policyStr, err := json.Marshal(modSet.Modules.Policy)
+
+				if err != nil {
+					d.log.Error(err, "cannot convert module-set policy json", "Policy", modSet.Modules.Policy)
+					continue
+				}
+
 				route := ingressv1alpha1.HTTPSEdgeRouteSpec{
 					Match:     httpIngressPath.Path,
 					MatchType: matchType,
@@ -855,7 +862,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					IPRestriction:       modSet.Modules.IPRestriction,
 					Headers:             modSet.Modules.Headers,
 					OAuth:               modSet.Modules.OAuth,
-					Policy:              modSet.Modules.Policy,
+					Policy:              policyStr,
 					OIDC:                modSet.Modules.OIDC,
 					SAML:                modSet.Modules.SAML,
 					WebhookVerification: modSet.Modules.WebhookVerification,
@@ -949,11 +956,17 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 
 							// TODO: set with values from rules.Filters + rules.Matches
 							policy, err := d.createEndpointPolicyForGateway(&rule)
+
 							if err != nil {
 								d.log.Error(err, "error creating policy from HTTPRouteRule", "rule", rule)
 								continue
 							}
-							route.Policy = policy
+							policyStr, err := json.Marshal(policy)
+							if err != nil {
+								d.log.Error(err, "cannot convert policy json", "Policy", policy)
+								continue
+							}
+							route.Policy = policyStr
 
 							for idx, backendref := range rule.BackendRefs {
 								// currently the ingress controller doesn't support weighted backends

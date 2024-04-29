@@ -26,6 +26,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"golang.org/x/exp/maps"
@@ -388,12 +389,10 @@ func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(ctx context.Context, obj cli
 
 func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
 	policy := edge.Spec.Policy
-	client := r.NgrokClientset.EdgeModules().TCP().Policy()
-
-	endpointPolicy := policy.ToNgrok()
+	client := r.NgrokClientset.EdgeModules().TCP().RawPolicy()
 
 	// Early return if nothing to be done
-	if endpointPolicy == nil {
+	if policy == nil {
 		if remoteEdge.Policy == nil {
 			r.Log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
 
@@ -405,9 +404,10 @@ func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 	}
 
 	r.Log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrok.EdgePolicyReplace{
+	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTCPPolicyReplace{
 		ID:     remoteEdge.ID,
-		Module: *endpointPolicy,
+		Module: json.RawMessage(policy),
 	})
+
 	return err
 }

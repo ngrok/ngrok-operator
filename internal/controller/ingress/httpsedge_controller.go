@@ -26,6 +26,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -1034,12 +1035,10 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
 	log := ctrl.LoggerFrom(ctx)
 	policy := routeSpec.Policy
-	client := u.clientset.Policy()
-
-	endpointPolicy := policy.ToNgrok()
+	client := u.clientset.RawPolicy()
 
 	// Early return if nothing to be done
-	if endpointPolicy == nil {
+	if policy == nil {
 		if route.Policy == nil {
 			u.logMatches(log, "Policy", routeModuleComparisonBothNil)
 			return nil
@@ -1050,10 +1049,10 @@ func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *
 	}
 
 	log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrok.EdgeRoutePolicyReplace{
+	_, err := client.Replace(ctx, &ngrokapi.EdgeRoutePolicyRawReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
-		Module: *endpointPolicy,
+		Module: json.RawMessage(policy),
 	})
 	return err
 }
