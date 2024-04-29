@@ -74,7 +74,7 @@ type defaultTLSEdgeModulesClientset struct {
 	mutualTLS      *tls_edge_mutual_tls.Client
 	tlsTermination *tls_edge_tls_termination.Client
 	policy         *tls_edge_policy.Client
-	newPolicy      *rawTLSPolicyClient
+	rawPolicy      *rawTLSPolicyClient
 }
 
 func newTLSEdgeModulesClientset(config *ngrok.ClientConfig) *defaultTLSEdgeModulesClientset {
@@ -84,7 +84,7 @@ func newTLSEdgeModulesClientset(config *ngrok.ClientConfig) *defaultTLSEdgeModul
 		mutualTLS:      tls_edge_mutual_tls.NewClient(config),
 		tlsTermination: tls_edge_tls_termination.NewClient(config),
 		policy:         tls_edge_policy.NewClient(config),
-		newPolicy:      newRawTLSPolicyClient(config),
+		rawPolicy:      newRawTLSPolicyClient(config),
 	}
 }
 
@@ -109,5 +109,5 @@ func (c *defaultTLSEdgeModulesClientset) Policy() *tls_edge_policy.Client {
 }
 
 func (c *defaultTLSEdgeModulesClientset) RawPolicy() *rawTLSPolicyClient {
-	return c.newPolicy
+	return c.rawPolicy
 }
