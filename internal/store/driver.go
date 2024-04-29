@@ -20,6 +20,8 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
+
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -701,6 +703,18 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	return computedModSet, nil
 }
 
+func (d *Driver) getNgrokTrafficPolicyForIngress(ing *netv1.Ingress) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
+	policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(ing)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return d.store.GetNgrokTrafficPolicyV1(policy, ing.Namespace)
+}
+
 func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, gatewayDomainMap map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.HTTPSEdge {
 	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(*ingressDomains))
 	for _, domain := range *ingressDomains {
@@ -803,6 +817,18 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 			continue
 		}
 
+		trafficPolicy, err := d.getNgrokTrafficPolicyForIngress(ingress)
+
+		if err != nil {
+			d.log.Error(err, "error getting ngrok traffic policy for ingress", "ingress", ingress)
+			continue
+		}
+
+		if trafficPolicy != nil && modSet.Modules.Policy != nil {
+			d.log.Error(err, "error cannot have both a traffic policy and a moduleset policy", "ingress", ingress)
+			continue
+		}
+
 		for _, rule := range ingress.Spec.Rules {
 			// TODO: Handle routes without hosts that then apply to all edges
 			edge, ok := edgeMap[rule.Host]
@@ -844,11 +870,21 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					continue
 				}
 
-				policyStr, err := json.Marshal(modSet.Modules.Policy)
+				var policyStr []byte
 
-				if err != nil {
-					d.log.Error(err, "cannot convert module-set policy json", "Policy", modSet.Modules.Policy)
-					continue
+				// Handle deciding which policy we want to serialize
+				if trafficPolicy == nil {
+					policyStr, err = json.Marshal(modSet.Modules.Policy)
+					if err != nil {
+						d.log.Error(err, "cannot convert module-set policy json", "Policy", modSet.Modules.Policy)
+						continue
+					}
+				} else {
+					policyStr, err = json.Marshal(trafficPolicy)
+					if err != nil {
+						d.log.Error(err, "cannot convert traffic policy json", "NgrokTrafficPolicy", trafficPolicy)
+						continue
+					}
 				}
 
 				route := ingressv1alpha1.HTTPSEdgeRouteSpec{

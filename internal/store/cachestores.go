@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,10 +41,11 @@ type CacheStores struct {
 	HTTPRoute cache.Store
 
 	// Ngrok Stores
-	DomainV1      cache.Store
-	TunnelV1      cache.Store
-	HTTPSEdgeV1   cache.Store
-	NgrokModuleV1 cache.Store
+	DomainV1             cache.Store
+	TunnelV1             cache.Store
+	HTTPSEdgeV1          cache.Store
+	NgrokModuleV1        cache.Store
+	NgrokTrafficPolicyV1 cache.Store
 
 	log logr.Logger
 	l   *sync.RWMutex
@@ -60,12 +62,13 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		Gateway:   cache.NewStore(keyFunc),
 		HTTPRoute: cache.NewStore(keyFunc),
 		// Ngrok Stores
-		DomainV1:      cache.NewStore(keyFunc),
-		TunnelV1:      cache.NewStore(keyFunc),
-		HTTPSEdgeV1:   cache.NewStore(keyFunc),
-		NgrokModuleV1: cache.NewStore(keyFunc),
-		l:             &sync.RWMutex{},
-		log:           logger,
+		DomainV1:             cache.NewStore(keyFunc),
+		TunnelV1:             cache.NewStore(keyFunc),
+		HTTPSEdgeV1:          cache.NewStore(keyFunc),
+		NgrokModuleV1:        cache.NewStore(keyFunc),
+		NgrokTrafficPolicyV1: cache.NewStore(keyFunc),
+		l:                    &sync.RWMutex{},
+		log:                  logger,
 	}
 }
 
@@ -121,6 +124,8 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 		return c.HTTPSEdgeV1.Get(obj)
 	case *ingressv1alpha1.NgrokModuleSet:
 		return c.NgrokModuleV1.Get(obj)
+	case *ngrokv1alpha1.NgrokTrafficPolicy:
+		return c.NgrokTrafficPolicyV1.Get(obj)
 	default:
 		return nil, false, fmt.Errorf("unsupported object type: %T", obj)
 	}
@@ -162,6 +167,8 @@ func (c CacheStores) Add(obj runtime.Object) error {
 		return c.HTTPSEdgeV1.Add(obj)
 	case *ingressv1alpha1.NgrokModuleSet:
 		return c.NgrokModuleV1.Add(obj)
+	case *ngrokv1alpha1.NgrokTrafficPolicy:
+		return c.NgrokTrafficPolicyV1.Add(obj)
 
 	default:
 		return fmt.Errorf("unsupported object type: %T", obj)
@@ -204,6 +211,8 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.HTTPSEdgeV1.Delete(obj)
 	case *ingressv1alpha1.NgrokModuleSet:
 		return c.NgrokModuleV1.Delete(obj)
+	case *ngrokv1alpha1.NgrokTrafficPolicy:
+		return c.NgrokTrafficPolicyV1.Delete(obj)
 	default:
 		return fmt.Errorf("unsupported object type: %T", obj)
 	}

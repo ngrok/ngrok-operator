@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
+
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 
 	corev1 "k8s.io/api/core/v1"
@@ -43,6 +45,7 @@ type Storer interface {
 	GetServiceV1(name, namespace string) (*corev1.Service, error)
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error)
+	GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error)
 	GetGateway(name string, namespace string) (*gatewayv1.Gateway, error)
 	GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error)
 
@@ -161,6 +164,17 @@ func (s Store) GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.Ngr
 		return nil, errors.NewErrorNotFound(fmt.Sprintf("NgrokModuleSet %v not found", name))
 	}
 	return p.(*ingressv1alpha1.NgrokModuleSet), nil
+}
+
+func (s Store) GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
+	p, exists, err := s.stores.NgrokTrafficPolicyV1.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("NgrokTrafficPolicy %v not found", name))
+	}
+	return p.(*ngrokv1alpha1.NgrokTrafficPolicy), nil
 }
 
 func (s Store) GetGateway(name string, namespace string) (*gatewayv1.Gateway, error) {
