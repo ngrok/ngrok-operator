@@ -26,10 +26,13 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -305,15 +308,35 @@ func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingres
 	log := ctrl.LoggerFrom(ctx)
 
 	if edge.Status.Hostports == nil || len(edge.Status.Hostports) == 0 {
+		metadata := ReservedAddrMetadata{
+			Namespace: edge.Namespace,
+			Name:      edge.Name,
+			OwnerRef:  metav1.GetControllerOf(edge),
+		}
+
 		log.V(3).Info("No hostports assigned to edge, assigning one or using existing one")
-		addr, err := r.findAddrWithMatchingMetadata(ctx, r.metadataForEdge(edge))
+		addr, err := r.findAddrWithMatchingMetadata(ctx, metadata)
 		if err != nil {
 			log.Error(err, "Failed to find addr with matching metadata")
 			return err
 		}
 
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			return err
+		}
+
 		// If we found an addr with matching metadata, use it
 		if addr != nil {
+			description := r.descriptionForEdge(edge)
+			metadata := string(metadataBytes)
+			// Update the addr description & metadata. We know the metadata matches, but the name for the edge may have changed
+			_, _ = r.NgrokClientset.TCPAddresses().Update(ctx, &ngrok.ReservedAddrUpdate{
+				ID:          addr.ID,
+				Description: &description,
+				Metadata:    &metadata,
+			})
+
 			log.V(3).Info("Found existing addr with matching metadata", "reservedAddr.ID", addr.ID, "reservedAddr.Addr", addr.Addr)
 			edge.Status.Hostports = []string{addr.Addr}
 			return r.Status().Update(ctx, edge)
@@ -323,7 +346,7 @@ func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingres
 		log.V(3).Info("Creating new reserved addr for edge")
 		addr, err = r.NgrokClientset.TCPAddresses().Create(ctx, &ngrok.ReservedAddrCreate{
 			Description: r.descriptionForEdge(edge),
-			Metadata:    r.metadataForEdge(edge),
+			Metadata:    string(metadataBytes),
 		})
 		if err != nil {
 			return err
@@ -337,19 +360,28 @@ func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingres
 	return nil
 }
 
-func (r *TCPEdgeReconciler) findAddrWithMatchingMetadata(ctx context.Context, metadata string) (*ngrok.ReservedAddr, error) {
+func (r *TCPEdgeReconciler) findAddrWithMatchingMetadata(ctx context.Context, metadata ReservedAddrMetadata) (*ngrok.ReservedAddr, error) {
+	log := ctrl.LoggerFrom(ctx)
+
 	iter := r.NgrokClientset.TCPAddresses().List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		addr := iter.Item()
-		if addr.Metadata == metadata {
+		if addr.Metadata == "" {
+			continue
+		}
+
+		addrMetadata := ReservedAddrMetadata{}
+		// if we can't unmarshal the metadata, we can't match it, but just continue
+		if err := json.Unmarshal([]byte(addr.Metadata), &addrMetadata); err != nil {
+			log.V(3).Info("Failed to unmarshal addr metadata", "addr.ID", addr.ID, "err", err)
+			continue
+		}
+
+		if metadata.Matches(addrMetadata) {
 			return addr, nil
 		}
 	}
 	return nil, iter.Err()
-}
-
-func (r *TCPEdgeReconciler) metadataForEdge(edge *ingressv1alpha1.TCPEdge) string {
-	return fmt.Sprintf(`{"namespace": "%s", "name": "%s"}`, edge.Namespace, edge.Name)
 }
 
 func (r *TCPEdgeReconciler) descriptionForEdge(edge *ingressv1alpha1.TCPEdge) string {
@@ -438,4 +470,25 @@ func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 	})
 
 	return err
+}
+
+type ReservedAddrMetadata struct {
+	Namespace string                 `json:"namespace"`
+	Name      string                 `json:"name"`
+	OwnerRef  *metav1.OwnerReference `json:"ownerRef,omitempty"`
+}
+
+// Matches returns true if the metadata is a match for the other metadata
+func (m ReservedAddrMetadata) Matches(other ReservedAddrMetadata) bool {
+	// If the namespaces don't match, they're automatically not a match
+	if m.Namespace != other.Namespace {
+		return false
+	}
+
+	// If either have the owner reference set, we'll use those to compare
+	if m.OwnerRef != nil || other.OwnerRef != nil {
+		return reflect.DeepEqual(m.OwnerRef, other.OwnerRef)
+	}
+
+	return m.Name == other.Name
 }

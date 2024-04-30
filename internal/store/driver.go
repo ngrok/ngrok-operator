@@ -1093,15 +1093,15 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 		}
 
 		if match.Method != nil {
-			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPMethod", *match.Method)
+			d.log.Error(fmt.Errorf("unsupported match type"), "Unsupported match type", "HTTPMethod", *match.Method)
 		}
 
 		if len(match.Headers) > 0 {
-			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPHeaderMatch", match.Headers)
+			d.log.Error(fmt.Errorf("unsupported match type"), "Unsupported match type", "HTTPHeaderMatch", match.Headers)
 		}
 
 		if len(match.QueryParams) > 0 {
-			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPQueryParamMatch", match.QueryParams)
+			d.log.Error(fmt.Errorf("unsupported match type"), "Unsupported match type", "HTTPQueryParamMatch", match.QueryParams)
 		}
 	}
 
@@ -1466,7 +1466,7 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 			return err
 		}
 	default:
-		d.log.Error(fmt.Errorf("Unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
+		d.log.Error(fmt.Errorf("unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
 		return nil
 	}
 	return nil
@@ -1760,7 +1760,7 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 			m := map[string]string{}
 			err := json.Unmarshal([]byte(annotation), &m)
 			if err != nil {
-				return "", fmt.Errorf("Could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
+				return "", fmt.Errorf("could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
 			}
 
 			if protocol, ok := m[portName]; ok {
@@ -1770,7 +1770,7 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 				case "HTTP", "HTTPS":
 					return upperProto, nil
 				default:
-					return "", fmt.Errorf("Unhandled protocol annotation: '%s', must be 'HTTP' or 'HTTPS'. From: %s service: %s", upperProto, service.Namespace, service.Name)
+					return "", fmt.Errorf("unhandled protocol annotation: '%s', must be 'HTTP' or 'HTTPS'. From: %s service: %s", upperProto, service.Namespace, service.Name)
 				}
 			}
 		}
@@ -1789,7 +1789,7 @@ func (d *Driver) getPortAppProtocol(service *corev1.Service, port *corev1.Servic
 	case "":
 		return "", nil
 	default:
-		return "", fmt.Errorf("Unsupported appProtocol: '%s', must be 'k8s.ngrok.com/http2', 'kubernetes.io/h2c' or ''. From: %s service: %s", proto, service.Namespace, service.Name)
+		return "", fmt.Errorf("unsupported appProtocol: '%s', must be 'k8s.ngrok.com/http2', 'kubernetes.io/h2c' or ''. From: %s service: %s", proto, service.Namespace, service.Name)
 	}
 }
 
