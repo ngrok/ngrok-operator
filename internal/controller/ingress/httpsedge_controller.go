@@ -26,7 +26,6 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -1052,7 +1051,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *
 	_, err := client.Replace(ctx, &ngrokapi.EdgeRoutePolicyRawReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
-		Module: json.RawMessage(policy),
+		Module: policy,
 	})
 	return err
 }
