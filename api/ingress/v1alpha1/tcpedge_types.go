@@ -25,6 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -47,7 +49,7 @@ type TCPEdgeSpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object
-	Policy EndpointTrafficPolicy `json:"policy,omitempty"`
+	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
 // TCPEdgeStatus defines the observed state of TCPEdge

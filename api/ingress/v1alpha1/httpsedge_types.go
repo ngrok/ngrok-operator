@@ -25,6 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	"github.com/ngrok/ngrok-api-go/v5"
 	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,7 +80,7 @@ type HTTPSEdgeRouteSpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object
-	Policy EndpointTrafficPolicy `json:"policy,omitempty"`
+	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
 // HTTPSEdgeSpec defines the desired state of HTTPSEdge

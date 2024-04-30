@@ -431,7 +431,6 @@ func (amazon *EndpointOAuthAmazon) ToNgrok(clientSecret *string) *ngrok.Endpoint
 	return mod
 }
 
-type EndpointTrafficPolicy json.RawMessage
 type EndpointPolicy struct {
 	// Determines if the rule will be applied to traffic
 	Enabled *bool `json:"enabled,omitempty"`

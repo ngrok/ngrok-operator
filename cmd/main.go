@@ -322,12 +322,12 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	if err = (&ngrokctr.NgrokTrafficPolicyReconciler{
 		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("Policy"),
+		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("policy-controller"),
 		Driver:   driver,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Policy")
+		setupLog.Error(err, "unable to create controller", "controller", "TrafficPolicy")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
