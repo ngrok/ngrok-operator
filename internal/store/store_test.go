@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -225,6 +226,28 @@ var _ = Describe("Store", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(errors.IsErrorNotFound(err)).To(Equal(true))
 				Expect(modset).To(BeNil())
+			})
+		})
+	})
+
+	var _ = Describe("GetNgrokTrafficPolicyV1", func() {
+		Context("when the NgrokTrafficPolicy exists", func() {
+			BeforeEach(func() {
+				tp := NewTestNgrokTrafficPolicy("ngrok", "test", "{\"inbound\": \"you know this can be anything though\"}")
+				store.Add(&tp)
+			})
+			It("returns the NgrokTrafficPolicy", func() {
+				tp, err := store.GetNgrokTrafficPolicyV1("ngrok", "test")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(tp.Spec.Policy).To(Equal(json.RawMessage("{\"inbound\": \"you know this can be anything though\"}")))
+			})
+		})
+		Context("when the NgrokTrafficPolicy does not exist", func() {
+			It("returns an error", func() {
+				tp, err := store.GetNgrokTrafficPolicyV1("does-not-exist", "does-not-exist")
+				Expect(err).To(HaveOccurred())
+				Expect(errors.IsErrorNotFound(err)).To(Equal(true))
+				Expect(tp).To(BeNil())
 			})
 		})
 	})

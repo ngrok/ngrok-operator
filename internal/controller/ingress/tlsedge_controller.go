@@ -26,7 +26,6 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
 	"golang.org/x/exp/maps"
@@ -417,7 +416,7 @@ func (r *TLSEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 	r.Log.Info("Updating Policy module")
 	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTLSPolicyReplace{
 		ID:     remoteEdge.ID,
-		Module: json.RawMessage(policy),
+		Module: policy,
 	})
 	return err
 }

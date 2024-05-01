@@ -20,6 +20,8 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
+
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -701,6 +703,18 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	return computedModSet, nil
 }
 
+func (d *Driver) getNgrokTrafficPolicyForIngress(ing *netv1.Ingress) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
+	policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(ing)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return d.store.GetNgrokTrafficPolicyV1(policy, ing.Namespace)
+}
+
 func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, gatewayDomainMap map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.HTTPSEdge {
 	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(*ingressDomains))
 	for _, domain := range *ingressDomains {
@@ -803,6 +817,12 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 			continue
 		}
 
+		policyJSON, err := d.getPolicyJSON(ingress, modSet)
+		if err != nil {
+			d.log.Error(err, "error marshalling JSON Policy for ingress", "ingress", ingress)
+			continue
+		}
+
 		for _, rule := range ingress.Spec.Rules {
 			// TODO: Handle routes without hosts that then apply to all edges
 			edge, ok := edgeMap[rule.Host]
@@ -844,13 +864,6 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					continue
 				}
 
-				policyStr, err := json.Marshal(modSet.Modules.Policy)
-
-				if err != nil {
-					d.log.Error(err, "cannot convert module-set policy json", "Policy", modSet.Modules.Policy)
-					continue
-				}
-
 				route := ingressv1alpha1.HTTPSEdgeRouteSpec{
 					Match:     httpIngressPath.Path,
 					MatchType: matchType,
@@ -862,7 +875,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					IPRestriction:       modSet.Modules.IPRestriction,
 					Headers:             modSet.Modules.Headers,
 					OAuth:               modSet.Modules.OAuth,
-					Policy:              policyStr,
+					Policy:              policyJSON,
 					OIDC:                modSet.Modules.OIDC,
 					SAML:                modSet.Modules.SAML,
 					WebhookVerification: modSet.Modules.WebhookVerification,
@@ -875,6 +888,38 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 			edgeMap[rule.Host] = edge
 		}
 	}
+}
+
+// retrieves the traffic policy for an ingress and falls back to the modSet policy if it doesn't exist
+func (d *Driver) getPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1alpha1.NgrokModuleSet) (json.RawMessage, error) {
+	var err error
+	var policyJSON json.RawMessage
+
+	trafficPolicy, err := d.getNgrokTrafficPolicyForIngress(ingress)
+
+	if err != nil {
+		d.log.Error(err, "error getting ngrok traffic policy for ingress", "ingress", ingress)
+		return nil, err
+	}
+
+	if modSet.Modules.Policy != nil && trafficPolicy != nil {
+		return nil, fmt.Errorf("cannot have both a traffic policy and a moduleset policy on ingress: %s", ingress.Name)
+	}
+
+	if trafficPolicy != nil {
+		return trafficPolicy.Spec.Policy, nil
+	}
+
+	if modSet == nil {
+		return policyJSON, nil
+	}
+
+	if policyJSON, err = json.Marshal(modSet.Modules.Policy); err != nil {
+		d.log.Error(err, "cannot convert module-set policy json", "ingress", ingress, "Policy", modSet.Modules.Policy)
+		return nil, err
+	}
+
+	return policyJSON, nil
 }
 
 func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
