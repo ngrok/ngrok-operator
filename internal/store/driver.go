@@ -910,6 +910,10 @@ func (d *Driver) getPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1alpha1.N
 		return trafficPolicy.Spec.Policy, nil
 	}
 
+	if modSet == nil {
+		return policyJSON, nil
+	}
+
 	if policyJSON, err = json.Marshal(modSet.Modules.Policy); err != nil {
 		d.log.Error(err, "cannot convert module-set policy json", "ingress", ingress, "Policy", modSet.Modules.Policy)
 		return nil, err
