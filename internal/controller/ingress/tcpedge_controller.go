@@ -100,6 +100,8 @@ func (r *TCPEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if err := r.reconcileTunnelGroupBackend(ctx, edge); err != nil {
 		return err
 	}
@@ -119,7 +121,7 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 	}
 
 	// No edge has been created for this edge, create one
-	r.Log.Info("Creating new TCPEdge", "namespace", edge.Namespace, "name", edge.Name)
+	log.Info("Creating new TCPEdge", "namespace", edge.Namespace, "name", edge.Name)
 	resp, err = r.NgrokClientset.TCPEdges().Create(ctx, &ngrok.TCPEdgeCreate{
 		Description: edge.Spec.Description,
 		Metadata:    edge.Spec.Metadata,
@@ -136,6 +138,8 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 }
 
 func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if err := r.reconcileTunnelGroupBackend(ctx, edge); err != nil {
 		return err
 	}
@@ -149,7 +153,7 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 		// If we can't find the edge in the ngrok API, it's been deleted, so clear the ID
 		// and requeue the edge. When it gets reconciled again, it will be recreated.
 		if ngrok.IsNotFound(err) {
-			r.Log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
+			log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
 			edge.Status.ID = ""
 			//nolint:errcheck
 			r.Status().Update(ctx, edge)
@@ -186,14 +190,18 @@ func (r *TCPEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TC
 }
 
 func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	specBackend := edge.Spec.Backend
 	// First make sure the tunnel group backend matches
 	if edge.Status.Backend.ID != "" {
+		log.WithValues("TunnelGroupBackend.ID", edge.Status.Backend.ID)
+
 		// A backend has already been created for this edge, make sure the labels match
 		backend, err := r.NgrokClientset.TunnelGroupBackends().Get(ctx, edge.Status.Backend.ID)
 		if err != nil {
 			if ngrok.IsNotFound(err) {
-				r.Log.Info("TunnelGroupBackend not found, clearing ID and requeuing", "TunnelGroupBackend.ID", edge.Status.Backend.ID)
+				log.Info("TunnelGroupBackend not found, clearing ID and requeuing")
 				edge.Status.Backend.ID = ""
 				//nolint:errcheck
 				r.Status().Update(ctx, edge)
@@ -213,6 +221,7 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 				return err
 			}
 		}
+		log.V(3).Info("Existing TunnelGroupBackend has matching labels", "labels", specBackend.Labels)
 		return nil
 	}
 
@@ -231,7 +240,9 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 }
 
 func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backendLabels map[string]string) (*ngrok.TCPEdge, error) {
-	r.Log.Info("Searching for existing TCPEdge with backend labels", "labels", backendLabels)
+	log := ctrl.LoggerFrom(ctx)
+	log.Info("Searching for existing TCPEdge with backend labels", "labels", backendLabels)
+
 	iter := r.NgrokClientset.TCPEdges().List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		edge := iter.Item()
@@ -257,7 +268,7 @@ func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backend
 		}
 
 		if maps.Equal(backend.Labels, backendLabels) {
-			r.Log.Info("Found existing TCPEdge with matching backend labels", "labels", backendLabels, "edge.ID", edge.ID)
+			log.Info("Found existing TCPEdge with matching backend labels", "labels", backendLabels, "edge.ID", edge.ID)
 			return edge, nil
 		}
 	}
@@ -291,19 +302,25 @@ func (r *TCPEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv
 }
 
 func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if edge.Status.Hostports == nil || len(edge.Status.Hostports) == 0 {
+		log.V(3).Info("No hostports assigned to edge, assigning one or using existing one")
 		addr, err := r.findAddrWithMatchingMetadata(ctx, r.metadataForEdge(edge))
 		if err != nil {
+			log.Error(err, "Failed to find addr with matching metadata")
 			return err
 		}
 
 		// If we found an addr with matching metadata, use it
 		if addr != nil {
+			log.V(3).Info("Found existing addr with matching metadata", "reservedAddr.ID", addr.ID, "reservedAddr.Addr", addr.Addr)
 			edge.Status.Hostports = []string{addr.Addr}
 			return r.Status().Update(ctx, edge)
 		}
 
 		// No hostports have been assigned to this edge, assign one
+		log.V(3).Info("Creating new reserved addr for edge")
 		addr, err = r.NgrokClientset.TCPAddresses().Create(ctx, &ngrok.ReservedAddrCreate{
 			Description: r.descriptionForEdge(edge),
 			Metadata:    r.metadataForEdge(edge),
@@ -315,6 +332,8 @@ func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingres
 		edge.Status.Hostports = []string{addr.Addr}
 		return r.Status().Update(ctx, edge)
 	}
+
+	log.V(3).Info("Hostports already assigned to edge", "hostports", edge.Status.Hostports)
 	return nil
 }
 
@@ -337,7 +356,9 @@ func (r *TCPEdgeReconciler) descriptionForEdge(edge *ingressv1alpha1.TCPEdge) st
 	return fmt.Sprintf("Reserved for %s/%s", edge.Namespace, edge.Name)
 }
 
-func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
+func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, _ *ngrok.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TCP().IPRestriction().Delete(ctx, edge.Status.ID)
 	}
@@ -345,7 +366,8 @@ func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 	if err != nil {
 		return err
 	}
-	r.Log.Info("Resolved IP Policy NamesOrIDs to IDs", "policyIds", policyIds)
+
+	log.Info("Resolved IP Policy NamesOrIDs to IDs", "policyIds", policyIds)
 
 	_, err = r.NgrokClientset.EdgeModules().TCP().IPRestriction().Replace(ctx, &ngrok.EdgeIPRestrictionReplace{
 		ID: edge.Status.ID,
