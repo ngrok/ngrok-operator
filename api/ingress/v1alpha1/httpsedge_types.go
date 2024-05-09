@@ -96,6 +96,7 @@ type HTTPSEdgeSpec struct {
 
 	// TLSTermination is the TLS termination configuration for this edge
 	TLSTermination *EndpointTLSTerminationAtEdge `json:"tlsTermination,omitempty"`
+	MutualTLS      *EndpointMutualTLS            `json:"mutualTLS,omitempty"`
 }
 
 type HTTPSEdgeRouteStatus struct {
@@ -172,7 +173,12 @@ func (e *HTTPSEdge) Equal(edge *ngrok.HTTPSEdge) bool {
 		return false
 	}
 
-	// check if TLSTermination matches
+	// check if TLSTermination & mutualTLS matches
+	return e.tlsTerminationEqual(edge) &&
+		e.mutualTLSEqual(edge)
+}
+
+func (e *HTTPSEdge) tlsTerminationEqual(edge *ngrok.HTTPSEdge) bool {
 	if e.Spec.TLSTermination == nil && edge.TlsTermination == nil {
 		return true
 	}
@@ -184,4 +190,20 @@ func (e *HTTPSEdge) Equal(edge *ngrok.HTTPSEdge) bool {
 		return false
 	}
 	return true
+}
+
+func (e *HTTPSEdge) mutualTLSEqual(edge *ngrok.HTTPSEdge) bool {
+	if e.Spec.MutualTLS == nil && edge.MutualTls == nil {
+		return true
+	}
+	if (e.Spec.MutualTLS == nil && edge.MutualTls != nil) || (e.Spec.MutualTLS != nil && edge.MutualTls == nil) {
+		// one is nil and the other is not so they don't match
+		return false
+	}
+	edgeCAIDs := make([]string, len(e.Spec.MutualTLS.CertificateAuthorities))
+	for i, ca := range edge.MutualTls.CertificateAuthorities {
+		edgeCAIDs[i] = ca.ID
+	}
+
+	return slices.Equal(e.Spec.MutualTLS.CertificateAuthorities, edgeCAIDs)
 }

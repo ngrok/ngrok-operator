@@ -47,6 +47,8 @@ type NgrokModuleSetModules struct {
 	SAML *EndpointSAML `json:"saml,omitempty"`
 	// TLSTermination configuration for this module set
 	TLSTermination *EndpointTLSTerminationAtEdge `json:"tlsTermination,omitempty"`
+	// MutualTLS configuration for this module set
+	MutualTLS *EndpointMutualTLS `json:"mutualTLS,omitempty"`
 	// WebhookVerification configuration for this module set
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
 }
@@ -96,6 +98,9 @@ func (ms *NgrokModuleSet) Merge(o *NgrokModuleSet) {
 	}
 	if omod.TLSTermination != nil {
 		msmod.TLSTermination = omod.TLSTermination
+	}
+	if omod.MutualTLS != nil {
+		msmod.MutualTLS = omod.MutualTLS
 	}
 	if omod.WebhookVerification != nil {
 		msmod.WebhookVerification = omod.WebhookVerification

@@ -168,6 +168,10 @@ func (r *HTTPSEdgeReconciler) upsert(ctx context.Context, edge *ingressv1alpha1.
 		return err
 	}
 
+	if err := r.setEdgeMutualTLS(ctx, remoteEdge, edge.Spec.MutualTLS); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -344,6 +348,29 @@ func (r *HTTPSEdgeReconciler) setEdgeTLSTermination(ctx context.Context, edge *n
 		ID: edge.ID,
 		Module: ngrok.EndpointTLSTerminationAtEdge{
 			MinVersion: ptr.To(tlsTermination.MinVersion),
+		},
+	})
+	return err
+}
+
+func (r *HTTPSEdgeReconciler) setEdgeMutualTLS(ctx context.Context, edge *ngrok.HTTPSEdge, mtls *ingressv1alpha1.EndpointMutualTLS) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	client := r.NgrokClientset.EdgeModules().HTTPS().MutualTLS()
+	if mtls == nil {
+		if edge.MutualTls == nil {
+			log.V(1).Info("Edge Mutual TLS matches spec")
+			return nil
+		}
+
+		log.Info("Deleting Edge Mutual TLS")
+		return client.Delete(ctx, edge.ID)
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeMutualTLSReplace{
+		ID: edge.ID,
+		Module: ngrok.EndpointMutualTLSMutate{
+			CertificateAuthorityIDs: mtls.CertificateAuthorities,
 		},
 	})
 	return err

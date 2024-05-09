@@ -163,6 +163,75 @@ func TestHTTPSEdgeEqual(t *testing.T) {
 			},
 			expected: true,
 		},
+		{
+			name: "mtls both nil",
+			a: &HTTPSEdge{
+				Spec: HTTPSEdgeSpec{
+					MutualTLS: nil,
+				},
+			},
+			b: &ngrok.HTTPSEdge{
+				MutualTls: nil,
+			},
+			expected: true,
+		},
+		{
+			name: "mtls a nil",
+			a: &HTTPSEdge{
+				Spec: HTTPSEdgeSpec{
+					MutualTLS: nil,
+				},
+			},
+			b: &ngrok.HTTPSEdge{
+				MutualTls: &ngrok.EndpointMutualTLS{},
+			},
+			expected: false,
+		},
+		{
+			name: "mtls b nil",
+			a: &HTTPSEdge{
+				Spec: HTTPSEdgeSpec{
+					MutualTLS: &EndpointMutualTLS{},
+				},
+			},
+			b: &ngrok.HTTPSEdge{MutualTls: nil},
+		},
+		{
+			name: "tls termination different",
+			a: &HTTPSEdge{
+				Spec: HTTPSEdgeSpec{
+					MutualTLS: &EndpointMutualTLS{
+						CertificateAuthorities: []string{"a"},
+					},
+				},
+			},
+			b: &ngrok.HTTPSEdge{
+				MutualTls: &ngrok.EndpointMutualTLS{
+					CertificateAuthorities: []ngrok.Ref{{
+						ID: "b",
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "tls termination same",
+			a: &HTTPSEdge{
+				Spec: HTTPSEdgeSpec{
+					MutualTLS: &EndpointMutualTLS{
+						CertificateAuthorities: []string{"a123"},
+					},
+				},
+			},
+			b: &ngrok.HTTPSEdge{
+				MutualTls: &ngrok.EndpointMutualTLS{
+					CertificateAuthorities: []ngrok.Ref{{
+						ID: "a123",
+					}},
+				},
+			},
+			expected: true,
+		},
 	}
 
 	for _, c := range cases {
