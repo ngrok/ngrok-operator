@@ -769,7 +769,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	for _, p := range providers {
-		if p == nil {
+		if !p.Provided() {
 			continue
 		}
 
@@ -954,6 +954,8 @@ func (u *edgeRouteModuleUpdater) getSecret(ctx context.Context, secretRef ingres
 
 type OAuthProvider interface {
 	ClientSecretKeyRef() *ingressv1alpha1.SecretKeyRef
+	// Provided returns true if configuration was supplied for the provider
+	Provided() bool
 	ToNgrok(*string) *ngrok.EndpointOAuth
 }
 
