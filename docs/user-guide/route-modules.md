@@ -26,6 +26,7 @@ ngrok's Cloud Edge [Modules](https://ngrok.com/docs/http/#modules) allow you to 
     - [OpenID Connect OIDC](#openid-connect-oidc)
     - [SAML](#saml)
     - [TLS Termination](#tls-termination)
+    - [Mutual TLS](#mutual-tls)
     - [Webhook Verification](#webhook-verification)
 - [Examples](#examples)
     - [Configuring Multiple Modules](#configuring-multiple-modules)
@@ -351,6 +352,23 @@ metadata:
 modules:
   tlsTermination:
     minVersion: "1.3"
+```
+
+### Mutual TLS
+
+This [mutual TLS (mTLS) module](https://ngrok.com/docs/http/mutual-tls/) performs authentication when the ngrok edge terminates TLS on incoming connections to your HTTP endpoint. The client must present a valid TLS certificate that is signed by one of the specified CAs or the connection will be rejected.
+
+
+```yaml
+kind: NgrokModuleSet
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+metadata:
+  name: mtls
+modules:
+  mutualTLS:
+    # These IDs can be found on https://dashboard.ngrok.com/security/tls/cert-authorities
+    certificateAuthorities:
+    - ca_2gDZI7eD3fpxmKGOVqzVuETKedf
 ```
 
 ### Webhook Verification

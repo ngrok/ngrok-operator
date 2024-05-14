@@ -125,6 +125,16 @@ spec:
                       type: string
                     type: array
                 type: object
+              mutualTLS:
+                description: MutualTLS configuration for this module set
+                properties:
+                  certificateAuthorities:
+                    description: List of CA IDs that will be used to validate incoming
+                      connections to the edge.
+                    items:
+                      type: string
+                    type: array
+                type: object
               oauth:
                 description: OAuth configuration for this module set
                 properties:

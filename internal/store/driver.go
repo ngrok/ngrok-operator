@@ -835,6 +835,10 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 				edge.Spec.TLSTermination = modSet.Modules.TLSTermination
 			}
 
+			if modSet.Modules.MutualTLS != nil {
+				edge.Spec.MutualTLS = modSet.Modules.MutualTLS
+			}
+
 			// If any rule for an ingress matches, then it applies to this ingress
 			for _, httpIngressPath := range rule.HTTP.Paths {
 				matchType := "path_prefix"

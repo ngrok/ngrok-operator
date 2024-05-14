@@ -50,6 +50,15 @@ spec:
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
+              mutualTLS:
+                properties:
+                  certificateAuthorities:
+                    description: List of CA IDs that will be used to validate incoming
+                      connections to the edge.
+                    items:
+                      type: string
+                    type: array
+                type: object
               routes:
                 description: Routes is a list of routes served by this edge
                 items:
