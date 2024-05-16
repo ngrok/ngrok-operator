@@ -1005,7 +1005,9 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 							}
 
 							// TODO: set with values from rules.Filters + rules.Matches
-							policy, err := d.createEndpointPolicyForGateway(&rule)
+							// this HTTPRouteRule comes direct from gateway api yaml, and func returns the policy,
+							// which goes directly into the edge route in ngrok.
+							policy, err := d.createEndpointPolicyForGateway(&rule, httproute.Namespace)
 
 							if err != nil {
 								d.log.Error(err, "error creating policy from HTTPRouteRule", "rule", rule)
@@ -1061,10 +1063,13 @@ type Actions struct {
 	endpointActions []ingressv1alpha1.EndpointAction
 }
 
-func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (*ingressv1alpha1.EndpointPolicy, error) {
+type EndpointRules struct {
+	rules []ingressv1alpha1.EndpointRule
+}
+
+func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (*ingressv1alpha1.EndpointPolicy, error) {
 	inboundActions := Actions{}
 	outboundActions := Actions{}
-	expressions := []string{}
 	pathPrefixMatches := []string{}
 
 	// NOTE: matches are only defined on requests, and fitlers are only triggered by matches,
@@ -1100,6 +1105,36 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 		}
 	}
 
+	inboundRules := EndpointRules{}
+	outboundRules := EndpointRules{}
+	flushCount := 0
+
+	flushActionsToRules := func() {
+		if len(inboundActions.endpointActions) == 0 && len(outboundActions.endpointActions) == 0 {
+			return
+		}
+		// there are actions to flush
+		flushCount++
+		if len(inboundActions.endpointActions) > 0 {
+			// flush actions to a rule
+			inboundRules.rules = append(inboundRules.rules, ingressv1alpha1.EndpointRule{
+				Actions: inboundActions.endpointActions,
+				Name:    fmt.Sprint("Inbound HTTPRouteRule ", flushCount),
+			})
+			// clear
+			inboundActions.endpointActions = []ingressv1alpha1.EndpointAction{}
+		}
+		if len(outboundActions.endpointActions) > 0 {
+			// flush actions to a rule
+			outboundRules.rules = append(outboundRules.rules, ingressv1alpha1.EndpointRule{
+				Actions: outboundActions.endpointActions,
+				Name:    fmt.Sprint("Outbound HTTPRouteRule ", flushCount),
+			})
+			// clear
+			outboundActions.endpointActions = []ingressv1alpha1.EndpointAction{}
+		}
+	}
+
 	responseHeaders := make(map[string]string)
 	for _, filter := range rule.Filters {
 		switch filter.Type {
@@ -1127,46 +1162,29 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 		case gatewayv1.HTTPRouteFilterRequestMirror:
 			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
 		case gatewayv1.HTTPRouteFilterExtensionRef:
-			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
+			// if there are current actions outstanding, make a rule to hold them before we start a new rule for this PolicyCRD
+			flushActionsToRules()
+
+			// a PolicyCRD can have expressions, so send in rule pointers so expressions can be on those rules
+			err := d.handleExtensionRef(filter.ExtensionRef, namespace, &inboundRules, &outboundRules)
+			if err != nil {
+				return nil, err
+			}
 		default:
 			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unknown filter HTTPRouteFilterType %v found", filter.Type))
 		}
 	}
 
+	// flush any leftover actions to rules
+	flushActionsToRules()
+
 	var policy *ingressv1alpha1.EndpointPolicy
 	enabled := true
 
-	if len(expressions) > 1 {
-		expressions = []string{strings.Join(expressions[:], " || ")}
-	}
-
-	if len(inboundActions.endpointActions) > 0 {
-		policy = &ingressv1alpha1.EndpointPolicy{
-			Enabled: &enabled,
-			// NOTE: Mapping each HTTPRouteRule to one Inbound endpoint rule
-			Inbound: []ingressv1alpha1.EndpointRule{
-				{
-					Expressions: expressions,
-					Actions:     inboundActions.endpointActions,
-					Name:        "Inbound HTTPRouteRule",
-				},
-			},
-		}
-	}
-	if len(outboundActions.endpointActions) > 0 {
-		if policy == nil {
-			policy = &ingressv1alpha1.EndpointPolicy{
-				Enabled: &enabled,
-			}
-		}
-
-		policy.Outbound = []ingressv1alpha1.EndpointRule{
-			{
-				Expressions: expressions,
-				Actions:     outboundActions.endpointActions,
-				Name:        "Outbound HTTPRouteRule",
-			},
-		}
+	policy = &ingressv1alpha1.EndpointPolicy{
+		Enabled:  &enabled,
+		Inbound:  inboundRules.rules,
+		Outbound: outboundRules.rules,
 	}
 
 	return policy, nil
@@ -1178,6 +1196,37 @@ type RemoveHeadersConfig struct {
 
 type AddHeadersConfig struct {
 	Headers map[string]string `json:"headers"`
+}
+
+func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference, namespace string, inboundRules *EndpointRules,
+	outboundRules *EndpointRules) error {
+
+	switch extensionRef.Kind {
+	case "NgrokTrafficPolicy":
+		// look up Policy CRD
+		policy, err := d.store.GetNgrokTrafficPolicyV1(string(extensionRef.Name), namespace)
+		if err != nil {
+			return err
+		}
+
+		// unmarshal the json into a policy struct
+		jsonMessage := policy.Spec.Policy
+		if jsonMessage == nil {
+			return errors.NewErrorNotFound(fmt.Sprintf("PolicyCRD %v found with no policy", extensionRef.Name))
+		}
+		var policyStruct ingressv1alpha1.EndpointPolicy
+		err = json.Unmarshal(jsonMessage, &policyStruct)
+		if err != nil {
+			return err
+		}
+
+		// copy the rules
+		inboundRules.rules = append(inboundRules.rules, policyStruct.Inbound...)
+		outboundRules.rules = append(outboundRules.rules, policyStruct.Outbound...)
+	default:
+		return errors.NewErrorNotFound(fmt.Sprintf("Unknown ExtensionRef Kind %v found, Name: %v", extensionRef.Kind, extensionRef.Name))
+	}
+	return nil
 }
 
 func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions *Actions, requestRedirectHeaders map[string]string) error {
