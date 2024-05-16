@@ -55,7 +55,6 @@ type TunnelDriverOpts struct {
 	ServerAddr string
 	Region     string
 	HostCA     bool
-	CAPool     *x509.CertPool
 	Comments   *TunnelDriverComments
 }
 
@@ -93,20 +92,6 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		ngrok.WithLogger(k8sLogger{logger}),
 	}
 
-	if opts.HostCA && opts.CAPool != nil {
-		return nil, errors.New("Cannot specify both HostCA and CAPool")
-	}
-
-	if opts.HostCA {
-		connOpts = append(connOpts, ngrok.WithTLSConfig(func(c *tls.Config) {
-			c.RootCAs = nil
-		}))
-	}
-
-	if opts.CAPool != nil {
-		connOpts = append(connOpts, ngrok.WithCA(opts.CAPool))
-	}
-
 	if opts.Region != "" {
 		connOpts = append(connOpts, ngrok.WithRegion(opts.Region))
 	}
@@ -115,13 +100,19 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		connOpts = append(connOpts, ngrok.WithServer(opts.ServerAddr))
 	}
 
-	// Only configure custom certs if the directory exists
-	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) {
-		caCerts, err := caCerts()
+	// Configure certs if the custom cert directory exists or if the HostCA option is enabled
+	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) || opts.HostCA {
+		caCerts, err := caCerts(opts.HostCA)
 		if err != nil {
 			return nil, err
 		}
 		connOpts = append(connOpts, ngrok.WithCA(caCerts))
+	}
+
+	if opts.HostCA {
+		connOpts = append(connOpts, ngrok.WithTLSConfig(func(c *tls.Config) {
+			c.RootCAs = nil
+		}))
 	}
 
 	td := &TunnelDriver{
@@ -211,10 +202,15 @@ func (td *TunnelDriver) getSession() (ngrok.Session, error) {
 }
 
 // caCerts combines the system ca certs with a directory of custom ca certs
-func caCerts() (*x509.CertPool, error) {
+func caCerts(hostCA bool) (*x509.CertPool, error) {
 	systemCertPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, err
+	}
+
+	// we're all set if we're using the host CA
+	if hostCA {
+		return systemCertPool, nil
 	}
 
 	// Clone the system cert pool
