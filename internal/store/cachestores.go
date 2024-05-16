@@ -37,8 +37,9 @@ type CacheStores struct {
 	ServiceV1      cache.Store
 
 	// Gateway API Stores
-	Gateway   cache.Store
-	HTTPRoute cache.Store
+	Gateway      cache.Store
+	GatewayClass cache.Store
+	HTTPRoute    cache.Store
 
 	// Ngrok Stores
 	DomainV1             cache.Store
@@ -59,8 +60,9 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		IngressClassV1: cache.NewStore(clusterResourceKeyFunc),
 		ServiceV1:      cache.NewStore(keyFunc),
 		// Gateway API Stores
-		Gateway:   cache.NewStore(keyFunc),
-		HTTPRoute: cache.NewStore(keyFunc),
+		Gateway:      cache.NewStore(keyFunc),
+		GatewayClass: cache.NewStore(keyFunc),
+		HTTPRoute:    cache.NewStore(keyFunc),
 		// Ngrok Stores
 		DomainV1:             cache.NewStore(keyFunc),
 		TunnelV1:             cache.NewStore(keyFunc),
@@ -112,6 +114,8 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 		return c.HTTPRoute.Get(obj)
 	case *gatewayv1.Gateway:
 		return c.Gateway.Get(obj)
+	case *gatewayv1.GatewayClass:
+		return c.GatewayClass.Get(obj)
 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
@@ -155,6 +159,8 @@ func (c CacheStores) Add(obj runtime.Object) error {
 		return c.HTTPRoute.Add(obj)
 	case *gatewayv1.Gateway:
 		return c.Gateway.Add(obj)
+	case *gatewayv1.GatewayClass:
+		return c.GatewayClass.Add(obj)
 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
@@ -199,6 +205,8 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.HTTPRoute.Delete(obj)
 	case *gatewayv1.Gateway:
 		return c.Gateway.Delete(obj)
+	case *gatewayv1.GatewayClass:
+		return c.GatewayClass.Delete(obj)
 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support

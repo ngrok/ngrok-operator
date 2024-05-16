@@ -752,6 +752,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				gatewayDomains[string(*listener.Hostname)] = string(*listener.Hostname)
 			}
 			if len(gatewayDomains) == 0 {
+				d.log.Info("no usable domains in gateway, may be missing https listener", "gateway", gtw.Name)
 				continue
 			}
 			for _, httproute := range httproutes {
