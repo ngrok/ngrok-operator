@@ -99,7 +99,7 @@ type managerOpts struct {
 
 	region string
 
-	hostCA bool
+	rootCAs string
 }
 
 func cmd() *cobra.Command {
@@ -122,7 +122,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
 	c.Flags().BoolVar(&opts.useExperimentalGatewayAPI, "use-experimental-gateway-api", false, "sets up experemental gatewayAPI")
-	c.Flags().BoolVar(&opts.hostCA, "host-ca", false, "use the host's default CA store for the ngrok agent connection")
+	c.Flags().StringVar(&opts.rootCAs, "root-cas", "internal", "internal (default) or host: use the internalt ngrok agent CA or the host CA")
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -231,7 +231,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		tunneldriver.TunnelDriverOpts{
 			ServerAddr: opts.serverAddr,
 			Region:     opts.region,
-			HostCA:     opts.hostCA,
+			RootCAs:    opts.rootCAs,
 			Comments:   &comments,
 		},
 	)

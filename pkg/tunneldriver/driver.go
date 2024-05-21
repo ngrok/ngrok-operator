@@ -54,7 +54,7 @@ type TunnelDriver struct {
 type TunnelDriverOpts struct {
 	ServerAddr string
 	Region     string
-	HostCA     bool
+	RootCAs    string
 	Comments   *TunnelDriverComments
 }
 
@@ -100,16 +100,17 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		connOpts = append(connOpts, ngrok.WithServer(opts.ServerAddr))
 	}
 
-	// Configure certs if the custom cert directory exists or if the HostCA option is enabled
-	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) || opts.HostCA {
-		caCerts, err := caCerts(opts.HostCA)
+	isHostCA := opts.RootCAs == "host"
+	// Configure certs if the custom cert directory exists or host if set
+	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) || isHostCA {
+		caCerts, err := caCerts(isHostCA)
 		if err != nil {
 			return nil, err
 		}
 		connOpts = append(connOpts, ngrok.WithCA(caCerts))
 	}
 
-	if opts.HostCA {
+	if isHostCA {
 		connOpts = append(connOpts, ngrok.WithTLSConfig(func(c *tls.Config) {
 			c.RootCAs = nil
 		}))

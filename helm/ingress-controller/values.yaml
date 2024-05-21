@@ -67,8 +67,8 @@ credentials:
 ## @param region ngrok region to create tunnels in. Defaults to connect to the closest geographical region.
 region: ""
 
-## @param hostCA Whether to use the host's default CA store when making the ngrok agent connection. Uses the internal ngrok CA by default.
-hostCA: false
+## @param rootCAs Whether to use the internal (default) or host's CAs for the controller.
+rootCAs: ""
 
 ## @param serverAddr  This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address.
 serverAddr: ""

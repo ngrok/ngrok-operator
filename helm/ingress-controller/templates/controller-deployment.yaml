@@ -67,8 +67,8 @@ spec:
         {{- if .Values.apiURL }}
         - --api-url={{ .Values.apiURL}}
         {{- end }}
-        {{- if .Values.hostCA }}
-        - --host-ca
+        {{- if .Values.rootCAs }}
+        - --root-cas={{ .Values.rootCAs}}
         {{- end }}
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}

@@ -64,7 +64,7 @@ To uninstall the chart:
 | `credentials.apiKey`                 | Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well.     | `""`                                  |
 | `credentials.authtoken`              | Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.      | `""`                                  |
 | `region`                             | ngrok region to create tunnels in. Defaults to connect to the closest geographical region.                                | `""`                                  |
-| `hostCA`                             | Whether to use the host's default CA store when making the ngrok agent connection. Uses the internal ngrok CA by default. | `false`                               |
+| `rootCAs`                            | Whether to use the internal (default) CA store or the host CA when making the ngrok agent connection.                     | `internal`                            |
 | `serverAddr`                         | This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address.     | `""`                                  |
 | `apiURL`                             | This is the URL of the ngrok API. You should set this if you are using a custom API URL.                                  | `""`                                  |
 | `metaData`                           | This is a map of key/value pairs that will be added as meta data to all ngrok api resources created                       | `{}`                                  |
