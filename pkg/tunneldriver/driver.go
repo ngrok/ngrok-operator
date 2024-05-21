@@ -101,6 +101,12 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 	}
 
 	isHostCA := opts.RootCAs == "host"
+
+	// validate is default "internal" or "host
+	if !isHostCA && opts.RootCAs != "internal" {
+		return nil, fmt.Errorf("invalid value for RootCAs: %s", opts.RootCAs)
+	}
+
 	// Configure certs if the custom cert directory exists or host if set
 	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) || isHostCA {
 		caCerts, err := caCerts(isHostCA)

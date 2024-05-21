@@ -227,14 +227,21 @@ func runController(ctx context.Context, opts managerOpts) error {
 		}
 	}
 
+	rootCAs := "internal"
+
+	if opts.rootCAs != "" {
+		rootCAs = opts.rootCAs
+	}
+
 	td, err := tunneldriver.New(ctx, ctrl.Log.WithName("drivers").WithName("tunnel"),
 		tunneldriver.TunnelDriverOpts{
 			ServerAddr: opts.serverAddr,
 			Region:     opts.region,
-			RootCAs:    opts.rootCAs,
+			RootCAs:    rootCAs,
 			Comments:   &comments,
 		},
 	)
+
 	if err != nil {
 		return fmt.Errorf("unable to create tunnel driver: %w", err)
 	}
