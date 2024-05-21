@@ -3,8 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: tlsedges.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -38,14 +37,19 @@ spec:
         description: TLSEdge is the Schema for the tlsedges API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -53,7 +57,8 @@ spec:
             description: TLSEdgeSpec defines the desired state of TLSEdge
             properties:
               backend:
-                description: Backend is the definition for the tunnel group backend
+                description: |-
+                  Backend is the definition for the tunnel group backend
                   that serves traffic for this edge
                 properties:
                   description:
@@ -98,8 +103,9 @@ spec:
               mutualTls:
                 properties:
                   certificateAuthorities:
-                    description: List of CA IDs that will be used to validate incoming
-                      connections to the edge.
+                    description: |-
+                      List of CA IDs that will be used to validate incoming connections to the
+                      edge.
                     items:
                       type: string
                     type: array
@@ -116,10 +122,11 @@ spec:
                       connections to the edge
                     type: string
                   terminateAt:
-                    description: TerminateAt determines where the TLS connection should
-                      be terminated. "edge" if the ngrok edge should terminate TLS
-                      traffic, "upstream" if TLS traffic should be passed through
-                      to the upstream ngrok agent / application server for termination.
+                    description: |-
+                      TerminateAt determines where the TLS connection should be terminated.
+                      "edge" if the ngrok edge should terminate TLS traffic, "upstream" if TLS
+                      traffic should be passed through to the upstream ngrok agent /
+                      application server for termination.
                     type: string
                 type: object
             type: object
@@ -127,7 +134,8 @@ spec:
             description: TLSEdgeStatus defines the observed state of TLSEdge
             properties:
               backend:
-                description: Backend stores the status of the tunnel group backend,
+                description: |-
+                  Backend stores the status of the tunnel group backend,
                   mainly the ID of the backend
                 properties:
                   id:

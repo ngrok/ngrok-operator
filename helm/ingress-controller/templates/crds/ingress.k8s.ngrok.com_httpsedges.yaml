@@ -3,8 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: httpsedges.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -21,14 +20,19 @@ spec:
         description: HTTPSEdge is the Schema for the httpsedges API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -53,8 +57,9 @@ spec:
               mutualTLS:
                 properties:
                   certificateAuthorities:
-                    description: List of CA IDs that will be used to validate incoming
-                      connections to the edge.
+                    description: |-
+                      List of CA IDs that will be used to validate incoming connections to the
+                      edge.
                     items:
                       type: string
                     type: array
@@ -64,8 +69,9 @@ spec:
                 items:
                   properties:
                     backend:
-                      description: Backend is the definition for the tunnel group
-                        backend that serves traffic for this edge
+                      description: |-
+                        Backend is the definition for the tunnel group backend
+                        that serves traffic for this edge
                       properties:
                         description:
                           default: Created by kubernetes-ingress-controller
@@ -113,9 +119,9 @@ spec:
                           format: duration
                           type: string
                         volumeThreshold:
-                          description: Integer number of requests in a rolling window
-                            that will trip the circuit. Helpful if traffic volume
-                            is low.
+                          description: |-
+                            Integer number of requests in a rolling window that will trip the circuit.
+                            Helpful if traffic volume is low.
                           format: int32
                           type: integer
                       type: object
@@ -144,14 +150,14 @@ spec:
                             add:
                               additionalProperties:
                                 type: string
-                              description: a map of header key to header value that
-                                will be injected into the HTTP Request before being
-                                sent to the upstream application server
+                              description: |-
+                                a map of header key to header value that will be injected into the HTTP Request
+                                before being sent to the upstream application server
                               type: object
                             remove:
-                              description: a list of header names that will be removed
-                                from the HTTP Request before being sent to the upstream
-                                application server
+                              description: |-
+                                a list of header names that will be removed from the HTTP Request before being
+                                sent to the upstream application server
                               items:
                                 type: string
                               type: array
@@ -163,13 +169,14 @@ spec:
                             add:
                               additionalProperties:
                                 type: string
-                              description: a map of header key to header value that
-                                will be injected into the HTTP Response returned to
-                                the HTTP client
+                              description: |-
+                                a map of header key to header value that will be injected into the HTTP Response
+                                returned to the HTTP client
                               type: object
                             remove:
-                              description: a list of header names that will be removed
-                                from the HTTP Response returned to the HTTP client
+                              description: |-
+                                a list of header names that will be removed from the HTTP Response returned to
+                                the HTTP client
                               items:
                                 type: string
                               type: array
@@ -208,29 +215,27 @@ spec:
                             provider
                           properties:
                             authCheckInterval:
-                              description: Duration after which ngrok guarantees it
-                                will refresh user state from the identity provider
-                                and recheck whether the user is still authorized to
-                                access the endpoint. This is the preferred tunable
-                                to use to enforce a minimum amount of time after which
-                                a revoked user will no longer be able to access the
-                                resource.
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
                               format: duration
                               type: string
                             clientId:
-                              description: the OAuth app client ID. retrieve it from
-                                the identity provider's dashboard where you created
-                                your own OAuth app. optional. if unspecified, ngrok
-                                will use its own managed oauth application which has
-                                additional restrictions. see the OAuth module docs
-                                for more details. if present, clientSecret must be
-                                present as well.
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
                               type: string
                             clientSecret:
-                              description: the OAuth app client secret. retrieve if
-                                from the identity provider's dashboard where you created
-                                your own OAuth app. optional, see all of the caveats
-                                in the docs for clientId.
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
                               properties:
                                 key:
                                   description: Key in the secret to use
@@ -240,46 +245,47 @@ spec:
                                   type: string
                               type: object
                             cookiePrefix:
-                              description: the prefix of the session cookie that ngrok
-                                sets on the http client to cache authentication. default
-                                is 'ngrok.'
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
                               type: string
                             emailAddresses:
-                              description: a list of email addresses of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             emailDomains:
-                              description: a list of email domains of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             inactivityTimeout:
-                              description: Duration of inactivity after which if the
-                                user has not accessed the endpoint, their session
-                                will time out and they will be forced to reauthenticate.
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
                               format: duration
                               type: string
                             maximumDuration:
-                              description: Integer number of seconds of the maximum
-                                duration of an authenticated session. After this period
-                                is exceeded, a user must reauthenticate.
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
                               format: duration
                               type: string
                             optionsPassthrough:
-                              description: Do not enforce authentication on HTTP OPTIONS
-                                requests. necessary if you are supporting CORS.
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
                               type: boolean
                             scopes:
-                              description: a list of provider-specific OAuth scopes
-                                with the permissions your OAuth app would like to
-                                ask for. these may not be set if you are using the
-                                ngrok-managed oauth app (i.e. you must pass both client_id
-                                and client_secret to set scopes)
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
                               items:
                                 type: string
                               type: array
@@ -289,29 +295,27 @@ spec:
                             provider
                           properties:
                             authCheckInterval:
-                              description: Duration after which ngrok guarantees it
-                                will refresh user state from the identity provider
-                                and recheck whether the user is still authorized to
-                                access the endpoint. This is the preferred tunable
-                                to use to enforce a minimum amount of time after which
-                                a revoked user will no longer be able to access the
-                                resource.
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
                               format: duration
                               type: string
                             clientId:
-                              description: the OAuth app client ID. retrieve it from
-                                the identity provider's dashboard where you created
-                                your own OAuth app. optional. if unspecified, ngrok
-                                will use its own managed oauth application which has
-                                additional restrictions. see the OAuth module docs
-                                for more details. if present, clientSecret must be
-                                present as well.
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
                               type: string
                             clientSecret:
-                              description: the OAuth app client secret. retrieve if
-                                from the identity provider's dashboard where you created
-                                your own OAuth app. optional, see all of the caveats
-                                in the docs for clientId.
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
                               properties:
                                 key:
                                   description: Key in the secret to use
@@ -321,46 +325,47 @@ spec:
                                   type: string
                               type: object
                             cookiePrefix:
-                              description: the prefix of the session cookie that ngrok
-                                sets on the http client to cache authentication. default
-                                is 'ngrok.'
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
                               type: string
                             emailAddresses:
-                              description: a list of email addresses of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             emailDomains:
-                              description: a list of email domains of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             inactivityTimeout:
-                              description: Duration of inactivity after which if the
-                                user has not accessed the endpoint, their session
-                                will time out and they will be forced to reauthenticate.
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
                               format: duration
                               type: string
                             maximumDuration:
-                              description: Integer number of seconds of the maximum
-                                duration of an authenticated session. After this period
-                                is exceeded, a user must reauthenticate.
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
                               format: duration
                               type: string
                             optionsPassthrough:
-                              description: Do not enforce authentication on HTTP OPTIONS
-                                requests. necessary if you are supporting CORS.
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
                               type: boolean
                             scopes:
-                              description: a list of provider-specific OAuth scopes
-                                with the permissions your OAuth app would like to
-                                ask for. these may not be set if you are using the
-                                ngrok-managed oauth app (i.e. you must pass both client_id
-                                and client_secret to set scopes)
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
                               items:
                                 type: string
                               type: array
@@ -370,29 +375,27 @@ spec:
                             provider
                           properties:
                             authCheckInterval:
-                              description: Duration after which ngrok guarantees it
-                                will refresh user state from the identity provider
-                                and recheck whether the user is still authorized to
-                                access the endpoint. This is the preferred tunable
-                                to use to enforce a minimum amount of time after which
-                                a revoked user will no longer be able to access the
-                                resource.
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
                               format: duration
                               type: string
                             clientId:
-                              description: the OAuth app client ID. retrieve it from
-                                the identity provider's dashboard where you created
-                                your own OAuth app. optional. if unspecified, ngrok
-                                will use its own managed oauth application which has
-                                additional restrictions. see the OAuth module docs
-                                for more details. if present, clientSecret must be
-                                present as well.
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
                               type: string
                             clientSecret:
-                              description: the OAuth app client secret. retrieve if
-                                from the identity provider's dashboard where you created
-                                your own OAuth app. optional, see all of the caveats
-                                in the docs for clientId.
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
                               properties:
                                 key:
                                   description: Key in the secret to use
@@ -402,63 +405,63 @@ spec:
                                   type: string
                               type: object
                             cookiePrefix:
-                              description: the prefix of the session cookie that ngrok
-                                sets on the http client to cache authentication. default
-                                is 'ngrok.'
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
                               type: string
                             emailAddresses:
-                              description: a list of email addresses of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             emailDomains:
-                              description: a list of email domains of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             inactivityTimeout:
-                              description: Duration of inactivity after which if the
-                                user has not accessed the endpoint, their session
-                                will time out and they will be forced to reauthenticate.
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
                               format: duration
                               type: string
                             maximumDuration:
-                              description: Integer number of seconds of the maximum
-                                duration of an authenticated session. After this period
-                                is exceeded, a user must reauthenticate.
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
                               format: duration
                               type: string
                             optionsPassthrough:
-                              description: Do not enforce authentication on HTTP OPTIONS
-                                requests. necessary if you are supporting CORS.
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
                               type: boolean
                             organizations:
-                              description: a list of github org identifiers. users
-                                who are members of any of the listed organizations
-                                will be allowed access. identifiers should be the
-                                organization's 'slug'
+                              description: |-
+                                a list of github org identifiers. users who are members of any of the listed
+                                organizations will be allowed access. identifiers should be the organization's
+                                'slug'
                               items:
                                 type: string
                               type: array
                             scopes:
-                              description: a list of provider-specific OAuth scopes
-                                with the permissions your OAuth app would like to
-                                ask for. these may not be set if you are using the
-                                ngrok-managed oauth app (i.e. you must pass both client_id
-                                and client_secret to set scopes)
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
                               items:
                                 type: string
                               type: array
                             teams:
-                              description: a list of github teams identifiers. users
-                                will be allowed access to the endpoint if they are
-                                a member of any of these teams. identifiers should
-                                be in the 'slug' format qualified with the org name,
-                                e.g. org-name/team-name
+                              description: |-
+                                a list of github teams identifiers. users will be allowed access to the endpoint
+                                if they are a member of any of these teams. identifiers should be in the 'slug'
+                                format qualified with the org name, e.g. org-name/team-name
                               items:
                                 type: string
                               type: array
@@ -468,29 +471,27 @@ spec:
                             provider
                           properties:
                             authCheckInterval:
-                              description: Duration after which ngrok guarantees it
-                                will refresh user state from the identity provider
-                                and recheck whether the user is still authorized to
-                                access the endpoint. This is the preferred tunable
-                                to use to enforce a minimum amount of time after which
-                                a revoked user will no longer be able to access the
-                                resource.
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
                               format: duration
                               type: string
                             clientId:
-                              description: the OAuth app client ID. retrieve it from
-                                the identity provider's dashboard where you created
-                                your own OAuth app. optional. if unspecified, ngrok
-                                will use its own managed oauth application which has
-                                additional restrictions. see the OAuth module docs
-                                for more details. if present, clientSecret must be
-                                present as well.
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
                               type: string
                             clientSecret:
-                              description: the OAuth app client secret. retrieve if
-                                from the identity provider's dashboard where you created
-                                your own OAuth app. optional, see all of the caveats
-                                in the docs for clientId.
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
                               properties:
                                 key:
                                   description: Key in the secret to use
@@ -500,46 +501,47 @@ spec:
                                   type: string
                               type: object
                             cookiePrefix:
-                              description: the prefix of the session cookie that ngrok
-                                sets on the http client to cache authentication. default
-                                is 'ngrok.'
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
                               type: string
                             emailAddresses:
-                              description: a list of email addresses of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             emailDomains:
-                              description: a list of email domains of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             inactivityTimeout:
-                              description: Duration of inactivity after which if the
-                                user has not accessed the endpoint, their session
-                                will time out and they will be forced to reauthenticate.
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
                               format: duration
                               type: string
                             maximumDuration:
-                              description: Integer number of seconds of the maximum
-                                duration of an authenticated session. After this period
-                                is exceeded, a user must reauthenticate.
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
                               format: duration
                               type: string
                             optionsPassthrough:
-                              description: Do not enforce authentication on HTTP OPTIONS
-                                requests. necessary if you are supporting CORS.
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
                               type: boolean
                             scopes:
-                              description: a list of provider-specific OAuth scopes
-                                with the permissions your OAuth app would like to
-                                ask for. these may not be set if you are using the
-                                ngrok-managed oauth app (i.e. you must pass both client_id
-                                and client_secret to set scopes)
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
                               items:
                                 type: string
                               type: array
@@ -549,29 +551,27 @@ spec:
                             provider
                           properties:
                             authCheckInterval:
-                              description: Duration after which ngrok guarantees it
-                                will refresh user state from the identity provider
-                                and recheck whether the user is still authorized to
-                                access the endpoint. This is the preferred tunable
-                                to use to enforce a minimum amount of time after which
-                                a revoked user will no longer be able to access the
-                                resource.
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
                               format: duration
                               type: string
                             clientId:
-                              description: the OAuth app client ID. retrieve it from
-                                the identity provider's dashboard where you created
-                                your own OAuth app. optional. if unspecified, ngrok
-                                will use its own managed oauth application which has
-                                additional restrictions. see the OAuth module docs
-                                for more details. if present, clientSecret must be
-                                present as well.
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
                               type: string
                             clientSecret:
-                              description: the OAuth app client secret. retrieve if
-                                from the identity provider's dashboard where you created
-                                your own OAuth app. optional, see all of the caveats
-                                in the docs for clientId.
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
                               properties:
                                 key:
                                   description: Key in the secret to use
@@ -581,46 +581,47 @@ spec:
                                   type: string
                               type: object
                             cookiePrefix:
-                              description: the prefix of the session cookie that ngrok
-                                sets on the http client to cache authentication. default
-                                is 'ngrok.'
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
                               type: string
                             emailAddresses:
-                              description: a list of email addresses of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             emailDomains:
-                              description: a list of email domains of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             inactivityTimeout:
-                              description: Duration of inactivity after which if the
-                                user has not accessed the endpoint, their session
-                                will time out and they will be forced to reauthenticate.
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
                               format: duration
                               type: string
                             maximumDuration:
-                              description: Integer number of seconds of the maximum
-                                duration of an authenticated session. After this period
-                                is exceeded, a user must reauthenticate.
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
                               format: duration
                               type: string
                             optionsPassthrough:
-                              description: Do not enforce authentication on HTTP OPTIONS
-                                requests. necessary if you are supporting CORS.
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
                               type: boolean
                             scopes:
-                              description: a list of provider-specific OAuth scopes
-                                with the permissions your OAuth app would like to
-                                ask for. these may not be set if you are using the
-                                ngrok-managed oauth app (i.e. you must pass both client_id
-                                and client_secret to set scopes)
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
                               items:
                                 type: string
                               type: array
@@ -630,29 +631,27 @@ spec:
                             provider
                           properties:
                             authCheckInterval:
-                              description: Duration after which ngrok guarantees it
-                                will refresh user state from the identity provider
-                                and recheck whether the user is still authorized to
-                                access the endpoint. This is the preferred tunable
-                                to use to enforce a minimum amount of time after which
-                                a revoked user will no longer be able to access the
-                                resource.
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
                               format: duration
                               type: string
                             clientId:
-                              description: the OAuth app client ID. retrieve it from
-                                the identity provider's dashboard where you created
-                                your own OAuth app. optional. if unspecified, ngrok
-                                will use its own managed oauth application which has
-                                additional restrictions. see the OAuth module docs
-                                for more details. if present, clientSecret must be
-                                present as well.
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
                               type: string
                             clientSecret:
-                              description: the OAuth app client secret. retrieve if
-                                from the identity provider's dashboard where you created
-                                your own OAuth app. optional, see all of the caveats
-                                in the docs for clientId.
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
                               properties:
                                 key:
                                   description: Key in the secret to use
@@ -662,46 +661,47 @@ spec:
                                   type: string
                               type: object
                             cookiePrefix:
-                              description: the prefix of the session cookie that ngrok
-                                sets on the http client to cache authentication. default
-                                is 'ngrok.'
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
                               type: string
                             emailAddresses:
-                              description: a list of email addresses of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             emailDomains:
-                              description: a list of email domains of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             inactivityTimeout:
-                              description: Duration of inactivity after which if the
-                                user has not accessed the endpoint, their session
-                                will time out and they will be forced to reauthenticate.
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
                               format: duration
                               type: string
                             maximumDuration:
-                              description: Integer number of seconds of the maximum
-                                duration of an authenticated session. After this period
-                                is exceeded, a user must reauthenticate.
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
                               format: duration
                               type: string
                             optionsPassthrough:
-                              description: Do not enforce authentication on HTTP OPTIONS
-                                requests. necessary if you are supporting CORS.
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
                               type: boolean
                             scopes:
-                              description: a list of provider-specific OAuth scopes
-                                with the permissions your OAuth app would like to
-                                ask for. these may not be set if you are using the
-                                ngrok-managed oauth app (i.e. you must pass both client_id
-                                and client_secret to set scopes)
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
                               items:
                                 type: string
                               type: array
@@ -711,29 +711,27 @@ spec:
                             provider
                           properties:
                             authCheckInterval:
-                              description: Duration after which ngrok guarantees it
-                                will refresh user state from the identity provider
-                                and recheck whether the user is still authorized to
-                                access the endpoint. This is the preferred tunable
-                                to use to enforce a minimum amount of time after which
-                                a revoked user will no longer be able to access the
-                                resource.
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
                               format: duration
                               type: string
                             clientId:
-                              description: the OAuth app client ID. retrieve it from
-                                the identity provider's dashboard where you created
-                                your own OAuth app. optional. if unspecified, ngrok
-                                will use its own managed oauth application which has
-                                additional restrictions. see the OAuth module docs
-                                for more details. if present, clientSecret must be
-                                present as well.
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
                               type: string
                             clientSecret:
-                              description: the OAuth app client secret. retrieve if
-                                from the identity provider's dashboard where you created
-                                your own OAuth app. optional, see all of the caveats
-                                in the docs for clientId.
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
                               properties:
                                 key:
                                   description: Key in the secret to use
@@ -743,46 +741,47 @@ spec:
                                   type: string
                               type: object
                             cookiePrefix:
-                              description: the prefix of the session cookie that ngrok
-                                sets on the http client to cache authentication. default
-                                is 'ngrok.'
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
                               type: string
                             emailAddresses:
-                              description: a list of email addresses of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             emailDomains:
-                              description: a list of email domains of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             inactivityTimeout:
-                              description: Duration of inactivity after which if the
-                                user has not accessed the endpoint, their session
-                                will time out and they will be forced to reauthenticate.
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
                               format: duration
                               type: string
                             maximumDuration:
-                              description: Integer number of seconds of the maximum
-                                duration of an authenticated session. After this period
-                                is exceeded, a user must reauthenticate.
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
                               format: duration
                               type: string
                             optionsPassthrough:
-                              description: Do not enforce authentication on HTTP OPTIONS
-                                requests. necessary if you are supporting CORS.
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
                               type: boolean
                             scopes:
-                              description: a list of provider-specific OAuth scopes
-                                with the permissions your OAuth app would like to
-                                ask for. these may not be set if you are using the
-                                ngrok-managed oauth app (i.e. you must pass both client_id
-                                and client_secret to set scopes)
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
                               items:
                                 type: string
                               type: array
@@ -792,29 +791,27 @@ spec:
                             provider
                           properties:
                             authCheckInterval:
-                              description: Duration after which ngrok guarantees it
-                                will refresh user state from the identity provider
-                                and recheck whether the user is still authorized to
-                                access the endpoint. This is the preferred tunable
-                                to use to enforce a minimum amount of time after which
-                                a revoked user will no longer be able to access the
-                                resource.
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
                               format: duration
                               type: string
                             clientId:
-                              description: the OAuth app client ID. retrieve it from
-                                the identity provider's dashboard where you created
-                                your own OAuth app. optional. if unspecified, ngrok
-                                will use its own managed oauth application which has
-                                additional restrictions. see the OAuth module docs
-                                for more details. if present, clientSecret must be
-                                present as well.
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
                               type: string
                             clientSecret:
-                              description: the OAuth app client secret. retrieve if
-                                from the identity provider's dashboard where you created
-                                your own OAuth app. optional, see all of the caveats
-                                in the docs for clientId.
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
                               properties:
                                 key:
                                   description: Key in the secret to use
@@ -824,46 +821,47 @@ spec:
                                   type: string
                               type: object
                             cookiePrefix:
-                              description: the prefix of the session cookie that ngrok
-                                sets on the http client to cache authentication. default
-                                is 'ngrok.'
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
                               type: string
                             emailAddresses:
-                              description: a list of email addresses of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             emailDomains:
-                              description: a list of email domains of users authenticated
-                                by identity provider who are allowed access to the
-                                endpoint
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
                               items:
                                 type: string
                               type: array
                             inactivityTimeout:
-                              description: Duration of inactivity after which if the
-                                user has not accessed the endpoint, their session
-                                will time out and they will be forced to reauthenticate.
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
                               format: duration
                               type: string
                             maximumDuration:
-                              description: Integer number of seconds of the maximum
-                                duration of an authenticated session. After this period
-                                is exceeded, a user must reauthenticate.
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
                               format: duration
                               type: string
                             optionsPassthrough:
-                              description: Do not enforce authentication on HTTP OPTIONS
-                                requests. necessary if you are supporting CORS.
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
                               type: boolean
                             scopes:
-                              description: a list of provider-specific OAuth scopes
-                                with the permissions your OAuth app would like to
-                                ask for. these may not be set if you are using the
-                                ngrok-managed oauth app (i.e. you must pass both client_id
-                                and client_secret to set scopes)
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
                               items:
                                 type: string
                               type: array
@@ -887,14 +885,15 @@ spec:
                               type: string
                           type: object
                         cookiePrefix:
-                          description: the prefix of the session cookie that ngrok
-                            sets on the http client to cache authentication. default
-                            is 'ngrok.'
+                          description: |-
+                            the prefix of the session cookie that ngrok sets on the http client to cache
+                            authentication. default is 'ngrok.'
                           type: string
                         inactivityTimeout:
-                          description: Duration of inactivity after which if the user
-                            has not accessed the endpoint, their session will time
-                            out and they will be forced to reauthenticate.
+                          description: |-
+                            Duration of inactivity after which if the user has not accessed
+                            the endpoint, their session will time out and they will be forced to
+                            reauthenticate.
                           format: duration
                           type: string
                         issuer:
@@ -902,13 +901,15 @@ spec:
                             the base URL used for discovery.
                           type: string
                         maximumDuration:
-                          description: The maximum duration of an authenticated session.
+                          description: |-
+                            The maximum duration of an authenticated session.
                             After this period is exceeded, a user must reauthenticate.
                           format: duration
                           type: string
                         optionsPassthrough:
-                          description: Do not enforce authentication on HTTP OPTIONS
-                            requests. necessary if you are supporting CORS.
+                          description: |-
+                            Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                            supporting CORS.
                           type: boolean
                         scopes:
                           description: The set of scopes to request from the OIDC
@@ -927,56 +928,59 @@ spec:
                         route
                       properties:
                         allowIdpInitiated:
-                          description: If true, the IdP may initiate a login directly
-                            (e.g. the user does not need to visit the endpoint first
-                            and then be redirected). The IdP should set the RelayState
-                            parameter to the target URL of the resource they want
-                            the user to be redirected to after the SAML login assertion
-                            has been processed.
+                          description: |-
+                            If true, the IdP may initiate a login directly (e.g. the user does not need to
+                            visit the endpoint first and then be redirected). The IdP should set the
+                            RelayState parameter to the target URL of the resource they want the user to be
+                            redirected to after the SAML login assertion has been processed.
                           type: boolean
                         authorizedGroups:
-                          description: If present, only users who are a member of
-                            one of the listed groups may access the target endpoint.
+                          description: |-
+                            If present, only users who are a member of one of the listed groups may access
+                            the target endpoint.
                           items:
                             type: string
                           type: array
                         cookiePrefix:
-                          description: the prefix of the session cookie that ngrok
-                            sets on the http client to cache authentication. default
-                            is 'ngrok.'
+                          description: |-
+                            the prefix of the session cookie that ngrok sets on the http client to cache
+                            authentication. default is 'ngrok.'
                           type: string
                         forceAuthn:
-                          description: If true, indicates that whenever we redirect
-                            a user to the IdP for authentication that the IdP must
-                            prompt the user for authentication credentials even if
-                            the user already has a valid session with the IdP.
+                          description: |-
+                            If true, indicates that whenever we redirect a user to the IdP for
+                            authentication that the IdP must prompt the user for authentication credentials
+                            even if the user already has a valid session with the IdP.
                           type: boolean
                         idpMetadata:
-                          description: The full XML IdP EntityDescriptor. Your IdP
-                            may provide this to you as a a file to download or as
-                            a URL.
+                          description: |-
+                            The full XML IdP EntityDescriptor. Your IdP may provide this to you as a a file
+                            to download or as a URL.
                           type: string
                         inactivityTimeout:
-                          description: Duration of inactivity after which if the user
-                            has not accessed the endpoint, their session will time
-                            out and they will be forced to reauthenticate.
+                          description: |-
+                            Duration of inactivity after which if the user has not accessed
+                            the endpoint, their session will time out and they will be forced to
+                            reauthenticate.
                           format: duration
                           type: string
                         maximumDuration:
-                          description: The maximum duration of an authenticated session.
+                          description: |-
+                            The maximum duration of an authenticated session.
                             After this period is exceeded, a user must reauthenticate.
                           format: duration
                           type: string
                         nameidFormat:
-                          description: Defines the name identifier format the SP expects
-                            the IdP to use in its assertions to identify subjects.
-                            If unspecified, a default value of urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
-                            will be used. A subset of the allowed values enumerated
-                            by the SAML specification are supported.
+                          description: |-
+                            Defines the name identifier format the SP expects the IdP to use in its
+                            assertions to identify subjects. If unspecified, a default value of
+                            urn:oasis:names:tc:SAML:2.0:nameid-format:persistent will be used. A subset of
+                            the allowed values enumerated by the SAML specification are supported.
                           type: string
                         optionsPassthrough:
-                          description: Do not enforce authentication on HTTP OPTIONS
-                            requests. necessary if you are supporting CORS.
+                          description: |-
+                            Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                            supporting CORS.
                           type: boolean
                       type: object
                     webhookVerification:
@@ -984,14 +988,15 @@ spec:
                         to apply to this route
                       properties:
                         provider:
-                          description: a string indicating which webhook provider
-                            will be sending webhooks to this endpoint. Value must
-                            be one of the supported providers defined at https://ngrok.com/docs/http/webhook-verification/#supported-providers
+                          description: |-
+                            a string indicating which webhook provider will be sending webhooks to this
+                            endpoint. Value must be one of the supported providers defined at
+                            https://ngrok.com/docs/http/webhook-verification/#supported-providers
                           type: string
                         secret:
-                          description: SecretRef is a reference to a secret containing
-                            the secret used to validate requests from the given provider.
-                            All providers except AWS SNS require a secret
+                          description: |-
+                            SecretRef is a reference to a secret containing the secret used to validate
+                            requests from the given provider. All providers except AWS SNS require a secret
                           properties:
                             key:
                               description: Key in the secret to use
@@ -1026,7 +1031,8 @@ spec:
                 items:
                   properties:
                     backend:
-                      description: Backend stores the status of the tunnel group backend,
+                      description: |-
+                        Backend stores the status of the tunnel group backend,
                         mainly the ID of the backend
                       properties:
                         id:
