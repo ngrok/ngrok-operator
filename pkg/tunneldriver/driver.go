@@ -102,8 +102,8 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 
 	isHostCA := opts.RootCAs == "host"
 
-	// validate is default "internal" or "host
-	if !isHostCA && opts.RootCAs != "internal" {
+	// validate is "trusted",  "" or "host
+	if !isHostCA && opts.RootCAs != "trusted" && opts.RootCAs != "" {
 		return nil, fmt.Errorf("invalid value for RootCAs: %s", opts.RootCAs)
 	}
 
