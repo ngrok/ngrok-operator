@@ -54,6 +54,8 @@ type TunnelDriver struct {
 type TunnelDriverOpts struct {
 	ServerAddr string
 	Region     string
+	RootCAs    string
+	Comments   *TunnelDriverComments
 }
 
 type TunnelDriverComments struct {
@@ -67,7 +69,8 @@ type sessionState struct {
 }
 
 // New creates and initializes a new TunnelDriver
-func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelComment *TunnelDriverComments) (*TunnelDriver, error) {
+func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*TunnelDriver, error) {
+	tunnelComment := opts.Comments
 	comments := []string{}
 
 	if tunnelComment != nil {
@@ -97,13 +100,26 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts, tunnelC
 		connOpts = append(connOpts, ngrok.WithServer(opts.ServerAddr))
 	}
 
-	// Only configure custom certs if the directory exists
-	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) {
-		caCerts, err := caCerts()
+	isHostCA := opts.RootCAs == "host"
+
+	// validate is "trusted",  "" or "host
+	if !isHostCA && opts.RootCAs != "trusted" && opts.RootCAs != "" {
+		return nil, fmt.Errorf("invalid value for RootCAs: %s", opts.RootCAs)
+	}
+
+	// Configure certs if the custom cert directory exists or host if set
+	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) || isHostCA {
+		caCerts, err := caCerts(isHostCA)
 		if err != nil {
 			return nil, err
 		}
 		connOpts = append(connOpts, ngrok.WithCA(caCerts))
+	}
+
+	if isHostCA {
+		connOpts = append(connOpts, ngrok.WithTLSConfig(func(c *tls.Config) {
+			c.RootCAs = nil
+		}))
 	}
 
 	td := &TunnelDriver{
@@ -193,10 +209,15 @@ func (td *TunnelDriver) getSession() (ngrok.Session, error) {
 }
 
 // caCerts combines the system ca certs with a directory of custom ca certs
-func caCerts() (*x509.CertPool, error) {
+func caCerts(hostCA bool) (*x509.CertPool, error) {
 	systemCertPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, err
+	}
+
+	// we're all set if we're using the host CA
+	if hostCA {
+		return systemCertPool, nil
 	}
 
 	// Clone the system cert pool
