@@ -24,8 +24,8 @@ import (
 	"strings"
 
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
-	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // DefaultAnnotationsPrefix defines the common prefix used in the nginx ingress controller
@@ -36,14 +36,14 @@ var (
 	AnnotationsPrefix = DefaultAnnotationsPrefix
 )
 
-// IngressAnnotation has a method to parse annotations located in Ingress
-type IngressAnnotation interface {
-	Parse(ing *networking.Ingress) (interface{}, error)
+// Annotation has a method to parse annotations located in client.Object
+type Annotation interface {
+	Parse(obj client.Object) (interface{}, error)
 }
 
-type ingAnnotations map[string]string
+type annotations map[string]string
 
-func (a ingAnnotations) parseBool(name string) (bool, error) {
+func (a annotations) parseBool(name string) (bool, error) {
 	val, ok := a[name]
 	if ok {
 		b, err := strconv.ParseBool(val)
@@ -55,7 +55,7 @@ func (a ingAnnotations) parseBool(name string) (bool, error) {
 	return false, errors.ErrMissingAnnotations
 }
 
-func (a ingAnnotations) parseString(name string) (string, error) {
+func (a annotations) parseString(name string) (string, error) {
 	val, ok := a[name]
 	if ok {
 		s := normalizeString(val)
@@ -68,7 +68,7 @@ func (a ingAnnotations) parseString(name string) (string, error) {
 	return "", errors.ErrMissingAnnotations
 }
 
-func (a ingAnnotations) parseStringSlice(name string) ([]string, error) {
+func (a annotations) parseStringSlice(name string) ([]string, error) {
 	val, ok := a[name]
 	if ok {
 		s := normalizeString(val)
@@ -87,7 +87,7 @@ func (a ingAnnotations) parseStringSlice(name string) ([]string, error) {
 	return []string{}, errors.ErrMissingAnnotations
 }
 
-func (a ingAnnotations) parseStringMap(name string) (map[string]string, error) {
+func (a annotations) parseStringMap(name string) (map[string]string, error) {
 	val, ok := a[name]
 	if !ok {
 		return nil, errors.ErrMissingAnnotations
@@ -102,7 +102,7 @@ func (a ingAnnotations) parseStringMap(name string) (map[string]string, error) {
 	return m, nil
 }
 
-func (a ingAnnotations) parseInt(name string) (int, error) {
+func (a annotations) parseInt(name string) (int, error) {
 	val, ok := a[name]
 	if ok {
 		i, err := strconv.Atoi(val)
@@ -114,7 +114,7 @@ func (a ingAnnotations) parseInt(name string) (int, error) {
 	return 0, errors.ErrMissingAnnotations
 }
 
-func (a ingAnnotations) parseFloat32(name string) (float32, error) {
+func (a annotations) parseFloat32(name string) (float32, error) {
 	val, ok := a[name]
 	if ok {
 		i, err := strconv.ParseFloat(val, 32)
@@ -126,8 +126,8 @@ func (a ingAnnotations) parseFloat32(name string) (float32, error) {
 	return 0, errors.ErrMissingAnnotations
 }
 
-func checkAnnotation(name string, ing *networking.Ingress) error {
-	if ing == nil || len(ing.GetAnnotations()) == 0 {
+func checkAnnotation(name string, obj client.Object) error {
+	if obj == nil || len(obj.GetAnnotations()) == 0 {
 		return errors.ErrMissingAnnotations
 	}
 	if name == "" {
@@ -137,68 +137,68 @@ func checkAnnotation(name string, ing *networking.Ingress) error {
 	return nil
 }
 
-// GetBoolAnnotation extracts a boolean from an Ingress annotation
-func GetBoolAnnotation(name string, ing *networking.Ingress) (bool, error) {
+// GetBoolAnnotation extracts a boolean from a client.Object annotation
+func GetBoolAnnotation(name string, obj client.Object) (bool, error) {
 	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, ing)
+	err := checkAnnotation(v, obj)
 	if err != nil {
 		return false, err
 	}
-	return ingAnnotations(ing.GetAnnotations()).parseBool(v)
+	return annotations(obj.GetAnnotations()).parseBool(v)
 }
 
-// GetStringAnnotation extracts a string from an Ingress annotation
-func GetStringAnnotation(name string, ing *networking.Ingress) (string, error) {
+// GetStringAnnotation extracts a string from an client.Object annotation
+func GetStringAnnotation(name string, obj client.Object) (string, error) {
 	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, ing)
+	err := checkAnnotation(v, obj)
 	if err != nil {
 		return "", err
 	}
 
-	return ingAnnotations(ing.GetAnnotations()).parseString(v)
+	return annotations(obj.GetAnnotations()).parseString(v)
 }
 
-func GetStringSliceAnnotation(name string, ing *networking.Ingress) ([]string, error) {
+func GetStringSliceAnnotation(name string, obj client.Object) ([]string, error) {
 	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, ing)
+	err := checkAnnotation(v, obj)
 	if err != nil {
 		return []string{}, err
 	}
 
-	return ingAnnotations(ing.GetAnnotations()).parseStringSlice(v)
+	return annotations(obj.GetAnnotations()).parseStringSlice(v)
 }
 
-func GetStringMapAnnotation(name string, ing *networking.Ingress) (map[string]string, error) {
+func GetStringMapAnnotation(name string, obj client.Object) (map[string]string, error) {
 	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, ing)
+	err := checkAnnotation(v, obj)
 	if err != nil {
 		return nil, err
 	}
 
-	return ingAnnotations(ing.GetAnnotations()).parseStringMap(v)
+	return annotations(obj.GetAnnotations()).parseStringMap(v)
 }
 
-// GetIntAnnotation extracts an int from an Ingress annotation
-func GetIntAnnotation(name string, ing *networking.Ingress) (int, error) {
+// GetIntAnnotation extracts an int from a client.Object annotation
+func GetIntAnnotation(name string, obj client.Object) (int, error) {
 	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, ing)
+	err := checkAnnotation(v, obj)
 	if err != nil {
 		return 0, err
 	}
-	return ingAnnotations(ing.GetAnnotations()).parseInt(v)
+	return annotations(obj.GetAnnotations()).parseInt(v)
 }
 
-// GetFloatAnnotation extracts a float32 from an Ingress annotation
-func GetFloatAnnotation(name string, ing *networking.Ingress) (float32, error) {
+// GetFloatAnnotation extracts a float32 from a client.Object annotation
+func GetFloatAnnotation(name string, obj client.Object) (float32, error) {
 	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, ing)
+	err := checkAnnotation(v, obj)
 	if err != nil {
 		return 0, err
 	}
-	return ingAnnotations(ing.GetAnnotations()).parseFloat32(v)
+	return annotations(obj.GetAnnotations()).parseFloat32(v)
 }
 
-// GetAnnotationWithPrefix returns the prefix of ingress annotations
+// GetAnnotationWithPrefix returns the annotation prefixed with the AnnotationsPrefix
 func GetAnnotationWithPrefix(suffix string) string {
 	return fmt.Sprintf("%v/%v", AnnotationsPrefix, suffix)
 }
@@ -219,12 +219,12 @@ var configmapAnnotations = sets.NewString(
 
 // AnnotationsReferencesConfigmap checks if at least one annotation in the Ingress rule
 // references a configmap.
-func AnnotationsReferencesConfigmap(ing *networking.Ingress) bool {
-	if ing == nil || len(ing.GetAnnotations()) == 0 {
+func AnnotationsReferencesConfigmap(obj client.Object) bool {
+	if obj == nil || len(obj.GetAnnotations()) == 0 {
 		return false
 	}
 
-	for name := range ing.GetAnnotations() {
+	for name := range obj.GetAnnotations() {
 		if configmapAnnotations.Has(name) {
 			return true
 		}
