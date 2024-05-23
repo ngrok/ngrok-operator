@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.0
+
+**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.12.4...helm-chart-0.13.0
+
+**Important**: If you are upgrading from a previous version and are using `helm install` or `helm upgrade`, you will need to manually apply the changes to the CRDs. This is because the CRDs are not [updated automatically when the chart is updated](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#some-caveats-and-explanations). To do this, apply the contents of the `crds` directory in the chart to your cluster.
+
+Ex (from the root of the repository):
+```shell
+kubectl apply -f ./helm/ingress-controller/templates/crds/
+```
+
+### Added
+
+- root-cas setting [#371](https://github.com/ngrok/kubernetes-ingress-controller/pull/371)
+  Takes an install option for `--set rootCAs=host` and plumb the isHostCA check into the caCerts for it to just get the host certs.
+- feat: Add support for mutualTLS [#373](https://github.com/ngrok/kubernetes-ingress-controller/pull/373)
+
+### Changed
+
+- Update nix flake, go version, and Makefile dep versions [#379](https://github.com/ngrok/kubernetes-ingress-controller/pull/379)
+
 ## 0.12.4
 
 - Add the `apiURL` value.
