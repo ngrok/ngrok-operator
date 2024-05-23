@@ -241,10 +241,17 @@ func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backend
 
 		backend, err := r.NgrokClientset.TunnelGroupBackends().Get(ctx, edge.Backend.Backend.ID)
 		if err != nil {
-			// If we get an error looking up the backend, return the error and
+			// The backend ID on the edge is invalid and no longer exists in the ngrok API,
+			// so we'll skip this edge check the next one.
+			if ngrok.IsNotFound(err) {
+				continue
+			}
+
+			// We've go an error besides not found. Return the error and
 			// hopefully the next reconcile will fix it.
 			return nil, err
 		}
+
 		if backend == nil {
 			continue
 		}
