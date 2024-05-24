@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.11.0
+**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/kubernetes-ingress-controller-0.10.4...kubernetes-ingress-controller-0.11.0
+
+### Added
+
+- create policy kind [#361](https://github.com/ngrok/kubernetes-ingress-controller/pull/361)
+- initial policy controller update [#364](https://github.com/ngrok/kubernetes-ingress-controller/pull/364)
+- root-cas setting [#371](https://github.com/ngrok/kubernetes-ingress-controller/pull/371)
+  Takes an install option for --set rootCAs=host and plumb the isHostCA check into the caCerts for it to just get the host certs.
+- feat: Add support for mutualTLS [#373](https://github.com/ngrok/kubernetes-ingress-controller/pull/373)
+- Add GatewayClass to cachestore [#376](https://github.com/ngrok/kubernetes-ingress-controller/pull/376)
+- Add extensionRef support for policy crd inclusion [#377](https://github.com/ngrok/kubernetes-ingress-controller/pull/377
+)
+
+
+
+### Changed
+
+- ngrok client api update [#367](https://github.com/ngrok/kubernetes-ingress-controller/pull/367)
+- switch edge kinds to raw json policy [#368](https://github.com/ngrok/kubernetes-ingress-controller/pull/368)
+- modules to traffic policy [#370](https://github.com/ngrok/kubernetes-ingress-controller/pull/370)
+- Update nix flake, go version, and Makefile dep versions [#379](https://github.com/ngrok/kubernetes-ingress-controller/pull/379)
+
+### Fixes
+
+- fix: panics in oauth providers [#374](https://github.com/ngrok/kubernetes-ingress-controller/pull/374)
+- Handle non-existent backend IDs more gracefully [#380](https://github.com/ngrok/kubernetes-ingress-controller/pull/380)
+- Fixes not all reserved addrs being returned while iterating [#381](https://github.com/ngrok/kubernetes-ingress-controller/pull/381)
+
 ## 0.10.4
 
 ### Added
