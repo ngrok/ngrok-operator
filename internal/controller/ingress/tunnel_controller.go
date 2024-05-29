@@ -33,6 +33,7 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/pkg/tunneldriver"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -77,12 +78,11 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		LogConstructor: func(_ *reconcile.Request) logr.Logger {
 			return r.Log
 		},
+		NeedLeaderElection: ptr.To(false),
 	})
 	if err != nil {
 		return err
 	}
-
-	cont = NonLeaderElectedController{cont}
 
 	if err := cont.Watch(
 		source.Kind(mgr.GetCache(), &ingressv1alpha1.Tunnel{}),
