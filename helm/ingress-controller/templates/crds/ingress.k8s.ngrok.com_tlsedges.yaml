@@ -142,6 +142,11 @@ spec:
                     description: ID is the unique identifier for this backend
                     type: string
                 type: object
+              cnameTargets:
+                additionalProperties:
+                  type: string
+                description: Map of hostports to the ngrok assigned CNAME targets
+                type: object
               hostports:
                 description: Hostports served by this edge
                 items:

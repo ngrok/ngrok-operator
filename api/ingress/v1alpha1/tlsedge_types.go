@@ -74,6 +74,9 @@ type TLSEdgeStatus struct {
 	// Backend stores the status of the tunnel group backend,
 	// mainly the ID of the backend
 	Backend TunnelGroupBackendStatus `json:"backend,omitempty"`
+
+	// Map of hostports to the ngrok assigned CNAME targets
+	CNAMETargets map[string]string `json:"cnameTargets,omitempty"`
 }
 
 //+kubebuilder:object:root=true
