@@ -380,9 +380,9 @@ var _ = Describe("Driver", func() {
 					},
 				},
 			}
-			driver.store.Add(ms1)
-			driver.store.Add(ms2)
-			driver.store.Add(ms3)
+			Expect(driver.store.Add(ms1)).To(BeNil())
+			Expect(driver.store.Add(ms2)).To(BeNil())
+			Expect(driver.store.Add(ms3)).To(BeNil())
 		})
 
 		It("Should return an empty module set if the ingress has no modules annotaion", func() {
@@ -445,7 +445,7 @@ var _ = Describe("Driver", func() {
 					Policy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
 				},
 			}
-			driver.store.Add(policyCrd)
+			Expect(driver.store.Add(policyCrd)).To(BeNil())
 		})
 
 		It("Should return an empty policy if the rule has nothing in it", func() {

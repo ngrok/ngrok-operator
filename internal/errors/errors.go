@@ -98,7 +98,7 @@ func NewErrInvalidIngressSpec() ErrInvalidIngressSpec {
 }
 
 // AddError adds an error to the list of errors
-func (e ErrInvalidIngressSpec) AddError(err string) {
+func (e *ErrInvalidIngressSpec) AddError(err string) {
 	e.errors = append(e.errors, err)
 }
 
