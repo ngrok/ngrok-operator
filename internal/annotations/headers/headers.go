@@ -4,7 +4,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
-	networking "k8s.io/api/networking/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type EndpointHeaders = ingressv1alpha1.EndpointHeaders
@@ -13,14 +13,14 @@ type EndpointResponseHeaders = ingressv1alpha1.EndpointResponseHeaders
 
 type headers struct{}
 
-func NewParser() parser.IngressAnnotation {
+func NewParser() parser.Annotation {
 	return headers{}
 }
 
-func (h headers) Parse(ing *networking.Ingress) (interface{}, error) {
+func (h headers) Parse(obj client.Object) (interface{}, error) {
 	parsed := &EndpointHeaders{}
 
-	v, err := parser.GetStringSliceAnnotation("request-headers-remove", ing)
+	v, err := parser.GetStringSliceAnnotation("request-headers-remove", obj)
 	if err != nil {
 		if !errors.IsMissingAnnotations(err) {
 			return parsed, err
@@ -34,7 +34,7 @@ func (h headers) Parse(ing *networking.Ingress) (interface{}, error) {
 		parsed.Request.Remove = v
 	}
 
-	m, err := parser.GetStringMapAnnotation("request-headers-add", ing)
+	m, err := parser.GetStringMapAnnotation("request-headers-add", obj)
 	if err != nil {
 		if !errors.IsMissingAnnotations(err) {
 			return parsed, err
@@ -54,7 +54,7 @@ func (h headers) Parse(ing *networking.Ingress) (interface{}, error) {
 		}
 	}
 
-	v, err = parser.GetStringSliceAnnotation("response-headers-remove", ing)
+	v, err = parser.GetStringSliceAnnotation("response-headers-remove", obj)
 	if err != nil {
 		if !errors.IsMissingAnnotations(err) {
 			return parsed, err
@@ -68,7 +68,7 @@ func (h headers) Parse(ing *networking.Ingress) (interface{}, error) {
 		parsed.Response.Remove = v
 	}
 
-	m, err = parser.GetStringMapAnnotation("response-headers-add", ing)
+	m, err = parser.GetStringMapAnnotation("response-headers-add", obj)
 	if err != nil {
 		if !errors.IsMissingAnnotations(err) {
 			return parsed, err

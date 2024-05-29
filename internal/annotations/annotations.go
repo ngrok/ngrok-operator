@@ -30,6 +30,7 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // DeniedKeyName name of the key that contains the reason to deny a location
@@ -44,12 +45,12 @@ type RouteModules struct {
 }
 
 type Extractor struct {
-	annotations map[string]parser.IngressAnnotation
+	annotations map[string]parser.Annotation
 }
 
 func NewAnnotationsExtractor() Extractor {
 	return Extractor{
-		annotations: map[string]parser.IngressAnnotation{
+		annotations: map[string]parser.Annotation{
 			"Compression":         compression.NewParser(),
 			"Headers":             headers.NewParser(),
 			"IPRestriction":       ip_policies.NewParser(),
@@ -102,14 +103,14 @@ func (e Extractor) Extract(ing *networking.Ingress) *RouteModules {
 
 // Extracts a list of module set names from the annotation
 // k8s.ngrok.com/modules: "module1,module2"
-func ExtractNgrokModuleSetsFromAnnotations(ing *networking.Ingress) ([]string, error) {
-	return parser.GetStringSliceAnnotation("modules", ing)
+func ExtractNgrokModuleSetsFromAnnotations(obj client.Object) ([]string, error) {
+	return parser.GetStringSliceAnnotation("modules", obj)
 }
 
 // Extracts a single traffic policy str from the annotation
 // k8s.ngrok.com/traffic-policy: "module1"
-func ExtractNgrokTrafficPolicyFromAnnotations(ing *networking.Ingress) (string, error) {
-	policies, err := parser.GetStringSliceAnnotation("traffic-policy", ing)
+func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error) {
+	policies, err := parser.GetStringSliceAnnotation("traffic-policy", obj)
 
 	if err != nil {
 		return "", err
