@@ -179,6 +179,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 			}
 		}),
 	)
+	//nolint:errcheck
 	go ngrok.Connect(ctx, connOpts...)
 
 	return td, nil

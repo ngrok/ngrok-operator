@@ -31,7 +31,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -131,8 +131,8 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 		r.Recorder.Event(policy, v1.EventTypeNormal, "Updating", fmt.Sprintf("Updating IPPolicy %s", policy.Name))
 		_, err := r.IPPoliciesClient.Update(ctx, &ngrok.IPPolicyUpdate{
 			ID:          policy.Status.ID,
-			Description: pointer.String(policy.Spec.Description),
-			Metadata:    pointer.String(policy.Spec.Metadata),
+			Description: ptr.To(policy.Spec.Description),
+			Metadata:    ptr.To(policy.Spec.Metadata),
 		})
 		if err != nil {
 			return err
@@ -357,7 +357,7 @@ func (d *IPPolicyDiff) createRule(rule ingressv1alpha1.IPPolicyRule) *ngrok.IPPo
 	return &ngrok.IPPolicyRuleCreate{
 		IPPolicyID:  d.policyID,
 		CIDR:        rule.CIDR,
-		Action:      pointer.String(rule.Action),
+		Action:      ptr.To(rule.Action),
 		Metadata:    rule.Metadata,
 		Description: rule.Description,
 	}
@@ -373,8 +373,8 @@ func (d *IPPolicyDiff) addUpdateIfNeeded(rule ingressv1alpha1.IPPolicyRule, remo
 
 	d.updates = append(d.updates, &ngrok.IPPolicyRuleUpdate{
 		ID:          remoteRule.ID,
-		Metadata:    pointer.String(rule.Metadata),
-		Description: pointer.String(rule.Description),
-		CIDR:        pointer.String(rule.CIDR),
+		Metadata:    ptr.To(rule.Metadata),
+		Description: ptr.To(rule.Description),
+		CIDR:        ptr.To(rule.CIDR),
 	})
 }

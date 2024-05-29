@@ -133,7 +133,10 @@ jobs:
     - name: Build
       run: make build
 
-    - name: Test and Lint
+    - name: Lint
+      run: make lint
+
+    - name: Test
       run: make test
 
     - name: Build the Docker image
