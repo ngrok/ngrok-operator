@@ -27,9 +27,13 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -87,18 +91,24 @@ func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).
+	controller := ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.TLSEdge{}).
 		Watches(
 			&ingressv1alpha1.IPPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.listTLSEdgesForIPPolicy),
 		).
-		Complete(r)
+		Watches(
+			&ingressv1alpha1.Domain{},
+			handler.EnqueueRequestsFromMapFunc(r.listTLSEdgesForDomain),
+		)
+
+	return controller.Complete(r)
 }
 
 //+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;create;update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -110,6 +120,10 @@ func (r *TLSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
+	if err := r.reconcileDomains(ctx, edge); err != nil {
+		return err
+	}
+
 	if err := r.reconcileTunnelGroupBackend(ctx, edge); err != nil {
 		return err
 	}
@@ -143,6 +157,10 @@ func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TL
 }
 
 func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
+	if err := r.reconcileDomains(ctx, edge); err != nil {
+		return err
+	}
+
 	if err := r.reconcileTunnelGroupBackend(ctx, edge); err != nil {
 		return err
 	}
@@ -206,10 +224,19 @@ func (r *TLSEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha
 }
 
 func (r *TLSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
-	err := r.NgrokClientset.TLSEdges().Delete(ctx, edge.Status.ID)
+	log := ctrl.LoggerFrom(ctx)
+
+	edgeID := edge.Status.ID
+	log.Info("Deleting TLSEdge", "edge.ID", edgeID)
+	err := r.NgrokClientset.TLSEdges().Delete(ctx, edgeID)
 	if err == nil || ngrok.IsNotFound(err) {
+		log.Info("Deleted TLSEdge", "edge.ID", edgeID)
 		edge.Status.ID = ""
+		if err := r.Client.Status().Update(ctx, edge); err != nil {
+			return err
+		}
 	}
+
 	return err
 }
 
@@ -339,6 +366,31 @@ func (r *TLSEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backend
 }
 
 func (r *TLSEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
+	domains := &ingressv1alpha1.DomainList{}
+	if err := r.Client.List(ctx, domains, client.InNamespace(edge.Namespace)); err != nil {
+		return err
+	}
+
+	edgeDomainMap := make(map[string]bool)
+	for _, hp := range remoteEdge.Hostports {
+		host, _, err := parseHostAndPort(hp)
+		if err != nil {
+			return err
+		}
+		edgeDomainMap[host] = true
+	}
+
+	edge.Status.CNAMETargets = map[string]string{}
+	for _, domain := range domains.Items {
+		// We don't care about domains that aren't part of this edge
+		if _, ok := edgeDomainMap[domain.Spec.Domain]; !ok {
+			continue
+		}
+
+		if domain.Status.CNAMETarget != nil {
+			edge.Status.CNAMETargets[domain.Spec.Domain] = *domain.Status.CNAMETarget
+		}
+	}
 	edge.Status.ID = remoteEdge.ID
 	edge.Status.URI = remoteEdge.URI
 	edge.Status.Hostports = remoteEdge.Hostports
@@ -347,7 +399,7 @@ func (r *TLSEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv
 	return r.Status().Update(ctx, edge)
 }
 
-func (r *TLSEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
+func (r *TLSEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, _ *ngrok.TLSEdge) error {
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TLS().IPRestriction().Delete(ctx, edge.Status.ID)
 	}
@@ -403,6 +455,48 @@ func (r *TLSEdgeReconciler) listTLSEdgesForIPPolicy(ctx context.Context, obj cli
 	return recs
 }
 
+func (r *TLSEdgeReconciler) listTLSEdgesForDomain(ctx context.Context, obj client.Object) []reconcile.Request {
+	r.Log.Info("Listing TLSEdges for domain to determine if they need to be reconciled")
+	domain, ok := obj.(*ingressv1alpha1.Domain)
+	if !ok {
+		r.Log.Error(nil, "failed to convert object to Domain", "object", obj)
+		return []reconcile.Request{}
+	}
+
+	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain.Name, "namespace", domain.Namespace)
+
+	edges := &ingressv1alpha1.TLSEdgeList{}
+	if err := r.Client.List(ctx, edges); err != nil {
+		log.Error(err, "failed to list TLSEdges for domain")
+		return []reconcile.Request{}
+	}
+
+	recs := []reconcile.Request{}
+
+	for _, edge := range edges.Items {
+		for _, hostport := range edge.Spec.Hostports {
+			host, _, err := parseHostAndPort(hostport)
+			if err != nil {
+				log.Error(err, "failed to parse host and port", "hostport", hostport)
+				continue
+			}
+			if host == domain.Spec.Domain {
+				log.V(1).Info("Found edge with matching hostport to reconcile for domain change", "edge", edge.Name)
+				recs = append(recs, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      edge.GetName(),
+						Namespace: edge.GetNamespace(),
+					},
+				})
+				break
+			}
+		}
+	}
+
+	log.V(1).Info("Domain change triggered TLSEdge reconciliation", "reconcile_requests", recs)
+	return recs
+}
+
 func (r *TLSEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
 	policy := edge.Spec.Policy
 	client := r.NgrokClientset.EdgeModules().TLS().RawPolicy()
@@ -425,4 +519,78 @@ func (r *TLSEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 		Module: policy,
 	})
 	return err
+}
+
+func (r *TLSEdgeReconciler) reconcileDomains(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	existing := make(map[string]bool)
+	domainList := &ingressv1alpha1.DomainList{}
+	if err := r.Client.List(ctx, domainList, client.InNamespace(edge.Namespace)); err != nil {
+		return err
+	}
+
+	for _, domain := range domainList.Items {
+		existing[domain.Spec.Domain] = true
+	}
+
+	// Get the desired domains
+	desiredDomains, err := r.getDesiredDomains(ctx, edge)
+	if err != nil {
+		return err
+	}
+
+	for _, domain := range desiredDomains {
+		// Already exists, skip
+		if _, ok := existing[domain.Spec.Domain]; ok {
+			continue
+		}
+
+		// Doesn't exist, create
+		log.Info("Creating domain", "name", domain.Name, "namespace", domain.Namespace)
+		if err := r.Client.Create(ctx, &domain); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *TLSEdgeReconciler) getDesiredDomains(ctx context.Context, edge *ingressv1alpha1.TLSEdge) ([]ingressv1alpha1.Domain, error) {
+	log := ctrl.LoggerFrom(ctx)
+	log.V(5).Info("Calculating desired domains")
+	desired := []ingressv1alpha1.Domain{}
+	for _, hostport := range edge.Spec.Hostports {
+		host, _, err := parseHostAndPort(hostport)
+		if err != nil {
+			return nil, err
+		}
+
+		domain := ingressv1alpha1.Domain{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        strings.Replace(host, ".", "-", -1),
+				Namespace:   edge.Namespace,
+				Annotations: map[string]string{},
+			},
+			Spec: ingressv1alpha1.DomainSpec{
+				Domain: host,
+			},
+		}
+		desired = append(desired, domain)
+	}
+	return desired, nil
+}
+
+// parses the ngrok hostport string into a hostname and port
+func parseHostAndPort(hostport string) (string, int32, error) {
+	pieces := strings.SplitN(hostport, ":", 2)
+	if len(pieces) != 2 {
+		return "", 0, fmt.Errorf("invalid hostport")
+	}
+
+	port, err := strconv.ParseInt(pieces[1], 10, 32)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return pieces[0], int32(port), nil
 }
