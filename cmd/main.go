@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -37,7 +38,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -47,9 +47,11 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	gatewaycontroller "github.com/ngrok/kubernetes-ingress-controller/internal/controller/gateway"
 	controllers "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ingress"
+	ngrokctr "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ngrok"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
@@ -66,6 +68,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -82,6 +85,7 @@ type managerOpts struct {
 	electionID                string
 	probeAddr                 string
 	serverAddr                string
+	apiURL                    string
 	controllerName            string
 	watchNamespace            string
 	metaData                  string
@@ -94,6 +98,8 @@ type managerOpts struct {
 	ngrokAPIKey string
 
 	region string
+
+	rootCAs string
 }
 
 func cmd() *cobra.Command {
@@ -111,10 +117,12 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metaData, "metadata", "", "A comma separated list of key value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
+	c.Flags().StringVar(&opts.apiURL, "api-url", "", "The base URL to use for the ngrok api")
 	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
 	c.Flags().BoolVar(&opts.useExperimentalGatewayAPI, "use-experimental-gateway-api", false, "sets up experemental gatewayAPI")
+	c.Flags().StringVar(&opts.rootCAs, "root-cas", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -146,6 +154,9 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
 	apiBaseURL := os.Getenv("NGROK_API_ADDR")
+	if opts.apiURL != "" {
+		apiBaseURL = opts.apiURL
+	}
 	if apiBaseURL != "" {
 		u, err := url.Parse(apiBaseURL)
 		if err != nil {
@@ -153,6 +164,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		}
 		ngrokClientConfig.BaseURL = u
 	}
+	setupLog.Info("configured API client", "base_url", ngrokClientConfig.BaseURL)
 
 	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
 	options := ctrl.Options{
@@ -196,6 +208,18 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
 
+	if err = (&controllers.ServiceReconciler{
+		Client:    mgr.GetClient(),
+		Log:       ctrl.Log.WithName("controllers").WithName("service"),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  mgr.GetEventRecorderFor("service-controller"),
+		Namespace: opts.namespace,
+		Driver:    driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Service")
+		os.Exit(1)
+	}
+
 	if err = (&controllers.DomainReconciler{
 		Client:        mgr.GetClient(),
 		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
@@ -207,10 +231,29 @@ func runController(ctx context.Context, opts managerOpts) error {
 		os.Exit(1)
 	}
 
-	td, err := tunneldriver.New(ctrl.Log.WithName("drivers").WithName("tunnel"), tunneldriver.TunnelDriverOpts{
-		ServerAddr: opts.serverAddr,
-		Region:     opts.region,
-	})
+	var comments tunneldriver.TunnelDriverComments
+
+	if opts.useExperimentalGatewayAPI {
+		comments = tunneldriver.TunnelDriverComments{
+			Gateway: "gateway-api",
+		}
+	}
+
+	rootCAs := "trusted"
+
+	if opts.rootCAs != "" {
+		rootCAs = opts.rootCAs
+	}
+
+	td, err := tunneldriver.New(ctx, ctrl.Log.WithName("drivers").WithName("tunnel"),
+		tunneldriver.TunnelDriverOpts{
+			ServerAddr: opts.serverAddr,
+			Region:     opts.region,
+			RootCAs:    rootCAs,
+			Comments:   &comments,
+		},
+	)
+
 	if err != nil {
 		return fmt.Errorf("unable to create tunnel driver: %w", err)
 	}
@@ -299,13 +342,28 @@ func runController(ctx context.Context, opts managerOpts) error {
 			os.Exit(1)
 		}
 	}
+
+	if err = (&ngrokctr.NgrokTrafficPolicyReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("policy-controller"),
+		Driver:   driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TrafficPolicy")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		return fmt.Errorf("error setting up health check: %w", err)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+	if err := mgr.AddReadyzCheck("readyz", func(req *http.Request) error {
+		return td.Ready()
+	}); err != nil {
 		return fmt.Errorf("error setting up readyz check: %w", err)
+	}
+	if err := mgr.AddHealthzCheck("healthz", func(req *http.Request) error {
+		return td.Healthy()
+	}); err != nil {
+		return fmt.Errorf("error setting up health check: %w", err)
 	}
 
 	setupLog.Info("starting manager")

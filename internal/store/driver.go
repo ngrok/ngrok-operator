@@ -20,6 +20,8 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
+
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,11 +44,12 @@ const (
 type Driver struct {
 	store Storer
 
-	cacheStores    CacheStores
-	log            logr.Logger
-	scheme         *runtime.Scheme
-	customMetadata string
-	managerName    types.NamespacedName
+	cacheStores     CacheStores
+	log             logr.Logger
+	scheme          *runtime.Scheme
+	ingressMetadata string
+	gatewayMetadata string
+	managerName     types.NamespacedName
 
 	syncMu              sync.Mutex
 	syncRunning         bool
@@ -73,16 +76,39 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 
 // WithMetaData allows you to pass in custom metadata to be added to all resources created by the controller
 func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
-	if _, ok := customMetadata["owned-by"]; !ok {
-		customMetadata["owned-by"] = "kubernetes-ingress-controller"
-	}
-	jsonString, err := json.Marshal(customMetadata)
+	ingressMetadata, err := d.setMetadataOwner("kubernetes-ingress-controller", customMetadata)
 	if err != nil {
-		d.log.Error(err, "error marshalling custom metadata", "customMetadata", d.customMetadata)
+		d.log.Error(err, "error marshalling custom metadata", "customMetadata", d.ingressMetadata)
 		return d
 	}
-	d.customMetadata = string(jsonString)
+	d.ingressMetadata = ingressMetadata
+
+	if d.gatewayEnabled {
+		gatewayMetadata, err := d.setMetadataOwner("kubernetes-gateway-api", customMetadata)
+		if err != nil {
+			d.log.Error(err, "error marshalling custom metadata", "customMetadata", d.gatewayMetadata)
+			return d
+		}
+		d.gatewayMetadata = gatewayMetadata
+
+	}
 	return d
+}
+
+func (d *Driver) setMetadataOwner(owner string, customMetadata map[string]string) (string, error) {
+	metaData := make(map[string]string)
+	for k, v := range customMetadata {
+		metaData[k] = v
+	}
+	if _, ok := metaData["owned-by"]; !ok {
+		metaData["owned-by"] = owner
+	}
+	jsonString, err := json.Marshal(metaData)
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonString), nil
 }
 
 // Seed fetches all the upfront information the driver needs to operate
@@ -613,7 +639,7 @@ func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain
 					Domain: rule.Host,
 				},
 			}
-			domain.Spec.Metadata = d.customMetadata
+			domain.Spec.Metadata = d.ingressMetadata
 			domainMap[rule.Host] = domain
 		}
 	}
@@ -645,7 +671,7 @@ func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1
 					Domain: domainName,
 				},
 			}
-			domain.Spec.Metadata = d.customMetadata
+			domain.Spec.Metadata = d.gatewayMetadata
 			domainMap[domainName] = domain
 		}
 	}
@@ -677,6 +703,18 @@ func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alph
 	return computedModSet, nil
 }
 
+func (d *Driver) getNgrokTrafficPolicyForIngress(ing *netv1.Ingress) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
+	policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(ing)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return d.store.GetNgrokTrafficPolicyV1(policy, ing.Namespace)
+}
+
 func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, gatewayDomainMap map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.HTTPSEdge {
 	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(*ingressDomains))
 	for _, domain := range *ingressDomains {
@@ -690,7 +728,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				Hostports: []string{domain.Spec.Domain + ":443"},
 			},
 		}
-		edge.Spec.Metadata = d.customMetadata
+		edge.Spec.Metadata = d.ingressMetadata
 		edgeMap[domain.Spec.Domain] = edge
 	}
 	d.calculateHTTPSEdgesFromIngress(edgeMap)
@@ -714,6 +752,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				gatewayDomains[string(*listener.Hostname)] = string(*listener.Hostname)
 			}
 			if len(gatewayDomains) == 0 {
+				d.log.Info("no usable domains in gateway, may be missing https listener", "gateway", gtw.Name)
 				continue
 			}
 			for _, httproute := range httproutes {
@@ -754,7 +793,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 						Hostports: hostPorts,
 					},
 				}
-				edge.Spec.Metadata = d.customMetadata
+				edge.Spec.Metadata = d.gatewayMetadata
 				gatewayEdgeMap[routeDomains[0]] = edge
 
 			}
@@ -779,6 +818,12 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 			continue
 		}
 
+		policyJSON, err := d.getPolicyJSON(ingress, modSet)
+		if err != nil {
+			d.log.Error(err, "error marshalling JSON Policy for ingress", "ingress", ingress)
+			continue
+		}
+
 		for _, rule := range ingress.Spec.Rules {
 			// TODO: Handle routes without hosts that then apply to all edges
 			edge, ok := edgeMap[rule.Host]
@@ -789,6 +834,10 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 
 			if modSet.Modules.TLSTermination != nil {
 				edge.Spec.TLSTermination = modSet.Modules.TLSTermination
+			}
+
+			if modSet.Modules.MutualTLS != nil {
+				edge.Spec.MutualTLS = modSet.Modules.MutualTLS
 			}
 
 			// If any rule for an ingress matches, then it applies to this ingress
@@ -831,12 +880,12 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					IPRestriction:       modSet.Modules.IPRestriction,
 					Headers:             modSet.Modules.Headers,
 					OAuth:               modSet.Modules.OAuth,
-					Policy:              modSet.Modules.Policy,
+					Policy:              policyJSON,
 					OIDC:                modSet.Modules.OIDC,
 					SAML:                modSet.Modules.SAML,
 					WebhookVerification: modSet.Modules.WebhookVerification,
 				}
-				route.Metadata = d.customMetadata
+				route.Metadata = d.ingressMetadata
 
 				edge.Spec.Routes = append(edge.Spec.Routes, route)
 			}
@@ -844,6 +893,38 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 			edgeMap[rule.Host] = edge
 		}
 	}
+}
+
+// retrieves the traffic policy for an ingress and falls back to the modSet policy if it doesn't exist
+func (d *Driver) getPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1alpha1.NgrokModuleSet) (json.RawMessage, error) {
+	var err error
+	var policyJSON json.RawMessage
+
+	trafficPolicy, err := d.getNgrokTrafficPolicyForIngress(ingress)
+
+	if err != nil {
+		d.log.Error(err, "error getting ngrok traffic policy for ingress", "ingress", ingress)
+		return nil, err
+	}
+
+	if modSet.Modules.Policy != nil && trafficPolicy != nil {
+		return nil, fmt.Errorf("cannot have both a traffic policy and a moduleset policy on ingress: %s", ingress.Name)
+	}
+
+	if trafficPolicy != nil {
+		return trafficPolicy.Spec.Policy, nil
+	}
+
+	if modSet == nil {
+		return policyJSON, nil
+	}
+
+	if policyJSON, err = json.Marshal(modSet.Modules.Policy); err != nil {
+		d.log.Error(err, "cannot convert module-set policy json", "ingress", ingress, "Policy", modSet.Modules.Policy)
+		return nil, err
+	}
+
+	return policyJSON, nil
 }
 
 func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
@@ -924,12 +1005,20 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 							}
 
 							// TODO: set with values from rules.Filters + rules.Matches
-							policy, err := d.createEndpointPolicyForGateway(&rule)
+							// this HTTPRouteRule comes direct from gateway api yaml, and func returns the policy,
+							// which goes directly into the edge route in ngrok.
+							policy, err := d.createEndpointPolicyForGateway(&rule, httproute.Namespace)
+
 							if err != nil {
 								d.log.Error(err, "error creating policy from HTTPRouteRule", "rule", rule)
 								continue
 							}
-							route.Policy = policy
+							policyStr, err := json.Marshal(policy)
+							if err != nil {
+								d.log.Error(err, "cannot convert policy json", "Policy", policy)
+								continue
+							}
+							route.Policy = policyStr
 
 							for idx, backendref := range rule.BackendRefs {
 								// currently the ingress controller doesn't support weighted backends
@@ -946,10 +1035,10 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								}
 
 								refName := string(backendref.Name)
-								//refNamespace := string(*backendref.Namespace)
-								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, gtw.Namespace)
+								serviceUID, servicePort, err := d.getEdgeBackendRef(backendref.BackendRef, httproute.Namespace)
 								if err != nil {
-									d.log.Error(err, "could not find port for service", "namespace", gtw.Namespace, "service", refName)
+									d.log.Error(err, "could not find port for service", "namespace", httproute.Namespace, "service", refName)
+									continue
 								}
 
 								route.Backend = ingressv1alpha1.TunnelGroupBackend{
@@ -957,8 +1046,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								}
 
 							}
-							// set different customMetadata for gateways next
-							route.Metadata = d.customMetadata
+							route.Metadata = d.gatewayMetadata
 
 							edge.Spec.Routes = append(edge.Spec.Routes, route)
 						}
@@ -975,10 +1063,13 @@ type Actions struct {
 	endpointActions []ingressv1alpha1.EndpointAction
 }
 
-func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (*ingressv1alpha1.EndpointPolicy, error) {
+type EndpointRules struct {
+	rules []ingressv1alpha1.EndpointRule
+}
+
+func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (*ingressv1alpha1.EndpointPolicy, error) {
 	inboundActions := Actions{}
 	outboundActions := Actions{}
-	expressions := []string{}
 	pathPrefixMatches := []string{}
 
 	// NOTE: matches are only defined on requests, and fitlers are only triggered by matches,
@@ -1002,15 +1093,45 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 		}
 
 		if match.Method != nil {
-			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPMethod", *match.Method)
+			d.log.Error(fmt.Errorf("unsupported match type"), "Unsupported match type", "HTTPMethod", *match.Method)
 		}
 
 		if len(match.Headers) > 0 {
-			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPHeaderMatch", match.Headers)
+			d.log.Error(fmt.Errorf("unsupported match type"), "Unsupported match type", "HTTPHeaderMatch", match.Headers)
 		}
 
 		if len(match.QueryParams) > 0 {
-			d.log.Error(fmt.Errorf("Unsupported match type"), "Unsupported match type", "HTTPQueryParamMatch", match.QueryParams)
+			d.log.Error(fmt.Errorf("unsupported match type"), "Unsupported match type", "HTTPQueryParamMatch", match.QueryParams)
+		}
+	}
+
+	inboundRules := EndpointRules{}
+	outboundRules := EndpointRules{}
+	flushCount := 0
+
+	flushActionsToRules := func() {
+		if len(inboundActions.endpointActions) == 0 && len(outboundActions.endpointActions) == 0 {
+			return
+		}
+		// there are actions to flush
+		flushCount++
+		if len(inboundActions.endpointActions) > 0 {
+			// flush actions to a rule
+			inboundRules.rules = append(inboundRules.rules, ingressv1alpha1.EndpointRule{
+				Actions: inboundActions.endpointActions,
+				Name:    fmt.Sprint("Inbound HTTPRouteRule ", flushCount),
+			})
+			// clear
+			inboundActions.endpointActions = []ingressv1alpha1.EndpointAction{}
+		}
+		if len(outboundActions.endpointActions) > 0 {
+			// flush actions to a rule
+			outboundRules.rules = append(outboundRules.rules, ingressv1alpha1.EndpointRule{
+				Actions: outboundActions.endpointActions,
+				Name:    fmt.Sprint("Outbound HTTPRouteRule ", flushCount),
+			})
+			// clear
+			outboundActions.endpointActions = []ingressv1alpha1.EndpointAction{}
 		}
 	}
 
@@ -1034,50 +1155,36 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule) (
 				return nil, err
 			}
 		case gatewayv1.HTTPRouteFilterURLRewrite:
-			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
+			err := d.handleURLRewriteFilter(filter.URLRewrite, pathPrefixMatches, &inboundActions)
+			if err != nil {
+				return nil, err
+			}
 		case gatewayv1.HTTPRouteFilterRequestMirror:
 			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
 		case gatewayv1.HTTPRouteFilterExtensionRef:
-			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
+			// if there are current actions outstanding, make a rule to hold them before we start a new rule for this PolicyCRD
+			flushActionsToRules()
+
+			// a PolicyCRD can have expressions, so send in rule pointers so expressions can be on those rules
+			err := d.handleExtensionRef(filter.ExtensionRef, namespace, &inboundRules, &outboundRules)
+			if err != nil {
+				return nil, err
+			}
 		default:
 			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unknown filter HTTPRouteFilterType %v found", filter.Type))
 		}
 	}
 
+	// flush any leftover actions to rules
+	flushActionsToRules()
+
 	var policy *ingressv1alpha1.EndpointPolicy
 	enabled := true
 
-	if len(expressions) > 1 {
-		expressions = []string{strings.Join(expressions[:], " || ")}
-	}
-
-	if len(inboundActions.endpointActions) > 0 {
-		policy = &ingressv1alpha1.EndpointPolicy{
-			Enabled: &enabled,
-			// NOTE: Mapping each HTTPRouteRule to one Inbound endpoint rule
-			Inbound: []ingressv1alpha1.EndpointRule{
-				{
-					Expressions: expressions,
-					Actions:     inboundActions.endpointActions,
-					Name:        "Inbound HTTPRouteRule",
-				},
-			},
-		}
-	}
-	if len(outboundActions.endpointActions) > 0 {
-		if policy == nil {
-			policy = &ingressv1alpha1.EndpointPolicy{
-				Enabled: &enabled,
-			}
-		}
-
-		policy.Outbound = []ingressv1alpha1.EndpointRule{
-			{
-				Expressions: expressions,
-				Actions:     outboundActions.endpointActions,
-				Name:        "Outbound HTTPRouteRule",
-			},
-		}
+	policy = &ingressv1alpha1.EndpointPolicy{
+		Enabled:  &enabled,
+		Inbound:  inboundRules.rules,
+		Outbound: outboundRules.rules,
 	}
 
 	return policy, nil
@@ -1089,6 +1196,37 @@ type RemoveHeadersConfig struct {
 
 type AddHeadersConfig struct {
 	Headers map[string]string `json:"headers"`
+}
+
+func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference, namespace string, inboundRules *EndpointRules,
+	outboundRules *EndpointRules) error {
+
+	switch extensionRef.Kind {
+	case "NgrokTrafficPolicy":
+		// look up Policy CRD
+		policy, err := d.store.GetNgrokTrafficPolicyV1(string(extensionRef.Name), namespace)
+		if err != nil {
+			return err
+		}
+
+		// unmarshal the json into a policy struct
+		jsonMessage := policy.Spec.Policy
+		if jsonMessage == nil {
+			return errors.NewErrorNotFound(fmt.Sprintf("PolicyCRD %v found with no policy", extensionRef.Name))
+		}
+		var policyStruct ingressv1alpha1.EndpointPolicy
+		err = json.Unmarshal(jsonMessage, &policyStruct)
+		if err != nil {
+			return err
+		}
+
+		// copy the rules
+		inboundRules.rules = append(inboundRules.rules, policyStruct.Inbound...)
+		outboundRules.rules = append(outboundRules.rules, policyStruct.Outbound...)
+	default:
+		return errors.NewErrorNotFound(fmt.Sprintf("Unknown ExtensionRef Kind %v found, Name: %v", extensionRef.Kind, extensionRef.Name))
+	}
+	return nil
 }
 
 func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions *Actions, requestRedirectHeaders map[string]string) error {
@@ -1212,6 +1350,76 @@ func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders 
 	return nil
 }
 
+type URLRewriteConfig struct {
+	To   *string `json:"to"`
+	From *string `json:"from"`
+}
+
+func (d *Driver) createURLRewriteConfig(from string, to string, actions *Actions) error {
+	urlRewriteAction := URLRewriteConfig{
+		To:   &to,
+		From: &from,
+	}
+	config, err := json.Marshal(urlRewriteAction)
+
+	if err != nil {
+		d.log.Error(err, "cannot convert request rewrite filter to json", "HTTPRequestRewriteFilter", urlRewriteAction)
+		return err
+	}
+	actions.endpointActions = append(
+		actions.endpointActions,
+		ingressv1alpha1.EndpointAction{
+			Type:   "url-rewrite",
+			Config: config,
+		},
+	)
+
+	return nil
+}
+
+func (d *Driver) handleURLRewriteFilter(filter *gatewayv1.HTTPURLRewriteFilter, pathPrefixMatches []string, actions *Actions) error {
+	var err error
+	if filter == nil {
+		return nil
+	}
+
+	if filter.Hostname != nil {
+		hostname := string(*filter.Hostname)
+		err = d.handleHTTPHeaderFilterAdd([]gatewayv1.HTTPHeader{{Name: "Host", Value: hostname}}, actions, nil)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if filter.Path == nil {
+		return nil
+	}
+
+	switch filter.Path.Type {
+	case "ReplacePrefixMatch":
+		for _, pathPrefix := range pathPrefixMatches {
+			from := fmt.Sprintf("^https?://[^/:]+(:[0-9]*)?(%s)([^\\?]*)(\\?.*)?$", pathPrefix)
+			to := fmt.Sprintf("$scheme://$authority%s$3$is_args$args", *filter.Path.ReplacePrefixMatch)
+			err := d.createURLRewriteConfig(from, to, actions)
+			if err != nil {
+				return err
+			}
+		}
+	case "ReplaceFullPath":
+		from := ".*" //"^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
+		to := fmt.Sprintf("$scheme://$authority%s$is_args$args", *filter.Path.ReplaceFullPath)
+		err := d.createURLRewriteConfig(from, to, actions)
+		if err != nil {
+			return err
+		}
+	default:
+		d.log.Error(fmt.Errorf("Unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
+		return nil
+	}
+	return nil
+}
+
 func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions *Actions, requestHeaders map[string]string) error {
 	if filter == nil {
 		return nil
@@ -1258,7 +1466,7 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 			return err
 		}
 	default:
-		d.log.Error(fmt.Errorf("Unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
+		d.log.Error(fmt.Errorf("unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
 		return nil
 	}
 	return nil
@@ -1448,6 +1656,9 @@ func (d *Driver) getEdgeBackend(backendSvc netv1.IngressServiceBackend, namespac
 }
 
 func (d *Driver) getEdgeBackendRef(backendRef gatewayv1.BackendRef, namespace string) (string, int32, error) {
+	if backendRef.Namespace != nil && string(*backendRef.Namespace) != namespace {
+		return "", 0, fmt.Errorf("namespace %s not supported", string(*backendRef.Namespace))
+	}
 	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
 	if err != nil {
 		return "", 0, err
@@ -1549,7 +1760,7 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 			m := map[string]string{}
 			err := json.Unmarshal([]byte(annotation), &m)
 			if err != nil {
-				return "", fmt.Errorf("Could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
+				return "", fmt.Errorf("could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
 			}
 
 			if protocol, ok := m[portName]; ok {
@@ -1559,7 +1770,7 @@ func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName stri
 				case "HTTP", "HTTPS":
 					return upperProto, nil
 				default:
-					return "", fmt.Errorf("Unhandled protocol annotation: '%s', must be 'HTTP' or 'HTTPS'. From: %s service: %s", upperProto, service.Namespace, service.Name)
+					return "", fmt.Errorf("unhandled protocol annotation: '%s', must be 'HTTP' or 'HTTPS'. From: %s service: %s", upperProto, service.Namespace, service.Name)
 				}
 			}
 		}
@@ -1578,7 +1789,7 @@ func (d *Driver) getPortAppProtocol(service *corev1.Service, port *corev1.Servic
 	case "":
 		return "", nil
 	default:
-		return "", fmt.Errorf("Unsupported appProtocol: '%s', must be 'k8s.ngrok.com/http2', 'kubernetes.io/h2c' or ''. From: %s service: %s", proto, service.Namespace, service.Name)
+		return "", fmt.Errorf("unsupported appProtocol: '%s', must be 'k8s.ngrok.com/http2', 'kubernetes.io/h2c' or ''. From: %s service: %s", proto, service.Namespace, service.Name)
 	}
 }
 

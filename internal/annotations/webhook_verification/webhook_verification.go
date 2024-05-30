@@ -3,7 +3,7 @@ package webhook_verification
 import (
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
-	networking "k8s.io/api/networking/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type EndpointWebhookVerification = ingressv1alpha1.EndpointWebhookVerification
@@ -11,12 +11,12 @@ type SecretKeyRef = ingressv1alpha1.SecretKeyRef
 
 type webhookVerification struct{}
 
-func NewParser() parser.IngressAnnotation {
+func NewParser() parser.Annotation {
 	return webhookVerification{}
 }
 
-func (wv webhookVerification) Parse(ing *networking.Ingress) (interface{}, error) {
-	provider, err := parser.GetStringAnnotation("webhook-verification-provider", ing)
+func (wv webhookVerification) Parse(obj client.Object) (interface{}, error) {
+	provider, err := parser.GetStringAnnotation("webhook-verification-provider", obj)
 	if err != nil {
 		return nil, err
 	}
@@ -26,12 +26,12 @@ func (wv webhookVerification) Parse(ing *networking.Ingress) (interface{}, error
 		return &EndpointWebhookVerification{Provider: provider}, nil
 	}
 
-	secretName, err := parser.GetStringAnnotation("webhook-verification-secret-name", ing)
+	secretName, err := parser.GetStringAnnotation("webhook-verification-secret-name", obj)
 	if err != nil {
 		return nil, err
 	}
 
-	secretKey, err := parser.GetStringAnnotation("webhook-verification-secret-key", ing)
+	secretKey, err := parser.GetStringAnnotation("webhook-verification-secret-key", obj)
 	if err != nil {
 		return nil, err
 	}

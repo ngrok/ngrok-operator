@@ -8,6 +8,7 @@ templates:
 # snapshot much larger than it needs to be, but it's the only way to test the
 # deployment at this time.
 - controller-rbac.yaml
+- credentials-secret.yaml
 - rbac/role.yaml
 tests:
 - it: Should match default snapshot

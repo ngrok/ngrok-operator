@@ -1,6 +1,13 @@
 package ngrokapi
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"net/url"
+	"text/template"
+
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_mutual_tls"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/https_edge_route_backend"
@@ -50,6 +57,49 @@ func (c *defaultHTTPSEdgeModulesClientset) TLSTermination() *https_edge_tls_term
 	return c.tlsTermination
 }
 
+type EdgeRoutePolicyRawReplace struct {
+	EdgeID string          `json:"edge_id,omitempty"`
+	ID     string          `json:"id,omitempty"`
+	Module json.RawMessage `json:"module,omitempty"`
+}
+type RawHTTPSEdgePolicyClient interface {
+	Delete(context.Context, *ngrok.EdgeRouteItem) error
+	Replace(context.Context, EdgeRoutePolicyRawReplace) (*json.RawMessage, error)
+}
+type rawHTTPSPolicyClient struct {
+	base   *ngrok.BaseClient
+	policy *https_edge_route_policy.Client
+}
+
+func newRawHTTPSPolicyClient(config *ngrok.ClientConfig) *rawHTTPSPolicyClient {
+	return &rawHTTPSPolicyClient{
+		base:   ngrok.NewBaseClient(config),
+		policy: https_edge_route_policy.NewClient(config),
+	}
+}
+
+func (c *rawHTTPSPolicyClient) Delete(ctx context.Context, arg *ngrok.EdgeRouteItem) error {
+	return c.policy.Delete(ctx, arg)
+}
+
+func (c *rawHTTPSPolicyClient) Replace(ctx context.Context, policy *EdgeRoutePolicyRawReplace) (*json.RawMessage, error) {
+	if policy == nil {
+		return nil, errors.New("edge route policy replace cannot be nil")
+	}
+	var path bytes.Buffer
+	if err := template.Must(template.New("replace_path").Parse("/edges/https/{{ .EdgeID }}/routes/{{ .ID }}/policy")).Execute(&path, policy); err != nil {
+		// api client panics on error also
+		panic(err)
+	}
+	var res json.RawMessage
+	apiURL := &url.URL{Path: path.String()}
+
+	if err := c.base.Do(ctx, "PUT", apiURL, policy.Module, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
 type HTTPSEdgeRouteModulesClientset interface {
 	Backend() *https_edge_route_backend.Client
 	CircuitBreaker() *https_edge_route_circuit_breaker.Client
@@ -57,6 +107,7 @@ type HTTPSEdgeRouteModulesClientset interface {
 	IPRestriction() *https_edge_route_ip_restriction.Client
 	OAuth() *https_edge_route_oauth.Client
 	Policy() *https_edge_route_policy.Client
+	RawPolicy() *rawHTTPSPolicyClient
 	OIDC() *https_edge_route_oidc.Client
 	RequestHeaders() *https_edge_route_request_headers.Client
 	ResponseHeaders() *https_edge_route_response_headers.Client
@@ -72,6 +123,7 @@ type defaultHTTPSEdgeRouteModulesClientset struct {
 	ipRestriction         *https_edge_route_ip_restriction.Client
 	oauth                 *https_edge_route_oauth.Client
 	policy                *https_edge_route_policy.Client
+	rawPolicy             *rawHTTPSPolicyClient
 	oidc                  *https_edge_route_oidc.Client
 	requestHeaders        *https_edge_route_request_headers.Client
 	responseHeaders       *https_edge_route_response_headers.Client
@@ -88,6 +140,7 @@ func newHTTPSEdgeRouteModulesClient(config *ngrok.ClientConfig) *defaultHTTPSEdg
 		ipRestriction:         https_edge_route_ip_restriction.NewClient(config),
 		oauth:                 https_edge_route_oauth.NewClient(config),
 		policy:                https_edge_route_policy.NewClient(config),
+		rawPolicy:             newRawHTTPSPolicyClient(config),
 		oidc:                  https_edge_route_oidc.NewClient(config),
 		requestHeaders:        https_edge_route_request_headers.NewClient(config),
 		responseHeaders:       https_edge_route_response_headers.NewClient(config),
@@ -119,6 +172,10 @@ func (c *defaultHTTPSEdgeRouteModulesClientset) OAuth() *https_edge_route_oauth.
 
 func (c *defaultHTTPSEdgeRouteModulesClientset) Policy() *https_edge_route_policy.Client {
 	return c.policy
+}
+
+func (c *defaultHTTPSEdgeRouteModulesClientset) RawPolicy() *rawHTTPSPolicyClient {
+	return c.rawPolicy
 }
 
 func (c *defaultHTTPSEdgeRouteModulesClientset) OIDC() *https_edge_route_oidc.Client {

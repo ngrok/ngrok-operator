@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
@@ -17,6 +18,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 )
 
 const defaultManagerName = "ngrok-ingress-controller"
@@ -378,9 +380,9 @@ var _ = Describe("Driver", func() {
 					},
 				},
 			}
-			driver.store.Add(ms1)
-			driver.store.Add(ms2)
-			driver.store.Add(ms3)
+			Expect(driver.store.Add(ms1)).To(BeNil())
+			Expect(driver.store.Add(ms2)).To(BeNil())
+			Expect(driver.store.Add(ms3)).To(BeNil())
 		})
 
 		It("Should return an empty module set if the ingress has no modules annotaion", func() {
@@ -423,6 +425,86 @@ var _ = Describe("Driver", func() {
 					},
 				},
 			))
+		})
+	})
+
+	Describe("createEndpointPolicyForGateway", func() {
+		var rule *gatewayv1.HTTPRouteRule
+		var namespace string
+		var policyCrd *ngrokv1alpha1.NgrokTrafficPolicy
+
+		BeforeEach(func() {
+			rule = &gatewayv1.HTTPRouteRule{}
+			namespace = "test"
+			policyCrd = &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-policy",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+					Policy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
+				},
+			}
+			Expect(driver.store.Add(policyCrd)).To(BeNil())
+		})
+
+		It("Should return an empty policy if the rule has nothing in it", func() {
+			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
+			Expect(err).To(BeNil())
+			Expect(policy).ToNot(BeNil())
+			Expect(len(policy.Inbound)).To(BeZero())
+			Expect(len(policy.Outbound)).To(BeZero())
+		})
+
+		It("Should return a merged policy if there rules with extensionRef", func() {
+			hostname := gatewayv1.PreciseHostname("test-hostname.com")
+			replacePrefixMatch := "/paprika"
+
+			rule.Filters = []gatewayv1.HTTPRouteFilter{
+				{
+					Type: "RequestHeaderModifier",
+					RequestHeaderModifier: &gatewayv1.HTTPHeaderFilter{
+						Add: []gatewayv1.HTTPHeader{
+							{
+								Name:  "test-header",
+								Value: "test-value",
+							},
+						},
+					},
+				},
+				{
+					Type: "ExtensionRef",
+					ExtensionRef: &gatewayv1.LocalObjectReference{
+						Name:  "test-policy",
+						Kind:  "NgrokTrafficPolicy",
+						Group: "ngrok.k8s.ngrok.com",
+					},
+				},
+				{
+					Type: "URLRewrite",
+					URLRewrite: &gatewayv1.HTTPURLRewriteFilter{
+						Hostname: &hostname,
+						Path: &gatewayv1.HTTPPathModifier{
+							Type:               "ReplacePrefixMatch",
+							ReplacePrefixMatch: &replacePrefixMatch,
+						},
+					},
+				},
+			}
+
+			expectedPolicy := `{"enabled":true,"inbound":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+
+			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
+			Expect(err).To(BeNil())
+			Expect(policy).ToNot(BeNil())
+
+			jsonString, err := json.Marshal(policy)
+			Expect(err).To(BeNil())
+			println("policy", string(jsonString))
+
+			Expect(len(policy.Inbound) == 3).To(BeTrue())
+			Expect(len(policy.Outbound)).To(BeZero())
+			Expect(string(jsonString)).To(Equal(expectedPolicy))
 		})
 	})
 

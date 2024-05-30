@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -32,7 +33,7 @@ var _ = Describe("Store", func() {
 		Context("when the ingress class exists", func() {
 			BeforeEach(func() {
 				ic := NewTestIngressClass(ngrokIngressClass, true, true)
-				store.Add(&ic)
+				Expect(store.Add(&ic)).To(BeNil())
 			})
 			It("returns the ingress class", func() {
 				ic, err := store.GetIngressClassV1(ngrokIngressClass)
@@ -53,7 +54,7 @@ var _ = Describe("Store", func() {
 		Context("when the ingress exists", func() {
 			BeforeEach(func() {
 				ing := NewTestIngressV1("test-ingress", "test-namespace")
-				store.Add(&ing)
+				Expect(store.Add(&ing)).To(BeNil())
 			})
 			It("returns the ingress", func() {
 				ing, err := store.GetIngressV1("test-ingress", "test-namespace")
@@ -74,7 +75,7 @@ var _ = Describe("Store", func() {
 		Context("when the service exists", func() {
 			BeforeEach(func() {
 				svc := NewTestServiceV1("test-service", "test-namespace")
-				store.Add(&svc)
+				Expect(store.Add(&svc)).To(BeNil())
 			})
 			It("returns the service", func() {
 				svc, err := store.GetServiceV1("test-service", "test-namespace")
@@ -95,9 +96,9 @@ var _ = Describe("Store", func() {
 		Context("when the ngrok ingress exists", func() {
 			BeforeEach(func() {
 				ing := NewTestIngressV1WithClass("test-ingress", "test-namespace", ngrokIngressClass)
-				store.Add(&ing)
+				Expect(store.Add(&ing)).To(BeNil())
 				ic := NewTestIngressClass(ngrokIngressClass, true, true)
-				store.Add(&ic)
+				Expect(store.Add(&ic)).To(BeNil())
 			})
 			It("returns the ngrok ingress", func() {
 				ing, err := store.GetNgrokIngressV1("test-ingress", "test-namespace")
@@ -106,7 +107,7 @@ var _ = Describe("Store", func() {
 			})
 			It("Filters out ingresses that don't match the ngrok ingress class", func() {
 				ingNotNgrok := NewTestIngressV1WithClass("ingNotNgrok", "test-namespace", "not-ngrok")
-				store.Add(&ingNotNgrok)
+				Expect(store.Add(&ingNotNgrok)).To(BeNil())
 
 				ing, err := store.GetNgrokIngressV1("ingNotNgrok", "test-namespace")
 				Expect(err).To(HaveOccurred())
@@ -114,7 +115,7 @@ var _ = Describe("Store", func() {
 			})
 			It("Filters finds ones without a class if we are default", func() {
 				ingNoClass := NewTestIngressV1("ingNoClass", "test-namespace")
-				store.Add(&ingNoClass)
+				Expect(store.Add(&ingNoClass)).To(BeNil())
 
 				ing, err := store.GetNgrokIngressV1("ingNoClass", "test-namespace")
 				Expect(err).ToNot(HaveOccurred())
@@ -134,11 +135,11 @@ var _ = Describe("Store", func() {
 		Context("when there are ngrok ingress classes", func() {
 			BeforeEach(func() {
 				ic1 := NewTestIngressClass("ngrok1", true, true)
-				store.Add(&ic1)
+				Expect(store.Add(&ic1)).To(BeNil())
 				ic2 := NewTestIngressClass("ngrok2", true, true)
-				store.Add(&ic2)
+				Expect(store.Add(&ic2)).To(BeNil())
 				ic3 := NewTestIngressClass("different", true, false)
-				store.Add(&ic3)
+				Expect(store.Add(&ic3)).To(BeNil())
 			})
 			It("returns the ngrok ingress classes and doesn't return the different one", func() {
 				ics := store.ListNgrokIngressClassesV1()
@@ -163,11 +164,11 @@ var _ = Describe("Store", func() {
 			iMatching := NewTestIngressV1WithClass("test1", "test", "ngrok")
 			iNotMatching := NewTestIngressV1WithClass("test2", "test", "test")
 			iNoClass := NewTestIngressV1("test3", "test")
-			store.Add(&iMatching)
-			store.Add(&iNotMatching)
-			store.Add(&iNoClass)
+			Expect(store.Add(&iMatching)).To(BeNil())
+			Expect(store.Add(&iNotMatching)).To(BeNil())
+			Expect(store.Add(&iNoClass)).To(BeNil())
 			for _, ic := range ingressClasses {
-				store.Add(&ic)
+				Expect(store.Add(&ic)).To(BeNil())
 			}
 			ings := store.ListNgrokIngressesV1()
 			Expect(len(ings)).To(Equal(expectedMatchingIngressesCount))
@@ -188,11 +189,11 @@ var _ = Describe("Store", func() {
 		Context("when there are NgrokModuleSets", func() {
 			BeforeEach(func() {
 				m1 := NewTestNgrokModuleSet("ngrok", "test", true)
-				store.Add(&m1)
+				Expect(store.Add(&m1)).To(BeNil())
 				m2 := NewTestNgrokModuleSet("ngrok", "test2", true)
-				store.Add(&m2)
+				Expect(store.Add(&m2)).To(BeNil())
 				m3 := NewTestNgrokModuleSet("test", "test", true)
-				store.Add(&m3)
+				Expect(store.Add(&m3)).To(BeNil())
 			})
 			It("returns the NgrokModuleSet", func() {
 				modules := store.ListNgrokModuleSetsV1()
@@ -211,7 +212,7 @@ var _ = Describe("Store", func() {
 		Context("when the NgrokModuleSet exists", func() {
 			BeforeEach(func() {
 				m := NewTestNgrokModuleSet("ngrok", "test", true)
-				store.Add(&m)
+				Expect(store.Add(&m)).To(BeNil())
 			})
 			It("returns the NgrokModuleSet", func() {
 				modset, err := store.GetNgrokModuleSetV1("ngrok", "test")
@@ -225,6 +226,28 @@ var _ = Describe("Store", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(errors.IsErrorNotFound(err)).To(Equal(true))
 				Expect(modset).To(BeNil())
+			})
+		})
+	})
+
+	var _ = Describe("GetNgrokTrafficPolicyV1", func() {
+		Context("when the NgrokTrafficPolicy exists", func() {
+			BeforeEach(func() {
+				tp := NewTestNgrokTrafficPolicy("ngrok", "test", "{\"inbound\": \"you know this can be anything though\"}")
+				Expect(store.Add(&tp)).To(BeNil())
+			})
+			It("returns the NgrokTrafficPolicy", func() {
+				tp, err := store.GetNgrokTrafficPolicyV1("ngrok", "test")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(tp.Spec.Policy).To(Equal(json.RawMessage("{\"inbound\": \"you know this can be anything though\"}")))
+			})
+		})
+		Context("when the NgrokTrafficPolicy does not exist", func() {
+			It("returns an error", func() {
+				tp, err := store.GetNgrokTrafficPolicyV1("does-not-exist", "does-not-exist")
+				Expect(err).To(HaveOccurred())
+				Expect(errors.IsErrorNotFound(err)).To(Equal(true))
+				Expect(tp).To(BeNil())
 			})
 		})
 	})

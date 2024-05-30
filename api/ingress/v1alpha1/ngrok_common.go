@@ -273,6 +273,10 @@ type EndpointOAuthGitHub struct {
 	Organizations []string `json:"organizations,omitempty"`
 }
 
+func (github *EndpointOAuthGitHub) Provided() bool {
+	return github != nil
+}
+
 func (github *EndpointOAuthGitHub) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
 	if github == nil {
 		return nil
@@ -295,6 +299,10 @@ type EndpointOAuthFacebook struct {
 	OAuthProviderCommon `json:",inline"`
 }
 
+func (facebook *EndpointOAuthFacebook) Provided() bool {
+	return facebook != nil
+}
+
 func (facebook *EndpointOAuthFacebook) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
 	if facebook == nil {
 		return nil
@@ -313,6 +321,10 @@ func (facebook *EndpointOAuthFacebook) ToNgrok(clientSecret *string) *ngrok.Endp
 
 type EndpointOAuthMicrosoft struct {
 	OAuthProviderCommon `json:",inline"`
+}
+
+func (microsoft *EndpointOAuthMicrosoft) Provided() bool {
+	return microsoft != nil
 }
 
 func (microsoft *EndpointOAuthMicrosoft) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
@@ -335,6 +347,10 @@ type EndpointOAuthGoogle struct {
 	OAuthProviderCommon `json:",inline"`
 }
 
+func (google *EndpointOAuthGoogle) Provided() bool {
+	return google != nil
+}
+
 func (google *EndpointOAuthGoogle) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
 	if google == nil {
 		return nil
@@ -353,6 +369,10 @@ func (google *EndpointOAuthGoogle) ToNgrok(clientSecret *string) *ngrok.Endpoint
 
 type EndpointOAuthLinkedIn struct {
 	OAuthProviderCommon `json:",inline"`
+}
+
+func (linkedin *EndpointOAuthLinkedIn) Provided() bool {
+	return linkedin != nil
 }
 
 func (linkedin *EndpointOAuthLinkedIn) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
@@ -375,6 +395,10 @@ type EndpointOAuthGitLab struct {
 	OAuthProviderCommon `json:",inline"`
 }
 
+func (gitlab *EndpointOAuthGitLab) Provided() bool {
+	return gitlab != nil
+}
+
 func (gitlab *EndpointOAuthGitLab) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
 	if gitlab == nil {
 		return nil
@@ -395,6 +419,10 @@ type EndpointOAuthTwitch struct {
 	OAuthProviderCommon `json:",inline"`
 }
 
+func (twitch *EndpointOAuthTwitch) Provided() bool {
+	return twitch != nil
+}
+
 func (twitch *EndpointOAuthTwitch) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {
 	if twitch == nil {
 		return nil
@@ -413,6 +441,10 @@ func (twitch *EndpointOAuthTwitch) ToNgrok(clientSecret *string) *ngrok.Endpoint
 
 type EndpointOAuthAmazon struct {
 	OAuthProviderCommon `json:",inline"`
+}
+
+func (amazon *EndpointOAuthAmazon) Provided() bool {
+	return amazon != nil
 }
 
 func (amazon *EndpointOAuthAmazon) ToNgrok(clientSecret *string) *ngrok.EndpointOAuth {

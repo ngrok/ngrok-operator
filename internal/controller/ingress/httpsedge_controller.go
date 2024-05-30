@@ -168,6 +168,10 @@ func (r *HTTPSEdgeReconciler) upsert(ctx context.Context, edge *ingressv1alpha1.
 		return err
 	}
 
+	if err := r.setEdgeMutualTLS(ctx, remoteEdge, edge.Spec.MutualTLS); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -344,6 +348,29 @@ func (r *HTTPSEdgeReconciler) setEdgeTLSTermination(ctx context.Context, edge *n
 		ID: edge.ID,
 		Module: ngrok.EndpointTLSTerminationAtEdge{
 			MinVersion: ptr.To(tlsTermination.MinVersion),
+		},
+	})
+	return err
+}
+
+func (r *HTTPSEdgeReconciler) setEdgeMutualTLS(ctx context.Context, edge *ngrok.HTTPSEdge, mtls *ingressv1alpha1.EndpointMutualTLS) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	client := r.NgrokClientset.EdgeModules().HTTPS().MutualTLS()
+	if mtls == nil {
+		if edge.MutualTls == nil {
+			log.V(1).Info("Edge Mutual TLS matches spec")
+			return nil
+		}
+
+		log.Info("Deleting Edge Mutual TLS")
+		return client.Delete(ctx, edge.ID)
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeMutualTLSReplace{
+		ID: edge.ID,
+		Module: ngrok.EndpointMutualTLSMutate{
+			CertificateAuthorityIDs: mtls.CertificateAuthorities,
 		},
 	})
 	return err
@@ -769,7 +796,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	for _, p := range providers {
-		if p == nil {
+		if !p.Provided() {
 			continue
 		}
 
@@ -954,6 +981,8 @@ func (u *edgeRouteModuleUpdater) getSecret(ctx context.Context, secretRef ingres
 
 type OAuthProvider interface {
 	ClientSecretKeyRef() *ingressv1alpha1.SecretKeyRef
+	// Provided returns true if configuration was supplied for the provider
+	Provided() bool
 	ToNgrok(*string) *ngrok.EndpointOAuth
 }
 
@@ -1034,12 +1063,10 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
 	log := ctrl.LoggerFrom(ctx)
 	policy := routeSpec.Policy
-	client := u.clientset.Policy()
-
-	endpointPolicy := policy.ToNgrok()
+	client := u.clientset.RawPolicy()
 
 	// Early return if nothing to be done
-	if endpointPolicy == nil {
+	if policy == nil {
 		if route.Policy == nil {
 			u.logMatches(log, "Policy", routeModuleComparisonBothNil)
 			return nil
@@ -1050,10 +1077,10 @@ func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *
 	}
 
 	log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrok.EdgeRoutePolicyReplace{
+	_, err := client.Replace(ctx, &ngrokapi.EdgeRoutePolicyRawReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
-		Module: *endpointPolicy,
+		Module: policy,
 	})
 	return err
 }

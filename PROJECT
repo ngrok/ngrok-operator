@@ -80,4 +80,13 @@ resources:
   group: gateway
   kind: HTTPRoute
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: k8s.ngrok.com
+  group: ngrok
+  kind: NgrokTrafficPolicy
+  path: github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1
+  version: v1alpha1
 version: "3"

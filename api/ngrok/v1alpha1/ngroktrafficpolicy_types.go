@@ -33,66 +33,49 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// TCPEdgeSpec defines the desired state of TCPEdge
-type TCPEdgeSpec struct {
-	ngrokAPICommon `json:",inline"`
+// NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+type NgrokTrafficPolicySpec struct {
+	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
 
-	// Backend is the definition for the tunnel group backend
-	// that serves traffic for this edge
-	// +kubebuilder:validation:Required
-	Backend TunnelGroupBackend `json:"backend,omitempty"`
-
-	// IPRestriction is an IPRestriction to apply to this edge
-	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
-
-	// raw json policy string that was applied to the ngrok API
+	// The raw json encoded policy that was applied to the ngrok API
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object
 	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
-// TCPEdgeStatus defines the observed state of TCPEdge
-type TCPEdgeStatus struct {
-	// ID is the unique identifier for this edge
-	ID string `json:"id,omitempty"`
+// NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
+type NgrokTrafficPolicyStatus struct {
 
-	// URI is the URI of the edge
-	URI string `json:"uri,omitempty"`
-
-	// Hostports served by this edge
-	Hostports []string `json:"hostports,omitempty"`
-
-	// Backend stores the status of the tunnel group backend,
-	// mainly the ID of the backend
-	Backend TunnelGroupBackendStatus `json:"backend,omitempty"`
+	// The raw json encoded policy that was applied to the ngrok API
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Type=object
+	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
-//+kubebuilder:printcolumn:name="Hostports",type=string,JSONPath=`.status.hostports`,description="Hostports"
-//+kubebuilder:printcolumn:name="Backend ID",type=string,JSONPath=`.status.backend.id`,description="Tunnel Group Backend ID"
-//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
-// TCPEdge is the Schema for the tcpedges API
-type TCPEdge struct {
+// NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API
+type NgrokTrafficPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TCPEdgeSpec   `json:"spec,omitempty"`
-	Status TCPEdgeStatus `json:"status,omitempty"`
+	Spec   NgrokTrafficPolicySpec   `json:"spec,omitempty"`
+	Status NgrokTrafficPolicyStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// TCPEdgeList contains a list of TCPEdge
-type TCPEdgeList struct {
+// NgrokTrafficPolicyList contains a list of NgrokTrafficPolicy
+type NgrokTrafficPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []TCPEdge `json:"items"`
+	Items           []NgrokTrafficPolicy `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&TCPEdge{}, &TCPEdgeList{})
+	SchemeBuilder.Register(&NgrokTrafficPolicy{}, &NgrokTrafficPolicyList{})
 }
