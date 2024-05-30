@@ -970,6 +970,13 @@ spec:
                     description: MinVersion is the minimum TLS version to allow for
                       connections to the edge
                     type: string
+                  terminateAt:
+                    description: |-
+                      TerminateAt determines where the TLS connection should be terminated.
+                      "edge" if the ngrok edge should terminate TLS traffic, "upstream" if TLS
+                      traffic should be passed through to the upstream ngrok agent /
+                      application server for termination.
+                    type: string
                 type: object
               webhookVerification:
                 description: WebhookVerification configuration for this module set

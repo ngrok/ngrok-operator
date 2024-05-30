@@ -16,6 +16,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -832,8 +833,10 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 				continue
 			}
 
-			if modSet.Modules.TLSTermination != nil {
-				edge.Spec.TLSTermination = modSet.Modules.TLSTermination
+			if modSet.Modules.TLSTermination != nil && modSet.Modules.TLSTermination.MinVersion != nil {
+				edge.Spec.TLSTermination = &ingressv1alpha1.EndpointTLSTerminationAtEdge{
+					MinVersion: ptr.Deref(modSet.Modules.TLSTermination.MinVersion, ""),
+				}
 			}
 
 			if modSet.Modules.MutualTLS != nil {
