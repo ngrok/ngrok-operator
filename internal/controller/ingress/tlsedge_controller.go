@@ -157,6 +157,8 @@ func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TL
 }
 
 func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
+	log := ctrl.LoggerFrom(ctx).WithValues("edge.ID", edge.Status.ID)
+
 	if err := r.reconcileDomains(ctx, edge); err != nil {
 		return err
 	}
@@ -165,12 +167,13 @@ func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TL
 		return err
 	}
 
+	log.Info("Fetching TLSEdge from ngrok API")
 	resp, err := r.NgrokClientset.TLSEdges().Get(ctx, edge.Status.ID)
 	if err != nil {
 		// If we can't find the edge in the ngrok API, it's been deleted, so clear the ID
 		// and requeue the edge. When it gets reconciled again, it will be recreated.
 		if ngrok.IsNotFound(err) {
-			r.Log.Info("TLSEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
+			log.Info("TLSEdge not found, clearing ID and requeuing")
 			edge.Status.ID = ""
 			//nolint:errcheck
 			r.Status().Update(ctx, edge)
@@ -180,7 +183,14 @@ func (r *TLSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TL
 
 	// If the backend or hostports do not match, update the edge with the desired backend and hostports
 	if resp.Backend.Backend.ID != edge.Status.Backend.ID ||
-		!slices.Equal(resp.Hostports, edge.Status.Hostports) {
+		!slices.Equal(resp.Hostports, edge.Spec.Hostports) {
+		log.Info("Backend or hostports do not match, updating edge",
+			"expected.backend.ID", edge.Status.Backend.ID,
+			"actual.backend.ID", resp.Backend.Backend.ID,
+			"expected.hostports", edge.Spec.Hostports,
+			"actual.hostports", resp.Hostports,
+		)
+
 		resp, err = r.NgrokClientset.TLSEdges().Update(ctx, &ngrok.TLSEdgeUpdate{
 			ID:          resp.ID,
 			Description: ptr.To(edge.Spec.Description),
@@ -241,6 +251,8 @@ func (r *TLSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TL
 }
 
 func (r *TLSEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	specBackend := edge.Spec.Backend
 	// First make sure the tunnel group backend matches
 	if edge.Status.Backend.ID != "" {
@@ -248,7 +260,7 @@ func (r *TLSEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 		backend, err := r.NgrokClientset.TunnelGroupBackends().Get(ctx, edge.Status.Backend.ID)
 		if err != nil {
 			if ngrok.IsNotFound(err) {
-				r.Log.Info("TunnelGroupBackend not found, clearing ID and requeuing", "TunnelGroupBackend.ID", edge.Status.Backend.ID)
+				log.Info("TunnelGroupBackend not found, clearing ID and requeuing", "TunnelGroupBackend.ID", edge.Status.Backend.ID)
 				edge.Status.Backend.ID = ""
 				//nolint:errcheck
 				r.Status().Update(ctx, edge)
@@ -333,7 +345,9 @@ func (r *TLSEdgeReconciler) setTLSTermination(ctx context.Context, edge *ngrok.T
 }
 
 func (r *TLSEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backendLabels map[string]string) (*ngrok.TLSEdge, error) {
-	r.Log.Info("Searching for existing TLSEdge with backend labels", "labels", backendLabels)
+	log := ctrl.LoggerFrom(ctx).WithValues("labels", backendLabels)
+
+	log.Info("Searching for existing TLSEdge with backend labels")
 	iter := r.NgrokClientset.TLSEdges().List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		edge := iter.Item()
@@ -358,7 +372,7 @@ func (r *TLSEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backend
 		}
 
 		if maps.Equal(backend.Labels, backendLabels) {
-			r.Log.Info("Found existing TLSEdge with matching backend labels", "labels", backendLabels, "edge.ID", edge.ID)
+			log.Info("Found existing TLSEdge with matching backend labels", "edge.ID", edge.ID)
 			return edge, nil
 		}
 	}
@@ -366,6 +380,9 @@ func (r *TLSEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backend
 }
 
 func (r *TLSEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+	log.V(1).Info("Updating Status", "edge.ID", remoteEdge.ID, "edge.hostports", remoteEdge.Hostports)
+
 	domains := &ingressv1alpha1.DomainList{}
 	if err := r.Client.List(ctx, domains, client.InNamespace(edge.Namespace)); err != nil {
 		return err
@@ -384,13 +401,16 @@ func (r *TLSEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv
 	for _, domain := range domains.Items {
 		// We don't care about domains that aren't part of this edge
 		if _, ok := edgeDomainMap[domain.Spec.Domain]; !ok {
+			log.V(3).Info("Skipping domain not part of edge", "domain", domain.Spec.Domain)
 			continue
 		}
 
 		if domain.Status.CNAMETarget != nil {
+			log.V(3).Info("Adding CNAME target to status", "domain", domain.Spec.Domain, "cname", *domain.Status.CNAMETarget)
 			edge.Status.CNAMETargets[domain.Spec.Domain] = *domain.Status.CNAMETarget
 		}
 	}
+
 	edge.Status.ID = remoteEdge.ID
 	edge.Status.URI = remoteEdge.URI
 	edge.Status.Hostports = remoteEdge.Hostports
@@ -400,6 +420,8 @@ func (r *TLSEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv
 }
 
 func (r *TLSEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, _ *ngrok.TLSEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TLS().IPRestriction().Delete(ctx, edge.Status.ID)
 	}
@@ -407,7 +429,7 @@ func (r *TLSEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 	if err != nil {
 		return err
 	}
-	r.Log.Info("Resolved IP Policy NamesOrIDs to IDs", "policyIds", policyIds)
+	log.Info("Resolved IP Policy NamesOrIDs to IDs", "policyIds", policyIds)
 
 	_, err = r.NgrokClientset.EdgeModules().TLS().IPRestriction().Replace(ctx, &ngrok.EdgeIPRestrictionReplace{
 		ID: edge.Status.ID,
@@ -557,7 +579,8 @@ func (r *TLSEdgeReconciler) reconcileDomains(ctx context.Context, edge *ingressv
 
 func (r *TLSEdgeReconciler) getDesiredDomains(ctx context.Context, edge *ingressv1alpha1.TLSEdge) ([]ingressv1alpha1.Domain, error) {
 	log := ctrl.LoggerFrom(ctx)
-	log.V(5).Info("Calculating desired domains")
+
+	log.V(3).Info("Calculating desired domains")
 	desired := []ingressv1alpha1.Domain{}
 	for _, hostport := range edge.Spec.Hostports {
 		host, _, err := parseHostAndPort(hostport)
