@@ -46,6 +46,17 @@ rules:
   verbs:
   - get
   - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - gateway.networking.k8s.io

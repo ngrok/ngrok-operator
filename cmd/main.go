@@ -208,6 +208,18 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
 
+	if err = (&controllers.ServiceReconciler{
+		Client:    mgr.GetClient(),
+		Log:       ctrl.Log.WithName("controllers").WithName("service"),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  mgr.GetEventRecorderFor("service-controller"),
+		Namespace: opts.namespace,
+		Driver:    driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Service")
+		os.Exit(1)
+	}
+
 	if err = (&controllers.DomainReconciler{
 		Client:        mgr.GetClient(),
 		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
