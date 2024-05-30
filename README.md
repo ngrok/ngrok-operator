@@ -28,10 +28,11 @@
   </a>
 </p>
 
-# ngrok Kubernetes Ingress Controller
+# ngrok Kubernetes Operator
 
 
-Leverage [ngrok](https://ngrok.com/) for your [Kubernetes Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/). Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling.
+Leverage [ngrok](https://ngrok.com/) for your ingress in your Kubernetes cluster.  Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling. This repo contains both our [Kubernetes Ingress Controller](https://kubernetes.io/docs/concepts/services-networking/ingress/) and the [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/)
+
 
 [Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
 
@@ -97,14 +98,7 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 
 ## Documentation
 
-The full documentation for the ngrok Ingress Controller can be found [under the docs directory](./docs/README.md). Pull requests for corrections and additions are always welcomed.
-
-###  Guides and Tutorials
-- [Deployment Guide](./docs/deployment-guide/README.md): for installing the controller for the first time
-- [User Guide](./docs/user-guide/README.md): for an in depth view of the ngrok ingress configuration options and primitives
-- [Examples](./docs/examples/README.md): for examples of how to configure ingress in different scenarios (e.g. Hello World, Consul, OAuth, etc.)
-- [Developer Guide](./docs/developer-guide/README.md): for those interested in contributing to the project
-
+The full documentation for the ngrok Ingress Controller can be found on our [k8s docs](https://ngrok.com/docs/k8s/)
 
 ## Known Issues
 
@@ -116,7 +110,7 @@ The full documentation for the ngrok Ingress Controller can be found [under the 
 
 ## Support
 
-The best place to get support using the ngrok Ingress Controller is through the [ngrok Slack Community](https://ngrok.com/slack). If you find bugs or would like to contribute code, please follow the instructions in the [contributing guide](./docs/developer-guide/README.md).
+The best place to get support using the ngrok Kubernetes Operator is through the [ngrok Slack Community](https://ngrok.com/slack). If you find bugs or would like to contribute code, please follow the instructions in the [contributing guide](./docs/developer-guide/README.md).
 
 ## License
 
