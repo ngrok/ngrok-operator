@@ -1,13 +1,20 @@
-# ngrok Ingress Controller + External DNS
+# ngrok Ingress Controller + External DNS <!-- omit from toc -->
 
 When creating an Ingress object with a custom domain you own, ngrok will wait until the domain ownership is verified before it will create an edge for it. While you can do this manually as seen in the [Custom Domain Guide](../../user-guide/custom-domains.md), you can also use [External DNS](https://github.com/kubernetes-sigs/external-dns) to automate this process since the controller adds the required CNAME record to the Ingress status object.
 
+:warning: If the domain you are trying to use already has a CNAME record, ngrok will not be able to create the edge for it. If you describe a tlsedge that has this issue, you'll see the following:
 
-- [ngrok Ingress Controller + External DNS](#ngrok-ingress-controller--external-dns)
-  - [Ingress](#ingress)
-  - [Services](#services)
-    - [TCP](#tcp)
-    - [TLS](#tls)
+```
+Failed to create v1alpha1.TLSEdge default/something-s65zs: HTTP 400: The domain 'something.mydomain.com:443' is not reserved. [ERR_NGROK_7117]
+```
+
+You will need to remove the existing CNAME record before ngrok can create the edge. A common cause of this issue when using External DNS is that External DNS is not configured to delete the CNAME record when the Ingress/Service object is deleted because [its policy is set to upsert-only](https://github.com/kubernetes-sigs/external-dns/blob/bed56b7151be415a8af0d7182ed675fd7ced2b67/charts/external-dns/values.yaml#L208) which is the default. To fix this, you can change the External DNS policy to `sync` which will delete the CNAME record when the Ingress/Service object is deleted.
+
+
+- [Ingress](#ingress)
+- [Services](#services)
+  - [TCP](#tcp)
+  - [TLS](#tls)
 
 
 ## Ingress
