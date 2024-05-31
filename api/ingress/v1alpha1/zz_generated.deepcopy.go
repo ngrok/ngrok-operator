@@ -1103,8 +1103,8 @@ func (in *NgrokModuleSetModules) DeepCopyInto(out *NgrokModuleSetModules) {
 	}
 	if in.TLSTermination != nil {
 		in, out := &in.TLSTermination, &out.TLSTermination
-		*out = new(EndpointTLSTerminationAtEdge)
-		**out = **in
+		*out = new(EndpointTLSTermination)
+		(*in).DeepCopyInto(*out)
 	}
 	if in.MutualTLS != nil {
 		in, out := &in.MutualTLS, &out.MutualTLS

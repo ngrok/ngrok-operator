@@ -317,6 +317,7 @@ func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.
 		if moduleSets != nil {
 			edge.Spec.IPRestriction = moduleSets.Modules.IPRestriction
 			edge.Spec.MutualTLS = moduleSets.Modules.MutualTLS
+			edge.Spec.TLSTermination = moduleSets.Modules.TLSTermination
 		}
 		if policy != nil {
 			edge.Spec.Policy = policy.Spec.Policy
