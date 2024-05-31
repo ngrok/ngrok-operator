@@ -1042,7 +1042,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								}
 
 								route.Backend = ingressv1alpha1.TunnelGroupBackend{
-									Labels: d.ngrokLabels(gtw.Namespace, serviceUID, refName, servicePort),
+									Labels: d.ngrokLabels(httproute.Namespace, serviceUID, refName, servicePort),
 								}
 
 							}
