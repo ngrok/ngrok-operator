@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.0
+**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/kubernetes-ingress-controller-0.11.0...kubernetes-ingress-controller-0.12.0
+
+### Added
+
+- feat: Auto-provision domain for TLS Edges [#386](https://github.com/ngrok/kubernetes-ingress-controller/pull/386)
+- feat: Support for Load Balancer services [#387](https://github.com/ngrok/kubernetes-ingress-controller/pull/387)
+- feat: Support TLS termination in modulesets for Load Balancer Services [388](https://github.com/ngrok/kubernetes-ingress-controller/pull/388)
+
+### Changed
+
+- Switching over README to Operator [#351](https://github.com/ngrok/kubernetes-ingress-controller/pull/351)
+- chore: Remove custom code for non leader-elected controllers [#383](https://github.com/ngrok/kubernetes-ingress-controller/pull/383)
+- refactor: annotations parsers to handle client.Object instead of just networking.Ingress by [#384](https://github.com/ngrok/kubernetes-ingress-controller/pull/384)
+- chore: Turn on golangci-lint [#385](https://github.com/ngrok/kubernetes-ingress-controller/pull/385)
+
+### Fixed
+- fix: TLSEdge not reconciling changes to hostports [#390](https://github.com/ngrok/kubernetes-ingress-controller/pull/390)
+- assign tunnel group lable by httproute namespace [#393](https://github.com/ngrok/kubernetes-ingress-controller/pull/393)
+
+
+
+
 ## 0.11.0
 **Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/kubernetes-ingress-controller-0.10.4...kubernetes-ingress-controller-0.11.0
 
