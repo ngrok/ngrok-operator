@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.0
+**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.13.0...helm-chart-0.14.0
+
+### Added
+
+- feat: Auto-provision domain for TLS Edges [#386]( https://github.com/ngrok/kubernetes-ingress-controller/pull/386)
+- feat: Support for Load Balancer services [#387](https://github.com/ngrok/kubernetes-ingress-controller/pull/387)
+- feat: Support TLS termination in modulesets for Load Balancer Services [388](https://github.com/ngrok/kubernetes-ingress-controller/pull/388)
+
 ## 0.13.0
 
 **Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.12.4...helm-chart-0.13.0
