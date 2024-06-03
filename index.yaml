@@ -2,6 +2,31 @@ apiVersion: v1
 entries:
   kubernetes-ingress-controller:
   - apiVersion: v2
+    appVersion: 0.12.0
+    created: "2024-06-03T15:32:45.382976825Z"
+    dependencies:
+    - name: common
+      repository: https://charts.bitnami.com/bitnami
+      tags:
+      - bitnami-common
+      version: 2.x.x
+    description: A Kubernetes ingress controller built using ngrok.
+    digest: 814d5a2aec4ae6f75dc6b015fca2aeffb6dca83421e44d955124bc6cfec90a6d
+    home: https://ngrok.com
+    icon: https://ngrok.github.io/kubernetes-ingress-controller/ngrok-favicon.svg
+    keywords:
+    - ngrok
+    - networking
+    - ingress
+    - edge
+    - api gateway
+    name: kubernetes-ingress-controller
+    sources:
+    - https://github.com/ngrok/kubernetes-ingress-controller
+    urls:
+    - https://github.com/ngrok/kubernetes-ingress-controller/releases/download/helm-chart-0.14.0/kubernetes-ingress-controller-0.14.0.tgz
+    version: 0.14.0
+  - apiVersion: v2
     appVersion: 0.11.0
     created: "2024-05-24T02:16:24.434874744Z"
     dependencies:
@@ -468,4 +493,4 @@ entries:
     urls:
     - https://github.com/ngrok/ngrok-ingress-controller/releases/download/ngrok-ingress-controller-0.1.0/ngrok-ingress-controller-0.1.0.tgz
     version: 0.1.0
-generated: "2024-05-24T02:16:24.434985221Z"
+generated: "2024-06-03T15:32:45.383106738Z"
