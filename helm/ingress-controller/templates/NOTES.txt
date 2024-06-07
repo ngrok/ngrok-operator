@@ -1,53 +1,28 @@
+NOTES:
 ================================================================================
-The ngrok Ingress controller has been deployed as a Deployment type to your
-cluster.
 
-If you haven't yet, create some Ingress resources in your cluster and they will
-be automatically configured on the internet using ngrok.
+Thank you for installing the ngrok Kubernetes Operator v{{ .Chart.AppVersion }}!
+
+---
+
+The following components are enabled:
 
 
-{{- $found := false }}
-{{- range $svcIndex, $service := (lookup "v1" "Service" "" "").items }}
-  {{- if not $found }}
-    {{- range $portMapIdx, $portMap := $service.spec.ports }}
-      {{- if eq $portMap.port 80 443 }}
-        {{- if ne $service.metadata.name "kubernetes" }}
-          {{- $found = true -}}
-          {{- $randomStr := randAlphaNum 8 | lower }}
+The following the components have been installed on your cluster
+* Ingress Controller
+{{ if .Values.UseExperimentalGatewayApi }}
+* Gateway API
+{{ end }}
 
-One example, taken from your cluster, is the Service:
-   {{ $service.metadata.name | quote }}
+---
 
-You can make this accessible via ngrok with the following manifest:
---------------------------------------------------------------------------------
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ $service.metadata.name }}
-  namespace: {{ $service.metadata.namespace }}
-spec:
-  ingressClassName: ngrok
-  rules:
-  - host: {{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.app
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ $service.metadata.name }}
-            port:
-              number: {{ $portMap.port }}
---------------------------------------------------------------------------------
-Applying this manifest will make the service {{ $service.metadata.name | quote }}
-available on the public internet at "https://{{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.app/".
-        {{- end }}
-      {{- end }}
-    {{- end }}
-  {{- end}}
-{{- end }}
+================================================================================
 
-Once done, view your edges in the Dashboard https://dashboard.ngrok.com/cloud-edge/edges
+To get started with the Ingress Controller visit: 
+https://ngrok.com/s/k8s-ingress-controller
+
+To get started with the Gateway API visit:
+https://ngrok.com/s/k8s-gateway-api
+
+View your edges in the Dashboard https://dashboard.ngrok.com/cloud-edge/edges
 Find the tunnels running in your cluster here https://dashboard.ngrok.com/tunnels/agents
-
-If you have any questions or feedback, please join us in https://ngrok.com/slack and let us know!
