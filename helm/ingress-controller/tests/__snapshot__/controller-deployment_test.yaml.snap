@@ -4,17 +4,17 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 7a410be28b1592797fe68e262cc5a7c24a8c3c6aaff67b396203315b701818e7
-        checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
+        checksum/controller-role: a17193673c77e137e7663cb94778e15978db8290e6af27304a34631572661652
+        checksum/rbac: 8c7b81c69bcd2cc1fd76b197b817206802f8868b8df607264588cccafa01067c
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: kubernetes-ingress-controller
-        app.kubernetes.io/part-of: kubernetes-ingress-controller
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.12.0
-        helm.sh/chart: kubernetes-ingress-controller-0.14.0
-      name: RELEASE-NAME-kubernetes-ingress-controller-manager
+        helm.sh/chart: ngrok-operator-0.14.0
+      name: RELEASE-NAME
       namespace: NAMESPACE
     spec:
       replicas: 1
@@ -22,12 +22,12 @@ Should match all-options snapshot:
         matchLabels:
           app.kubernetes.io/component: controller
           app.kubernetes.io/instance: RELEASE-NAME
-          app.kubernetes.io/name: kubernetes-ingress-controller
+          app.kubernetes.io/name: ngrok-operator
       template:
         metadata:
           annotations:
-            checksum/controller-role: 7a410be28b1592797fe68e262cc5a7c24a8c3c6aaff67b396203315b701818e7
-            checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
+            checksum/controller-role: a17193673c77e137e7663cb94778e15978db8290e6af27304a34631572661652
+            checksum/rbac: 8c7b81c69bcd2cc1fd76b197b817206802f8868b8df607264588cccafa01067c
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -35,7 +35,7 @@ Should match all-options snapshot:
           labels:
             app.kubernetes.io/component: controller
             app.kubernetes.io/instance: RELEASE-NAME
-            app.kubernetes.io/name: kubernetes-ingress-controller
+            app.kubernetes.io/name: ngrok-operator
         spec:
           affinity:
             nodeAffinity: null
@@ -47,7 +47,7 @@ Should match all-options snapshot:
                       matchLabels:
                         app.kubernetes.io/component: controller
                         app.kubernetes.io/instance: RELEASE-NAME
-                        app.kubernetes.io/name: kubernetes-ingress-controller
+                        app.kubernetes.io/name: ngrok-operator
                     topologyKey: kubernetes.io/hostname
                   weight: 1
           containers:
@@ -58,8 +58,8 @@ Should match all-options snapshot:
                 - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
-                - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
-                - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
+                - --election-id=RELEASE-NAME-ngrok-operator-leader
+                - --manager-name=RELEASE-NAME-ngrok-operator
               command:
                 - /manager
               env:
@@ -67,12 +67,12 @@ Should match all-options snapshot:
                   valueFrom:
                     secretKeyRef:
                       key: API_KEY
-                      name: RELEASE-NAME-kubernetes-ingress-controller-credentials
+                      name: RELEASE-NAME-ngrok-operator-credentials
                 - name: NGROK_AUTHTOKEN
                   valueFrom:
                     secretKeyRef:
                       key: AUTHTOKEN
-                      name: RELEASE-NAME-kubernetes-ingress-controller-credentials
+                      name: RELEASE-NAME-ngrok-operator-credentials
                 - name: POD_NAMESPACE
                   valueFrom:
                     fieldRef:
@@ -84,7 +84,7 @@ Should match all-options snapshot:
                     value: test-value
                 - name: TEST_ENV_VAR
                   value: test
-              image: docker.io/ngrok/kubernetes-ingress-controller:0.12.0
+              image: docker.io/ngrok/ngrok-operator:0.12.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
@@ -92,7 +92,7 @@ Should match all-options snapshot:
                   port: 8081
                 initialDelaySeconds: 15
                 periodSeconds: 20
-              name: ngrok-ingress-controller
+              name: ngrok-operator
               readinessProbe:
                 httpGet:
                   path: /readyz
@@ -107,7 +107,7 @@ Should match all-options snapshot:
               volumeMounts:
                 - mountPath: /test-volume
                   name: test-volume
-          serviceAccountName: RELEASE-NAME-kubernetes-ingress-controller
+          serviceAccountName: RELEASE-NAME-ngrok-operator
           volumes:
             - emptyDir: {}
               name: test-volume
@@ -115,7 +115,7 @@ Should match all-options snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
-      name: ngrok-ingress-controller-leader-election-role
+      name: ngrok-operator-leader-election-role
       namespace: NAMESPACE
     rules:
       - apiGroups:
@@ -153,7 +153,7 @@ Should match all-options snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
-      name: ngrok-ingress-controller-proxy-role
+      name: ngrok-operator-proxy-role
     rules:
       - apiGroups:
           - authentication.k8s.io
@@ -171,47 +171,47 @@ Should match all-options snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
-      name: ngrok-ingress-controller-leader-election-rolebinding
+      name: ngrok-operator-leader-election-rolebinding
       namespace: NAMESPACE
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role
-      name: ngrok-ingress-controller-leader-election-role
+      name: ngrok-operator-leader-election-role
     subjects:
       - kind: ServiceAccount
-        name: RELEASE-NAME-kubernetes-ingress-controller
+        name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
   5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: ngrok-ingress-controller-manager-rolebinding
+      name: ngrok-operator-rolebinding
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: ngrok-ingress-controller-manager-role
+      name: ngrok-operator-role
     subjects:
       - kind: ServiceAccount
-        name: RELEASE-NAME-kubernetes-ingress-controller
+        name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
   6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: ngrok-ingress-controller-proxy-rolebinding
+      name: ngrok-operator-proxy-rolebinding
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: ngrok-ingress-controller-proxy-role
+      name: ngrok-operator-proxy-role
     subjects:
       - kind: ServiceAccount
-        name: RELEASE-NAME-kubernetes-ingress-controller
+        name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
   7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
-      name: ngrok-ingress-controller-manager-role
+      name: ngrok-operator-role
     rules:
       - apiGroups:
           - ""
@@ -543,17 +543,17 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 7a410be28b1592797fe68e262cc5a7c24a8c3c6aaff67b396203315b701818e7
-        checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
+        checksum/controller-role: a17193673c77e137e7663cb94778e15978db8290e6af27304a34631572661652
+        checksum/rbac: 8c7b81c69bcd2cc1fd76b197b817206802f8868b8df607264588cccafa01067c
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: kubernetes-ingress-controller
-        app.kubernetes.io/part-of: kubernetes-ingress-controller
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.12.0
-        helm.sh/chart: kubernetes-ingress-controller-0.14.0
-      name: RELEASE-NAME-kubernetes-ingress-controller-manager
+        helm.sh/chart: ngrok-operator-0.14.0
+      name: RELEASE-NAME
       namespace: NAMESPACE
     spec:
       replicas: 1
@@ -561,12 +561,12 @@ Should match default snapshot:
         matchLabels:
           app.kubernetes.io/component: controller
           app.kubernetes.io/instance: RELEASE-NAME
-          app.kubernetes.io/name: kubernetes-ingress-controller
+          app.kubernetes.io/name: ngrok-operator
       template:
         metadata:
           annotations:
-            checksum/controller-role: 7a410be28b1592797fe68e262cc5a7c24a8c3c6aaff67b396203315b701818e7
-            checksum/rbac: d31fdcb337a6f1ee71323040c2cbc4d5580d73ae5f7623cd19be57db97f748c1
+            checksum/controller-role: a17193673c77e137e7663cb94778e15978db8290e6af27304a34631572661652
+            checksum/rbac: 8c7b81c69bcd2cc1fd76b197b817206802f8868b8df607264588cccafa01067c
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -574,7 +574,7 @@ Should match default snapshot:
           labels:
             app.kubernetes.io/component: controller
             app.kubernetes.io/instance: RELEASE-NAME
-            app.kubernetes.io/name: kubernetes-ingress-controller
+            app.kubernetes.io/name: ngrok-operator
         spec:
           affinity:
             nodeAffinity: null
@@ -586,7 +586,7 @@ Should match default snapshot:
                       matchLabels:
                         app.kubernetes.io/component: controller
                         app.kubernetes.io/instance: RELEASE-NAME
-                        app.kubernetes.io/name: kubernetes-ingress-controller
+                        app.kubernetes.io/name: ngrok-operator
                     topologyKey: kubernetes.io/hostname
                   weight: 1
           containers:
@@ -597,8 +597,8 @@ Should match default snapshot:
                 - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
-                - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
-                - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
+                - --election-id=RELEASE-NAME-ngrok-operator-leader
+                - --manager-name=RELEASE-NAME-ngrok-operator
               command:
                 - /manager
               env:
@@ -606,17 +606,17 @@ Should match default snapshot:
                   valueFrom:
                     secretKeyRef:
                       key: API_KEY
-                      name: RELEASE-NAME-kubernetes-ingress-controller-credentials
+                      name: RELEASE-NAME-ngrok-operator-credentials
                 - name: NGROK_AUTHTOKEN
                   valueFrom:
                     secretKeyRef:
                       key: AUTHTOKEN
-                      name: RELEASE-NAME-kubernetes-ingress-controller-credentials
+                      name: RELEASE-NAME-ngrok-operator-credentials
                 - name: POD_NAMESPACE
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
-              image: docker.io/ngrok/kubernetes-ingress-controller:0.12.0
+              image: docker.io/ngrok/ngrok-operator:0.12.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
@@ -624,7 +624,7 @@ Should match default snapshot:
                   port: 8081
                 initialDelaySeconds: 15
                 periodSeconds: 20
-              name: ngrok-ingress-controller
+              name: ngrok-operator
               readinessProbe:
                 httpGet:
                   path: /readyz
@@ -636,12 +636,12 @@ Should match default snapshot:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
-          serviceAccountName: RELEASE-NAME-kubernetes-ingress-controller
+          serviceAccountName: RELEASE-NAME-ngrok-operator
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
-      name: ngrok-ingress-controller-leader-election-role
+      name: ngrok-operator-leader-election-role
       namespace: NAMESPACE
     rules:
       - apiGroups:
@@ -679,7 +679,7 @@ Should match default snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
-      name: ngrok-ingress-controller-proxy-role
+      name: ngrok-operator-proxy-role
     rules:
       - apiGroups:
           - authentication.k8s.io
@@ -697,47 +697,47 @@ Should match default snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
-      name: ngrok-ingress-controller-leader-election-rolebinding
+      name: ngrok-operator-leader-election-rolebinding
       namespace: NAMESPACE
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role
-      name: ngrok-ingress-controller-leader-election-role
+      name: ngrok-operator-leader-election-role
     subjects:
       - kind: ServiceAccount
-        name: RELEASE-NAME-kubernetes-ingress-controller
+        name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
   5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: ngrok-ingress-controller-manager-rolebinding
+      name: ngrok-operator-rolebinding
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: ngrok-ingress-controller-manager-role
+      name: ngrok-operator-role
     subjects:
       - kind: ServiceAccount
-        name: RELEASE-NAME-kubernetes-ingress-controller
+        name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
   6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: ngrok-ingress-controller-proxy-rolebinding
+      name: ngrok-operator-proxy-rolebinding
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: ngrok-ingress-controller-proxy-role
+      name: ngrok-operator-proxy-role
     subjects:
       - kind: ServiceAccount
-        name: RELEASE-NAME-kubernetes-ingress-controller
+        name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
   7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
-      name: ngrok-ingress-controller-manager-role
+      name: ngrok-operator-role
     rules:
       - apiGroups:
           - ""

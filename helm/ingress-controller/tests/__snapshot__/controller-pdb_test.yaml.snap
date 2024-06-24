@@ -7,11 +7,11 @@ should match snapshot:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: test-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: kubernetes-ingress-controller
-        app.kubernetes.io/part-of: kubernetes-ingress-controller
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.12.0
-        helm.sh/chart: kubernetes-ingress-controller-0.14.0
-      name: test-release-kubernetes-ingress-controller-controller-pdb
+        helm.sh/chart: ngrok-operator-0.14.0
+      name: test-release-ngrok-operator-controller-pdb
       namespace: test-namespace
     spec:
       maxUnavailable: 1
@@ -19,4 +19,4 @@ should match snapshot:
         matchLabels:
           app.kubernetes.io/component: controller
           app.kubernetes.io/instance: test-release
-          app.kubernetes.io/name: kubernetes-ingress-controller
+          app.kubernetes.io/name: ngrok-operator

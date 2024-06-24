@@ -129,7 +129,7 @@ tests:
               matchLabels:
                 app.kubernetes.io/component: controller
                 app.kubernetes.io/instance: RELEASE-NAME
-                app.kubernetes.io/name: kubernetes-ingress-controller
+                app.kubernetes.io/name: ngrok-operator
             topologyKey: kubernetes.io/hostname
           weight: 1
 - it: Easily allows for setting a "hard" pod anti-affinity
@@ -146,7 +146,7 @@ tests:
             matchLabels:
               app.kubernetes.io/component: controller
               app.kubernetes.io/instance: RELEASE-NAME
-              app.kubernetes.io/name: kubernetes-ingress-controller
+              app.kubernetes.io/name: ngrok-operator
           topologyKey: kubernetes.io/hostname
 - it: Allows overriding the full affinity
   template: controller-deployment.yaml

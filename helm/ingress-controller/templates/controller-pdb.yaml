@@ -4,10 +4,10 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "kubernetes-ingress-controller.fullname" . }}-controller-pdb
+  name: {{ include "ngrok-operator.fullname" . }}-controller-pdb
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    {{- include "kubernetes-ingress-controller.labels" . | nindent 4 }}
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: {{ $component }}
 spec:
   {{- if .Values.podDisruptionBudget.minAvailable }}
@@ -18,7 +18,7 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "kubernetes-ingress-controller.selectorLabels" . | nindent 6 }}
+      {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
       {{- if .Values.podLabels }}
         {{- toYaml .Values.podLabels | nindent 6 }}
       {{- end }}

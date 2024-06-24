@@ -3,10 +3,10 @@ package webhook_verification
 import (
 	"testing"
 
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/testutil"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
+	"github.com/ngrok/ngrok-operator/internal/annotations/testutil"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/stretchr/testify/assert"
 )
 

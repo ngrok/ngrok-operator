@@ -9,7 +9,7 @@ body:
       Thanks for taking the time to fill out this bug report!
 
       Note, you do not need to create an issue if you have a change ready to submit.
-      You can open a [pull request](https://github.com/ngrok/kubernetes-ingress-controller/pulls) immediately instead.
+      You can open a [pull request](https://github.com/ngrok/kubernetes-operator/pulls) immediately instead.
 - type: input
   attributes:
     label: Kubernetes Version
@@ -42,7 +42,7 @@ body:
     description: We want to see relevant kubernetes logs showing error messages
 or helpful debugging information
     placeholder: >
-      Run `kubectl logs -l app.kubernetes.io/name=kubernetes-ingress-controller` and copy the output here.
+      Run `kubectl logs -l app.kubernetes.io/name=kubernetes-operator` and copy the output here.
   validations:
     required: true
 - type: textarea

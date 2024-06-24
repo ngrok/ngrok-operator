@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - feat: Auto-provision domain for TLS Edges [#386]( https://github.com/ngrok/kubernetes-ingress-controller/pull/386)
-- feat: Support for Load Balancer services [#387](https://github.com/ngrok/kubernetes-ingress-controller/pull/387)
+- feat: Support for Load Balancer services [#387](https://github.com/ngrok/ngrok-operator/pull/387)
 - feat: Support TLS termination in modulesets for Load Balancer Services [388](https://github.com/ngrok/kubernetes-ingress-controller/pull/388)
 
 ## 0.13.0

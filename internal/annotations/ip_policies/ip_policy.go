@@ -1,8 +1,8 @@
 package ip_policies
 
 import (
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

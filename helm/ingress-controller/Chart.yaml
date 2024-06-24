@@ -1,5 +1,5 @@
 apiVersion: v2
-name: kubernetes-ingress-controller
+name: ngrok-operator
 description: A Kubernetes ingress controller built using ngrok.
 version: 0.14.0
 appVersion: 0.12.0
@@ -11,8 +11,8 @@ keywords:
   - api gateway
 home: https://ngrok.com
 sources:
-  - https://github.com/ngrok/kubernetes-ingress-controller
-icon: https://ngrok.github.io/kubernetes-ingress-controller/ngrok-favicon.svg
+  - https://github.com/ngrok/ngrok-operator
+icon: https://ngrok.github.io/ngrok-operator/ngrok-favicon.svg
 dependencies:
   - name: common
     repository: https://charts.bitnami.com/bitnami

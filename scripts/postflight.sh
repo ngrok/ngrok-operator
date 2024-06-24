@@ -2,7 +2,7 @@
 
 set -eu -o pipefail
 
-namespace='ngrok-ingress-controller'
+namespace='ngrok-operator'
 kubectl config set-context --current --namespace=$namespace
 
 # Run tests

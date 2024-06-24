@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: ngrokmoduleset-editor-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: kubernetes-ingress-controller
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: kustomize
   name: ngrokmoduleset-editor-role
 rules:

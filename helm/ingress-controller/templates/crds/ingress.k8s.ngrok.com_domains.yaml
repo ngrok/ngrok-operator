@@ -61,7 +61,7 @@ spec:
             description: DomainSpec defines the desired state of Domain
             properties:
               description:
-                default: Created by kubernetes-ingress-controller
+                default: Created by ngrok-operator
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
@@ -69,7 +69,7 @@ spec:
                 description: Domain is the domain name to reserve
                 type: string
               metadata:
-                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                default: '{"owned-by":"ngrok-operator"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string

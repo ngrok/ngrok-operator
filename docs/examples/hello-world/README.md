@@ -14,10 +14,10 @@ First we need to install the controller in the cluster. We'll export our credent
 ```bash
 export NGROK_API_KEY=<YOUR Secret API KEY>
 export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
-helm repo add ngrok https://ngrok.github.io/kubernetes-ingress-controller
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller --version 0.8.0 \
+helm repo add ngrok https://ngrok.github.io/ngrok-operator
+helm install ngrok-operator ngrok/ngrok-operator --version 0.8.0 \
   --set image.tag=0.4.0 \
-  --namespace ngrok-ingress-controller \
+  --namespace ngrok-operator \
   --create-namespace \
   --set credentials.apiKey=$NGROK_API_KEY \
   --set credentials.authtoken=$NGROK_AUTHTOKEN
@@ -26,13 +26,13 @@ helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller --vers
 Verify the controller is running and healthy:
 
 ```bash
-kubectl get pods -n ngrok-ingress-controller
+kubectl get pods -n ngrok-operator
 ```
 
 You should see something like this:
 ```bash
 NAME                                                              READY   STATUS    RESTARTS   AGE
-ngrok-ingress-controller-kubernetes-ingress-controller-mank8zgx   1/1     Running   0          104s
+ngrok-ingress-controller-ngrok-operator-mank8zgx   1/1     Running   0          104s
 ```
 
 ## Setup Ingress for a Service

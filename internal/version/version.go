@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	// version of the ngrok kubernetes-ingress-controller.
+	// version of the ngrok ngrok-operator.
 	// Injected at build time via LDFlags.
 	version = "0.0.0"
 
@@ -32,7 +32,7 @@ func GetVersion() string {
 
 // GetUserAgent returns a user agent to use
 func GetUserAgent() string {
-	return fmt.Sprintf("ngrok-ingress-controller/%s", GetVersion())
+	return fmt.Sprintf("ngrok-operator/%s", GetVersion())
 }
 
 // Get returns build info

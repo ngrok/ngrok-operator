@@ -86,7 +86,7 @@ jobs:
         context: .
         platforms: ${{ steps.buildx-setup.outputs.platforms }}
         push: false
-        tags: ngrok/kubernetes-ingress-controller:latest
+        tags: ngrok/kubernetes-operator:latest
 
   go-mod-tidy:
     name: Go Mod Tidy Check

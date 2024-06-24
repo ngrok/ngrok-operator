@@ -1,36 +1,36 @@
 ---
-# Source: kubernetes-ingress-controller/templates/controller-serviceaccount.yaml
+# Source: ngrok-operator/templates/controller-serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ingress-controller-kubernetes-ingress-controller
-  namespace: ngrok-ingress-controller
+  namespace: ngrok-operator
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.5.0
+    app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ingress-controller
     app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
 ---
-# Source: kubernetes-ingress-controller/templates/agent-config-cm.yaml
+# Source: ngrok-operator/templates/agent-config-cm.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ingress-controller-kubernetes-ingress-controller-agent-cm
-  namespace: ngrok-ingress-controller
+  namespace: ngrok-operator
 data:
   METADATA: ""
   REGION: ""
   REMOTE_MANAGEMENT: ""
 ---
-# Source: kubernetes-ingress-controller/templates/controller-cm.yaml
+# Source: ngrok-operator/templates/controller-cm.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ingress-controller-kubernetes-ingress-controller-manager-config
-  namespace: ngrok-ingress-controller
+  name: ingress-controller-kubernetes-ingress-controller-config
+  namespace: ngrok-operator
 data:
   controller_manager_config.yaml: |
     apiVersion: controller-runtime.sigs.k8s.io/v1alpha1
@@ -43,7 +43,7 @@ data:
       leaderElect: true
       resourceName: ingress-controller-kubernetes-ingress-controller-leader
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_domains.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_domains.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -102,7 +102,7 @@ spec:
             description: DomainSpec defines the desired state of Domain
             properties:
               description:
-                default: Created by kubernetes-ingress-controller
+                default: Created by ngrok-operator
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
@@ -110,7 +110,7 @@ spec:
                 description: Domain is the domain name to reserve
                 type: string
               metadata:
-                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                default: '{"owned-by":"ngrok-operator"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
@@ -145,7 +145,7 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_httpsedges.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_httpsedges.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -183,7 +183,7 @@ spec:
             description: HTTPSEdgeSpec defines the desired state of HTTPSEdge
             properties:
               description:
-                default: Created by kubernetes-ingress-controller
+                default: Created by ngrok-operator
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
@@ -193,7 +193,7 @@ spec:
                   type: string
                 type: array
               metadata:
-                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                default: '{"owned-by":"ngrok-operator"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
@@ -206,7 +206,7 @@ spec:
                         backend that serves traffic for this edge
                       properties:
                         description:
-                          default: Created by kubernetes-ingress-controller
+                          default: Created by ngrok-operator
                           description: Description is a human-readable description
                             of the object in the ngrok API/Dashboard
                           type: string
@@ -216,7 +216,7 @@ spec:
                           description: Labels to watch for tunnels on this backend
                           type: object
                         metadata:
-                          default: '{"owned-by":"kubernetes-ingress-controller"}'
+                          default: '{"owned-by":"ngrok-operator"}'
                           description: Metadata is a string of arbitrary data associated
                             with the object in the ngrok API/Dashboard
                           type: string
@@ -231,7 +231,7 @@ spec:
                           type: boolean
                       type: object
                     description:
-                      default: Created by kubernetes-ingress-controller
+                      default: Created by ngrok-operator
                       description: Description is a human-readable description of
                         the object in the ngrok API/Dashboard
                       type: string
@@ -298,7 +298,7 @@ spec:
                       - path_prefix
                       type: string
                     metadata:
-                      default: '{"owned-by":"kubernetes-ingress-controller"}'
+                      default: '{"owned-by":"ngrok-operator"}'
                       description: Metadata is a string of arbitrary data associated
                         with the object in the ngrok API/Dashboard
                       type: string
@@ -378,7 +378,7 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_ippolicies.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_ippolicies.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -425,12 +425,12 @@ spec:
             description: IPPolicySpec defines the desired state of IPPolicy
             properties:
               description:
-                default: Created by kubernetes-ingress-controller
+                default: Created by ngrok-operator
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
               metadata:
-                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                default: '{"owned-by":"ngrok-operator"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
@@ -443,12 +443,12 @@ spec:
                     cidr:
                       type: string
                     description:
-                      default: Created by kubernetes-ingress-controller
+                      default: Created by ngrok-operator
                       description: Description is a human-readable description of
                         the object in the ngrok API/Dashboard
                       type: string
                     metadata:
-                      default: '{"owned-by":"kubernetes-ingress-controller"}'
+                      default: '{"owned-by":"ngrok-operator"}'
                       description: Metadata is a string of arbitrary data associated
                         with the object in the ngrok API/Dashboard
                       type: string
@@ -481,7 +481,7 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_tcpedges.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_tcpedges.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -540,7 +540,7 @@ spec:
                   that serves traffic for this edge
                 properties:
                   description:
-                    default: Created by kubernetes-ingress-controller
+                    default: Created by ngrok-operator
                     description: Description is a human-readable description of the
                       object in the ngrok API/Dashboard
                     type: string
@@ -550,13 +550,13 @@ spec:
                     description: Labels to watch for tunnels on this backend
                     type: object
                   metadata:
-                    default: '{"owned-by":"kubernetes-ingress-controller"}'
+                    default: '{"owned-by":"ngrok-operator"}'
                     description: Metadata is a string of arbitrary data associated
                       with the object in the ngrok API/Dashboard
                     type: string
                 type: object
               description:
-                default: Created by kubernetes-ingress-controller
+                default: Created by ngrok-operator
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
@@ -569,7 +569,7 @@ spec:
                     type: array
                 type: object
               metadata:
-                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                default: '{"owned-by":"ngrok-operator"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
@@ -603,7 +603,7 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_tunnels.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_tunnels.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -668,11 +668,11 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ngrok-ingress-controller-proxy-role
+  name: ngrok-operator-proxy-role
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -687,17 +687,17 @@ rules:
   verbs:
   - create
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/domain_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/domain_editor_role.yaml
 # permissions for end users to edit domains.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.5.0
+    app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ingress-controller
     app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
   name: ingress-controller-kubernetes-ingress-controller-domain-editor-role
@@ -721,17 +721,17 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/domain_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/domain_viewer_role.yaml
 # permissions for end users to view domains.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.5.0
+    app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ingress-controller
     app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
   name: ingress-controller-kubernetes-ingress-controller-domain-viewer-role
@@ -751,7 +751,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/httpsedge_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/httpsedge_editor_role.yaml
 # permissions for end users to edit httpsedges.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -760,8 +760,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: httpsedge-editor-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: kustomize
   name: httpsedge-editor-role
 rules:
@@ -784,7 +784,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/httpsedge_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/httpsedge_viewer_role.yaml
 # permissions for end users to view httpsedges.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -793,8 +793,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: httpsedge-viewer-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: kustomize
   name: httpsedge-viewer-role
 rules:
@@ -813,7 +813,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/ippolicy_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/ippolicy_editor_role.yaml
 # permissions for end users to edit ippolicies.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -822,8 +822,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: ippolicy-editor-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: kustomize
   name: ippolicy-editor-role
 rules:
@@ -846,7 +846,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/ippolicy_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/ippolicy_viewer_role.yaml
 # permissions for end users to view ippolicies.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -855,8 +855,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: ippolicy-viewer-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: kustomize
   name: ippolicy-viewer-role
 rules:
@@ -875,12 +875,12 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/role.yaml
+# Source: ngrok-operator/templates/rbac/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: ngrok-ingress-controller-manager-role
+  name: ngrok-operator-role
 rules:
 - apiGroups:
   - ""
@@ -1065,7 +1065,7 @@ rules:
   - update
   - watch
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/tcpedge_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/tcpedge_editor_role.yaml
 # permissions for end users to edit tcpedges.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -1074,8 +1074,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: tcpedge-editor-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: kustomize
   name: tcpedge-editor-role
 rules:
@@ -1098,7 +1098,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/tcpedge_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/tcpedge_viewer_role.yaml
 # permissions for end users to view tcpedges.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -1107,8 +1107,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: tcpedge-viewer-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: kustomize
   name: tcpedge-viewer-role
 rules:
@@ -1127,17 +1127,17 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/tunnel_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/tunnel_editor_role.yaml
 # permissions for end users to edit tunnels.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.5.0
+    app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ingress-controller
     app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
   name: ingress-controller-kubernetes-ingress-controller-tunnel-editor-role
@@ -1161,17 +1161,17 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/tunnel_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/tunnel_viewer_role.yaml
 # permissions for end users to view tunnels.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.5.0
+    app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ingress-controller
     app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
   name: ingress-controller-kubernetes-ingress-controller-tunnel-viewer-role
@@ -1191,40 +1191,40 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ngrok-ingress-controller-manager-rolebinding
+  name: ngrok-operator-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ngrok-ingress-controller-manager-role
+  name: ngrok-operator-role
 subjects:
 - kind: ServiceAccount
   name: ingress-controller-kubernetes-ingress-controller
-  namespace: ngrok-ingress-controller
+  namespace: ngrok-operator
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ngrok-ingress-controller-proxy-rolebinding
+  name: ngrok-operator-proxy-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ngrok-ingress-controller-proxy-role
+  name: ngrok-operator-proxy-role
 subjects:
 - kind: ServiceAccount
   name: ingress-controller-kubernetes-ingress-controller
-  namespace: ngrok-ingress-controller
+  namespace: ngrok-operator
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: ngrok-ingress-controller-leader-election-role
-  namespace: ngrok-ingress-controller
+  name: ngrok-operator-leader-election-role
+  namespace: ngrok-operator
 rules:
 - apiGroups:
   - ""
@@ -1258,35 +1258,35 @@ rules:
   - create
   - patch
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: ngrok-ingress-controller-leader-election-rolebinding
-  namespace: ngrok-ingress-controller
+  name: ngrok-operator-leader-election-rolebinding
+  namespace: ngrok-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: ngrok-ingress-controller-leader-election-role
+  name: ngrok-operator-leader-election-role
 subjects:
 - kind: ServiceAccount
   name: ingress-controller-kubernetes-ingress-controller
-  namespace: ngrok-ingress-controller
+  namespace: ngrok-operator
 ---
-# Source: kubernetes-ingress-controller/templates/controller-deployment.yaml
+# Source: ngrok-operator/templates/controller-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.5.0
+    app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ingress-controller
     app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
-  name: ingress-controller-kubernetes-ingress-controller-manager
-  namespace: ngrok-ingress-controller
+  name: ingress-controller-kubernetes-ingress-controller
+  namespace: ngrok-operator
   annotations:
     checksum/agent-config: 1012a0f3f4132751a558b1db2df58aab89fc9cf8a7f75a51ab84ffecf7ec9d71
     checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
@@ -1295,7 +1295,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: kubernetes-ingress-controller
+      app.kubernetes.io/name: ngrok-operator
       app.kubernetes.io/instance: ingress-controller
       app.kubernetes.io/component: controller
   template:
@@ -1306,14 +1306,14 @@ spec:
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
       labels:
-        app.kubernetes.io/name: kubernetes-ingress-controller
+        app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ingress-controller
         app.kubernetes.io/component: controller
     spec:
       serviceAccountName: ingress-controller-kubernetes-ingress-controller
       containers:
-      - name: ngrok-ingress-controller
-        image: docker.io/ngrok/kubernetes-ingress-controller:latest
+      - name: ngrok-operator
+        image: docker.io/ngrok/ngrok-operator:latest
         imagePullPolicy: IfNotPresent
         command:
         - /manager
@@ -1328,12 +1328,12 @@ spec:
           valueFrom:
             secretKeyRef:
               key: API_KEY
-              name: ngrok-ingress-controller-credentials
+              name: ngrok-operator-credentials
         - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
               key: AUTHTOKEN
-              name: ngrok-ingress-controller-credentials
+              name: ngrok-operator-credentials
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
@@ -1354,16 +1354,16 @@ spec:
           limits: {}
           requests: {}
 ---
-# Source: kubernetes-ingress-controller/templates/ingress-class.yaml
+# Source: ngrok-operator/templates/ingress-class.yaml
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.5.0
+    app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ingress-controller
     app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
   name: ngrok

@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: ngrok-ingress-controller-leader-election-role
+  name: ngrok-operator-leader-election-role
   namespace: {{ .Release.Namespace }}
 rules:
 - apiGroups:
@@ -40,7 +40,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ngrok-ingress-controller-proxy-role
+  name: ngrok-operator-proxy-role
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -58,39 +58,39 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: ngrok-ingress-controller-leader-election-rolebinding
+  name: ngrok-operator-leader-election-rolebinding
   namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: ngrok-ingress-controller-leader-election-role
+  name: ngrok-operator-leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: {{ template "kubernetes-ingress-controller.serviceAccountName" . }}
+  name: {{ template "ngrok-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ngrok-ingress-controller-manager-rolebinding
+  name: ngrok-operator-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ngrok-ingress-controller-manager-role
+  name: ngrok-operator-role
 subjects:
 - kind: ServiceAccount
-  name: {{ template "kubernetes-ingress-controller.serviceAccountName" . }}
+  name: {{ template "ngrok-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ngrok-ingress-controller-proxy-rolebinding
+  name: ngrok-operator-proxy-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ngrok-ingress-controller-proxy-role
+  name: ngrok-operator-proxy-role
 subjects:
 - kind: ServiceAccount
-  name: {{ template "kubernetes-ingress-controller.serviceAccountName" . }}
+  name: {{ template "ngrok-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}

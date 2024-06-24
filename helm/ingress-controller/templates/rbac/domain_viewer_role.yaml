@@ -3,9 +3,9 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    {{- include "kubernetes-ingress-controller.labels" . | nindent 4 }}
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: rbac
-  name: {{ include "kubernetes-ingress-controller.fullname" . }}-domain-viewer-role
+  name: {{ include "ngrok-operator.fullname" . }}-domain-viewer-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com

@@ -17,11 +17,11 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
-	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 )
 
-const defaultManagerName = "ngrok-ingress-controller"
+const defaultManagerName = "ngrok-operator"
 
 var _ = Describe("Driver", func() {
 

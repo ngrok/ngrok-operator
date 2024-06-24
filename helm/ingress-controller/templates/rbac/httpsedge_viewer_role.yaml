@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: httpsedge-viewer-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: kustomize
   name: httpsedge-viewer-role
 rules:

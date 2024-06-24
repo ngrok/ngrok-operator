@@ -11,10 +11,10 @@ import (
 // common ngrok API/Dashboard fields
 type ngrokAPICommon struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`Created by kubernetes-ingress-controller`
+	// +kubebuilder:default:=`Created by ngrok-operator`
 	Description string `json:"description,omitempty"`
 	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`{"owned-by":"kubernetes-ingress-controller"}`
+	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
 	Metadata string `json:"metadata,omitempty"`
 }
 

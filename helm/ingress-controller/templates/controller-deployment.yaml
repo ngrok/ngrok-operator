@@ -3,9 +3,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    {{- include "kubernetes-ingress-controller.labels" . | nindent 4 }}
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: {{ $component }}
-  name: {{ include "kubernetes-ingress-controller.fullname" . }}-manager
+  name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
   annotations:
     checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/role.yaml") . | sha256sum }}
@@ -14,7 +14,7 @@ spec:
   replicas: {{.Values.replicaCount}}
   selector:
     matchLabels:
-      {{- include "kubernetes-ingress-controller.selectorLabels" . | nindent 6 }}
+      {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
       {{- if .Values.podLabels }}
         {{- toYaml .Values.podLabels | nindent 6 }}
       {{- end }}
@@ -32,7 +32,7 @@ spec:
         checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
       labels:
-        {{- include "kubernetes-ingress-controller.selectorLabels" . | nindent 8 }}
+        {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
         {{- if .Values.podLabels }}
           {{- toYaml .Values.podLabels | nindent 8 }}
         {{- end }}
@@ -49,14 +49,14 @@ spec:
         podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
         nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
       {{- end }}
-      serviceAccountName: {{ template "kubernetes-ingress-controller.serviceAccountName" . }}
+      serviceAccountName: {{ template "ngrok-operator.serviceAccountName" . }}
       {{- if .Values.image.pullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.image.pullSecrets | nindent 8 }}
       {{- end }}
       containers:
-      - name: ngrok-ingress-controller
-        image: {{ include "kubernetes-ingress-controller.image" . }}
+      - name: ngrok-operator
+        image: {{ include "ngrok-operator.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /manager
@@ -92,8 +92,8 @@ spec:
         - --zap-encoder={{ .Values.log.format }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
-        - --election-id={{ include "kubernetes-ingress-controller.fullname" . }}-leader
-        - --manager-name={{ include "kubernetes-ingress-controller.fullname" . }}-manager
+        - --election-id={{ include "ngrok-operator.fullname" . }}-leader
+        - --manager-name={{ include "ngrok-operator.fullname" . }}
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -101,12 +101,12 @@ spec:
           valueFrom:
             secretKeyRef:
               key: API_KEY
-              name: {{ include "kubernetes-ingress-controller.credentialsSecretName" . }}
+              name: {{ include "ngrok-operator.credentialsSecretName" . }}
         - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
               key: AUTHTOKEN
-              name: {{ include "kubernetes-ingress-controller.credentialsSecretName" . }}
+              name: {{ include "ngrok-operator.credentialsSecretName" . }}
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
