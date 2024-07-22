@@ -239,7 +239,7 @@ var _ = Describe("Store", func() {
 			It("returns the NgrokTrafficPolicy", func() {
 				tp, err := store.GetNgrokTrafficPolicyV1("ngrok", "test")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(tp.Spec.Policy).To(Equal(json.RawMessage("{\"inbound\": \"you know this can be anything though\"}")))
+				Expect(tp.Spec.TrafficPolicy).To(Equal(json.RawMessage("{\"inbound\": \"you know this can be anything though\"}")))
 			})
 		})
 		Context("when the NgrokTrafficPolicy does not exist", func() {

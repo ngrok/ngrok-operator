@@ -1,70 +1,20 @@
 package ngrokapi
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
-	"net/url"
-	"text/template"
-
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/tls_edge_backend"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/tls_edge_ip_restriction"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/tls_edge_mutual_tls"
-	"github.com/ngrok/ngrok-api-go/v5/edge_modules/tls_edge_policy"
 	"github.com/ngrok/ngrok-api-go/v5/edge_modules/tls_edge_tls_termination"
+	"github.com/ngrok/ngrok-api-go/v5/edge_modules/tls_edge_traffic_policy"
 )
-
-type EdgeRawTLSPolicyReplace struct {
-	ID     string          `json:"id,omitempty"`
-	Module json.RawMessage `json:"module,omitempty"`
-}
-
-type RawTLSEdgePolicyClient interface {
-	Delete(context.Context, string) error
-	Replace(context.Context, EdgeRawTLSPolicyReplace) (*json.RawMessage, error)
-}
-type rawTLSPolicyClient struct {
-	base   *ngrok.BaseClient
-	policy *tls_edge_policy.Client
-}
-
-func newRawTLSPolicyClient(config *ngrok.ClientConfig) *rawTLSPolicyClient {
-	return &rawTLSPolicyClient{
-		base:   ngrok.NewBaseClient(config),
-		policy: tls_edge_policy.NewClient(config),
-	}
-}
-func (c *rawTLSPolicyClient) Delete(ctx context.Context, id string) error {
-	return c.policy.Delete(ctx, id)
-}
-
-func (c *rawTLSPolicyClient) Replace(ctx context.Context, policy *EdgeRawTLSPolicyReplace) (*json.RawMessage, error) {
-	if policy == nil {
-		return nil, errors.New("tls edge policy replace cannot be nil")
-	}
-	var path bytes.Buffer
-	if err := template.Must(template.New("replace_path").Parse("/edges/tls/{{ .ID }}/policy")).Execute(&path, policy); err != nil {
-		// api client panics on error also
-		panic(err)
-	}
-	var res json.RawMessage
-	apiURL := &url.URL{Path: path.String()}
-
-	if err := c.base.Do(ctx, "PUT", apiURL, policy.Module, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
 
 type TLSEdgeModulesClientset interface {
 	Backend() *tls_edge_backend.Client
 	IPRestriction() *tls_edge_ip_restriction.Client
 	MutualTLS() *tls_edge_mutual_tls.Client
 	TLSTermination() *tls_edge_tls_termination.Client
-	Policy() *tls_edge_policy.Client
-	RawPolicy() *rawTLSPolicyClient
+	TrafficPolicy() *tls_edge_traffic_policy.Client
 }
 
 type defaultTLSEdgeModulesClientset struct {
@@ -72,8 +22,7 @@ type defaultTLSEdgeModulesClientset struct {
 	ipRestriction  *tls_edge_ip_restriction.Client
 	mutualTLS      *tls_edge_mutual_tls.Client
 	tlsTermination *tls_edge_tls_termination.Client
-	policy         *tls_edge_policy.Client
-	rawPolicy      *rawTLSPolicyClient
+	trafficPolicy  *tls_edge_traffic_policy.Client
 }
 
 func newTLSEdgeModulesClientset(config *ngrok.ClientConfig) *defaultTLSEdgeModulesClientset {
@@ -82,8 +31,7 @@ func newTLSEdgeModulesClientset(config *ngrok.ClientConfig) *defaultTLSEdgeModul
 		ipRestriction:  tls_edge_ip_restriction.NewClient(config),
 		mutualTLS:      tls_edge_mutual_tls.NewClient(config),
 		tlsTermination: tls_edge_tls_termination.NewClient(config),
-		policy:         tls_edge_policy.NewClient(config),
-		rawPolicy:      newRawTLSPolicyClient(config),
+		trafficPolicy:  tls_edge_traffic_policy.NewClient(config),
 	}
 }
 
@@ -103,10 +51,6 @@ func (c *defaultTLSEdgeModulesClientset) TLSTermination() *tls_edge_tls_terminat
 	return c.tlsTermination
 }
 
-func (c *defaultTLSEdgeModulesClientset) Policy() *tls_edge_policy.Client {
-	return c.policy
-}
-
-func (c *defaultTLSEdgeModulesClientset) RawPolicy() *rawTLSPolicyClient {
-	return c.rawPolicy
+func (c *defaultTLSEdgeModulesClientset) TrafficPolicy() *tls_edge_traffic_policy.Client {
+	return c.trafficPolicy
 }

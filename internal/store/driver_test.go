@@ -442,18 +442,18 @@ var _ = Describe("Driver", func() {
 					Namespace: namespace,
 				},
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
-					Policy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
+					TrafficPolicy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
 				},
 			}
 			Expect(driver.store.Add(policyCrd)).To(BeNil())
 		})
 
 		It("Should return an empty policy if the rule has nothing in it", func() {
-			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
+			trafficPolicy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
-			Expect(policy).ToNot(BeNil())
-			Expect(len(policy.Inbound)).To(BeZero())
-			Expect(len(policy.Outbound)).To(BeZero())
+			Expect(trafficPolicy).ToNot(BeNil())
+			Expect(len(trafficPolicy.Value.Inbound)).To(BeZero())
+			Expect(len(trafficPolicy.Value.Outbound)).To(BeZero())
 		})
 
 		It("Should return a merged policy if there rules with extensionRef", func() {
@@ -492,19 +492,19 @@ var _ = Describe("Driver", func() {
 				},
 			}
 
-			expectedPolicy := `{"enabled":true,"inbound":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+			expectedTrafficPolicy := `{"enabled":true,"value":{"inbound":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}}`
 
-			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
+			trafficPolicy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
-			Expect(policy).ToNot(BeNil())
+			Expect(trafficPolicy).ToNot(BeNil())
 
-			jsonString, err := json.Marshal(policy)
+			jsonString, err := json.Marshal(trafficPolicy)
 			Expect(err).To(BeNil())
-			println("policy", string(jsonString))
+			println("traffic policy", string(jsonString))
 
-			Expect(len(policy.Inbound) == 3).To(BeTrue())
-			Expect(len(policy.Outbound)).To(BeZero())
-			Expect(string(jsonString)).To(Equal(expectedPolicy))
+			Expect(len(trafficPolicy.Value.Inbound) == 3).To(BeTrue())
+			Expect(len(trafficPolicy.Value.Outbound)).To(BeZero())
+			Expect(string(jsonString)).To(Equal(expectedTrafficPolicy))
 		})
 	})
 

@@ -226,7 +226,7 @@ func (r *TLSEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha
 		return err
 	}
 
-	if err := r.updatePolicyModule(ctx, edge, resp); err != nil {
+	if err := r.updateTrafficPolicyModule(ctx, edge, resp); err != nil {
 		return err
 	}
 
@@ -519,26 +519,28 @@ func (r *TLSEdgeReconciler) listTLSEdgesForDomain(ctx context.Context, obj clien
 	return recs
 }
 
-func (r *TLSEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
-	policy := edge.Spec.Policy
-	client := r.NgrokClientset.EdgeModules().TLS().RawPolicy()
+func (r *TLSEdgeReconciler) updateTrafficPolicyModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
+	trafficPolicy := edge.Spec.TrafficPolicy
+	client := r.NgrokClientset.EdgeModules().TLS().TrafficPolicy()
 
 	// Early return if nothing to be done
-	if policy == nil {
-		if remoteEdge.Policy == nil {
-			r.Log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
+	if trafficPolicy == nil {
+		if remoteEdge.TrafficPolicy == nil {
+			r.Log.Info("Module matches desired state, skipping update", "module", "Traffic Policy", "comparison", routeModuleComparisonBothNil)
 
 			return nil
 		}
 
-		r.Log.Info("Deleting Policy module")
+		r.Log.Info("Deleting Traffic Policy module")
 		return client.Delete(ctx, edge.Status.ID)
 	}
 
-	r.Log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTLSPolicyReplace{
-		ID:     remoteEdge.ID,
-		Module: policy,
+	r.Log.Info("Updating Traffic Policy module")
+	_, err := client.Replace(ctx, &ngrok.EdgeTrafficPolicyReplace{
+		ID: remoteEdge.ID,
+		Module: ngrok.EndpointTrafficPolicy{
+			Value: trafficPolicy,
+		},
 	})
 	return err
 }

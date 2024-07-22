@@ -291,7 +291,7 @@ func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.
 			edge.Spec.IPRestriction = moduleSets.Modules.IPRestriction
 		}
 		if policy != nil {
-			edge.Spec.Policy = policy.Spec.Policy
+			edge.Spec.TrafficPolicy = policy.Spec.TrafficPolicy
 		}
 
 		objects = append(objects, edge)
@@ -320,7 +320,7 @@ func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.
 			edge.Spec.TLSTermination = moduleSets.Modules.TLSTermination
 		}
 		if policy != nil {
-			edge.Spec.Policy = policy.Spec.Policy
+			edge.Spec.TrafficPolicy = policy.Spec.TrafficPolicy
 		}
 		objects = append(objects, edge)
 	}

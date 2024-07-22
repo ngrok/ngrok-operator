@@ -111,8 +111,8 @@ spec:
                     type: array
                 type: object
               policy:
-                description: raw json policy string that was applied to the ngrok
-                  API
+                description: raw json traffic policy string that was applied to the
+                  ngrok API
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
               tlsTermination:

@@ -136,7 +136,7 @@ func NewTestNgrokTrafficPolicy(name string, namespace string, policyStr string) 
 			Namespace: namespace,
 		},
 		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
-			Policy: json.RawMessage(policyStr),
+			TrafficPolicy: json.RawMessage(policyStr),
 		},
 	}
 }

@@ -76,11 +76,11 @@ type HTTPSEdgeRouteSpec struct {
 	// WebhookVerification is webhook verification configuration to apply to this route
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
 
-	// raw json policy string that was applied to the ngrok API
+	// raw json traffic policy string that was applied to the ngrok API
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object
-	Policy json.RawMessage `json:"policy,omitempty"`
+	TrafficPolicy json.RawMessage `json:"policy,omitempty"`
 }
 
 // HTTPSEdgeSpec defines the desired state of HTTPSEdge

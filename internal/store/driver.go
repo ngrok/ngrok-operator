@@ -883,7 +883,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					IPRestriction:       modSet.Modules.IPRestriction,
 					Headers:             modSet.Modules.Headers,
 					OAuth:               modSet.Modules.OAuth,
-					Policy:              policyJSON,
+					TrafficPolicy:       policyJSON,
 					OIDC:                modSet.Modules.OIDC,
 					SAML:                modSet.Modules.SAML,
 					WebhookVerification: modSet.Modules.WebhookVerification,
@@ -910,20 +910,20 @@ func (d *Driver) getPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1alpha1.N
 		return nil, err
 	}
 
-	if modSet.Modules.Policy != nil && trafficPolicy != nil {
+	if modSet.Modules.TrafficPolicy != nil && trafficPolicy != nil {
 		return nil, fmt.Errorf("cannot have both a traffic policy and a moduleset policy on ingress: %s", ingress.Name)
 	}
 
 	if trafficPolicy != nil {
-		return trafficPolicy.Spec.Policy, nil
+		return trafficPolicy.Spec.TrafficPolicy, nil
 	}
 
 	if modSet == nil {
 		return policyJSON, nil
 	}
 
-	if policyJSON, err = json.Marshal(modSet.Modules.Policy); err != nil {
-		d.log.Error(err, "cannot convert module-set policy json", "ingress", ingress, "Policy", modSet.Modules.Policy)
+	if policyJSON, err = json.Marshal(modSet.Modules.TrafficPolicy); err != nil {
+		d.log.Error(err, "cannot convert module-set policy json", "ingress", ingress, "Policy", modSet.Modules.TrafficPolicy)
 		return nil, err
 	}
 
@@ -1021,7 +1021,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								d.log.Error(err, "cannot convert policy json", "Policy", policy)
 								continue
 							}
-							route.Policy = policyStr
+							route.TrafficPolicy = policyStr
 
 							for idx, backendref := range rule.BackendRefs {
 								// currently the ingress controller doesn't support weighted backends
@@ -1070,7 +1070,7 @@ type EndpointRules struct {
 	rules []ingressv1alpha1.EndpointRule
 }
 
-func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (*ingressv1alpha1.EndpointPolicy, error) {
+func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (*ingressv1alpha1.EndpointTrafficPolicy, error) {
 	inboundActions := Actions{}
 	outboundActions := Actions{}
 	pathPrefixMatches := []string{}
@@ -1181,16 +1181,18 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 	// flush any leftover actions to rules
 	flushActionsToRules()
 
-	var policy *ingressv1alpha1.EndpointPolicy
+	var trafficPolicy *ingressv1alpha1.EndpointTrafficPolicy
 	enabled := true
 
-	policy = &ingressv1alpha1.EndpointPolicy{
-		Enabled:  &enabled,
-		Inbound:  inboundRules.rules,
-		Outbound: outboundRules.rules,
+	trafficPolicy = &ingressv1alpha1.EndpointTrafficPolicy{
+		Enabled: &enabled,
+		Value: &ingressv1alpha1.EndpointTrafficPolicyValue{
+			Inbound:  inboundRules.rules,
+			Outbound: outboundRules.rules,
+		},
 	}
 
-	return policy, nil
+	return trafficPolicy, nil
 }
 
 type RemoveHeadersConfig struct {
@@ -1213,7 +1215,7 @@ func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference
 		}
 
 		// unmarshal the json into a policy struct
-		jsonMessage := policy.Spec.Policy
+		jsonMessage := policy.Spec.TrafficPolicy
 		if jsonMessage == nil {
 			return errors.NewErrorNotFound(fmt.Sprintf("PolicyCRD %v found with no policy", extensionRef.Name))
 		}
