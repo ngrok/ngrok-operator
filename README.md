@@ -106,11 +106,11 @@ The full documentation for the ngrok Ingress Controller can be found on our [k8s
 >
 > This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads. 
 
-1. Current issues of concern for production workloads are being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/208) and [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/219).
+1. Current issues can be found in the GitHub issues. [Known/suspected bugs](https://github.com/ngrok/kubernetes-ingress-controller/issues?q=is%3Aopen+is%3Aissue+label%3Abug) are labeled as `bug`.
 
 ## Support
 
-The best place to get support using the ngrok Kubernetes Operator is through the [ngrok Slack Community](https://ngrok.com/slack). If you find bugs or would like to contribute code, please follow the instructions in the [contributing guide](./docs/developer-guide/README.md).
+The best place to get support using the ngrok Kubernetes Operator is through the [ngrok Slack Community](https://ngrok.com/slack). If you find bugs or would like to contribute code, please follow the instructions in the [contributing guide](./docs/CONTRIBUTING.md).
 
 ## License
 
