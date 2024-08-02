@@ -17,6 +17,9 @@
   <a href="#features-and-beta-status">
     <img src="https://img.shields.io/badge/Status-Beta-orange.svg" alt="Status"/>
   </a>
+   <a href="#gateway-api-status">
+    <img src="https://img.shields.io/badge/Gateway_API-preview-rgba(159%2C122%2C234)" alt="Gateway API Preivew"/>
+  </a>
   <a href="https://ngrok.com/slack">
     <img src="https://img.shields.io/badge/Join%20Our%20Community-Slack-blue" alt="Slack"/>
   </a>
@@ -25,10 +28,11 @@
   </a>
 </p>
 
-# ngrok Kubernetes Ingress Controller
+# ngrok Kubernetes Operator
 
 
-Leverage [ngrok](https://ngrok.com/) for your [Kubernetes Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/). Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling.
+Leverage [ngrok](https://ngrok.com/) for your ingress in your Kubernetes cluster.  Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling. This repo contains both our [Kubernetes Ingress Controller](https://kubernetes.io/docs/concepts/services-networking/ingress/) and the [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/)
+
 
 [Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
 
@@ -62,6 +66,25 @@ helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
 
 For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 
+#### Gateway API Preview
+
+To install the developer preview of the gateway api we'll make the following changes to the above instructions.
+
+Install the v1 gateway CRD before the helm installation.
+```sh
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+```
+
+Then, during the helm install set the experimental gateway flag.
+
+```sh
+helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+  --namespace $NAMESPACE \
+  --create-namespace \
+  --set credentials.apiKey=$NGROK_API_KEY \
+  --set credentials.authtoken=$NGROK_AUTHTOKEN \
+  --set useExperimentalGatewayApi=true  # gateway preview
+```
 ### YAML Manifests
 
 Apply the [sample combined manifest](manifest-bundle.yaml) from our repo:
@@ -75,14 +98,7 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 
 ## Documentation
 
-The full documentation for the ngrok Ingress Controller can be found [under the docs directory](./docs/README.md). Pull requests for corrections and additions are always welcomed.
-
-###  Guides and Tutorials
-- [Deployment Guide](./docs/deployment-guide/README.md): for installing the controller for the first time
-- [User Guide](./docs/user-guide/README.md): for an in depth view of the ngrok ingress configuration options and primitives
-- [Examples](./docs/examples/README.md): for examples of how to configure ingress in different scenarios (e.g. Hello World, Consul, OAuth, etc.)
-- [Developer Guide](./docs/developer-guide/README.md): for those interested in contributing to the project
-
+The full documentation for the ngrok Ingress Controller can be found on our [k8s docs](https://ngrok.com/docs/k8s/)
 
 ## Known Issues
 
@@ -90,11 +106,11 @@ The full documentation for the ngrok Ingress Controller can be found [under the 
 >
 > This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads. 
 
-1. Current issues of concern for production workloads are being tracked [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/208) and [here](https://github.com/ngrok/kubernetes-ingress-controller/issues/219).
+1. Current issues can be found in the GitHub issues. [Known/suspected bugs](https://github.com/ngrok/kubernetes-ingress-controller/issues?q=is%3Aopen+is%3Aissue+label%3Abug) are labeled as `bug`.
 
 ## Support
 
-The best place to get support using the ngrok Ingress Controller is through the [ngrok Slack Community](https://ngrok.com/slack). If you find bugs or would like to contribute code, please follow the instructions in the [contributing guide](./docs/developer-guide/README.md).
+The best place to get support using the ngrok Kubernetes Operator is through the [ngrok Slack Community](https://ngrok.com/slack). If you find bugs or would like to contribute code, please follow the instructions in the [contributing guide](./docs/CONTRIBUTING.md).
 
 ## License
 
