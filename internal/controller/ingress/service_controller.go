@@ -148,7 +148,20 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if !controllers.IsUpsert(svc) {
+	// If the service is being deleted, we need to clean up any resources that are owned by it
+	if controllers.IsDelete(svc) {
+		if err := subResourceReconcilers.Reconcile(ctx, r.Client, nil); err != nil {
+			log.Error(err, "Failed to cleanup owned resources")
+			return ctrl.Result{}, err
+		}
+
+		// re-fetch owned resources after cleanup
+		ownedResources, err = subResourceReconcilers.GetOwnedResources(ctx, r.Client, svc)
+		if err != nil {
+			log.Error(err, "Failed to get owned resources")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
 		if len(ownedResources) > 0 {
 			log.Info("Service still owns ngrok resources, waiting for deletion...")
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
