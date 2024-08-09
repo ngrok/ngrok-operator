@@ -462,7 +462,7 @@ func (r *baseSubresourceReconciler[T, PT]) Reconcile(ctx context.Context, c clie
 
 		log.Info(fmt.Sprintf("Updating %T", e), "desired", d, "existing", e)
 		// Fetch the existing resource as it may have been updated
-		if err := c.Get(ctx, client.ObjectKeyFromObject(e), d); err != nil {
+		if err := c.Get(ctx, client.ObjectKeyFromObject(e), e); err != nil {
 			return err
 		}
 		r.mergeExisting(*d, e)
