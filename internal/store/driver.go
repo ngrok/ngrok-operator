@@ -25,6 +25,7 @@ import (
 
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -112,6 +113,72 @@ func (d *Driver) setMetadataOwner(owner string, customMetadata map[string]string
 	return string(jsonString), nil
 }
 
+func listObjectsForType(ctx context.Context, client client.Reader, v interface{}) ([]client.Object, error) {
+	switch v.(type) {
+
+	// ----------------------------------------------------------------------------
+	// Kubernetes Core API Support
+	// ----------------------------------------------------------------------------
+	case *corev1.Service:
+		services := &corev1.ServiceList{}
+		err := client.List(ctx, services)
+		return util.ToClientObjects(services.Items), err
+	case *corev1.Secret:
+		secrets := &corev1.SecretList{}
+		err := client.List(ctx, secrets)
+		return util.ToClientObjects(secrets.Items), err
+	case *netv1.Ingress:
+		ingresses := &netv1.IngressList{}
+		err := client.List(ctx, ingresses)
+		return util.ToClientObjects(ingresses.Items), err
+	case *netv1.IngressClass:
+		ingressClasses := &netv1.IngressClassList{}
+		err := client.List(ctx, ingressClasses)
+		return util.ToClientObjects(ingressClasses.Items), err
+
+	// ----------------------------------------------------------------------------
+	// Kubernetes Gateway API Support
+	// ----------------------------------------------------------------------------
+	case *gatewayv1.GatewayClass:
+		gatewayClasses := &gatewayv1.GatewayClassList{}
+		err := client.List(ctx, gatewayClasses)
+		return util.ToClientObjects(gatewayClasses.Items), err
+	case *gatewayv1.Gateway:
+		gateways := &gatewayv1.GatewayList{}
+		err := client.List(ctx, gateways)
+		return util.ToClientObjects(gateways.Items), err
+	case *gatewayv1.HTTPRoute:
+		httproutes := &gatewayv1.HTTPRouteList{}
+		err := client.List(ctx, httproutes)
+		return util.ToClientObjects(httproutes.Items), err
+
+	// ----------------------------------------------------------------------------
+	// Ngrok API Support
+	// ----------------------------------------------------------------------------
+	case *ingressv1alpha1.Domain:
+		domains := &ingressv1alpha1.DomainList{}
+		err := client.List(ctx, domains)
+		return util.ToClientObjects(domains.Items), err
+	case *ingressv1alpha1.HTTPSEdge:
+		edges := &ingressv1alpha1.HTTPSEdgeList{}
+		err := client.List(ctx, edges)
+		return util.ToClientObjects(edges.Items), err
+	case *ingressv1alpha1.Tunnel:
+		tunnels := &ingressv1alpha1.TunnelList{}
+		err := client.List(ctx, tunnels)
+		return util.ToClientObjects(tunnels.Items), err
+	case *ingressv1alpha1.NgrokModuleSet:
+		modules := &ingressv1alpha1.NgrokModuleSetList{}
+		err := client.List(ctx, modules)
+		return util.ToClientObjects(modules.Items), err
+	case *ngrokv1alpha1.NgrokTrafficPolicy:
+		policies := &ngrokv1alpha1.NgrokTrafficPolicyList{}
+		err := client.List(ctx, policies)
+		return util.ToClientObjects(policies.Items), err
+	}
+	return nil, fmt.Errorf("unsupported type %T", v)
+}
+
 // Seed fetches all the upfront information the driver needs to operate
 // It needs to be seeded fully before it can be used to make calculations otherwise
 // each calculation will be based on an incomplete state of the world. It currently relies on:
@@ -125,88 +192,34 @@ func (d *Driver) setMetadataOwner(owner string, customMetadata map[string]string
 // - Edges
 // When the sync method becomes a background process, this likely won't be needed anymore
 func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
-	ingresses := &netv1.IngressList{}
-	if err := c.List(ctx, ingresses); err != nil {
-		return err
-	}
-	for _, ing := range ingresses.Items {
-		if err := d.store.Update(&ing); err != nil {
-			return err
-		}
-	}
-
-	ingressClasses := &netv1.IngressClassList{}
-	if err := c.List(ctx, ingressClasses); err != nil {
-		return err
-	}
-	for _, ingClass := range ingressClasses.Items {
-		if err := d.store.Update(&ingClass); err != nil {
-			return err
-		}
+	typesToSeed := []interface{}{
+		&netv1.Ingress{},
+		&netv1.IngressClass{},
+		&corev1.Service{},
+		&ingressv1alpha1.Domain{},
+		&ingressv1alpha1.HTTPSEdge{},
+		&ingressv1alpha1.Tunnel{},
 	}
 
 	if d.gatewayEnabled {
-		gateways := &gatewayv1.GatewayList{}
-		if err := c.List(ctx, gateways); err != nil {
+		typesToSeed = append(typesToSeed,
+			&gatewayv1.Gateway{},
+			&gatewayv1.HTTPRoute{},
+		)
+	}
+
+	for _, v := range typesToSeed {
+		objects, err := listObjectsForType(ctx, c, v)
+		if err != nil {
 			return err
 		}
-		for _, gtw := range gateways.Items {
-			if err := d.store.Update(&gtw); err != nil {
+
+		for _, obj := range objects {
+			if err := d.store.Update(obj); err != nil {
 				return err
 			}
 		}
-
-		httproutes := &gatewayv1.HTTPRouteList{}
-		if err := c.List(ctx, httproutes); err != nil {
-			return err
-		}
-		for _, httproute := range httproutes.Items {
-			if err := d.store.Update(&httproute); err != nil {
-				return err
-			}
-		}
 	}
-
-	services := &corev1.ServiceList{}
-	if err := c.List(ctx, services); err != nil {
-		return err
-	}
-	for _, svc := range services.Items {
-		if err := d.store.Update(&svc); err != nil {
-			return err
-		}
-	}
-
-	domains := &ingressv1alpha1.DomainList{}
-	if err := c.List(ctx, domains); err != nil {
-		return err
-	}
-	for _, domain := range domains.Items {
-		if err := d.store.Update(&domain); err != nil {
-			return err
-		}
-	}
-
-	edges := &ingressv1alpha1.HTTPSEdgeList{}
-	if err := c.List(ctx, edges); err != nil {
-		return err
-	}
-	for _, edge := range edges.Items {
-		if err := d.store.Update(&edge); err != nil {
-			return err
-		}
-	}
-
-	tunnels := &ingressv1alpha1.TunnelList{}
-	if err := c.List(ctx, tunnels); err != nil {
-		return err
-	}
-	for _, tunnel := range tunnels.Items {
-		if err := d.store.Update(&tunnel); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 

@@ -500,7 +500,6 @@ var _ = Describe("Driver", func() {
 
 			jsonString, err := json.Marshal(policy)
 			Expect(err).To(BeNil())
-			println("policy", string(jsonString))
 
 			Expect(len(policy.Inbound) == 3).To(BeTrue())
 			Expect(len(policy.Outbound)).To(BeZero())
