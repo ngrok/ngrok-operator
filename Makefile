@@ -220,7 +220,7 @@ endef
 _helm_setup:
 	./scripts/helm-setup.sh
 	helm repo add bitnami https://charts.bitnami.com/bitnami
-	helm dependency update $(HELM_CHART_DIR)
+	helm dependency build $(HELM_CHART_DIR)
 
 .PHONY: helm-lint
 helm-lint: _helm_setup ## Lint the helm chart
