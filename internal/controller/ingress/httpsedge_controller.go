@@ -40,6 +40,7 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
@@ -97,7 +98,10 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.HTTPSEdge{}).
-		WithEventFilter(commonPredicateFilters).
+		WithEventFilter(predicate.Or(
+			predicate.AnnotationChangedPredicate{},
+			predicate.GenerationChangedPredicate{},
+		)).
 		Complete(r)
 }
 

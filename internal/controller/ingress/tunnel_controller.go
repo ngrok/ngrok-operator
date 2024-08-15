@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -87,7 +88,10 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := cont.Watch(
 		source.Kind(mgr.GetCache(), &ingressv1alpha1.Tunnel{}),
 		&handler.EnqueueRequestForObject{},
-		commonPredicateFilters,
+		predicate.Or(
+			predicate.AnnotationChangedPredicate{},
+			predicate.GenerationChangedPredicate{},
+		),
 	); err != nil {
 		return err
 	}
