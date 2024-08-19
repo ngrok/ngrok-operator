@@ -417,9 +417,6 @@ func (s Store) shouldHandleIngressCheckClass(ing *netv1.Ingress) (bool, error) {
 // shouldHandleIngressIsValid checks if the ingress should be handled by the controller based on the ingress spec
 func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 	errs := errors.NewErrInvalidIngressSpec()
-	if len(ing.Spec.Rules) > 1 {
-		errs.AddError("A maximum of one rule is required to be set")
-	}
 	if len(ing.Spec.Rules) == 0 {
 		errs.AddError("At least one rule is required to be set")
 	} else {
