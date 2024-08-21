@@ -251,4 +251,90 @@ var _ = Describe("Store", func() {
 			})
 		})
 	})
+
+	var _ = Describe("Issue #56", func() {
+		var multiRuleIngress netv1.Ingress
+
+		BeforeEach(func() {
+			ngrokClass := NewTestIngressClass(ngrokIngressClass, true, true)
+			otherClass := NewTestIngressClass("other", false, false)
+			Expect(store.Add(&ngrokClass)).ToNot(HaveOccurred())
+			Expect(store.Add(&otherClass)).ToNot(HaveOccurred())
+			multiRuleIngress = NewTestIngressV1WithClass("multi-rule-ingress", "test-namespace", ngrokClass.Name)
+			multiRuleIngress.Spec.Rules = []netv1.IngressRule{
+				{
+					Host: "test1.com",
+					IngressRuleValue: netv1.IngressRuleValue{
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "test-service",
+											Port: netv1.ServiceBackendPort{
+												Number: 80,
+											},
+										},
+									},
+								},
+								{
+									Path: "/api",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "api-service",
+											Port: netv1.ServiceBackendPort{
+												Number: 80,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Host: "test2.com",
+					IngressRuleValue: netv1.IngressRuleValue{
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "test-service",
+											Port: netv1.ServiceBackendPort{
+												Number: 80,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+		})
+
+		Context("when an ngrok ingress has multiple rules", func() {
+			It("should not error", func() {
+				Expect(store.Add(&multiRuleIngress)).ToNot(HaveOccurred())
+			})
+
+			It("should return the ngrok ingress when queried by name & namespace", func() {
+				Expect(store.Add(&multiRuleIngress)).ToNot(HaveOccurred())
+				ing, err := store.GetNgrokIngressV1(multiRuleIngress.Name, multiRuleIngress.Namespace)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ing).ToNot(BeNil())
+				Expect(ing.Spec.Rules).To(HaveLen(2))
+			})
+
+			It("should return the ngrok ingress when listed", func() {
+				Expect(store.Add(&multiRuleIngress)).ToNot(HaveOccurred())
+				ings := store.ListNgrokIngressesV1()
+				Expect(ings).To(HaveLen(1))
+				Expect(*ings[0]).To(Equal(multiRuleIngress))
+			})
+		})
+	})
 })
