@@ -31,10 +31,14 @@ import (
 
 const clusterDomain = "svc.cluster.local" // TODO: We can technically figure this out by looking at things like our resolv.conf or we can just take this as a helm option
 
+var domainNameForResourceNameReplacer = strings.NewReplacer(
+	".", "-", // replace dots with dashes
+	"*", "wildcard", // replace wildcard with the literal "wildcard"
+)
+
 const (
 	labelControllerNamespace = "k8s.ngrok.com/controller-namespace"
 	labelControllerName      = "k8s.ngrok.com/controller-name"
-	labelDomain              = "k8s.ngrok.com/domain"
 	labelNamespace           = "k8s.ngrok.com/namespace"
 	labelServiceUID          = "k8s.ngrok.com/service-uid"
 	labelService             = "k8s.ngrok.com/service"
@@ -510,7 +514,18 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 func (d *Driver) applyHTTPSEdges(ctx context.Context, c client.Client, desiredEdges map[string]ingressv1alpha1.HTTPSEdge, currentEdges []ingressv1alpha1.HTTPSEdge) error {
 	// update or delete edge we don't need anymore
 	for _, currEdge := range currentEdges {
-		domain := currEdge.Labels[labelDomain]
+		hostports := currEdge.Spec.Hostports
+
+		// If one of the controller-owned edges has more than one hostport, log an error and skip it
+		// because we can't determine what to do with it.
+		if len(hostports) != 1 {
+			d.log.Error(nil, "Existing owned edge has more than 1 hostport", "edge", currEdge, "hostports", hostports)
+			continue
+		}
+
+		// ngrok only supports https on port 443 and all domains are on port 443
+		// so we can safely trim the port from the hostport to get the domain
+		domain := strings.TrimSuffix(hostports[0], ":443")
 
 		if desiredEdge, ok := desiredEdges[domain]; ok {
 			needsUpdate := false
@@ -644,9 +659,10 @@ func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain
 			if rule.Host == "" {
 				continue
 			}
+
 			domain := ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      strings.Replace(rule.Host, ".", "-", -1),
+					Name:      domainNameForResourceNameReplacer.Replace(rule.Host),
 					Namespace: ingress.Namespace,
 				},
 				Spec: ingressv1alpha1.DomainSpec{
@@ -678,7 +694,7 @@ func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1
 			}
 			domain := ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      strings.Replace(domainName, ".", "-", -1),
+					Name:      domainNameForResourceNameReplacer.Replace(domainName),
 					Namespace: gw.Namespace,
 				},
 				Spec: ingressv1alpha1.DomainSpec{
@@ -736,7 +752,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: domain.Name + "-",
 				Namespace:    domain.Namespace,
-				Labels:       d.edgeLabels(domain.Spec.Domain),
+				Labels:       d.edgeLabels(),
 			},
 			Spec: ingressv1alpha1.HTTPSEdgeSpec{
 				Hostports: []string{domain.Spec.Domain + ":443"},
@@ -801,7 +817,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: httproute.Name + "-",
 						Namespace:    httproute.Namespace,
-						Labels:       d.edgeLabels(routeDomains[0]),
+						Labels:       d.edgeLabels(),
 					},
 					Spec: ingressv1alpha1.HTTPSEdgeSpec{
 						Hostports: hostPorts,
@@ -1809,11 +1825,10 @@ func (d *Driver) getPortAppProtocol(service *corev1.Service, port *corev1.Servic
 	}
 }
 
-func (d *Driver) edgeLabels(domain string) map[string]string {
+func (d *Driver) edgeLabels() map[string]string {
 	return map[string]string{
 		labelControllerNamespace: d.managerName.Namespace,
 		labelControllerName:      d.managerName.Name,
-		labelDomain:              domain,
 	}
 }
 
