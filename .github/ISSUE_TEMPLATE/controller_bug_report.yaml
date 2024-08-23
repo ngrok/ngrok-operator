@@ -39,8 +39,7 @@ body:
 - type: textarea
   attributes:
     label: Kubernetes Logs
-    description: We want to see relevant kubernetes logs showing error messages
-or helpful debugging information
+    description: We want to see relevant kubernetes logs showing error messages or helpful debugging information
     placeholder: >
       Run `kubectl logs -l app.kubernetes.io/name=kubernetes-ingress-controller` and copy the output here.
   validations:

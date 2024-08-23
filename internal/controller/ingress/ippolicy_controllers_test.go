@@ -6,7 +6,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestIPPolicyDiff(t *testing.T) {
@@ -34,7 +34,7 @@ func TestIPPolicyDiff(t *testing.T) {
 	assert.Empty(t, diff.NeedsDelete())
 	assert.Empty(t, diff.NeedsUpdate())
 	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[2].CIDR, Action: pointer.String(IPPolicyRuleActionDeny)}},
+		{IPPolicyID: "test", CIDR: specRules[2].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)}},
 		diff.NeedsCreate(),
 	)
 
@@ -42,21 +42,21 @@ func TestIPPolicyDiff(t *testing.T) {
 	assert.Empty(t, diff.NeedsUpdate())
 	assert.Equal(t, []*ngrok.IPPolicyRule{remoteRules[0]}, diff.NeedsDelete())
 	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[0].CIDR, Action: pointer.String(IPPolicyRuleActionDeny)},
+		{IPPolicyID: "test", CIDR: specRules[0].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)},
 	}, diff.NeedsCreate())
 
 	assert.True(t, diff.Next())
 	assert.Empty(t, diff.NeedsUpdate())
 	assert.Equal(t, []*ngrok.IPPolicyRule{remoteRules[1]}, diff.NeedsDelete())
 	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[1].CIDR, Action: pointer.String(IPPolicyRuleActionAllow)},
+		{IPPolicyID: "test", CIDR: specRules[1].CIDR, Action: ptr.To(IPPolicyRuleActionAllow)},
 	}, diff.NeedsCreate())
 
 	assert.True(t, diff.Next())
 	assert.Empty(t, diff.NeedsUpdate())
 	assert.Equal(t, []*ngrok.IPPolicyRule{}, diff.NeedsDelete())
 	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[3].CIDR, Action: pointer.String(IPPolicyRuleActionAllow)},
+		{IPPolicyID: "test", CIDR: specRules[3].CIDR, Action: ptr.To(IPPolicyRuleActionAllow)},
 	}, diff.NeedsCreate())
 
 	assert.True(t, diff.Next())
@@ -68,7 +68,7 @@ func TestIPPolicyDiff(t *testing.T) {
 	assert.Empty(t, diff.NeedsDelete())
 	assert.Empty(t, diff.NeedsCreate())
 	assert.Equal(t, []*ngrok.IPPolicyRuleUpdate{
-		{ID: "5", CIDR: pointer.String("172.19.0.0/16"), Description: pointer.String("b"), Metadata: pointer.String("")},
+		{ID: "5", CIDR: ptr.To("172.19.0.0/16"), Description: ptr.To("b"), Metadata: ptr.To("")},
 	}, diff.NeedsUpdate())
 
 	assert.False(t, diff.Next())

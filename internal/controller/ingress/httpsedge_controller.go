@@ -40,10 +40,12 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/controllers"
 	ierr "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
@@ -96,7 +98,10 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.HTTPSEdge{}).
-		WithEventFilter(commonPredicateFilters).
+		WithEventFilter(predicate.Or(
+			predicate.AnnotationChangedPredicate{},
+			predicate.GenerationChangedPredicate{},
+		)).
 		Complete(r)
 }
 
@@ -167,6 +172,10 @@ func (r *HTTPSEdgeReconciler) upsert(ctx context.Context, edge *ingressv1alpha1.
 		return err
 	}
 
+	if err := r.setEdgeMutualTLS(ctx, remoteEdge, edge.Spec.MutualTLS); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -191,8 +200,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 	routeModuleUpdater := &edgeRouteModuleUpdater{
 		edge:             edge,
 		clientset:        r.NgrokClientset.EdgeModules().HTTPS().Routes(),
-		ipPolicyResolver: ipPolicyResolver{r.Client},
-		secretResolver:   secretResolver{r.Client},
+		ipPolicyResolver: controllers.IpPolicyResolver{Client: r.Client},
+		secretResolver:   controllers.SecretResolver{Client: r.Client},
 	}
 
 	edgeRoutes := r.NgrokClientset.HTTPSEdgeRoutes()
@@ -203,7 +212,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		routeLog := log.WithValues("route.match", routeSpec.Match, "route.match_type", routeSpec.MatchType)
 
 		if routeSpec.IPRestriction != nil {
-			if err := routeModuleUpdater.ipPolicyResolver.validateIPPolicyNames(ctx, edge.Namespace, routeSpec.IPRestriction.IPPolicies); err != nil {
+			if err := routeModuleUpdater.ipPolicyResolver.ValidateIPPolicyNames(ctx, edge.Namespace, routeSpec.IPRestriction.IPPolicies); err != nil {
 				if apierrors.IsNotFound(err) {
 					r.Recorder.Eventf(edge, v1.EventTypeWarning, "FailedValidate", "Could not validate ip restriction: %v", err)
 					continue
@@ -343,6 +352,29 @@ func (r *HTTPSEdgeReconciler) setEdgeTLSTermination(ctx context.Context, edge *n
 		ID: edge.ID,
 		Module: ngrok.EndpointTLSTerminationAtEdge{
 			MinVersion: ptr.To(tlsTermination.MinVersion),
+		},
+	})
+	return err
+}
+
+func (r *HTTPSEdgeReconciler) setEdgeMutualTLS(ctx context.Context, edge *ngrok.HTTPSEdge, mtls *ingressv1alpha1.EndpointMutualTLS) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	client := r.NgrokClientset.EdgeModules().HTTPS().MutualTLS()
+	if mtls == nil {
+		if edge.MutualTls == nil {
+			log.V(1).Info("Edge Mutual TLS matches spec")
+			return nil
+		}
+
+		log.Info("Deleting Edge Mutual TLS")
+		return client.Delete(ctx, edge.ID)
+	}
+
+	_, err := client.Replace(ctx, &ngrok.EdgeMutualTLSReplace{
+		ID: edge.ID,
+		Module: ngrok.EndpointMutualTLSMutate{
+			CertificateAuthorityIDs: mtls.CertificateAuthorities,
 		},
 	})
 	return err
@@ -508,8 +540,8 @@ type edgeRouteModuleUpdater struct {
 
 	clientset ngrokapi.HTTPSEdgeRouteModulesClientset
 
-	ipPolicyResolver ipPolicyResolver
-	secretResolver   secretResolver
+	ipPolicyResolver controllers.IpPolicyResolver
+	secretResolver   controllers.SecretResolver
 }
 
 func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
@@ -627,7 +659,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteIPRestriction(ctx context.Context, 
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
-	policyIds, err := u.ipPolicyResolver.resolveIPPolicyNamesorIds(ctx, u.edge.Namespace, ipRestriction.IPPolicies)
+	policyIds, err := u.ipPolicyResolver.ResolveIPPolicyNamesorIds(ctx, u.edge.Namespace, ipRestriction.IPPolicies)
 	if err != nil {
 		return err
 	}
@@ -768,7 +800,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	for _, p := range providers {
-		if p == nil {
+		if !p.Provided() {
 			continue
 		}
 
@@ -943,7 +975,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteWebhookVerification(ctx context.Con
 }
 
 func (u *edgeRouteModuleUpdater) getSecret(ctx context.Context, secretRef ingressv1alpha1.SecretKeyRef) (*string, error) {
-	secret, err := u.secretResolver.getSecret(ctx,
+	secret, err := u.secretResolver.GetSecret(ctx,
 		u.edge.Namespace,
 		secretRef.Name,
 		secretRef.Key,
@@ -953,6 +985,8 @@ func (u *edgeRouteModuleUpdater) getSecret(ctx context.Context, secretRef ingres
 
 type OAuthProvider interface {
 	ClientSecretKeyRef() *ingressv1alpha1.SecretKeyRef
+	// Provided returns true if configuration was supplied for the provider
+	Provided() bool
 	ToNgrok(*string) *ngrok.EndpointOAuth
 }
 
@@ -1033,12 +1067,10 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
 	log := ctrl.LoggerFrom(ctx)
 	policy := routeSpec.Policy
-	client := u.clientset.Policy()
-
-	endpointPolicy := policy.ToNgrok()
+	client := u.clientset.RawPolicy()
 
 	// Early return if nothing to be done
-	if endpointPolicy == nil {
+	if policy == nil {
 		if route.Policy == nil {
 			u.logMatches(log, "Policy", routeModuleComparisonBothNil)
 			return nil
@@ -1049,10 +1081,10 @@ func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *
 	}
 
 	log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrok.EdgeRoutePolicyReplace{
+	_, err := client.Replace(ctx, &ngrokapi.EdgeRoutePolicyRawReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
-		Module: *endpointPolicy,
+		Module: policy,
 	})
 	return err
 }

@@ -25,6 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -43,7 +45,11 @@ type TCPEdgeSpec struct {
 	// IPRestriction is an IPRestriction to apply to this edge
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
 
-	Policy *EndpointPolicy `json:"policy,omitempty"`
+	// raw json policy string that was applied to the ngrok API
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Type=object
+	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
 // TCPEdgeStatus defines the observed state of TCPEdge

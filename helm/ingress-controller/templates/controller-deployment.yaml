@@ -28,6 +28,9 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
+        checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/role.yaml") . | sha256sum }}
+        checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
       labels:
         {{- include "kubernetes-ingress-controller.selectorLabels" . | nindent 8 }}
         {{- if .Values.podLabels }}
@@ -61,6 +64,12 @@ spec:
         {{- if .Values.region }}
         - --region={{ .Values.region}}
         {{- end }}
+        {{- if .Values.apiURL }}
+        - --api-url={{ .Values.apiURL}}
+        {{- end }}
+        {{- if .Values.rootCAs }}
+        - --root-cas={{ .Values.rootCAs}}
+        {{- end }}
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}
         {{- end }}
@@ -74,6 +83,9 @@ spec:
         - --controller-name={{ .Values.controllerName }}
         {{- if .Values.watchNamespace }}
         - --watch-namespace={{ .Values.watchNamespace}}
+        {{- end }}
+        {{- if .Values.useExperimentalGatewayApi }}
+        - --use-experimental-gateway-api={{ .Values.useExperimentalGatewayApi }}
         {{- end }}
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}

@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
@@ -70,10 +71,16 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		update:   r.update,
 		delete:   r.delete,
 		errResult: func(op baseControllerOp, cr *ingressv1alpha1.Domain, err error) (reconcile.Result, error) {
-			// Domain still attached to an edge, probably a race condition.
-			// Schedule for retry, and hopefully the edge will be gone
-			// eventually.
-			if ngrok.IsErrorCode(err, 446) {
+			retryableErrors := []int{
+				// Domain still attached to an edge, probably a race condition.
+				// Schedule for retry, and hopefully the edge will be gone
+				// eventually.
+				446,
+				// Domain has a dangling CNAME record. Other controllers or operators, such as external-dns, might
+				// be managing the DNS records for the domain and in the process of deleting the CNAME record.
+				511,
+			}
+			if ngrok.IsErrorCode(err, retryableErrors...) {
 				return ctrl.Result{}, err
 			}
 			return reconcileResultFromError(err)
@@ -82,7 +89,10 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.Domain{}).
-		WithEventFilter(commonPredicateFilters).
+		WithEventFilter(predicate.Or(
+			predicate.AnnotationChangedPredicate{},
+			predicate.GenerationChangedPredicate{},
+		)).
 		Complete(r)
 }
 

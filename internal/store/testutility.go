@@ -1,7 +1,10 @@
 package store
 
 import (
+	"encoding/json"
+
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -122,6 +125,18 @@ func NewTestNgrokModuleSet(name string, namespace string, compressionEnabled boo
 			Compression: &ingressv1alpha1.EndpointCompression{
 				Enabled: compressionEnabled,
 			},
+		},
+	}
+}
+
+func NewTestNgrokTrafficPolicy(name string, namespace string, policyStr string) ngrokv1alpha1.NgrokTrafficPolicy {
+	return ngrokv1alpha1.NgrokTrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+			Policy: json.RawMessage(policyStr),
 		},
 	}
 }

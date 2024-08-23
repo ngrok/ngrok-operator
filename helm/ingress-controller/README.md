@@ -64,8 +64,10 @@ To uninstall the chart:
 | `credentials.apiKey`                 | Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well. | `""`                                  |
 | `credentials.authtoken`              | Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.  | `""`                                  |
 | `region`                             | ngrok region to create tunnels in. Defaults to connect to the closest geographical region.                            | `""`                                  |
-| `serverAddr`                         | This is the URL of the ngrok server to connect to. You should set this if you are using a custom ingress URL.         | `""`                                  |
+| `rootCAs`                            | Set to "trusted" for the ngrok agent CA or "host" to trust the host's CA. Defaults to "trusted".                      | `""`                                  |
+| `serverAddr`                         | This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address. | `""`                                  |
 | `clusterDomain`                      | Injects the cluster domain name for service discovery.                                                                | `svc.cluster.local`                   |
+| `apiURL`                             | This is the URL of the ngrok API. You should set this if you are using a custom API URL.                              | `""`                                  |
 | `metaData`                           | This is a map of key/value pairs that will be added as meta data to all ngrok api resources created                   | `{}`                                  |
 | `affinity`                           | Affinity for the controller pod assignment                                                                            | `{}`                                  |
 | `podAffinityPreset`                  | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                   | `""`                                  |

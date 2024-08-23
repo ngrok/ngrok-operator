@@ -26,10 +26,13 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -41,6 +44,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/controllers"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
 	"github.com/ngrok/ngrok-api-go/v5"
 )
@@ -53,7 +57,7 @@ type TCPEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	ipPolicyResolver
+	controllers.IpPolicyResolver
 
 	NgrokClientset ngrokapi.Clientset
 
@@ -62,7 +66,7 @@ type TCPEdgeReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.ipPolicyResolver = ipPolicyResolver{client: mgr.GetClient()}
+	r.IpPolicyResolver = controllers.IpPolicyResolver{Client: mgr.GetClient()}
 
 	r.controller = &baseController[*ingressv1alpha1.TCPEdge]{
 		Kube:     r.Client,
@@ -99,6 +103,8 @@ func (r *TCPEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if err := r.reconcileTunnelGroupBackend(ctx, edge); err != nil {
 		return err
 	}
@@ -118,7 +124,7 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 	}
 
 	// No edge has been created for this edge, create one
-	r.Log.Info("Creating new TCPEdge", "namespace", edge.Namespace, "name", edge.Name)
+	log.Info("Creating new TCPEdge", "namespace", edge.Namespace, "name", edge.Name)
 	resp, err = r.NgrokClientset.TCPEdges().Create(ctx, &ngrok.TCPEdgeCreate{
 		Description: edge.Spec.Description,
 		Metadata:    edge.Spec.Metadata,
@@ -135,6 +141,8 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 }
 
 func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if err := r.reconcileTunnelGroupBackend(ctx, edge); err != nil {
 		return err
 	}
@@ -148,7 +156,7 @@ func (r *TCPEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.TC
 		// If we can't find the edge in the ngrok API, it's been deleted, so clear the ID
 		// and requeue the edge. When it gets reconciled again, it will be recreated.
 		if ngrok.IsNotFound(err) {
-			r.Log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
+			log.Info("TCPEdge not found, clearing ID and requeuing", "edge.ID", edge.Status.ID)
 			edge.Status.ID = ""
 			//nolint:errcheck
 			r.Status().Update(ctx, edge)
@@ -185,14 +193,18 @@ func (r *TCPEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TC
 }
 
 func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	specBackend := edge.Spec.Backend
 	// First make sure the tunnel group backend matches
 	if edge.Status.Backend.ID != "" {
+		log.WithValues("TunnelGroupBackend.ID", edge.Status.Backend.ID)
+
 		// A backend has already been created for this edge, make sure the labels match
 		backend, err := r.NgrokClientset.TunnelGroupBackends().Get(ctx, edge.Status.Backend.ID)
 		if err != nil {
 			if ngrok.IsNotFound(err) {
-				r.Log.Info("TunnelGroupBackend not found, clearing ID and requeuing", "TunnelGroupBackend.ID", edge.Status.Backend.ID)
+				log.Info("TunnelGroupBackend not found, clearing ID and requeuing")
 				edge.Status.Backend.ID = ""
 				//nolint:errcheck
 				r.Status().Update(ctx, edge)
@@ -212,6 +224,7 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 				return err
 			}
 		}
+		log.V(3).Info("Existing TunnelGroupBackend has matching labels", "labels", specBackend.Labels)
 		return nil
 	}
 
@@ -230,7 +243,9 @@ func (r *TCPEdgeReconciler) reconcileTunnelGroupBackend(ctx context.Context, edg
 }
 
 func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backendLabels map[string]string) (*ngrok.TCPEdge, error) {
-	r.Log.Info("Searching for existing TCPEdge with backend labels", "labels", backendLabels)
+	log := ctrl.LoggerFrom(ctx)
+	log.Info("Searching for existing TCPEdge with backend labels", "labels", backendLabels)
+
 	iter := r.NgrokClientset.TCPEdges().List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		edge := iter.Item()
@@ -240,16 +255,23 @@ func (r *TCPEdgeReconciler) findEdgeByBackendLabels(ctx context.Context, backend
 
 		backend, err := r.NgrokClientset.TunnelGroupBackends().Get(ctx, edge.Backend.Backend.ID)
 		if err != nil {
-			// If we get an error looking up the backend, return the error and
+			// The backend ID on the edge is invalid and no longer exists in the ngrok API,
+			// so we'll skip this edge check the next one.
+			if ngrok.IsNotFound(err) {
+				continue
+			}
+
+			// We've go an error besides not found. Return the error and
 			// hopefully the next reconcile will fix it.
 			return nil, err
 		}
+
 		if backend == nil {
 			continue
 		}
 
 		if maps.Equal(backend.Labels, backendLabels) {
-			r.Log.Info("Found existing TCPEdge with matching backend labels", "labels", backendLabels, "edge.ID", edge.ID)
+			log.Info("Found existing TCPEdge with matching backend labels", "labels", backendLabels, "edge.ID", edge.ID)
 			return edge, nil
 		}
 	}
@@ -283,22 +305,48 @@ func (r *TCPEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv
 }
 
 func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if edge.Status.Hostports == nil || len(edge.Status.Hostports) == 0 {
-		addr, err := r.findAddrWithMatchingMetadata(ctx, r.metadataForEdge(edge))
+		metadata := ReservedAddrMetadata{
+			Namespace: edge.Namespace,
+			Name:      edge.Name,
+			OwnerRef:  metav1.GetControllerOf(edge),
+		}
+
+		log.V(3).Info("No hostports assigned to edge, assigning one or using existing one")
+		addr, err := r.findAddrWithMatchingMetadata(ctx, metadata)
+		if err != nil {
+			log.Error(err, "Failed to find addr with matching metadata")
+			return err
+		}
+
+		metadataBytes, err := json.Marshal(metadata)
 		if err != nil {
 			return err
 		}
 
 		// If we found an addr with matching metadata, use it
 		if addr != nil {
+			description := r.descriptionForEdge(edge)
+			metadata := string(metadataBytes)
+			// Update the addr description & metadata. We know the metadata matches, but the name for the edge may have changed
+			_, _ = r.NgrokClientset.TCPAddresses().Update(ctx, &ngrok.ReservedAddrUpdate{
+				ID:          addr.ID,
+				Description: &description,
+				Metadata:    &metadata,
+			})
+
+			log.V(3).Info("Found existing addr with matching metadata", "reservedAddr.ID", addr.ID, "reservedAddr.Addr", addr.Addr)
 			edge.Status.Hostports = []string{addr.Addr}
 			return r.Status().Update(ctx, edge)
 		}
 
 		// No hostports have been assigned to this edge, assign one
+		log.V(3).Info("Creating new reserved addr for edge")
 		addr, err = r.NgrokClientset.TCPAddresses().Create(ctx, &ngrok.ReservedAddrCreate{
 			Description: r.descriptionForEdge(edge),
-			Metadata:    r.metadataForEdge(edge),
+			Metadata:    string(metadataBytes),
 		})
 		if err != nil {
 			return err
@@ -307,37 +355,51 @@ func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingres
 		edge.Status.Hostports = []string{addr.Addr}
 		return r.Status().Update(ctx, edge)
 	}
+
+	log.V(3).Info("Hostports already assigned to edge", "hostports", edge.Status.Hostports)
 	return nil
 }
 
-func (r *TCPEdgeReconciler) findAddrWithMatchingMetadata(ctx context.Context, metadata string) (*ngrok.ReservedAddr, error) {
+func (r *TCPEdgeReconciler) findAddrWithMatchingMetadata(ctx context.Context, metadata ReservedAddrMetadata) (*ngrok.ReservedAddr, error) {
+	log := ctrl.LoggerFrom(ctx)
+
 	iter := r.NgrokClientset.TCPAddresses().List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		addr := iter.Item()
-		if addr.Metadata == metadata {
+		if addr.Metadata == "" {
+			continue
+		}
+
+		addrMetadata := ReservedAddrMetadata{}
+		// if we can't unmarshal the metadata, we can't match it, but just continue
+		if err := json.Unmarshal([]byte(addr.Metadata), &addrMetadata); err != nil {
+			log.V(3).Info("Failed to unmarshal addr metadata", "addr.ID", addr.ID, "err", err)
+			continue
+		}
+
+		if metadata.Matches(addrMetadata) {
 			return addr, nil
 		}
 	}
 	return nil, iter.Err()
 }
 
-func (r *TCPEdgeReconciler) metadataForEdge(edge *ingressv1alpha1.TCPEdge) string {
-	return fmt.Sprintf(`{"namespace": "%s", "name": "%s"}`, edge.Namespace, edge.Name)
-}
-
 func (r *TCPEdgeReconciler) descriptionForEdge(edge *ingressv1alpha1.TCPEdge) string {
 	return fmt.Sprintf("Reserved for %s/%s", edge.Namespace, edge.Name)
 }
 
-func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
+func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, _ *ngrok.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TCP().IPRestriction().Delete(ctx, edge.Status.ID)
 	}
-	policyIds, err := r.ipPolicyResolver.resolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
+	policyIds, err := r.IpPolicyResolver.ResolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
 	if err != nil {
 		return err
 	}
-	r.Log.Info("Resolved IP Policy NamesOrIDs to IDs", "policyIds", policyIds)
+
+	log.Info("Resolved IP Policy NamesOrIDs to IDs", "policyIds", policyIds)
 
 	_, err = r.NgrokClientset.EdgeModules().TCP().IPRestriction().Replace(ctx, &ngrok.EdgeIPRestrictionReplace{
 		ID: edge.Status.ID,
@@ -387,12 +449,10 @@ func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(ctx context.Context, obj cli
 
 func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
 	policy := edge.Spec.Policy
-	client := r.NgrokClientset.EdgeModules().TCP().Policy()
-
-	endpointPolicy := policy.ToNgrok()
+	client := r.NgrokClientset.EdgeModules().TCP().RawPolicy()
 
 	// Early return if nothing to be done
-	if endpointPolicy == nil {
+	if policy == nil {
 		if remoteEdge.Policy == nil {
 			r.Log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
 
@@ -404,9 +464,31 @@ func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 	}
 
 	r.Log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrok.EdgePolicyReplace{
+	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTCPPolicyReplace{
 		ID:     remoteEdge.ID,
-		Module: *endpointPolicy,
+		Module: policy,
 	})
+
 	return err
+}
+
+type ReservedAddrMetadata struct {
+	Namespace string                 `json:"namespace"`
+	Name      string                 `json:"name"`
+	OwnerRef  *metav1.OwnerReference `json:"ownerRef,omitempty"`
+}
+
+// Matches returns true if the metadata is a match for the other metadata
+func (m ReservedAddrMetadata) Matches(other ReservedAddrMetadata) bool {
+	// If the namespaces don't match, they're automatically not a match
+	if m.Namespace != other.Namespace {
+		return false
+	}
+
+	// If either have the owner reference set, we'll use those to compare
+	if m.OwnerRef != nil || other.OwnerRef != nil {
+		return reflect.DeepEqual(m.OwnerRef, other.OwnerRef)
+	}
+
+	return m.Name == other.Name
 }

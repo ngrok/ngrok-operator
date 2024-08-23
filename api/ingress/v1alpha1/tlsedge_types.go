@@ -25,6 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -51,7 +53,11 @@ type TLSEdgeSpec struct {
 
 	MutualTLS *EndpointMutualTLS `json:"mutualTls,omitempty"`
 
-	Policy *EndpointPolicy `json:"policy,omitempty"`
+	// raw json policy string that was applied to the ngrok API
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Type=object
+	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
 // TLSEdgeStatus defines the observed state of TLSEdge
@@ -68,6 +74,9 @@ type TLSEdgeStatus struct {
 	// Backend stores the status of the tunnel group backend,
 	// mainly the ID of the backend
 	Backend TunnelGroupBackendStatus `json:"backend,omitempty"`
+
+	// Map of hostports to the ngrok assigned CNAME targets
+	CNAMETargets map[string]string `json:"cnameTargets,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -5,7 +5,9 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
+	"github.com/ngrok/kubernetes-ingress-controller/internal/controller/controllers"
 	internalerrors "github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
 	corev1 "k8s.io/api/core/v1"
@@ -36,6 +38,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		&ingressv1alpha1.HTTPSEdge{},
 		&ingressv1alpha1.Tunnel{},
 		&ingressv1alpha1.NgrokModuleSet{},
+		&ngrokv1alpha1.NgrokTrafficPolicy{},
 	}
 
 	builder := ctrl.NewControllerManagedBy(mgr).For(&netv1.Ingress{})
@@ -56,6 +59,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses/status,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingressclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=ngrokmodulesets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch
 
 // This reconcile function is called by the controller-runtime manager.
 // It is invoked whenever there is an event that occurs for a resource
@@ -104,16 +108,16 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if isUpsert(ingress) {
+	if controllers.IsUpsert(ingress) {
 		// The object is not being deleted, so register and sync finalizer
-		if err := registerAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+		if err := controllers.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
 	} else {
 		log.Info("Deleting ingress from store")
-		if hasFinalizer(ingress) {
-			if err := removeAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+		if controllers.HasFinalizer(ingress) {
+			if err := controllers.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
 				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}

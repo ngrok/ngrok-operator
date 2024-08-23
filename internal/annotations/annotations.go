@@ -17,6 +17,8 @@ limitations under the License.
 package annotations
 
 import (
+	"fmt"
+
 	"github.com/imdario/mergo"
 	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
 	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/compression"
@@ -28,6 +30,7 @@ import (
 	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // DeniedKeyName name of the key that contains the reason to deny a location
@@ -42,12 +45,12 @@ type RouteModules struct {
 }
 
 type Extractor struct {
-	annotations map[string]parser.IngressAnnotation
+	annotations map[string]parser.Annotation
 }
 
 func NewAnnotationsExtractor() Extractor {
 	return Extractor{
-		annotations: map[string]parser.IngressAnnotation{
+		annotations: map[string]parser.Annotation{
 			"Compression":         compression.NewParser(),
 			"Headers":             headers.NewParser(),
 			"IPRestriction":       ip_policies.NewParser(),
@@ -98,8 +101,28 @@ func (e Extractor) Extract(ing *networking.Ingress) *RouteModules {
 	return pia
 }
 
-// Extracts a list of moudule set names from the annotation
+// Extracts a list of module set names from the annotation
 // k8s.ngrok.com/modules: "module1,module2"
-func ExtractNgrokModuleSetsFromAnnotations(ing *networking.Ingress) ([]string, error) {
-	return parser.GetStringSliceAnnotation("modules", ing)
+func ExtractNgrokModuleSetsFromAnnotations(obj client.Object) ([]string, error) {
+	return parser.GetStringSliceAnnotation("modules", obj)
+}
+
+// Extracts a single traffic policy str from the annotation
+// k8s.ngrok.com/traffic-policy: "module1"
+func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error) {
+	policies, err := parser.GetStringSliceAnnotation("traffic-policy", obj)
+
+	if err != nil {
+		return "", err
+	}
+
+	if len(policies) > 1 {
+		return "", fmt.Errorf("multiple traffic policies are not supported: %v", policies)
+	}
+
+	if len(policies) != 0 {
+		return policies[0], nil
+	}
+
+	return "", nil
 }
