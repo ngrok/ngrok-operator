@@ -60,6 +60,7 @@ Should match all-options snapshot:
                 - --metrics-bind-address=:8080
                 - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
                 - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
+                - --cluster-domain=svc.cluster.local
               command:
                 - /manager
               env:
@@ -599,6 +600,7 @@ Should match default snapshot:
                 - --metrics-bind-address=:8080
                 - --election-id=RELEASE-NAME-kubernetes-ingress-controller-leader
                 - --manager-name=RELEASE-NAME-kubernetes-ingress-controller-manager
+                - --cluster-domain=svc.cluster.local
               command:
                 - /manager
               env:

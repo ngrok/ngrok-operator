@@ -39,9 +39,9 @@ var _ = Describe("Driver", func() {
 			scheme,
 			defaultControllerName,
 			types.NamespacedName{Name: defaultManagerName},
-			false,
+			WithGatewayEnabled(false),
+			WithSyncAllowConcurrent(true),
 		)
-		driver.syncAllowConcurrent = true
 	})
 
 	Describe("Seed", func() {

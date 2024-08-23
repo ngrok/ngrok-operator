@@ -94,6 +94,9 @@ spec:
         - --metrics-bind-address=:8080
         - --election-id={{ include "kubernetes-ingress-controller.fullname" . }}-leader
         - --manager-name={{ include "kubernetes-ingress-controller.fullname" . }}-manager
+        {{- if .Values.clusterDomain }}
+        - --cluster-domain={{ .Values.clusterDomain }}
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
         env:

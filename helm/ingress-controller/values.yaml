@@ -73,6 +73,9 @@ rootCAs: ""
 ## @param serverAddr  This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address.
 serverAddr: ""
 
+## @param clusterDomain Injects the cluster domain name for service discovery.
+clusterDomain: svc.cluster.local
+
 ## @param apiURL  This is the URL of the ngrok API. You should set this if you are using a custom API URL.
 apiURL: ""
 

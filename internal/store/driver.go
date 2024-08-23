@@ -29,7 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const clusterDomain = "svc.cluster.local" // TODO: We can technically figure this out by looking at things like our resolv.conf or we can just take this as a helm option
+const defaultClusterDomain = "svc.cluster.local"
 
 var domainNameForResourceNameReplacer = strings.NewReplacer(
 	".", "-", // replace dots with dashes
@@ -56,6 +56,7 @@ type Driver struct {
 	ingressMetadata string
 	gatewayMetadata string
 	managerName     types.NamespacedName
+	clusterDomain   string
 
 	syncMu              sync.Mutex
 	syncRunning         bool
@@ -66,18 +67,44 @@ type Driver struct {
 	gatewayEnabled bool
 }
 
+type DriverOpt func(*Driver)
+
+func WithGatewayEnabled(enabled bool) DriverOpt {
+	return func(d *Driver) {
+		d.gatewayEnabled = enabled
+	}
+}
+
+func WithSyncAllowConcurrent(allowed bool) DriverOpt {
+	return func(d *Driver) {
+		d.syncAllowConcurrent = allowed
+	}
+}
+
+func WithClusterDomain(domain string) DriverOpt {
+	return func(d *Driver) {
+		d.clusterDomain = domain
+	}
+}
+
 // NewDriver creates a new driver with a basic logger and cache store setup
-func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName, gatewayEnabled bool) *Driver {
+func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName, opts ...DriverOpt) *Driver {
 	cacheStores := NewCacheStores(logger)
 	s := New(cacheStores, controllerName, logger)
-	return &Driver{
+	d := &Driver{
 		store:          s,
 		cacheStores:    cacheStores,
 		log:            logger,
 		scheme:         scheme,
 		managerName:    managerName,
-		gatewayEnabled: gatewayEnabled,
+		gatewayEnabled: false,
+		clusterDomain:  defaultClusterDomain,
 	}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+	return d
 }
 
 // WithMetaData allows you to pass in custom metadata to be added to all resources created by the controller
@@ -1544,7 +1571,7 @@ func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alph
 				key := tunnelKey{ingress.Namespace, serviceName, strconv.Itoa(int(servicePort))}
 				tunnel, found := tunnels[key]
 				if !found {
-					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, clusterDomain, servicePort)
+					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, d.clusterDomain, servicePort)
 					tunnel = ingressv1alpha1.Tunnel{
 						ObjectMeta: metav1.ObjectMeta{
 							GenerateName:    fmt.Sprintf("%s-%d-", serviceName, servicePort),
@@ -1610,7 +1637,7 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 				key := tunnelKey{httproute.Namespace, serviceName, strconv.Itoa(int(servicePort))}
 				tunnel, found := tunnels[key]
 				if !found {
-					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, clusterDomain, servicePort)
+					targetAddr := fmt.Sprintf("%s.%s.%s:%d", serviceName, key.namespace, d.clusterDomain, servicePort)
 					tunnel = ingressv1alpha1.Tunnel{
 						ObjectMeta: metav1.ObjectMeta{
 							GenerateName:    fmt.Sprintf("%s-%d-", serviceName, servicePort),

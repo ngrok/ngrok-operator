@@ -66,6 +66,7 @@ To uninstall the chart:
 | `region`                             | ngrok region to create tunnels in. Defaults to connect to the closest geographical region.                            | `""`                                  |
 | `rootCAs`                            | Set to "trusted" for the ngrok agent CA or "host" to trust the host's CA. Defaults to "trusted".                      | `""`                                  |
 | `serverAddr`                         | This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address. | `""`                                  |
+| `clusterDomain`                      | Injects the cluster domain name for service discovery.                                                                | `svc.cluster.local`                   |
 | `apiURL`                             | This is the URL of the ngrok API. You should set this if you are using a custom API URL.                              | `""`                                  |
 | `metaData`                           | This is a map of key/value pairs that will be added as meta data to all ngrok api resources created                   | `{}`                                  |
 | `affinity`                           | Affinity for the controller pod assignment                                                                            | `{}`                                  |
