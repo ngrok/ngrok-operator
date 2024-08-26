@@ -241,8 +241,7 @@ func (s Store) ListIngressesV1() []*netv1.Ingress {
 	for _, item := range s.stores.IngressV1.List() {
 		ing, ok := item.(*netv1.Ingress)
 		if !ok {
-			e := fmt.Sprintf("listIngressesV1: dropping object of unexpected type: %#v", item)
-			s.log.Error(fmt.Errorf(e), e)
+			s.log.Error(nil, "listIngressesV1: dropping object of unexpected type", "type", fmt.Sprintf("%v", item))
 			continue
 		}
 		ingresses = append(ingresses, ing)
@@ -262,8 +261,7 @@ func (s Store) ListGateways() []*gatewayv1.Gateway {
 	for _, item := range s.stores.Gateway.List() {
 		gtw, ok := item.(*gatewayv1.Gateway)
 		if !ok {
-			e := fmt.Sprintf("Gateway: dropping object of unexpected type: %#v", item)
-			s.log.Error(fmt.Errorf(e), e)
+			s.log.Error(nil, "Gateway: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
 			continue
 		}
 		gateways = append(gateways, gtw)
@@ -283,8 +281,7 @@ func (s Store) ListHTTPRoutes() []*gatewayv1.HTTPRoute {
 	for _, item := range s.stores.HTTPRoute.List() {
 		httproute, ok := item.(*gatewayv1.HTTPRoute)
 		if !ok {
-			e := fmt.Sprintf("HTTPRoute: dropping object of unexpected type: %#v", item)
-			s.log.Error(fmt.Errorf(e), e)
+			s.log.Error(nil, "HTTPRoute: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
 			continue
 		}
 		httproutes = append(httproutes, httproute)

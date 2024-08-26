@@ -307,7 +307,7 @@ func (r *TCPEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv
 func (r *TCPEdgeReconciler) reserveAddrIfEmpty(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	if edge.Status.Hostports == nil || len(edge.Status.Hostports) == 0 {
+	if len(edge.Status.Hostports) == 0 {
 		metadata := ReservedAddrMetadata{
 			Namespace: edge.Namespace,
 			Name:      edge.Name,
