@@ -1,0 +1,66 @@
+name: Helm install Matrix
+on:
+  workflow_dispatch:
+    inputs:
+      chart_version:
+        description: 'The version of the chart to install'
+        required: true
+        default: 'v0.14.1'
+
+jobs:
+  matrix:
+    name: "Test(helm: ${{ matrix.helm_version }}, kubernetes: ${{ matrix.k8s_version }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        helm_version: [ 'v3.13.2', 'v3.14.4', 'v3.15.4', 'latest' ]
+        k8s_version: [ 'v1.28.13', 'v1.29.8', 'v1.30.4', 'v1.31.0' ]
+      max-parallel: 2
+    env:
+      NAMESPACE: ngrok-ingress-controller
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: ${{ matrix.helm_version }}
+    - name: Install kind
+      uses: helm/kind-action@v1
+      with:
+        node_image: kindest/node:${{ matrix.k8s_version }}
+        kubectl_version: ${{ matrix.k8s_version }}
+    - name: Report Helm version
+      run: helm version
+    - name: Report k8s version
+      run: kubectl version
+    - name: Add helm repo
+      run: helm repo add ngrok https://ngrok.github.io/kubernetes-ingress-controller
+    #
+    - name: Install helm chart
+      env:
+        NGROK_AUTHTOKEN: "SOME_AUTHTOKEN" # For now, these don't matter, mainly testing that it pulls the image and can get the CRDs
+        NGROK_API_KEY: "SOME_API_KEY"
+      timeout-minutes: 10
+      run: |
+        helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+          --namespace $NAMESPACE \
+          --create-namespace \
+          --set credentials.apiKey=$NGROK_API_KEY \
+          --set credentials.authtoken=$NGROK_AUTHTOKEN \
+          --version ${{ inputs.chart_version }}
+    - name: Sleep for 30 seconds for startup
+      run: sleep 30
+    - name: Report pods  # Expected to see the ingress-controller crashlooping. See above comment.
+      run: kubectl get pods --all-namespaces
+    - name: Try to list CRs of the CRDs we installed
+      run: |
+        kubectl get tunnels.ingress.k8s.ngrok.com
+        kubectl get domains.ingress.k8s.ngrok.com
+        kubectl get httpsedges.ingress.k8s.ngrok.com
+        kubectl get tlsedges.ingress.k8s.ngrok.com
+        kubectl get tcpedges.ingress.k8s.ngrok.com
+    - name: Show logs of the ingress-controller
+      continue-on-error: true
+      run: |
+        kubectl -n $NAMESPACE logs --selector='app.kubernetes.io/component=controller' --tail=100
