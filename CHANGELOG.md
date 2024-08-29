@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.2
+**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/kubernetes-ingress-controller-0.12.1...kubernetes-ingress-controller-0.12.2
+
+### Added
+
+- feat: Ability to specify cluster domain [#339](https://github.com/ngrok/kubernetes-ingress-controller/pull/339). Thank you, @fr6nco !
+- feat: Support for wildcard domains [#412](https://github.com/ngrok/kubernetes-ingress-controller/pull/412)
+
+### Changed
+
+- chore: Clean up predicate filters [#409](https://github.com/ngrok/kubernetes-ingress-controller/pull/409)
+- refactor: Easier to read driver seed [#411](https://github.com/ngrok/kubernetes-ingress-controller/pull/411)
+
+### Fixed
+
+- fix(store): Multiple ingress rules per ingress not working [#413](https://github.com/ngrok/kubernetes-ingress-controller/pull/413)
+
 ## 0.12.1
 **Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/kubernetes-ingress-controller-0.12.0...kubernetes-ingress-controller-0.12.1
 
