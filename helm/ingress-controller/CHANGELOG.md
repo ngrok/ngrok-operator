@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.2
+**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.14.1...helm-chart-0.14.2
+
+### Added
+
+- feat: Ability to specify cluster domain [#339](https://github.com/ngrok/kubernetes-ingress-controller/pull/339). Thank you, @fr6nco !
+
+### Changed
+
+- Bump image version from `0.12.1` to `0.12.2`
+
 ## 0.14.1
 **Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.14.0...helm-chart-0.14.1
 
