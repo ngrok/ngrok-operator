@@ -35,7 +35,7 @@ jobs:
     - name: Report k8s version
       run: kubectl version
     - name: Add helm repo
-      run: helm repo add ngrok https://ngrok.github.io/kubernetes-ingress-controller
+      run: helm repo add ngrok https://charts.ngrok.com
     #
     - name: Install helm chart
       env:

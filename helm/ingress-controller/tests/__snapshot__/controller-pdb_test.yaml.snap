@@ -10,7 +10,7 @@ should match snapshot:
         app.kubernetes.io/name: kubernetes-ingress-controller
         app.kubernetes.io/part-of: kubernetes-ingress-controller
         app.kubernetes.io/version: 0.12.2
-        helm.sh/chart: kubernetes-ingress-controller-0.14.2
+        helm.sh/chart: kubernetes-ingress-controller-0.14.3
       name: test-release-kubernetes-ingress-controller-controller-pdb
       namespace: test-namespace
     spec:

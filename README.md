@@ -45,7 +45,7 @@ Leverage [ngrok](https://ngrok.com/) for your ingress in your Kubernetes cluster
 Add the ngrok Ingress Controller Helm chart:
 
 ```sh
-helm repo add ngrok https://ngrok.github.io/kubernetes-ingress-controller
+helm repo add ngrok https://charts.ngrok.com
 ```
 
 Then, install the latest version (setting the appropriate values for your environment):
