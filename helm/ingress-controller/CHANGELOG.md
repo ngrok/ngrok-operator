@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.15.0
+
+### DEPRECATION ANNOUNCEMENT / ACTION REQUIRED
+
+See Full Announcement: https://github.com/ngrok/kubernetes-ingress-controller/discussions
+
+On Wednesday September 11th, 2024 this Helm Chart will be renamed to ngrok/ngrok-operator.
+
+If you take no action, then you will not receive future updates to the ingress controller.
+
+Please update your Helm repo with the following commands:
+
+    $ helm repo add ngrok charts.ngrok.com --force-update
+    $ helm repo update
+
+If you need additional help, please reach out to our support team at https://ngrok.com/support
+
 ## 0.14.3
 **Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.14.2...helm-chart-0.14.3
 
@@ -65,7 +82,7 @@ kubectl apply -f ./helm/ingress-controller/templates/crds/
 
 - Add the `apiURL` value.
   This sets the ngrok API endpoint used by the controller.
-  It corresponds to the `--api-url` argument to the manager binary. 
+  It corresponds to the `--api-url` argument to the manager binary.
 
 - Update to version 0.10.4 of the ingress controller.
   See its changes [here](../../CHANGELOG.md#0104).
