@@ -50,10 +50,10 @@ To uninstall the chart:
 | `podAnnotations`                     | Used to apply custom annotations to the ingress pods.                                                                 | `{}`                               |
 | `podLabels`                          | Used to apply custom labels to the ingress pods.                                                                      | `{}`                               |
 | `replicaCount`                       | The number of controllers to run.                                                                                     | `1`                                |
-| `image.registry`                     | The ngrok ingress controller image registry.                                                                          | `docker.io`                        |
-| `image.repository`                   | The ngrok ingress controller image repository.                                                                        | `ngrok/ngrok-operator`             |
-| `image.tag`                          | The ngrok ingress controller image tag. Defaults to the chart's appVersion if not specified                           | `""`                               |
-| `image.pullPolicy`                   | The ngrok ingress controller image pull policy.                                                                       | `IfNotPresent`                     |
+| `image.registry`                     | The ngrok operator image registry.                                                                                    | `docker.io`                        |
+| `image.repository`                   | The ngrok operator image repository.                                                                                  | `ngrok/ngrok-operator`             |
+| `image.tag`                          | The ngrok operator image tag. Defaults to the chart's appVersion if not specified                                     | `""`                               |
+| `image.pullPolicy`                   | The ngrok operator image pull policy.                                                                                 | `IfNotPresent`                     |
 | `image.pullSecrets`                  | An array of imagePullSecrets to be used when pulling the image.                                                       | `[]`                               |
 | `ingressClass.name`                  | The name of the ingress class to use.                                                                                 | `ngrok`                            |
 | `ingressClass.create`                | Whether to create the ingress class.                                                                                  | `true`                             |

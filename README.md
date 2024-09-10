@@ -98,7 +98,7 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 
 ## Documentation
 
-The full documentation for the ngrok Ingress Controller can be found on our [k8s docs](https://ngrok.com/docs/k8s/)
+The full documentation for the ngrok Kubernetes Operator can be found on our [k8s docs](https://ngrok.com/docs/k8s/)
 
 ## Known Issues
 
@@ -114,6 +114,6 @@ The best place to get support using the ngrok Kubernetes Operator is through the
 
 ## License
 
-The ngrok ingress controller is licensed under the terms of the MIT license.
+The ngrok Kubernetes Operator is licensed under the terms of the MIT license.
 
 See [LICENSE](./LICENSE.txt) for details.

@@ -25,10 +25,10 @@ podLabels: {}
 ##
 replicaCount: 1
 
-## @param image.registry The ngrok ingress controller image registry.
-## @param image.repository The ngrok ingress controller image repository.
-## @param image.tag The ngrok ingress controller image tag. Defaults to the chart's appVersion if not specified
-## @param image.pullPolicy The ngrok ingress controller image pull policy.
+## @param image.registry The ngrok operator image registry.
+## @param image.repository The ngrok operator image repository.
+## @param image.tag The ngrok operator image tag. Defaults to the chart's appVersion if not specified
+## @param image.pullPolicy The ngrok operator image pull policy.
 ## @param image.pullSecrets An array of imagePullSecrets to be used when pulling the image.
 image:
   registry: docker.io
