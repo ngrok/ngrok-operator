@@ -148,6 +148,23 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set useExperimentalGatewayApi=true &&\
 	kubectl rollout restart deployment ngrok-ingress-controller-kubernetes-ingress-controller-manager -n ngrok-ingress-controller
 
+.PHONY: deploy_with_bindings
+deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	helm upgrade ngrok-ingress-controller $(HELM_CHART_DIR) --install \
+		--namespace ngrok-ingress-controller \
+		--create-namespace \
+		--set image.repository=$(IMG) \
+		--set image.tag="latest" \
+		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
+		--set credentials.apiKey=$(NGROK_API_KEY) \
+		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set log.format=console \
+		--set log.level=debug \
+		--set log.stacktraceLevel=panic \
+		--set metaData.env=local,metaData.from=makefile \
+		--set enable-feature-bindings=true &&\
+	kubectl rollout restart deployment ngrok-ingress-controller-kubernetes-ingress-controller-manager -n ngrok-ingress-controller
+
 .PHONY: _deploy-check-env-vars
 _deploy-check-env-vars:
 ifndef NGROK_API_KEY
