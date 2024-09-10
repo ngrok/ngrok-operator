@@ -8,7 +8,7 @@ Have a look at the architecture guide on the internal workings of the ingress co
 
 ## Local Development
 
-- [Go 1.20](https://go.dev/dl/)
+- [Go](https://go.dev/dl/)
 - [Helm](https://helm.sh/docs/intro/install/)
 
 Both of these can be obtained via [nix-direnv](https://github.com/nix-community/nix-direnv), which will automatically configure your shell for you.
@@ -27,6 +27,9 @@ kubectl config set-context --current --namespace=ngrok-ingress-controller
 
 make deploy
 ```
+
+> Note: You may also need to load the image into your cluster.
+> For example with `kind` this is done with `kind load docker-image kubernetes-ingress-controller`
 
 ### Using the E2E Fixtures
 
