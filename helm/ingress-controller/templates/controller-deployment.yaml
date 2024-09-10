@@ -84,6 +84,9 @@ spec:
         {{- if .Values.watchNamespace }}
         - --watch-namespace={{ .Values.watchNamespace}}
         {{- end }}
+        {{- if .Values.bindings.enabled }}
+        - --enable-feature-bindings={{ .Values.bindings.enabled }}
+        {{- end }}
         {{- if .Values.useExperimentalGatewayApi }}
         - --use-experimental-gateway-api={{ .Values.useExperimentalGatewayApi }}
         {{- end }}
