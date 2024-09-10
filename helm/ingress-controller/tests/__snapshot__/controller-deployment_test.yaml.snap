@@ -53,7 +53,6 @@ Should match all-options snapshot:
           containers:
             - args:
                 - --controller-name=k8s.ngrok.com/ingress-controller
-                - --enable-feature-bindings=true
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json
@@ -594,7 +593,6 @@ Should match default snapshot:
           containers:
             - args:
                 - --controller-name=k8s.ngrok.com/ingress-controller
-                - --enable-feature-bindings=true
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json

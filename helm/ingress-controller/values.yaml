@@ -206,4 +206,4 @@ lifecycle: {}
 
 ## @param bindings.enabled Whether to enable the Endpoint Bindings feature
 bindings:
-  enabled: true
+  enabled: false # in-development
