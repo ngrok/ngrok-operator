@@ -91,4 +91,5 @@ To uninstall the chart:
 | `log.stacktraceLevel`                | The level to report stacktrace logs one of 'info' or 'error'.                                                         | `error`                               |
 | `log.format`                         | The log format to use. One of console, json.                                                                          | `json`                                |
 | `lifecycle`                          | an object containing lifecycle configuration                                                                          | `{}`                                  |
+| `bindings.enabled`                   | Whether to enable the Endpoint Bindings feature                                                                       | `true`                                |
 
