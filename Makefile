@@ -28,6 +28,8 @@ VERSION = $(shell cat VERSION)
 HELM_CHART_DIR = ./helm/ngrok-operator
 HELM_TEMPLATES_DIR = $(HELM_CHART_DIR)/templates
 
+CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/...}
+
 # Targets
 
 .PHONY: all
@@ -58,13 +60,13 @@ preflight: ## Verifies required things like the go version
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=ngrok-operator-manager-role crd webhook paths="{./api/ingress/v1alpha1/, ./api/ngrok/v1alpha1, ./internal/controller/ingress/, ./internal/controller/ngrok/, ./internal/controller/gateway/}" \
+	$(CONTROLLER_GEN) rbac:roleName=ngrok-operator-manager-role crd webhook paths="$(CONTROLLER_GEN_PATHS)" \
 		output:crd:artifacts:config=$(HELM_TEMPLATES_DIR)/crds \
 		output:rbac:artifacts:config=$(HELM_TEMPLATES_DIR)/rbac
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="{./api/ingress/v1alpha1/, ./api/ngrok/v1alpha1, ./internal/controller/ingress/, ./internal/controller/ngrok, ./internal/controller/gateway/}"
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="$(CONTROLLER_GEN_PATHS)"
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
