@@ -18,7 +18,7 @@ Individual controllers and the overall Manager are built using the kubernetes co
 
 ## Controllers
 
-Internally, the ngrok Kubernetes Ingress Controller is made up of multiple controllers working in concert with each other, communicating via the Kubernetes API to interpret Ingress objects and convert them into managed ngrok Edges and other resources.
+Internally, the ngrok Kubernetes Operator is made up of multiple controllers working in concert with each other, communicating via the Kubernetes API to interpret Ingress objects and convert them into managed ngrok Edges and other resources.
 
 Each of these controllers uses the same basic workflow to manage its resources. This will be dried up and documented as a part of [this issue](https://github.com/ngrok/ngrok-operator/issues/118)
 

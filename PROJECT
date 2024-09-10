@@ -6,7 +6,7 @@ domain: k8s.ngrok.com
 layout:
 - go.kubebuilder.io/v4
 multigroup: true
-projectName: kubernetes-ingress-controller
+projectName: ngrok-operator
 repo: github.com/ngrok/ngrok-operator
 resources:
 - api:

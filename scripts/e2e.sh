@@ -2,7 +2,7 @@
 
 set -eu -o pipefail
 
-namespace='ngrok-ingress-controller'
+namespace='ngrok-operator'
 kubectl config set-context --current --namespace=$namespace
 
 # TODO: Use ngrok cli api to delete all edges owned by the ingress controller
@@ -20,12 +20,12 @@ done
 
 ./scripts/cleanup-fixtures.sh
 
-echo "~~~ Cleaning up previous deploy of ngrok-ingress-controller"
+echo "~~~ Cleaning up previous deploy of ngrok-operator"
 make undeploy || true
 
 ./scripts/remove-finalizers.sh
 
-echo "--- Deploying ngrok-ingress-controller"
+echo "--- Deploying ngrok-operator"
 make deploy
 
 ./scripts/create-fixtures.sh

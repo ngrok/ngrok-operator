@@ -1,0 +1,27 @@
+# permissions for end users to edit tunnels.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+  name: {{ include "ngrok-operator.fullname" . }}-tunnel-editor-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels/status
+  verbs:
+  - get

@@ -87,7 +87,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		}
 	}
 	connOpts := []ngrok.ConnectOption{
-		ngrok.WithClientInfo("ngrok-ingress-controller", version.GetVersion(), comments...),
+		ngrok.WithClientInfo("ngrok-operator", version.GetVersion(), comments...),
 		ngrok.WithAuthtokenFromEnv(),
 		ngrok.WithLogger(k8sLogger{logger}),
 	}

@@ -1,6 +1,6 @@
 # Ingress into Consul Service Mesh on Minikube
 
-This tutorial will guide you through the process of installing the ngrok Kubernetes Ingress Controller into a local Minikube cluster running a Consul Service Mesh. We will first follow the Consul Minikube setup guide, and then install the ngrok Kubernetes Ingress Controller to provide ingress to the Demo Counter Application.
+This tutorial will guide you through the process of installing the ngrok Kubernetes Operator into a local Minikube cluster running a Consul Service Mesh. We will first follow the Consul Minikube setup guide, and then install the ngrok Kubernetes Operator to provide ingress to the Demo Counter Application.
 
 ## Prerequisites
 - your api key and authtoken from your ngrok account
@@ -35,7 +35,7 @@ Next we'll export our credentials as environment variables and install the contr
 export NGROK_API_KEY=<YOUR Secret API KEY>
 export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
 
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller --version 0.6.0 \
+helm install ngrok-operator ngrok/ngrok-operator --version 0.6.0 \
   --namespace default \
   --set credentials.apiKey=$NGROK_API_KEY \
   --set credentials.authtoken=$NGROK_AUTHTOKEN
@@ -49,10 +49,10 @@ At this point, the ngrok ingress controller pods may not be running yet. This is
 apiVersion: v1
 kind: Service
 metadata:
-  name: ngrok-ingress-controller-kubernetes-ingress-controller
+  name: ngrok-operator
   namespace: default
   labels:
-    app: ngrok-ingress-controller-kubernetes-ingress-controller
+    app: ngrok-operator
 spec:
   ports:
   - name: http
@@ -60,16 +60,16 @@ spec:
     protocol: TCP
     targetPort: 80
   selector:
-    app.kubernetes.io/name: kubernetes-ingress-controller
+    app.kubernetes.io/name: ngrok-operator
 ```
 
 Now we can verify the controller is running and healthy:
 
 ```bash
-kubectl get pods -l 'app.kubernetes.io/name=kubernetes-ingress-controller' -n default
+kubectl get pods -l 'app.kubernetes.io/name=ngrok-operator' -n default
 
 NAME                                                              READY   STATUS    RESTARTS      AGE
-ngrok-ingress-controller-kubernetes-ingress-controller-manqwlhz   2/2     Running   2 (93s ago)   2m17s
+ngrok-operator-ngrok-operator-manager-qwlhz                       2/2     Running   2 (93s ago)   2m17s
 ```
 
 Setting Up Ingress for the Demo Counter Application
@@ -80,14 +80,14 @@ With the controller running, we can set up ingress for the Demo Counter Applicat
 apiVersion: consul.hashicorp.com/v1alpha1
 kind: ServiceIntentions
 metadata:
-  name: ngrok-ingress-controller-kubernetes-ingress-controller
+  name: ngrok-operator
   namespace: default
 spec:
   destination:
     name: dashboard
   sources:
   - action: allow
-    name: ngrok-ingress-controller-kubernetes-ingress-controller
+    name: ngrok-operator
 ```
 
 

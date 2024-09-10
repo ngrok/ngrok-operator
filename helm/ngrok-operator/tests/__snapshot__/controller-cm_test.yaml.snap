@@ -1,0 +1,18 @@
+should match snapshot:
+  1: |
+    apiVersion: v1
+    data:
+      controller_manager_config.yaml: |
+        apiVersion: controller-runtime.sigs.k8s.io/v1alpha1
+        kind: ControllerManagerConfig
+        health:
+          healthProbeBindAddress: :8081
+        metrics:
+          bindAddress: 127.0.0.1:8080
+        leaderElection:
+          leaderElect: true
+          resourceName: test-release-ngrok-operator-leader
+    kind: ConfigMap
+    metadata:
+      name: test-release-ngrok-operator-manager-config
+      namespace: test-namespace

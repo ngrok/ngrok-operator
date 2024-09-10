@@ -22,14 +22,14 @@ Both of these can be obtained via [nix-direnv](https://github.com/nix-community/
 export NGROK_API_KEY=<YOUR Secret API KEY>
 export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
 # kubectl can connect to your cluster and images built locally are available to the cluster
-kubectl create namespace ngrok-ingress-controller
-kubectl config set-context --current --namespace=ngrok-ingress-controller
+kubectl create namespace ngrok-operator
+kubectl config set-context --current --namespace=ngrok-operator
 
 make deploy
 ```
 
 > Note: You may also need to load the image into your cluster.
-> For example with `kind` this is done with `kind load docker-image kubernetes-ingress-controller`
+> For example with `kind` this is done with `kind load docker-image ngrok-operator`
 
 ### Using the E2E Fixtures
 

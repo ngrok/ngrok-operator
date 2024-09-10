@@ -55,7 +55,7 @@ export NAMESPACE=[YOUR_K8S_NAMESPACE]
 export NGROK_AUTHTOKEN=[AUTHTOKEN]
 export NGROK_API_KEY=[API_KEY]
 
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+helm install ngrok-operator ngrok/ngrok-operator \
   --namespace $NAMESPACE \
   --create-namespace \
   --set credentials.apiKey=$NGROK_API_KEY \
@@ -78,7 +78,7 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/downloa
 Then, during the helm install set the experimental gateway flag.
 
 ```sh
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+helm install ngrok-operator ngrok/ngrok-operator \
   --namespace $NAMESPACE \
   --create-namespace \
   --set credentials.apiKey=$NGROK_API_KEY \
@@ -90,8 +90,8 @@ helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
 Apply the [sample combined manifest](manifest-bundle.yaml) from our repo:
 
 ```sh
-kubectl apply -n ngrok-ingress-controller \
-  -f https://raw.githubusercontent.com/ngrok/kubernetes-ingress-controller/main/manifest-bundle.yaml
+kubectl apply -n ngrok-operator \
+  -f https://raw.githubusercontent.com/ngrok/ngrok-operator/main/manifest-bundle.yaml
 ```
 
 For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.

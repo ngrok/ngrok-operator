@@ -1,0 +1,22 @@
+should match snapshot:
+  1: |
+    apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      labels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: test-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.12.2
+        helm.sh/chart: ngrok-operator-0.15.0
+      name: test-release-ngrok-operator-controller-pdb
+      namespace: test-namespace
+    spec:
+      maxUnavailable: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: controller
+          app.kubernetes.io/instance: test-release
+          app.kubernetes.io/name: ngrok-operator

@@ -11,7 +11,7 @@ area/helm-chart:
 area/release:
 - docs/releases.md
 - VERSION
-- helm/ingress-controller/Chart.yaml
+- helm/ngrok-operator/Chart.yaml
 
 documentation:
 - docs/**/*
