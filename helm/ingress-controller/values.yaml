@@ -203,3 +203,7 @@ log:
 ## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
 ##
 lifecycle: {}
+
+## @param bindings.enabled Whether to enable the Endpoint Bindings feature
+bindings:
+  enabled: false # in-development

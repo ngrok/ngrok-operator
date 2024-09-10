@@ -94,6 +94,10 @@ type managerOpts struct {
 	zapOpts                   *zap.Options
 	clusterDomain             string
 
+	// feature flags
+	enableFeatureIngress  bool
+	enableFeatureBindings bool
+
 	// env vars
 	namespace   string
 	ngrokAPIKey string
@@ -125,6 +129,13 @@ func cmd() *cobra.Command {
 	c.Flags().BoolVar(&opts.useExperimentalGatewayAPI, "use-experimental-gateway-api", false, "sets up experemental gatewayAPI")
 	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", "svc.cluster.local", "Cluster domain used in the cluster")
 	c.Flags().StringVar(&opts.rootCAs, "root-cas", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
+
+	// feature flags
+	// default always enabled for now
+	// c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
+	opts.enableFeatureIngress = true
+	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
+
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -355,6 +366,14 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "TrafficPolicy")
 		os.Exit(1)
 	}
+
+	if opts.enableFeatureBindings {
+		setupLog.Info("Endpoint Bindings controller enabled")
+		setupLog.Info("not yet implemented")
+	} else {
+		setupLog.Info("Endpoint Bindings controller disabled")
+	}
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddReadyzCheck("readyz", func(req *http.Request) error {
