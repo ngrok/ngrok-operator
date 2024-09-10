@@ -27,9 +27,9 @@ jobs:
       with:
         filters: |
           chartyaml:
-            - 'helm/ingress-controller/Chart.yaml'
+            - 'helm/ngrok-operator/Chart.yaml'
           charts:
-            - 'helm/ingress-controller/**'
+            - 'helm/ngrok-operator/**'
             - 'scripts/e2e.sh'
           go:
             - '**.go'

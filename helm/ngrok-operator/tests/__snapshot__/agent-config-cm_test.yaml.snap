@@ -1,0 +1,11 @@
+Should match snapshot:
+  1: |
+    apiVersion: v1
+    data:
+      METADATA: map[]
+      REGION: ""
+      REMOTE_MANAGEMENT: ""
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-cm
+      namespace: NAMESPACE

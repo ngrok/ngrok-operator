@@ -20,12 +20,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
-	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 
-	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/util"
+	"github.com/ngrok/ngrok-operator/internal/annotations"
+	"github.com/ngrok/ngrok-operator/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

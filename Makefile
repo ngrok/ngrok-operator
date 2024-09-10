@@ -1,11 +1,11 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= kubernetes-ingress-controller
+IMG ?= ngrok-operator
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
 
-REPO_URL = github.com/ngrok/kubernetes-ingress-controller
+REPO_URL = github.com/ngrok/ngrok-operator
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -25,7 +25,7 @@ VERSION = $(shell cat VERSION)
 
 # Tools
 
-HELM_CHART_DIR = ./helm/ingress-controller
+HELM_CHART_DIR = ./helm/ngrok-operator
 HELM_TEMPLATES_DIR = $(HELM_CHART_DIR)/templates
 
 # Targets
@@ -58,7 +58,7 @@ preflight: ## Verifies required things like the go version
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=ngrok-ingress-controller-manager-role crd webhook paths="{./api/ingress/v1alpha1/, ./api/ngrok/v1alpha1, ./internal/controller/ingress/, ./internal/controller/ngrok/, ./internal/controller/gateway/}" \
+	$(CONTROLLER_GEN) rbac:roleName=ngrok-operator-manager-role crd webhook paths="{./api/ingress/v1alpha1/, ./api/ngrok/v1alpha1, ./internal/controller/ingress/, ./internal/controller/ngrok/, ./internal/controller/gateway/}" \
 		output:crd:artifacts:config=$(HELM_TEMPLATES_DIR)/crds \
 		output:rbac:artifacts:config=$(HELM_TEMPLATES_DIR)/rbac
 
@@ -115,10 +115,14 @@ ifndef ignore-not-found
   ignore-not-found = false
 endif
 
+KUBE_NAMESPACE ?= ngrok-operator
+HELM_RELEASE_NAME ?= ngrok-operator
+KUBE_DEPLOYMENT_NAME ?= ngrok-operator-manager
+
 .PHONY: deploy
 deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade ngrok-ingress-controller $(HELM_CHART_DIR) --install \
-		--namespace ngrok-ingress-controller \
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
@@ -129,12 +133,12 @@ deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## D
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile &&\
-	kubectl rollout restart deployment ngrok-ingress-controller-kubernetes-ingress-controller-manager -n ngrok-ingress-controller
+	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
 .PHONY: deploy_gateway
 deploy_gateway: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade ngrok-ingress-controller $(HELM_CHART_DIR) --install \
-		--namespace ngrok-ingress-controller \
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
@@ -146,12 +150,12 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
 		--set useExperimentalGatewayApi=true &&\
-	kubectl rollout restart deployment ngrok-ingress-controller-kubernetes-ingress-controller-manager -n ngrok-ingress-controller
+	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
 .PHONY: deploy_with_bindings
 deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade ngrok-ingress-controller $(HELM_CHART_DIR) --install \
-		--namespace ngrok-ingress-controller \
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
@@ -163,7 +167,7 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
 		--set enable-feature-bindings=true &&\
-	kubectl rollout restart deployment ngrok-ingress-controller-kubernetes-ingress-controller-manager -n ngrok-ingress-controller
+	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
 .PHONY: _deploy-check-env-vars
 _deploy-check-env-vars:
@@ -176,7 +180,7 @@ endif
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
-	helm uninstall ngrok-ingress-controller
+	helm uninstall ngrok-operator
 
 ##@ Build Dependencies
 

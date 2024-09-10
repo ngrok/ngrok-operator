@@ -6,8 +6,8 @@ domain: k8s.ngrok.com
 layout:
 - go.kubebuilder.io/v4
 multigroup: true
-projectName: kubernetes-ingress-controller
-repo: github.com/ngrok/kubernetes-ingress-controller
+projectName: ngrok-operator
+repo: github.com/ngrok/ngrok-operator
 resources:
 - api:
     crdVersion: v1
@@ -16,7 +16,7 @@ resources:
   domain: k8s.ngrok.com
   group: ingress
   kind: Domain
-  path: github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1
+  path: github.com/ngrok/ngrok-operator/api/ingress/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -25,7 +25,7 @@ resources:
   domain: k8s.ngrok.com
   group: ingress
   kind: Tunnel
-  path: github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1
+  path: github.com/ngrok/ngrok-operator/api/ingress/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -34,7 +34,7 @@ resources:
   domain: k8s.ngrok.com
   group: ingress
   kind: TCPEdge
-  path: github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1
+  path: github.com/ngrok/ngrok-operator/api/ingress/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -43,7 +43,7 @@ resources:
   domain: k8s.ngrok.com
   group: ingress
   kind: HTTPSEdge
-  path: github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1
+  path: github.com/ngrok/ngrok-operator/api/ingress/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -52,7 +52,7 @@ resources:
   domain: k8s.ngrok.com
   group: ingress
   kind: IPPolicy
-  path: github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1
+  path: github.com/ngrok/ngrok-operator/api/ingress/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -60,7 +60,7 @@ resources:
   domain: k8s.ngrok.com
   group: ingress
   kind: NgrokModule
-  path: github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1
+  path: github.com/ngrok/ngrok-operator/api/ingress/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -68,7 +68,7 @@ resources:
   domain: k8s.ngrok.com
   group: ingress
   kind: NgrokModuleSet
-  path: github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1
+  path: github.com/ngrok/ngrok-operator/api/ingress/v1alpha1
   version: v1alpha1
 - controller: true
   domain: k8s.ngrok.com
@@ -87,6 +87,6 @@ resources:
   domain: k8s.ngrok.com
   group: ngrok
   kind: NgrokTrafficPolicy
-  path: github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1
+  path: github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1
   version: v1alpha1
 version: "3"

@@ -18,7 +18,7 @@ jobs:
         k8s_version: [ 'v1.28.13', 'v1.29.8', 'v1.30.4', 'v1.31.0' ]
       max-parallel: 2
     env:
-      NAMESPACE: ngrok-ingress-controller
+      NAMESPACE: ngrok-operator
     steps:
     - uses: actions/checkout@v4
     - name: Install Helm
@@ -42,8 +42,9 @@ jobs:
         NGROK_AUTHTOKEN: "SOME_AUTHTOKEN" # For now, these don't matter, mainly testing that it pulls the image and can get the CRDs
         NGROK_API_KEY: "SOME_API_KEY"
       timeout-minutes: 10
+      # TODO(operator-rename): Change this to ngrok/ngrok-operator when we are ready to release the helm chart
       run: |
-        helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+        helm install ngrok-operator ngrok/ngrok-operator \
           --namespace $NAMESPACE \
           --create-namespace \
           --set credentials.apiKey=$NGROK_API_KEY \
@@ -51,7 +52,7 @@ jobs:
           --version ${{ inputs.chart_version }}
     - name: Sleep for 30 seconds for startup
       run: sleep 30
-    - name: Report pods  # Expected to see the ingress-controller crashlooping. See above comment.
+    - name: Report pods  # Expected to see the operator crashlooping. See above comment.
       run: kubectl get pods --all-namespaces
     - name: Try to list CRs of the CRDs we installed
       run: |
@@ -60,7 +61,7 @@ jobs:
         kubectl get httpsedges.ingress.k8s.ngrok.com
         kubectl get tlsedges.ingress.k8s.ngrok.com
         kubectl get tcpedges.ingress.k8s.ngrok.com
-    - name: Show logs of the ingress-controller
+    - name: Show logs of the ngrok-operator
       continue-on-error: true
       run: |
         kubectl -n $NAMESPACE logs --selector='app.kubernetes.io/component=controller' --tail=100

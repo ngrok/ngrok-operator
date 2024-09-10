@@ -2,6 +2,8 @@ name: 'Generate full install manifests'
 
 on:
   push:
+    # TODO(operator-rename): Change this to main at some point so that we update the manifest bundle.
+    # This will need to be run post-release.
     branches:
     - alex/single-manifest-file
     # paths:
@@ -31,9 +33,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run helm template
         run: |
-          helm template ingress-controller helm/ingress-controller \
-            -n ngrok-ingress-controller \
-            --set credentials.secret.name="ngrok-ingress-controller-credentials" > manifest-bundle.yaml
+          helm template ngrok-operator helm/ngrok-operator \
+            -n ngrok-operator \
+            --set credentials.secret.name="ngrok-operator-credentials" > manifest-bundle.yaml
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:

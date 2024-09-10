@@ -8,10 +8,10 @@
 </p>
 
 <p>
-  <a href="https://github.com/ngrok/kubernetes-ingress-controller/actions?query=branch%3Amain+event%3Apush">
-      <img src="https://github.com/ngrok/kubernetes-ingress-controller/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
+  <a href="https://github.com/ngrok/ngrok-operator/actions?query=branch%3Amain+event%3Apush">
+      <img src="https://github.com/ngrok/ngrok-operator/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
   </a>
-  <a href="https://github.com/ngrok/kubernetes-ingress-controller/blob/master/LICENSE">
+  <a href="https://github.com/ngrok/ngrok-operator/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"/>
   </a>
   <a href="#features-and-beta-status">
@@ -34,7 +34,7 @@
 Leverage [ngrok](https://ngrok.com/) for your ingress in your Kubernetes cluster.  Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling. This repo contains both our [Kubernetes Ingress Controller](https://kubernetes.io/docs/concepts/services-networking/ingress/) and the [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/)
 
 
-[Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
+[Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/ngrok-operator/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
 
 ## Installation
 
@@ -55,7 +55,7 @@ export NAMESPACE=[YOUR_K8S_NAMESPACE]
 export NGROK_AUTHTOKEN=[AUTHTOKEN]
 export NGROK_API_KEY=[API_KEY]
 
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+helm install ngrok-operator ngrok/ngrok-operator \
   --namespace $NAMESPACE \
   --create-namespace \
   --set credentials.apiKey=$NGROK_API_KEY \
@@ -78,7 +78,7 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/downloa
 Then, during the helm install set the experimental gateway flag.
 
 ```sh
-helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
+helm install ngrok-operator ngrok/ngrok-operator \
   --namespace $NAMESPACE \
   --create-namespace \
   --set credentials.apiKey=$NGROK_API_KEY \
@@ -90,15 +90,15 @@ helm install ngrok-ingress-controller ngrok/kubernetes-ingress-controller \
 Apply the [sample combined manifest](manifest-bundle.yaml) from our repo:
 
 ```sh
-kubectl apply -n ngrok-ingress-controller \
-  -f https://raw.githubusercontent.com/ngrok/kubernetes-ingress-controller/main/manifest-bundle.yaml
+kubectl apply -n ngrok-operator \
+  -f https://raw.githubusercontent.com/ngrok/ngrok-operator/main/manifest-bundle.yaml
 ```
 
 For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 
 ## Documentation
 
-The full documentation for the ngrok Ingress Controller can be found on our [k8s docs](https://ngrok.com/docs/k8s/)
+The full documentation for the ngrok Kubernetes Operator can be found on our [k8s docs](https://ngrok.com/docs/k8s/)
 
 ## Known Issues
 
@@ -106,7 +106,7 @@ The full documentation for the ngrok Ingress Controller can be found on our [k8s
 >
 > This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads.
 
-1. Current issues can be found in the GitHub issues. [Known/suspected bugs](https://github.com/ngrok/kubernetes-ingress-controller/issues?q=is%3Aopen+is%3Aissue+label%3Abug) are labeled as `bug`.
+1. Current issues can be found in the GitHub issues. [Known/suspected bugs](https://github.com/ngrok/ngrok-operator/issues?q=is%3Aopen+is%3Aissue+label%3Abug) are labeled as `bug`.
 
 ## Support
 
@@ -114,6 +114,6 @@ The best place to get support using the ngrok Kubernetes Operator is through the
 
 ## License
 
-The ngrok ingress controller is licensed under the terms of the MIT license.
+The ngrok Kubernetes Operator is licensed under the terms of the MIT license.
 
 See [LICENSE](./LICENSE.txt) for details.

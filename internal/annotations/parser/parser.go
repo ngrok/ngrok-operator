@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

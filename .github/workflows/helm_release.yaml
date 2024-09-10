@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'helm/ingress-controller/Chart.yaml'
+      - 'helm/ngrok-operator/Chart.yaml'
 
 jobs:
   changes:
@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    # TODO(operator-rename): Change this to ngrok/ngrok-operator when we are ready to release the helm chart
     if: github.repository == 'ngrok/kubernetes-ingress-controller'
     steps:
       - name: Checkout repo
@@ -27,7 +28,7 @@ jobs:
         with:
           filters: |
             charts:
-              - 'helm/ingress-controller/Chart.yaml'
+              - 'helm/ngrok-operator/Chart.yaml'
 
   chart:
     name: Release Chart
@@ -36,6 +37,7 @@ jobs:
     permissions:
       contents: write # need to write releases
     needs: [changes]
+    # TODO(operator-rename): Change this to ngrok/ngrok-operator when we are ready to release the helm chart
     if: |
       (github.repository == 'ngrok/kubernetes-ingress-controller') &&
       (needs.changes.outputs.charts == 'true')

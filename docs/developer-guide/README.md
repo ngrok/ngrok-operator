@@ -22,18 +22,18 @@ Both of these can be obtained via [nix-direnv](https://github.com/nix-community/
 export NGROK_API_KEY=<YOUR Secret API KEY>
 export NGROK_AUTHTOKEN=<YOUR Secret Auth Token>
 # kubectl can connect to your cluster and images built locally are available to the cluster
-kubectl create namespace ngrok-ingress-controller
-kubectl config set-context --current --namespace=ngrok-ingress-controller
+kubectl create namespace ngrok-operator
+kubectl config set-context --current --namespace=ngrok-operator
 
 make deploy
 ```
 
 > Note: You may also need to load the image into your cluster.
-> For example with `kind` this is done with `kind load docker-image kubernetes-ingress-controller`
+> For example with `kind` this is done with `kind load docker-image ngrok-operator`
 
 ### Using the E2E Fixtures
 
-Several examples are provided in the [`e2e-fixtures` folder](https://github.com/ngrok/kubernetes-ingress-controller/tree/main/e2e-fixtures). To use an example, make a copy of the included `EXAMPLE*config.yaml` in the same directory, like this:
+Several examples are provided in the [`e2e-fixtures` folder](https://github.com/ngrok/ngrok-operator/tree/main/e2e-fixtures). To use an example, make a copy of the included `EXAMPLE*config.yaml` in the same directory, like this:
 
 - `cp e2e-fixtures/hello-world-ingress/EXAMPLE-config.yaml e2e-fixtures/hello-world-ingress/config.yaml`
 - `cp e2e-fixtures/ingress-class/EXAMPLE-config-different.yaml e2e-fixtures/ingress-class/config-different.yaml`

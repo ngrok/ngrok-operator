@@ -1,0 +1,26 @@
+{{- if .Values.podDisruptionBudget.create }}
+{{ $component := "controller"}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-controller-pdb
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  {{- if .Values.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
+      {{- if .Values.podLabels }}
+        {{- toYaml .Values.podLabels | nindent 6 }}
+      {{- end }}
+      app.kubernetes.io/component: {{ $component }}
+{{- end }}

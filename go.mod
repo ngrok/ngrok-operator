@@ -1,4 +1,4 @@
-module github.com/ngrok/kubernetes-ingress-controller
+module github.com/ngrok/ngrok-operator
 
 go 1.22
 

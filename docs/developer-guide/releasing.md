@@ -18,13 +18,13 @@ docker image can be used to run the Ingress Controller in a Kubernetes cluster w
 ### Docker Image
 
 The Docker image contains the ngrok Ingress Controller binary and is available on
-Docker Hub [here](https://hub.docker.com/r/ngrok/kubernetes-ingress-controller). We currently
+Docker Hub [here](https://hub.docker.com/r/ngrok/ngrok-operator). We currently
 support `amd64` and `arm64` architectures, with future plans to build for other architectures.
 
 ### Helm Chart
 
 The helm chart is packaged and published to its own [helm repository](https://charts.ngrok.com/index.yaml)
-and can be installed by following the instructions in the chart's [README](../helm/ingress-controller/README.md).
+and can be installed by following the instructions in the chart's [README](../helm/ingress-operator/README.md).
 
 ## Semantic Versioning
 
@@ -62,15 +62,15 @@ to the semantic versioning spec as described above.
 
 #### Controller
 
-Releases of the controller will be tagged with a prefix of `kubernetes-ingress-controller-`. For example,
-version `1.2.0` of the docker image will have a git tag of `kubernetes-ingress-controller-1.2.0` which
-contains the code used to build the docker image `ngrok/kubernetes-ingress-controller:1.2.0`.
+Releases of the controller will be tagged with a prefix of `ngrok-operator-`. For example,
+version `1.2.0` of the docker image will have a git tag of `ngrok-oeprator-1.2.0` which
+contains the code used to build the docker image `ngrok/ngrok-operator:1.2.0`.
 
 When changes that would affect the controller's docker image are pushed to `main`, a github workflow
-will trigger. The workflow will build and publish the `ngrok/kubernetes-ingress-controller:latest` docker
+will trigger. The workflow will build and publish the `ngrok/ngrok-operator:latest` docker
 image.
 
 If the `VERSION` file at the root of the repo is changed, the workflow will also create a git tag
 for the controller as described above and publish a tagged docker image. For instance when the
-`VERSION` is changed to `1.2.0`, the workflow will create a git tag of `kubernetes-ingress-controller-1.2.0`
-and publish the docker image `ngrok/kubernetes-ingress-controller:1.2.0`.
+`VERSION` is changed to `1.2.0`, the workflow will create a git tag of `ngrok-operator-1.2.0`
+and publish the docker image `ngrok/ngrok-operator:1.2.0`.

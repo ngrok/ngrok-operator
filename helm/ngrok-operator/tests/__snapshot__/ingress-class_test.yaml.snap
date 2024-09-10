@@ -1,0 +1,16 @@
+Should match snapshot:
+  1: |
+    apiVersion: networking.k8s.io/v1
+    kind: IngressClass
+    metadata:
+      labels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.12.2
+        helm.sh/chart: ngrok-operator-0.15.0
+      name: ngrok
+    spec:
+      controller: k8s.ngrok.com/ingress-controller

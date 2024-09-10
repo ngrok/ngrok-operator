@@ -7,7 +7,7 @@
   </a>
 </p>
 
-# ngrok Kubernetes Ingress Controller Documentation
+# ngrok Kubernetes Operator Documentation
 
 This is the ngrok ingress controller. It can be deployed and operated to a cluster and operated by a team allowing others to create ingress objects to dynamically self service ingress to their apps and services using a shared ngrok account. This is a great way to get started with ngrok and Kubernetes.
 

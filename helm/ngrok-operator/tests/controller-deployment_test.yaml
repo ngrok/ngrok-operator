@@ -1,0 +1,217 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/quintush/helm-unittest/master/schema/helm-testsuite.json
+suite: test controller-deployment
+templates:
+- controller-deployment.yaml
+# The following included templates are needed due to the way helm unittest works.
+# It won't load the templates unless they are included here. Due to the checksums
+# we are including on the deployment, we need to include them here. It makes the
+# snapshot much larger than it needs to be, but it's the only way to test the
+# deployment at this time.
+- controller-rbac.yaml
+- credentials-secret.yaml
+- rbac/role.yaml
+tests:
+- it: Should match default snapshot
+  asserts:
+  - matchSnapshot: {}
+- it: Should match all-options snapshot
+  set:
+    extraEnv:
+      TEST_ENV_VAR: test
+      SECRET_ENV_VAR:
+        secretKeyRef:
+          key: test-key
+        value: test-value
+    extraVolumes:
+    - name: test-volume
+      emptyDir: {}
+    extraVolumeMounts:
+    - name: test-volume
+      mountPath: /test-volume
+  asserts:
+  - matchSnapshot: {}
+- it: Should use the specified cluster domain name
+  set:
+    clusterDomain: svc.example.com
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --cluster-domain=svc.example.com
+- it: Should use the specified secret name for the credentials secret
+  set:
+    credentials.secret.name: test-secret-name
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+      pattern: test-secret-name
+- it: Should pass the region via container args to the controller if specified
+  set:
+    region: eu
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].args[0]
+      pattern: --region=eu
+- it: Should not pass the region via container args to the controller if not specified
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].args[0]
+      pattern: --region=eu
+- it: Should pass extra metadata to the deployment
+  set:
+    metaData:
+      metaDataKey1: metaDataValue1
+      metaDataKey2: metaDataValue2
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].args[0]
+      pattern: --metadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
+- it: Should pass through extra volumes and extra volume mounts
+  set:
+    extraVolumes:
+    - name: test-volume
+      emptyDir: {}
+    extraVolumeMounts:
+    - name: test-volume
+      mountPath: /test-volume
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.volumes[0].name
+      pattern: test-volume
+  - matchRegex:
+      path: spec.template.spec.containers[0].volumeMounts[0].name
+      pattern: test-volume
+  - matchRegex:
+      path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+      pattern: /test-volume
+- it: Should pass log level argument if set
+  set:
+    log:
+      level: error
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --zap-log-level=error
+- it: Should pass log format argument if set
+  set:
+    log:
+      format: console
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --zap-encoder=console
+- it: Should pass stacktrace log level argument if set
+  set:
+    log:
+      stacktraceLevel: error
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --zap-stacktrace-level=error
+- it: Defaults to having "soft" pod anti-affinity
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - equal:
+      path: spec.template.spec.affinity.podAntiAffinity
+      value:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: controller
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: ngrok-operator
+            topologyKey: kubernetes.io/hostname
+          weight: 1
+- it: Easily allows for setting a "hard" pod anti-affinity
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  set:
+    podAntiAffinityPreset: "hard"
+  asserts:
+  - equal:
+      path: spec.template.spec.affinity.podAntiAffinity
+      value:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: controller
+              app.kubernetes.io/instance: RELEASE-NAME
+              app.kubernetes.io/name: ngrok-operator
+          topologyKey: kubernetes.io/hostname
+- it: Allows overriding the full affinity
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  set:
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+              - antarctica-east1
+              - antarctica-west1
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+            - key: another-node-label-key
+              operator: In
+              values:
+              - another-node-label-value
+  asserts:
+  - equal:
+      path: spec.template.spec.affinity
+      value:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: topology.kubernetes.io/zone
+                operator: In
+                values:
+                - antarctica-east1
+                - antarctica-west1
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: another-node-label-key
+                operator: In
+                values:
+                - another-node-label-value
+- it: Defaults to not specifying a priority class
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - isNull:
+      path: spec.template.spec.priorityClassName
+- it: Allows setting a priority class
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  set:
+    priorityClassName: "high-priority"
+  asserts:
+  - equal:
+      path: spec.template.spec.priorityClassName
+      value: high-priority

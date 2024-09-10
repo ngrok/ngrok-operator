@@ -1,36 +1,25 @@
 ---
-# Source: kubernetes-ingress-controller/templates/controller-serviceaccount.yaml
+# Source: ngrok-operator/templates/controller-serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: ingress-controller-kubernetes-ingress-controller
-  namespace: ngrok-ingress-controller
+  name: ngrok-operator
+  namespace: ngrok-operator
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
-    app.kubernetes.io/instance: ingress-controller
-    app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.15.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
 ---
-# Source: kubernetes-ingress-controller/templates/agent-config-cm.yaml
+# Source: ngrok-operator/templates/controller-cm.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ingress-controller-kubernetes-ingress-controller-agent-cm
-  namespace: ngrok-ingress-controller
-data:
-  METADATA: ""
-  REGION: ""
-  REMOTE_MANAGEMENT: ""
----
-# Source: kubernetes-ingress-controller/templates/controller-cm.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ingress-controller-kubernetes-ingress-controller-manager-config
-  namespace: ngrok-ingress-controller
+  name: ngrok-operator-manager-config
+  namespace: ngrok-operator
 data:
   controller_manager_config.yaml: |
     apiVersion: controller-runtime.sigs.k8s.io/v1alpha1
@@ -41,15 +30,14 @@ data:
       bindAddress: 127.0.0.1:8080
     leaderElection:
       leaderElect: true
-      resourceName: ingress-controller-kubernetes-ingress-controller-leader
+      resourceName: ngrok-operator-leader
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_domains.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_domains.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: domains.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -87,14 +75,19 @@ spec:
         description: Domain is the Schema for the domains API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -145,13 +138,12 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_httpsedges.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_httpsedges.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: httpsedges.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -168,14 +160,19 @@ spec:
         description: HTTPSEdge is the Schema for the httpsedges API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -197,13 +194,24 @@ spec:
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
+              mutualTLS:
+                properties:
+                  certificateAuthorities:
+                    description: |-
+                      List of CA IDs that will be used to validate incoming connections to the
+                      edge.
+                    items:
+                      type: string
+                    type: array
+                type: object
               routes:
                 description: Routes is a list of routes served by this edge
                 items:
                   properties:
                     backend:
-                      description: Backend is the definition for the tunnel group
-                        backend that serves traffic for this edge
+                      description: |-
+                        Backend is the definition for the tunnel group backend
+                        that serves traffic for this edge
                       properties:
                         description:
                           default: Created by kubernetes-ingress-controller
@@ -220,6 +228,42 @@ spec:
                           description: Metadata is a string of arbitrary data associated
                             with the object in the ngrok API/Dashboard
                           type: string
+                      type: object
+                    circuitBreaker:
+                      description: CircuitBreaker is a circuit breaker configuration
+                        to apply to this route
+                      properties:
+                        errorThresholdPercentage:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: Error threshold percentage should be between
+                            0 - 1.0, not 0-100.0
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        numBuckets:
+                          description: Integer number of buckets into which metrics
+                            are retained. Max 128.
+                          format: int32
+                          maximum: 128
+                          minimum: 1
+                          type: integer
+                        rollingWindow:
+                          description: Statistical rolling window duration that metrics
+                            are retained for.
+                          format: duration
+                          type: string
+                        trippedDuration:
+                          description: Duration after which the circuit is tripped
+                            to wait before re-evaluating upstream health
+                          format: duration
+                          type: string
+                        volumeThreshold:
+                          description: |-
+                            Integer number of requests in a rolling window that will trip the circuit.
+                            Helpful if traffic volume is low.
+                          format: int32
+                          type: integer
                       type: object
                     compression:
                       description: Compression is whether or not to enable compression
@@ -246,14 +290,14 @@ spec:
                             add:
                               additionalProperties:
                                 type: string
-                              description: a map of header key to header value that
-                                will be injected into the HTTP Request before being
-                                sent to the upstream application server
+                              description: |-
+                                a map of header key to header value that will be injected into the HTTP Request
+                                before being sent to the upstream application server
                               type: object
                             remove:
-                              description: a list of header names that will be removed
-                                from the HTTP Request before being sent to the upstream
-                                application server
+                              description: |-
+                                a list of header names that will be removed from the HTTP Request before being
+                                sent to the upstream application server
                               items:
                                 type: string
                               type: array
@@ -265,13 +309,14 @@ spec:
                             add:
                               additionalProperties:
                                 type: string
-                              description: a map of header key to header value that
-                                will be injected into the HTTP Response returned to
-                                the HTTP client
+                              description: |-
+                                a map of header key to header value that will be injected into the HTTP Response
+                                returned to the HTTP client
                               type: object
                             remove:
-                              description: a list of header names that will be removed
-                                from the HTTP Response returned to the HTTP client
+                              description: |-
+                                a list of header names that will be removed from the HTTP Response returned to
+                                the HTTP client
                               items:
                                 type: string
                               type: array
@@ -302,19 +347,796 @@ spec:
                       description: Metadata is a string of arbitrary data associated
                         with the object in the ngrok API/Dashboard
                       type: string
+                    oauth:
+                      description: OAuth configuration to apply to this route
+                      properties:
+                        amazon:
+                          description: configuration for using amazon as the identity
+                            provider
+                          properties:
+                            authCheckInterval:
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
+                              format: duration
+                              type: string
+                            clientId:
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
+                              type: string
+                            clientSecret:
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
+                              properties:
+                                key:
+                                  description: Key in the secret to use
+                                  type: string
+                                name:
+                                  description: Name of the Kubernetes secret
+                                  type: string
+                              type: object
+                            cookiePrefix:
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
+                              type: string
+                            emailAddresses:
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            emailDomains:
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            inactivityTimeout:
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
+                              format: duration
+                              type: string
+                            maximumDuration:
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
+                              format: duration
+                              type: string
+                            optionsPassthrough:
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
+                              type: boolean
+                            scopes:
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        facebook:
+                          description: configuration for using facebook as the identity
+                            provider
+                          properties:
+                            authCheckInterval:
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
+                              format: duration
+                              type: string
+                            clientId:
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
+                              type: string
+                            clientSecret:
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
+                              properties:
+                                key:
+                                  description: Key in the secret to use
+                                  type: string
+                                name:
+                                  description: Name of the Kubernetes secret
+                                  type: string
+                              type: object
+                            cookiePrefix:
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
+                              type: string
+                            emailAddresses:
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            emailDomains:
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            inactivityTimeout:
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
+                              format: duration
+                              type: string
+                            maximumDuration:
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
+                              format: duration
+                              type: string
+                            optionsPassthrough:
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
+                              type: boolean
+                            scopes:
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        github:
+                          description: configuration for using github as the identity
+                            provider
+                          properties:
+                            authCheckInterval:
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
+                              format: duration
+                              type: string
+                            clientId:
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
+                              type: string
+                            clientSecret:
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
+                              properties:
+                                key:
+                                  description: Key in the secret to use
+                                  type: string
+                                name:
+                                  description: Name of the Kubernetes secret
+                                  type: string
+                              type: object
+                            cookiePrefix:
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
+                              type: string
+                            emailAddresses:
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            emailDomains:
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            inactivityTimeout:
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
+                              format: duration
+                              type: string
+                            maximumDuration:
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
+                              format: duration
+                              type: string
+                            optionsPassthrough:
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
+                              type: boolean
+                            organizations:
+                              description: |-
+                                a list of github org identifiers. users who are members of any of the listed
+                                organizations will be allowed access. identifiers should be the organization's
+                                'slug'
+                              items:
+                                type: string
+                              type: array
+                            scopes:
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                              items:
+                                type: string
+                              type: array
+                            teams:
+                              description: |-
+                                a list of github teams identifiers. users will be allowed access to the endpoint
+                                if they are a member of any of these teams. identifiers should be in the 'slug'
+                                format qualified with the org name, e.g. org-name/team-name
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        gitlab:
+                          description: configuration for using gitlab as the identity
+                            provider
+                          properties:
+                            authCheckInterval:
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
+                              format: duration
+                              type: string
+                            clientId:
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
+                              type: string
+                            clientSecret:
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
+                              properties:
+                                key:
+                                  description: Key in the secret to use
+                                  type: string
+                                name:
+                                  description: Name of the Kubernetes secret
+                                  type: string
+                              type: object
+                            cookiePrefix:
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
+                              type: string
+                            emailAddresses:
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            emailDomains:
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            inactivityTimeout:
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
+                              format: duration
+                              type: string
+                            maximumDuration:
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
+                              format: duration
+                              type: string
+                            optionsPassthrough:
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
+                              type: boolean
+                            scopes:
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        google:
+                          description: configuration for using google as the identity
+                            provider
+                          properties:
+                            authCheckInterval:
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
+                              format: duration
+                              type: string
+                            clientId:
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
+                              type: string
+                            clientSecret:
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
+                              properties:
+                                key:
+                                  description: Key in the secret to use
+                                  type: string
+                                name:
+                                  description: Name of the Kubernetes secret
+                                  type: string
+                              type: object
+                            cookiePrefix:
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
+                              type: string
+                            emailAddresses:
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            emailDomains:
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            inactivityTimeout:
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
+                              format: duration
+                              type: string
+                            maximumDuration:
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
+                              format: duration
+                              type: string
+                            optionsPassthrough:
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
+                              type: boolean
+                            scopes:
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        linkedin:
+                          description: configuration for using linkedin as the identity
+                            provider
+                          properties:
+                            authCheckInterval:
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
+                              format: duration
+                              type: string
+                            clientId:
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
+                              type: string
+                            clientSecret:
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
+                              properties:
+                                key:
+                                  description: Key in the secret to use
+                                  type: string
+                                name:
+                                  description: Name of the Kubernetes secret
+                                  type: string
+                              type: object
+                            cookiePrefix:
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
+                              type: string
+                            emailAddresses:
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            emailDomains:
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            inactivityTimeout:
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
+                              format: duration
+                              type: string
+                            maximumDuration:
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
+                              format: duration
+                              type: string
+                            optionsPassthrough:
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
+                              type: boolean
+                            scopes:
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        microsoft:
+                          description: configuration for using microsoft as the identity
+                            provider
+                          properties:
+                            authCheckInterval:
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
+                              format: duration
+                              type: string
+                            clientId:
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
+                              type: string
+                            clientSecret:
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
+                              properties:
+                                key:
+                                  description: Key in the secret to use
+                                  type: string
+                                name:
+                                  description: Name of the Kubernetes secret
+                                  type: string
+                              type: object
+                            cookiePrefix:
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
+                              type: string
+                            emailAddresses:
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            emailDomains:
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            inactivityTimeout:
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
+                              format: duration
+                              type: string
+                            maximumDuration:
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
+                              format: duration
+                              type: string
+                            optionsPassthrough:
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
+                              type: boolean
+                            scopes:
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        twitch:
+                          description: configuration for using twitch as the identity
+                            provider
+                          properties:
+                            authCheckInterval:
+                              description: |-
+                                Duration after which ngrok guarantees it will refresh user
+                                state from the identity provider and recheck whether the user is still
+                                authorized to access the endpoint. This is the preferred tunable to use to
+                                enforce a minimum amount of time after which a revoked user will no longer be
+                                able to access the resource.
+                              format: duration
+                              type: string
+                            clientId:
+                              description: |-
+                                the OAuth app client ID. retrieve it from the identity provider's dashboard
+                                where you created your own OAuth app. optional. if unspecified, ngrok will use
+                                its own managed oauth application which has additional restrictions. see the
+                                OAuth module docs for more details. if present, clientSecret must be present as
+                                well.
+                              type: string
+                            clientSecret:
+                              description: |-
+                                the OAuth app client secret. retrieve if from the identity provider's dashboard
+                                where you created your own OAuth app. optional, see all of the caveats in the
+                                docs for clientId.
+                              properties:
+                                key:
+                                  description: Key in the secret to use
+                                  type: string
+                                name:
+                                  description: Name of the Kubernetes secret
+                                  type: string
+                              type: object
+                            cookiePrefix:
+                              description: |-
+                                the prefix of the session cookie that ngrok sets on the http client to cache
+                                authentication. default is 'ngrok.'
+                              type: string
+                            emailAddresses:
+                              description: |-
+                                a list of email addresses of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            emailDomains:
+                              description: |-
+                                a list of email domains of users authenticated by identity provider who are
+                                allowed access to the endpoint
+                              items:
+                                type: string
+                              type: array
+                            inactivityTimeout:
+                              description: |-
+                                Duration of inactivity after which if the user has not accessed
+                                the endpoint, their session will time out and they will be forced to
+                                reauthenticate.
+                              format: duration
+                              type: string
+                            maximumDuration:
+                              description: |-
+                                Integer number of seconds of the maximum duration of an authenticated session.
+                                After this period is exceeded, a user must reauthenticate.
+                              format: duration
+                              type: string
+                            optionsPassthrough:
+                              description: |-
+                                Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                                supporting CORS.
+                              type: boolean
+                            scopes:
+                              description: |-
+                                a list of provider-specific OAuth scopes with the permissions your OAuth app
+                                would like to ask for. these may not be set if you are using the ngrok-managed
+                                oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                      type: object
+                    oidc:
+                      description: OIDC is the OpenID Connect configuration to apply
+                        to this route
+                      properties:
+                        clientId:
+                          description: The OIDC app's client ID and OIDC audience.
+                          type: string
+                        clientSecret:
+                          description: The OIDC app's client secret.
+                          properties:
+                            key:
+                              description: Key in the secret to use
+                              type: string
+                            name:
+                              description: Name of the Kubernetes secret
+                              type: string
+                          type: object
+                        cookiePrefix:
+                          description: |-
+                            the prefix of the session cookie that ngrok sets on the http client to cache
+                            authentication. default is 'ngrok.'
+                          type: string
+                        inactivityTimeout:
+                          description: |-
+                            Duration of inactivity after which if the user has not accessed
+                            the endpoint, their session will time out and they will be forced to
+                            reauthenticate.
+                          format: duration
+                          type: string
+                        issuer:
+                          description: URL of the OIDC "OpenID provider". This is
+                            the base URL used for discovery.
+                          type: string
+                        maximumDuration:
+                          description: |-
+                            The maximum duration of an authenticated session.
+                            After this period is exceeded, a user must reauthenticate.
+                          format: duration
+                          type: string
+                        optionsPassthrough:
+                          description: |-
+                            Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                            supporting CORS.
+                          type: boolean
+                        scopes:
+                          description: The set of scopes to request from the OIDC
+                            identity provider.
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                    policy:
+                      description: raw json policy string that was applied to the
+                        ngrok API
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    saml:
+                      description: SAML is the SAML configuration to apply to this
+                        route
+                      properties:
+                        allowIdpInitiated:
+                          description: |-
+                            If true, the IdP may initiate a login directly (e.g. the user does not need to
+                            visit the endpoint first and then be redirected). The IdP should set the
+                            RelayState parameter to the target URL of the resource they want the user to be
+                            redirected to after the SAML login assertion has been processed.
+                          type: boolean
+                        authorizedGroups:
+                          description: |-
+                            If present, only users who are a member of one of the listed groups may access
+                            the target endpoint.
+                          items:
+                            type: string
+                          type: array
+                        cookiePrefix:
+                          description: |-
+                            the prefix of the session cookie that ngrok sets on the http client to cache
+                            authentication. default is 'ngrok.'
+                          type: string
+                        forceAuthn:
+                          description: |-
+                            If true, indicates that whenever we redirect a user to the IdP for
+                            authentication that the IdP must prompt the user for authentication credentials
+                            even if the user already has a valid session with the IdP.
+                          type: boolean
+                        idpMetadata:
+                          description: |-
+                            The full XML IdP EntityDescriptor. Your IdP may provide this to you as a a file
+                            to download or as a URL.
+                          type: string
+                        inactivityTimeout:
+                          description: |-
+                            Duration of inactivity after which if the user has not accessed
+                            the endpoint, their session will time out and they will be forced to
+                            reauthenticate.
+                          format: duration
+                          type: string
+                        maximumDuration:
+                          description: |-
+                            The maximum duration of an authenticated session.
+                            After this period is exceeded, a user must reauthenticate.
+                          format: duration
+                          type: string
+                        nameidFormat:
+                          description: |-
+                            Defines the name identifier format the SP expects the IdP to use in its
+                            assertions to identify subjects. If unspecified, a default value of
+                            urn:oasis:names:tc:SAML:2.0:nameid-format:persistent will be used. A subset of
+                            the allowed values enumerated by the SAML specification are supported.
+                          type: string
+                        optionsPassthrough:
+                          description: |-
+                            Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                            supporting CORS.
+                          type: boolean
+                      type: object
                     webhookVerification:
                       description: WebhookVerification is webhook verification configuration
                         to apply to this route
                       properties:
                         provider:
-                          description: a string indicating which webhook provider
-                            will be sending webhooks to this endpoint. Value must
-                            be one of the supported providers defined at https://ngrok.com/docs/http/webhook-verification/#supported-providers
+                          description: |-
+                            a string indicating which webhook provider will be sending webhooks to this
+                            endpoint. Value must be one of the supported providers defined at
+                            https://ngrok.com/docs/http/webhook-verification/#supported-providers
                           type: string
                         secret:
-                          description: SecretRef is a reference to a secret containing
-                            the secret used to validate requests from the given provider.
-                            All providers except AWS SNS require a secret
+                          description: |-
+                            SecretRef is a reference to a secret containing the secret used to validate
+                            requests from the given provider. All providers except AWS SNS require a secret
                           properties:
                             key:
                               description: Key in the secret to use
@@ -349,7 +1171,8 @@ spec:
                 items:
                   properties:
                     backend:
-                      description: Backend stores the status of the tunnel group backend,
+                      description: |-
+                        Backend stores the status of the tunnel group backend,
                         mainly the ID of the backend
                       properties:
                         id:
@@ -378,13 +1201,12 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_ippolicies.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_ippolicies.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: ippolicies.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -410,14 +1232,19 @@ spec:
         description: IPPolicy is the Schema for the ippolicies API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -439,6 +1266,9 @@ spec:
                 items:
                   properties:
                     action:
+                      enum:
+                      - allow
+                      - deny
                       type: string
                     cidr:
                       type: string
@@ -459,9 +1289,9 @@ spec:
             description: IPPolicyStatus defines the observed state of IPPolicy
             properties:
               id:
-                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
-                  of cluster Important: Run "make" to regenerate code after modifying
-                  this file'
+                description: |-
+                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
                 type: string
               rules:
                 items:
@@ -481,13 +1311,1021 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_tcpedges.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_ngrokmodulesets.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: ngrokmodulesets.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: NgrokModuleSet
+    listKind: NgrokModuleSetList
+    plural: ngrokmodulesets
+    singular: ngrokmoduleset
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: NgrokModuleSet is the Schema for the ngrokmodules API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          modules:
+            properties:
+              circuitBreaker:
+                description: CircuitBreaker configuration for this module set
+                properties:
+                  errorThresholdPercentage:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Error threshold percentage should be between 0 -
+                      1.0, not 0-100.0
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  numBuckets:
+                    description: Integer number of buckets into which metrics are
+                      retained. Max 128.
+                    format: int32
+                    maximum: 128
+                    minimum: 1
+                    type: integer
+                  rollingWindow:
+                    description: Statistical rolling window duration that metrics
+                      are retained for.
+                    format: duration
+                    type: string
+                  trippedDuration:
+                    description: Duration after which the circuit is tripped to wait
+                      before re-evaluating upstream health
+                    format: duration
+                    type: string
+                  volumeThreshold:
+                    description: |-
+                      Integer number of requests in a rolling window that will trip the circuit.
+                      Helpful if traffic volume is low.
+                    format: int32
+                    type: integer
+                type: object
+              compression:
+                description: Compression configuration for this module set
+                properties:
+                  enabled:
+                    description: Enabled is whether or not to enable compression for
+                      this endpoint
+                    type: boolean
+                type: object
+              headers:
+                description: Header configuration for this module set
+                properties:
+                  request:
+                    description: Request headers are the request headers module configuration
+                      or null
+                    properties:
+                      add:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          a map of header key to header value that will be injected into the HTTP Request
+                          before being sent to the upstream application server
+                        type: object
+                      remove:
+                        description: |-
+                          a list of header names that will be removed from the HTTP Request before being
+                          sent to the upstream application server
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  response:
+                    description: Response headers are the response headers module
+                      configuration or null
+                    properties:
+                      add:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          a map of header key to header value that will be injected into the HTTP Response
+                          returned to the HTTP client
+                        type: object
+                      remove:
+                        description: |-
+                          a list of header names that will be removed from the HTTP Response returned to
+                          the HTTP client
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
+              ipRestriction:
+                description: IPRestriction configuration for this module set
+                properties:
+                  policies:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              mutualTLS:
+                description: MutualTLS configuration for this module set
+                properties:
+                  certificateAuthorities:
+                    description: |-
+                      List of CA IDs that will be used to validate incoming connections to the
+                      edge.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              oauth:
+                description: OAuth configuration for this module set
+                properties:
+                  amazon:
+                    description: configuration for using amazon as the identity provider
+                    properties:
+                      authCheckInterval:
+                        description: |-
+                          Duration after which ngrok guarantees it will refresh user
+                          state from the identity provider and recheck whether the user is still
+                          authorized to access the endpoint. This is the preferred tunable to use to
+                          enforce a minimum amount of time after which a revoked user will no longer be
+                          able to access the resource.
+                        format: duration
+                        type: string
+                      clientId:
+                        description: |-
+                          the OAuth app client ID. retrieve it from the identity provider's dashboard
+                          where you created your own OAuth app. optional. if unspecified, ngrok will use
+                          its own managed oauth application which has additional restrictions. see the
+                          OAuth module docs for more details. if present, clientSecret must be present as
+                          well.
+                        type: string
+                      clientSecret:
+                        description: |-
+                          the OAuth app client secret. retrieve if from the identity provider's dashboard
+                          where you created your own OAuth app. optional, see all of the caveats in the
+                          docs for clientId.
+                        properties:
+                          key:
+                            description: Key in the secret to use
+                            type: string
+                          name:
+                            description: Name of the Kubernetes secret
+                            type: string
+                        type: object
+                      cookiePrefix:
+                        description: |-
+                          the prefix of the session cookie that ngrok sets on the http client to cache
+                          authentication. default is 'ngrok.'
+                        type: string
+                      emailAddresses:
+                        description: |-
+                          a list of email addresses of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      emailDomains:
+                        description: |-
+                          a list of email domains of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      inactivityTimeout:
+                        description: |-
+                          Duration of inactivity after which if the user has not accessed
+                          the endpoint, their session will time out and they will be forced to
+                          reauthenticate.
+                        format: duration
+                        type: string
+                      maximumDuration:
+                        description: |-
+                          Integer number of seconds of the maximum duration of an authenticated session.
+                          After this period is exceeded, a user must reauthenticate.
+                        format: duration
+                        type: string
+                      optionsPassthrough:
+                        description: |-
+                          Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                          supporting CORS.
+                        type: boolean
+                      scopes:
+                        description: |-
+                          a list of provider-specific OAuth scopes with the permissions your OAuth app
+                          would like to ask for. these may not be set if you are using the ngrok-managed
+                          oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  facebook:
+                    description: configuration for using facebook as the identity
+                      provider
+                    properties:
+                      authCheckInterval:
+                        description: |-
+                          Duration after which ngrok guarantees it will refresh user
+                          state from the identity provider and recheck whether the user is still
+                          authorized to access the endpoint. This is the preferred tunable to use to
+                          enforce a minimum amount of time after which a revoked user will no longer be
+                          able to access the resource.
+                        format: duration
+                        type: string
+                      clientId:
+                        description: |-
+                          the OAuth app client ID. retrieve it from the identity provider's dashboard
+                          where you created your own OAuth app. optional. if unspecified, ngrok will use
+                          its own managed oauth application which has additional restrictions. see the
+                          OAuth module docs for more details. if present, clientSecret must be present as
+                          well.
+                        type: string
+                      clientSecret:
+                        description: |-
+                          the OAuth app client secret. retrieve if from the identity provider's dashboard
+                          where you created your own OAuth app. optional, see all of the caveats in the
+                          docs for clientId.
+                        properties:
+                          key:
+                            description: Key in the secret to use
+                            type: string
+                          name:
+                            description: Name of the Kubernetes secret
+                            type: string
+                        type: object
+                      cookiePrefix:
+                        description: |-
+                          the prefix of the session cookie that ngrok sets on the http client to cache
+                          authentication. default is 'ngrok.'
+                        type: string
+                      emailAddresses:
+                        description: |-
+                          a list of email addresses of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      emailDomains:
+                        description: |-
+                          a list of email domains of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      inactivityTimeout:
+                        description: |-
+                          Duration of inactivity after which if the user has not accessed
+                          the endpoint, their session will time out and they will be forced to
+                          reauthenticate.
+                        format: duration
+                        type: string
+                      maximumDuration:
+                        description: |-
+                          Integer number of seconds of the maximum duration of an authenticated session.
+                          After this period is exceeded, a user must reauthenticate.
+                        format: duration
+                        type: string
+                      optionsPassthrough:
+                        description: |-
+                          Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                          supporting CORS.
+                        type: boolean
+                      scopes:
+                        description: |-
+                          a list of provider-specific OAuth scopes with the permissions your OAuth app
+                          would like to ask for. these may not be set if you are using the ngrok-managed
+                          oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  github:
+                    description: configuration for using github as the identity provider
+                    properties:
+                      authCheckInterval:
+                        description: |-
+                          Duration after which ngrok guarantees it will refresh user
+                          state from the identity provider and recheck whether the user is still
+                          authorized to access the endpoint. This is the preferred tunable to use to
+                          enforce a minimum amount of time after which a revoked user will no longer be
+                          able to access the resource.
+                        format: duration
+                        type: string
+                      clientId:
+                        description: |-
+                          the OAuth app client ID. retrieve it from the identity provider's dashboard
+                          where you created your own OAuth app. optional. if unspecified, ngrok will use
+                          its own managed oauth application which has additional restrictions. see the
+                          OAuth module docs for more details. if present, clientSecret must be present as
+                          well.
+                        type: string
+                      clientSecret:
+                        description: |-
+                          the OAuth app client secret. retrieve if from the identity provider's dashboard
+                          where you created your own OAuth app. optional, see all of the caveats in the
+                          docs for clientId.
+                        properties:
+                          key:
+                            description: Key in the secret to use
+                            type: string
+                          name:
+                            description: Name of the Kubernetes secret
+                            type: string
+                        type: object
+                      cookiePrefix:
+                        description: |-
+                          the prefix of the session cookie that ngrok sets on the http client to cache
+                          authentication. default is 'ngrok.'
+                        type: string
+                      emailAddresses:
+                        description: |-
+                          a list of email addresses of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      emailDomains:
+                        description: |-
+                          a list of email domains of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      inactivityTimeout:
+                        description: |-
+                          Duration of inactivity after which if the user has not accessed
+                          the endpoint, their session will time out and they will be forced to
+                          reauthenticate.
+                        format: duration
+                        type: string
+                      maximumDuration:
+                        description: |-
+                          Integer number of seconds of the maximum duration of an authenticated session.
+                          After this period is exceeded, a user must reauthenticate.
+                        format: duration
+                        type: string
+                      optionsPassthrough:
+                        description: |-
+                          Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                          supporting CORS.
+                        type: boolean
+                      organizations:
+                        description: |-
+                          a list of github org identifiers. users who are members of any of the listed
+                          organizations will be allowed access. identifiers should be the organization's
+                          'slug'
+                        items:
+                          type: string
+                        type: array
+                      scopes:
+                        description: |-
+                          a list of provider-specific OAuth scopes with the permissions your OAuth app
+                          would like to ask for. these may not be set if you are using the ngrok-managed
+                          oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                        items:
+                          type: string
+                        type: array
+                      teams:
+                        description: |-
+                          a list of github teams identifiers. users will be allowed access to the endpoint
+                          if they are a member of any of these teams. identifiers should be in the 'slug'
+                          format qualified with the org name, e.g. org-name/team-name
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  gitlab:
+                    description: configuration for using gitlab as the identity provider
+                    properties:
+                      authCheckInterval:
+                        description: |-
+                          Duration after which ngrok guarantees it will refresh user
+                          state from the identity provider and recheck whether the user is still
+                          authorized to access the endpoint. This is the preferred tunable to use to
+                          enforce a minimum amount of time after which a revoked user will no longer be
+                          able to access the resource.
+                        format: duration
+                        type: string
+                      clientId:
+                        description: |-
+                          the OAuth app client ID. retrieve it from the identity provider's dashboard
+                          where you created your own OAuth app. optional. if unspecified, ngrok will use
+                          its own managed oauth application which has additional restrictions. see the
+                          OAuth module docs for more details. if present, clientSecret must be present as
+                          well.
+                        type: string
+                      clientSecret:
+                        description: |-
+                          the OAuth app client secret. retrieve if from the identity provider's dashboard
+                          where you created your own OAuth app. optional, see all of the caveats in the
+                          docs for clientId.
+                        properties:
+                          key:
+                            description: Key in the secret to use
+                            type: string
+                          name:
+                            description: Name of the Kubernetes secret
+                            type: string
+                        type: object
+                      cookiePrefix:
+                        description: |-
+                          the prefix of the session cookie that ngrok sets on the http client to cache
+                          authentication. default is 'ngrok.'
+                        type: string
+                      emailAddresses:
+                        description: |-
+                          a list of email addresses of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      emailDomains:
+                        description: |-
+                          a list of email domains of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      inactivityTimeout:
+                        description: |-
+                          Duration of inactivity after which if the user has not accessed
+                          the endpoint, their session will time out and they will be forced to
+                          reauthenticate.
+                        format: duration
+                        type: string
+                      maximumDuration:
+                        description: |-
+                          Integer number of seconds of the maximum duration of an authenticated session.
+                          After this period is exceeded, a user must reauthenticate.
+                        format: duration
+                        type: string
+                      optionsPassthrough:
+                        description: |-
+                          Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                          supporting CORS.
+                        type: boolean
+                      scopes:
+                        description: |-
+                          a list of provider-specific OAuth scopes with the permissions your OAuth app
+                          would like to ask for. these may not be set if you are using the ngrok-managed
+                          oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  google:
+                    description: configuration for using google as the identity provider
+                    properties:
+                      authCheckInterval:
+                        description: |-
+                          Duration after which ngrok guarantees it will refresh user
+                          state from the identity provider and recheck whether the user is still
+                          authorized to access the endpoint. This is the preferred tunable to use to
+                          enforce a minimum amount of time after which a revoked user will no longer be
+                          able to access the resource.
+                        format: duration
+                        type: string
+                      clientId:
+                        description: |-
+                          the OAuth app client ID. retrieve it from the identity provider's dashboard
+                          where you created your own OAuth app. optional. if unspecified, ngrok will use
+                          its own managed oauth application which has additional restrictions. see the
+                          OAuth module docs for more details. if present, clientSecret must be present as
+                          well.
+                        type: string
+                      clientSecret:
+                        description: |-
+                          the OAuth app client secret. retrieve if from the identity provider's dashboard
+                          where you created your own OAuth app. optional, see all of the caveats in the
+                          docs for clientId.
+                        properties:
+                          key:
+                            description: Key in the secret to use
+                            type: string
+                          name:
+                            description: Name of the Kubernetes secret
+                            type: string
+                        type: object
+                      cookiePrefix:
+                        description: |-
+                          the prefix of the session cookie that ngrok sets on the http client to cache
+                          authentication. default is 'ngrok.'
+                        type: string
+                      emailAddresses:
+                        description: |-
+                          a list of email addresses of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      emailDomains:
+                        description: |-
+                          a list of email domains of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      inactivityTimeout:
+                        description: |-
+                          Duration of inactivity after which if the user has not accessed
+                          the endpoint, their session will time out and they will be forced to
+                          reauthenticate.
+                        format: duration
+                        type: string
+                      maximumDuration:
+                        description: |-
+                          Integer number of seconds of the maximum duration of an authenticated session.
+                          After this period is exceeded, a user must reauthenticate.
+                        format: duration
+                        type: string
+                      optionsPassthrough:
+                        description: |-
+                          Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                          supporting CORS.
+                        type: boolean
+                      scopes:
+                        description: |-
+                          a list of provider-specific OAuth scopes with the permissions your OAuth app
+                          would like to ask for. these may not be set if you are using the ngrok-managed
+                          oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  linkedin:
+                    description: configuration for using linkedin as the identity
+                      provider
+                    properties:
+                      authCheckInterval:
+                        description: |-
+                          Duration after which ngrok guarantees it will refresh user
+                          state from the identity provider and recheck whether the user is still
+                          authorized to access the endpoint. This is the preferred tunable to use to
+                          enforce a minimum amount of time after which a revoked user will no longer be
+                          able to access the resource.
+                        format: duration
+                        type: string
+                      clientId:
+                        description: |-
+                          the OAuth app client ID. retrieve it from the identity provider's dashboard
+                          where you created your own OAuth app. optional. if unspecified, ngrok will use
+                          its own managed oauth application which has additional restrictions. see the
+                          OAuth module docs for more details. if present, clientSecret must be present as
+                          well.
+                        type: string
+                      clientSecret:
+                        description: |-
+                          the OAuth app client secret. retrieve if from the identity provider's dashboard
+                          where you created your own OAuth app. optional, see all of the caveats in the
+                          docs for clientId.
+                        properties:
+                          key:
+                            description: Key in the secret to use
+                            type: string
+                          name:
+                            description: Name of the Kubernetes secret
+                            type: string
+                        type: object
+                      cookiePrefix:
+                        description: |-
+                          the prefix of the session cookie that ngrok sets on the http client to cache
+                          authentication. default is 'ngrok.'
+                        type: string
+                      emailAddresses:
+                        description: |-
+                          a list of email addresses of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      emailDomains:
+                        description: |-
+                          a list of email domains of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      inactivityTimeout:
+                        description: |-
+                          Duration of inactivity after which if the user has not accessed
+                          the endpoint, their session will time out and they will be forced to
+                          reauthenticate.
+                        format: duration
+                        type: string
+                      maximumDuration:
+                        description: |-
+                          Integer number of seconds of the maximum duration of an authenticated session.
+                          After this period is exceeded, a user must reauthenticate.
+                        format: duration
+                        type: string
+                      optionsPassthrough:
+                        description: |-
+                          Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                          supporting CORS.
+                        type: boolean
+                      scopes:
+                        description: |-
+                          a list of provider-specific OAuth scopes with the permissions your OAuth app
+                          would like to ask for. these may not be set if you are using the ngrok-managed
+                          oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  microsoft:
+                    description: configuration for using microsoft as the identity
+                      provider
+                    properties:
+                      authCheckInterval:
+                        description: |-
+                          Duration after which ngrok guarantees it will refresh user
+                          state from the identity provider and recheck whether the user is still
+                          authorized to access the endpoint. This is the preferred tunable to use to
+                          enforce a minimum amount of time after which a revoked user will no longer be
+                          able to access the resource.
+                        format: duration
+                        type: string
+                      clientId:
+                        description: |-
+                          the OAuth app client ID. retrieve it from the identity provider's dashboard
+                          where you created your own OAuth app. optional. if unspecified, ngrok will use
+                          its own managed oauth application which has additional restrictions. see the
+                          OAuth module docs for more details. if present, clientSecret must be present as
+                          well.
+                        type: string
+                      clientSecret:
+                        description: |-
+                          the OAuth app client secret. retrieve if from the identity provider's dashboard
+                          where you created your own OAuth app. optional, see all of the caveats in the
+                          docs for clientId.
+                        properties:
+                          key:
+                            description: Key in the secret to use
+                            type: string
+                          name:
+                            description: Name of the Kubernetes secret
+                            type: string
+                        type: object
+                      cookiePrefix:
+                        description: |-
+                          the prefix of the session cookie that ngrok sets on the http client to cache
+                          authentication. default is 'ngrok.'
+                        type: string
+                      emailAddresses:
+                        description: |-
+                          a list of email addresses of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      emailDomains:
+                        description: |-
+                          a list of email domains of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      inactivityTimeout:
+                        description: |-
+                          Duration of inactivity after which if the user has not accessed
+                          the endpoint, their session will time out and they will be forced to
+                          reauthenticate.
+                        format: duration
+                        type: string
+                      maximumDuration:
+                        description: |-
+                          Integer number of seconds of the maximum duration of an authenticated session.
+                          After this period is exceeded, a user must reauthenticate.
+                        format: duration
+                        type: string
+                      optionsPassthrough:
+                        description: |-
+                          Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                          supporting CORS.
+                        type: boolean
+                      scopes:
+                        description: |-
+                          a list of provider-specific OAuth scopes with the permissions your OAuth app
+                          would like to ask for. these may not be set if you are using the ngrok-managed
+                          oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  twitch:
+                    description: configuration for using twitch as the identity provider
+                    properties:
+                      authCheckInterval:
+                        description: |-
+                          Duration after which ngrok guarantees it will refresh user
+                          state from the identity provider and recheck whether the user is still
+                          authorized to access the endpoint. This is the preferred tunable to use to
+                          enforce a minimum amount of time after which a revoked user will no longer be
+                          able to access the resource.
+                        format: duration
+                        type: string
+                      clientId:
+                        description: |-
+                          the OAuth app client ID. retrieve it from the identity provider's dashboard
+                          where you created your own OAuth app. optional. if unspecified, ngrok will use
+                          its own managed oauth application which has additional restrictions. see the
+                          OAuth module docs for more details. if present, clientSecret must be present as
+                          well.
+                        type: string
+                      clientSecret:
+                        description: |-
+                          the OAuth app client secret. retrieve if from the identity provider's dashboard
+                          where you created your own OAuth app. optional, see all of the caveats in the
+                          docs for clientId.
+                        properties:
+                          key:
+                            description: Key in the secret to use
+                            type: string
+                          name:
+                            description: Name of the Kubernetes secret
+                            type: string
+                        type: object
+                      cookiePrefix:
+                        description: |-
+                          the prefix of the session cookie that ngrok sets on the http client to cache
+                          authentication. default is 'ngrok.'
+                        type: string
+                      emailAddresses:
+                        description: |-
+                          a list of email addresses of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      emailDomains:
+                        description: |-
+                          a list of email domains of users authenticated by identity provider who are
+                          allowed access to the endpoint
+                        items:
+                          type: string
+                        type: array
+                      inactivityTimeout:
+                        description: |-
+                          Duration of inactivity after which if the user has not accessed
+                          the endpoint, their session will time out and they will be forced to
+                          reauthenticate.
+                        format: duration
+                        type: string
+                      maximumDuration:
+                        description: |-
+                          Integer number of seconds of the maximum duration of an authenticated session.
+                          After this period is exceeded, a user must reauthenticate.
+                        format: duration
+                        type: string
+                      optionsPassthrough:
+                        description: |-
+                          Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                          supporting CORS.
+                        type: boolean
+                      scopes:
+                        description: |-
+                          a list of provider-specific OAuth scopes with the permissions your OAuth app
+                          would like to ask for. these may not be set if you are using the ngrok-managed
+                          oauth app (i.e. you must pass both client_id and client_secret to set scopes)
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
+              oidc:
+                description: OIDC configuration for this module set
+                properties:
+                  clientId:
+                    description: The OIDC app's client ID and OIDC audience.
+                    type: string
+                  clientSecret:
+                    description: The OIDC app's client secret.
+                    properties:
+                      key:
+                        description: Key in the secret to use
+                        type: string
+                      name:
+                        description: Name of the Kubernetes secret
+                        type: string
+                    type: object
+                  cookiePrefix:
+                    description: |-
+                      the prefix of the session cookie that ngrok sets on the http client to cache
+                      authentication. default is 'ngrok.'
+                    type: string
+                  inactivityTimeout:
+                    description: |-
+                      Duration of inactivity after which if the user has not accessed
+                      the endpoint, their session will time out and they will be forced to
+                      reauthenticate.
+                    format: duration
+                    type: string
+                  issuer:
+                    description: URL of the OIDC "OpenID provider". This is the base
+                      URL used for discovery.
+                    type: string
+                  maximumDuration:
+                    description: |-
+                      The maximum duration of an authenticated session.
+                      After this period is exceeded, a user must reauthenticate.
+                    format: duration
+                    type: string
+                  optionsPassthrough:
+                    description: |-
+                      Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                      supporting CORS.
+                    type: boolean
+                  scopes:
+                    description: The set of scopes to request from the OIDC identity
+                      provider.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              policy:
+                description: Policy configuration for this module set
+                properties:
+                  enabled:
+                    description: Determines if the rule will be applied to traffic
+                    type: boolean
+                  inbound:
+                    description: Inbound traffic rule
+                    items:
+                      properties:
+                        actions:
+                          description: Actions
+                          items:
+                            properties:
+                              config:
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              type:
+                                type: string
+                            type: object
+                          type: array
+                        expressions:
+                          description: Expressions
+                          items:
+                            type: string
+                          type: array
+                        name:
+                          description: Name
+                          type: string
+                      type: object
+                    type: array
+                  outbound:
+                    description: Outbound traffic rule
+                    items:
+                      properties:
+                        actions:
+                          description: Actions
+                          items:
+                            properties:
+                              config:
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              type:
+                                type: string
+                            type: object
+                          type: array
+                        expressions:
+                          description: Expressions
+                          items:
+                            type: string
+                          type: array
+                        name:
+                          description: Name
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              saml:
+                description: SAML configuration for this module set
+                properties:
+                  allowIdpInitiated:
+                    description: |-
+                      If true, the IdP may initiate a login directly (e.g. the user does not need to
+                      visit the endpoint first and then be redirected). The IdP should set the
+                      RelayState parameter to the target URL of the resource they want the user to be
+                      redirected to after the SAML login assertion has been processed.
+                    type: boolean
+                  authorizedGroups:
+                    description: |-
+                      If present, only users who are a member of one of the listed groups may access
+                      the target endpoint.
+                    items:
+                      type: string
+                    type: array
+                  cookiePrefix:
+                    description: |-
+                      the prefix of the session cookie that ngrok sets on the http client to cache
+                      authentication. default is 'ngrok.'
+                    type: string
+                  forceAuthn:
+                    description: |-
+                      If true, indicates that whenever we redirect a user to the IdP for
+                      authentication that the IdP must prompt the user for authentication credentials
+                      even if the user already has a valid session with the IdP.
+                    type: boolean
+                  idpMetadata:
+                    description: |-
+                      The full XML IdP EntityDescriptor. Your IdP may provide this to you as a a file
+                      to download or as a URL.
+                    type: string
+                  inactivityTimeout:
+                    description: |-
+                      Duration of inactivity after which if the user has not accessed
+                      the endpoint, their session will time out and they will be forced to
+                      reauthenticate.
+                    format: duration
+                    type: string
+                  maximumDuration:
+                    description: |-
+                      The maximum duration of an authenticated session.
+                      After this period is exceeded, a user must reauthenticate.
+                    format: duration
+                    type: string
+                  nameidFormat:
+                    description: |-
+                      Defines the name identifier format the SP expects the IdP to use in its
+                      assertions to identify subjects. If unspecified, a default value of
+                      urn:oasis:names:tc:SAML:2.0:nameid-format:persistent will be used. A subset of
+                      the allowed values enumerated by the SAML specification are supported.
+                    type: string
+                  optionsPassthrough:
+                    description: |-
+                      Do not enforce authentication on HTTP OPTIONS requests. necessary if you are
+                      supporting CORS.
+                    type: boolean
+                type: object
+              tlsTermination:
+                description: TLSTermination configuration for this module set
+                properties:
+                  minVersion:
+                    description: MinVersion is the minimum TLS version to allow for
+                      connections to the edge
+                    type: string
+                  terminateAt:
+                    description: |-
+                      TerminateAt determines where the TLS connection should be terminated.
+                      "edge" if the ngrok edge should terminate TLS traffic, "upstream" if TLS
+                      traffic should be passed through to the upstream ngrok agent /
+                      application server for termination.
+                    type: string
+                type: object
+              webhookVerification:
+                description: WebhookVerification configuration for this module set
+                properties:
+                  provider:
+                    description: |-
+                      a string indicating which webhook provider will be sending webhooks to this
+                      endpoint. Value must be one of the supported providers defined at
+                      https://ngrok.com/docs/http/webhook-verification/#supported-providers
+                    type: string
+                  secret:
+                    description: |-
+                      SecretRef is a reference to a secret containing the secret used to validate
+                      requests from the given provider. All providers except AWS SNS require a secret
+                    properties:
+                      key:
+                        description: Key in the secret to use
+                        type: string
+                      name:
+                        description: Name of the Kubernetes secret
+                        type: string
+                    type: object
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_tcpedges.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: tcpedges.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -521,14 +2359,19 @@ spec:
         description: TCPEdge is the Schema for the tcpedges API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -536,7 +2379,8 @@ spec:
             description: TCPEdgeSpec defines the desired state of TCPEdge
             properties:
               backend:
-                description: Backend is the definition for the tunnel group backend
+                description: |-
+                  Backend is the definition for the tunnel group backend
                   that serves traffic for this edge
                 properties:
                   description:
@@ -561,7 +2405,7 @@ spec:
                   in the ngrok API/Dashboard
                 type: string
               ipRestriction:
-                description: IPRestriction is an IPRestriction to apply to this route
+                description: IPRestriction is an IPRestriction to apply to this edge
                 properties:
                   policies:
                     items:
@@ -573,12 +2417,18 @@ spec:
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
+              policy:
+                description: raw json policy string that was applied to the ngrok
+                  API
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
             type: object
           status:
             description: TCPEdgeStatus defines the observed state of TCPEdge
             properties:
               backend:
-                description: Backend stores the status of the tunnel group backend,
+                description: |-
+                  Backend stores the status of the tunnel group backend,
                   mainly the ID of the backend
                 properties:
                   id:
@@ -603,13 +2453,179 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/crds/ingress.k8s.ngrok.com_tunnels.yaml
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_tlsedges.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: tlsedges.ingress.k8s.ngrok.com
+spec:
+  group: ingress.k8s.ngrok.com
+  names:
+    kind: TLSEdge
+    listKind: TLSEdgeList
+    plural: tlsedges
+    singular: tlsedge
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Domain ID
+      jsonPath: .status.id
+      name: ID
+      type: string
+    - description: Hostports
+      jsonPath: .status.hostports
+      name: Hostports
+      type: string
+    - description: Tunnel Group Backend ID
+      jsonPath: .status.backend.id
+      name: Backend ID
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: TLSEdge is the Schema for the tlsedges API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TLSEdgeSpec defines the desired state of TLSEdge
+            properties:
+              backend:
+                description: |-
+                  Backend is the definition for the tunnel group backend
+                  that serves traffic for this edge
+                properties:
+                  description:
+                    default: Created by kubernetes-ingress-controller
+                    description: Description is a human-readable description of the
+                      object in the ngrok API/Dashboard
+                    type: string
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels to watch for tunnels on this backend
+                    type: object
+                  metadata:
+                    default: '{"owned-by":"kubernetes-ingress-controller"}'
+                    description: Metadata is a string of arbitrary data associated
+                      with the object in the ngrok API/Dashboard
+                    type: string
+                type: object
+              description:
+                default: Created by kubernetes-ingress-controller
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
+                type: string
+              hostports:
+                description: Hostports is a list of hostports served by this edge
+                items:
+                  type: string
+                type: array
+              ipRestriction:
+                description: IPRestriction is an IPRestriction to apply to this edge
+                properties:
+                  policies:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              metadata:
+                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the object in the ngrok API/Dashboard
+                type: string
+              mutualTls:
+                properties:
+                  certificateAuthorities:
+                    description: |-
+                      List of CA IDs that will be used to validate incoming connections to the
+                      edge.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              policy:
+                description: raw json policy string that was applied to the ngrok
+                  API
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              tlsTermination:
+                properties:
+                  minVersion:
+                    description: MinVersion is the minimum TLS version to allow for
+                      connections to the edge
+                    type: string
+                  terminateAt:
+                    description: |-
+                      TerminateAt determines where the TLS connection should be terminated.
+                      "edge" if the ngrok edge should terminate TLS traffic, "upstream" if TLS
+                      traffic should be passed through to the upstream ngrok agent /
+                      application server for termination.
+                    type: string
+                type: object
+            type: object
+          status:
+            description: TLSEdgeStatus defines the observed state of TLSEdge
+            properties:
+              backend:
+                description: |-
+                  Backend stores the status of the tunnel group backend,
+                  mainly the ID of the backend
+                properties:
+                  id:
+                    description: ID is the unique identifier for this backend
+                    type: string
+                type: object
+              cnameTargets:
+                additionalProperties:
+                  type: string
+                description: Map of hostports to the ngrok assigned CNAME targets
+                type: object
+              hostports:
+                description: Hostports served by this edge
+                items:
+                  type: string
+                type: array
+              id:
+                description: ID is the unique identifier for this edge
+                type: string
+              uri:
+                description: URI is the URI of the edge
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_tunnels.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: tunnels.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -635,20 +2651,35 @@ spec:
         description: Tunnel is the Schema for the tunnels API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
           spec:
             description: TunnelSpec defines the desired state of Tunnel
             properties:
+              appProtocol:
+                description: The appProtocol for the backend. Currently only supports
+                  `http2`
+                type: string
+              backend:
+                description: The configuration for backend connections to services
+                properties:
+                  protocol:
+                    type: string
+                type: object
               forwardsTo:
                 description: ForwardsTo is the name and port of the service to forward
                   traffic to
@@ -668,7 +2699,70 @@ spec:
     subresources:
       status: {}
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/crds/ngrok.k8s.ngrok.com_ngroktrafficpolicies.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: ngroktrafficpolicies.ngrok.k8s.ngrok.com
+spec:
+  group: ngrok.k8s.ngrok.com
+  names:
+    kind: NgrokTrafficPolicy
+    listKind: NgrokTrafficPolicyList
+    plural: ngroktrafficpolicies
+    singular: ngroktrafficpolicy
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies
+          API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+            properties:
+              policy:
+                description: The raw json encoded policy that was applied to the ngrok
+                  API
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+            type: object
+          status:
+            description: NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
+            properties:
+              policy:
+                description: The raw json encoded policy that was applied to the ngrok
+                  API
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -687,20 +2781,20 @@ rules:
   verbs:
   - create
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/domain_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/domain_editor_role.yaml
 # permissions for end users to edit domains.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
-    app.kubernetes.io/instance: ingress-controller
-    app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.15.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-  name: ingress-controller-kubernetes-ingress-controller-domain-editor-role
+  name: ngrok-operator-domain-editor-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -721,20 +2815,20 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/domain_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/domain_viewer_role.yaml
 # permissions for end users to view domains.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
-    app.kubernetes.io/instance: ingress-controller
-    app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.15.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-  name: ingress-controller-kubernetes-ingress-controller-domain-viewer-role
+  name: ngrok-operator-domain-viewer-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -751,7 +2845,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/httpsedge_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/httpsedge_editor_role.yaml
 # permissions for end users to edit httpsedges.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -784,7 +2878,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/httpsedge_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/httpsedge_viewer_role.yaml
 # permissions for end users to view httpsedges.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -813,7 +2907,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/ippolicy_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/ippolicy_editor_role.yaml
 # permissions for end users to edit ippolicies.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -846,7 +2940,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/ippolicy_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/ippolicy_viewer_role.yaml
 # permissions for end users to view ippolicies.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -875,12 +2969,73 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/role.yaml
+# Source: ngrok-operator/templates/rbac/ngrokmoduleset_editor_role.yaml
+# permissions for end users to edit ngrokmodulesets.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
-  name: ngrok-ingress-controller-manager-role
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: ngrokmoduleset-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: ngrokmoduleset-editor-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ngrokmodulesets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ngrokmodulesets/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/ngrokmoduleset_viewer_role.yaml
+# permissions for end users to view ngrokmodulesets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: ngrokmoduleset-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: ngrokmoduleset-viewer-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ngrokmodulesets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ngrokmodulesets/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-manager-role
 rules:
 - apiGroups:
   - ""
@@ -903,10 +3058,92 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - secrets
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes/status
+  verbs:
+  - get
+  - list
+  - update
   - watch
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -989,6 +3226,14 @@ rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
+  - ngrokmodulesets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
   - tcpedges
   verbs:
   - create
@@ -1008,6 +3253,32 @@ rules:
   - ingress.k8s.ngrok.com
   resources:
   - tcpedges/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tlsedges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tlsedges/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tlsedges/status
   verbs:
   - get
   - patch
@@ -1064,8 +3335,34 @@ rules:
   - list
   - update
   - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/tcpedge_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/tcpedge_editor_role.yaml
 # permissions for end users to edit tcpedges.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -1098,7 +3395,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/tcpedge_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/tcpedge_viewer_role.yaml
 # permissions for end users to view tcpedges.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -1127,20 +3424,82 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/tunnel_editor_role.yaml
+# Source: ngrok-operator/templates/rbac/tlsedge_editor_role.yaml
+# permissions for end users to edit tlsedges.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: tlsedge-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: tlsedge-editor-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tlsedges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tlsedges/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/tlsedge_viewer_role.yaml
+# permissions for end users to view tlsedges.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: tlsedge-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ngrok-ingress-controller
+    app.kubernetes.io/part-of: ngrok-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: tlsedge-viewer-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tlsedges
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tlsedges/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/tunnel_editor_role.yaml
 # permissions for end users to edit tunnels.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
-    app.kubernetes.io/instance: ingress-controller
-    app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.15.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-  name: ingress-controller-kubernetes-ingress-controller-tunnel-editor-role
+  name: ngrok-operator-tunnel-editor-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -1161,20 +3520,20 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/rbac/tunnel_viewer_role.yaml
+# Source: ngrok-operator/templates/rbac/tunnel_viewer_role.yaml
 # permissions for end users to view tunnels.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
-    app.kubernetes.io/instance: ingress-controller
-    app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.15.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-  name: ingress-controller-kubernetes-ingress-controller-tunnel-viewer-role
+  name: ngrok-operator-tunnel-viewer-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -1191,7 +3550,7 @@ rules:
   verbs:
   - get
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -1202,10 +3561,10 @@ roleRef:
   name: ngrok-ingress-controller-manager-role
 subjects:
 - kind: ServiceAccount
-  name: ingress-controller-kubernetes-ingress-controller
-  namespace: ngrok-ingress-controller
+  name: ngrok-operator
+  namespace: ngrok-operator
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -1216,15 +3575,15 @@ roleRef:
   name: ngrok-ingress-controller-proxy-role
 subjects:
 - kind: ServiceAccount
-  name: ingress-controller-kubernetes-ingress-controller
-  namespace: ngrok-ingress-controller
+  name: ngrok-operator
+  namespace: ngrok-operator
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: ngrok-ingress-controller-leader-election-role
-  namespace: ngrok-ingress-controller
+  namespace: ngrok-operator
 rules:
 - apiGroups:
   - ""
@@ -1258,69 +3617,91 @@ rules:
   - create
   - patch
 ---
-# Source: kubernetes-ingress-controller/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: ngrok-ingress-controller-leader-election-rolebinding
-  namespace: ngrok-ingress-controller
+  namespace: ngrok-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: ngrok-ingress-controller-leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: ingress-controller-kubernetes-ingress-controller
-  namespace: ngrok-ingress-controller
+  name: ngrok-operator
+  namespace: ngrok-operator
 ---
-# Source: kubernetes-ingress-controller/templates/controller-deployment.yaml
+# Source: ngrok-operator/templates/controller-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
-    app.kubernetes.io/instance: ingress-controller
-    app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.15.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
-  name: ingress-controller-kubernetes-ingress-controller-manager
-  namespace: ngrok-ingress-controller
+  name: ngrok-operator-manager
+  namespace: ngrok-operator
   annotations:
-    checksum/agent-config: 1012a0f3f4132751a558b1db2df58aab89fc9cf8a7f75a51ab84ffecf7ec9d71
-    checksum/controller-role: e82dcab3ad4d03739f251c7b07a2af02c401d664726314ec52eefc966f8d7c60
-    checksum/rbac: ab5761a6b6e49df659299bec762a096c25634370afc20485d4b5f4befcda2504
+    checksum/controller-role: ed37888050e245ffd6475cd4ffdb4f441de1c6be6c4f398ca6cc7f67b77cf8c3
+    checksum/rbac: 23ce04dfd4dc3a00a0ffdf26cde962c673175d116e34684e09fae5cc12bae4e6
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: kubernetes-ingress-controller
-      app.kubernetes.io/instance: ingress-controller
+      app.kubernetes.io/name: ngrok-operator
+      app.kubernetes.io/instance: ngrok-operator
       app.kubernetes.io/component: controller
   template:
     metadata:
       annotations:
-        kubectl.kubernetes.io/default-container: manager
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
+        checksum/controller-role: ed37888050e245ffd6475cd4ffdb4f441de1c6be6c4f398ca6cc7f67b77cf8c3
+        checksum/rbac: 23ce04dfd4dc3a00a0ffdf26cde962c673175d116e34684e09fae5cc12bae4e6
+        checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
-        app.kubernetes.io/name: kubernetes-ingress-controller
-        app.kubernetes.io/instance: ingress-controller
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/instance: ngrok-operator
         app.kubernetes.io/component: controller
     spec:
-      serviceAccountName: ingress-controller-kubernetes-ingress-controller
+      affinity:
+        podAffinity:
+          
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: ngrok-operator
+                    app.kubernetes.io/name: ngrok-operator
+                    app.kubernetes.io/component: controller
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          
+      serviceAccountName: ngrok-operator
       containers:
       - name: ngrok-ingress-controller
-        image: docker.io/ngrok/kubernetes-ingress-controller:latest
+        image: docker.io/ngrok/ngrok-operator:0.12.2
         imagePullPolicy: IfNotPresent
         command:
         - /manager
         args:
+        - --controller-name=k8s.ngrok.com/ingress-controller
+        - --zap-log-level=info
+        - --zap-stacktrace-level=error
+        - --zap-encoder=json
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
-        - --election-id=ingress-controller-kubernetes-ingress-controller-leader
+        - --election-id=ngrok-operator-leader
+        - --manager-name=ngrok-operator-manager
+        - --cluster-domain=svc.cluster.local
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -1328,12 +3709,12 @@ spec:
           valueFrom:
             secretKeyRef:
               key: API_KEY
-              name: ngrok-ingress-controller-credentials
+              name: ngrok-operator-credentials
         - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
               key: AUTHTOKEN
-              name: ngrok-ingress-controller-credentials
+              name: ngrok-operator-credentials
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
@@ -1354,16 +3735,16 @@ spec:
           limits: {}
           requests: {}
 ---
-# Source: kubernetes-ingress-controller/templates/ingress-class.yaml
+# Source: ngrok-operator/templates/ingress-class.yaml
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
   labels:
-    helm.sh/chart: kubernetes-ingress-controller-0.5.0
-    app.kubernetes.io/name: kubernetes-ingress-controller
-    app.kubernetes.io/instance: ingress-controller
-    app.kubernetes.io/version: "0.3.0"
-    app.kubernetes.io/part-of: kubernetes-ingress-controller
+    helm.sh/chart: ngrok-operator-0.15.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
   name: ngrok
