@@ -5,7 +5,7 @@ IMG ?= kubernetes-ingress-controller
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
 
-REPO_URL = github.com/ngrok/kubernetes-ingress-controller
+REPO_URL = github.com/ngrok/ngrok-operator
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))

@@ -1,6 +1,6 @@
 === DEPRECATION ANNOUNCEMENT / ACTION REQUIRED =================================
 
-See Full Announcement: https://github.com/ngrok/kubernetes-ingress-controller/discussions
+See Full Announcement: https://github.com/ngrok/ngrok-operator/discussions
 
 On Wednesday September 11th, 2024 this Helm Chart will be renamed to ngrok/ngrok-operator.
 

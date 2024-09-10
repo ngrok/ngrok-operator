@@ -8,10 +8,10 @@
 </p>
 
 <p>
-  <a href="https://github.com/ngrok/kubernetes-ingress-controller/actions?query=branch%3Amain+event%3Apush">
-      <img src="https://github.com/ngrok/kubernetes-ingress-controller/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
+  <a href="https://github.com/ngrok/ngrok-operator/actions?query=branch%3Amain+event%3Apush">
+      <img src="https://github.com/ngrok/ngrok-operator/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
   </a>
-  <a href="https://github.com/ngrok/kubernetes-ingress-controller/blob/master/LICENSE">
+  <a href="https://github.com/ngrok/ngrok-operator/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"/>
   </a>
   <a href="#features-and-beta-status">
@@ -34,7 +34,7 @@
 Leverage [ngrok](https://ngrok.com/) for your ingress in your Kubernetes cluster.  Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling. This repo contains both our [Kubernetes Ingress Controller](https://kubernetes.io/docs/concepts/services-networking/ingress/) and the [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/)
 
 
-[Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
+[Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/ngrok-operator/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
 
 ## Installation
 
@@ -106,7 +106,7 @@ The full documentation for the ngrok Ingress Controller can be found on our [k8s
 >
 > This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads.
 
-1. Current issues can be found in the GitHub issues. [Known/suspected bugs](https://github.com/ngrok/kubernetes-ingress-controller/issues?q=is%3Aopen+is%3Aissue+label%3Abug) are labeled as `bug`.
+1. Current issues can be found in the GitHub issues. [Known/suspected bugs](https://github.com/ngrok/ngrok-operator/issues?q=is%3Aopen+is%3Aissue+label%3Abug) are labeled as `bug`.
 
 ## Support
 

@@ -20,7 +20,7 @@ Individual controllers and the overall Manager are built using the kubernetes co
 
 Internally, the ngrok Kubernetes Ingress Controller is made up of multiple controllers working in concert with each other, communicating via the Kubernetes API to interpret Ingress objects and convert them into managed ngrok Edges and other resources.
 
-Each of these controllers uses the same basic workflow to manage its resources. This will be dried up and documented as a part of [this issue](https://github.com/ngrok/kubernetes-ingress-controller/issues/118)
+Each of these controllers uses the same basic workflow to manage its resources. This will be dried up and documented as a part of [this issue](https://github.com/ngrok/ngrok-operator/issues/118)
 
 The following controllers for the most part manage a single resource and reflect those changes in the ngrok API.
 - [IP Policy Controller](../../internal/controllers/ippolicy_controller.go): It simply watches these CRDs and reflects the changes in the ngrok API.

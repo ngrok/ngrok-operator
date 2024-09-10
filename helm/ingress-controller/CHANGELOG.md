@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### DEPRECATION ANNOUNCEMENT / ACTION REQUIRED
 
-See Full Announcement: https://github.com/ngrok/kubernetes-ingress-controller/discussions
+See Full Announcement: https://github.com/ngrok/ngrok-operator/discussions
 
 On Wednesday September 11th, 2024 this Helm Chart will be renamed to ngrok/ngrok-operator.
 
@@ -23,7 +23,7 @@ Please update your Helm repo with the following commands:
 If you need additional help, please reach out to our support team at https://ngrok.com/support
 
 ## 0.14.3
-**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.14.2...helm-chart-0.14.3
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.14.2...helm-chart-0.14.3
 
 ### Changed
 
@@ -31,35 +31,35 @@ If you need additional help, please reach out to our support team at https://ngr
 
 
 ## 0.14.2
-**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.14.1...helm-chart-0.14.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.14.1...helm-chart-0.14.2
 
 ### Added
 
-- feat: Ability to specify cluster domain [#339](https://github.com/ngrok/kubernetes-ingress-controller/pull/339). Thank you, @fr6nco !
+- feat: Ability to specify cluster domain [#339](https://github.com/ngrok/ngrok-operator/pull/339). Thank you, @fr6nco !
 
 ### Changed
 
 - Bump image version from `0.12.1` to `0.12.2`
 
 ## 0.14.1
-**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.14.0...helm-chart-0.14.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.14.0...helm-chart-0.14.1
 
 ### Changed
 
 - Bump image version from `0.12.0` to `0.12.1`
 
 ## 0.14.0
-**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.13.0...helm-chart-0.14.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.13.0...helm-chart-0.14.0
 
 ### Added
 
-- feat: Auto-provision domain for TLS Edges [#386]( https://github.com/ngrok/kubernetes-ingress-controller/pull/386)
-- feat: Support for Load Balancer services [#387](https://github.com/ngrok/kubernetes-ingress-controller/pull/387)
-- feat: Support TLS termination in modulesets for Load Balancer Services [388](https://github.com/ngrok/kubernetes-ingress-controller/pull/388)
+- feat: Auto-provision domain for TLS Edges [#386]( https://github.com/ngrok/ngrok-operator/pull/386)
+- feat: Support for Load Balancer services [#387](https://github.com/ngrok/ngrok-operator/pull/387)
+- feat: Support TLS termination in modulesets for Load Balancer Services [388](https://github.com/ngrok/ngrok-operator/pull/388)
 
 ## 0.13.0
 
-**Full Changelog**: https://github.com/ngrok/kubernetes-ingress-controller/compare/helm-chart-0.12.4...helm-chart-0.13.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.12.4...helm-chart-0.13.0
 
 **Important**: If you are upgrading from a previous version and are using `helm install` or `helm upgrade`, you will need to manually apply the changes to the CRDs. This is because the CRDs are not [updated automatically when the chart is updated](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#some-caveats-and-explanations). To do this, apply the contents of the `crds` directory in the chart to your cluster.
 
@@ -70,13 +70,13 @@ kubectl apply -f ./helm/ingress-controller/templates/crds/
 
 ### Added
 
-- root-cas setting [#371](https://github.com/ngrok/kubernetes-ingress-controller/pull/371)
+- root-cas setting [#371](https://github.com/ngrok/ngrok-operator/pull/371)
   Takes an install option for `--set rootCAs=host` and plumb the isHostCA check into the caCerts for it to just get the host certs.
-- feat: Add support for mutualTLS [#373](https://github.com/ngrok/kubernetes-ingress-controller/pull/373)
+- feat: Add support for mutualTLS [#373](https://github.com/ngrok/ngrok-operator/pull/373)
 
 ### Changed
 
-- Update nix flake, go version, and Makefile dep versions [#379](https://github.com/ngrok/kubernetes-ingress-controller/pull/379)
+- Update nix flake, go version, and Makefile dep versions [#379](https://github.com/ngrok/ngrok-operator/pull/379)
 
 ## 0.12.4
 
@@ -90,12 +90,12 @@ kubectl apply -f ./helm/ingress-controller/templates/crds/
 ## 0.12.1
 
 - Update to version 0.10.1 of the ingress controller, which includes:
-  - IPPolicy controller wasn't applying the attached rules, leaving the IP policy in its current state [#315](https://github.com/ngrok/kubernetes-ingress-controller/pull/315)
+  - IPPolicy controller wasn't applying the attached rules, leaving the IP policy in its current state [#315](https://github.com/ngrok/ngrok-operator/pull/315)
 
 ## 0.12.0
 
 - Update to version 0.10.0 of the ingress controller, this includes:
-  - TLSEdge support - see the [TCP and TLS Edges Guide](https://github.com/ngrok/kubernetes-ingress-controller/blob/main/docs/user-guide/tcp-tls-edges.md) for more details.
+  - TLSEdge support - see the [TCP and TLS Edges Guide](https://github.com/ngrok/ngrok-operator/blob/main/docs/user-guide/tcp-tls-edges.md) for more details.
   - A fix for renegotiating TLS backends
 
 ## 0.11.0
@@ -103,45 +103,45 @@ kubectl apply -f ./helm/ingress-controller/templates/crds/
 ** Important ** This version of the controller changes the ownership model for https edge and tunnel CRs. To ease out the transition to the new ownership, make sure to run `migrate-edges.sh` and `migrate-tunnels.sh` scripts before installing the new version.
 
 ### Changed
-- Specify IPPolicyRule action as an enum of (allow,deny) as part of [#260](https://github.com/ngrok/kubernetes-ingress-controller/pull/260)
-- Handle special case for changing auth types that causes an error during state transition [#259](https://github.com/ngrok/kubernetes-ingress-controller/pull/259)
-- Better handling when changing pathType between 'Exact' and 'Prefix' [#262](https://github.com/ngrok/kubernetes-ingress-controller/pull/262)
-- Update ngrok-go to 1.4.0 [#298](https://github.com/ngrok/kubernetes-ingress-controller/pull/298)
-- Tunnels are now unique in their respective namespace, not across the cluster [#281](https://github.com/ngrok/kubernetes-ingress-controller/pull/281)
-- The CRs that ingress controller creates are uniquely marked and managed by it. Other CRs created manually are no longer deleted when the ingress controller is not using them [#267](https://github.com/ngrok/kubernetes-ingress-controller/issues/267); fixed for tunnel in [#285](https://github.com/ngrok/kubernetes-ingress-controller/pull/285) and for https edges in [#286](https://github.com/ngrok/kubernetes-ingress-controller/pull/286)
-- Better error handling and retry, specifically for the case where we try to create an https edge for a domain which is not created yet [#283](https://github.com/ngrok/kubernetes-ingress-controller/issues/283); fixed in [#288](https://github.com/ngrok/kubernetes-ingress-controller/pull/288)
-- Watch and apply ngrok module set CR changes [#287](https://github.com/ngrok/kubernetes-ingress-controller/issues/287); fixed in [#290](https://github.com/ngrok/kubernetes-ingress-controller/pull/290)
-- Label https edges and tunnels with service UID to make them more unique within ngrok [#291](https://github.com/ngrok/kubernetes-ingress-controller/issues/291); fixed in [#293](https://github.com/ngrok/kubernetes-ingress-controller/pull/293) and [#302](https://github.com/ngrok/kubernetes-ingress-controller/pull/302)
+- Specify IPPolicyRule action as an enum of (allow,deny) as part of [#260](https://github.com/ngrok/ngrok-operator/pull/260)
+- Handle special case for changing auth types that causes an error during state transition [#259](https://github.com/ngrok/ngrok-operator/pull/259)
+- Better handling when changing pathType between 'Exact' and 'Prefix' [#262](https://github.com/ngrok/ngrok-operator/pull/262)
+- Update ngrok-go to 1.4.0 [#298](https://github.com/ngrok/ngrok-operator/pull/298)
+- Tunnels are now unique in their respective namespace, not across the cluster [#281](https://github.com/ngrok/ngrok-operator/pull/281)
+- The CRs that ingress controller creates are uniquely marked and managed by it. Other CRs created manually are no longer deleted when the ingress controller is not using them [#267](https://github.com/ngrok/ngrok-operator/issues/267); fixed for tunnel in [#285](https://github.com/ngrok/ngrok-operator/pull/285) and for https edges in [#286](https://github.com/ngrok/ngrok-operator/pull/286)
+- Better error handling and retry, specifically for the case where we try to create an https edge for a domain which is not created yet [#283](https://github.com/ngrok/ngrok-operator/issues/283); fixed in [#288](https://github.com/ngrok/ngrok-operator/pull/288)
+- Watch and apply ngrok module set CR changes [#287](https://github.com/ngrok/ngrok-operator/issues/287); fixed in [#290](https://github.com/ngrok/ngrok-operator/pull/290)
+- Label https edges and tunnels with service UID to make them more unique within ngrok [#291](https://github.com/ngrok/ngrok-operator/issues/291); fixed in [#293](https://github.com/ngrok/ngrok-operator/pull/293) and [#302](https://github.com/ngrok/ngrok-operator/pull/302)
 
 ### Added
-- Add support for configuring pod affinities, pod disruption budget, and priorityClassName [#258](https://github.com/ngrok/kubernetes-ingress-controller/pull/258)
-- The controller stopping at the first resource create [#270](https://github.com/ngrok/kubernetes-ingress-controller/pull/270)
-- Using `make deploy` now requires `NGROK_AUTHTOKEN` and `NGROK_API_KEY` to be set [#292](https://github.com/ngrok/kubernetes-ingress-controller/pull/292)
+- Add support for configuring pod affinities, pod disruption budget, and priorityClassName [#258](https://github.com/ngrok/ngrok-operator/pull/258)
+- The controller stopping at the first resource create [#270](https://github.com/ngrok/ngrok-operator/pull/270)
+- Using `make deploy` now requires `NGROK_AUTHTOKEN` and `NGROK_API_KEY` to be set [#292](https://github.com/ngrok/ngrok-operator/pull/292)
 
 ## 0.10.0
 
 ### Added
-- Support HTTPS backends via service annotation [#238](https://github.com/ngrok/kubernetes-ingress-controller/pull/238)
+- Support HTTPS backends via service annotation [#238](https://github.com/ngrok/ngrok-operator/pull/238)
 
 ### Changed
-- Normalize all ngrok `.io` TLD to `.app` TLD [#240](https://github.com/ngrok/kubernetes-ingress-controller/pull/240)
+- Normalize all ngrok `.io` TLD to `.app` TLD [#240](https://github.com/ngrok/ngrok-operator/pull/240)
 - Chart Icon
 
 ### Fixed
-- Add namespace to secret [#244](https://github.com/ngrok/kubernetes-ingress-controller/pull/244). Thank you for the contribution, @vincetse!
+- Add namespace to secret [#244](https://github.com/ngrok/ngrok-operator/pull/244). Thank you for the contribution, @vincetse!
 
 ## 0.9.0
 ### Added
-- Add a 'podLabels' option to the helm chart [#212](https://github.com/ngrok/kubernetes-ingress-controller/pull/212).
+- Add a 'podLabels' option to the helm chart [#212](https://github.com/ngrok/ngrok-operator/pull/212).
 - Permission to `get`,`list`, and `watch` `services` [#222](https://github.com/ngrok-kubernetes-ingress-controller/pull/222).
 
 ## 0.8.0
 ### Changed
-- Log Level configuration to helm chart [#199](https://github.com/ngrok/kubernetes-ingress-controller/pull/199).
-- Bump default controller image to use `0.6.0` release [#204](https://github.com/ngrok/kubernetes-ingress-controller/pull/204).
+- Log Level configuration to helm chart [#199](https://github.com/ngrok/ngrok-operator/pull/199).
+- Bump default controller image to use `0.6.0` release [#204](https://github.com/ngrok/ngrok-operator/pull/204).
 
 ### Fixed
-- update default-container annotation so logs work correctly [#197](https://github.com/ngrok/kubernetes-ingress-controller/pull/197)
+- update default-container annotation so logs work correctly [#197](https://github.com/ngrok/ngrok-operator/pull/197)
 
 ## 0.7.0
 
@@ -157,14 +157,14 @@ kubectl apply -f ./helm/ingress-controller/templates/crds/
 
 ## 0.6.0
 ### Changed
-- Ingress Class has Default set to false [#109](https://github.com/ngrok/kubernetes-ingress-controller/pull/109)
+- Ingress Class has Default set to false [#109](https://github.com/ngrok/ngrok-operator/pull/109)
 
 ### Added
-- Allow controller name to be configured to support multiple ngrok ingress classes [#159](https://github.com/ngrok/kubernetes-ingress-controller/pull/159)
-- Allow the controller to be configured to only watch a single namespace [#157](https://github.com/ngrok/kubernetes-ingress-controller/pull/157)
-- Pass key/value pairs to helm that get added as json string metadata in ngrok api resources [#156](https://github.com/ngrok/kubernetes-ingress-controller/pull/156)
-- Add IP Policy CRD and IP Policy Route Module [#120](https://github.com/ngrok/kubernetes-ingress-controller/pull/120)
-- Load certs from the directory `"/etc/ssl/certs/ngrok/"` for ngrok-go if present [#111](https://github.com/ngrok/kubernetes-ingress-controller/pull/111)
+- Allow controller name to be configured to support multiple ngrok ingress classes [#159](https://github.com/ngrok/ngrok-operator/pull/159)
+- Allow the controller to be configured to only watch a single namespace [#157](https://github.com/ngrok/ngrok-operator/pull/157)
+- Pass key/value pairs to helm that get added as json string metadata in ngrok api resources [#156](https://github.com/ngrok/ngrok-operator/pull/156)
+- Add IP Policy CRD and IP Policy Route Module [#120](https://github.com/ngrok/ngrok-operator/pull/120)
+- Load certs from the directory `"/etc/ssl/certs/ngrok/"` for ngrok-go if present [#111](https://github.com/ngrok/ngrok-operator/pull/111)
 
 ## 0.5.0
 ### Changed

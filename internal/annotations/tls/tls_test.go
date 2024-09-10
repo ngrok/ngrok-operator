@@ -3,9 +3,9 @@ package tls
 import (
 	"testing"
 
-	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/parser"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations/testutil"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
+	"github.com/ngrok/ngrok-operator/internal/annotations/testutil"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -46,16 +46,16 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v5"
 
-	ingressv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ingress/v1alpha1"
-	ngrokv1alpha1 "github.com/ngrok/kubernetes-ingress-controller/api/ngrok/v1alpha1"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/annotations"
-	gatewaycontroller "github.com/ngrok/kubernetes-ingress-controller/internal/controller/gateway"
-	controllers "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ingress"
-	ngrokctr "github.com/ngrok/kubernetes-ingress-controller/internal/controller/ngrok"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/ngrokapi"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/store"
-	"github.com/ngrok/kubernetes-ingress-controller/internal/version"
-	"github.com/ngrok/kubernetes-ingress-controller/pkg/tunneldriver"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/annotations"
+	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
+	controllers "github.com/ngrok/ngrok-operator/internal/controller/ingress"
+	ngrokctr "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
+	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/store"
+	"github.com/ngrok/ngrok-operator/internal/version"
+	"github.com/ngrok/ngrok-operator/pkg/tunneldriver"
 	//+kubebuilder:scaffold:imports
 )
 
