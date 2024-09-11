@@ -381,6 +381,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 	if opts.enableFeatureBindings {
 		setupLog.Info("Endpoint Bindings controller enabled")
 
+		// Global BindingConfiguration
 		if err = (&bindingscontroller.BindingConfigurationReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -389,11 +390,21 @@ func runController(ctx context.Context, opts managerOpts) error {
 			os.Exit(1)
 		}
 
+		// EndpointBindings
 		if err = (&bindingscontroller.EndpointBindingReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
+			os.Exit(1)
+		}
+
+		// TLS Secret
+		if err = (&bindingscontroller.TlsSecretReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Secret")
 			os.Exit(1)
 		}
 	} else {

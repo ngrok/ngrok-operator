@@ -32,6 +32,12 @@ import (
 // NOTE: Run "make manifests" to regenerate code after modifying this file:w
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+const (
+	// DefaultTlsSecretName is the default name of the k8s secret that contains the TLS private/public keys to use for the ngrok forwarding endpoint
+	// Note: This Secret is managed by the TlsSecretController
+	DefaultTlsSecretName = "global-binding-configuration-certs"
+)
+
 // TargetMetadata is a subset of metav1.ObjectMeta that is used to define the target object in the k8s cluster
 // +kubebuilder:object:generate=true
 type TargetMetadata struct {
