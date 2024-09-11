@@ -88,6 +88,9 @@ lint: golangci-lint ## Run golangci-lint linter & yamllint
 lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 	$(GOLANGCI_LINT) run --fix
 
+.PHONY: validate
+validate: build test lint manifests helm-update-snapshots ## Validate the codebase before a PR
+
 ##@ Build
 
 .PHONY: build
