@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -49,11 +49,12 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1beta1 "github.com/ngrok/ngrok-operator/api/ngrok/v1beta1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
-	ngrokctr "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
+	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -72,6 +73,7 @@ func init() {
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -208,6 +210,14 @@ func runController(ctx context.Context, opts managerOpts) error {
 	driver, err := getDriver(ctx, mgr, opts)
 	if err != nil {
 		return fmt.Errorf("unable to create Driver: %w", err)
+	}
+
+	if err = (&ngrokcontroller.OperatorConfigurationReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "OperatorConfiguration")
+		os.Exit(1)
 	}
 
 	if err := (&ingresscontroller.IngressReconciler{
@@ -357,7 +367,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		}
 	}
 
-	if err = (&ngrokctr.NgrokTrafficPolicyReconciler{
+	if err = (&ngrokcontroller.NgrokTrafficPolicyReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),
 		Scheme:   mgr.GetScheme(),
