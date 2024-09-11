@@ -48,18 +48,6 @@ spec:
                 items:
                   type: string
                 type: array
-              description:
-                default: Created by ngrok-operator
-                description: Description is a human-readable description of the object
-                  in the ngrok API/Dashboard
-                maxLength: 4096
-                type: string
-              metadata:
-                default: '{"owned-by":"ngrok-operator"}'
-                description: Metadata is a sJSON encoded tring of arbitrary data associated
-                  with the object in the ngrok API/Dashboard
-                maxLength: 4096
-                type: string
               name:
                 description: Name is the name of the k8s-binding for the account to
                   bind to this configuration and the ngrok API

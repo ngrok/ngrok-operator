@@ -52,11 +52,17 @@ spec:
                 items:
                   type: string
                 type: array
+              id:
+                description: a resource identifier
+                type: string
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
                 description: Metadata is a sJSON encoded tring of arbitrary data associated
                   with the object in the ngrok API/Dashboard
                 maxLength: 4096
+                type: string
+              uri:
+                description: a uri for locating a resource
                 type: string
               version:
                 description: AppVersion is the version of the operator that is currently

@@ -25,6 +25,7 @@ SOFTWARE.
 package v1beta1
 
 import (
+	"github.com/ngrok/ngrok-api-go/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -47,6 +48,7 @@ type ngrokAPICommon struct {
 
 // OperatorConfigurationStatus defines the observed state of OperatorConfiguration
 type OperatorConfigurationStatus struct {
+	ngrok.Ref      `json:",inline"`
 	ngrokAPICommon `json:",inline"`
 
 	// AppVersion is the version of the operator that is currently running
@@ -59,7 +61,7 @@ type OperatorConfigurationStatus struct {
 	EnabledFeatures []string `json:"enabledFeatures,omitempty"`
 
 	// TODO(hkatz) How should we connect feature statuses such as binding_endpoints or ingress_endpoints
-	// TODO(hkazt) Where should we present free-form status information about the operator? kind: ConfigMap?
+	// TODO(hkatz) Where should we present free-form status information about the operator? kind: ConfigMap?
 }
 
 // OperatorFeature is an enum of the features that the operator can enable
