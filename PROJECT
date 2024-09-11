@@ -116,4 +116,8 @@ resources:
   kind: OperatorConfiguration
   path: github.com/ngrok/ngrok-operator/api/ngrok/v1beta1
   version: v1beta1
+- controller: true
+  domain: k8s.ngrok.com
+  kind: Secret
+  version: v1
 version: "3"
