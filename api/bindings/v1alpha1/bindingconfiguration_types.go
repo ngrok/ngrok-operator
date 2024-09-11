@@ -80,11 +80,11 @@ type BindingConfigurationSpec struct {
 	// +kubebuilder:validation:items:Pattern=`^[*]$`
 	AllowedURLs []string `json:"allowedURLs"`
 
-	// CertsSecretName is the name of the k8s secret that contains the TLS certificate, CSR, private/public keys to use for the ngrok API
+	// TlsSecretName is the name of the k8s secret that contains the TLS private/public keys to use for the ngrok forwarding endpoint
 	// TODO(hkatz) Create controller to manage this Secret lifecycle
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default="global-binding-configuration-certs"
-	CertsSecretName string `json:"certsSecretName"`
+	TlsSecretName string `json:"tlsSecretName"`
 
 	// Region is the ngrok region to use for the forwarding endpoint connections
 	// +kubebuilder:validation:Required

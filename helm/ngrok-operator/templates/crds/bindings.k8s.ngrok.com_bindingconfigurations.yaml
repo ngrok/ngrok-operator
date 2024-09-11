@@ -48,12 +48,6 @@ spec:
                 items:
                   type: string
                 type: array
-              certsSecretName:
-                default: global-binding-configuration-certs
-                description: |-
-                  CertsSecretName is the name of the k8s secret that contains the TLS certificate, CSR, private/public keys to use for the ngrok API
-                  TODO(hkatz) Create controller to manage this Secret lifecycle
-                type: string
               description:
                 default: Created by ngrok-operator
                 description: Description is a human-readable description of the object
@@ -101,11 +95,17 @@ spec:
                   Note: empty string means global/all regions are allowed
                   TODO(hkatz) implement this
                 type: string
+              tlsSecretName:
+                default: global-binding-configuration-certs
+                description: |-
+                  TlsSecretName is the name of the k8s secret that contains the TLS private/public keys to use for the ngrok forwarding endpoint
+                  TODO(hkatz) Create controller to manage this Secret lifecycle
+                type: string
             required:
             - allowedURLs
-            - certsSecretName
             - name
             - region
+            - tlsSecretName
             type: object
           status:
             description: BindingConfigurationStatus defines the observed state of
