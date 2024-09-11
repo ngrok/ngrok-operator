@@ -59,6 +59,32 @@ rules:
   - update
   - watch
 - apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - bindingconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - bindingconfigurations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - bindingconfigurations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - gateway.networking.k8s.io
   resources:
   - gatewayclasses
