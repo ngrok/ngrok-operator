@@ -54,6 +54,10 @@ type EndpointBindingSpec struct {
 	// TargetPort is the Service targetPort this Endpoint uses for the Pod Forwarders
 	// +kubebuilder:validation:Required
 	TargetPort int32 `json:"targetPort"`
+
+	// TargetMetadata is a subset of metav1.ObjectMeta that is added to the TargetService
+	// +kube:validation:Optional
+	TargetMetadata targetMetadata `json:"targetMetadata,omitempty"`
 }
 
 // EndpointBindingStatus defines the observed state of EndpointBinding

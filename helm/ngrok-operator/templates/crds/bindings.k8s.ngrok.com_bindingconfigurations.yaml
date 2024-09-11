@@ -71,6 +71,29 @@ spec:
                   bind to this configuration and the ngrok API
                 pattern: ^k8s[/][a-zA-Z0-9-]{1,63}$
                 type: string
+              projectedMetadata:
+                description: ProjectedMetadata is a subset of metav1.ObjectMeta that
+                  is used to define the target object in the k8s cluster
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      Annotations is an unstructured key value map stored with a resource that may be
+                      set by external tools to store and retrieve arbitrary metadata. They are not
+                      queryable and should be preserved when modifying objects.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+                    type: object
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      Map of string keys and values that can be used to organize and categorize
+                      (scope and select) objects. May match selectors of replication controllers
+                      and services.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+                    type: object
+                type: object
               region:
                 default: ""
                 description: |-
