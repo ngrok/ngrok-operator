@@ -32,20 +32,6 @@ import (
 // NOTE: Run "make manifests" to regenerate code after modifying this file:w
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// common ngrok API/Dashboard fields
-type ngrokAPICommon struct {
-	// Description is a human-readable description of the object in the ngrok API/Dashboard
-	// +kubebuilder:validation:Required
-	// +kubebuilder:default:=`Created by ngrok-operator`
-	// +kubebuilder:validation:MaxLength=4096
-	Description string `json:"description,omitempty"`
-	// Metadata is a sJSON encoded tring of arbitrary data associated with the object in the ngrok API/Dashboard
-	// +kubebuilder:validation:Required
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	// +kubebuilder:validation:MaxLength=4096
-	Metadata string `json:"metadata,omitempty"`
-}
-
 // TargetMetadata is a subset of metav1.ObjectMeta that is used to define the target object in the k8s cluster
 // +kubebuilder:object:generate=true
 type TargetMetadata struct {
@@ -66,8 +52,6 @@ type TargetMetadata struct {
 
 // BindingConfigurationSpec defines the desired state of BindingConfiguration
 type BindingConfigurationSpec struct {
-	ngrokAPICommon `json:",inline"`
-
 	// Name is the name of the k8s-binding for the account to bind to this configuration and the ngrok API
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^k8s[/][a-zA-Z0-9-]{1,63}$`
