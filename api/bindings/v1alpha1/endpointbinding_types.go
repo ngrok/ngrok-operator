@@ -57,7 +57,7 @@ type EndpointBindingSpec struct {
 
 	// TargetMetadata is a subset of metav1.ObjectMeta that is added to the TargetService
 	// +kube:validation:Optional
-	TargetMetadata targetMetadata `json:"targetMetadata,omitempty"`
+	TargetMetadata TargetMetadata `json:"targetMetadata,omitempty"`
 }
 
 // EndpointBindingStatus defines the observed state of EndpointBinding

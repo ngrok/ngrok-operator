@@ -46,9 +46,9 @@ type ngrokAPICommon struct {
 	Metadata string `json:"metadata,omitempty"`
 }
 
-// targetMetadata is a subset of metav1.ObjectMeta that is used to define the target object in the k8s cluster
+// TargetMetadata is a subset of metav1.ObjectMeta that is used to define the target object in the k8s cluster
 // +kubebuilder:object:generate=true
-type targetMetadata struct {
+type TargetMetadata struct {
 	// Map of string keys and values that can be used to organize and categorize
 	// (scope and select) objects. May match selectors of replication controllers
 	// and services.
@@ -95,7 +95,7 @@ type BindingConfigurationSpec struct {
 
 	// ProjectedMetadata is a subset of metav1.ObjectMeta that is used to define the target object in the k8s cluster
 	// +kube:validation:Optional
-	ProjectedMetadata targetMetadata `json:"projectedMetadata,omitempty"`
+	ProjectedMetadata TargetMetadata `json:"projectedMetadata,omitempty"`
 }
 
 // BindingConfigurationStatus defines the observed state of BindingConfiguration
