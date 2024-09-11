@@ -46,6 +46,23 @@ type ngrokAPICommon struct {
 	Metadata string `json:"metadata,omitempty"`
 }
 
+// targetMetadata is a subset of metav1.ObjectMeta that is used to define the target object in the k8s cluster
+type targetMetadata struct {
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) objects. May match selectors of replication controllers
+	// and services.
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// Annotations is an unstructured key value map stored with a resource that may be
+	// set by external tools to store and retrieve arbitrary metadata. They are not
+	// queryable and should be preserved when modifying objects.
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
 // BindingConfigurationSpec defines the desired state of BindingConfiguration
 type BindingConfigurationSpec struct {
 	ngrokAPICommon `json:",inline"`
@@ -74,6 +91,10 @@ type BindingConfigurationSpec struct {
 	// Note: empty string means global/all regions are allowed
 	// TODO(hkatz) implement this
 	Region string `json:"region"`
+
+	// ProjectedMetadata is a subset of metav1.ObjectMeta that is used to define the target object in the k8s cluster
+	// +kube:validation:Optional
+	ProjectedMetadata targetMetadata `json:"projectedMetadata,omitempty"`
 }
 
 // BindingConfigurationStatus defines the observed state of BindingConfiguration
