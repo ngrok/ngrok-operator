@@ -60,13 +60,13 @@ type BindingConfigurationSpec struct {
 	// Support more patterns in the future, see product spec
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:items:Pattern=`^[*]$`
-	AllowedURLs []string `json:"allowed_urls"`
+	AllowedURLs []string `json:"allowedURLs"`
 
 	// CertsSecretName is the name of the k8s secret that contains the TLS certificate, CSR, private/public keys to use for the ngrok API
 	// TODO(hkatz) Create controller to manage this Secret lifecycle
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default="global-binding-configuration-certs"
-	CertsSecretName string `json:"certs_secret_name"`
+	CertsSecretName string `json:"certsSecretName"`
 
 	// Region is the ngrok region to use for the forwarding endpoint connections
 	// +kubebuilder:validation:Required
@@ -97,12 +97,12 @@ type BindingEndpoint struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^NGROK_ERR_\d+$`
 	// TODO(hkatz) Define error codes and implement in the API
-	ErrorCode string `json:"error_code,omitempty"`
+	ErrorCode string `json:"errorCode,omitempty"`
 
 	// ErrorMessage is a free-form error message if the status is error
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxLength=4096
-	ErrorMessage string `json:"error_message,omitempty"`
+	ErrorMessage string `json:"errorMessage,omitempty"`
 }
 
 // BindingEndpointStatus is an enum that represents the status of a BindingEndpoint

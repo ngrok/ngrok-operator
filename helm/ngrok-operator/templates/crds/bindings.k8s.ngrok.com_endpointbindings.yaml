@@ -1,0 +1,115 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: endpointbindings.bindings.k8s.ngrok.com
+spec:
+  group: bindings.k8s.ngrok.com
+  names:
+    kind: EndpointBinding
+    listKind: EndpointBindingList
+    plural: endpointbindings
+    singular: endpointbinding
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: EndpointBinding is the Schema for the endpointbindings API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: EndpointBindingSpec defines the desired state of EndpointBinding
+            properties:
+              port:
+                description: Port is the Service port this Endpoint uses
+                format: int32
+                type: integer
+              protocol:
+                default: TCP
+                description: Protocol is the Service protocol this Endpoint uses
+                enum:
+                - TCP
+                type: string
+              targetNamespace:
+                description: TargetNamespace is the destination Namespace for the
+                  Service this Endpoint projects
+                type: string
+              targetPort:
+                description: TargetPort is the Service targetPort this Endpoint uses
+                  for the Pod Forwarders
+                format: int32
+                type: integer
+              targetService:
+                description: TargetService is the name of the Service that this Endpoint
+                  projects
+                type: string
+            required:
+            - port
+            - protocol
+            - targetNamespace
+            - targetPort
+            - targetService
+            type: object
+          status:
+            description: EndpointBindingStatus defines the observed state of EndpointBinding
+            properties:
+              errorCode:
+                description: |-
+                  ErrorCode is the ngrok API error code if the status is error
+                  TODO(hkatz) Define error codes and implement in the API
+                pattern: ^NGROK_ERR_\d+$
+                type: string
+              errorMessage:
+                description: ErrorMessage is a free-form error message if the status
+                  is error
+                maxLength: 4096
+                type: string
+              hashedName:
+                description: HashName is the hashed output of the TargetService and
+                  TargetNamespace for unique identification
+                type: string
+              id:
+                description: a resource identifier
+                type: string
+              status:
+                default: unknown
+                description: |-
+                  BindingEndpointStatus is an enum that represents the status of a BindingEndpoint
+                  TODO(https://github.com/ngrok-private/ngrok/issues/32666)
+                enum:
+                - unknown
+                - provisioning
+                - bound
+                - error
+                type: string
+              uri:
+                description: a uri for locating a resource
+                type: string
+            required:
+            - hashedName
+            - status
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

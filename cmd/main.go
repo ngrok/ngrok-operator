@@ -378,6 +378,14 @@ func runController(ctx context.Context, opts managerOpts) error {
 			setupLog.Error(err, "unable to create controller", "controller", "BindingConfiguration")
 			os.Exit(1)
 		}
+
+		if err = (&bindingscontroller.EndpointBindingReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
+			os.Exit(1)
+		}
 	} else {
 		setupLog.Info("Endpoint Bindings controller disabled")
 	}
