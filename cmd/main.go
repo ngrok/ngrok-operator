@@ -46,9 +46,11 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v5"
 
+	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
+	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	ngrokctr "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
@@ -69,6 +71,7 @@ func init() {
 	utilruntime.Must(gatewayv1.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -367,11 +370,17 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	if opts.enableFeatureBindings {
 		setupLog.Info("Endpoint Bindings controller enabled")
-		setupLog.Info("not yet implemented")
+
+		if err = (&bindingscontroller.BindingConfigurationReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "BindingConfiguration")
+			os.Exit(1)
+		}
 	} else {
 		setupLog.Info("Endpoint Bindings controller disabled")
 	}
-
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddReadyzCheck("readyz", func(req *http.Request) error {

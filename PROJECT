@@ -89,4 +89,13 @@ resources:
   kind: NgrokTrafficPolicy
   path: github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: k8s.ngrok.com
+  group: bindings
+  kind: BindingConfiguration
+  path: github.com/ngrok/ngrok-operator/api/bindings/v1alpha1
+  version: v1alpha1
 version: "3"
