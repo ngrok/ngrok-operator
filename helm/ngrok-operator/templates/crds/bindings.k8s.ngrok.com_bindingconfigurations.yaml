@@ -40,7 +40,7 @@ spec:
           spec:
             description: BindingConfigurationSpec defines the desired state of BindingConfiguration
             properties:
-              allowed_urls:
+              allowedURLs:
                 description: |-
                   AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which EndpointBindings are allowed to be created by the operator
                   TODO(hkatz) We are only implementing `*` for now
@@ -48,7 +48,7 @@ spec:
                 items:
                   type: string
                 type: array
-              certs_secret_name:
+              certsSecretName:
                 default: global-binding-configuration-certs
                 description: |-
                   CertsSecretName is the name of the k8s secret that contains the TLS certificate, CSR, private/public keys to use for the ngrok API
@@ -79,8 +79,8 @@ spec:
                   TODO(hkatz) implement this
                 type: string
             required:
-            - allowed_urls
-            - certs_secret_name
+            - allowedURLs
+            - certsSecretName
             - name
             - region
             type: object
@@ -95,13 +95,13 @@ spec:
                   description: BindingEndpoint is a reference to an Endpoint object
                     in the ngrok API that is attached to the kubernetes operator binding
                   properties:
-                    error_code:
+                    errorCode:
                       description: |-
                         ErrorCode is the ngrok API error code if the status is error
                         TODO(hkatz) Define error codes and implement in the API
                       pattern: ^NGROK_ERR_\d+$
                       type: string
-                    error_message:
+                    errorMessage:
                       description: ErrorMessage is a free-form error message if the
                         status is error
                       maxLength: 4096
