@@ -107,4 +107,13 @@ resources:
   kind: EndpointBinding
   path: github.com/ngrok/ngrok-operator/api/bindings/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: k8s.ngrok.com
+  group: ngrok
+  kind: OperatorConfiguration
+  path: github.com/ngrok/ngrok-operator/api/ngrok/v1beta1
+  version: v1beta1
 version: "3"
