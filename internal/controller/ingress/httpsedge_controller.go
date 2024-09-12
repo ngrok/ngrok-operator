@@ -70,29 +70,28 @@ type HTTPSEdgeReconciler struct {
 
 	NgrokClientset ngrokapi.Clientset
 
-	controller *baseController[*ingressv1alpha1.HTTPSEdge]
+	controller *controller.BaseController[*ingressv1alpha1.HTTPSEdge]
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.controller = &baseController[*ingressv1alpha1.HTTPSEdge]{
+	r.controller = &controller.BaseController[*ingressv1alpha1.HTTPSEdge]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		kubeType: "v1alpha1.HTTPSEdge",
-		statusID: func(cr *ingressv1alpha1.HTTPSEdge) string { return cr.Status.ID },
-		create:   r.create,
-		update:   r.update,
-		delete:   r.delete,
-		errResult: func(op baseControllerOp, cr *ingressv1alpha1.HTTPSEdge, err error) (ctrl.Result, error) {
+		StatusID: func(cr *ingressv1alpha1.HTTPSEdge) string { return cr.Status.ID },
+		Create:   r.create,
+		Update:   r.update,
+		Delete:   r.delete,
+		ErrResult: func(op controller.BaseControllerOp, cr *ingressv1alpha1.HTTPSEdge, err error) (ctrl.Result, error) {
 			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
 				return ctrl.Result{}, nil
 			}
 			if ngrok.IsErrorCode(err, 7117) { // https://ngrok.com/docs/errors/err_ngrok_7117, domain not found
 				return ctrl.Result{}, err
 			}
-			return reconcileResultFromError(err)
+			return controller.CtrlResultForErr(err)
 		},
 	}
 
@@ -115,7 +114,7 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.HTTPSEdge))
+	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.HTTPSEdge))
 }
 
 func (r *HTTPSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {

@@ -63,31 +63,30 @@ type TLSEdgeReconciler struct {
 
 	NgrokClientset ngrokapi.Clientset
 
-	controller *baseController[*ingressv1alpha1.TLSEdge]
+	controller *controller.BaseController[*ingressv1alpha1.TLSEdge]
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.IpPolicyResolver = controller.IpPolicyResolver{Client: mgr.GetClient()}
 
-	r.controller = &baseController[*ingressv1alpha1.TLSEdge]{
+	r.controller = &controller.BaseController[*ingressv1alpha1.TLSEdge]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		kubeType: "v1alpha1.TLSEdge",
-		statusID: func(cr *ingressv1alpha1.TLSEdge) string { return cr.Status.ID },
-		create:   r.create,
-		update:   r.update,
-		delete:   r.delete,
-		errResult: func(op baseControllerOp, cr *ingressv1alpha1.TLSEdge, err error) (ctrl.Result, error) {
+		StatusID: func(cr *ingressv1alpha1.TLSEdge) string { return cr.Status.ID },
+		Create:   r.create,
+		Update:   r.update,
+		Delete:   r.delete,
+		ErrResult: func(op controller.BaseControllerOp, cr *ingressv1alpha1.TLSEdge, err error) (ctrl.Result, error) {
 			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
 				return ctrl.Result{}, nil
 			}
 			if ngrok.IsErrorCode(err, 7117) { // https://ngrok.com/docs/errors/err_ngrok_7117, domain not found
 				return ctrl.Result{}, err
 			}
-			return reconcileResultFromError(err)
+			return controller.CtrlResultForErr(err)
 		},
 	}
 
@@ -116,7 +115,7 @@ func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *TLSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.TLSEdge))
+	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.TLSEdge))
 }
 
 func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {

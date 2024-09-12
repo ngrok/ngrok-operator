@@ -40,6 +40,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5/ip_policies"
 	"github.com/ngrok/ngrok-api-go/v5/ip_policy_rules"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 )
 
 const (
@@ -58,7 +59,7 @@ type IPPolicyReconciler struct {
 	IPPoliciesClient    *ip_policies.Client
 	IPPolicyRulesClient *ip_policy_rules.Client
 
-	controller *baseController[*ingressv1alpha1.IPPolicy]
+	controller *controller.BaseController[*ingressv1alpha1.IPPolicy]
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -70,16 +71,15 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("IPPolicyRulesClient must be set")
 	}
 
-	r.controller = &baseController[*ingressv1alpha1.IPPolicy]{
+	r.controller = &controller.BaseController[*ingressv1alpha1.IPPolicy]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		kubeType: "v1alpha1.IPPolicy",
-		statusID: func(cr *ingressv1alpha1.IPPolicy) string { return cr.Status.ID },
-		create:   r.create,
-		update:   r.update,
-		delete:   r.delete,
+		StatusID: func(cr *ingressv1alpha1.IPPolicy) string { return cr.Status.ID },
+		Create:   r.create,
+		Update:   r.update,
+		Delete:   r.delete,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -97,7 +97,7 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
 func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.IPPolicy))
+	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.IPPolicy))
 }
 
 func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {

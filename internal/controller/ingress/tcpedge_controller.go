@@ -61,23 +61,22 @@ type TCPEdgeReconciler struct {
 
 	NgrokClientset ngrokapi.Clientset
 
-	controller *baseController[*ingressv1alpha1.TCPEdge]
+	controller *controller.BaseController[*ingressv1alpha1.TCPEdge]
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.IpPolicyResolver = controller.IpPolicyResolver{Client: mgr.GetClient()}
 
-	r.controller = &baseController[*ingressv1alpha1.TCPEdge]{
+	r.controller = &controller.BaseController[*ingressv1alpha1.TCPEdge]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		kubeType: "v1alpha1.TCPEdge",
-		statusID: func(cr *ingressv1alpha1.TCPEdge) string { return cr.Status.ID },
-		create:   r.create,
-		update:   r.update,
-		delete:   r.delete,
+		StatusID: func(cr *ingressv1alpha1.TCPEdge) string { return cr.Status.ID },
+		Create:   r.create,
+		Update:   r.update,
+		Delete:   r.delete,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -99,7 +98,7 @@ func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *TCPEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.TCPEdge))
+	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.TCPEdge))
 }
 
 func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TCPEdge) error {
