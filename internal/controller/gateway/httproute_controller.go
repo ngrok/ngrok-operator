@@ -36,6 +36,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/store"
 )
 
@@ -84,16 +85,16 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	if IsUpsert(httproute) {
+	if controller.IsUpsert(httproute) {
 		// The object is not being deleted, so register and sync finalizer
-		if err := RegisterAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
+		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
 	} else {
 		log.Info("Deleting httproute from store")
-		if HasFinalizer(httproute) {
-			if err := RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
+		if controller.HasFinalizer(httproute) {
+			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
 				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}

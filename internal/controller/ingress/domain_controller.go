@@ -40,6 +40,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 )
 
 // DomainReconciler reconciles a Domain object
@@ -51,7 +52,7 @@ type DomainReconciler struct {
 	Recorder      record.EventRecorder
 	DomainsClient *reserved_domains.Client
 
-	controller *baseController[*ingressv1alpha1.Domain]
+	controller *controller.BaseController[*ingressv1alpha1.Domain]
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -60,17 +61,16 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("DomainsClient must be set")
 	}
 
-	r.controller = &baseController[*ingressv1alpha1.Domain]{
+	r.controller = &controller.BaseController[*ingressv1alpha1.Domain]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		kubeType: "v1alpha1.Domain",
-		statusID: func(cr *ingressv1alpha1.Domain) string { return cr.Status.ID },
-		create:   r.create,
-		update:   r.update,
-		delete:   r.delete,
-		errResult: func(op baseControllerOp, cr *ingressv1alpha1.Domain, err error) (reconcile.Result, error) {
+		StatusID: func(cr *ingressv1alpha1.Domain) string { return cr.Status.ID },
+		Create:   r.create,
+		Update:   r.update,
+		Delete:   r.delete,
+		ErrResult: func(op controller.BaseControllerOp, cr *ingressv1alpha1.Domain, err error) (reconcile.Result, error) {
 			retryableErrors := []int{
 				// Domain still attached to an edge, probably a race condition.
 				// Schedule for retry, and hopefully the edge will be gone
@@ -83,7 +83,7 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if ngrok.IsErrorCode(err, retryableErrors...) {
 				return ctrl.Result{}, err
 			}
-			return reconcileResultFromError(err)
+			return controller.CtrlResultForErr(err)
 		},
 	}
 
@@ -106,7 +106,7 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.Domain))
+	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.Domain))
 }
 
 func (r *DomainReconciler) create(ctx context.Context, domain *ingressv1alpha1.Domain) error {

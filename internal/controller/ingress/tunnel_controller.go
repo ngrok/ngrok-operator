@@ -30,13 +30,14 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/pkg/tunneldriver"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
+	controllerruntime "sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -52,7 +53,7 @@ type TunnelReconciler struct {
 	Recorder     record.EventRecorder
 	TunnelDriver *tunneldriver.TunnelDriver
 
-	controller *baseController[*ingressv1alpha1.Tunnel]
+	controller *controller.BaseController[*ingressv1alpha1.Tunnel]
 }
 
 // SetupWithManager sets up the controller with the Manager
@@ -63,18 +64,17 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("TunnelDriver is nil")
 	}
 
-	r.controller = &baseController[*ingressv1alpha1.Tunnel]{
+	r.controller = &controller.BaseController[*ingressv1alpha1.Tunnel]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		kubeType: "v1alpha1.Tunnel",
-		update:   r.update,
-		delete:   r.delete,
-		statusID: r.statusID,
+		Update:   r.update,
+		Delete:   r.delete,
+		StatusID: r.statusID,
 	}
 
-	cont, err := controller.NewUnmanaged("tunnel-controller", mgr, controller.Options{
+	cont, err := controllerruntime.NewUnmanaged("tunnel-controller", mgr, controllerruntime.Options{
 		Reconciler: r,
 		LogConstructor: func(_ *reconcile.Request) logr.Logger {
 			return r.Log
@@ -109,7 +109,7 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.reconcile(ctx, req, new(ingressv1alpha1.Tunnel))
+	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.Tunnel))
 }
 
 func (r *TunnelReconciler) update(ctx context.Context, tunnel *ingressv1alpha1.Tunnel) error {
