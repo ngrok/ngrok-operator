@@ -1,4 +1,4 @@
-package controllers
+package controller
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v5"
-	"github.com/ngrok/ngrok-operator/internal/controller/controllers"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
@@ -64,8 +63,8 @@ func (self *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, 
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if controllers.IsUpsert(obj) {
-		if err := controllers.RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
+	if IsUpsert(obj) {
+		if err := RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -91,7 +90,7 @@ func (self *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, 
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s", objName))
 		}
 	} else {
-		if controllers.HasFinalizer(obj) {
+		if HasFinalizer(obj) {
 			if self.statusID != nil && self.statusID(obj) != "" {
 				sid := self.statusID(obj)
 				self.Recorder.Event(obj, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s", objName))
@@ -108,7 +107,7 @@ func (self *baseController[T]) reconcile(ctx context.Context, req ctrl.Request, 
 				self.Recorder.Event(obj, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted %s", objName))
 			}
 
-			if err := controllers.RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
+			if err := RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
 				return ctrl.Result{}, err
 			}
 		}

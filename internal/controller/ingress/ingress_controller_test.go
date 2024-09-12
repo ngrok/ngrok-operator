@@ -1,4 +1,4 @@
-package controllers
+package controller
 
 import (
 	netv1 "k8s.io/api/networking/v1"

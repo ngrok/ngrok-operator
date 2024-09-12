@@ -50,7 +50,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
-	controllers "github.com/ngrok/ngrok-operator/internal/controller/ingress"
+	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	ngrokctr "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/store"
@@ -207,7 +207,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create Driver: %w", err)
 	}
 
-	if err := (&controllers.IngressReconciler{
+	if err := (&ingresscontroller.IngressReconciler{
 		Client:               mgr.GetClient(),
 		Log:                  ctrl.Log.WithName("controllers").WithName("ingress"),
 		Scheme:               mgr.GetScheme(),
@@ -219,7 +219,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
 
-	if err = (&controllers.ServiceReconciler{
+	if err = (&ingresscontroller.ServiceReconciler{
 		Client:    mgr.GetClient(),
 		Log:       ctrl.Log.WithName("controllers").WithName("service"),
 		Scheme:    mgr.GetScheme(),
@@ -231,7 +231,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.DomainReconciler{
+	if err = (&ingresscontroller.DomainReconciler{
 		Client:        mgr.GetClient(),
 		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
 		Scheme:        mgr.GetScheme(),
@@ -269,7 +269,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create tunnel driver: %w", err)
 	}
 
-	if err = (&controllers.TunnelReconciler{
+	if err = (&ingresscontroller.TunnelReconciler{
 		Client:       mgr.GetClient(),
 		Log:          ctrl.Log.WithName("controllers").WithName("tunnel"),
 		Scheme:       mgr.GetScheme(),
@@ -279,7 +279,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
 		os.Exit(1)
 	}
-	if err = (&controllers.TCPEdgeReconciler{
+	if err = (&ingresscontroller.TCPEdgeReconciler{
 		Client:         mgr.GetClient(),
 		Log:            ctrl.Log.WithName("controllers").WithName("tcp-edge"),
 		Scheme:         mgr.GetScheme(),
@@ -289,7 +289,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "TCPEdge")
 		os.Exit(1)
 	}
-	if err = (&controllers.TLSEdgeReconciler{
+	if err = (&ingresscontroller.TLSEdgeReconciler{
 		Client:         mgr.GetClient(),
 		Log:            ctrl.Log.WithName("controllers").WithName("tls-edge"),
 		Scheme:         mgr.GetScheme(),
@@ -299,7 +299,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "TLSEdge")
 		os.Exit(1)
 	}
-	if err = (&controllers.HTTPSEdgeReconciler{
+	if err = (&ingresscontroller.HTTPSEdgeReconciler{
 		Client:         mgr.GetClient(),
 		Log:            ctrl.Log.WithName("controllers").WithName("https-edge"),
 		Scheme:         mgr.GetScheme(),
@@ -309,7 +309,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "HTTPSEdge")
 		os.Exit(1)
 	}
-	if err = (&controllers.IPPolicyReconciler{
+	if err = (&ingresscontroller.IPPolicyReconciler{
 		Client:              mgr.GetClient(),
 		Log:                 ctrl.Log.WithName("controllers").WithName("ip-policy"),
 		Scheme:              mgr.GetScheme(),
@@ -320,7 +320,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "IPPolicy")
 		os.Exit(1)
 	}
-	if err = (&controllers.ModuleSetReconciler{
+	if err = (&ingresscontroller.ModuleSetReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("ngrok-module-set"),
 		Scheme:   mgr.GetScheme(),

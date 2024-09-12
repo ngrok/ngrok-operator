@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-package controllers
+package controller
 
 import (
 	"context"
@@ -35,7 +35,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
-	"github.com/ngrok/ngrok-operator/internal/controller/controllers"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"golang.org/x/sync/errgroup"
@@ -193,7 +193,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// If the service is being deleted, we need to clean up any resources that are owned by it
-	if controllers.IsDelete(svc) {
+	if controller.IsDelete(svc) {
 		if err := subResourceReconcilers.Reconcile(ctx, r.Client, nil); err != nil {
 			log.Error(err, "Failed to cleanup owned resources")
 			return ctrl.Result{}, err
@@ -212,8 +212,8 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		log.Info("Removing and syncing finalizer")
-		if controllers.HasFinalizer(svc) {
-			if err := controllers.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
+		if controller.HasFinalizer(svc) {
+			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
 				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}
@@ -235,7 +235,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		// Once we clean up the tunnels and TCP edges, we can remove the finalizer if it exists. We don't
 		// care about registering a finalizer since we only care about load balancer services
-		if err := controllers.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
+		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
@@ -248,7 +248,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	log.Info("Registering and syncing finalizers")
-	if err := controllers.RegisterAndSyncFinalizer(ctx, r.Client, svc); err != nil {
+	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, svc); err != nil {
 		log.Error(err, "Failed to register finalizer")
 		return ctrl.Result{}, err
 	}

@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package controllers
+package controller
 
 import (
 	"context"
@@ -47,7 +47,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5"
 	"github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/controller/controllers"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	ierr "github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
@@ -200,8 +200,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 	routeModuleUpdater := &edgeRouteModuleUpdater{
 		edge:             edge,
 		clientset:        r.NgrokClientset.EdgeModules().HTTPS().Routes(),
-		ipPolicyResolver: controllers.IpPolicyResolver{Client: r.Client},
-		secretResolver:   controllers.SecretResolver{Client: r.Client},
+		ipPolicyResolver: controller.IpPolicyResolver{Client: r.Client},
+		secretResolver:   controller.SecretResolver{Client: r.Client},
 	}
 
 	edgeRoutes := r.NgrokClientset.HTTPSEdgeRoutes()
@@ -540,8 +540,8 @@ type edgeRouteModuleUpdater struct {
 
 	clientset ngrokapi.HTTPSEdgeRouteModulesClientset
 
-	ipPolicyResolver controllers.IpPolicyResolver
-	secretResolver   controllers.SecretResolver
+	ipPolicyResolver controller.IpPolicyResolver
+	secretResolver   controller.SecretResolver
 }
 
 func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {

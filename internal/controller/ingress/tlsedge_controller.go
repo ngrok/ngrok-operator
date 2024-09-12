@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package controllers
+package controller
 
 import (
 	"context"
@@ -46,7 +46,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v5"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/controller/controllers"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	ierr "github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
@@ -59,7 +59,7 @@ type TLSEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	controllers.IpPolicyResolver
+	controller.IpPolicyResolver
 
 	NgrokClientset ngrokapi.Clientset
 
@@ -68,7 +68,7 @@ type TLSEdgeReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.IpPolicyResolver = controllers.IpPolicyResolver{Client: mgr.GetClient()}
+	r.IpPolicyResolver = controller.IpPolicyResolver{Client: mgr.GetClient()}
 
 	r.controller = &baseController[*ingressv1alpha1.TLSEdge]{
 		Kube:     r.Client,
