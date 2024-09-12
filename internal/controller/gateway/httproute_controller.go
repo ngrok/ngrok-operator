@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package gateway
+package controller
 
 import (
 	"context"
@@ -36,7 +36,6 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/controller/controllers"
 	"github.com/ngrok/ngrok-operator/internal/store"
 )
 
@@ -85,16 +84,16 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	if controllers.IsUpsert(httproute) {
+	if IsUpsert(httproute) {
 		// The object is not being deleted, so register and sync finalizer
-		if err := controllers.RegisterAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
+		if err := RegisterAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
 	} else {
 		log.Info("Deleting httproute from store")
-		if controllers.HasFinalizer(httproute) {
-			if err := controllers.RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
+		if HasFinalizer(httproute) {
+			if err := RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
 				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}
