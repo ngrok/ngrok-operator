@@ -96,7 +96,7 @@ func (r *BindingConfigurationReconciler) Reconcile(ctx context.Context, req ctrl
 	// - Reconcile/Create/Update Endpoints CRDs
 	// - Update Status
 
-	return r.controller.Reconcile(ctx, req)
+	return r.controller.Reconcile(ctx, req, new(bindingsv1alpha1.BindingConfiguration))
 }
 
 func (r *BindingConfigurationReconciler) statusID(cr *bindingsv1alpha1.BindingConfiguration) string {

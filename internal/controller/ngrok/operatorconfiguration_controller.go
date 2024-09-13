@@ -88,7 +88,7 @@ func (r *OperatorConfigurationReconciler) Reconcile(ctx context.Context, req ctr
 	// I'm really not sure what should be implemented here...
 	// maybe some aggregation and status updates from managers for the different features?
 
-	return r.controller.Reconcile(ctx, req)
+	return r.controller.Reconcile(ctx, req, new(ngrokv1beta1.OperatorConfiguration))
 }
 
 func (r *OperatorConfigurationReconciler) statusID(cr *ngrokv1beta1.OperatorConfiguration) string {
