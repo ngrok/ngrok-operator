@@ -32,7 +32,7 @@ import (
 )
 
 // Storer is the interface that wraps the required methods to gather information
-// about ingresses, services, secrets and ingress annotations.
+// about ingresses, services, and other CRDs.
 // It exposes methods to list both all and filtered resources
 type Storer interface {
 	Get(obj runtime.Object) (item interface{}, exists bool, err error)

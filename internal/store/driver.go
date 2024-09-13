@@ -154,10 +154,6 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 		services := &corev1.ServiceList{}
 		err := client.List(ctx, services)
 		return util.ToClientObjects(services.Items), err
-	case *corev1.Secret:
-		secrets := &corev1.SecretList{}
-		err := client.List(ctx, secrets)
-		return util.ToClientObjects(secrets.Items), err
 	case *netv1.Ingress:
 		ingresses := &netv1.IngressList{}
 		err := client.List(ctx, ingresses)
@@ -218,23 +214,29 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 // - Gateways
 // - HTTPRoutes
 // - Services
-// - Secrets
 // - Domains
 // - Edges
+// - Tunnels
+// - ModuleSets
+// - TrafficPolicies
 // When the sync method becomes a background process, this likely won't be needed anymore
 func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	typesToSeed := []interface{}{
 		&netv1.Ingress{},
 		&netv1.IngressClass{},
 		&corev1.Service{},
+		// CRDs
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
 		&ingressv1alpha1.Tunnel{},
+		&ingressv1alpha1.NgrokModuleSet{},
+		&ngrokv1alpha1.NgrokTrafficPolicy{},
 	}
 
 	if d.gatewayEnabled {
 		typesToSeed = append(typesToSeed,
 			&gatewayv1.Gateway{},
+			&gatewayv1.GatewayClass{},
 			&gatewayv1.HTTPRoute{},
 		)
 	}
