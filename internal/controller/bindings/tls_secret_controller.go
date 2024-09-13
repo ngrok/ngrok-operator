@@ -93,7 +93,7 @@ func (r *TlsSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// - Creating a new secret with type=tls
 	// - Handle error when re-submitting CSR
 
-	return r.controller.Reconcile(ctx, req)
+	return r.controller.Reconcile(ctx, req, new(v1.Secret))
 }
 
 func (r *TlsSecretReconciler) statusID(cr *v1.Secret) string {
