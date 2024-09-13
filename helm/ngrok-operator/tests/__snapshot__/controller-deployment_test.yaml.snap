@@ -52,6 +52,7 @@ Should match all-options snapshot:
                   weight: 1
           containers:
             - args:
+                - --api-url=https://api.ngrok.com/
                 - --controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
@@ -592,6 +593,7 @@ Should match default snapshot:
                   weight: 1
           containers:
             - args:
+                - --api-url=https://api.ngrok.com/
                 - --controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
