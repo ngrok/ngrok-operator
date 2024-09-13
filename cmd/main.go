@@ -213,8 +213,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	if err = (&ngrokcontroller.OperatorConfigurationReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Log:       ctrl.Log.WithName("controllers").WithName("OperatorConfiguration"),
+		Recorder:  mgr.GetEventRecorderFor("operator-configuration-controller"),
+		Namespace: opts.namespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "OperatorConfiguration")
 		os.Exit(1)
@@ -383,8 +386,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 		// Global BindingConfiguration
 		if err = (&bindingscontroller.BindingConfigurationReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:    mgr.GetClient(),
+			Scheme:    mgr.GetScheme(),
+			Log:       ctrl.Log.WithName("controllers").WithName("BindingConfiguration"),
+			Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
+			Namespace: opts.namespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "BindingConfiguration")
 			os.Exit(1)
@@ -392,8 +398,10 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 		// EndpointBindings
 		if err = (&bindingscontroller.EndpointBindingReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
+			Recorder: mgr.GetEventRecorderFor("bindings-controller"),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
 			os.Exit(1)
@@ -401,10 +409,13 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 		// TLS Secret
 		if err = (&bindingscontroller.TlsSecretReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:    mgr.GetClient(),
+			Scheme:    mgr.GetScheme(),
+			Log:       ctrl.Log.WithName("controllers").WithName("TlsSecret"),
+			Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
+			Namespace: opts.namespace,
 		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "Secret")
+			setupLog.Error(err, "unable to create controller", "controller", "TlsSecret")
 			os.Exit(1)
 		}
 	} else {

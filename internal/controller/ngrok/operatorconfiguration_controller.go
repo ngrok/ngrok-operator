@@ -26,24 +26,53 @@ package ngrok
 
 import (
 	"context"
+	"errors"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/go-logr/logr"
 	ngrokv1beta1 "github.com/ngrok/ngrok-operator/api/ngrok/v1beta1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 )
 
 // OperatorConfigurationReconciler reconciles a OperatorConfiguration object
 type OperatorConfigurationReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme     *runtime.Scheme
+	controller *controller.BaseController[*ngrokv1beta1.OperatorConfiguration]
+
+	// Namespace is where the ngrok-operator is installed/running
+	Namespace string
+
+	Log      logr.Logger
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=operatorconfigurations,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=operatorconfigurations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=operatorconfigurations/finalizers,verbs=update
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *OperatorConfigurationReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.controller = &controller.BaseController[*ngrokv1beta1.OperatorConfiguration]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		StatusID:  r.statusID,
+		Create:    r.create,
+		Update:    r.update,
+		Delete:    r.delete,
+		ErrResult: r.errResult,
+	}
+
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&ngrokv1beta1.OperatorConfiguration{}).
+		Complete(r)
+}
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -55,18 +84,29 @@ type OperatorConfigurationReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *OperatorConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
-
 	// TODO(user): your logic here
 	// I'm really not sure what should be implemented here...
 	// maybe some aggregation and status updates from managers for the different features?
 
-	return ctrl.Result{}, nil
+	return r.controller.Reconcile(ctx, req, &ngrokv1beta1.OperatorConfiguration{})
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *OperatorConfigurationReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&ngrokv1beta1.OperatorConfiguration{}).
-		Complete(r)
+func (r *OperatorConfigurationReconciler) statusID(cr *ngrokv1beta1.OperatorConfiguration) string {
+	return "TODO"
+}
+
+func (r *OperatorConfigurationReconciler) create(ctx context.Context, cr *ngrokv1beta1.OperatorConfiguration) error {
+	return errors.New("not implemented")
+}
+
+func (r *OperatorConfigurationReconciler) update(ctx context.Context, cr *ngrokv1beta1.OperatorConfiguration) error {
+	return errors.New("not implemented")
+}
+
+func (r *OperatorConfigurationReconciler) delete(ctx context.Context, cr *ngrokv1beta1.OperatorConfiguration) error {
+	return errors.New("not implemented")
+}
+
+func (r *OperatorConfigurationReconciler) errResult(op controller.BaseControllerOp, cr *ngrokv1beta1.OperatorConfiguration, err error) (ctrl.Result, error) {
+	return ctrl.Result{}, err
 }

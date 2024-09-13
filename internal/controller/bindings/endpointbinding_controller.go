@@ -26,24 +26,50 @@ package bindings
 
 import (
 	"context"
+	"errors"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/go-logr/logr"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 )
 
 // EndpointBindingReconciler reconciles a EndpointBinding object
 type EndpointBindingReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme     *runtime.Scheme
+	controller *controller.BaseController[*bindingsv1alpha1.EndpointBinding]
+
+	Log      logr.Logger
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=endpointbindings,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=endpointbindings/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=endpointbindings/finalizers,verbs=update
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.controller = &controller.BaseController[*bindingsv1alpha1.EndpointBinding]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		StatusID:  r.statusID,
+		Create:    r.create,
+		Update:    r.update,
+		Delete:    r.delete,
+		ErrResult: r.errResult,
+	}
+
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&bindingsv1alpha1.EndpointBinding{}).
+		Complete(r)
+}
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -55,8 +81,6 @@ type EndpointBindingReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
-
 	// TODO(user): your logic here
 	// Implement the following:
 	// - Update/Create kind: Service (ngrok-op namespace)
@@ -64,12 +88,25 @@ func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	// - Update the Pod Forwarders mapping and restart anything
 	// - Update the EndpointBinding status
 
-	return ctrl.Result{}, nil
+	return r.controller.Reconcile(ctx, req, &bindingsv1alpha1.EndpointBinding{})
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&bindingsv1alpha1.EndpointBinding{}).
-		Complete(r)
+func (r *EndpointBindingReconciler) statusID(cr *bindingsv1alpha1.EndpointBinding) string {
+	return "TODO"
+}
+
+func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
+	return errors.New("not implemented")
+}
+
+func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
+	return errors.New("not implemented")
+}
+
+func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
+	return errors.New("not implemented")
+}
+
+func (r *EndpointBindingReconciler) errResult(op controller.BaseControllerOp, cr *bindingsv1alpha1.EndpointBinding, err error) (ctrl.Result, error) {
+	return ctrl.Result{}, err
 }

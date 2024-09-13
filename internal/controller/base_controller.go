@@ -46,7 +46,7 @@ type BaseController[T client.Object] struct {
 	// Namespace is optional for controllers
 	Namespace *string
 
-	StatusID  func(ct T) string
+	StatusID  func(obj T) string
 	Create    func(ctx context.Context, obj T) error
 	Update    func(ctx context.Context, obj T) error
 	Delete    func(ctx context.Context, obj T) error

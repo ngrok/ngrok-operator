@@ -26,18 +26,28 @@ package bindings
 
 import (
 	"context"
+	"errors"
 
+	"github.com/go-logr/logr"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // TlsSecretReconciler reconciles a Secret object
 type TlsSecretReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme     *runtime.Scheme
+	controller *controller.BaseController[*corev1.Secret]
+
+	Log      logr.Logger
+	Recorder record.EventRecorder
+
+	// Namespace where the TLS Secret is managed
+	Namespace string
 }
 
 // TODO(hkatz) figure this out
@@ -46,6 +56,26 @@ var DefaultTlsSecret = &corev1.Secret{}
 // +kubebuilder:rbac:groups=k8s.ngrok.com,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=k8s.ngrok.com,resources=secrets/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=k8s.ngrok.com,resources=secrets/finalizers,verbs=update
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *TlsSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.controller = &controller.BaseController[*corev1.Secret]{
+		Kube:     r.Client,
+		Log:      r.Log,
+		Recorder: r.Recorder,
+
+		StatusID:  r.statusID,
+		Create:    r.create,
+		Update:    r.update,
+		Delete:    r.delete,
+		ErrResult: r.errResult,
+	}
+
+	return ctrl.NewControllerManagedBy(mgr).
+		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
+		For(DefaultTlsSecret).
+		Complete(r)
+}
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -57,8 +87,6 @@ var DefaultTlsSecret = &corev1.Secret{}
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *TlsSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
-
 	// TODO(user): your logic here
 	// Implement
 	// - Generate CSR + Key
@@ -66,13 +94,25 @@ func (r *TlsSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// - Creating a new secret with type=tls
 	// - Handle error when re-submitting CSR
 
-	return ctrl.Result{}, nil
+	return r.controller.Reconcile(ctx, req, &corev1.Secret{})
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *TlsSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		For(DefaultTlsSecret).
-		Complete(r)
+func (r *TlsSecretReconciler) statusID(cr *corev1.Secret) string {
+	return "TODO"
+}
+
+func (r *TlsSecretReconciler) create(ctx context.Context, cr *corev1.Secret) error {
+	return errors.New("not implemented")
+}
+
+func (r *TlsSecretReconciler) update(ctx context.Context, cr *corev1.Secret) error {
+	return errors.New("not implemented")
+}
+
+func (r *TlsSecretReconciler) delete(ctx context.Context, cr *corev1.Secret) error {
+	return errors.New("not implemented")
+}
+
+func (r *TlsSecretReconciler) errResult(op controller.BaseControllerOp, cr *corev1.Secret, err error) (ctrl.Result, error) {
+	return ctrl.Result{}, err
 }
