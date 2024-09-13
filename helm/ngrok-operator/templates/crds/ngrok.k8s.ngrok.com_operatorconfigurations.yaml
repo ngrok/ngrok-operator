@@ -38,10 +38,24 @@ spec:
             type: string
           metadata:
             type: object
-          status:
-            description: OperatorConfigurationStatus defines the observed state of
-              OperatorConfiguration
+          spec:
+            description: OperatorConfigurationSpec defines the configured installation
+              state of OperatorConfiguration
             properties:
+              apiURL:
+                description: ApiUrl is the base URL of the ngrok API that the operator
+                  is currently connected to
+                pattern: ^\d+[.]\d+[.]\d+$
+                type: string
+              appVersion:
+                description: AppVersion is the version of the operator that is currently
+                  running
+                pattern: ^\d+[.]\d+[.]\d+$
+                type: string
+              clusterDomain:
+                description: ClusterDomain is the base domain for DNS resolution used
+                  in the cluster
+                type: string
               description:
                 default: Created by ngrok-operator
                 description: Description is a human-readable description of the object
@@ -61,14 +75,17 @@ spec:
                   with the object in the ngrok API/Dashboard
                 maxLength: 4096
                 type: string
+              region:
+                description: Region is the region that the operator uses for request
+                  traffic
+                type: string
               uri:
                 description: a uri for locating a resource
                 type: string
-              version:
-                description: AppVersion is the version of the operator that is currently
-                  running
-                pattern: ^\d+[.]\d+[.]\d+$
-                type: string
+            type: object
+          status:
+            description: OperatorConfigurationStatus defines the observed state of
+              OperatorConfiguration
             type: object
         type: object
     served: true

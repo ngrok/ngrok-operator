@@ -46,20 +46,36 @@ type ngrokAPICommon struct {
 	Metadata string `json:"metadata,omitempty"`
 }
 
-// OperatorConfigurationStatus defines the observed state of OperatorConfiguration
-type OperatorConfigurationStatus struct {
+// OperatorConfigurationSpec defines the configured installation state of OperatorConfiguration
+type OperatorConfigurationSpec struct {
 	ngrok.Ref      `json:",inline"`
 	ngrokAPICommon `json:",inline"`
+
+	// ApiUrl is the base URL of the ngrok API that the operator is currently connected to
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^\d+[.]\d+[.]\d+$`
+	ApiURL string `json:"apiURL,omitempty"`
+
+	// Region is the region that the operator uses for request traffic
+	// +kubebuilder:validation:Optional
+	Region string `json:"region,omitempty"`
 
 	// AppVersion is the version of the operator that is currently running
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^\d+[.]\d+[.]\d+$`
-	AppVersion string `json:"version,omitempty"`
+	AppVersion string `json:"appVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// +kubeduilder:validation:items:Enum=ingress,gateway,bindings
 	EnabledFeatures []string `json:"enabledFeatures,omitempty"`
 
+	// ClusterDomain is the base domain for DNS resolution used in the cluster
+	// +kubebuilder:validation:Required
+	ClusterDomain string `json:"clusterDomain,omitempty"`
+}
+
+// OperatorConfigurationStatus defines the observed state of OperatorConfiguration
+type OperatorConfigurationStatus struct {
 	// TODO(hkatz) How should we connect feature statuses such as binding_endpoints or ingress_endpoints
 	// TODO(hkatz) Where should we present free-form status information about the operator? kind: ConfigMap?
 }
@@ -83,6 +99,7 @@ type OperatorConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	Spec   OperatorConfigurationSpec   `json:"spec,omitempty"`
 	Status OperatorConfigurationStatus `json:"status,omitempty"`
 }
 
