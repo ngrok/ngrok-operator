@@ -55,15 +55,18 @@ type BaseController[T client.Object] struct {
 
 // reconcile is the primary function that a manager calls for this controller to reconcile an event for the give client.Object
 func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, obj T) (ctrl.Result, error) {
+	// fill in the obj
+	if err := self.Kube.Get(ctx, req.NamespacedName, obj); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// obj is filled in and can now be trusted
+
 	objFullName := util.ObjToHumanGvkName(obj)
 	objName := util.ObjToHumanName(obj)
 
 	log := self.Log.WithValues("resource", objFullName)
 	ctx = ctrl.LoggerInto(ctx, log)
-
-	if err := self.Kube.Get(ctx, req.NamespacedName, obj); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
 
 	if IsUpsert(obj) {
 		if err := RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
