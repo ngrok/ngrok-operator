@@ -88,7 +88,7 @@ func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	// - Update the Pod Forwarders mapping and restart anything
 	// - Update the EndpointBinding status
 
-	return r.controller.Reconcile(ctx, req, &bindingsv1alpha1.EndpointBinding{})
+	return r.controller.Reconcile(ctx, req)
 }
 
 func (r *EndpointBindingReconciler) statusID(cr *bindingsv1alpha1.EndpointBinding) string {
