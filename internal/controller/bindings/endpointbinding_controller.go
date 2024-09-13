@@ -26,8 +26,8 @@ package bindings
 
 import (
 	"context"
-	"errors"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -96,15 +96,18 @@ func (r *EndpointBindingReconciler) statusID(cr *bindingsv1alpha1.EndpointBindin
 }
 
 func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	return errors.New("not implemented")
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Created", "TODO Implement me")
+	return nil
 }
 
 func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	return errors.New("not implemented")
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Updated", "TODO Implement me")
+	return nil
 }
 
 func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	return errors.New("not implemented")
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Deleted", "TODO Implement me")
+	return nil
 }
 
 func (r *EndpointBindingReconciler) errResult(op controller.BaseControllerOp, cr *bindingsv1alpha1.EndpointBinding, err error) (ctrl.Result, error) {

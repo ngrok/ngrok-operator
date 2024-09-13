@@ -26,8 +26,8 @@ package ngrok
 
 import (
 	"context"
-	"errors"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -96,15 +96,18 @@ func (r *OperatorConfigurationReconciler) statusID(cr *ngrokv1beta1.OperatorConf
 }
 
 func (r *OperatorConfigurationReconciler) create(ctx context.Context, cr *ngrokv1beta1.OperatorConfiguration) error {
-	return errors.New("not implemented")
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Created", "TODO Implement me")
+	return nil
 }
 
 func (r *OperatorConfigurationReconciler) update(ctx context.Context, cr *ngrokv1beta1.OperatorConfiguration) error {
-	return errors.New("not implemented")
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Updated", "TODO Implement me")
+	return nil
 }
 
 func (r *OperatorConfigurationReconciler) delete(ctx context.Context, cr *ngrokv1beta1.OperatorConfiguration) error {
-	return errors.New("not implemented")
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Deleted", "TODO Implement me")
+	return nil
 }
 
 func (r *OperatorConfigurationReconciler) errResult(op controller.BaseControllerOp, cr *ngrokv1beta1.OperatorConfiguration, err error) (ctrl.Result, error) {
