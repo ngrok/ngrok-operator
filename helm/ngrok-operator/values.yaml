@@ -3,11 +3,12 @@
 
 ## @param nameOverride String to partially override generated resource names
 ## @param fullnameOverride String to fully override generated resource names
+## @param description ngrok-operator description that will appear in the ngrok dashboard
 ## @param commonLabels Labels to add to all deployed objects
 ## @param commonAnnotations Annotations to add to all deployed objects
-##
 nameOverride: ""
 fullnameOverride: ""
+description: "The official ngrok Kubernetes Operator."
 commonLabels: {}
 commonAnnotations: {}
 
@@ -51,6 +52,9 @@ ingressClass:
 
 ## @param controllerName The name of the controller to look for matching ingress classes
 controllerName: "k8s.ngrok.com/ingress-controller"
+
+## @param useExperimentalGatewayApi When true, enbale the Gateway controller
+useExperimentalGatewayApi: false
 
 ## @param watchNamespace The namespace to watch for ingress resources. Defaults to all
 watchNamespace: ""
