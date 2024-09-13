@@ -26,11 +26,10 @@ package bindings
 
 import (
 	"context"
-	"errors"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/controller"
-	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,7 +40,7 @@ import (
 type TlsSecretReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
-	controller *controller.BaseController[*corev1.Secret]
+	controller *controller.BaseController[*v1.Secret]
 
 	Log      logr.Logger
 	Recorder record.EventRecorder
@@ -51,7 +50,7 @@ type TlsSecretReconciler struct {
 }
 
 // TODO(hkatz) figure this out
-var DefaultTlsSecret = &corev1.Secret{}
+var DefaultTlsSecret = &v1.Secret{}
 
 // +kubebuilder:rbac:groups=k8s.ngrok.com,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=k8s.ngrok.com,resources=secrets/status,verbs=get;update;patch
@@ -59,7 +58,7 @@ var DefaultTlsSecret = &corev1.Secret{}
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TlsSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.controller = &controller.BaseController[*corev1.Secret]{
+	r.controller = &controller.BaseController[*v1.Secret]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
@@ -97,22 +96,25 @@ func (r *TlsSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return r.controller.Reconcile(ctx, req)
 }
 
-func (r *TlsSecretReconciler) statusID(cr *corev1.Secret) string {
+func (r *TlsSecretReconciler) statusID(cr *v1.Secret) string {
 	return "TODO"
 }
 
-func (r *TlsSecretReconciler) create(ctx context.Context, cr *corev1.Secret) error {
-	return errors.New("not implemented")
+func (r *TlsSecretReconciler) create(ctx context.Context, cr *v1.Secret) error {
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Created", "TODO Implement me")
+	return nil
 }
 
-func (r *TlsSecretReconciler) update(ctx context.Context, cr *corev1.Secret) error {
-	return errors.New("not implemented")
+func (r *TlsSecretReconciler) update(ctx context.Context, cr *v1.Secret) error {
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Updated", "TODO Implement me")
+	return nil
 }
 
-func (r *TlsSecretReconciler) delete(ctx context.Context, cr *corev1.Secret) error {
-	return errors.New("not implemented")
+func (r *TlsSecretReconciler) delete(ctx context.Context, cr *v1.Secret) error {
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Deleted", "TODO Implement me")
+	return nil
 }
 
-func (r *TlsSecretReconciler) errResult(op controller.BaseControllerOp, cr *corev1.Secret, err error) (ctrl.Result, error) {
+func (r *TlsSecretReconciler) errResult(op controller.BaseControllerOp, cr *v1.Secret, err error) (ctrl.Result, error) {
 	return ctrl.Result{}, err
 }

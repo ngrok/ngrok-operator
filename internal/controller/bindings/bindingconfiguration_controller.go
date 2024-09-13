@@ -26,8 +26,8 @@ package bindings
 
 import (
 	"context"
-	"errors"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -104,15 +104,18 @@ func (r *BindingConfigurationReconciler) statusID(cr *bindingsv1alpha1.BindingCo
 }
 
 func (r *BindingConfigurationReconciler) create(ctx context.Context, cr *bindingsv1alpha1.BindingConfiguration) error {
-	return errors.New("not implemented")
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Created", "TODO Implement me")
+	return nil
 }
 
 func (r *BindingConfigurationReconciler) update(ctx context.Context, cr *bindingsv1alpha1.BindingConfiguration) error {
-	return errors.New("not implemented")
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Updated", "TODO Implement me")
+	return nil
 }
 
 func (r *BindingConfigurationReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.BindingConfiguration) error {
-	return errors.New("not implemented")
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Deleted", "TODO Implement me")
+	return nil
 }
 
 func (r *BindingConfigurationReconciler) errResult(op controller.BaseControllerOp, cr *bindingsv1alpha1.BindingConfiguration, err error) (ctrl.Result, error) {
