@@ -420,16 +420,17 @@ func runController(ctx context.Context, opts managerOpts) error {
 		}
 
 		// TLS Secret
-		if err = (&bindingscontroller.TlsSecretReconciler{
-			Client:    mgr.GetClient(),
-			Scheme:    mgr.GetScheme(),
-			Log:       ctrl.Log.WithName("controllers").WithName("TlsSecret"),
-			Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
-			Namespace: opts.namespace,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "TlsSecret")
-			os.Exit(1)
-		}
+		// TODO(hkatz) enable this controller when we have a use case for it
+		// if err = (&bindingscontroller.TlsSecretReconciler{
+		// 	Client:    mgr.GetClient(),
+		// 	Scheme:    mgr.GetScheme(),
+		// 	Log:       ctrl.Log.WithName("controllers").WithName("TlsSecret"),
+		// 	Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
+		// 	Namespace: opts.namespace,
+		// }).SetupWithManager(mgr); err != nil {
+		// 	setupLog.Error(err, "unable to create controller", "controller", "TlsSecret")
+		// 	os.Exit(1)
+		// }
 	} else {
 		setupLog.Info("Endpoint Bindings controller disabled")
 	}
