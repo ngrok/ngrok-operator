@@ -45,7 +45,6 @@ spec:
               apiURL:
                 description: ApiUrl is the base URL of the ngrok API that the operator
                   is currently connected to
-                pattern: ^\d+[.]\d+[.]\d+$
                 type: string
               appVersion:
                 description: AppVersion is the version of the operator that is currently
@@ -71,7 +70,7 @@ spec:
                 type: string
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
-                description: Metadata is a sJSON encoded tring of arbitrary data associated
+                description: Metadata is a JSON encoded tring of arbitrary data associated
                   with the object in the ngrok API/Dashboard
                 maxLength: 4096
                 type: string

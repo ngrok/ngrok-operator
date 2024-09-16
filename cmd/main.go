@@ -38,6 +38,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -49,6 +51,7 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/api/ngrok/v1beta1"
 	ngrokv1beta1 "github.com/ngrok/ngrok-operator/api/ngrok/v1beta1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
@@ -86,6 +89,7 @@ func main() {
 
 type managerOpts struct {
 	// flags
+	appVersion                string
 	metricsAddr               string
 	electionID                string
 	probeAddr                 string
@@ -94,6 +98,7 @@ type managerOpts struct {
 	controllerName            string
 	watchNamespace            string
 	ngrokMetadata             string
+	description               string
 	managerName               string
 	useExperimentalGatewayAPI bool
 	zapOpts                   *zap.Options
@@ -121,10 +126,12 @@ func cmd() *cobra.Command {
 		},
 	}
 
+	c.Flags().StringVar(&opts.appVersion, "app-version", "0.0.0", "AppVersion provided by the Helm Chart")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
 	c.Flags().StringVar(&opts.ngrokMetadata, "ngrokMetadata", "", "A comma separated list of key=value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
+	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installa")
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	c.Flags().StringVar(&opts.apiURL, "api-url", "", "The base URL to use for the ngrok api")
@@ -202,7 +209,16 @@ func runController(ctx context.Context, opts managerOpts) error {
 		}
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), options)
+	// create default config and clientset for use outside the mgr.Start() blocking loop
+	k8sConfig := ctrl.GetConfigOrDie()
+	k8sClient, err := client.New(k8sConfig, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to create k8s client: %w", err)
+	}
+
+	mgr, err := ctrl.NewManager(k8sConfig, options)
 	if err != nil {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
@@ -212,16 +228,12 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create Driver: %w", err)
 	}
 
-	if err = (&ngrokcontroller.OperatorConfigurationReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Log:       ctrl.Log.WithName("controllers").WithName("OperatorConfiguration"),
-		Recorder:  mgr.GetEventRecorderFor("operator-configuration-controller"),
-		Namespace: opts.namespace,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "OperatorConfiguration")
-		os.Exit(1)
+	// register with ngrok api and create k8s objects
+	result, err := registerOperatorWithNgrokAPI(ctx, k8sClient, ngrokClientset, ngrokClientConfig, opts)
+	if err != nil {
+		return fmt.Errorf("unable to register with ngrok API: %w", err)
 	}
+	setupLog.Info("OperatorConfiguration created", "result", result)
 
 	if err := (&ingresscontroller.IngressReconciler{
 		Client:               mgr.GetClient(),
@@ -479,4 +491,55 @@ func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*
 	d.PrintState(setupLog)
 
 	return d, nil
+}
+
+// registerOperatorWithNgrokAPI registers or claims ownership of an existing kc_id within the ngrok API
+func registerOperatorWithNgrokAPI(ctx context.Context, k8sClient client.Client, _ ngrokapi.Clientset, nConfig *ngrok.ClientConfig, opts managerOpts) (string, error) {
+	// TODO(hkatz) register with ngrok API /kubernetes_operators
+	// or otherwise claim ownership over an existing kc_id
+	ref := &ngrok.Ref{
+		ID:  "k8_example123",
+		URI: "https://api.ngrok.com/kubernetes_operators/k8_example123",
+	}
+
+	// collect the enabled features
+	features := []string{}
+	if opts.enableFeatureIngress {
+		features = append(features, string(ngrokv1beta1.OperatorFeatureIngress))
+	}
+
+	if opts.enableFeatureBindings {
+		features = append(features, string(ngrokv1beta1.OperatorFeatureBindings))
+	}
+
+	if opts.useExperimentalGatewayAPI {
+		features = append(features, string(ngrokv1beta1.OperatorFeatureGateway))
+	}
+
+	operatorConfiguration := &ngrokv1beta1.OperatorConfiguration{
+		ObjectMeta: ctrl.ObjectMeta{
+			Name:      "ngrok-operator",
+			Namespace: opts.namespace,
+		},
+	}
+
+	result, err := controllerutil.CreateOrUpdate(ctx, k8sClient, operatorConfiguration, func() error {
+		operatorConfiguration.Spec = v1beta1.OperatorConfigurationSpec{
+			Ref:             *ref,
+			Description:     opts.description,
+			Metadata:        opts.metaData, // TODO(hkatz) what is the format here?
+			ApiURL:          nConfig.BaseURL.String(),
+			Region:          opts.region,
+			AppVersion:      opts.appVersion,
+			ClusterDomain:   opts.clusterDomain,
+			EnabledFeatures: features,
+		}
+
+		return nil
+	})
+	if err != nil {
+		return "failed", fmt.Errorf("unable to create OperatorConfiguration: %w", err)
+	}
+
+	return string(result), nil
 }

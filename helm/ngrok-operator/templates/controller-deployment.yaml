@@ -61,6 +61,10 @@ spec:
         command:
         - /manager
         args:
+        - --app-version={{ .Chart.AppVersion }}
+        {{- if .Values.description }}
+        - --description={{ .Values.description }}
+        {{- end }}
         {{- if .Values.region }}
         - --region={{ .Values.region}}
         {{- end }}
