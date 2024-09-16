@@ -65,7 +65,7 @@ credentials:
   authtoken: ""
 
 ## @param region ngrok region to create tunnels in. Defaults to connect to the closest geographical region.
-region: ""
+region: "" # empty means global or all regions
 
 ## @param rootCAs Set to "trusted" for the ngrok agent CA or "host" to trust the host's CA. Defaults to "trusted".
 rootCAs: ""
@@ -77,7 +77,8 @@ serverAddr: ""
 clusterDomain: svc.cluster.local
 
 ## @param apiURL  This is the URL of the ngrok API. You should set this if you are using a custom API URL.
-apiURL: ""
+# apiURL: "https://api.ngrok.com/"
+apiURL: "" # default to ngrok-api-go SDK's default
 
 ## @param metaData This is a map of key/value pairs that will be added as meta data to all ngrok api resources created
 metaData: {}

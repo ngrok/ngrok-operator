@@ -54,16 +54,16 @@ tests:
   template: controller-deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - matchRegex:
-      path: spec.template.spec.containers[0].args[0]
-      pattern: --region=eu
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --region=eu
 - it: Should not pass the region via container args to the controller if not specified
   template: controller-deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - notMatchRegex:
-      path: spec.template.spec.containers[0].args[0]
-      pattern: --region=eu
+  - notContains:
+      path: spec.template.spec.containers[0].args
+      content: --region=eu
 - it: Should pass extra metadata to the deployment
   set:
     metaData:
@@ -72,9 +72,9 @@ tests:
   template: controller-deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - matchRegex:
-      path: spec.template.spec.containers[0].args[0]
-      pattern: --metadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --metadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
 - it: Should pass through extra volumes and extra volume mounts
   set:
     extraVolumes:

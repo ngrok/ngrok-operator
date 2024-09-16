@@ -168,14 +168,10 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
-	apiBaseURL := os.Getenv("NGROK_API_ADDR")
 	if opts.apiURL != "" {
-		apiBaseURL = opts.apiURL
-	}
-	if apiBaseURL != "" {
-		u, err := url.Parse(apiBaseURL)
+		u, err := url.Parse(opts.apiURL)
 		if err != nil {
-			setupLog.Error(err, "invalid NGROK_API_ADDR")
+			setupLog.Error(err, "api-url must be a valid ngrok API URL")
 		}
 		ngrokClientConfig.BaseURL = u
 	}
