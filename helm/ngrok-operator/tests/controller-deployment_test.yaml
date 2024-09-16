@@ -64,6 +64,15 @@ tests:
   - notContains:
       path: spec.template.spec.containers[0].args
       content: --region=eu
+- it: Should pass description
+  set:
+    description: "test description"
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --description="test description"
 - it: Should support deprecated metaData to the deployment
   set:
     metaData:
