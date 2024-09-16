@@ -95,7 +95,6 @@ func (in *OperatorConfigurationList) DeepCopyObject() runtime.Object {
 func (in *OperatorConfigurationSpec) DeepCopyInto(out *OperatorConfigurationSpec) {
 	*out = *in
 	out.Ref = in.Ref
-	out.ngrokAPICommon = in.ngrokAPICommon
 	if in.EnabledFeatures != nil {
 		in, out := &in.EnabledFeatures, &out.EnabledFeatures
 		*out = make([]string, len(*in))
