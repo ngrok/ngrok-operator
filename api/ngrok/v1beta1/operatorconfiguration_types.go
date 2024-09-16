@@ -32,28 +32,23 @@ import (
 // NOTE: Run "make" to regenerate code after modifying this file
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// common ngrok API/Dashboard fields
-type ngrokAPICommon struct {
+// OperatorConfigurationSpec defines the configured installation state of OperatorConfiguration
+type OperatorConfigurationSpec struct {
+	ngrok.Ref `json:",inline"`
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default:=`Created by ngrok-operator`
 	// +kubebuilder:validation:MaxLength=4096
 	Description string `json:"description,omitempty"`
-	// Metadata is a sJSON encoded tring of arbitrary data associated with the object in the ngrok API/Dashboard
+
+	// Metadata is a JSON encoded tring of arbitrary data associated with the object in the ngrok API/Dashboard
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
 	// +kubebuilder:validation:MaxLength=4096
 	Metadata string `json:"metadata,omitempty"`
-}
-
-// OperatorConfigurationSpec defines the configured installation state of OperatorConfiguration
-type OperatorConfigurationSpec struct {
-	ngrok.Ref      `json:",inline"`
-	ngrokAPICommon `json:",inline"`
 
 	// ApiUrl is the base URL of the ngrok API that the operator is currently connected to
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^\d+[.]\d+[.]\d+$`
 	ApiURL string `json:"apiURL,omitempty"`
 
 	// Region is the region that the operator uses for request traffic
