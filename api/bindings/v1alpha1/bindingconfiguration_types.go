@@ -133,6 +133,9 @@ const (
 // +kubebuilder:subresource:status
 
 // BindingConfiguration is the Schema for the bindingconfigurations API
+// +kubebuilder:printcolumn:name="Name",type="string",JSONPath=".spec.name"
+// +kubebuilder:printcolumn:name="ID",type="string",JSONPath=".spec.id"
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".spec.Status"
 type BindingConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

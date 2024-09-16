@@ -90,6 +90,9 @@ const (
 
 // OperatorConfiguration is the Schema for the operatorconfigurations API
 // Note: This CRD is read-only and provides status information about the current state of the ngrok-operator
+// +kubebuilder:printcolumn:name="App Version",type="string",JSONPath=".spec.appVersion"
+// +kubebuilder:printcolumn:name="ID",type="string",JSONPath=".spec.id"
+// +kubebuilder:printcolumn:name="Description",type="string",JSONPath=".spec.description"
 type OperatorConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -73,6 +73,10 @@ type EndpointBindingStatus struct {
 // +kubebuilder:subresource:status
 
 // EndpointBinding is the Schema for the endpointbindings API
+// +kubebuilder:printcolumn:name="Namespace",type="string",JSONPath=".spec.targetService"
+// +kubebuilder:printcolumn:name="Service",type="string",JSONPath=".spec.targetNamespace"
+// +kubebuilder:printcolumn:name="Port",type="string",JSONPath=".spec.port"
+// +kubebuilder:printcolumn:name="Protocol",type="string",JSONPath=".spec.protocol"
 type EndpointBinding struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
