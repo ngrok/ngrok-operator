@@ -63,7 +63,7 @@ spec:
         args:
         - --app-version={{ .Chart.AppVersion }}
         {{- if .Values.description }}
-        - --description={{ .Values.description }}
+        - --description={{ .Values.description | quote }}
         {{- end }}
         {{- if .Values.region }}
         - --region={{ .Values.region}}
