@@ -35,12 +35,13 @@ To uninstall the chart:
 
 ### Common parameters
 
-| Name                | Description                                           | Value |
-| ------------------- | ----------------------------------------------------- | ----- |
-| `nameOverride`      | String to partially override generated resource names | `""`  |
-| `fullnameOverride`  | String to fully override generated resource names     | `""`  |
-| `commonLabels`      | Labels to add to all deployed objects                 | `{}`  |
-| `commonAnnotations` | Annotations to add to all deployed objects            | `{}`  |
+| Name                | Description                                                        | Value                                     |
+| ------------------- | ------------------------------------------------------------------ | ----------------------------------------- |
+| `nameOverride`      | String to partially override generated resource names              | `""`                                      |
+| `fullnameOverride`  | String to fully override generated resource names                  | `""`                                      |
+| `description`       | ngrok-operator description that will appear in the ngrok dashboard | `The official ngrok Kubernetes Operator.` |
+| `commonLabels`      | Labels to add to all deployed objects                              | `{}`                                      |
+| `commonAnnotations` | Annotations to add to all deployed objects                         | `{}`                                      |
 
 
 ### Controller parameters
@@ -59,6 +60,7 @@ To uninstall the chart:
 | `ingressClass.create`                | Whether to create the ingress class.                                                                                  | `true`                             |
 | `ingressClass.default`               | Whether to set the ingress class as default.                                                                          | `false`                            |
 | `controllerName`                     | The name of the controller to look for matching ingress classes                                                       | `k8s.ngrok.com/ingress-controller` |
+| `useExperimentalGatewayApi`          | When true, enbale the Gateway controller                                                                              | `false`                            |
 | `watchNamespace`                     | The namespace to watch for ingress resources. Defaults to all                                                         | `""`                               |
 | `credentials.secret.name`            | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.    | `""`                               |
 | `credentials.apiKey`                 | Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well. | `""`                               |
