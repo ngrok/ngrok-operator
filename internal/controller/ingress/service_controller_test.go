@@ -1,4 +1,4 @@
-package controller
+package ingress
 
 import (
 	. "github.com/onsi/ginkgo/v2"
