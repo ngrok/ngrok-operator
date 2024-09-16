@@ -14,7 +14,20 @@ spec:
     singular: endpointbinding
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.targetService
+      name: Namespace
+      type: string
+    - jsonPath: .spec.targetNamespace
+      name: Service
+      type: string
+    - jsonPath: .spec.port
+      name: Port
+      type: string
+    - jsonPath: .spec.protocol
+      name: Protocol
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: EndpointBinding is the Schema for the endpointbindings API
