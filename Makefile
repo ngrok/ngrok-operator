@@ -171,7 +171,7 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set enable-feature-bindings=true &&\
+		--set bindings.enabled=true &&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
 .PHONY: _deploy-check-env-vars
