@@ -77,7 +77,8 @@ serverAddr: ""
 clusterDomain: svc.cluster.local
 
 ## @param apiURL  This is the URL of the ngrok API. You should set this if you are using a custom API URL.
-apiURL: "https://api.ngrok.com/"
+# apiURL: "https://api.ngrok.com/"
+apiURL: "" # default to ngrok-api-go SDK's default
 
 ## @param metaData This is a map of key/value pairs that will be added as meta data to all ngrok api resources created
 metaData: {}
