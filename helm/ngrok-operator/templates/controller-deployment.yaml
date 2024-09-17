@@ -73,9 +73,11 @@ spec:
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}
         {{- end }}
-        {{- if .Values.metaData }}
-        - --metadata={{- $metadataArgs := list -}}
-          {{- range $key, $value := .Values.metaData }}
+        {{- /* backwards compatibility for .metaData -> .ngrokMetadata */}}
+        {{- $ngrokMetadata := (.Values.metaData) | default .Values.ngrokMetadata }}
+        {{- if $ngrokMetadata }}
+        - --ngrokMetadata={{- $metadataArgs := list -}}
+          {{- range $key, $value := $ngrokMetadata }}
           {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
           {{- end }}
           {{- $metadataArgs | join "," }}
