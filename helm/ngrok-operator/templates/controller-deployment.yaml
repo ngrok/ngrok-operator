@@ -61,7 +61,6 @@ spec:
         command:
         - /manager
         args:
-        - --app-version={{ .Chart.AppVersion }}
         {{- if .Values.description }}
         - --description={{ .Values.description | quote }}
         {{- end }}
