@@ -526,7 +526,7 @@ func registerOperatorWithNgrokAPI(ctx context.Context, k8sClient client.Client, 
 		operatorConfiguration.Spec = v1beta1.OperatorConfigurationSpec{
 			Ref:             *ref,
 			Description:     opts.description,
-			Metadata:        opts.metaData, // TODO(hkatz) what is the format here?
+			Metadata:        opts.ngrokMetadata, // TODO(hkatz) what is the format here?
 			ApiURL:          nConfig.BaseURL.String(),
 			Region:          opts.region,
 			AppVersion:      version.GetVersion(),
