@@ -80,8 +80,9 @@ clusterDomain: svc.cluster.local
 # apiURL: "https://api.ngrok.com/"
 apiURL: "" # default to ngrok-api-go SDK's default
 
-## @param metaData This is a map of key/value pairs that will be added as meta data to all ngrok api resources created
-metaData: {}
+## @extra metaData DEPRECATED: Use ngrokMetadata instead
+## @param ngrokMetadata This is a map of key=value,key=value pairs that will be added as metadata to all ngrok api resources created
+ngrokMetadata: {}
 
 ## @param affinity Affinity for the controller pod assignment
 ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
