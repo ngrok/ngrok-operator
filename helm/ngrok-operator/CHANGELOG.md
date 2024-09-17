@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.14.3...helm-chart-0.16.0
+
+### Changed
+
+- Deprecate `.Values.metaData` in favor of `.Values.ngrokMetadata` for clarity
+
 ## 0.15.0
 
 ### DEPRECATION ANNOUNCEMENT / ACTION REQUIRED
