@@ -33,14 +33,6 @@ import (
 
 // EndpointBindingSpec defines the desired state of EndpointBinding
 type EndpointBindingSpec struct {
-	// TargetService is the name of the Service that this Endpoint projects
-	// +kubebuilder:validation:Required
-	TargetService string `json:"targetService"`
-
-	// TargetNamespace is the destination Namespace for the Service this Endpoint projects
-	// +kubebuilder:validation:Required
-	TargetNamespace string `json:"targetNamespace"`
-
 	// Protocol is the Service protocol this Endpoint uses
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default=`TCP`
@@ -51,13 +43,9 @@ type EndpointBindingSpec struct {
 	// +kubebuilder:validation:Required
 	Port int32 `json:"port"`
 
-	// TargetPort is the Service targetPort this Endpoint uses for the Pod Forwarders
+	// EndpointTarget is the target Service that this Endpoint projects
 	// +kubebuilder:validation:Required
-	TargetPort int32 `json:"targetPort"`
-
-	// TargetMetadata is a subset of metav1.ObjectMeta that is added to the TargetService
-	// +kube:validation:Optional
-	TargetMetadata TargetMetadata `json:"targetMetadata,omitempty"`
+	Target EndpointTarget `json:"target"`
 }
 
 // EndpointBindingStatus defines the observed state of EndpointBinding
@@ -67,6 +55,25 @@ type EndpointBindingStatus struct {
 	// HashName is the hashed output of the TargetService and TargetNamespace for unique identification
 	// +kubebuilder:validation:Required
 	HashedName string `json:"hashedName"`
+}
+
+// EndpointTarget hold the data for the projected Service that binds the endpoint to the k8s cluster resource
+type EndpointTarget struct {
+	// Service is the name of the Service that this Endpoint projects
+	// +kubebuilder:validation:Required
+	Service string `json:"service"`
+
+	// Namespace is the destination Namespace for the Service this Endpoint projects
+	// +kubebuilder:validation:Required
+	Namespace string `json:"namespace"`
+
+	// Port is the Service targetPort this Endpoint uses for the Pod Forwarders
+	// +kubebuilder:validation:Required
+	Port int32 `json:"port"`
+
+	// Metadata is a subset of metav1.ObjectMeta that is added to the Service
+	// +kube:validation:Optional
+	Metadata TargetMetadata `json:"metadata,omitempty"`
 }
 
 // +kubebuilder:object:root=true

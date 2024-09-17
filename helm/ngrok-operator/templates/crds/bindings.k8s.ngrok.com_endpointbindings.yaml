@@ -62,48 +62,55 @@ spec:
                 enum:
                 - TCP
                 type: string
-              targetMetadata:
-                description: TargetMetadata is a subset of metav1.ObjectMeta that
-                  is added to the TargetService
-                properties:
-                  annotations:
-                    additionalProperties:
-                      type: string
-                    description: |-
-                      Annotations is an unstructured key value map stored with a resource that may be
-                      set by external tools to store and retrieve arbitrary metadata. They are not
-                      queryable and should be preserved when modifying objects.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
-                    type: object
-                  labels:
-                    additionalProperties:
-                      type: string
-                    description: |-
-                      Map of string keys and values that can be used to organize and categorize
-                      (scope and select) objects. May match selectors of replication controllers
-                      and services.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
-                    type: object
-                type: object
-              targetNamespace:
-                description: TargetNamespace is the destination Namespace for the
-                  Service this Endpoint projects
-                type: string
-              targetPort:
-                description: TargetPort is the Service targetPort this Endpoint uses
-                  for the Pod Forwarders
-                format: int32
-                type: integer
-              targetService:
-                description: TargetService is the name of the Service that this Endpoint
+              target:
+                description: EndpointTarget is the target Service that this Endpoint
                   projects
-                type: string
+                properties:
+                  metadata:
+                    description: Metadata is a subset of metav1.ObjectMeta that is
+                      added to the Service
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Annotations is an unstructured key value map stored with a resource that may be
+                          set by external tools to store and retrieve arbitrary metadata. They are not
+                          queryable and should be preserved when modifying objects.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Map of string keys and values that can be used to organize and categorize
+                          (scope and select) objects. May match selectors of replication controllers
+                          and services.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+                        type: object
+                    type: object
+                  namespace:
+                    description: Namespace is the destination Namespace for the Service
+                      this Endpoint projects
+                    type: string
+                  port:
+                    description: Port is the Service targetPort this Endpoint uses
+                      for the Pod Forwarders
+                    format: int32
+                    type: integer
+                  service:
+                    description: Service is the name of the Service that this Endpoint
+                      projects
+                    type: string
+                required:
+                - namespace
+                - port
+                - service
+                type: object
             required:
             - port
             - protocol
-            - targetNamespace
-            - targetPort
-            - targetService
+            - target
             type: object
           status:
             description: EndpointBindingStatus defines the observed state of EndpointBinding
