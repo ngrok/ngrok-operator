@@ -89,7 +89,6 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	appVersion                string
 	metricsAddr               string
 	electionID                string
 	probeAddr                 string
@@ -126,7 +125,6 @@ func cmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&opts.appVersion, "app-version", "0.0.0", "AppVersion provided by the Helm Chart")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
@@ -531,7 +529,7 @@ func registerOperatorWithNgrokAPI(ctx context.Context, k8sClient client.Client, 
 			Metadata:        opts.metaData, // TODO(hkatz) what is the format here?
 			ApiURL:          nConfig.BaseURL.String(),
 			Region:          opts.region,
-			AppVersion:      opts.appVersion,
+			AppVersion:      version.GetVersion(),
 			ClusterDomain:   opts.clusterDomain,
 			EnabledFeatures: features,
 		}

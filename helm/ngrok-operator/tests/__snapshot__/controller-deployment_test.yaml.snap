@@ -52,7 +52,6 @@ Should match all-options snapshot:
                   weight: 1
           containers:
             - args:
-                - --app-version=0.12.2
                 - --description="The official ngrok Kubernetes Operator."
                 - --controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
@@ -672,7 +671,6 @@ Should match default snapshot:
                   weight: 1
           containers:
             - args:
-                - --app-version=0.12.2
                 - --description="The official ngrok Kubernetes Operator."
                 - --controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
