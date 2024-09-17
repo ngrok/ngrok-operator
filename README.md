@@ -40,9 +40,9 @@ Leverage [ngrok](https://ngrok.com/) for your ingress in your Kubernetes cluster
 
 ### Helm
 
-> **Note** We recommend using the Helm chart to install the controller for a better experience for upgrades.
+> **Note** We recommend using the Helm chart to install the operator for a better upgrade experience.
 
-Add the ngrok Ingress Controller Helm chart:
+Add the ngrok Kubernetes Operator Helm chart:
 
 ```sh
 helm repo add ngrok https://charts.ngrok.com
@@ -62,7 +62,7 @@ helm install ngrok-operator ngrok/ngrok-operator \
   --set credentials.authtoken=$NGROK_AUTHTOKEN
 ```
 
-> **Note** The values for `NGROK_API_KEY` and `NGROK_AUTHTOKEN` can be found in your [ngrok dashboard](https://dashboard.ngrok.com/get-started/setup) and are used by your ingress controller to authenticate with ngrok for configuring and running your network ingress traffic at the edge.
+> ** Note ** The values for `NGROK_API_KEY` and `NGROK_AUTHTOKEN` can be found in your [ngrok dashboard] (https://dashboard.ngrok.com/get-started/setup). The ngrok Kubernetes Operator uses them to authenticate with ngrok and configure and run your network ingress traffic at the edge.
 
 For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 
