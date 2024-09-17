@@ -88,7 +88,7 @@ type managerOpts struct {
 	apiURL                    string
 	controllerName            string
 	watchNamespace            string
-	metaData                  string
+	ngrokMetadata             string
 	managerName               string
 	useExperimentalGatewayAPI bool
 	zapOpts                   *zap.Options
@@ -119,7 +119,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
-	c.Flags().StringVar(&opts.metaData, "metadata", "", "A comma separated list of key value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
+	c.Flags().StringVar(&opts.ngrokMetadata, "ngrokMetadata", "", "A comma separated list of key=value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	c.Flags().StringVar(&opts.apiURL, "api-url", "", "The base URL to use for the ngrok api")
@@ -407,20 +407,20 @@ func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*
 		store.WithGatewayEnabled(options.useExperimentalGatewayAPI),
 		store.WithClusterDomain(options.clusterDomain),
 	)
-	if options.metaData != "" {
-		metaData := strings.TrimSuffix(options.metaData, ",")
+	if options.ngrokMetadata != "" {
+		metadata := strings.TrimSuffix(options.ngrokMetadata, ",")
 		// metadata is a comma separated list of key=value pairs.
 		// e.g. "foo=bar,baz=qux"
-		customMetaData := make(map[string]string)
-		pairs := strings.Split(metaData, ",")
+		customMetadata := make(map[string]string)
+		pairs := strings.Split(metadata, ",")
 		for _, pair := range pairs {
 			kv := strings.Split(pair, "=")
 			if len(kv) != 2 {
 				return nil, fmt.Errorf("invalid metadata pair: %q", pair)
 			}
-			customMetaData[kv[0]] = kv[1]
+			customMetadata[kv[0]] = kv[1]
 		}
-		d.WithMetaData(customMetaData)
+		d.WithNgrokMetadata(customMetadata)
 	}
 
 	if err := d.Seed(ctx, mgr.GetAPIReader()); err != nil {

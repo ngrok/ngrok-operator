@@ -50,13 +50,13 @@ const (
 type Driver struct {
 	store Storer
 
-	cacheStores     CacheStores
-	log             logr.Logger
-	scheme          *runtime.Scheme
-	ingressMetadata string
-	gatewayMetadata string
-	managerName     types.NamespacedName
-	clusterDomain   string
+	cacheStores          CacheStores
+	log                  logr.Logger
+	scheme               *runtime.Scheme
+	ingressNgrokMetadata string
+	gatewayNgrokMetadata string
+	managerName          types.NamespacedName
+	clusterDomain        string
 
 	syncMu              sync.Mutex
 	syncRunning         bool
@@ -107,30 +107,30 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 	return d
 }
 
-// WithMetaData allows you to pass in custom metadata to be added to all resources created by the controller
-func (d *Driver) WithMetaData(customMetadata map[string]string) *Driver {
-	ingressMetadata, err := d.setMetadataOwner("kubernetes-ingress-controller", customMetadata)
+// WithNgrokMetadata allows you to pass in custom ngrokmetadata to be added to all resources created by the controller
+func (d *Driver) WithNgrokMetadata(customNgrokMetadata map[string]string) *Driver {
+	ingressNgrokMetadata, err := d.setNgrokMetadataOwner("kubernetes-ingress-controller", customNgrokMetadata)
 	if err != nil {
-		d.log.Error(err, "error marshalling custom metadata", "customMetadata", d.ingressMetadata)
+		d.log.Error(err, "error marshalling custom ngrokmetadata", "customNgrokMetadata", d.ingressNgrokMetadata)
 		return d
 	}
-	d.ingressMetadata = ingressMetadata
+	d.ingressNgrokMetadata = ingressNgrokMetadata
 
 	if d.gatewayEnabled {
-		gatewayMetadata, err := d.setMetadataOwner("kubernetes-gateway-api", customMetadata)
+		gatewayNgrokMetadata, err := d.setNgrokMetadataOwner("kubernetes-gateway-api", customNgrokMetadata)
 		if err != nil {
-			d.log.Error(err, "error marshalling custom metadata", "customMetadata", d.gatewayMetadata)
+			d.log.Error(err, "error marshalling custom ngrokmetadata", "customNgrokMetadata", d.gatewayNgrokMetadata)
 			return d
 		}
-		d.gatewayMetadata = gatewayMetadata
+		d.gatewayNgrokMetadata = gatewayNgrokMetadata
 
 	}
 	return d
 }
 
-func (d *Driver) setMetadataOwner(owner string, customMetadata map[string]string) (string, error) {
+func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[string]string) (string, error) {
 	metaData := make(map[string]string)
-	for k, v := range customMetadata {
+	for k, v := range customNgrokMetadata {
 		metaData[k] = v
 	}
 	if _, ok := metaData["owned-by"]; !ok {
@@ -698,7 +698,7 @@ func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain
 					Domain: rule.Host,
 				},
 			}
-			domain.Spec.Metadata = d.ingressMetadata
+			domain.Spec.Metadata = d.ingressNgrokMetadata
 			domainMap[rule.Host] = domain
 		}
 	}
@@ -730,7 +730,7 @@ func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1
 					Domain: domainName,
 				},
 			}
-			domain.Spec.Metadata = d.gatewayMetadata
+			domain.Spec.Metadata = d.gatewayNgrokMetadata
 			domainMap[domainName] = domain
 		}
 	}
@@ -787,7 +787,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				Hostports: []string{domain.Spec.Domain + ":443"},
 			},
 		}
-		edge.Spec.Metadata = d.ingressMetadata
+		edge.Spec.Metadata = d.ingressNgrokMetadata
 		edgeMap[domain.Spec.Domain] = edge
 	}
 	d.calculateHTTPSEdgesFromIngress(edgeMap)
@@ -852,7 +852,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 						Hostports: hostPorts,
 					},
 				}
-				edge.Spec.Metadata = d.gatewayMetadata
+				edge.Spec.Metadata = d.gatewayNgrokMetadata
 				gatewayEdgeMap[routeDomains[0]] = edge
 
 			}
@@ -946,7 +946,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					SAML:                modSet.Modules.SAML,
 					WebhookVerification: modSet.Modules.WebhookVerification,
 				}
-				route.Metadata = d.ingressMetadata
+				route.Metadata = d.ingressNgrokMetadata
 
 				edge.Spec.Routes = append(edge.Spec.Routes, route)
 			}
@@ -1107,7 +1107,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								}
 
 							}
-							route.Metadata = d.gatewayMetadata
+							route.Metadata = d.gatewayNgrokMetadata
 
 							edge.Spec.Routes = append(edge.Spec.Routes, route)
 						}
