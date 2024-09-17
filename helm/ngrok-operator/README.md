@@ -68,7 +68,8 @@ To uninstall the chart:
 | `serverAddr`                         | This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address. | `""`                               |
 | `clusterDomain`                      | Injects the cluster domain name for service discovery.                                                                | `svc.cluster.local`                |
 | `apiURL`                             | This is the URL of the ngrok API. You should set this if you are using a custom API URL.                              | `""`                               |
-| `metaData`                           | This is a map of key/value pairs that will be added as meta data to all ngrok api resources created                   | `{}`                               |
+| `metaData`                           | DEPRECATED: Use ngrokMetadata instead                                                                                 |                                    |
+| `ngrokMetadata`                      | This is a map of key=value,key=value pairs that will be added as metadata to all ngrok api resources created          | `{}`                               |
 | `affinity`                           | Affinity for the controller pod assignment                                                                            | `{}`                               |
 | `podAffinityPreset`                  | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                   | `""`                               |
 | `podAntiAffinityPreset`              | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                              | `soft`                             |
