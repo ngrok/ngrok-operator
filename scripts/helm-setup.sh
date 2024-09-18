@@ -48,4 +48,4 @@ function helm_install_plugin() {
     fi
 }
 
-helm_install_plugin "unittest" "https://github.com/helm-unittest/helm-unittest" "0.4.4"
+helm_install_plugin "unittest" "https://github.com/helm-unittest/helm-unittest" "0.6.1"
