@@ -95,4 +95,9 @@ To uninstall the chart:
 | `log.format`                         | The log format to use. One of console, json.                                                                          | `json`                             |
 | `lifecycle`                          | an object containing lifecycle configuration                                                                          | `{}`                               |
 | `bindings.enabled`                   | Whether to enable the Endpoint Bindings feature                                                                       | `false`                            |
+| `bindings.name`                      | Unique name of this kubernetes binding in your ngrok account                                                          | `""`                               |
+| `bindings.description`               | Description of this kubernetes binding in your ngrok account                                                          | `Created by ngrok-operator`        |
+| `bindings.allowedURLs`               | List of allowed endpoint URL formats that this binding will project into the cluster                                  | `["*"]`                            |
+| `bindings.serviceAnnotations`        | Annotations to add to projected services bound to an endpoint                                                         | `{}`                               |
+| `bindings.serviceLabels`             | Labels to add to projected services bound to an endpoint                                                              | `{}`                               |
 
