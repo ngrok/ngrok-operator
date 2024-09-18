@@ -171,7 +171,11 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=true &&\
+		--set bindings.enabled=true \
+		--set bindings.name=k8s/dev-testing \
+		--set bindings.description="Example binding for dev testing" \
+		--set bindings.allowedURLs="{*}" \
+		&&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
 .PHONY: _deploy-check-env-vars
