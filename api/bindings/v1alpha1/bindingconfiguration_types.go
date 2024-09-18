@@ -35,7 +35,7 @@ import (
 const (
 	// DefaultTlsSecretName is the default name of the k8s secret that contains the TLS private/public keys to use for the ngrok forwarding endpoint
 	// Note: This Secret is managed by the TlsSecretController
-	DefaultTlsSecretName = "global-binding-configuration-certs"
+	DefaultTlsSecretName = "default-tls"
 )
 
 // TargetMetadata is a subset of metav1.ObjectMeta that is used to define the target object in the k8s cluster
@@ -63,6 +63,11 @@ type BindingConfigurationSpec struct {
 	// +kubebuilder:validation:Pattern=`^k8s[/][a-zA-Z0-9-]{1,63}$`
 	Name string `json:"name"`
 
+	// Description is the binding description in the ngrok API
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default="Created by the ngrok-operator"
+	Description string `json:"description"`
+
 	// AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which EndpointBindings are allowed to be created by the operator
 	// TODO(hkatz) We are only implementing `*` for now
 	// Support more patterns in the future, see product spec
@@ -73,7 +78,7 @@ type BindingConfigurationSpec struct {
 	// TlsSecretName is the name of the k8s secret that contains the TLS private/public keys to use for the ngrok forwarding endpoint
 	// TODO(hkatz) Create controller to manage this Secret lifecycle
 	// +kubebuilder:validation:Required
-	// +kubebuilder:default="global-binding-configuration-certs"
+	// +kubebuilder:default="default-tls"
 	TlsSecretName string `json:"tlsSecretName"`
 
 	// Region is the ngrok region to use for the forwarding endpoint connections

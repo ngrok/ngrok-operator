@@ -58,6 +58,10 @@ spec:
                 items:
                   type: string
                 type: array
+              description:
+                default: Created by the ngrok-operator
+                description: Description is the binding description in the ngrok API
+                type: string
               name:
                 description: Name is the name of the k8s-binding for the account to
                   bind to this configuration and the ngrok API
@@ -94,13 +98,14 @@ spec:
                   TODO(hkatz) implement this
                 type: string
               tlsSecretName:
-                default: global-binding-configuration-certs
+                default: default-tls
                 description: |-
                   TlsSecretName is the name of the k8s secret that contains the TLS private/public keys to use for the ngrok forwarding endpoint
                   TODO(hkatz) Create controller to manage this Secret lifecycle
                 type: string
             required:
             - allowedURLs
+            - description
             - name
             - region
             - tlsSecretName

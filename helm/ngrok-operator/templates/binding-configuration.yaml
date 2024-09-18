@@ -1,0 +1,23 @@
+{{- if .Values.bindings.enabled }}
+{{- $component := "bindings" }}
+kind: BindingConfiguration
+apiVersion: bindings.k8s.ngrok.com/v1alpha1
+metadata:
+  name: "default-configuration"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  name: {{ .Values.bindings.name }}
+  description: {{ .Values.bindings.description }}
+  allowedURLs:
+    {{- toYaml .Values.bindings.allowedUrls | nindent 6 }}
+  tlsSecretName: "default-tls"
+  region: {{ .Values.region }}
+  projectedMetadata:
+    annotations:
+      {{- toYaml .Values.bindings.serviceAnnotations | nindent 6 }}
+    labels:
+      {{- toYaml .Values.bindings.serviceLabels | nindent 6 }}
+{{- end }}
