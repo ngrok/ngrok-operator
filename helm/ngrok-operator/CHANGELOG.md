@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Deprecate `.Values.metaData` in favor of `.Values.ngrokMetadata` for clarity
+- Deprecate `.Values.ingressClass` in favor of `.Values.ingress.ingressClass` for feature set namespacing
+- Deprecate `.Values.useExperimentalGatewayApi` in favor of `.Values.gateway.enabled` for feature set namespacing
 
 ## 0.15.0
 
