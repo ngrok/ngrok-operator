@@ -1,13 +1,13 @@
 {{- if .Values.ingress.enabled }}
-{{- if .Values.ingressClass.create -}}
+{{- if or ((.Values.ingress).ingressClass).create (.Values.ingressClass).create -}}
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: controller
-  name: {{ .Values.ingressClass.name }}
-  {{- if .Values.ingressClass.default }}
+  name: {{ (.Values.ingressClass).name | default ((.Values.ingress.ingressClass).name) }}
+  {{- if (.Values.ingressClass).default | default ((.Values.ingress.ingressClass).default) }}
   annotations:
     ingressclass.kubernetes.io/is-default-class: "true"
   {{- end }}

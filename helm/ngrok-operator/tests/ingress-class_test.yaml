@@ -3,17 +3,54 @@ templates:
 - ingress-class.yaml
 tests:
 - it: Should match snapshot
+  set:
+    ingress.enabled: true
+    ingress.createIngressClass: true
   asserts:
   - matchSnapshot: {}
 - it: Creates an default ingress class called ngrok by default
+  set:
+    ingress.enabled: true
+    ingress.ingressClass.create: true
   asserts:
   - isKind:
       of: IngressClass
   - hasDocuments:
       count: 1
+- it: Does not create an ingress class when ingress.enabled is false
+  set:
+    ingress.enabled: false
+  asserts:
+  - hasDocuments:
+      count: 0
 - it: Does not create an ingress class when ingressClass.create is false
   set:
+    ingress.enabled: true
+    ingress.ingressClass.create: false
     ingressClass.create: false
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: Creates an ingress class when ingressClass.create is true (regardless of new values)
+  set:
+    ingress.enabled: true
+    ingress.ingressClass.create: false
+    ingressClass.create: true
+  asserts:
+  - hasDocuments:
+      count: 1
+- it: Creates an ingress class when ingress.ingressClass.create is true (regardless of old values)
+  set:
+    ingress.enabled: true
+    ingress.ingressClass.create: true
+    ingressClass.create: false
+  asserts:
+  - hasDocuments:
+      count: 1
+- it: Does not create an ingress class when no create is true
+  set:
+    ingressClass.create: false
+    ingress.ingressClass.create: false
   asserts:
   - hasDocuments:
       count: 0

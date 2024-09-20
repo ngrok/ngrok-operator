@@ -43,18 +43,21 @@ image:
   ##
   pullSecrets: []
 
-## @param ingressClass.name The name of the ingress class to use.
-## @param ingressClass.create Whether to create the ingress class.
-## @param ingressClass.default Whether to set the ingress class as default.
-ingressClass:
-  name: ngrok
-  create: true
-  default: false
+## @extra ingressClass.name DEPRECATED: Use ingress.ingressClass.name instead
+## @extra ingressClass.create DEPRECATED: Use ingress.ingressClass.create instead
+## @extra ingressClass.default DEPRECATED: Use ingress.ingressClass.default instead
 
 ## @section Kubernetes Ingress feature configuration
 ## @param ingress.enabled When true, enable the Ingress controller features
+## @param ingress.ingressClass.name The name of the ingress class to use.
+## @param ingress.ingressClass.create Whether to create the ingress class.
+## @param ingress.ingressClass.default Whether to set the ingress class as default.
 ingress:
   enabled: true # enabled by default
+  ingressClass:
+    name: ngrok
+    create: true
+    default: false
 
 ## @param controllerName The name of the controller to look for matching ingress classes
 controllerName: "k8s.ngrok.com/ingress-controller"
