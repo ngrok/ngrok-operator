@@ -55,6 +55,7 @@ Should match all-options snapshot:
                 - --description="The official ngrok Kubernetes Operator."
                 - --controller-name=k8s.ngrok.com/ingress-controller
                 - --enable-feature-ingress=true
+                - --enable-feature-gateway=false
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json
@@ -701,6 +702,7 @@ Should match default snapshot:
                 - --description="The official ngrok Kubernetes Operator."
                 - --controller-name=k8s.ngrok.com/ingress-controller
                 - --enable-feature-ingress=true
+                - --enable-feature-gateway=false
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json

@@ -92,8 +92,10 @@ spec:
         {{- if .Values.ingress.enabled }}
         - --enable-feature-ingress={{ .Values.ingress.enabled }}
         {{- end }}
-        {{- if .Values.useExperimentalGatewayApi }}
-        - --enable-feature-gateway={{ .Values.useExperimentalGatewayApi }}
+        {{- if .Values.useExperimentalGatewayApi | default .Values.gateway.enabled }}
+        - --enable-feature-gateway=true
+        {{- else }}
+        - --enable-feature-gateway=false
         {{- end }}
         {{- if .Values.bindings.enabled }}
         - --enable-feature-bindings={{ .Values.bindings.enabled }}

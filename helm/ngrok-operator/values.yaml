@@ -62,8 +62,12 @@ ingress:
 ## @param controllerName The name of the controller to look for matching ingress classes
 controllerName: "k8s.ngrok.com/ingress-controller"
 
-## @param useExperimentalGatewayApi When true, enbale the Gateway controller
-useExperimentalGatewayApi: false
+## @extra useExperimentalGatewayApi DEPRECATED: Use gateway.enabled instead
+
+## @section Kubernetes Gateway feature configuration
+## @param gateway.enabled When true, enable the Gateway controller
+gateway:
+  enabled: false
 
 ## @param watchNamespace The namespace to watch for ingress resources. Defaults to all
 watchNamespace: ""
