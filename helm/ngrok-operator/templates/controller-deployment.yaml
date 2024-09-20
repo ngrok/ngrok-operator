@@ -89,11 +89,14 @@ spec:
         {{- if .Values.watchNamespace }}
         - --watch-namespace={{ .Values.watchNamespace}}
         {{- end }}
-        {{- if .Values.bindings.enabled }}
-        - --enable-feature-bindings={{ .Values.bindings.enabled }}
+        {{- if .Values.ingress.enabled }}
+        - --enable-feature-ingress={{ .Values.ingress.enabled }}
         {{- end }}
         {{- if .Values.useExperimentalGatewayApi }}
         - --enable-feature-gateway={{ .Values.useExperimentalGatewayApi }}
+        {{- end }}
+        {{- if .Values.bindings.enabled }}
+        - --enable-feature-bindings={{ .Values.bindings.enabled }}
         {{- end }}
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}

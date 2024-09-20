@@ -26,6 +26,7 @@ podLabels: {}
 ##
 replicaCount: 1
 
+## @section Image configuration
 ## @param image.registry The ngrok operator image registry.
 ## @param image.repository The ngrok operator image repository.
 ## @param image.tag The ngrok operator image tag. Defaults to the chart's appVersion if not specified
@@ -49,6 +50,11 @@ ingressClass:
   name: ngrok
   create: true
   default: false
+
+## @section Kubernetes Ingress feature configuration
+## @param ingress.enabled When true, enable the Ingress controller features
+ingress:
+  enabled: true # enabled by default
 
 ## @param controllerName The name of the controller to look for matching ingress classes
 controllerName: "k8s.ngrok.com/ingress-controller"
@@ -196,7 +202,7 @@ serviceAccount:
   annotations: {}
 
 
-## Logging configuration
+## @section Logging configuration
 ## @param log.level The level to log at. One of 'debug', 'info', or 'error'.
 ## @param log.stacktraceLevel The level to report stacktrace logs one of 'info' or 'error'.
 ## @param log.format The log format to use. One of console, json.
@@ -210,6 +216,7 @@ log:
 ##
 lifecycle: {}
 
+## @section Kubernetes Bindings feature configuration
 ## @param bindings.enabled Whether to enable the Endpoint Bindings feature
 ## @param bindings.name Unique name of this kubernetes binding in your ngrok account
 ## @param bindings.description Description of this kubernetes binding in your ngrok account
