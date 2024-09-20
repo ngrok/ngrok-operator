@@ -93,7 +93,7 @@ spec:
         - --enable-feature-bindings={{ .Values.bindings.enabled }}
         {{- end }}
         {{- if .Values.useExperimentalGatewayApi }}
-        - --use-experimental-gateway-api={{ .Values.useExperimentalGatewayApi }}
+        - --enable-feature-gateway={{ .Values.useExperimentalGatewayApi }}
         {{- end }}
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}

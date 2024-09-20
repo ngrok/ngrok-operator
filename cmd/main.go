@@ -90,22 +90,22 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	metricsAddr               string
-	electionID                string
-	probeAddr                 string
-	serverAddr                string
-	apiURL                    string
-	controllerName            string
-	watchNamespace            string
-	ngrokMetadata             string
-	description               string
-	managerName               string
-	useExperimentalGatewayAPI bool
-	zapOpts                   *zap.Options
-	clusterDomain             string
+	metricsAddr    string
+	electionID     string
+	probeAddr      string
+	serverAddr     string
+	apiURL         string
+	controllerName string
+	watchNamespace string
+	ngrokMetadata  string
+	description    string
+	managerName    string
+	zapOpts        *zap.Options
+	clusterDomain  string
 
 	// feature flags
 	enableFeatureIngress  bool
+	enableFeatureGateway  bool
 	enableFeatureBindings bool
 
 	// env vars
@@ -139,14 +139,12 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
-	c.Flags().BoolVar(&opts.useExperimentalGatewayAPI, "use-experimental-gateway-api", false, "sets up experemental gatewayAPI")
 	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", "svc.cluster.local", "Cluster domain used in the cluster")
 	c.Flags().StringVar(&opts.rootCAs, "root-cas", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
 
 	// feature flags
-	// default always enabled for now
-	// c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	opts.enableFeatureIngress = true
+	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
+	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 
 	opts.zapOpts = &zap.Options{}
@@ -271,7 +269,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	var comments tunneldriver.TunnelDriverComments
 
-	if opts.useExperimentalGatewayAPI {
+	if opts.enableFeatureGateway {
 		comments = tunneldriver.TunnelDriverComments{
 			Gateway: "gateway-api",
 		}
@@ -357,7 +355,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		setupLog.Error(err, "unable to create controller", "controller", "NgrokModuleSet")
 		os.Exit(1)
 	}
-	if opts.useExperimentalGatewayAPI {
+	if opts.enableFeatureGateway {
 		if err = (&gatewaycontroller.GatewayReconciler{
 			Client:   mgr.GetClient(),
 			Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
@@ -468,7 +466,7 @@ func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*
 			Namespace: options.namespace,
 			Name:      options.managerName,
 		},
-		store.WithGatewayEnabled(options.useExperimentalGatewayAPI),
+		store.WithGatewayEnabled(options.enableFeatureGateway),
 		store.WithClusterDomain(options.clusterDomain),
 	)
 	if options.ngrokMetadata != "" {
@@ -515,7 +513,7 @@ func registerOperatorWithNgrokAPI(ctx context.Context, k8sClient client.Client, 
 		features = append(features, string(ngrokv1beta1.OperatorFeatureBindings))
 	}
 
-	if opts.useExperimentalGatewayAPI {
+	if opts.enableFeatureGateway {
 		features = append(features, string(ngrokv1beta1.OperatorFeatureGateway))
 	}
 
