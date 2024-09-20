@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -185,12 +186,14 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 	return td, nil
 }
 
-func (td *TunnelDriver) Ready() error {
+// Ready implements the healthcheck.HealthChecker interface for when the TunnelDriver is ready to serve tunnels
+func (td *TunnelDriver) Ready(_ context.Context, _ *http.Request) error {
 	state := td.session.Load()
 	return state.readyErr
 }
 
-func (td *TunnelDriver) Healthy() error {
+// Alive implements the healthcheck.HealthChecker interface for when the TunnelDriver is alive
+func (td *TunnelDriver) Alive(_ context.Context, _ *http.Request) error {
 	state := td.session.Load()
 	return state.healthErr
 }

@@ -58,6 +58,7 @@ import (
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
+	"github.com/ngrok/ngrok-operator/internal/healthcheck"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -434,13 +435,16 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 	//+kubebuilder:scaffold:builder
 
+	// register healthchecks
+	healthcheck.RegisterHealthChecker(td)
+
 	if err := mgr.AddReadyzCheck("readyz", func(req *http.Request) error {
-		return td.Ready()
+		return healthcheck.Ready(req.Context(), req)
 	}); err != nil {
 		return fmt.Errorf("error setting up readyz check: %w", err)
 	}
 	if err := mgr.AddHealthzCheck("healthz", func(req *http.Request) error {
-		return td.Healthy()
+		return healthcheck.Alive(req.Context(), req)
 	}); err != nil {
 		return fmt.Errorf("error setting up health check: %w", err)
 	}
