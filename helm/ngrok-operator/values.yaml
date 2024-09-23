@@ -46,14 +46,17 @@ image:
 ## @extra ingressClass.name DEPRECATED: Use ingress.ingressClass.name instead
 ## @extra ingressClass.create DEPRECATED: Use ingress.ingressClass.create instead
 ## @extra ingressClass.default DEPRECATED: Use ingress.ingressClass.default instead
+## @extra watchNamespace DEPRECATED: Use ingress.watchNamespace instead
 
 ## @section Kubernetes Ingress feature configuration
 ## @param ingress.enabled When true, enable the Ingress controller features
 ## @param ingress.ingressClass.name The name of the ingress class to use.
 ## @param ingress.ingressClass.create Whether to create the ingress class.
 ## @param ingress.ingressClass.default Whether to set the ingress class as default.
+## @param ingress.watchNamespace The namespace to watch for ingress resources (default all)
 ingress:
   enabled: true # enabled by default
+  watchNamespace: "" # default all
   ingressClass:
     name: ngrok
     create: true
@@ -68,9 +71,6 @@ controllerName: "k8s.ngrok.com/ingress-controller"
 ## @param gateway.enabled When true, enable the Gateway controller
 gateway:
   enabled: false
-
-## @param watchNamespace The namespace to watch for ingress resources. Defaults to all
-watchNamespace: ""
 
 ## @param credentials.secret.name The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.
 ## @param credentials.apiKey Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well.

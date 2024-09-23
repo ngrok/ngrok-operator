@@ -86,8 +86,8 @@ spec:
           {{- $metadataArgs | join "," }}
         {{- end }}
         - --controller-name={{ .Values.controllerName }}
-        {{- if .Values.watchNamespace }}
-        - --watch-namespace={{ .Values.watchNamespace}}
+        {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
+        - --ingress-watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
         {{- end }}
         {{- if .Values.ingress.enabled }}
         - --enable-feature-ingress={{ .Values.ingress.enabled }}

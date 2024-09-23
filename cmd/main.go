@@ -90,18 +90,18 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	metricsAddr    string
-	electionID     string
-	probeAddr      string
-	serverAddr     string
-	apiURL         string
-	controllerName string
-	watchNamespace string
-	ngrokMetadata  string
-	description    string
-	managerName    string
-	zapOpts        *zap.Options
-	clusterDomain  string
+	metricsAddr           string
+	electionID            string
+	probeAddr             string
+	serverAddr            string
+	apiURL                string
+	controllerName        string
+	ingressWatchNamespace string
+	ngrokMetadata         string
+	description           string
+	managerName           string
+	zapOpts               *zap.Options
+	clusterDomain         string
 
 	// feature flags
 	enableFeatureIngress  bool
@@ -136,7 +136,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.apiURL, "api-url", "", "The base URL to use for the ngrok api")
 	// TODO(operator-rename): This probably needs to be on a per controller basis. Each of the controllers will have their own value or we migrate this to k8s.ngrok.com/ngrok-operator.
 	c.Flags().StringVar(&opts.controllerName, "controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
-	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
+	c.Flags().StringVar(&opts.ingressWatchNamespace, "ingress-watch-namespace", "", "Namespace to watch for Kubernetes Ingress resources. Defaults to all namespaces.")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
 	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", "svc.cluster.local", "Cluster domain used in the cluster")
@@ -198,10 +198,10 @@ func runController(ctx context.Context, opts managerOpts) error {
 		LeaderElectionID:       opts.electionID,
 	}
 
-	if opts.watchNamespace != "" {
+	if opts.ingressWatchNamespace != "" {
 		options.Cache = cache.Options{
 			DefaultNamespaces: map[string]cache.Config{
-				opts.watchNamespace: {},
+				opts.ingressWatchNamespace: {},
 			},
 		}
 	}

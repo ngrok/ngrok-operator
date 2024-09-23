@@ -87,6 +87,26 @@ tests:
   - matchRegex:
       path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
       pattern: test-secret-name
+- it: Sets --ingress-watch-namespace
+  set:
+    ingress.enabled: true
+    ingress.watchNamespace: test-namespace
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --ingress-watch-namespace=test-namespace
+- it: Sets --ingress-watch-namespace when the old value is set
+  set:
+    watchNamespace: "test-namespace"
+    ingress.watchNamespace: "" # unset on purpose
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --ingress-watch-namespace=test-namespace
 - it: Should pass the region via container args to the controller if specified
   set:
     region: eu
