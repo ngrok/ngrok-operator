@@ -85,7 +85,7 @@ spec:
           {{- end }}
           {{- $metadataArgs | join "," }}
         {{- end }}
-        - --controller-name={{ .Values.controllerName }}
+        - --ingress-controller-name={{ .Values.controllerName | default .Values.ingress.controllerName }}
         {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
         - --ingress-watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
         {{- end }}

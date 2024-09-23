@@ -107,6 +107,26 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --ingress-watch-namespace=test-namespace
+- it: Sets --ingress-controller-name
+  set:
+    ingress.enabled: true
+    ingress.controllerName: "my-controller"
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --ingress-controller-name=my-controller
+- it: Sets --ingress-controller-name when the old value is set
+  set:
+    controllerName: "my-controller"
+    ingress.controllerName: "" # unset on purpose
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --ingress-controller-name=my-controller
 - it: Should pass the region via container args to the controller if specified
   set:
     region: eu

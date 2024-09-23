@@ -53,7 +53,7 @@ Should match all-options snapshot:
           containers:
             - args:
                 - --description="The official ngrok Kubernetes Operator."
-                - --controller-name=k8s.ngrok.com/ingress-controller
+                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=false
                 - --zap-log-level=info
@@ -700,7 +700,7 @@ Should match default snapshot:
           containers:
             - args:
                 - --description="The official ngrok Kubernetes Operator."
-                - --controller-name=k8s.ngrok.com/ingress-controller
+                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=false
                 - --zap-log-level=info

@@ -47,6 +47,7 @@ image:
 ## @extra ingressClass.create DEPRECATED: Use ingress.ingressClass.create instead
 ## @extra ingressClass.default DEPRECATED: Use ingress.ingressClass.default instead
 ## @extra watchNamespace DEPRECATED: Use ingress.watchNamespace instead
+  ## @extra controllerName DEPRECATED: Use ingress.controllerName instead
 
 ## @section Kubernetes Ingress feature configuration
 ## @param ingress.enabled When true, enable the Ingress controller features
@@ -54,16 +55,15 @@ image:
 ## @param ingress.ingressClass.create Whether to create the ingress class.
 ## @param ingress.ingressClass.default Whether to set the ingress class as default.
 ## @param ingress.watchNamespace The namespace to watch for ingress resources (default all)
+## @param ingress.controllerName The name of the controller to look for matching ingress classes
 ingress:
   enabled: true # enabled by default
+  controllerName: "k8s.ngrok.com/ingress-controller"
   watchNamespace: "" # default all
   ingressClass:
     name: ngrok
     create: true
     default: false
-
-## @param controllerName The name of the controller to look for matching ingress classes
-controllerName: "k8s.ngrok.com/ingress-controller"
 
 ## @extra useExperimentalGatewayApi DEPRECATED: Use gateway.enabled instead
 
