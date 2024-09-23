@@ -1,6 +1,6 @@
+##
 ## @section Common parameters
 ##
-
 ## @param nameOverride String to partially override generated resource names
 ## @param fullnameOverride String to fully override generated resource names
 ## @param description ngrok-operator description that will appear in the ngrok dashboard
@@ -12,26 +12,15 @@ description: "The official ngrok Kubernetes Operator."
 commonLabels: {}
 commonAnnotations: {}
 
-## @section Controller parameters
 ##
-
-## @param podAnnotations Used to apply custom annotations to the ingress pods.
-## @param podLabels Used to apply custom labels to the ingress pods.
-##
-podAnnotations: {}
-podLabels: {}
-
-## @param replicaCount The number of controllers to run.
-## A minimum of 2 is recommended in production for HA.
-##
-replicaCount: 1
-
 ## @section Image configuration
+##
 ## @param image.registry The ngrok operator image registry.
 ## @param image.repository The ngrok operator image repository.
 ## @param image.tag The ngrok operator image tag. Defaults to the chart's appVersion if not specified
 ## @param image.pullPolicy The ngrok operator image pull policy.
 ## @param image.pullSecrets An array of imagePullSecrets to be used when pulling the image.
+##
 image:
   registry: docker.io
   repository: ngrok/ngrok-operator
@@ -43,63 +32,47 @@ image:
   ##
   pullSecrets: []
 
-## @extra ingressClass.name DEPRECATED: Use ingress.ingressClass.name instead
-## @extra ingressClass.create DEPRECATED: Use ingress.ingressClass.create instead
-## @extra ingressClass.default DEPRECATED: Use ingress.ingressClass.default instead
-## @extra watchNamespace DEPRECATED: Use ingress.watchNamespace instead
-  ## @extra controllerName DEPRECATED: Use ingress.controllerName instead
-
-## @section Kubernetes Ingress feature configuration
-## @param ingress.enabled When true, enable the Ingress controller features
-## @param ingress.ingressClass.name The name of the ingress class to use.
-## @param ingress.ingressClass.create Whether to create the ingress class.
-## @param ingress.ingressClass.default Whether to set the ingress class as default.
-## @param ingress.watchNamespace The namespace to watch for ingress resources (default all)
-## @param ingress.controllerName The name of the controller to look for matching ingress classes
-ingress:
-  enabled: true # enabled by default
-  controllerName: "k8s.ngrok.com/ingress-controller"
-  watchNamespace: "" # default all
-  ingressClass:
-    name: ngrok
-    create: true
-    default: false
-
-## @extra useExperimentalGatewayApi DEPRECATED: Use gateway.enabled instead
-
-## @section Kubernetes Gateway feature configuration
-## @param gateway.enabled When true, enable the Gateway controller
-gateway:
-  enabled: false
-
-## @param credentials.secret.name The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.
-## @param credentials.apiKey Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well.
-## @param credentials.authtoken Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.
-credentials:
-  secret:
-    name: ""
-  apiKey: ""
-  authtoken: ""
-
+##
+## @section ngrok configuration
+##
 ## @param region ngrok region to create tunnels in. Defaults to connect to the closest geographical region.
+##
 region: "" # empty means global or all regions
 
 ## @param rootCAs Set to "trusted" for the ngrok agent CA or "host" to trust the host's CA. Defaults to "trusted".
+##
 rootCAs: ""
 
 ## @param serverAddr  This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address.
+##
 serverAddr: ""
 
-## @param clusterDomain Injects the cluster domain name for service discovery.
-clusterDomain: svc.cluster.local
-
 ## @param apiURL  This is the URL of the ngrok API. You should set this if you are using a custom API URL.
-# apiURL: "https://api.ngrok.com/"
+##
 apiURL: "" # default to ngrok-api-go SDK's default
 
 ## @extra metaData DEPRECATED: Use ngrokMetadata instead
 ## @param ngrokMetadata This is a map of key=value,key=value pairs that will be added as metadata to all ngrok api resources created
+##
 ngrokMetadata: {}
+
+## @param clusterDomain Configure the default cluster base domain for your kubernetes cluster DNS resolution
+##
+clusterDomain: svc.cluster.local
+
+##
+## @section Operator Manager parameters
+##
+## @param podAnnotations Used to apply custom annotations to the ingress pods.
+## @param podLabels Used to apply custom labels to the ingress pods.
+##
+podAnnotations: {}
+podLabels: {}
+
+## @param replicaCount The number of controllers to run.
+## A minimum of 2 is recommended in production for HA.
+##
+replicaCount: 1
 
 ## @param affinity Affinity for the controller pod assignment
 ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
@@ -136,7 +109,13 @@ nodeAffinityPreset:
 
 ## @param priorityClassName Priority class for pod scheduling
 ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#priorityclass
+##
 priorityClassName: ""
+
+## @param lifecycle an object containing lifecycle configuration
+## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
+##
+lifecycle: {}
 
 ## Pod Disruption Budget configuration
 ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
@@ -172,10 +151,11 @@ resources:
   ##
   requests: {}
 
-
 ## @param extraVolumes An array of extra volumes to add to the controller.
+##
 extraVolumes: []
 ## @param extraVolumeMounts An array of extra volume mounts to add to the controller.
+##
 extraVolumeMounts: []
 ##
 ## Example:
@@ -187,8 +167,8 @@ extraVolumeMounts: []
 ## - name: test-volume
 ##   mountPath: /test-volume
 
-
 ## @param extraEnv an object of extra environment variables to add to the controller.
+##
 extraEnv: {}
 ## Example:
 ##   MY_VAR: test
@@ -208,28 +188,74 @@ serviceAccount:
   name: ""
   annotations: {}
 
-
+##
 ## @section Logging configuration
+##
 ## @param log.level The level to log at. One of 'debug', 'info', or 'error'.
 ## @param log.stacktraceLevel The level to report stacktrace logs one of 'info' or 'error'.
 ## @param log.format The log format to use. One of console, json.
+##
 log:
   format: json
   level: info
   stacktraceLevel: error
 
-## @param lifecycle an object containing lifecycle configuration
-## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
 ##
-lifecycle: {}
+## @section Credentials configuration
+##
+## @param credentials.secret.name The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.
+## @param credentials.apiKey Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well.
+## @param credentials.authtoken Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.
+##
+credentials:
+  secret:
+    name: ""
+  apiKey: ""
+  authtoken: ""
 
+##
+## @section Kubernetes Ingress feature configuration
+##
+## @extra ingressClass.name DEPRECATED: Use ingress.ingressClass.name instead
+## @extra ingressClass.create DEPRECATED: Use ingress.ingressClass.create instead
+## @extra ingressClass.default DEPRECATED: Use ingress.ingressClass.default instead
+## @extra watchNamespace DEPRECATED: Use ingress.watchNamespace instead
+## @extra controllerName DEPRECATED: Use ingress.controllerName instead
+## @param ingress.enabled When true, enable the Ingress controller features
+## @param ingress.ingressClass.name The name of the ingress class to use.
+## @param ingress.ingressClass.create Whether to create the ingress class.
+## @param ingress.ingressClass.default Whether to set the ingress class as default.
+## @param ingress.watchNamespace The namespace to watch for ingress resources (default all)
+## @param ingress.controllerName The name of the controller to look for matching ingress classes
+##
+ingress:
+  enabled: true # enabled by default
+  controllerName: "k8s.ngrok.com/ingress-controller"
+  watchNamespace: "" # default all
+  ingressClass:
+    name: ngrok
+    create: true
+    default: false
+
+##
+## @section Kubernetes Gateway feature configuration
+##
+## @extra useExperimentalGatewayApi DEPRECATED: Use gateway.enabled instead
+## @param gateway.enabled When true, enable the Gateway controller
+##
+gateway:
+  enabled: false
+
+##
 ## @section Kubernetes Bindings feature configuration
+##
 ## @param bindings.enabled Whether to enable the Endpoint Bindings feature
 ## @param bindings.name Unique name of this kubernetes binding in your ngrok account
 ## @param bindings.description Description of this kubernetes binding in your ngrok account
 ## @param bindings.allowedURLs List of allowed endpoint URL formats that this binding will project into the cluster
 ## @param bindings.serviceAnnotations Annotations to add to projected services bound to an endpoint
 ## @param bindings.serviceLabels Labels to add to projected services bound to an endpoint
+##
 bindings:
   enabled: false # in-development
   name: ""
