@@ -90,22 +90,22 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	metricsAddr               string
-	electionID                string
-	probeAddr                 string
-	serverAddr                string
-	apiURL                    string
-	controllerName            string
-	watchNamespace            string
-	ngrokMetadata             string
-	description               string
-	managerName               string
-	useExperimentalGatewayAPI bool
-	zapOpts                   *zap.Options
-	clusterDomain             string
+	metricsAddr    string
+	electionID     string
+	probeAddr      string
+	serverAddr     string
+	apiURL         string
+	controllerName string
+	watchNamespace string
+	ngrokMetadata  string
+	description    string
+	managerName    string
+	zapOpts        *zap.Options
+	clusterDomain  string
 
 	// feature flags
 	enableFeatureIngress  bool
+	enableFeatureGateway  bool
 	enableFeatureBindings bool
 
 	// env vars
@@ -139,14 +139,12 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for Kubernetes resources. Defaults to all namespaces.")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
-	c.Flags().BoolVar(&opts.useExperimentalGatewayAPI, "use-experimental-gateway-api", false, "sets up experemental gatewayAPI")
 	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", "svc.cluster.local", "Cluster domain used in the cluster")
 	c.Flags().StringVar(&opts.rootCAs, "root-cas", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
 
 	// feature flags
-	// default always enabled for now
-	// c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	opts.enableFeatureIngress = true
+	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
+	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 
 	opts.zapOpts = &zap.Options{}
@@ -222,11 +220,6 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	driver, err := getDriver(ctx, mgr, opts)
-	if err != nil {
-		return fmt.Errorf("unable to create Driver: %w", err)
-	}
-
 	// register with ngrok api and create k8s objects
 	result, err := registerOperatorWithNgrokAPI(ctx, k8sClient, ngrokClientset, ngrokClientConfig, opts)
 	if err != nil {
@@ -234,210 +227,92 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 	setupLog.Info("OperatorConfiguration created", "result", result)
 
-	if err := (&ingresscontroller.IngressReconciler{
-		Client:               mgr.GetClient(),
-		Log:                  ctrl.Log.WithName("controllers").WithName("ingress"),
-		Scheme:               mgr.GetScheme(),
-		Recorder:             mgr.GetEventRecorderFor("ingress-controller"),
-		Namespace:            opts.namespace,
-		AnnotationsExtractor: annotations.NewAnnotationsExtractor(),
-		Driver:               driver,
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create ingress controller: %w", err)
-	}
-
-	if err = (&ingresscontroller.ServiceReconciler{
-		Client:    mgr.GetClient(),
-		Log:       ctrl.Log.WithName("controllers").WithName("service"),
-		Scheme:    mgr.GetScheme(),
-		Recorder:  mgr.GetEventRecorderFor("service-controller"),
-		Namespace: opts.namespace,
-		Driver:    driver,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Service")
-		os.Exit(1)
-	}
-
-	if err = (&ingresscontroller.DomainReconciler{
-		Client:        mgr.GetClient(),
-		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
-		Scheme:        mgr.GetScheme(),
-		Recorder:      mgr.GetEventRecorderFor("domain-controller"),
-		DomainsClient: ngrokClientset.Domains(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Domain")
-		os.Exit(1)
-	}
-
-	var comments tunneldriver.TunnelDriverComments
-
-	if opts.useExperimentalGatewayAPI {
-		comments = tunneldriver.TunnelDriverComments{
-			Gateway: "gateway-api",
+	// k8sResourceDriver is the driver that will be used to interact with the k8s resources for all controllers
+	// but primarily for kinds Ingress, Gateway, and ngrok CRDs
+	var k8sResourceDriver *store.Driver
+	if opts.enableFeatureIngress || opts.enableFeatureGateway {
+		// we only need a driver if these features are enabled
+		if driver, err := getK8sResourceDriver(ctx, mgr, opts); err != nil {
+			return fmt.Errorf("unable to create Driver: %w", err)
+		} else {
+			k8sResourceDriver = driver
 		}
 	}
 
-	rootCAs := "trusted"
-
-	if opts.rootCAs != "" {
-		rootCAs = opts.rootCAs
-	}
-
-	td, err := tunneldriver.New(ctx, ctrl.Log.WithName("drivers").WithName("tunnel"),
-		tunneldriver.TunnelDriverOpts{
-			ServerAddr: opts.serverAddr,
-			Region:     opts.region,
-			RootCAs:    rootCAs,
-			Comments:   &comments,
-		},
-	)
-
-	if err != nil {
-		return fmt.Errorf("unable to create tunnel driver: %w", err)
-	}
-
-	if err = (&ingresscontroller.TunnelReconciler{
-		Client:       mgr.GetClient(),
-		Log:          ctrl.Log.WithName("controllers").WithName("tunnel"),
-		Scheme:       mgr.GetScheme(),
-		Recorder:     mgr.GetEventRecorderFor("tunnel-controller"),
-		TunnelDriver: td,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
-		os.Exit(1)
-	}
-	if err = (&ingresscontroller.TCPEdgeReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("tcp-edge"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("tcp-edge-controller"),
-		NgrokClientset: ngrokClientset,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TCPEdge")
-		os.Exit(1)
-	}
-	if err = (&ingresscontroller.TLSEdgeReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("tls-edge"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("tls-edge-controller"),
-		NgrokClientset: ngrokClientset,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TLSEdge")
-		os.Exit(1)
-	}
-	if err = (&ingresscontroller.HTTPSEdgeReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("https-edge"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("https-edge-controller"),
-		NgrokClientset: ngrokClientset,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "HTTPSEdge")
-		os.Exit(1)
-	}
-	if err = (&ingresscontroller.IPPolicyReconciler{
-		Client:              mgr.GetClient(),
-		Log:                 ctrl.Log.WithName("controllers").WithName("ip-policy"),
-		Scheme:              mgr.GetScheme(),
-		Recorder:            mgr.GetEventRecorderFor("ip-policy-controller"),
-		IPPoliciesClient:    ngrokClientset.IPPolicies(),
-		IPPolicyRulesClient: ngrokClientset.IPPolicyRules(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "IPPolicy")
-		os.Exit(1)
-	}
-	if err = (&ingresscontroller.ModuleSetReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("ngrok-module-set"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("ngrok-module-set-controller"),
-		Driver:   driver,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NgrokModuleSet")
-		os.Exit(1)
-	}
-	if opts.useExperimentalGatewayAPI {
-		if err = (&gatewaycontroller.GatewayReconciler{
-			Client:   mgr.GetClient(),
-			Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
-			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("gateway-controller"),
-			Driver:   driver,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "Gateway")
-			os.Exit(1)
+	if opts.enableFeatureIngress {
+		setupLog.Info("Ingress feature set enabled")
+		if err := enableIngressFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset); err != nil {
+			return fmt.Errorf("unable to enable Ingress feature set: %w", err)
 		}
-
-		if err = (&gatewaycontroller.HTTPRouteReconciler{
-			Client:   mgr.GetClient(),
-			Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
-			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("gateway-controller"),
-			Driver:   driver,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
-			os.Exit(1)
-		}
+	} else {
+		setupLog.Info("Ingress feature set disabled")
 	}
 
-	if err = (&ngrokcontroller.NgrokTrafficPolicyReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("policy-controller"),
-		Driver:   driver,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TrafficPolicy")
-		os.Exit(1)
+	if opts.enableFeatureGateway {
+		setupLog.Info("Gateway feature set enabled")
+		if err := enableGatewayFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset); err != nil {
+			return fmt.Errorf("unable to enable Gateway feature set: %w", err)
+		}
+	} else {
+		setupLog.Info("Gateway feature set disabled")
 	}
 
 	if opts.enableFeatureBindings {
-		setupLog.Info("Endpoint Bindings controller enabled")
-
-		// Global BindingConfiguration
-		if err = (&bindingscontroller.BindingConfigurationReconciler{
-			Client:    mgr.GetClient(),
-			Scheme:    mgr.GetScheme(),
-			Log:       ctrl.Log.WithName("controllers").WithName("BindingConfiguration"),
-			Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
-			Namespace: opts.namespace,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "BindingConfiguration")
-			os.Exit(1)
+		setupLog.Info("Endpoint Bindings feature set enabled")
+		if err := enableBindingsFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset); err != nil {
+			return fmt.Errorf("unable to enable Bindings feature set: %w", err)
 		}
-
-		// EndpointBindings
-		if err = (&bindingscontroller.EndpointBindingReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
-			Recorder: mgr.GetEventRecorderFor("bindings-controller"),
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
-			os.Exit(1)
-		}
-
-		// TLS Secret
-		// TODO(hkatz) enable this controller when we have a use case for it
-		// if err = (&bindingscontroller.TlsSecretReconciler{
-		// 	Client:    mgr.GetClient(),
-		// 	Scheme:    mgr.GetScheme(),
-		// 	Log:       ctrl.Log.WithName("controllers").WithName("TlsSecret"),
-		// 	Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
-		// 	Namespace: opts.namespace,
-		// }).SetupWithManager(mgr); err != nil {
-		// 	setupLog.Error(err, "unable to create controller", "controller", "TlsSecret")
-		// 	os.Exit(1)
-		// }
 	} else {
-		setupLog.Info("Endpoint Bindings controller disabled")
+		setupLog.Info("Endpoint Bindings feature set disabled")
 	}
+
+	// new kubebuilder controllers will be generated here
+	// please attach these to a feature set
 	//+kubebuilder:scaffold:builder
 
-	// register healthchecks
-	healthcheck.RegisterHealthChecker(td)
+	// shared features between Ingress and Gateway (tunnels)
+	if opts.enableFeatureIngress || opts.enableFeatureGateway {
+		var comments tunneldriver.TunnelDriverComments
+		if opts.enableFeatureGateway {
+			comments = tunneldriver.TunnelDriverComments{
+				Gateway: "gateway-api",
+			}
+		}
 
+		rootCAs := "trusted"
+		if opts.rootCAs != "" {
+			rootCAs = opts.rootCAs
+		}
+
+		td, err := tunneldriver.New(ctx, ctrl.Log.WithName("drivers").WithName("tunnel"),
+			tunneldriver.TunnelDriverOpts{
+				ServerAddr: opts.serverAddr,
+				Region:     opts.region,
+				RootCAs:    rootCAs,
+				Comments:   &comments,
+			},
+		)
+
+		if err != nil {
+			return fmt.Errorf("unable to create tunnel driver: %w", err)
+		}
+
+		// register healthcheck for tunnel driver
+		healthcheck.RegisterHealthChecker(td)
+
+		if err = (&ingresscontroller.TunnelReconciler{
+			Client:       mgr.GetClient(),
+			Log:          ctrl.Log.WithName("controllers").WithName("tunnel"),
+			Scheme:       mgr.GetScheme(),
+			Recorder:     mgr.GetEventRecorderFor("tunnel-controller"),
+			TunnelDriver: td,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
+			os.Exit(1)
+		}
+	}
+
+	// register healthchecks
 	if err := mgr.AddReadyzCheck("readyz", func(req *http.Request) error {
 		return healthcheck.Ready(req.Context(), req)
 	}); err != nil {
@@ -457,8 +332,8 @@ func runController(ctx context.Context, opts managerOpts) error {
 	return nil
 }
 
-// getDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
+// getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
+func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
 	d := store.NewDriver(
 		logger,
@@ -468,7 +343,7 @@ func getDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*
 			Namespace: options.namespace,
 			Name:      options.managerName,
 		},
-		store.WithGatewayEnabled(options.useExperimentalGatewayAPI),
+		store.WithGatewayEnabled(options.enableFeatureGateway),
 		store.WithClusterDomain(options.clusterDomain),
 	)
 	if options.ngrokMetadata != "" {
@@ -515,7 +390,7 @@ func registerOperatorWithNgrokAPI(ctx context.Context, k8sClient client.Client, 
 		features = append(features, string(ngrokv1beta1.OperatorFeatureBindings))
 	}
 
-	if opts.useExperimentalGatewayAPI {
+	if opts.enableFeatureGateway {
 		features = append(features, string(ngrokv1beta1.OperatorFeatureGateway))
 	}
 
@@ -545,4 +420,179 @@ func registerOperatorWithNgrokAPI(ctx context.Context, k8sClient client.Client, 
 	}
 
 	return string(result), nil
+}
+
+// enableIngressFeatureSet enables the Ingress feature set for the operator
+func enableIngressFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Manager, driver *store.Driver, ngrokClientset ngrokapi.Clientset) error {
+	if err := (&ingresscontroller.IngressReconciler{
+		Client:               mgr.GetClient(),
+		Log:                  ctrl.Log.WithName("controllers").WithName("ingress"),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             mgr.GetEventRecorderFor("ingress-controller"),
+		Namespace:            opts.namespace,
+		AnnotationsExtractor: annotations.NewAnnotationsExtractor(),
+		Driver:               driver,
+	}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("unable to create ingress controller: %w", err)
+	}
+
+	if err := (&ingresscontroller.ServiceReconciler{
+		Client:    mgr.GetClient(),
+		Log:       ctrl.Log.WithName("controllers").WithName("service"),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  mgr.GetEventRecorderFor("service-controller"),
+		Namespace: opts.namespace,
+		Driver:    driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Service")
+		os.Exit(1)
+	}
+
+	if err := (&ingresscontroller.DomainReconciler{
+		Client:        mgr.GetClient(),
+		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
+		Scheme:        mgr.GetScheme(),
+		Recorder:      mgr.GetEventRecorderFor("domain-controller"),
+		DomainsClient: ngrokClientset.Domains(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Domain")
+		os.Exit(1)
+	}
+
+	if err := (&ingresscontroller.TCPEdgeReconciler{
+		Client:         mgr.GetClient(),
+		Log:            ctrl.Log.WithName("controllers").WithName("tcp-edge"),
+		Scheme:         mgr.GetScheme(),
+		Recorder:       mgr.GetEventRecorderFor("tcp-edge-controller"),
+		NgrokClientset: ngrokClientset,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TCPEdge")
+		os.Exit(1)
+	}
+
+	if err := (&ingresscontroller.TLSEdgeReconciler{
+		Client:         mgr.GetClient(),
+		Log:            ctrl.Log.WithName("controllers").WithName("tls-edge"),
+		Scheme:         mgr.GetScheme(),
+		Recorder:       mgr.GetEventRecorderFor("tls-edge-controller"),
+		NgrokClientset: ngrokClientset,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TLSEdge")
+		os.Exit(1)
+	}
+
+	if err := (&ingresscontroller.HTTPSEdgeReconciler{
+		Client:         mgr.GetClient(),
+		Log:            ctrl.Log.WithName("controllers").WithName("https-edge"),
+		Scheme:         mgr.GetScheme(),
+		Recorder:       mgr.GetEventRecorderFor("https-edge-controller"),
+		NgrokClientset: ngrokClientset,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "HTTPSEdge")
+		os.Exit(1)
+	}
+
+	if err := (&ingresscontroller.IPPolicyReconciler{
+		Client:              mgr.GetClient(),
+		Log:                 ctrl.Log.WithName("controllers").WithName("ip-policy"),
+		Scheme:              mgr.GetScheme(),
+		Recorder:            mgr.GetEventRecorderFor("ip-policy-controller"),
+		IPPoliciesClient:    ngrokClientset.IPPolicies(),
+		IPPolicyRulesClient: ngrokClientset.IPPolicyRules(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "IPPolicy")
+		os.Exit(1)
+	}
+
+	if err := (&ingresscontroller.ModuleSetReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("ngrok-module-set"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("ngrok-module-set-controller"),
+		Driver:   driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NgrokModuleSet")
+		os.Exit(1)
+	}
+
+	if err := (&ngrokcontroller.NgrokTrafficPolicyReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("policy-controller"),
+		Driver:   driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TrafficPolicy")
+		os.Exit(1)
+	}
+
+	return nil
+}
+
+// enableGatewayFeatureSet enables the Gateway feature set for the operator
+func enableGatewayFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Manager, driver *store.Driver, ngrokClientset ngrokapi.Clientset) error {
+	if err := (&gatewaycontroller.GatewayReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("gateway-controller"),
+		Driver:   driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+		os.Exit(1)
+	}
+
+	if err := (&gatewaycontroller.HTTPRouteReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("gateway-controller"),
+		Driver:   driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
+		os.Exit(1)
+	}
+
+	return nil
+}
+
+// enableBindingsFeatureSet enables the Bindings feature set for the operator
+func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Manager, driver *store.Driver, ngrokClientset ngrokapi.Clientset) error {
+	// Global BindingConfiguration
+	if err := (&bindingscontroller.BindingConfigurationReconciler{
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Log:       ctrl.Log.WithName("controllers").WithName("BindingConfiguration"),
+		Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
+		Namespace: opts.namespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "BindingConfiguration")
+		os.Exit(1)
+	}
+
+	// EndpointBindings
+	if err := (&bindingscontroller.EndpointBindingReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
+		Recorder: mgr.GetEventRecorderFor("bindings-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
+		os.Exit(1)
+	}
+
+	// TLS Secret
+	// TODO(hkatz) enable this controller when we have a use case for it
+	// if err = (&bindingscontroller.TlsSecretReconciler{
+	// 	Client:    mgr.GetClient(),
+	// 	Scheme:    mgr.GetScheme(),
+	// 	Log:       ctrl.Log.WithName("controllers").WithName("TlsSecret"),
+	// 	Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
+	// 	Namespace: opts.namespace,
+	// }).SetupWithManager(mgr); err != nil {
+	// 	setupLog.Error(err, "unable to create controller", "controller", "TlsSecret")
+	// 	os.Exit(1)
+	// }
+
+	return nil
 }
