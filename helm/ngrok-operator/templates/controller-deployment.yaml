@@ -85,15 +85,20 @@ spec:
           {{- end }}
           {{- $metadataArgs | join "," }}
         {{- end }}
-        - --controller-name={{ .Values.controllerName }}
-        {{- if .Values.watchNamespace }}
-        - --watch-namespace={{ .Values.watchNamespace}}
+        - --ingress-controller-name={{ .Values.controllerName | default .Values.ingress.controllerName }}
+        {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
+        - --ingress-watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
+        {{- end }}
+        {{- if .Values.ingress.enabled }}
+        - --enable-feature-ingress={{ .Values.ingress.enabled }}
+        {{- end }}
+        {{- if .Values.useExperimentalGatewayApi | default .Values.gateway.enabled }}
+        - --enable-feature-gateway=true
+        {{- else }}
+        - --enable-feature-gateway=false
         {{- end }}
         {{- if .Values.bindings.enabled }}
         - --enable-feature-bindings={{ .Values.bindings.enabled }}
-        {{- end }}
-        {{- if .Values.useExperimentalGatewayApi }}
-        - --enable-feature-gateway={{ .Values.useExperimentalGatewayApi }}
         {{- end }}
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
