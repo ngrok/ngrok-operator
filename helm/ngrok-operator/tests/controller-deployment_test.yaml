@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/quintush/helm-unittest/master/schema/helm-testsuite.json
 suite: test controller-deployment
 templates:
 - controller-deployment.yaml
@@ -303,7 +302,7 @@ tests:
   template: controller-deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - isNull:
+  - notExists:
       path: spec.template.spec.priorityClassName
 - it: Allows setting a priority class
   template: controller-deployment.yaml

@@ -1,6 +1,6 @@
-suite: test binding-configuration
+suite: test bindings configuration
 templates:
-- binding-configuration.yaml
+- bindings/configuration.yaml
 tests:
 - it: Should match snapshot
   set:

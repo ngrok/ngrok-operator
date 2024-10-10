@@ -238,6 +238,25 @@ ingress:
     default: false
 
 ##
+## @section Agent configuration
+##
+## @param agent.priorityClassName Priority class for pod scheduling.
+## @param agent.replicaCount The number of agents to run.
+## @param agent.serviceAccount.create Specifies whether a ServiceAccount should be created for the agent.
+## @param agent.serviceAccount.name The name of the ServiceAccount to use for the agent.
+## If not set and create is true, a name is generated using the fullname template
+## @param agent.serviceAccount.annotations Additional annotations to add to the agent ServiceAccount
+agent:
+  priorityClassName: ""
+
+  replicaCount: 1
+
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+##
 ## @section Kubernetes Gateway feature configuration
 ##
 ## @extra useExperimentalGatewayApi DEPRECATED: Use gateway.enabled instead

@@ -66,11 +66,39 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
+Ngrok Operator manager cli feature flags
+*/}}
+{{- define "ngrok-operator.manager.cliFeatureFlags" -}}
+{{- if .Values.ingress.enabled -}}
+- --enable-feature-ingress={{ .Values.ingress.enabled }}
+{{- end }}
+{{- if .Values.useExperimentalGatewayApi | default .Values.gateway.enabled }}
+- --enable-feature-gateway=true
+{{- else }}
+- --enable-feature-gateway=false
+{{- end }}
+{{- if .Values.bindings.enabled }}
+- --enable-feature-bindings={{ .Values.bindings.enabled }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Create the name of the controller service account to use
 */}}
 {{- define "ngrok-operator.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
     {{ default (include "ngrok-operator.fullname" .) .Values.serviceAccount.name }}
+{{- else -}}
+    {{ default "default" .Values.serviceAccount.name }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Create the name of the agent service account to use
+*/}}
+{{- define "ngrok-operator.agent.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+    {{ default (printf "%s-agent" (include "ngrok-operator.fullname" .)) .Values.serviceAccount.name }}
 {{- else -}}
     {{ default "default" .Values.serviceAccount.name }}
 {{- end -}}

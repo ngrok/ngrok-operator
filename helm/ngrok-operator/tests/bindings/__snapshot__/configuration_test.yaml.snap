@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 Should match snapshot:
   1: |
     apiVersion: bindings.k8s.ngrok.com/v1alpha1
@@ -24,6 +23,3 @@ Should match snapshot:
         labels: {}
       region: null
       tlsSecretName: default-tls
-=======
-{}
->>>>>>> 9947dc0 (refactor: Split the agent and api controllers)

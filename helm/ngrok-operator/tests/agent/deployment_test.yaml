@@ -1,0 +1,8 @@
+suite: test agent deployment
+templates:
+- agent/deployment.yaml
+- agent/rbac.yaml
+tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}

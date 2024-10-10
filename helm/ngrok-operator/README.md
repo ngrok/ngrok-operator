@@ -131,6 +131,17 @@ To uninstall the chart:
 | `ingress.controllerName`       | The name of the controller to look for matching ingress classes | `k8s.ngrok.com/ingress-controller` |
 
 
+### Agent configuration
+
+| Name                               | Description                                                         | Value  |
+| ---------------------------------- | ------------------------------------------------------------------- | ------ |
+| `agent.priorityClassName`          | Priority class for pod scheduling.                                  | `""`   |
+| `agent.replicaCount`               | The number of agents to run.                                        | `1`    |
+| `agent.serviceAccount.create`      | Specifies whether a ServiceAccount should be created for the agent. | `true` |
+| `agent.serviceAccount.name`        | The name of the ServiceAccount to use for the agent.                | `""`   |
+| `agent.serviceAccount.annotations` | Additional annotations to add to the agent ServiceAccount           | `{}`   |
+
+
 ### Kubernetes Gateway feature configuration
 
 | Name                        | Description                              | Value   |
