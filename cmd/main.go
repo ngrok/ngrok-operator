@@ -258,7 +258,6 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	if opts.enableFeatureBindings {
-		setupLog.Info("Endpoint Bindings feature set enabled")
 		if err := enableBindingsFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset); err != nil {
 			return fmt.Errorf("unable to enable Bindings feature set: %w", err)
 		}
@@ -372,9 +371,13 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options mana
 }
 
 // registerOperatorWithNgrokAPI registers or claims ownership of an existing kc_id within the ngrok API
+// TODO: This might be better in a controller instead of main so it can be ran only once by the leader and not on each pods main startup
 func registerOperatorWithNgrokAPI(ctx context.Context, k8sClient client.Client, _ ngrokapi.Clientset, nConfig *ngrok.ClientConfig, opts managerOpts) (string, error) {
 	// TODO(hkatz) register with ngrok API /kubernetes_operators
 	// or otherwise claim ownership over an existing kc_id
+	// TODO: implement this here potentially
+	// - read Secret or generate Secret + CSR
+	//     - POST CSR workflow with API
 	ref := &ngrok.Ref{
 		ID:  "k8_example123",
 		URI: "https://api.ngrok.com/kubernetes_operators/k8_example123",

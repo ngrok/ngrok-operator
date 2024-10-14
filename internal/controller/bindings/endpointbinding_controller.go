@@ -66,6 +66,16 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		ErrResult: r.errResult,
 	}
 
+	// Create a new Runnable that implements Start that the manager can manage running
+	if err := mgr.Add(&EndpointBindingPoller{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      r.Log,
+		Recorder: r.Recorder,
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&bindingsv1alpha1.EndpointBinding{}).
 		Complete(r)

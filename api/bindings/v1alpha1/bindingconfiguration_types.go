@@ -97,7 +97,7 @@ type BindingConfigurationSpec struct {
 type BindingConfigurationStatus struct {
 	// TODO(https://github.com/ngrok-private/ngrok/issues/32666)
 
-	// Endpoints is a list of BindingEndpoint that are attached to the kubernetes operator binding
+	// Endpoints is a list of BindingEndpoints that are attached to the kubernetes operator binding
 	Endpoints []BindingEndpoint `json:"endpoints"`
 }
 

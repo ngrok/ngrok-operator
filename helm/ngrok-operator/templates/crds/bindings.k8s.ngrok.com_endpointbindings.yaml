@@ -57,10 +57,11 @@ spec:
                 format: int32
                 type: integer
               protocol:
-                default: TCP
-                description: Protocol is the Service protocol this Endpoint uses
-                enum:
-                - TCP
+                description: |-
+                  Protocol is the Service protocol this Endpoint uses
+                  This used to have validation to only allow TCP matching the k8s Protocol spec for services
+                  However, from the notion spec, the URL can have have various schemes like https://, http://, tls://, tcp://, etc
+                  I assume we ned this somewhere and for the k8s service we can just always create it with the TCP protocol
                 type: string
               target:
                 description: EndpointTarget is the target Service that this Endpoint

@@ -117,6 +117,7 @@ func (r *HTTPSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.HTTPSEdge))
 }
 
+// TEST
 func (r *HTTPSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
 	remoteEdge, err := r.findEdgeByHostports(ctx, edge.Spec.Hostports)
 	if err != nil {

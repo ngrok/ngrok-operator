@@ -115,7 +115,7 @@ spec:
               BindingConfiguration
             properties:
               endpoints:
-                description: Endpoints is a list of BindingEndpoint that are attached
+                description: Endpoints is a list of BindingEndpoints that are attached
                   to the kubernetes operator binding
                 items:
                   description: BindingEndpoint is a reference to an Endpoint object

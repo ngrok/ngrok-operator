@@ -34,9 +34,9 @@ import (
 // EndpointBindingSpec defines the desired state of EndpointBinding
 type EndpointBindingSpec struct {
 	// Protocol is the Service protocol this Endpoint uses
-	// +kubebuilder:validation:Required
-	// +kubebuilder:default=`TCP`
-	// +kubebuilder:validation:Enum=TCP
+	// This used to have validation to only allow TCP matching the k8s Protocol spec for services
+	// However, from the notion spec, the URL can have have various schemes like https://, http://, tls://, tcp://, etc
+	// I assume we ned this somewhere and for the k8s service we can just always create it with the TCP protocol
 	Protocol string `json:"protocol"`
 
 	// Port is the Service port this Endpoint uses
