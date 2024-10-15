@@ -416,6 +416,8 @@ github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRW
 github.com/nbutton23/zxcvbn-go v0.0.0-20180912185939-ae427f1e4c1d/go.mod h1:o96djdrsSGy3AWPyBgZMAGfxZNfgntdJG+11KU4QvbU=
 github.com/ngrok/ngrok-api-go/v5 v5.4.1 h1:rjofyT5M4pi3PtobyNy+3RMhq2uUaKuqsP34IwXRE28=
 github.com/ngrok/ngrok-api-go/v5 v5.4.1/go.mod h1:UVTaHI5B4gEsfHCOZTlRg8WkT6+KBijIkVtjpDqCyIU=
+github.com/ngrok/ngrok-api-go/v6 v6.0.1-0.20241015200239-7c32f2a7d4d9 h1:/+K+wwWKOn4wScpjdSFGcOV5XJObTI/G7z90A8gei7A=
+github.com/ngrok/ngrok-api-go/v6 v6.0.1-0.20241015200239-7c32f2a7d4d9/go.mod h1:KtRxWqEomaHZfgeS+q/7nFHF+gPYFghS5wTl5AIUjIk=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=

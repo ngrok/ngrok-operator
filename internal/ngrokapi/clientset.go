@@ -11,6 +11,8 @@ import (
 	"github.com/ngrok/ngrok-api-go/v5/ip_policy_rules"
 	"github.com/ngrok/ngrok-api-go/v5/reserved_addrs"
 	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
+	v6 "github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v6/kubernetes_operators"
 )
 
 type Clientset interface {
@@ -20,6 +22,7 @@ type Clientset interface {
 	HTTPSEdgeRoutes() *https_edge_routes.Client
 	IPPolicies() *ip_policies.Client
 	IPPolicyRules() *ip_policy_rules.Client
+	KubernetesOperators() *kubernetes_operators.Client
 	TCPAddresses() *reserved_addrs.Client
 	TCPEdges() *tcp_edges.Client
 	TLSEdges() *tls_edges.Client
@@ -33,6 +36,7 @@ type DefaultClientset struct {
 	httpsEdgeRoutesClient     *https_edge_routes.Client
 	ipPoliciesClient          *ip_policies.Client
 	ipPolicyRulesClient       *ip_policy_rules.Client
+	kubernetesOperatorsClient *kubernetes_operators.Client
 	tcpAddrsClient            *reserved_addrs.Client
 	tcpEdgesClient            *tcp_edges.Client
 	tlsEdgesClient            *tls_edges.Client
@@ -41,6 +45,12 @@ type DefaultClientset struct {
 
 // NewClientSet creates a new ClientSet from an ngrok client config.
 func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
+	v6Config := &v6.ClientConfig{
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
+		UserAgent:  config.UserAgent,
+	}
 	return &DefaultClientset{
 		domainsClient:             reserved_domains.NewClient(config),
 		edgeModulesClientset:      newEdgeModulesClientset(config),
@@ -48,6 +58,7 @@ func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
 		httpsEdgeRoutesClient:     https_edge_routes.NewClient(config),
 		ipPoliciesClient:          ip_policies.NewClient(config),
 		ipPolicyRulesClient:       ip_policy_rules.NewClient(config),
+		kubernetesOperatorsClient: kubernetes_operators.NewClient(v6Config),
 		tcpAddrsClient:            reserved_addrs.NewClient(config),
 		tcpEdgesClient:            tcp_edges.NewClient(config),
 		tlsEdgesClient:            tls_edges.NewClient(config),
@@ -77,6 +88,10 @@ func (c *DefaultClientset) IPPolicies() *ip_policies.Client {
 
 func (c *DefaultClientset) IPPolicyRules() *ip_policy_rules.Client {
 	return c.ipPolicyRulesClient
+}
+
+func (c *DefaultClientset) KubernetesOperators() *kubernetes_operators.Client {
+	return c.kubernetesOperatorsClient
 }
 
 func (c *DefaultClientset) TCPAddresses() *reserved_addrs.Client {
