@@ -581,6 +581,16 @@ func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Ma
 		os.Exit(1)
 	}
 
+	// Create a new Runnable that implements Start that the manager can manage running
+	if err := mgr.Add(&bindingscontroller.EndpointBindingPoller{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.Log.WithName("controllers").WithName("EndpointBindingPoller"),
+		Recorder: mgr.GetEventRecorderFor("endpoint-binding-poller"),
+	}); err != nil {
+		return err
+	}
+
 	// TLS Secret
 	// TODO(hkatz) enable this controller when we have a use case for it
 	// if err = (&bindingscontroller.TlsSecretReconciler{

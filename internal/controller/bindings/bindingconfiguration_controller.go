@@ -92,9 +92,6 @@ func (r *BindingConfigurationReconciler) Reconcile(ctx context.Context, req ctrl
 	// - register with API
 	// - read Secret or generate Secret + CSR
 	//     - POST CSR workflow with API
-	// - Poll API for Endpoints
-	// - Reconcile/Create/Update Endpoints CRDs
-	// - Update Status
 
 	return r.controller.Reconcile(ctx, req, new(bindingsv1alpha1.BindingConfiguration))
 }
