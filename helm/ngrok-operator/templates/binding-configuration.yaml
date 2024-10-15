@@ -12,7 +12,7 @@ spec:
   name: {{ .Values.bindings.name }}
   description: {{ .Values.bindings.description }}
   allowedURLs:
-    {{- toYaml .Values.bindings.allowedUrls | nindent 6 }}
+    {{- toYaml .Values.bindings.allowedURLs | nindent 6 }}
   tlsSecretName: "default-tls"
   region: {{ .Values.region }}
   projectedMetadata:
