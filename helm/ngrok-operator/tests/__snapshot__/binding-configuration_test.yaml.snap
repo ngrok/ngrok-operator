@@ -14,7 +14,8 @@ Should match snapshot:
       name: default-configuration
       namespace: NAMESPACE
     spec:
-      allowedURLs: null
+      allowedURLs:
+        - '*'
       description: Created by ngrok-operator
       name: test-1
       projectedMetadata:
