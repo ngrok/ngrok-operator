@@ -1,17 +1,19 @@
-{{- $component := "controller" }}
+{{- $component := "agent" }}
+{{- $rbacChecksum := include (print $.Template.BasePath "/agent/rbac.yaml") . | sha256sum }}
+{{- $agent := .Values.agent }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: {{ $component }}
-  name: {{ include "ngrok-operator.fullname" . }}-manager
+  name: {{ include "ngrok-operator.fullname" . }}-agent
   namespace: {{ .Release.Namespace }}
   annotations:
-    checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/role.yaml") . | sha256sum }}
-    checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
+    checksum/rbac: {{ $rbacChecksum }}
 spec:
-  replicas: {{.Values.replicaCount}}
+  replicas: {{ $agent.replicaCount }}
   selector:
     matchLabels:
       {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
@@ -28,9 +30,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/role.yaml") . | sha256sum }}
-        checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
+        checksum/rbac: {{ $rbacChecksum }}
       labels:
         {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
         {{- if .Values.podLabels }}
@@ -38,8 +38,8 @@ spec:
         {{- end }}
         app.kubernetes.io/component: {{ $component }}
     spec:
-      {{- if .Values.priorityClassName }}
-      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- if $agent.priorityClassName }}
+      priorityClassName: {{ $agent.priorityClassName | quote }}
       {{- end }}
       {{- if .Values.affinity }}
       affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
@@ -49,64 +49,44 @@ spec:
         podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
         nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
       {{- end }}
-      serviceAccountName: {{ template "ngrok-operator.serviceAccountName" . }}
+      serviceAccountName: {{ template "ngrok-operator.agent.serviceAccountName" . }}
       {{- if .Values.image.pullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.image.pullSecrets | nindent 8 }}
       {{- end }}
       containers:
-      - name: ngrok-operator
+      - name: agent
         image: {{ include "ngrok-operator.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
-        - /api-manager
+        - /agent-manager
         args:
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
         {{- if .Values.description }}
         - --description={{ .Values.description | quote }}
         {{- end }}
         {{- if .Values.region }}
-        - --region={{ .Values.region}}
-        {{- end }}
-        {{- if .Values.apiURL }}
-        - --api-url={{ .Values.apiURL}}
+        - --region={{ .Values.region }}
         {{- end }}
         {{- if .Values.rootCAs }}
-        - --root-cas={{ .Values.rootCAs}}
+        - --root-cas={{ .Values.rootCAs }}
         {{- end }}
         {{- if .Values.serverAddr }}
-        - --server-addr={{ .Values.serverAddr}}
-        {{- end }}
-        {{- /* backwards compatibility for .metaData -> .ngrokMetadata */}}
-        {{- $ngrokMetadata := (.Values.metaData) | default .Values.ngrokMetadata }}
-        {{- if $ngrokMetadata }}
-        - --ngrokMetadata={{- $metadataArgs := list -}}
-          {{- range $key, $value := $ngrokMetadata }}
-          {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
-          {{- end }}
-          {{- $metadataArgs | join "," }}
-        {{- end }}
-        - --ingress-controller-name={{ .Values.controllerName | default .Values.ingress.controllerName }}
-        {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
-        - --ingress-watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
+        - --server-addr={{ .Values.serverAddr }}
         {{- end }}
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
         - --zap-encoder={{ .Values.log.format }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
-        - --election-id={{ include "ngrok-operator.fullname" . }}-leader
-        - --manager-name={{ include "ngrok-operator.fullname" . }}-manager
-        {{- if .Values.clusterDomain }}
-        - --cluster-domain={{ .Values.clusterDomain }}
-        {{- end }}
+        - --manager-name={{ include "ngrok-operator.fullname" . }}-agent-manager
         securityContext:
           allowPrivilegeEscalation: false
         env:
-        - name: NGROK_API_KEY
+        - name: NGROK_AUTHTOKEN
           valueFrom:
             secretKeyRef:
-              key: API_KEY
+              key: AUTHTOKEN
               name: {{ include "ngrok-operator.credentialsSecretName" . }}
         - name: POD_NAMESPACE
           valueFrom:

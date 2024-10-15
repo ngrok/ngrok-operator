@@ -30,3 +30,6 @@ e2e-fixtures/*/config*.yaml
 /.direnv
 .env
 .envrc-user
+
+# Ignore local scripts and utilities
+local/*

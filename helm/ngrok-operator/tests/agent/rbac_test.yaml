@@ -1,0 +1,21 @@
+suite: test agent rbac
+templates:
+- agent/rbac.yaml
+tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}
+- it: should create a clusterrole
+  documentIndex: 0
+  asserts:
+  - isKind:
+      of: ClusterRole
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+- it: should create a clusterrolebinding
+  documentIndex: 1
+  asserts:
+  - isKind:
+      of: ClusterRoleBinding
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
