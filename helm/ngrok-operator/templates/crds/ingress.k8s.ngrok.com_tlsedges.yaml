@@ -111,8 +111,7 @@ spec:
                     type: array
                 type: object
               policy:
-                description: raw json policy string that was applied to the ngrok
-                  API
+                description: 'DEPRECATED: use TrafficPolicy instead'
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
               tlsTermination:
@@ -129,6 +128,11 @@ spec:
                       application server for termination.
                     type: string
                 type: object
+              trafficPolicy:
+                description: TrafficPolicy is the raw json policy string that was
+                  applied to the ngrok API
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
             type: object
           status:
             description: TLSEdgeStatus defines the observed state of TLSEdge

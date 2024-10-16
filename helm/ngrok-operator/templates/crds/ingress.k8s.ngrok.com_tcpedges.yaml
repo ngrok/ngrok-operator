@@ -96,8 +96,12 @@ spec:
                   the object in the ngrok API/Dashboard
                 type: string
               policy:
-                description: raw json policy string that was applied to the ngrok
-                  API
+                description: 'DEPRECATED: use TrafficPolicy instead'
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              trafficPolicy:
+                description: TrafficPolicy is the raw json policy string that was
+                  applied to the ngrok API
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
             type: object

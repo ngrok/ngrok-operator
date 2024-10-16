@@ -463,28 +463,41 @@ var _ = Describe("Driver", func() {
 		var rule *gatewayv1.HTTPRouteRule
 		var namespace string
 		var policyCrd *ngrokv1alpha1.NgrokTrafficPolicy
+		var legacyPolicyCrd *ngrokv1alpha1.NgrokTrafficPolicy
 
 		BeforeEach(func() {
 			rule = &gatewayv1.HTTPRouteRule{}
 			namespace = "test"
+
 			policyCrd = &ngrokv1alpha1.NgrokTrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-policy",
 					Namespace: namespace,
 				},
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
-					Policy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
+					Policy: []byte(`{"on_http_request": [{"name":"t","actions":[{"type":"deny"}]}], "on_http_response": []}`),
 				},
 			}
 			Expect(driver.store.Add(policyCrd)).To(BeNil())
+
+			legacyPolicyCrd = &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "legacy-test-policy",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+					Policy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
+				},
+			}
+			Expect(driver.store.Add(legacyPolicyCrd)).To(BeNil())
 		})
 
 		It("Should return an empty policy if the rule has nothing in it", func() {
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
 			Expect(policy).ToNot(BeNil())
-			Expect(len(policy.Inbound)).To(BeZero())
-			Expect(len(policy.Outbound)).To(BeZero())
+			Expect(len(policy.OnHttpRequest)).To(BeZero())
+			Expect(len(policy.OnHttpResponse)).To(BeZero())
 		})
 
 		It("Should return a merged policy if there rules with extensionRef", func() {
@@ -523,7 +536,7 @@ var _ = Describe("Driver", func() {
 				},
 			}
 
-			expectedPolicy := `{"enabled":true,"inbound":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+			expectedPolicy := `{"on_http_request":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
 
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
@@ -532,8 +545,58 @@ var _ = Describe("Driver", func() {
 			jsonString, err := json.Marshal(policy)
 			Expect(err).To(BeNil())
 
-			Expect(len(policy.Inbound) == 3).To(BeTrue())
-			Expect(len(policy.Outbound)).To(BeZero())
+			Expect(len(policy.OnHttpRequest) == 3).To(BeTrue())
+			Expect(len(policy.OnHttpResponse)).To(BeZero())
+			Expect(string(jsonString)).To(Equal(expectedPolicy))
+		})
+
+		It("Should return a merged policy if there rules with extensionRef, legacy policy is remapped", func() {
+			hostname := gatewayv1.PreciseHostname("test-hostname.com")
+			replacePrefixMatch := "/paprika"
+
+			rule.Filters = []gatewayv1.HTTPRouteFilter{
+				{
+					Type: "RequestHeaderModifier",
+					RequestHeaderModifier: &gatewayv1.HTTPHeaderFilter{
+						Add: []gatewayv1.HTTPHeader{
+							{
+								Name:  "test-header",
+								Value: "test-value",
+							},
+						},
+					},
+				},
+				{
+					Type: "ExtensionRef",
+					ExtensionRef: &gatewayv1.LocalObjectReference{
+						Name:  "legacy-test-policy",
+						Kind:  "NgrokTrafficPolicy",
+						Group: "ngrok.k8s.ngrok.com",
+					},
+				},
+				{
+					Type: "URLRewrite",
+					URLRewrite: &gatewayv1.HTTPURLRewriteFilter{
+						Hostname: &hostname,
+						Path: &gatewayv1.HTTPPathModifier{
+							Type:               "ReplacePrefixMatch",
+							ReplacePrefixMatch: &replacePrefixMatch,
+						},
+					},
+				},
+			}
+
+			expectedPolicy := `{"on_http_request":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+
+			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
+			Expect(err).To(BeNil())
+			Expect(policy).ToNot(BeNil())
+
+			jsonString, err := json.Marshal(policy)
+			Expect(err).To(BeNil())
+
+			Expect(len(policy.OnHttpRequest) == 3).To(BeTrue())
+			Expect(len(policy.OnHttpResponse)).To(BeZero())
 			Expect(string(jsonString)).To(Equal(expectedPolicy))
 		})
 	})

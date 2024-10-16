@@ -919,8 +919,7 @@ spec:
                           type: array
                       type: object
                     policy:
-                      description: raw json policy string that was applied to the
-                        ngrok API
+                      description: 'DEPRECATED: use TrafficPolicy instead'
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
                     saml:
@@ -983,6 +982,11 @@ spec:
                             supporting CORS.
                           type: boolean
                       type: object
+                    trafficPolicy:
+                      description: TrafficPolicy is the raw json policy string that
+                        was applied to the ngrok API
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
                     webhookVerification:
                       description: WebhookVerification is webhook verification configuration
                         to apply to this route

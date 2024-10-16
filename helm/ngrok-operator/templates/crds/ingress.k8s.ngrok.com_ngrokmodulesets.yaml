@@ -848,7 +848,8 @@ spec:
                     type: array
                 type: object
               policy:
-                description: Policy configuration for this module set
+                description: Policy module is deprecated, use the `NgrokTrafficPolicy`
+                  CRD or the Gateway API instead
                 properties:
                   enabled:
                     description: Determines if the rule will be applied to traffic
