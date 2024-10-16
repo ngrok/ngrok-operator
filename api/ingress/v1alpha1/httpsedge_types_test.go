@@ -3,7 +3,7 @@ package v1alpha1
 import (
 	"testing"
 
-	"github.com/ngrok/ngrok-api-go/v5"
+	"github.com/ngrok/ngrok-api-go/v6"
 )
 
 func TestHTTPSEdgeEqual(t *testing.T) {

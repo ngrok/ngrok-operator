@@ -3,7 +3,7 @@ package ngrokapi
 import (
 	"testing"
 
-	"github.com/ngrok/ngrok-api-go/v5"
+	"github.com/ngrok/ngrok-api-go/v6"
 	"github.com/stretchr/testify/assert"
 )
 
