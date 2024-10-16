@@ -24,8 +24,8 @@ spec:
     - jsonPath: .spec.port
       name: Port
       type: string
-    - jsonPath: .spec.protocol
-      name: Protocol
+    - jsonPath: .spec.scheme
+      name: Scheme
       type: string
     name: v1alpha1
     schema:
@@ -53,14 +53,20 @@ spec:
             description: EndpointBindingSpec defines the desired state of EndpointBinding
             properties:
               port:
-                description: Port is the Service port this Endpoint uses
+                description: Port is the Service port this Endpoint uses internally
+                  to communicate with its pod forwarders
                 format: int32
                 type: integer
-              protocol:
-                default: TCP
-                description: Protocol is the Service protocol this Endpoint uses
+              scheme:
+                default: https
+                description: |-
+                  Scheme is a user-defined field for endpoints that describe how the data packets
+                  are framed by the pod forwarders mTLS connection to the ngrok edge
                 enum:
-                - TCP
+                - tcp
+                - http
+                - https
+                - tls
                 type: string
               target:
                 description: EndpointTarget is the target Service that this Endpoint
@@ -98,6 +104,12 @@ spec:
                       for the Pod Forwarders
                     format: int32
                     type: integer
+                  protocol:
+                    default: TCP
+                    description: Protocol is the Service protocol this Endpoint uses
+                    enum:
+                    - TCP
+                    type: string
                   service:
                     description: Service is the name of the Service that this Endpoint
                       projects
@@ -105,51 +117,69 @@ spec:
                 required:
                 - namespace
                 - port
+                - protocol
                 - service
                 type: object
             required:
             - port
-            - protocol
+            - scheme
             - target
             type: object
           status:
             description: EndpointBindingStatus defines the observed state of EndpointBinding
             properties:
-              errorCode:
+              endpoints:
                 description: |-
-                  ErrorCode is the ngrok API error code if the status is error
-                  TODO(hkatz) Define error codes and implement in the API
-                pattern: ^NGROK_ERR_\d+$
-                type: string
-              errorMessage:
-                description: ErrorMessage is a free-form error message if the status
-                  is error
-                maxLength: 4096
-                type: string
+                  Endpoints is the list of BindingEndpoints that are created for this EndpointBinding
+
+
+                  Note: The collection of Endpoints per Binding are Many-to-One
+                        The uniqueness of each Endpoint is not ID, but rather the 4-tuple <scheme,service-name,namespace,port>
+                        All Endpoints bound to a EndpointBinding will share the same 4-tuple, statuses, errors, etc...
+                        this is because EndpointBinding represents 1 Service, yet many Endpoints
+                items:
+                  description: BindingEndpoint is a reference to an Endpoint object
+                    in the ngrok API that is attached to the kubernetes operator binding
+                  properties:
+                    errorCode:
+                      description: |-
+                        ErrorCode is the ngrok API error code if the status is error
+                        TODO(hkatz) Define error codes and implement in the API
+                      pattern: ^NGROK_ERR_\d+$
+                      type: string
+                    errorMessage:
+                      description: ErrorMessage is a free-form error message if the
+                        status is error
+                      maxLength: 4096
+                      type: string
+                    id:
+                      description: a resource identifier
+                      type: string
+                    status:
+                      default: unknown
+                      description: |-
+                        BindingEndpointStatus is an enum that represents the status of a BindingEndpoint
+                        TODO(https://github.com/ngrok-private/ngrok/issues/32666)
+                      enum:
+                      - unknown
+                      - provisioning
+                      - bound
+                      - error
+                      type: string
+                    uri:
+                      description: a uri for locating a resource
+                      type: string
+                  required:
+                  - status
+                  type: object
+                type: array
               hashedName:
                 description: HashName is the hashed output of the TargetService and
                   TargetNamespace for unique identification
                 type: string
-              id:
-                description: a resource identifier
-                type: string
-              status:
-                default: unknown
-                description: |-
-                  BindingEndpointStatus is an enum that represents the status of a BindingEndpoint
-                  TODO(https://github.com/ngrok-private/ngrok/issues/32666)
-                enum:
-                - unknown
-                - provisioning
-                - bound
-                - error
-                type: string
-              uri:
-                description: a uri for locating a resource
-                type: string
             required:
+            - endpoints
             - hashedName
-            - status
             type: object
         type: object
     served: true

@@ -33,13 +33,14 @@ import (
 
 // EndpointBindingSpec defines the desired state of EndpointBinding
 type EndpointBindingSpec struct {
-	// Protocol is the Service protocol this Endpoint uses
+	// Scheme is a user-defined field for endpoints that describe how the data packets
+	// are framed by the pod forwarders mTLS connection to the ngrok edge
 	// +kubebuilder:validation:Required
-	// +kubebuilder:default=`TCP`
-	// +kubebuilder:validation:Enum=TCP
-	Protocol string `json:"protocol"`
+	// +kubebuilder:default=`https`
+	// +kubebuilder:validation:Enum=tcp;http;https;tls
+	Scheme string `json:"scheme"`
 
-	// Port is the Service port this Endpoint uses
+	// Port is the Service port this Endpoint uses internally to communicate with its pod forwarders
 	// +kubebuilder:validation:Required
 	Port int32 `json:"port"`
 
@@ -50,7 +51,15 @@ type EndpointBindingSpec struct {
 
 // EndpointBindingStatus defines the observed state of EndpointBinding
 type EndpointBindingStatus struct {
-	BindingEndpoint `json:",inline"`
+	// Endpoints is the list of BindingEndpoints that are created for this EndpointBinding
+	//
+	// Note: The collection of Endpoints per Binding are Many-to-One
+	//       The uniqueness of each Endpoint is not ID, but rather the 4-tuple <scheme,service-name,namespace,port>
+	//       All Endpoints bound to a EndpointBinding will share the same 4-tuple, statuses, errors, etc...
+	//       this is because EndpointBinding represents 1 Service, yet many Endpoints
+	//
+	// +kubebuilder:validation:Required
+	Endpoints []BindingEndpoint `json:"endpoints"`
 
 	// HashName is the hashed output of the TargetService and TargetNamespace for unique identification
 	// +kubebuilder:validation:Required
@@ -66,6 +75,12 @@ type EndpointTarget struct {
 	// Namespace is the destination Namespace for the Service this Endpoint projects
 	// +kubebuilder:validation:Required
 	Namespace string `json:"namespace"`
+
+	// Protocol is the Service protocol this Endpoint uses
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=`TCP`
+	// +kubebuilder:validation:Enum=TCP
+	Protocol string `json:"protocol"`
 
 	// Port is the Service targetPort this Endpoint uses for the Pod Forwarders
 	// +kubebuilder:validation:Required
@@ -83,7 +98,7 @@ type EndpointTarget struct {
 // +kubebuilder:printcolumn:name="Namespace",type="string",JSONPath=".spec.targetService"
 // +kubebuilder:printcolumn:name="Service",type="string",JSONPath=".spec.targetNamespace"
 // +kubebuilder:printcolumn:name="Port",type="string",JSONPath=".spec.port"
-// +kubebuilder:printcolumn:name="Protocol",type="string",JSONPath=".spec.protocol"
+// +kubebuilder:printcolumn:name="Scheme",type="string",JSONPath=".spec.scheme"
 type EndpointBinding struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -129,12 +129,13 @@ func (r *EndpointBindingPoller) reconcileEndpointBindingsFromAPI(ctx context.Con
 func (r *EndpointBindingPoller) createBinding(ctx context.Context, hashedName string, apiEndpoint *EndpointBinding, urlBits *URLBits) error {
 	binding := &bindingsv1alpha1.EndpointBinding{
 		Spec: bindingsv1alpha1.EndpointBindingSpec{
-			Port:     urlBits.Port,
-			Protocol: urlBits.Protocol,
+			Port:   urlBits.Port, // TODO: This is probably wrong and should be # assigned by operator to target the ngrok-operator-forwarder container
+			Scheme: urlBits.Scheme,
 			Target: bindingsv1alpha1.EndpointTarget{
+				Protocol:  "TCP", // Only support tcp for now, scheme controls how ngrok handles the endpoint
 				Namespace: urlBits.Namespace,
 				Service:   urlBits.ServiceName,
-				Port:      urlBits.Port, // TODO: This is probably wrong and should be # assigned by operator to target the ngrok-operator-forwarder container
+				Port:      urlBits.Port,
 			},
 		},
 		Status: bindingsv1alpha1.EndpointBindingStatus{
@@ -155,7 +156,7 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, hashedName st
 
 func (r *EndpointBindingPoller) updateBinding(ctx context.Context, binding *bindingsv1alpha1.EndpointBinding, apiEndpoint *EndpointBinding, urlBits *URLBits) error {
 	binding.Spec.Port = urlBits.Port
-	binding.Spec.Protocol = urlBits.Protocol
+	binding.Spec.Scheme = urlBits.Scheme
 	binding.Spec.Target.Namespace = urlBits.Namespace
 	binding.Spec.Target.Service = urlBits.ServiceName
 	binding.Spec.Target.Port = urlBits.Port
@@ -180,7 +181,7 @@ func (r *EndpointBindingPoller) updateBinding(ctx context.Context, binding *bind
 func shouldUpdateBinding(binding *bindingsv1alpha1.EndpointBinding, apiEndpoint *EndpointBinding, urlBits *URLBits) bool {
 	// Check if any of the relevant fields differ.
 	return binding.Spec.Port != urlBits.Port ||
-		binding.Spec.Protocol != urlBits.Protocol ||
+		binding.Spec.Scheme != urlBits.Scheme ||
 		binding.Spec.Target.Namespace != urlBits.Namespace ||
 		binding.Spec.Target.Service != urlBits.ServiceName ||
 		binding.Status.HashedName != hashURL(apiEndpoint.URL)
@@ -221,7 +222,7 @@ func parseURLBits(urlStr string) (*URLBits, error) {
 	}
 
 	return &URLBits{
-		Protocol:    parsedURL.Scheme,
+		Scheme:      parsedURL.Scheme,
 		ServiceName: parts[0],
 		Namespace:   parts[1],
 		Port:        port,
@@ -254,7 +255,7 @@ func fetchEndpoints() (*APIResponse, error) {
 }
 
 type URLBits struct {
-	Protocol    string
+	Scheme      string
 	ServiceName string
 	Namespace   string
 	Port        int32
