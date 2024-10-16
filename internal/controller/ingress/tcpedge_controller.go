@@ -32,6 +32,7 @@ import (
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -42,10 +43,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v5"
+	"github.com/ngrok/ngrok-api-go/v6"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/events"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 // TCPEdgeReconciler reconciles a TCPEdge object
@@ -451,14 +454,14 @@ func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(ctx context.Context, obj cli
 func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	policy := edge.Spec.Policy
-	client := r.NgrokClientset.EdgeModules().TCP().RawPolicy()
+	client := r.NgrokClientset.EdgeModules().TCP().TrafficPolicy()
+
+	trafficPolicy := edge.Spec.Policy
 
 	// Early return if nothing to be done
-	if policy == nil {
-		if remoteEdge.Policy == nil {
-			log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
-
+	if trafficPolicy == nil {
+		if remoteEdge.TrafficPolicy == nil {
+			log.Info("Module matches desired state, skipping update", "module", "Traffic Policy", "comparison", routeModuleComparisonBothNil)
 			return nil
 		}
 
@@ -466,11 +469,36 @@ func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 		return client.Delete(ctx, edge.Status.ID)
 	}
 
-	log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTCPPolicyReplace{
-		ID:     remoteEdge.ID,
-		Module: policy,
+	parsedTrafficPolicy, err := util.NewTrafficPolicyFromJson(trafficPolicy)
+	if err != nil {
+		r.Recorder.Eventf(edge, v1.EventTypeWarning, events.TrafficPolicyParseFailed, "Failed to parse Traffic Policy, possibly malformed.")
+		return err
+	}
+
+	if parsedTrafficPolicy.IsLegacyPolicy() {
+		r.Recorder.Eventf(edge, v1.EventTypeWarning, events.PolicyDeprecation, "Traffic Policy is using legacy directions: ['inbound', 'outbound']. Update to new phases: ['on_tcp_connect', 'on_http_request', 'on_http_response']")
+	}
+
+	if parsedTrafficPolicy.Enabled() != nil {
+		r.Recorder.Eventf(edge, v1.EventTypeWarning, events.PolicyDeprecation, "Traffic Policy has 'enabled' set. This is a legacy option that will stop being supported soon.")
+	}
+
+	apiTrafficPolicy, err := parsedTrafficPolicy.ToAPIJson()
+	if err != nil {
+		return err
+	}
+
+	r.Recorder.Eventf(edge, v1.EventTypeNormal, "Update", "Updating Traffic Policy on edge.")
+	_, err = client.Replace(ctx, &ngrok.EdgeTrafficPolicyReplace{
+		ID: remoteEdge.ID,
+		Module: ngrok.EndpointTrafficPolicy{
+			Enabled: parsedTrafficPolicy.Enabled(),
+			Value:   string(apiTrafficPolicy),
+		},
 	})
+	if err == nil {
+		r.Recorder.Eventf(edge, v1.EventTypeNormal, "Update", "Traffic Policy successfully updated.")
+	}
 
 	return err
 }

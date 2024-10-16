@@ -27,7 +27,7 @@ package v1alpha1
 import (
 	"encoding/json"
 
-	"github.com/ngrok/ngrok-api-go/v5"
+	"github.com/ngrok/ngrok-api-go/v6"
 	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -76,7 +76,7 @@ type HTTPSEdgeRouteSpec struct {
 	// WebhookVerification is webhook verification configuration to apply to this route
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
 
-	// raw json policy string that was applied to the ngrok API
+	// TrafficPolicy is the raw json policy string that was applied to the ngrok API
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object

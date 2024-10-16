@@ -877,7 +877,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 			continue
 		}
 
-		policyJSON, err := d.getPolicyJSON(ingress, modSet)
+		policyJSON, err := d.getTrafficPolicyJSON(ingress, modSet)
 		if err != nil {
 			d.log.Error(err, "error marshalling JSON Policy for ingress", "ingress", ingress)
 			continue
@@ -956,8 +956,8 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 	}
 }
 
-// retrieves the traffic policy for an ingress and falls back to the modSet policy if it doesn't exist
-func (d *Driver) getPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1alpha1.NgrokModuleSet) (json.RawMessage, error) {
+// getTrafficPolicyJSON retrieves the traffic policy for an ingress and falls back to the modSet policy if it doesn't exist.
+func (d *Driver) getTrafficPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1alpha1.NgrokModuleSet) (json.RawMessage, error) {
 	var err error
 	var policyJSON json.RawMessage
 
@@ -1069,17 +1069,12 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 							// this HTTPRouteRule comes direct from gateway api yaml, and func returns the policy,
 							// which goes directly into the edge route in ngrok.
 							policy, err := d.createEndpointPolicyForGateway(&rule, httproute.Namespace)
-
 							if err != nil {
 								d.log.Error(err, "error creating policy from HTTPRouteRule", "rule", rule)
 								continue
 							}
-							policyStr, err := json.Marshal(policy)
-							if err != nil {
-								d.log.Error(err, "cannot convert policy json", "Policy", policy)
-								continue
-							}
-							route.Policy = policyStr
+
+							route.Policy = policy
 
 							for idx, backendref := range rule.BackendRefs {
 								// currently the ingress controller doesn't support weighted backends
@@ -1120,17 +1115,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 	}
 }
 
-type Actions struct {
-	endpointActions []ingressv1alpha1.EndpointAction
-}
-
-type EndpointRules struct {
-	rules []ingressv1alpha1.EndpointRule
-}
-
-func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (*ingressv1alpha1.EndpointPolicy, error) {
-	inboundActions := Actions{}
-	outboundActions := Actions{}
+func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (json.RawMessage, error) {
 	pathPrefixMatches := []string{}
 
 	// NOTE: matches are only defined on requests, and fitlers are only triggered by matches,
@@ -1166,34 +1151,49 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 		}
 	}
 
-	inboundRules := EndpointRules{}
-	outboundRules := EndpointRules{}
+	fullTrafficPolicy := util.NewTrafficPolicy()
+
+	// "hard-coded" phases. Since Filters are translated to rules in particular phases, the operator has to be aware of these.
+	// There isn't really a way around this.
+	onHttpRequestActions := util.Actions{}
+	onHttpResponseActions := util.Actions{}
+
 	flushCount := 0
 
-	flushActionsToRules := func() {
-		if len(inboundActions.endpointActions) == 0 && len(outboundActions.endpointActions) == 0 {
-			return
+	flushActionsToRules := func() error {
+		if len(onHttpRequestActions.EndpointActions) == 0 && len(onHttpResponseActions.EndpointActions) == 0 {
+			return nil
 		}
 		// there are actions to flush
 		flushCount++
-		if len(inboundActions.endpointActions) > 0 {
+		if len(onHttpRequestActions.EndpointActions) > 0 {
 			// flush actions to a rule
-			inboundRules.rules = append(inboundRules.rules, ingressv1alpha1.EndpointRule{
-				Actions: inboundActions.endpointActions,
+			rule := util.EndpointRule{
+				Actions: onHttpRequestActions.EndpointActions,
 				Name:    fmt.Sprint("Inbound HTTPRouteRule ", flushCount),
-			})
+			}
+			if err := fullTrafficPolicy.MergeEndpointRule(rule, util.PhaseOnHttpRequest); err != nil {
+				return err
+			}
+
 			// clear
-			inboundActions.endpointActions = []ingressv1alpha1.EndpointAction{}
+			onHttpRequestActions = util.Actions{}
 		}
-		if len(outboundActions.endpointActions) > 0 {
+		if len(onHttpResponseActions.EndpointActions) > 0 {
 			// flush actions to a rule
-			outboundRules.rules = append(outboundRules.rules, ingressv1alpha1.EndpointRule{
-				Actions: outboundActions.endpointActions,
+			rule := util.EndpointRule{
+				Actions: onHttpResponseActions.EndpointActions,
 				Name:    fmt.Sprint("Outbound HTTPRouteRule ", flushCount),
-			})
+			}
+			if err := fullTrafficPolicy.MergeEndpointRule(rule, util.PhaseOnHttpResponse); err != nil {
+				return err
+			}
+
 			// clear
-			outboundActions.endpointActions = []ingressv1alpha1.EndpointAction{}
+			onHttpResponseActions = util.Actions{}
 		}
+
+		return nil
 	}
 
 	responseHeaders := make(map[string]string)
@@ -1201,22 +1201,22 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestRedirect:
 			// NOTE: request redirect is a special case, and is subject to change
-			err := d.handleRequestRedirectFilter(filter.RequestRedirect, pathPrefixMatches, &inboundActions, responseHeaders)
+			err := d.handleRequestRedirectFilter(filter.RequestRedirect, pathPrefixMatches, &onHttpRequestActions, responseHeaders)
 			if err != nil {
 				return nil, err
 			}
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
-			err := d.handleHTTPHeaderFilter(filter.RequestHeaderModifier, &inboundActions, nil)
+			err := d.handleHTTPHeaderFilter(filter.RequestHeaderModifier, &onHttpRequestActions, nil)
 			if err != nil {
 				return nil, err
 			}
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
-			err := d.handleHTTPHeaderFilter(filter.ResponseHeaderModifier, &outboundActions, responseHeaders)
+			err := d.handleHTTPHeaderFilter(filter.ResponseHeaderModifier, &onHttpResponseActions, responseHeaders)
 			if err != nil {
 				return nil, err
 			}
 		case gatewayv1.HTTPRouteFilterURLRewrite:
-			err := d.handleURLRewriteFilter(filter.URLRewrite, pathPrefixMatches, &inboundActions)
+			err := d.handleURLRewriteFilter(filter.URLRewrite, pathPrefixMatches, &onHttpRequestActions)
 			if err != nil {
 				return nil, err
 			}
@@ -1224,10 +1224,12 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 			return nil, errors.NewErrorNotFound(fmt.Sprintf("Unsupported filter HTTPRouteFilterType %v found", filter.Type))
 		case gatewayv1.HTTPRouteFilterExtensionRef:
 			// if there are current actions outstanding, make a rule to hold them before we start a new rule for this PolicyCRD
-			flushActionsToRules()
+			if err := flushActionsToRules(); err != nil {
+				return nil, err
+			}
 
 			// a PolicyCRD can have expressions, so send in rule pointers so expressions can be on those rules
-			err := d.handleExtensionRef(filter.ExtensionRef, namespace, &inboundRules, &outboundRules)
+			err := d.handleExtensionRef(filter.ExtensionRef, namespace, fullTrafficPolicy)
 			if err != nil {
 				return nil, err
 			}
@@ -1237,15 +1239,13 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 	}
 
 	// flush any leftover actions to rules
-	flushActionsToRules()
+	if err := flushActionsToRules(); err != nil {
+		return nil, err
+	}
 
-	var policy *ingressv1alpha1.EndpointPolicy
-	enabled := true
-
-	policy = &ingressv1alpha1.EndpointPolicy{
-		Enabled:  &enabled,
-		Inbound:  inboundRules.rules,
-		Outbound: outboundRules.rules,
+	policy, err := fullTrafficPolicy.ToCRDJson()
+	if err != nil {
+		return nil, err
 	}
 
 	return policy, nil
@@ -1259,9 +1259,23 @@ type AddHeadersConfig struct {
 	Headers map[string]string `json:"headers"`
 }
 
-func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference, namespace string, inboundRules *EndpointRules,
-	outboundRules *EndpointRules) error {
+// extractPolicy parses the policy message into a format such that it can be combined with policy from other filters.
+// If the legacy "inbound/outbound" format is detected, inbound remaps to `on_http_request`, outbound remaps to
+// `on_http_response`. This is safe so long as HTTP Edges are the only ones supported on the gateway API.
+func extractPolicy(jsonMessage json.RawMessage) (util.TrafficPolicy, error) {
+	extensionRefTrafficPolicy, err := util.NewTrafficPolicyFromJson(jsonMessage)
+	if err != nil {
+		return nil, err
+	}
 
+	if extensionRefTrafficPolicy.IsLegacyPolicy() {
+		extensionRefTrafficPolicy.ConvertLegacyDirectionsToPhases()
+	}
+
+	return extensionRefTrafficPolicy, nil
+}
+
+func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference, namespace string, trafficPolicy util.TrafficPolicy) error {
 	switch extensionRef.Kind {
 	case "NgrokTrafficPolicy":
 		// look up Policy CRD
@@ -1270,27 +1284,25 @@ func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference
 			return err
 		}
 
-		// unmarshal the json into a policy struct
 		jsonMessage := policy.Spec.Policy
 		if jsonMessage == nil {
 			return errors.NewErrorNotFound(fmt.Sprintf("PolicyCRD %v found with no policy", extensionRef.Name))
 		}
-		var policyStruct ingressv1alpha1.EndpointPolicy
-		err = json.Unmarshal(jsonMessage, &policyStruct)
+
+		// transform into structured format
+		extensionRefTrafficPolicy, err := extractPolicy(jsonMessage)
 		if err != nil {
 			return err
 		}
 
-		// copy the rules
-		inboundRules.rules = append(inboundRules.rules, policyStruct.Inbound...)
-		outboundRules.rules = append(outboundRules.rules, policyStruct.Outbound...)
+		trafficPolicy.Merge(extensionRefTrafficPolicy)
 	default:
 		return errors.NewErrorNotFound(fmt.Sprintf("Unknown ExtensionRef Kind %v found, Name: %v", extensionRef.Kind, extensionRef.Name))
 	}
 	return nil
 }
 
-func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions *Actions, requestRedirectHeaders map[string]string) error {
+func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, actions *util.Actions, requestRedirectHeaders map[string]string) error {
 	if filter == nil {
 		return nil
 	}
@@ -1310,7 +1322,7 @@ func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, acti
 	return nil
 }
 
-func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions *Actions) error {
+func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions *util.Actions) error {
 	if len(headersToRemove) == 0 {
 		return nil
 	}
@@ -1321,15 +1333,22 @@ func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions 
 		return err
 	}
 
-	actions.endpointActions = append(actions.endpointActions, ingressv1alpha1.EndpointAction{
+	action := util.EndpointAction{
 		Type:   "remove-headers",
 		Config: removeHeaders,
-	})
+	}
+
+	rawAction, err := json.Marshal(&action)
+	if err != nil {
+		return err
+	}
+
+	actions.EndpointActions = append(actions.EndpointActions, rawAction)
 
 	return nil
 }
 
-func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, actions *Actions, requestRedirectHeaders map[string]string) error {
+func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, actions *util.Actions, requestRedirectHeaders map[string]string) error {
 	if len(headersToAdd) == 0 {
 		return nil
 	}
@@ -1351,15 +1370,22 @@ func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, 
 		return err
 	}
 
-	actions.endpointActions = append(actions.endpointActions, ingressv1alpha1.EndpointAction{
+	action := util.EndpointAction{
 		Type:   "add-headers",
 		Config: addHeaders,
-	})
+	}
+
+	rawAction, err := json.Marshal(&action)
+	if err != nil {
+		return nil
+	}
+
+	actions.EndpointActions = append(actions.EndpointActions, rawAction)
 
 	return nil
 }
 
-func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, actions *Actions, requestRedirectHeaders map[string]string) error {
+func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, actions *util.Actions, requestRedirectHeaders map[string]string) error {
 	if filter == nil {
 		return nil
 	}
@@ -1387,7 +1413,7 @@ type URLRedirectConfig struct {
 	Headers map[string]string `json:"headers"`
 }
 
-func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders map[string]string, statusCode *int, actions *Actions) error {
+func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders map[string]string, statusCode *int, actions *util.Actions) error {
 	urlRedirectAction := URLRedirectConfig{
 		To:         &to,
 		From:       &from,
@@ -1400,13 +1426,18 @@ func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders 
 		d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", urlRedirectAction)
 		return err
 	}
-	actions.endpointActions = append(
-		actions.endpointActions,
-		ingressv1alpha1.EndpointAction{
-			Type:   "redirect",
-			Config: config,
-		},
-	)
+
+	action := util.EndpointAction{
+		Type:   "redirect",
+		Config: config,
+	}
+
+	rawAction, err := json.Marshal(&action)
+	if err != nil {
+		return err
+	}
+
+	actions.EndpointActions = append(actions.EndpointActions, rawAction)
 
 	return nil
 }
@@ -1416,7 +1447,7 @@ type URLRewriteConfig struct {
 	From *string `json:"from"`
 }
 
-func (d *Driver) createURLRewriteConfig(from string, to string, actions *Actions) error {
+func (d *Driver) createURLRewriteConfig(from string, to string, actions *util.Actions) error {
 	urlRewriteAction := URLRewriteConfig{
 		To:   &to,
 		From: &from,
@@ -1427,18 +1458,23 @@ func (d *Driver) createURLRewriteConfig(from string, to string, actions *Actions
 		d.log.Error(err, "cannot convert request rewrite filter to json", "HTTPRequestRewriteFilter", urlRewriteAction)
 		return err
 	}
-	actions.endpointActions = append(
-		actions.endpointActions,
-		ingressv1alpha1.EndpointAction{
-			Type:   "url-rewrite",
-			Config: config,
-		},
-	)
+
+	action := util.EndpointAction{
+		Type:   "url-rewrite",
+		Config: config,
+	}
+
+	rawAction, err := json.Marshal(&action)
+	if err != nil {
+		return err
+	}
+
+	actions.EndpointActions = append(actions.EndpointActions, rawAction)
 
 	return nil
 }
 
-func (d *Driver) handleURLRewriteFilter(filter *gatewayv1.HTTPURLRewriteFilter, pathPrefixMatches []string, actions *Actions) error {
+func (d *Driver) handleURLRewriteFilter(filter *gatewayv1.HTTPURLRewriteFilter, pathPrefixMatches []string, actions *util.Actions) error {
 	var err error
 	if filter == nil {
 		return nil
@@ -1481,7 +1517,7 @@ func (d *Driver) handleURLRewriteFilter(filter *gatewayv1.HTTPURLRewriteFilter, 
 	return nil
 }
 
-func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions *Actions, requestHeaders map[string]string) error {
+func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedirectFilter, pathPrefixMatches []string, actions *util.Actions, requestHeaders map[string]string) error {
 	if filter == nil {
 		return nil
 	}

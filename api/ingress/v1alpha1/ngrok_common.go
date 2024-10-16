@@ -3,7 +3,7 @@ package v1alpha1
 import (
 	"encoding/json"
 
-	"github.com/ngrok/ngrok-api-go/v5"
+	"github.com/ngrok/ngrok-api-go/v6"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -487,62 +487,4 @@ type EndpointAction struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object
 	Config json.RawMessage `json:"config,omitempty"`
-}
-
-func (policy *EndpointPolicy) ToNgrok() *ngrok.EndpointPolicy {
-	if policy == nil {
-		return nil
-	}
-
-	var inbound []ngrok.EndpointRule
-	for _, rule := range policy.Inbound {
-		p := rule
-		inbound = append(inbound, *p.ToNgrok())
-	}
-	var outbound []ngrok.EndpointRule
-	for _, rule := range policy.Outbound {
-		p := rule
-		mod := p.ToNgrok()
-		if mod != nil {
-			outbound = append(outbound, *mod)
-		}
-	}
-
-	return &ngrok.EndpointPolicy{
-		Enabled:  policy.Enabled,
-		Inbound:  inbound,
-		Outbound: outbound,
-	}
-}
-
-func (rule *EndpointRule) ToNgrok() *ngrok.EndpointRule {
-	if rule == nil {
-		return nil
-	}
-
-	var actions []ngrok.EndpointAction
-	for _, action := range rule.Actions {
-		a := action
-		mod := a.ToNgrok()
-		if mod != nil {
-			actions = append(actions, *mod)
-		}
-	}
-
-	return &ngrok.EndpointRule{
-		Expressions: rule.Expressions,
-		Actions:     actions,
-		Name:        rule.Name,
-	}
-}
-
-func (action *EndpointAction) ToNgrok() *ngrok.EndpointAction {
-	if action == nil {
-		return nil
-	}
-
-	return &ngrok.EndpointAction{
-		Type:   action.Type,
-		Config: action.Config,
-	}
 }
