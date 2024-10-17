@@ -38,8 +38,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -203,24 +201,10 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	// create default config and clientset for use outside the mgr.Start() blocking loop
 	k8sConfig := ctrl.GetConfigOrDie()
-	k8sClient, err := client.New(k8sConfig, client.Options{
-		Scheme: scheme,
-	})
-	if err != nil {
-		return fmt.Errorf("unable to create k8s client: %w", err)
-	}
-
 	mgr, err := ctrl.NewManager(k8sConfig, options)
 	if err != nil {
 		return fmt.Errorf("unable to start api-manager: %w", err)
 	}
-
-	// register with ngrok api and create k8s objects
-	result, err := registerOperatorWithNgrokAPI(ctx, k8sClient, ngrokClientset, ngrokClientConfig, opts)
-	if err != nil {
-		return fmt.Errorf("unable to register with ngrok API: %w", err)
-	}
-	setupLog.Info("OperatorConfiguration created", "result", result)
 
 	// k8sResourceDriver is the driver that will be used to interact with the k8s resources for all controllers
 	// but primarily for kinds Ingress, Gateway, and ngrok CRDs
@@ -264,6 +248,19 @@ func runController(ctx context.Context, opts managerOpts) error {
 	// new kubebuilder controllers will be generated here
 	// please attach these to a feature set
 	//+kubebuilder:scaffold:builder
+
+	// Always register the ngrok KubernetesOperator controller. It is independent of the feature set.
+	if err := (&ngrokcontroller.KubernetesOperatorReconciler{
+		Client:         mgr.GetClient(),
+		Log:            ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
+		Scheme:         mgr.GetScheme(),
+		Recorder:       mgr.GetEventRecorderFor("kubernetes-operator-controller"),
+		Namespace:      opts.namespace,
+		NgrokClientset: ngrokClientset,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "KubernetesOperator")
+		os.Exit(1)
+	}
 
 	// register healthchecks
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
@@ -318,57 +315,6 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options mana
 	d.PrintState(setupLog)
 
 	return d, nil
-}
-
-// registerOperatorWithNgrokAPI registers or claims ownership of an existing kc_id within the ngrok API
-func registerOperatorWithNgrokAPI(ctx context.Context, k8sClient client.Client, _ ngrokapi.Clientset, nConfig *ngrok.ClientConfig, opts managerOpts) (string, error) {
-	// TODO(hkatz) register with ngrok API /kubernetes_operators
-	// or otherwise claim ownership over an existing kc_id
-	ref := &ngrok.Ref{
-		ID:  "k8_example123",
-		URI: "https://api.ngrok.com/kubernetes_operators/k8_example123",
-	}
-
-	// collect the enabled features
-	features := []string{}
-	if opts.enableFeatureIngress {
-		features = append(features, string(ngrokv1beta1.OperatorFeatureIngress))
-	}
-
-	if opts.enableFeatureBindings {
-		features = append(features, string(ngrokv1beta1.OperatorFeatureBindings))
-	}
-
-	if opts.enableFeatureGateway {
-		features = append(features, string(ngrokv1beta1.OperatorFeatureGateway))
-	}
-
-	operatorConfiguration := &ngrokv1beta1.OperatorConfiguration{
-		ObjectMeta: ctrl.ObjectMeta{
-			Name:      "ngrok-operator",
-			Namespace: opts.namespace,
-		},
-	}
-
-	result, err := controllerutil.CreateOrUpdate(ctx, k8sClient, operatorConfiguration, func() error {
-		operatorConfiguration.Spec = ngrokv1beta1.OperatorConfigurationSpec{
-			Ref:             *ref,
-			Description:     opts.description,
-			Metadata:        opts.ngrokMetadata, // TODO(hkatz) what is the format here?
-			ApiURL:          nConfig.BaseURL.String(),
-			Region:          opts.region,
-			AppVersion:      version.GetVersion(),
-			ClusterDomain:   opts.clusterDomain,
-			EnabledFeatures: features,
-		}
-
-		return nil
-	})
-	if err != nil {
-		return "failed", fmt.Errorf("unable to create OperatorConfiguration: %w", err)
-	}
-
-	return string(result), nil
 }
 
 // enableIngressFeatureSet enables the Ingress feature set for the operator
@@ -507,18 +453,6 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
 func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
-	// Global BindingConfiguration
-	if err := (&bindingscontroller.BindingConfigurationReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Log:       ctrl.Log.WithName("controllers").WithName("BindingConfiguration"),
-		Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
-		Namespace: opts.namespace,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "BindingConfiguration")
-		os.Exit(1)
-	}
-
 	// EndpointBindings
 	if err := (&bindingscontroller.EndpointBindingReconciler{
 		Client:   mgr.GetClient(),

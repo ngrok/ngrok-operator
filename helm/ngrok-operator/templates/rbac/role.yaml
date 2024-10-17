@@ -61,32 +61,6 @@ rules:
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
-  - bindingconfigurations
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - bindingconfigurations/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - bindingconfigurations/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
   - endpointbindings
   verbs:
   - create
@@ -357,6 +331,32 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
   - ngroktrafficpolicies
   verbs:
   - create
@@ -376,32 +376,6 @@ rules:
   - ngrok.k8s.ngrok.com
   resources:
   - ngroktrafficpolicies/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - operatorconfigurations
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - operatorconfigurations/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - operatorconfigurations/status
   verbs:
   - get
   - patch
