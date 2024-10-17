@@ -76,6 +76,8 @@ Should match all-options snapshot:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
+                - name: HELM_RELEASE_NAME
+                  value: RELEASE-NAME
                 - name: SECRET_ENV_VAR
                   value:
                     secretKeyRef:
@@ -692,6 +694,8 @@ Should match default snapshot:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
+                - name: HELM_RELEASE_NAME
+                  value: RELEASE-NAME
               image: docker.io/ngrok/ngrok-operator:0.12.2
               imagePullPolicy: IfNotPresent
               livenessProbe:
