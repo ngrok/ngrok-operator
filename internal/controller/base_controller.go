@@ -77,20 +77,14 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating %s", objName))
 			if err := self.Create(ctx, obj); err != nil {
 				self.Recorder.Event(obj, v1.EventTypeWarning, "CreateError", fmt.Sprintf("Failed to Create %s: %s", objName, err.Error()))
-				if self.ErrResult != nil {
-					return self.ErrResult(CreateOp, obj, err)
-				}
-				return CtrlResultForErr(err)
+				return self.handleErr(CreateOp, obj, err)
 			}
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Created", fmt.Sprintf("Created %s", objName))
 		} else {
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Updating", fmt.Sprintf("Updating %s", objName))
 			if err := self.Update(ctx, obj); err != nil {
 				self.Recorder.Event(obj, v1.EventTypeWarning, "UpdateError", fmt.Sprintf("Failed to update %s: %s", objName, err.Error()))
-				if self.ErrResult != nil {
-					return self.ErrResult(UpdateOp, obj, err)
-				}
-				return CtrlResultForErr(err)
+				return self.handleErr(UpdateOp, obj, err)
 			}
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s", objName))
 		}
@@ -102,10 +96,7 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 				if err := self.Delete(ctx, obj); err != nil {
 					if !ngrok.IsNotFound(err) {
 						self.Recorder.Event(obj, v1.EventTypeWarning, "DeleteError", fmt.Sprintf("Failed to delete %s: %s", objName, err.Error()))
-						if self.ErrResult != nil {
-							return self.ErrResult(DeleteOp, obj, err)
-						}
-						return CtrlResultForErr(err)
+						return self.handleErr(DeleteOp, obj, err)
 					}
 					log.Info(fmt.Sprintf("%s not found, assuming it was already deleted", objFullName), "ID", sid)
 				}
@@ -119,6 +110,15 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// handleErr is a helper function to handle errors in the controller. If an ErrResult function is not provided,
+// it will use the default CtrlResultForErr function.
+func (self *BaseController[T]) handleErr(op BaseControllerOp, obj T, err error) (ctrl.Result, error) {
+	if self.ErrResult != nil {
+		return self.ErrResult(op, obj, err)
+	}
+	return CtrlResultForErr(err)
 }
 
 // CtrlResultForErr is a helper function to convert an error into a ctrl.Result passing through ngrok error mappings
