@@ -25,7 +25,7 @@ type AggregatedEndpoints map[string]bindingsv1alpha1.EndpointBinding
 // AggregateBindingEndpoints aggregates the endpoints into a map of hostport to BindingEndpoint
 // by parsing the hostport 4-tuple into each piece ([<scheme>://]<service>.<namespcace>[:<port>])
 // and collecting together matching endpoints into a single BindingEndpoint
-func AggregateBindingEndpoints(endpoints []*v6.Endpoint) (AggregatedEndpoints, error) {
+func AggregateBindingEndpoints(endpoints []v6.Endpoint) (AggregatedEndpoints, error) {
 	aggregated := make(AggregatedEndpoints)
 
 	for _, endpoint := range endpoints {

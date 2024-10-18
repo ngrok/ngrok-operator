@@ -52,14 +52,14 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		endpoints []*v6.Endpoint
+		endpoints []v6.Endpoint
 		want      AggregatedEndpoints
 		wantErr   bool
 	}{
-		{"empty", []*v6.Endpoint{}, AggregatedEndpoints{}, false},
+		{"empty", []v6.Endpoint{}, AggregatedEndpoints{}, false},
 		{
 			name: "single",
-			endpoints: []*v6.Endpoint{
+			endpoints: []v6.Endpoint{
 				{ID: "ep_123", PublicURL: "https://service1.namespace1"},
 			},
 			want: AggregatedEndpoints{
@@ -85,7 +85,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 		},
 		{
 			name: "full",
-			endpoints: []*v6.Endpoint{
+			endpoints: []v6.Endpoint{
 				{ID: "ep_100", PublicURL: "https://service1.namespace1"},
 				{ID: "ep_101", PublicURL: "https://service1.namespace1"},
 				{ID: "ep_102", PublicURL: "https://service1.namespace1"},
