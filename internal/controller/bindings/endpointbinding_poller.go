@@ -50,6 +50,11 @@ func (r *EndpointBindingPoller) startPollingAPI(ctx context.Context) {
 	ticker := time.NewTicker(r.PollingInterval)
 	defer ticker.Stop()
 
+	// Reconcile on startup
+	if err := r.reconcileEndpointBindingsFromAPI(ctx); err != nil {
+		r.Log.Error(err, "Failed to update binding_endpoints from API")
+	}
+
 	for {
 		select {
 		case <-ticker.C:
