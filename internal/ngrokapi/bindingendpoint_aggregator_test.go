@@ -65,6 +65,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 			want: AggregatedEndpoints{
 				"https://service1.namespace1:443": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
+						FQRI:   "https://service1.namespace1:443",
 						Scheme: "https",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service1",
@@ -96,6 +97,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 			want: AggregatedEndpoints{
 				"https://service1.namespace1:443": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
+						FQRI:   "https://service1.namespace1:443",
 						Scheme: "https",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service1",
@@ -114,6 +116,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 				},
 				"tcp://service2.namespace2:2020": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
+						FQRI:   "tcp://service2.namespace2:2020",
 						Scheme: "tcp",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service2",
@@ -131,6 +134,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 				},
 				"https://service3.namespace3:443": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
+						FQRI:   "https://service3.namespace3:443",
 						Scheme: "https",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service3",
@@ -147,6 +151,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 				},
 				"http://service4.namespace4:8080": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
+						FQRI:   "http://service4.namespace4:8080",
 						Scheme: "http",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service4",

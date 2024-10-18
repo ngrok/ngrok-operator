@@ -52,6 +52,16 @@ spec:
           spec:
             description: EndpointBindingSpec defines the desired state of EndpointBinding
             properties:
+              fqri:
+                description: |-
+                  FQRI "Fully Qualified Resource Identifier" is the unique identifier
+                  representing the EndpointBinding + its Endpoints
+                  Format: <scheme>://<service>.<namespace>:<port>
+
+
+                  See: https://regex101.com/r/9QkXWl/1
+                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$
+                type: string
               port:
                 description: Port is the Service port this Endpoint uses internally
                   to communicate with its pod forwarders
@@ -121,6 +131,7 @@ spec:
                 - service
                 type: object
             required:
+            - fqri
             - port
             - scheme
             - target
