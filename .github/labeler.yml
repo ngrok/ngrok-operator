@@ -1,5 +1,6 @@
 area/ci:
 - .github/workflows/**/*
+- .golangci.yml
 
 area/controller:
 - '**/*.go'
