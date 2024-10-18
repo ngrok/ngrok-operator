@@ -1684,26 +1684,49 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 }
 
 func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c client.Reader) []netv1.IngressLoadBalancerIngress {
+	ingressHosts := map[string]bool{}
+	for _, rule := range ing.Spec.Rules {
+		ingressHosts[rule.Host] = true
+	}
+
 	domains := &ingressv1alpha1.DomainList{}
 	if err := c.List(context.Background(), domains); err != nil {
 		d.log.Error(err, "failed to list domains")
 		return []netv1.IngressLoadBalancerIngress{}
 	}
 
-	hostnames := make(map[string]netv1.IngressLoadBalancerIngress)
+	domainsByDomain := map[string]ingressv1alpha1.Domain{}
 	for _, domain := range domains.Items {
-		for _, rule := range ing.Spec.Rules {
-			if rule.Host == domain.Spec.Domain && domain.Status.CNAMETarget != nil {
-				hostnames[domain.Spec.Domain] = netv1.IngressLoadBalancerIngress{
-					Hostname: *domain.Status.CNAMETarget,
-				}
-			}
+		domainsByDomain[domain.Spec.Domain] = domain
+	}
+
+	status := []netv1.IngressLoadBalancerIngress{}
+
+	for host := range ingressHosts {
+		d, ok := domainsByDomain[host]
+		if !ok {
+			continue
+		}
+
+		var hostname string
+
+		switch {
+		// Custom domain
+		case d.Status.CNAMETarget != nil:
+			hostname = *d.Status.CNAMETarget
+		// ngrok managed domain
+		default:
+			// Trim the wildcard prefix if it exists for ngrok managed domains
+			hostname = strings.TrimPrefix(d.Status.Domain, "*.")
+		}
+
+		if hostname != "" {
+			status = append(status, netv1.IngressLoadBalancerIngress{
+				Hostname: hostname,
+			})
 		}
 	}
-	status := []netv1.IngressLoadBalancerIngress{}
-	for _, hostname := range hostnames {
-		status = append(status, hostname)
-	}
+
 	return status
 }
 
