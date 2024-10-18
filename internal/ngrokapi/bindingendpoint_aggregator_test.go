@@ -65,8 +65,8 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 			want: AggregatedEndpoints{
 				"https://service1.namespace1:443": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
-						EndpointURI:   "https://service1.namespace1:443",
-						Scheme: "https",
+						EndpointURI: "https://service1.namespace1:443",
+						Scheme:      "https",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service1",
 							Namespace: "namespace1",
@@ -97,8 +97,8 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 			want: AggregatedEndpoints{
 				"https://service1.namespace1:443": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
-						EndpointURI:   "https://service1.namespace1:443",
-						Scheme: "https",
+						EndpointURI: "https://service1.namespace1:443",
+						Scheme:      "https",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service1",
 							Namespace: "namespace1",
@@ -116,8 +116,8 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 				},
 				"tcp://service2.namespace2:2020": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
-						EndpointURI:   "tcp://service2.namespace2:2020",
-						Scheme: "tcp",
+						EndpointURI: "tcp://service2.namespace2:2020",
+						Scheme:      "tcp",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service2",
 							Namespace: "namespace2",
@@ -134,8 +134,8 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 				},
 				"https://service3.namespace3:443": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
-						EndpointURI:   "https://service3.namespace3:443",
-						Scheme: "https",
+						EndpointURI: "https://service3.namespace3:443",
+						Scheme:      "https",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service3",
 							Namespace: "namespace3",
@@ -151,8 +151,8 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 				},
 				"http://service4.namespace4:8080": {
 					Spec: bindingsv1alpha1.EndpointBindingSpec{
-						EndpointURI:   "http://service4.namespace4:8080",
-						Scheme: "http",
+						EndpointURI: "http://service4.namespace4:8080",
+						Scheme:      "http",
 						Target: bindingsv1alpha1.EndpointTarget{
 							Service:   "service4",
 							Namespace: "namespace4",

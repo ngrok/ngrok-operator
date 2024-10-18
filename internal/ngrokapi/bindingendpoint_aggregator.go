@@ -45,8 +45,8 @@ func AggregateBindingEndpoints(endpoints []v6.Endpoint) (AggregatedEndpoints, er
 			bindingEndpoint = bindingsv1alpha1.EndpointBinding{
 				// parsed bits are shared across endpoints with the same hostport
 				Spec: bindingsv1alpha1.EndpointBindingSpec{
-					EndpointURI:   endpointURI,
-					Scheme: parsed.Scheme,
+					EndpointURI: endpointURI,
+					Scheme:      parsed.Scheme,
 					Target: bindingsv1alpha1.EndpointTarget{
 						Service:   parsed.ServiceName,
 						Namespace: parsed.Namespace,
