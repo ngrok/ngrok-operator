@@ -44,12 +44,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v5"
-	"github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
+	"github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v6/backends/tunnel_group"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	ierr "github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 type routeModuleComparision string
@@ -197,6 +198,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 	}
 
 	routeModuleUpdater := &edgeRouteModuleUpdater{
+		recorder:         r.Recorder,
 		edge:             edge,
 		clientset:        r.NgrokClientset.EdgeModules().HTTPS().Routes(),
 		ipPolicyResolver: controller.IpPolicyResolver{Client: r.Client},
@@ -535,6 +537,8 @@ func (r *tunnelGroupBackendReconciler) findOrCreate(ctx context.Context, backend
 }
 
 type edgeRouteModuleUpdater struct {
+	recorder record.EventRecorder
+
 	edge *ingressv1alpha1.HTTPSEdge
 
 	clientset ngrokapi.HTTPSEdgeRouteModulesClientset
@@ -554,7 +558,7 @@ func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, rout
 		u.setEdgeRouteOIDC,
 		u.setEdgeRouteSAML,
 		u.setEdgeRouteWebhookVerification,
-		u.setEdgeRoutePolicy,
+		u.setEdgeRouteTrafficPolicy,
 	}
 
 	for _, f := range funcs {
@@ -1063,14 +1067,23 @@ func (r *HTTPSEdgeReconciler) takeOfflineWithoutAuth(ctx context.Context, route 
 	return nil
 }
 
-func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+func (u *edgeRouteModuleUpdater) setEdgeRouteTrafficPolicy(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {
+	if routeSpec.Policy != nil && routeSpec.TrafficPolicy != nil {
+		return fmt.Errorf("configuration contains both Policy and Traffic Policy")
+	}
 	log := ctrl.LoggerFrom(ctx)
-	policy := routeSpec.Policy
-	client := u.clientset.RawPolicy()
+
+	// use either policy or traffic policy, depending which is set
+	trafficPolicy := routeSpec.Policy
+	if routeSpec.TrafficPolicy != nil {
+		trafficPolicy = routeSpec.TrafficPolicy
+	}
+
+	client := u.clientset.TrafficPolicy()
 
 	// Early return if nothing to be done
-	if policy == nil {
-		if route.Policy == nil {
+	if trafficPolicy == nil {
+		if route.TrafficPolicy == nil {
 			u.logMatches(log, "Policy", routeModuleComparisonBothNil)
 			return nil
 		}
@@ -1079,11 +1092,30 @@ func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *
 		return client.Delete(ctx, edgeRouteItem(route))
 	}
 
-	log.Info("Updating Policy module")
-	_, err := client.Replace(ctx, &ngrokapi.EdgeRoutePolicyRawReplace{
+	module := ngrok.EndpointTrafficPolicy{}
+
+	if util.IsLegacyPolicy(trafficPolicy) {
+		u.recorder.Eventf(u.edge, v1.EventTypeWarning, "UpdateWarning", "Traffic Policy is using legacy directions: ['inbound', 'outbound']. Update to new phases: ['on_tcp_connect', 'on_http_request', 'on_http_response']")
+	}
+
+	// legacy version of the controller store "enabled" in the payload, which needs to be extracted
+	trafficPolicy, enabledFieldVal, err := util.ExtractEnabledField(trafficPolicy)
+	if err != nil {
+		return err
+	}
+	module.Enabled = enabledFieldVal
+
+	if enabledFieldVal != nil {
+		u.recorder.Eventf(u.edge, v1.EventTypeWarning, "UpdateWarning", "Traffic Policy has 'enabled' set. This is a legacy option that will stop being supported soon.")
+	}
+
+	module.Value = string(trafficPolicy)
+
+	log.Info("Updating Traffic Policy module")
+	_, err = client.Replace(ctx, &ngrok.EdgeRouteTrafficPolicyReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
-		Module: policy,
+		Module: module,
 	})
 	return err
 }

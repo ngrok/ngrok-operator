@@ -3,7 +3,7 @@ package ingress
 import (
 	"testing"
 
-	"github.com/ngrok/ngrok-api-go/v5"
+	"github.com/ngrok/ngrok-api-go/v6"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/ptr"

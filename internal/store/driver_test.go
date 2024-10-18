@@ -483,8 +483,8 @@ var _ = Describe("Driver", func() {
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
 			Expect(policy).ToNot(BeNil())
-			Expect(len(policy.Inbound)).To(BeZero())
-			Expect(len(policy.Outbound)).To(BeZero())
+			Expect(len(policy.OnHttpRequest)).To(BeZero())
+			Expect(len(policy.OnHttpResponse)).To(BeZero())
 		})
 
 		It("Should return a merged policy if there rules with extensionRef", func() {
@@ -523,7 +523,7 @@ var _ = Describe("Driver", func() {
 				},
 			}
 
-			expectedPolicy := `{"enabled":true,"inbound":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+			expectedPolicy := `{"on_http_request":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
 
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
@@ -532,8 +532,8 @@ var _ = Describe("Driver", func() {
 			jsonString, err := json.Marshal(policy)
 			Expect(err).To(BeNil())
 
-			Expect(len(policy.Inbound) == 3).To(BeTrue())
-			Expect(len(policy.Outbound)).To(BeZero())
+			Expect(len(policy.OnHttpRequest) == 3).To(BeTrue())
+			Expect(len(policy.OnHttpResponse)).To(BeZero())
 			Expect(string(jsonString)).To(Equal(expectedPolicy))
 		})
 	})

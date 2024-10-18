@@ -1,18 +1,17 @@
 package ngrokapi
 
 import (
-	"github.com/ngrok/ngrok-api-go/v5"
-	tunnel_group_backends "github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
-	https_edges "github.com/ngrok/ngrok-api-go/v5/edges/https"
-	https_edge_routes "github.com/ngrok/ngrok-api-go/v5/edges/https_routes"
-	tcp_edges "github.com/ngrok/ngrok-api-go/v5/edges/tcp"
-	tls_edges "github.com/ngrok/ngrok-api-go/v5/edges/tls"
-	"github.com/ngrok/ngrok-api-go/v5/ip_policies"
-	"github.com/ngrok/ngrok-api-go/v5/ip_policy_rules"
-	"github.com/ngrok/ngrok-api-go/v5/reserved_addrs"
-	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
-	v6 "github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v6"
+	tunnel_group_backends "github.com/ngrok/ngrok-api-go/v6/backends/tunnel_group"
+	https_edges "github.com/ngrok/ngrok-api-go/v6/edges/https"
+	https_edge_routes "github.com/ngrok/ngrok-api-go/v6/edges/https_routes"
+	tcp_edges "github.com/ngrok/ngrok-api-go/v6/edges/tcp"
+	tls_edges "github.com/ngrok/ngrok-api-go/v6/edges/tls"
+	"github.com/ngrok/ngrok-api-go/v6/ip_policies"
+	"github.com/ngrok/ngrok-api-go/v6/ip_policy_rules"
 	"github.com/ngrok/ngrok-api-go/v6/kubernetes_operators"
+	"github.com/ngrok/ngrok-api-go/v6/reserved_addrs"
+	"github.com/ngrok/ngrok-api-go/v6/reserved_domains"
 )
 
 type Clientset interface {
@@ -45,7 +44,7 @@ type DefaultClientset struct {
 
 // NewClientSet creates a new ClientSet from an ngrok client config.
 func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
-	v6Config := &v6.ClientConfig{
+	v6Config := &ngrok.ClientConfig{
 		APIKey:     config.APIKey,
 		BaseURL:    config.BaseURL,
 		HTTPClient: config.HTTPClient,
