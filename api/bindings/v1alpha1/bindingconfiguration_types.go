@@ -25,7 +25,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
-	"github.com/ngrok/ngrok-api-go/v5"
+	v6 "github.com/ngrok/ngrok-api-go/v6"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -104,7 +104,7 @@ type BindingConfigurationStatus struct {
 // BindingEndpoint is a reference to an Endpoint object in the ngrok API that is attached to the kubernetes operator binding
 type BindingEndpoint struct {
 	// Ref is the ngrok API reference to the Endpoint object (id, uri)
-	ngrok.Ref `json:",inline"`
+	v6.Ref `json:",inline"`
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default="unknown"

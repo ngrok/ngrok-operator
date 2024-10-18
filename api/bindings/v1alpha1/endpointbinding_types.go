@@ -33,6 +33,15 @@ import (
 
 // EndpointBindingSpec defines the desired state of EndpointBinding
 type EndpointBindingSpec struct {
+	// EndpointURI is the unique identifier
+	// representing the EndpointBinding + its Endpoints
+	// Format: <scheme>://<service>.<namespace>:<port>
+	//
+	// +kubebuilder:validation:Required
+	// See: https://regex101.com/r/9QkXWl/1
+	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$`
+	EndpointURI string `json:"endpointURI"`
+
 	// Scheme is a user-defined field for endpoints that describe how the data packets
 	// are framed by the pod forwarders mTLS connection to the ngrok edge
 	// +kubebuilder:validation:Required
