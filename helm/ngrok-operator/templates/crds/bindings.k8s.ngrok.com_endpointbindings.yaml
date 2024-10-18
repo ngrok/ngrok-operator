@@ -15,17 +15,11 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.targetService
-      name: Namespace
-      type: string
-    - jsonPath: .spec.targetNamespace
-      name: Service
+    - jsonPath: .spec.endpointURI
+      name: URI
       type: string
     - jsonPath: .spec.port
       name: Port
-      type: string
-    - jsonPath: .spec.scheme
-      name: Scheme
       type: string
     name: v1alpha1
     schema:
