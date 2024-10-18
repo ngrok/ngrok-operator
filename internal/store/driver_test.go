@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -170,183 +171,212 @@ var _ = Describe("Driver", func() {
 	})
 
 	Describe("calculateIngressLoadBalancerIPStatus", func() {
-		It("Should return the correct status", func() {
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain.com",
-					},
-				},
-			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+		var domains []ingressv1alpha1.Domain
+		var ingress netv1.Ingress
+		var c client.WithWatch
+		var status []netv1.IngressLoadBalancerIngress
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(len(status)).To(Equal(1))
-			Expect(status[0].Hostname).To(Equal(cname))
+		JustBeforeEach(func() {
+			c = fake.NewClientBuilder().
+				WithLists(
+					&ingressv1alpha1.DomainList{
+						Items: domains,
+					},
+				).
+				WithScheme(scheme).
+				Build()
+			status = driver.calculateIngressLoadBalancerIPStatus(&ingress, c)
 		})
 
-		It("Should return empty status if no matching domain found", func() {
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain.com",
-					},
+		addIngressHostname := func(i *netv1.Ingress, hostname string) {
+			if i.Spec.Rules == nil {
+				i.Spec.Rules = []netv1.IngressRule{}
+			}
+			i.Spec.Rules = append(i.Spec.Rules, netv1.IngressRule{
+				Host: hostname,
+			})
+		}
+		newTestDomain := func(name, domain string, cnameTarget *string) ingressv1alpha1.Domain {
+			return ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: domain,
+				},
+				Status: ingressv1alpha1.DomainStatus{
+					Domain:      domain,
+					CNAMETarget: cnameTarget,
 				},
 			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "another-domain.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+		}
+		newTestDomainList := func(domains ...ingressv1alpha1.Domain) []ingressv1alpha1.Domain {
+			return domains
+		}
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(len(status)).To(Equal(0))
+		When("the CNAME is present", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				domains = newTestDomainList(
+					newTestDomain(
+						"example-com",
+						"example.com",
+						&cname,
+					),
+				)
+			})
+
+			It("should return the CNAME as the status", func() {
+				Expect(len(status)).To(Equal(1))
+				Expect(status[0].Hostname).To(Equal(cname))
+			})
 		})
 
-		It("Should return empty status if domain CNAME target is nil", func() {
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain.com",
-					},
-				},
-			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: nil,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+		When("no matching domain is found", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				domains = newTestDomainList(
+					newTestDomain(
+						"another-domain-com",
+						"another-domain.com",
+						&cname,
+					),
+				)
+			})
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(len(status)).To(Equal(0))
+			It("should return an empty status", func() {
+				Expect(len(status)).To(Equal(0))
+			})
 		})
 
-		It("Should return multiple statuses for multiple different domains", func() {
+		When("the CNAME target is nil and the domain.status.domain is empty", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				domains = newTestDomainList(
+					ingressv1alpha1.Domain{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "example-com",
+						},
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: "example.com",
+						},
+						Status: ingressv1alpha1.DomainStatus{},
+					},
+				)
+			})
+
+			It("should return an empty status", func() {
+				Expect(len(status)).To(Equal(0))
+			})
+		})
+
+		When("the domain is a non-wildcard ngrok managed domain", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress.Spec = netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{
+							Host: "example.ngrok.io",
+						},
+					},
+				}
+				domains = newTestDomainList(
+					newTestDomain(
+						"example-ngrok-io",
+						"example.ngrok.io",
+						nil,
+					),
+				)
+			})
+
+			It("should have a status hostname matching the domain", func() {
+				Expect(len(status)).To(Equal(1))
+				Expect(status[0].Hostname).To(Equal("example.ngrok.io"))
+			})
+		})
+
+		When("the domain is a wildcard ngrok managed domain", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress.Spec = netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{
+							Host: "*.example.ngrok.io",
+						},
+					},
+				}
+				domains = newTestDomainList(
+					newTestDomain(
+						"wildcard-example-ngrok-io",
+						"*.example.ngrok.io",
+						nil,
+					),
+				)
+			})
+
+			It("should have a .Status[].Hostname equal to the domain without the wildcard", func() {
+				Expect(len(status)).To(Equal(1))
+				Expect(status[0].Hostname).To(Equal("example.ngrok.io"))
+			})
+		})
+
+		When("There are multiple domains", func() {
 			cname1 := "cnametarget1.com"
 			cname2 := "cnametarget2.com"
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain1.com",
-					},
-					{
-						Host: "test-domain2.com",
-					},
-				},
-			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-domain1.com",
-						},
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain1.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname1,
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-domain2.com",
-						},
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain2.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname2,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(status).Should(ConsistOf(
-				HaveField("Hostname", cname1),
-				HaveField("Hostname", cname2),
-			))
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				addIngressHostname(&ingress, "test-domain1.com")
+				addIngressHostname(&ingress, "test-domain2.com")
+				domains = newTestDomainList(
+					newTestDomain(
+						"test-domain1-com",
+						"test-domain1.com",
+						&cname1,
+					),
+					newTestDomain(
+						"test-domain2-com",
+						"test-domain2.com",
+						&cname2,
+					),
+				)
+			})
+
+			It("should return multiple statuses with those domains", func() {
+				Expect(status).Should(ConsistOf(
+					HaveField("Hostname", cname1),
+					HaveField("Hostname", cname2),
+				))
+			})
 		})
 
-		It("Should only have a single status for multiple domains that match", func() {
+		When("The ingress has multiple duplicate hostnames", func() {
 			cname1 := "cnametarget1.com"
 			cname2 := "cnametarget2.com"
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain1.com",
-					},
-					{
-						Host: "test-domain1.com",
-					},
-				},
-			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-domain1.com",
-						},
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain1.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname1,
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-domain2.com",
-						},
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain2.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname2,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(status).Should(ConsistOf(
-				HaveField("Hostname", cname1),
-			))
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				addIngressHostname(&ingress, "test-domain1.com")
+				addIngressHostname(&ingress, "test-domain1.com")
+				domains = newTestDomainList(
+					newTestDomain(
+						"test-domain1-com",
+						"test-domain1.com",
+						&cname1,
+					),
+					newTestDomain(
+						"test-domain2-com",
+						"test-domain2.com",
+						&cname2,
+					),
+				)
+			})
+
+			It("should only have a single status the unique domain", func() {
+				Expect(status).Should(ConsistOf(
+					HaveField("Hostname", cname1),
+				))
+			})
 		})
 	})
 
