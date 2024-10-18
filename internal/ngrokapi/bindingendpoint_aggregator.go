@@ -34,18 +34,18 @@ func AggregateBindingEndpoints(endpoints []v6.Endpoint) (AggregatedEndpoints, er
 			return nil, fmt.Errorf("failed to parse endpoint: %s: %w", endpoint.ID, err)
 		}
 
-		fqri := parsed.String()
+		endpointURI := parsed.String()
 
 		// Create a new BindingEndpoint if one doesn't exist
 		var bindingEndpoint bindingsv1alpha1.EndpointBinding
-		if val, ok := aggregated[fqri]; ok {
+		if val, ok := aggregated[endpointURI]; ok {
 			bindingEndpoint = val
 		} else {
 			// newly found hostport, create a new EndpointBinding
 			bindingEndpoint = bindingsv1alpha1.EndpointBinding{
 				// parsed bits are shared across endpoints with the same hostport
 				Spec: bindingsv1alpha1.EndpointBindingSpec{
-					FQRI:   fqri,
+					EndpointURI:   endpointURI,
 					Scheme: parsed.Scheme,
 					Target: bindingsv1alpha1.EndpointTarget{
 						Service:   parsed.ServiceName,
@@ -70,7 +70,7 @@ func AggregateBindingEndpoints(endpoints []v6.Endpoint) (AggregatedEndpoints, er
 		})
 
 		// update the aggregated map
-		aggregated[fqri] = bindingEndpoint
+		aggregated[endpointURI] = bindingEndpoint
 	}
 
 	return aggregated, nil
@@ -84,7 +84,7 @@ type parsedHostport struct {
 	Port        int32
 }
 
-// String prints the parsed hostport as a FQRI in the format: <scheme>://<service>.<namespace>:<port>
+// String prints the parsed hostport as a EndpointURI in the format: <scheme>://<service>.<namespace>:<port>
 func (p *parsedHostport) String() string {
 	return fmt.Sprintf("%s://%s.%s:%d", p.Scheme, p.ServiceName, p.Namespace, p.Port)
 }

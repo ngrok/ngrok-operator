@@ -52,9 +52,9 @@ spec:
           spec:
             description: EndpointBindingSpec defines the desired state of EndpointBinding
             properties:
-              fqri:
+              endpointURI:
                 description: |-
-                  FQRI "Fully Qualified Resource Identifier" is the unique identifier
+                  EndpointURI is the unique identifier
                   representing the EndpointBinding + its Endpoints
                   Format: <scheme>://<service>.<namespace>:<port>
 
@@ -131,7 +131,7 @@ spec:
                 - service
                 type: object
             required:
-            - fqri
+            - endpointURI
             - port
             - scheme
             - target
