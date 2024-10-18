@@ -5,23 +5,30 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+	v6 "github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// EndpointBindingPoller is a process to poll the ngrok API for binding_endpoints and reconcile the desired state with the cluster state of EndpointBindings
 type EndpointBindingPoller struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
 	Recorder record.EventRecorder
+
+	// Namespace is the namespace to manage for EndpointBindings
+	Namespace string
+
+	// PollingInterval is how often to poll the ngrok API for reconciling the BindingEndpoints
+	PollingInterval time.Duration
 
 	// Channel to stop the API polling goroutine
 	stopCh chan struct{}
@@ -38,18 +45,17 @@ func (r *EndpointBindingPoller) Start(ctx context.Context) error {
 	return nil
 }
 
-// startPollingAPI polls a mock API every 10 seconds and updates the BindingConfiguration's status.
-// TODO: Make the 10 seconds configurable via a helm option so clients can tune to their needs based on their api rate limits.
+// startPollingAPI polls a mock API every over a polling interval and updates the BindingConfiguration's status.
 func (r *EndpointBindingPoller) startPollingAPI(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(r.PollingInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			r.Log.Info("Polling API for endpoint bindings")
+			r.Log.Info("Polling API for binding_endpoints")
 			if err := r.reconcileEndpointBindingsFromAPI(ctx); err != nil {
-				r.Log.Error(err, "Failed to update endpoint bindings from API")
+				r.Log.Error(err, "Failed to update binding_endpoints from API")
 			}
 		case <-r.stopCh:
 			r.Log.Info("Stopping API polling")
@@ -58,216 +64,229 @@ func (r *EndpointBindingPoller) startPollingAPI(ctx context.Context) {
 	}
 }
 
+// reconcileEndpointBindingsFromAPI fetches the desired binding_endpoints for this kubernetes operator binding
+// then creates, updates, or deletes the EndpointBindings in-cluster
 func (r *EndpointBindingPoller) reconcileEndpointBindingsFromAPI(ctx context.Context) error {
 	// Fetch the mock endpoint data from the API.
-	endpoints, err := fetchEndpoints()
+	resp, err := fetchEndpoints()
 	if err != nil {
 		return err
 	}
 
-	// Create a map to track desired endpoints by hashed name.
-	desiredEndpoints := make(map[string]*EndpointBinding)
-	for _, apiEndpoint := range endpoints.EndpointBindings {
-		// NOTE: It was mentioned that the endpoint ID may change and we should use the URL as the unique identifier.
-		// Hashing it for now to make it easy
-		hashedName := hashURL(apiEndpoint.URL)
-		desiredEndpoints[hashedName] = &apiEndpoint
+	var apiBindingEndpoints []v6.Endpoint
+	if resp.BindingEndpoints == nil {
+		apiBindingEndpoints = []v6.Endpoint{} // empty
+	} else {
+		apiBindingEndpoints = resp.BindingEndpoints.Endpoints
+	}
+
+	desiredEndpointBindings, err := ngrokapi.AggregateBindingEndpoints(apiBindingEndpoints)
+	if err != nil {
+		return err
 	}
 
 	// Get all current EndpointBinding resources in the cluster.
-	var endpointBindings bindingsv1alpha1.EndpointBindingList
-	if err := r.List(ctx, &endpointBindings); err != nil {
+	var epbList bindingsv1alpha1.EndpointBindingList
+	if err := r.List(ctx, &epbList); err != nil {
 		return err
 	}
+	existingEndpointBindings := epbList.Items
 
-	// Loop through each desired endpoint.
-	for hashedName, apiEndpoint := range desiredEndpoints {
-		urlBits, err := parseURLBits(apiEndpoint.URL)
-		if err != nil {
-			r.Log.Error(err, "Failed to parse URL", "url", apiEndpoint.URL)
-			continue
-		}
+	toCreate, toUpdate, toDelete := filterEndpointBindingActions(existingEndpointBindings, desiredEndpointBindings)
 
-		// Find the corresponding existing binding.
-		var existingBinding *bindingsv1alpha1.EndpointBinding
-		for i := range endpointBindings.Items {
-			if endpointBindings.Items[i].Name == hashedName {
-				existingBinding = &endpointBindings.Items[i]
-				break
-			}
-		}
-
-		// If it doesn’t exist, create a new CRD.
-		if existingBinding == nil {
-			if err := r.createBinding(ctx, hashedName, apiEndpoint, urlBits); err != nil {
-				r.Log.Error(err, "Failed to create EndpointBinding", "name", hashedName)
-			}
-		} else {
-			// If it does exist, update it if necessary.
-			if shouldUpdateBinding(existingBinding, apiEndpoint, urlBits) {
-				if err := r.updateBinding(ctx, existingBinding, apiEndpoint, urlBits); err != nil {
-					r.Log.Error(err, "Failed to update EndpointBinding", "name", hashedName)
-				}
-			}
+	for _, binding := range toCreate {
+		if err := r.createBinding(ctx, binding); err != nil {
+			r.Log.Error(err, "Failed to create EndpointBinding", "name", binding.Name, "uri", binding.Spec.EndpointURI)
+			// continue on purpose
 		}
 	}
 
-	// Loop through all current bindings and delete those that are not in the desired list.
-	for _, binding := range endpointBindings.Items {
-		if _, exists := desiredEndpoints[binding.Name]; !exists {
-			if err := r.Delete(ctx, &binding); err != nil {
-				r.Log.Error(err, "Failed to delete stale EndpointBinding", "name", binding.Name)
-			} else {
-				r.Log.Info("Deleted stale EndpointBinding", "name", binding.Name)
-			}
+	for _, binding := range toUpdate {
+		if err := r.updateBinding(ctx, binding); err != nil {
+			r.Log.Error(err, "Failed to update EndpointBinding", "name", binding.Name, "uri", binding.Spec.EndpointURI)
+			// continue on purpose
 		}
+	}
+
+	for _, binding := range toDelete {
+		// best effort
+		r.deleteBinding(ctx, binding)
 	}
 
 	return nil
 }
 
-func (r *EndpointBindingPoller) createBinding(ctx context.Context, hashedName string, apiEndpoint *EndpointBinding, urlBits *URLBits) error {
-	binding := &bindingsv1alpha1.EndpointBinding{
+// filterEndpointBindingActions takse 2 sets of existing and desired EndpointBindings
+// and returns 3 lists: toCreate, toUpdate, toDelete
+// representing the actions needed to reconcile the existing set with the desired set
+func filterEndpointBindingActions(existingEndpointBindings []bindingsv1alpha1.EndpointBinding, desiredEndpoints ngrokapi.AggregatedEndpoints) (toCreate []bindingsv1alpha1.EndpointBinding, toUpdate []bindingsv1alpha1.EndpointBinding, toDelete []bindingsv1alpha1.EndpointBinding) {
+	for _, endpointBinding := range existingEndpointBindings {
+		uri := endpointBinding.Spec.EndpointURI
+
+		if desiredEndpointBinding, ok := desiredEndpoints[uri]; ok {
+			// existing endpoint is in our desired set
+			// update this EndpointBinding
+			toUpdate = append(toUpdate, desiredEndpointBinding)
+		} else {
+			// existing endpoint is not in our desired set
+			// delete this EndpointBinding
+			toDelete = append(toDelete, endpointBinding)
+		}
+
+		// remove the desired endpoint from the set
+		// so we can see which endpoints are net-new
+		delete(desiredEndpoints, uri)
+	}
+
+	for _, desiredEndpointBinding := range desiredEndpoints {
+		// desired endpoint is not in our existing set
+		// create this EndpointBinding
+		toCreate = append(toCreate, desiredEndpointBinding)
+	}
+
+	return toCreate, toUpdate, toDelete
+}
+
+// TODO: Port
+// TODO: Metadata
+func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindingsv1alpha1.EndpointBinding) error {
+	name := hashURI(desired.Spec.EndpointURI)
+
+	toCreate := &bindingsv1alpha1.EndpointBinding{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "bindings.ngrok.com/v1alpha1",
+			Kind:       "EndpointBinding",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: r.Namespace,
+		},
 		Spec: bindingsv1alpha1.EndpointBindingSpec{
-			Port:   urlBits.Port, // TODO: This is probably wrong and should be # assigned by operator to target the ngrok-operator-forwarder container
-			Scheme: urlBits.Scheme,
+			EndpointURI: desired.Spec.EndpointURI,
+			Scheme:      desired.Spec.Scheme,
+			Port:        1111,
 			Target: bindingsv1alpha1.EndpointTarget{
-				Protocol:  "TCP", // Only support tcp for now, scheme controls how ngrok handles the endpoint
-				Namespace: urlBits.Namespace,
-				Service:   urlBits.ServiceName,
-				Port:      urlBits.Port,
+				Protocol:  desired.Spec.Target.Protocol,
+				Namespace: desired.Spec.Target.Namespace,
+				Service:   desired.Spec.Target.Service,
+				Port:      desired.Spec.Target.Port,
 			},
 		},
 		Status: bindingsv1alpha1.EndpointBindingStatus{
-			HashedName: hashedName, // TODO: This exists in the code already, but the spec didn't mention the CR's name. I'm just using this for the name field
+			HashedName: name,
+			Endpoints:  []bindingsv1alpha1.BindingEndpoint{}, // empty for now, will be filled in just below
 		},
 	}
-	binding.SetName(hashedName)
-	binding.SetNamespace(urlBits.Namespace)
 
-	r.Log.Info("Creating new EndpointBinding", "name", hashedName)
-	if err := r.Create(ctx, binding); err != nil {
+	// attach the endpoints to the status
+	for _, desiredEndpoint := range desired.Status.Endpoints {
+		endpoint := desiredEndpoint
+		endpoint.Status = bindingsv1alpha1.StatusProvisioning
+		endpoint.ErrorCode = ""
+		endpoint.ErrorMessage = ""
+
+		toCreate.Status.Endpoints = append(toCreate.Status.Endpoints, endpoint)
+	}
+
+	r.Log.Info("Creating new EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
+	if err := r.Create(ctx, toCreate); err != nil {
+		r.Log.Error(err, "Failed to create EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
+		r.Recorder.Event(toCreate, "Warning", "Created", fmt.Sprintf("Failed to create EndpointBinding: %v", err))
 		return err
 	}
 
-	r.Recorder.Event(binding, "Normal", "Created", "EndpointBinding created successfully")
+	r.Recorder.Event(toCreate, "Normal", "Created", "EndpointBinding created successfully")
 	return nil
 }
 
-func (r *EndpointBindingPoller) updateBinding(ctx context.Context, binding *bindingsv1alpha1.EndpointBinding, apiEndpoint *EndpointBinding, urlBits *URLBits) error {
-	binding.Spec.Port = urlBits.Port
-	binding.Spec.Scheme = urlBits.Scheme
-	binding.Spec.Target.Namespace = urlBits.Namespace
-	binding.Spec.Target.Service = urlBits.ServiceName
-	binding.Spec.Target.Port = urlBits.Port
+func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindingsv1alpha1.EndpointBinding) error {
+	var existing bindingsv1alpha1.EndpointBinding
+	err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: desired.Name}, &existing)
+	if err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			// EndpointBinding doesn't exist, create it on the next polling loop
+			r.Log.Info("Unable to find existing EndpointBinding, skipping update...", "name", desired.Name, "uri", desired.Spec.EndpointURI)
+			return nil // not an error
+		} else {
+			// real error
+			r.Log.Error(err, "Failed to find existing EndpointBinding", "name", desired.Name, "uri", desired.Spec.EndpointURI)
+			return err
+		}
+	}
 
-	// Commenting out for now as they aren't used and trying to set status requires the Status.Status to be set
-	// binding.Status.ID = apiEndpoint.ID // This changes apparently, so might not be worth storing at all
-	// binding.Status.HashedName = hashURL(apiEndpoint.URL)
+	if !endpointBindingNeedsUpdate(existing, desired) {
+		r.Log.Info("EndpointBinding already matches existing state, skipping update...", "name", desired.Name, "uri", desired.Spec.EndpointURI)
+		return nil
+	}
 
-	r.Log.Info("Updating EndpointBinding", "name", binding.Name)
-	if err := r.Update(ctx, binding); err != nil {
+	// found existing endpoint
+	// now let's merge them together
+	toUpdate := existing.DeepCopy()
+	toUpdate.Spec.Scheme = desired.Spec.Scheme
+	toUpdate.Spec.Target = desired.Spec.Target
+	toUpdate.Spec.EndpointURI = desired.Spec.EndpointURI
+
+	// reset all endpoint statuses to provisioning
+	for _, endpoint := range toUpdate.Status.Endpoints {
+		endpoint.Status = bindingsv1alpha1.StatusProvisioning
+		endpoint.ErrorCode = ""
+		endpoint.ErrorMessage = ""
+	}
+
+	r.Log.Info("Updating EndpointBinding", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
+	if err := r.Update(ctx, toUpdate); err != nil {
+		r.Log.Error(err, "Failed updating EndpointBinding", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
+		r.Recorder.Event(toUpdate, "Warning", "Updated", fmt.Sprintf("Failed to update EndpointBinding: %v", err))
 		return err
 	}
 
-	// if err := r.Status().Update(ctx, binding); err != nil {
-	// 	return err
-	// }
-
-	r.Recorder.Event(binding, "Normal", "Updated", "EndpointBinding updated successfully")
+	r.Recorder.Event(toUpdate, "Normal", "Updated", "EndpointBinding updated successfully")
 	return nil
 }
 
-func shouldUpdateBinding(binding *bindingsv1alpha1.EndpointBinding, apiEndpoint *EndpointBinding, urlBits *URLBits) bool {
-	// Check if any of the relevant fields differ.
-	return binding.Spec.Port != urlBits.Port ||
-		binding.Spec.Scheme != urlBits.Scheme ||
-		binding.Spec.Target.Namespace != urlBits.Namespace ||
-		binding.Spec.Target.Service != urlBits.ServiceName ||
-		binding.Status.HashedName != hashURL(apiEndpoint.URL)
+func (r *EndpointBindingPoller) deleteBinding(ctx context.Context, endpointBinding bindingsv1alpha1.EndpointBinding) {
+	if err := r.Delete(ctx, &endpointBinding); err != nil {
+		r.Log.Error(err, "Failed to delete EndpointBinding", "name", endpointBinding.Name, "uri", endpointBinding.Spec.EndpointURI)
+	} else {
+		r.Log.Info("Deleted EndpointBinding", "name", endpointBinding.Name, "uri", endpointBinding.Spec.EndpointURI)
+	}
 }
 
-func hashURL(urlString string) string {
-	hash := sha256.Sum256([]byte(urlString))
+// endpointBindingNeedsUpdate returns true if the data in desired does not match existing, and therefore existing needs updating to match desired
+func endpointBindingNeedsUpdate(existing bindingsv1alpha1.EndpointBinding, desired bindingsv1alpha1.EndpointBinding) bool {
+	return existing.Spec.Scheme != desired.Spec.Scheme ||
+		existing.Spec.Target.Namespace != desired.Spec.Target.Namespace ||
+		existing.Spec.Target.Service != desired.Spec.Target.Service ||
+		existing.Spec.Target.Port != desired.Spec.Target.Port ||
+		existing.Spec.Target.Protocol != desired.Spec.Target.Protocol
+}
+
+// hashURI hashes a URI to a unique string that can be used as EndpointBinding.metadata.name
+func hashURI(uri string) string {
+	hash := sha256.Sum256([]byte(uri))
 	return hex.EncodeToString(hash[:])
 }
 
-func parseURLBits(urlStr string) (*URLBits, error) {
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extract the service name and namespace from the URL's host part.
-	// Format is expected as [<scheme>://]<service-name>.<namespace-name>
-	parts := strings.Split(parsedURL.Hostname(), ".")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid URL format, expected <service-name>.<namespace-name>: %s", urlStr)
-	}
-
-	// Parse the port if available, defaulting to 80 or 443 based on the scheme.
-	var port int32
-	if parsedURL.Port() != "" {
-		parsedPort, err := strconv.Atoi(parsedURL.Port())
-		if err != nil {
-			return nil, fmt.Errorf("invalid port value: %s", parsedURL.Port())
-		}
-		port = int32(parsedPort)
-	} else {
-		if parsedURL.Scheme == "https" {
-			port = 443
-		} else {
-			port = 80
-		}
-	}
-
-	return &URLBits{
-		Scheme:      parsedURL.Scheme,
-		ServiceName: parts[0],
-		Namespace:   parts[1],
-		Port:        port,
-	}, nil
-}
-
 // fetchEndpoints mocks an API call to retrieve a list of endpoint bindings.
-func fetchEndpoints() (*APIResponse, error) {
+func fetchEndpoints() (*MockApiResponse, error) {
+	// TODO(hkatz): Implement the actual API call to fetch the binding_epndoints
 	// Mock response with sample data.
-	return &APIResponse{
-		EndpointBindings: []EndpointBinding{
-			{
-				ID:  "abc123",
-				URL: "https://service1.namespace1",
-			},
-			{
-				ID:  "def456",
-				URL: "http://service2.namespace2",
-			},
-			{
-				ID:  "3k45jl",
-				URL: "tls://service-tls.namespace2",
-			},
-			{
-				ID:  "asd9f9",
-				URL: "tcp://service-tcp.namespace2",
+	return &MockApiResponse{
+		BindingEndpoints: &v6.EndpointList{
+			Endpoints: []v6.Endpoint{
+				{ID: "ep_100", PublicURL: "https://service1.namespace1"},
+				{ID: "ep_101", PublicURL: "https://service1.namespace1"},
+				{ID: "ep_102", PublicURL: "https://service1.namespace1"},
+				{ID: "ep_200", PublicURL: "tcp://service2.namespace2:2020"},
+				{ID: "ep_201", PublicURL: "tcp://service2.namespace2:2020"},
+				{ID: "ep_300", PublicURL: "service3.namespace3"},
+				{ID: "ep_400", PublicURL: "http://service4.namespace4:8080"},
 			},
 		},
 	}, nil
 }
 
-type URLBits struct {
-	Scheme      string
-	ServiceName string
-	Namespace   string
-	Port        int32
-}
-
-// APIResponse represents a mock response from the API.
-type APIResponse struct {
-	EndpointBindings []EndpointBinding `json:"binding_endpoints"`
-}
-
-// EndpointBinding represents a binding endpoint object.
-type EndpointBinding struct {
-	ID  string `json:"id"`
-	URL string `json:"url"`
+// MockApiResponse represents a mock response from the API.
+type MockApiResponse struct {
+	BindingEndpoints *v6.EndpointList
 }
