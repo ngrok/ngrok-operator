@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -125,6 +126,10 @@ func (r *EndpointBindingPoller) reconcileEndpointBindingsFromAPI(ctx context.Con
 // and returns 3 lists: toCreate, toUpdate, toDelete
 // representing the actions needed to reconcile the existing set with the desired set
 func filterEndpointBindingActions(existingEndpointBindings []bindingsv1alpha1.EndpointBinding, desiredEndpoints ngrokapi.AggregatedEndpoints) (toCreate []bindingsv1alpha1.EndpointBinding, toUpdate []bindingsv1alpha1.EndpointBinding, toDelete []bindingsv1alpha1.EndpointBinding) {
+	toCreate = []bindingsv1alpha1.EndpointBinding{}
+	toUpdate = []bindingsv1alpha1.EndpointBinding{}
+	toDelete = []bindingsv1alpha1.EndpointBinding{}
+
 	for _, endpointBinding := range existingEndpointBindings {
 		uri := endpointBinding.Spec.EndpointURI
 
@@ -260,10 +265,9 @@ func (r *EndpointBindingPoller) deleteBinding(ctx context.Context, endpointBindi
 // endpointBindingNeedsUpdate returns true if the data in desired does not match existing, and therefore existing needs updating to match desired
 func endpointBindingNeedsUpdate(existing bindingsv1alpha1.EndpointBinding, desired bindingsv1alpha1.EndpointBinding) bool {
 	return existing.Spec.Scheme != desired.Spec.Scheme ||
-		existing.Spec.Target.Namespace != desired.Spec.Target.Namespace ||
-		existing.Spec.Target.Service != desired.Spec.Target.Service ||
-		existing.Spec.Target.Port != desired.Spec.Target.Port ||
-		existing.Spec.Target.Protocol != desired.Spec.Target.Protocol
+		!reflect.DeepEqual(existing.Spec.Target, desired.Spec.Target)
+
+	// TODO: Compare Metadata labels and annotations between configured values and existing values
 }
 
 // hashURI hashes a URI to a unique string that can be used as EndpointBinding.metadata.name
