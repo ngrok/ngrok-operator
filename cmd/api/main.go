@@ -38,6 +38,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -59,6 +61,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/version"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -104,6 +107,11 @@ type managerOpts struct {
 	enableFeatureGateway  bool
 	enableFeatureBindings bool
 
+	bindings struct {
+		allowedURLs []string
+		name        string
+	}
+
 	// env vars
 	namespace   string
 	ngrokAPIKey string
@@ -139,6 +147,8 @@ func cmd() *cobra.Command {
 	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
 	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
+	c.Flags().StringSliceVar(&opts.bindings.allowedURLs, "bindings-allowed-urls", []string{"*"}, "Allowed URLs for Endpoint Bindings")
+	c.Flags().StringVar(&opts.bindings.name, "bindings-name", "default", "Name of the Endpoint Binding Configuration")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -201,6 +211,15 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	// create default config and clientset for use outside the mgr.Start() blocking loop
 	k8sConfig := ctrl.GetConfigOrDie()
+	k8sClinet, err := client.New(k8sConfig, client.Options{Scheme: scheme})
+	if err != nil {
+		return fmt.Errorf("unable to create k8s client: %w", err)
+	}
+
+	if err := createKubernetesOperator(ctx, k8sClinet, opts); err != nil {
+		return fmt.Errorf("unable to create KubernetesOperator: %w", err)
+	}
+
 	mgr, err := ctrl.NewManager(k8sConfig, options)
 	if err != nil {
 		return fmt.Errorf("unable to start api-manager: %w", err)
@@ -490,4 +509,45 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 	// }
 
 	return nil
+}
+
+func createKubernetesOperator(ctx context.Context, client client.Client, opts managerOpts) error {
+	k8sOperator := &ngrokv1alpha1.KubernetesOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ngrok-operator",
+			Namespace: opts.namespace,
+		},
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
+		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
+			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
+				Name:      "ngrok-operator",
+				Namespace: opts.namespace,
+				Version:   version.GetVersion(),
+			},
+			Region: opts.region,
+		}
+
+		features := []string{}
+		if opts.enableFeatureIngress {
+			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureIngress)
+		}
+
+		if opts.enableFeatureGateway {
+			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureGateway)
+		}
+
+		if opts.enableFeatureBindings {
+			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
+			k8sOperator.Spec.Binding = &ngrokv1alpha1.KubernetesOperatorBinding{
+				Name:          opts.bindings.name,
+				TlsSecretName: "ngrok-operator-default-tls",
+				AllowedURLs:   opts.bindings.allowedURLs,
+			}
+		}
+		k8sOperator.Spec.EnabledFeatures = features
+		return nil
+	})
+	return err
 }

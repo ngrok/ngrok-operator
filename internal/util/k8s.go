@@ -1,6 +1,8 @@
 package util
 
-import "sigs.k8s.io/controller-runtime/pkg/client"
+import (
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
 
 // ToClientObjects converts a slice of objects whose pointer implements client.Object
 // to a slice of client.Objects
