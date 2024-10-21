@@ -83,10 +83,10 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		StatusID: r.statusID,
-		Create:   r.create,
-		Update:   r.update,
-		Delete:   r.delete,
+		Create:    r.create,
+		Update:    r.update,
+		Delete:    r.delete,
+		ErrResult: r.errResult,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -98,22 +98,28 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - ExternalName Target Service in the Target Namespace/Service name pointed at the Upstream Service
 // - Upstream Service in the ngrok-op namespace pointed at the Pod Forwarders
 func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// TODO(user): your logic here
-	// Implement the following:
-	// - Update/Create kind: Service (ngrok-op namespace)
-	// - Update/Create kind: Service (external, target namespace)
-	// - Update the Pod Forwarders mapping and restart anything
-	// - Update the EndpointBinding status
-
 	return r.controller.Reconcile(ctx, req, new(bindingsv1alpha1.EndpointBinding))
 }
 
-func (r *EndpointBindingReconciler) statusID(cr *bindingsv1alpha1.EndpointBinding) string {
-	return "TODO"
-}
-
 func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	r.Recorder.Event(cr, v1.EventTypeWarning, "Created", "TODO Implement me")
+	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
+
+	if err := r.Client.Create(ctx, upstreamService); err != nil {
+		r.Recorder.Event(cr, v1.EventTypeWarning, "Failed", "Failed to create Upstream Service")
+		r.Log.Error(err, "Failed to create Upstream Service")
+		return err
+	}
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Created", "Created Upstream Service")
+
+	if err := r.Client.Create(ctx, targetService); err != nil {
+		r.Recorder.Event(cr, v1.EventTypeWarning, "Failed", "Failed to create Target Service")
+		r.Log.Error(err, "Failed to create Target Service")
+		return err
+	}
+	r.Recorder.Event(cr, v1.EventTypeWarning, "Created", "Created Target Service")
+
+	// TODO(hkatz) Implement Status Updates?
+
 	return nil
 }
 
@@ -125,7 +131,20 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 }
 
 func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	r.Recorder.Event(cr, v1.EventTypeWarning, "Deleted", "TODO Implement me")
+	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
+
+	if err := r.Client.Delete(ctx, targetService); err != nil {
+		r.Recorder.Event(cr, v1.EventTypeWarning, "Failed", "Failed to delete Target Service")
+		r.Log.Error(err, "Failed to delete Target Service")
+		return err
+	}
+
+	if err := r.Client.Delete(ctx, upstreamService); err != nil {
+		r.Recorder.Event(cr, v1.EventTypeWarning, "Failed", "Failed to delete Upstream Service")
+		r.Log.Error(err, "Failed to delete Upstream Service")
+		return err
+	}
+
 	return nil
 }
 
