@@ -152,7 +152,7 @@ func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          v6.Ref{"ep_abc123", "example-uri"},
+					Ref:          v6.Ref{ID: "ep_abc123", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
@@ -179,7 +179,7 @@ func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample2),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          v6.Ref{"ep_def456", "example-uri"},
+					Ref:          v6.Ref{ID: "ep_def456", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
@@ -205,19 +205,19 @@ func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample2),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          v6.Ref{"ep_def456", "example-uri"},
+					Ref:          v6.Ref{ID: "ep_def456", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
 				},
 				{
-					Ref:          v6.Ref{"ep_xyz999", "example-uri"},
+					Ref:          v6.Ref{ID: "ep_xyz999", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
 				},
 				{
-					Ref:          v6.Ref{"ep_www000", "example-uri"},
+					Ref:          v6.Ref{ID: "ep_www000", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
