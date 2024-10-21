@@ -120,22 +120,22 @@ func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1al
 
 func (r *EndpointBindingReconciler) createTargetService(ctx context.Context, service *v1.Service) error {
 	if err := r.Client.Create(ctx, service); err != nil {
-		r.Recorder.Event(service, v1.EventTypeWarning, "Failed", "Failed to create Target Service")
+		r.Recorder.Event(service, v1.EventTypeWarning, "Created", "Failed to create Target Service")
 		r.Log.Error(err, "Failed to create Target Service")
 		return err
 	}
-	r.Recorder.Event(service, v1.EventTypeWarning, "Created", "Created Target Service")
+	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Target Service")
 
 	return nil
 }
 
 func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, service *v1.Service) error {
 	if err := r.Client.Create(ctx, service); err != nil {
-		r.Recorder.Event(service, v1.EventTypeWarning, "Failed", "Failed to create Upstream Service")
+		r.Recorder.Event(service, v1.EventTypeWarning, "Created", "Failed to create Upstream Service")
 		r.Log.Error(err, "Failed to create Upstream Service")
 		return err
 	}
-	r.Recorder.Event(service, v1.EventTypeWarning, "Created", "Created Upstream Service")
+	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Upstream Service")
 
 	return nil
 }
@@ -168,10 +168,11 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 		// don't update status
 
 		if err := r.Client.Update(ctx, &existingUpstreamService); err != nil {
-			r.Recorder.Event(&existingUpstreamService, v1.EventTypeWarning, "Failed", "Failed to update Upstream Service")
+			r.Recorder.Event(&existingUpstreamService, v1.EventTypeWarning, "Updated", "Failed to update Upstream Service")
 			r.Log.Error(err, "Failed to update Upstream Service")
 			return err
 		}
+		r.Recorder.Event(&existingUpstreamService, v1.EventTypeNormal, "Updated", "Updated Upstream Service")
 	}
 
 	// target service
@@ -196,10 +197,11 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 		// don't update status
 
 		if err := r.Client.Update(ctx, &existingTargetService); err != nil {
-			r.Recorder.Event(&existingTargetService, v1.EventTypeWarning, "Failed", "Failed to update Target Service")
+			r.Recorder.Event(&existingTargetService, v1.EventTypeWarning, "Updated", "Failed to update Target Service")
 			r.Log.Error(err, "Failed to update Target Service")
 			return err
 		}
+		r.Recorder.Event(&existingTargetService, v1.EventTypeNormal, "Updated", "Updated Target Service")
 	}
 
 	return nil
@@ -209,13 +211,13 @@ func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1al
 	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
 
 	if err := r.Client.Delete(ctx, targetService); err != nil {
-		r.Recorder.Event(cr, v1.EventTypeWarning, "Failed", "Failed to delete Target Service")
+		r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
 		r.Log.Error(err, "Failed to delete Target Service")
 		return err
 	}
 
 	if err := r.Client.Delete(ctx, upstreamService); err != nil {
-		r.Recorder.Event(cr, v1.EventTypeWarning, "Failed", "Failed to delete Upstream Service")
+		r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
 		r.Log.Error(err, "Failed to delete Upstream Service")
 		return err
 	}

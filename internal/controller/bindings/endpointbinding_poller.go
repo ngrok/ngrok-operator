@@ -11,6 +11,7 @@ import (
 	v6 "github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -193,7 +194,7 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 	r.Log.Info("Creating new EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
 	if err := r.Create(ctx, toCreate); err != nil {
 		r.Log.Error(err, "Failed to create EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
-		r.Recorder.Event(toCreate, "Warning", "Created", fmt.Sprintf("Failed to create EndpointBinding: %v", err))
+		r.Recorder.Event(toCreate, v1.EventTypeWarning, "Created", fmt.Sprintf("Failed to create EndpointBinding: %v", err))
 		return err
 	}
 
@@ -220,7 +221,7 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 		return err
 	}
 
-	r.Recorder.Event(toCreate, "Normal", "Created", "EndpointBinding created successfully")
+	r.Recorder.Event(toCreate, v1.EventTypeNormal, "Created", "EndpointBinding created successfully")
 	return nil
 }
 
@@ -256,7 +257,7 @@ func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindi
 	r.Log.Info("Updating EndpointBinding", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
 	if err := r.Update(ctx, toUpdate); err != nil {
 		r.Log.Error(err, "Failed updating EndpointBinding", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
-		r.Recorder.Event(toUpdate, "Warning", "Updated", fmt.Sprintf("Failed to update EndpointBinding: %v", err))
+		r.Recorder.Event(toUpdate, v1.EventTypeWarning, "Updated", fmt.Sprintf("Failed to update EndpointBinding: %v", err))
 		return err
 	}
 
@@ -283,7 +284,7 @@ func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindi
 		return err
 	}
 
-	r.Recorder.Event(toUpdate, "Normal", "Updated", "EndpointBinding updated successfully")
+	r.Recorder.Event(toUpdate, v1.EventTypeNormal, "Updated", "EndpointBinding updated successfully")
 	return nil
 }
 
