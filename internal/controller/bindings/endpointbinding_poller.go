@@ -182,20 +182,6 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 				Port:      desired.Spec.Target.Port,
 			},
 		},
-		Status: bindingsv1alpha1.EndpointBindingStatus{
-			HashedName: name,
-			Endpoints:  []bindingsv1alpha1.BindingEndpoint{}, // empty for now, will be filled in just below
-		},
-	}
-
-	// attach the endpoints to the status
-	for _, desiredEndpoint := range desired.Status.Endpoints {
-		endpoint := desiredEndpoint
-		endpoint.Status = bindingsv1alpha1.StatusProvisioning
-		endpoint.ErrorCode = ""
-		endpoint.ErrorMessage = ""
-
-		toCreate.Status.Endpoints = append(toCreate.Status.Endpoints, endpoint)
 	}
 
 	r.Log.Info("Creating new EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
@@ -205,13 +191,38 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 		return err
 	}
 
+	// now fill in the status into the returned resource
+
+	toCreateStatus := bindingsv1alpha1.EndpointBindingStatus{
+		HashedName: name,
+		Endpoints:  []bindingsv1alpha1.BindingEndpoint{}, // empty for now, will be filled in just below
+	}
+
+	// attach the endpoints to the status
+	for _, desiredEndpoint := range desired.Status.Endpoints {
+		endpoint := desiredEndpoint
+		endpoint.Status = bindingsv1alpha1.StatusProvisioning
+		endpoint.ErrorCode = ""
+		endpoint.ErrorMessage = ""
+
+		toCreateStatus.Endpoints = append(toCreateStatus.Endpoints, endpoint)
+	}
+
+	toCreate.Status = toCreateStatus
+
+	if err := r.updateBindingStatus(ctx, *toCreate); err != nil {
+		return err
+	}
+
 	r.Recorder.Event(toCreate, "Normal", "Created", "EndpointBinding created successfully")
 	return nil
 }
 
 func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindingsv1alpha1.EndpointBinding) error {
+	desiredName := hashURI(desired.Spec.EndpointURI)
+
 	var existing bindingsv1alpha1.EndpointBinding
-	err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: desired.Name}, &existing)
+	err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: desiredName}, &existing)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// EndpointBinding doesn't exist, create it on the next polling loop
@@ -231,22 +242,38 @@ func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindi
 
 	// found existing endpoint
 	// now let's merge them together
-	toUpdate := existing.DeepCopy()
+	toUpdate := &existing
 	toUpdate.Spec.Scheme = desired.Spec.Scheme
 	toUpdate.Spec.Target = desired.Spec.Target
 	toUpdate.Spec.EndpointURI = desired.Spec.EndpointURI
-
-	// reset all endpoint statuses to provisioning
-	for _, endpoint := range toUpdate.Status.Endpoints {
-		endpoint.Status = bindingsv1alpha1.StatusProvisioning
-		endpoint.ErrorCode = ""
-		endpoint.ErrorMessage = ""
-	}
 
 	r.Log.Info("Updating EndpointBinding", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
 	if err := r.Update(ctx, toUpdate); err != nil {
 		r.Log.Error(err, "Failed updating EndpointBinding", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
 		r.Recorder.Event(toUpdate, "Warning", "Updated", fmt.Sprintf("Failed to update EndpointBinding: %v", err))
+		return err
+	}
+
+	// now fill in the status into the returned resource
+
+	toUpdateStatus := bindingsv1alpha1.EndpointBindingStatus{
+		HashedName: desiredName,
+		Endpoints:  []bindingsv1alpha1.BindingEndpoint{}, // empty for now, will be filled in just below
+	}
+
+	// attach the endpoints to the status
+	for _, desiredEndpoint := range desired.Status.Endpoints {
+		endpoint := desiredEndpoint
+		endpoint.Status = bindingsv1alpha1.StatusProvisioning
+		endpoint.ErrorCode = ""
+		endpoint.ErrorMessage = ""
+
+		toUpdateStatus.Endpoints = append(toUpdateStatus.Endpoints, endpoint)
+	}
+
+	toUpdate.Status = toUpdateStatus
+
+	if err := r.updateBindingStatus(ctx, *toUpdate); err != nil {
 		return err
 	}
 
@@ -262,10 +289,45 @@ func (r *EndpointBindingPoller) deleteBinding(ctx context.Context, endpointBindi
 	}
 }
 
+func (r *EndpointBindingPoller) updateBindingStatus(ctx context.Context, desired bindingsv1alpha1.EndpointBinding) error {
+	toUpdate := &desired
+	toUpdate.Status = desired.Status
+
+	if err := r.Status().Update(ctx, toUpdate); err != nil {
+		r.Log.Error(err, "Failed to update EndpointBinding status", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
+		return err
+	}
+
+	r.Log.Info("Updated EndpointBinding status", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
+	return nil
+}
+
 // endpointBindingNeedsUpdate returns true if the data in desired does not match existing, and therefore existing needs updating to match desired
 func endpointBindingNeedsUpdate(existing bindingsv1alpha1.EndpointBinding, desired bindingsv1alpha1.EndpointBinding) bool {
-	return existing.Spec.Scheme != desired.Spec.Scheme ||
+	hasSpecChanged := existing.Spec.Scheme != desired.Spec.Scheme ||
 		!reflect.DeepEqual(existing.Spec.Target, desired.Spec.Target)
+
+	if hasSpecChanged {
+		return true
+	}
+
+	// compare the list of endpoints in the status
+	if len(existing.Status.Endpoints) != len(desired.Status.Endpoints) {
+		return true
+	}
+
+	existingEndpoints := map[string]bindingsv1alpha1.BindingEndpoint{}
+	for _, existingEndpoint := range existing.Status.Endpoints {
+		existingEndpoints[existingEndpoint.Ref.ID] = existingEndpoint
+	}
+
+	for _, desiredEndpoint := range desired.Status.Endpoints {
+		if _, ok := existingEndpoints[desiredEndpoint.Ref.ID]; !ok {
+			return true // at least one endpoint has changed
+		}
+	}
+
+	return false
 
 	// TODO: Compare Metadata labels and annotations between configured values and existing values
 }

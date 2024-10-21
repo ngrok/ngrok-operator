@@ -3,6 +3,7 @@ package bindings
 import (
 	"testing"
 
+	v6 "github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/stretchr/testify/assert"
@@ -147,6 +148,17 @@ func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 				Protocol:  "TCP",
 			},
 		},
+		Status: bindingsv1alpha1.EndpointBindingStatus{
+			HashedName: hashURI(uriExample1),
+			Endpoints: []bindingsv1alpha1.BindingEndpoint{
+				{
+					Ref:          v6.Ref{"ep_abc123", "example-uri"},
+					Status:       bindingsv1alpha1.StatusProvisioning,
+					ErrorCode:    "",
+					ErrorMessage: "",
+				},
+			},
+		},
 	}
 
 	uriExample2 := "https://service2.namespace2:443"
@@ -161,6 +173,55 @@ func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 				Service:   "service2",
 				Port:      443,
 				Protocol:  "TCP",
+			},
+		},
+		Status: bindingsv1alpha1.EndpointBindingStatus{
+			HashedName: hashURI(uriExample2),
+			Endpoints: []bindingsv1alpha1.BindingEndpoint{
+				{
+					Ref:          v6.Ref{"ep_def456", "example-uri"},
+					Status:       bindingsv1alpha1.StatusProvisioning,
+					ErrorCode:    "",
+					ErrorMessage: "",
+				},
+			},
+		},
+	}
+
+	epdExample2NewStatus := bindingsv1alpha1.EndpointBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: hashURI(uriExample2),
+		},
+		Spec: bindingsv1alpha1.EndpointBindingSpec{
+			EndpointURI: uriExample2,
+			Target: bindingsv1alpha1.EndpointTarget{
+				Namespace: "namespace2",
+				Service:   "service2",
+				Port:      443,
+				Protocol:  "TCP",
+			},
+		},
+		Status: bindingsv1alpha1.EndpointBindingStatus{
+			HashedName: hashURI(uriExample2),
+			Endpoints: []bindingsv1alpha1.BindingEndpoint{
+				{
+					Ref:          v6.Ref{"ep_def456", "example-uri"},
+					Status:       bindingsv1alpha1.StatusProvisioning,
+					ErrorCode:    "",
+					ErrorMessage: "",
+				},
+				{
+					Ref:          v6.Ref{"ep_xyz999", "example-uri"},
+					Status:       bindingsv1alpha1.StatusProvisioning,
+					ErrorCode:    "",
+					ErrorMessage: "",
+				},
+				{
+					Ref:          v6.Ref{"ep_www000", "example-uri"},
+					Status:       bindingsv1alpha1.StatusProvisioning,
+					ErrorCode:    "",
+					ErrorMessage: "",
+				},
 			},
 		},
 	}
@@ -181,6 +242,12 @@ func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 			name:     "different objects",
 			existing: epdExample1,
 			desired:  epdExample2,
+			want:     true,
+		},
+		{
+			name:     "different statuses",
+			existing: epdExample2,
+			desired:  epdExample2NewStatus,
 			want:     true,
 		},
 	}
