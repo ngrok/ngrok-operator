@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -531,10 +532,12 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 
 	// Create a new Runnable that implements Start that the manager can manage running
 	if err := mgr.Add(&bindingscontroller.EndpointBindingPoller{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Log:      ctrl.Log.WithName("controllers").WithName("EndpointBindingPoller"),
-		Recorder: mgr.GetEventRecorderFor("endpoint-binding-poller"),
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		Log:             ctrl.Log.WithName("controllers").WithName("EndpointBindingPoller"),
+		Recorder:        mgr.GetEventRecorderFor("endpoint-binding-poller"),
+		Namespace:       opts.namespace,
+		PollingInterval: 5 * time.Minute,
 	}); err != nil {
 		return err
 	}
