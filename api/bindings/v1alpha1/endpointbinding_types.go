@@ -167,6 +167,7 @@ type EndpointBinding struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:rbac:groups=core,resources=services,verbs=get;create;update;delete;list;watch
 
 // EndpointBindingList contains a list of EndpointBinding
 type EndpointBindingList struct {

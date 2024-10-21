@@ -97,6 +97,7 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Reconcile turns EndpointBindings into 2 Services
 // - ExternalName Target Service in the Target Namespace/Service name pointed at the Upstream Service
 // - Upstream Service in the ngrok-op namespace pointed at the Pod Forwarders
+// TODO(hkatz) How to handle Service deletion? We delete? Need to delete old ones?
 func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.Reconcile(ctx, req, new(bindingsv1alpha1.EndpointBinding))
 }
@@ -104,29 +105,103 @@ func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
 	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
 
-	if err := r.Client.Create(ctx, upstreamService); err != nil {
-		r.Recorder.Event(cr, v1.EventTypeWarning, "Failed", "Failed to create Upstream Service")
-		r.Log.Error(err, "Failed to create Upstream Service")
+	if err := r.createUpstreamService(ctx, upstreamService); err != nil {
 		return err
 	}
-	r.Recorder.Event(cr, v1.EventTypeWarning, "Created", "Created Upstream Service")
 
-	if err := r.Client.Create(ctx, targetService); err != nil {
-		r.Recorder.Event(cr, v1.EventTypeWarning, "Failed", "Failed to create Target Service")
-		r.Log.Error(err, "Failed to create Target Service")
+	if err := r.createTargetService(ctx, targetService); err != nil {
 		return err
 	}
-	r.Recorder.Event(cr, v1.EventTypeWarning, "Created", "Created Target Service")
 
 	// TODO(hkatz) Implement Status Updates?
 
 	return nil
 }
 
-// Note: EndpointBindings are unique by their 4-tuple configuration
-// Therefore there are no updates but only create/delete/re-create operations
+func (r *EndpointBindingReconciler) createTargetService(ctx context.Context, service *v1.Service) error {
+	if err := r.Client.Create(ctx, service); err != nil {
+		r.Recorder.Event(service, v1.EventTypeWarning, "Failed", "Failed to create Target Service")
+		r.Log.Error(err, "Failed to create Target Service")
+		return err
+	}
+	r.Recorder.Event(service, v1.EventTypeWarning, "Created", "Created Target Service")
+
+	return nil
+}
+
+func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, service *v1.Service) error {
+	if err := r.Client.Create(ctx, service); err != nil {
+		r.Recorder.Event(service, v1.EventTypeWarning, "Failed", "Failed to create Upstream Service")
+		r.Log.Error(err, "Failed to create Upstream Service")
+		return err
+	}
+	r.Recorder.Event(service, v1.EventTypeWarning, "Created", "Created Upstream Service")
+
+	return nil
+}
+
 func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	r.Recorder.Event(cr, v1.EventTypeWarning, "Updated", "No-Op")
+	desiredTargetService, desiredUpstreamService := r.convertEndpointBindingToServices(cr)
+
+	var existingTargetService v1.Service
+	var existingUpstreamService v1.Service
+
+	// upstream service
+	err := r.Get(ctx, client.ObjectKey{Namespace: desiredUpstreamService.Namespace, Name: desiredUpstreamService.Name}, &existingUpstreamService)
+	if err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			// Upstream Service doesn't exist, create it
+			r.Log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
+			if err := r.createUpstreamService(ctx, desiredUpstreamService); err != nil {
+				return err
+			}
+		} else {
+			// real error
+			r.Log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			return err
+		}
+	} else {
+		// update upstream service
+		existingUpstreamService.Spec = desiredUpstreamService.Spec
+		existingUpstreamService.ObjectMeta.Annotations = desiredUpstreamService.ObjectMeta.Annotations
+		existingUpstreamService.ObjectMeta.Labels = desiredUpstreamService.ObjectMeta.Labels
+		// don't update status
+
+		if err := r.Client.Update(ctx, &existingUpstreamService); err != nil {
+			r.Recorder.Event(&existingUpstreamService, v1.EventTypeWarning, "Failed", "Failed to update Upstream Service")
+			r.Log.Error(err, "Failed to update Upstream Service")
+			return err
+		}
+	}
+
+	// target service
+	err = r.Get(ctx, client.ObjectKey{Namespace: desiredTargetService.Namespace, Name: desiredTargetService.Name}, &existingTargetService)
+	if err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			// Target Service doesn't exist, create it
+			r.Log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
+			if err := r.createTargetService(ctx, desiredTargetService); err != nil {
+				return err
+			}
+		} else {
+			// real error
+			r.Log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			return err
+		}
+	} else {
+		// update target service
+		existingTargetService.Spec = desiredTargetService.Spec
+		existingTargetService.ObjectMeta.Annotations = desiredTargetService.ObjectMeta.Annotations
+		existingTargetService.ObjectMeta.Labels = desiredTargetService.ObjectMeta.Labels
+		// don't update status
+
+		if err := r.Client.Update(ctx, &existingTargetService); err != nil {
+			r.Recorder.Event(&existingTargetService, v1.EventTypeWarning, "Failed", "Failed to update Target Service")
+			r.Log.Error(err, "Failed to update Target Service")
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -157,7 +232,7 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 	// Send traffic to any Node in the cluster
 	internalTrafficPolicy := v1.ServiceInternalTrafficPolicyCluster
 
-	endpointURL := fmt.Sprintf("%s.%s.%s", endpointBinding.Status.HashedName, endpointBinding.Namespace, r.ClusterDomain)
+	endpointURL := fmt.Sprintf("%s.%s.%s", endpointBinding.Name, endpointBinding.Namespace, r.ClusterDomain)
 
 	podForwarderSelector := map[string]string{}
 
@@ -177,7 +252,7 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 	finalLabels := targetLabels // no extra labels to integrate for now
 	finalAnnotations := map[string]string{
 		"managed-by": "ngrok-operator", // TODO(hkatz) extra metadata?
-		"points-to":  endpointBinding.Status.HashedName,
+		"points-to":  endpointBinding.Name,
 	}
 
 	for k, v := range targetAnnotations {
@@ -221,7 +296,7 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      endpointBinding.Status.HashedName,
+			Name:      endpointBinding.Name,
 			Namespace: endpointBinding.Namespace,
 			Annotations: map[string]string{
 				// TODO(hkatz) Implement Metadata

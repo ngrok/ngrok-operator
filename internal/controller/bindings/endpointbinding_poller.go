@@ -2,13 +2,12 @@ package bindings
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/google/uuid"
 	v6 "github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -73,7 +72,7 @@ func (r *EndpointBindingPoller) startPollingAPI(ctx context.Context) {
 // reconcileEndpointBindingsFromAPI fetches the desired binding_endpoints for this kubernetes operator binding
 // then creates, updates, or deletes the EndpointBindings in-cluster
 func (r *EndpointBindingPoller) reconcileEndpointBindingsFromAPI(ctx context.Context) error {
-	// Fetch the mock endpoint data from the API.
+	// Fetch the mock endpoint data from the API
 	resp, err := fetchEndpoints()
 	if err != nil {
 		return err
@@ -134,9 +133,16 @@ func filterEndpointBindingActions(existingEndpointBindings []bindingsv1alpha1.En
 		uri := endpointBinding.Spec.EndpointURI
 
 		if desiredEndpointBinding, ok := desiredEndpoints[uri]; ok {
-			// existing endpoint is in our desired set
-			// update this EndpointBinding
-			toUpdate = append(toUpdate, desiredEndpointBinding)
+			// if the names match, then they are the same resource and we can update it
+			if endpointBinding.Name == desiredEndpointBinding.Name {
+				// existing endpoint is in our desired set
+				// update this EndpointBinding
+				toUpdate = append(toUpdate, desiredEndpointBinding)
+			} else {
+				// otherwise, we need a delete + create, rather than an update
+				toDelete = append(toDelete, endpointBinding)
+				toCreate = append(toCreate, desiredEndpointBinding)
+			}
 		} else {
 			// existing endpoint is not in our desired set
 			// delete this EndpointBinding
@@ -334,8 +340,8 @@ func endpointBindingNeedsUpdate(existing bindingsv1alpha1.EndpointBinding, desir
 
 // hashURI hashes a URI to a unique string that can be used as EndpointBinding.metadata.name
 func hashURI(uri string) string {
-	hash := sha256.Sum256([]byte(uri))
-	return hex.EncodeToString(hash[:])
+	uid := uuid.NewSHA1(uuid.NameSpaceURL, []byte(uri))
+	return "ngrok-" + uid.String()
 }
 
 // fetchEndpoints mocks an API call to retrieve a list of endpoint bindings.

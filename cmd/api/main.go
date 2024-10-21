@@ -474,10 +474,13 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
 	// EndpointBindings
 	if err := (&bindingscontroller.EndpointBindingReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Log:      ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
-		Recorder: mgr.GetEventRecorderFor("bindings-controller"),
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		Log:                ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
+		Recorder:           mgr.GetEventRecorderFor("bindings-controller"),
+		ClusterDomain:      opts.clusterDomain,
+		PodForwarderLabels: []string{},                                                 // TODO(hkatz) Implement me
+		PortRange:          bindingscontroller.PortRangeConfig{Min: 30000, Max: 32767}, // TODO(hkatz) Implement me
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
 		os.Exit(1)
