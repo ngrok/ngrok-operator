@@ -171,6 +171,19 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 		podForwarderSelector[parts[0]] = parts[1]
 	}
 
+	targetLabels := endpointBinding.Spec.Target.Metadata.Labels
+	targetAnnotations := endpointBinding.Spec.Target.Metadata.Annotations
+
+	finalLabels := targetLabels // no extra labels to integrate for now
+	finalAnnotations := map[string]string{
+		"managed-by": "ngrok-operator", // TODO(hkatz) extra metadata?
+		"points-to":  endpointBinding.Status.HashedName,
+	}
+
+	for k, v := range targetAnnotations {
+		finalAnnotations[k] = v
+	}
+
 	// targetService represents the user's configured endpoint binding as a Service
 	// Clients will send requests to this service: <scheme>://<service>.<namespace>:<port>
 	targetService := &v1.Service{
@@ -179,13 +192,10 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      endpointBinding.Spec.Target.Service,
-			Namespace: endpointBinding.Spec.Target.Namespace,
-			Annotations: map[string]string{
-				// TODO(hkatz) Implement Metadata
-				"managed-by": "ngrok-operator", // TODO(hkatz) extra metadata?
-				"points-to":  endpointBinding.Status.HashedName,
-			},
+			Name:        endpointBinding.Spec.Target.Service,
+			Namespace:   endpointBinding.Spec.Target.Namespace,
+			Labels:      finalLabels,
+			Annotations: finalAnnotations,
 		},
 		Spec: v1.ServiceSpec{
 			Type:                  v1.ServiceTypeExternalName,
