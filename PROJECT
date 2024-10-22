@@ -120,4 +120,13 @@ resources:
   domain: k8s.ngrok.com
   kind: Secret
   version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: k8s.ngrok.com
+  group: ngrok
+  kind: KubernetesOperator
+  path: github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1
+  version: v1alpha1
 version: "3"

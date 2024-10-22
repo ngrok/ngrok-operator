@@ -25,6 +25,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	v6 "github.com/ngrok/ngrok-api-go/v6"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -99,6 +100,57 @@ type EndpointTarget struct {
 	// +kube:validation:Optional
 	Metadata TargetMetadata `json:"metadata,omitempty"`
 }
+
+// TargetMetadata is a subset of metav1.ObjectMeta that is used to define the target object in the k8s cluster
+// +kubebuilder:object:generate=true
+type TargetMetadata struct {
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) objects. May match selectors of replication controllers
+	// and services.
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+	// +kubebuilder:validation:Optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// Annotations is an unstructured key value map stored with a resource that may be
+	// set by external tools to store and retrieve arbitrary metadata. They are not
+	// queryable and should be preserved when modifying objects.
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+	// +kubebuilder:validation:Optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// BindingEndpoint is a reference to an Endpoint object in the ngrok API that is attached to the kubernetes operator binding
+type BindingEndpoint struct {
+	// Ref is the ngrok API reference to the Endpoint object (id, uri)
+	v6.Ref `json:",inline"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default="unknown"
+	Status BindingEndpointStatus `json:"status"`
+
+	// ErrorCode is the ngrok API error code if the status is error
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^NGROK_ERR_\d+$`
+	// TODO(hkatz) Define error codes and implement in the API
+	ErrorCode string `json:"errorCode,omitempty"`
+
+	// ErrorMessage is a free-form error message if the status is error
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxLength=4096
+	ErrorMessage string `json:"errorMessage,omitempty"`
+}
+
+// BindingEndpointStatus is an enum that represents the status of a BindingEndpoint
+// TODO(https://github.com/ngrok-private/ngrok/issues/32666)
+// +kubebuilder:validation:Enum=unknown;provisioning;bound;error
+type BindingEndpointStatus string
+
+const (
+	StatusUnknown      BindingEndpointStatus = "unknown"
+	StatusProvisioning BindingEndpointStatus = "provisioning"
+	StatusBound        BindingEndpointStatus = "bound"
+	StatusError        BindingEndpointStatus = "error"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

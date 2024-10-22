@@ -62,6 +62,10 @@ spec:
         - /api-manager
         args:
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
+        {{- if .Values.bindings.enabled }}
+        - --bindings-name={{ .Values.bindings.name }}
+        - --bindings-allowed-urls={{ join "," .Values.bindings.allowedURLs }}
+        {{- end }}
         {{- if .Values.description }}
         - --description={{ .Values.description | quote }}
         {{- end }}
@@ -112,6 +116,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: HELM_RELEASE_NAME
+          value: {{ .Release.Name | quote }}
         {{- range $key, $value := .Values.extraEnv }}
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}

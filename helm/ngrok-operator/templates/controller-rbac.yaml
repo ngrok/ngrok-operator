@@ -94,3 +94,39 @@ subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
+{{- if .Values.bindings.enabled }}
+---
+# Can manage secrets in the same namespace. Needed for TLS certificate for bindings
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-secret-manager-role
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-secret-manager-rolebinding
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ngrok-operator.fullname" . }}-secret-manager-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

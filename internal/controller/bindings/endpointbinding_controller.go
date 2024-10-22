@@ -59,11 +59,10 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		StatusID:  r.statusID,
-		Create:    r.create,
-		Update:    r.update,
-		Delete:    r.delete,
-		ErrResult: r.errResult,
+		StatusID: r.statusID,
+		Create:   r.create,
+		Update:   r.update,
+		Delete:   r.delete,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -108,8 +107,4 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
 	r.Recorder.Event(cr, v1.EventTypeWarning, "Deleted", "TODO Implement me")
 	return nil
-}
-
-func (r *EndpointBindingReconciler) errResult(op controller.BaseControllerOp, cr *bindingsv1alpha1.EndpointBinding, err error) (ctrl.Result, error) {
-	return ctrl.Result{}, err
 }
