@@ -40,6 +40,23 @@ import (
 	"github.com/go-logr/logr"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/util"
+)
+
+const (
+	LabelManagedBy                = "app.kubernetes.io/managed-by"
+	LabelEndpointBindingName      = "bindings.k8s.ngrok.com/endpoint-binding-name"
+	LabelEndpointBindingNamespace = "bindings.k8s.ngrok.com/endpoint-binding-namespace"
+	LabelEndpointURL              = "bindings.k8s.ngrok.com/endpoint-url"
+
+	EndpointBindingOwnerKey            = ".metadata.controller"
+	EndpointBindingTargetNamespacePath = "spec.target.namespace"
+)
+
+var (
+	commonEndpointBindingLabels = map[string]string{
+		LabelManagedBy: "ngrok-operator",
+	}
 )
 
 // PortRangeConfig is a configuration for a port range
@@ -90,12 +107,38 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		ErrResult: r.errResult,
 	}
 
-	// initialize
-	r.getEndpointBindingUIDForServiceUID = make(map[string]string)
+	// create field indexer for to mimic OwnerReferences. We are creating services in other namespaces,
+	// so we can't use OwnerReferences.
+	err := mgr.GetFieldIndexer().IndexField(context.Background(), &v1.Service{}, EndpointBindingOwnerKey, func(obj client.Object) []string {
+		service := obj.(*v1.Service)
+		svcLabels := service.GetLabels()
+		if svcLabels == nil {
+			return nil // skip, service has no labels
+		}
+
+		epbName := svcLabels[LabelEndpointBindingName]
+		epbNamespace := svcLabels[LabelEndpointBindingNamespace]
+		if epbName == "" || epbNamespace == "" {
+			return nil // skip, service is not part of an EndpointBinding
+		}
+
+		return []string{fmt.Sprintf("%s/%s", epbNamespace, epbName)}
+	})
+
+	if err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&bindingsv1alpha1.EndpointBinding{}).
-		Owns(&v1.Service{}).
+		Watches(
+			&v1.Service{},
+			handler.EnqueueRequestsFromMapFunc(r.findEndpointBindingsForService),
+		).
+		Watches(
+			&v1.Namespace{},
+			handler.EnqueueRequestsFromMapFunc(r.findEndpointBindingsForNamespace),
+		).
 		Complete(r)
 }
 
@@ -266,37 +309,31 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 		podForwarderSelector[parts[0]] = parts[1]
 	}
 
-	targetLabels := endpointBinding.Spec.Target.Metadata.Labels
+	thisBindingLabels := map[string]string{
+		LabelEndpointBindingName:      endpointBinding.Name,
+		LabelEndpointBindingNamespace: endpointBinding.Namespace,
+	}
+
+	// Target Labels in order of increasing precedence
+	// 1. common labels
+	// 2. User's labels
+	// 3. Our label selectors (endpoint-binding-name, endpoint-binding-namespace) to mimic OwnerReferences
+	targetLabels := util.MergeMaps(
+		commonEndpointBindingLabels,
+		endpointBinding.Spec.Target.Metadata.Labels,
+		thisBindingLabels,
+	)
+
 	targetAnnotations := endpointBinding.Spec.Target.Metadata.Annotations
-
-	finalLabels := map[string]string{
-		"app.kubernetes.io/managed-by": "ngrok-operator",
-	}
-
-	finalAnnotations := map[string]string{
-		"bindings.k8s.ngrok.io/points-to": endpointBinding.Name,
-	}
-
-	for k, v := range targetLabels {
-		finalLabels[k] = v
-	}
-
-	for k, v := range targetAnnotations {
-		finalAnnotations[k] = v
-	}
 
 	// targetService represents the user's configured endpoint binding as a Service
 	// Clients will send requests to this service: <scheme>://<service>.<namespace>:<port>
 	targetService := &v1.Service{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Service",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        endpointBinding.Spec.Target.Service,
 			Namespace:   endpointBinding.Spec.Target.Namespace,
-			Labels:      finalLabels,
-			Annotations: finalAnnotations,
+			Labels:      targetLabels,
+			Annotations: targetAnnotations,
 		},
 		Spec: v1.ServiceSpec{
 			Type:                  v1.ServiceTypeExternalName,
@@ -313,24 +350,20 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 		},
 	}
 
+	upstreamLabels := util.MergeMaps(commonEndpointBindingLabels, thisBindingLabels)
+	upstreamAnnotations := map[string]string{
+		// TODO(hkatz) Implement Metadata
+		LabelEndpointURL: endpointURL,
+	}
 	// upstreamService represents the Pod Forwarders as a Service
 	// Target Service will point to this Service via an ExternalName
 	// This Service will point to the Pod Forwarders' containers on a dedicated allocated port
 	upstreamService := &v1.Service{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Service",
-		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      endpointBinding.Name,
-			Namespace: endpointBinding.Namespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "ngrok-operator",
-			},
-			Annotations: map[string]string{
-				// TODO(hkatz) Implement Metadata
-				"bindings.k8s.ngrok.io/receives-from": endpointURL,
-			},
+			Name:        endpointBinding.Name,
+			Namespace:   endpointBinding.Namespace,
+			Labels:      upstreamLabels,
+			Annotations: upstreamAnnotations,
 		},
 		Spec: v1.ServiceSpec{
 			Type:                  v1.ServiceTypeClusterIP,
@@ -349,4 +382,75 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 	}
 
 	return targetService, upstreamService
+}
+
+func (r *EndpointBindingReconciler) findEndpointBindingsForNamespace(ctx context.Context, namespace client.Object) []reconcile.Request {
+	nsName := namespace.GetName()
+	log := r.Log.WithValues("namespace", nsName)
+
+	log.V(3).Info("Finding endpoint bindings for namespace")
+	endpointBindings := &bindingsv1alpha1.EndpointBindingList{}
+	listOpts := &client.ListOptions{
+		FieldSelector: fields.OneTermEqualSelector(EndpointBindingTargetNamespacePath, nsName),
+	}
+
+	err := r.Client.List(ctx, endpointBindings, listOpts)
+	if err != nil {
+		log.Error(err, "Failed to list endpoint bindings for namespace")
+		return []reconcile.Request{}
+	}
+
+	requests := make([]reconcile.Request, len(endpointBindings.Items))
+	for i, binding := range endpointBindings.Items {
+		requests[i] = reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: binding.Namespace,
+				Name:      binding.Name,
+			},
+		}
+		log.WithValues("endpoint-binding", map[string]string{
+			"namespace": binding.Namespace,
+			"name":      binding.Name,
+		}).V(3).Info("Namespace change detected, triggering reconciliation for endpoint binding")
+	}
+	return requests
+}
+
+func (r *EndpointBindingReconciler) findEndpointBindingsForService(ctx context.Context, svc client.Object) []reconcile.Request {
+	log := r.Log.WithValues("service.name", svc.GetName(), "service.namespace", svc.GetNamespace())
+	log.V(3).Info("Finding endpoint bindings for service")
+
+	svcLabels := svc.GetLabels()
+	if svcLabels == nil {
+		log.V(3).Info("Service has no labels")
+		return []reconcile.Request{}
+	}
+
+	epbName := svcLabels[LabelEndpointBindingName]
+	epbNamespace := svcLabels[LabelEndpointBindingNamespace]
+	if epbName == "" || epbNamespace == "" {
+		log.V(3).Info("Service is not part of an EndpointBinding")
+		return []reconcile.Request{}
+	}
+
+	epb := &bindingsv1alpha1.EndpointBinding{}
+	err := r.Client.Get(ctx, types.NamespacedName{Namespace: epbNamespace, Name: epbName}, epb)
+	if err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			log.V(3).Info("EndpointBinding not found")
+			return []reconcile.Request{}
+		}
+
+		log.Error(err, "Failed to get EndpointBinding")
+		return []reconcile.Request{}
+	}
+
+	return []reconcile.Request{
+		{
+			NamespacedName: types.NamespacedName{
+				Namespace: epb.Namespace,
+				Name:      epb.Name,
+			},
+		},
+	}
 }
