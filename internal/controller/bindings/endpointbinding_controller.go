@@ -185,32 +185,39 @@ func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1al
 }
 
 func (r *EndpointBindingReconciler) createTargetService(ctx context.Context, owner *bindingsv1alpha1.EndpointBinding, service *v1.Service) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if err := r.Client.Create(ctx, service); err != nil {
 		r.Recorder.Event(owner, v1.EventTypeWarning, "Created", "Failed to create Target Service")
-		r.Log.Error(err, "Failed to create Target Service")
+		log.Error(err, "Failed to create Target Service")
 		return err
 	}
+
 	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Target Service")
 	r.Recorder.Event(owner, v1.EventTypeNormal, "Created", "Created Target Service")
-	r.Log.Info("Created Upstream Service", "service", service.Name)
+	log.Info("Created Upstream Service", "service", service.Name)
 
 	return nil
 }
 
 func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, owner *bindingsv1alpha1.EndpointBinding, service *v1.Service) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if err := r.Client.Create(ctx, service); err != nil {
 		r.Recorder.Event(owner, v1.EventTypeWarning, "Created", "Failed to create Upstream Service")
-		r.Log.Error(err, "Failed to create Upstream Service")
+		log.Error(err, "Failed to create Upstream Service")
 		return err
 	}
 	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Upstream Service")
 	r.Recorder.Event(owner, v1.EventTypeNormal, "Created", "Created Upstream Service")
-	r.Log.Info("Created Upstream Service", "service", service.Name)
+	log.Info("Created Upstream Service", "service", service.Name)
 
 	return nil
 }
 
 func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	desiredTargetService, desiredUpstreamService := r.convertEndpointBindingToServices(cr)
 
 	var existingTargetService v1.Service
@@ -221,13 +228,13 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// Upstream Service doesn't exist, create it
-			r.Log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
+			log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
 			if err := r.createUpstreamService(ctx, cr, desiredUpstreamService); err != nil {
 				return err
 			}
 		} else {
 			// real error
-			r.Log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
 			return err
 		}
 	} else {
@@ -239,7 +246,7 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 
 		if err := r.Client.Update(ctx, &existingUpstreamService); err != nil {
 			r.Recorder.Event(&existingUpstreamService, v1.EventTypeWarning, "Updated", "Failed to update Upstream Service")
-			r.Log.Error(err, "Failed to update Upstream Service")
+			log.Error(err, "Failed to update Upstream Service")
 			return err
 		}
 		r.Recorder.Event(&existingUpstreamService, v1.EventTypeNormal, "Updated", "Updated Upstream Service")
@@ -250,13 +257,13 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// Target Service doesn't exist, create it
-			r.Log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
+			log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
 			if err := r.createTargetService(ctx, cr, desiredTargetService); err != nil {
 				return err
 			}
 		} else {
 			// real error
-			r.Log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
 			return err
 		}
 	} else {
@@ -268,7 +275,7 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 
 		if err := r.Client.Update(ctx, &existingTargetService); err != nil {
 			r.Recorder.Event(&existingTargetService, v1.EventTypeWarning, "Updated", "Failed to update Target Service")
-			r.Log.Error(err, "Failed to update Target Service")
+			log.Error(err, "Failed to update Target Service")
 			return err
 		}
 		r.Recorder.Event(&existingTargetService, v1.EventTypeNormal, "Updated", "Updated Target Service")
@@ -279,14 +286,15 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 }
 
 func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
+	log := ctrl.LoggerFrom(ctx)
 
+	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
 	if err := r.Client.Delete(ctx, targetService); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			return nil
 		} else {
 			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
-			r.Log.Error(err, "Failed to delete Target Service")
+			log.Error(err, "Failed to delete Target Service")
 			return err
 		}
 	}
@@ -296,7 +304,7 @@ func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1al
 			return nil
 		} else {
 			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
-			r.Log.Error(err, "Failed to delete Upstream Service")
+			log.Error(err, "Failed to delete Upstream Service")
 			return err
 		}
 	}
