@@ -26,8 +26,9 @@ package ngrok
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -332,8 +333,7 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 	}
 
 	// If the secret doesn't exist, create it with a new private key and a CSR
-	var privKey *rsa.PrivateKey
-	privKey, err = rsa.GenerateKey(rand.Reader, 4096)
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return
 	}
@@ -345,6 +345,11 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 		return
 	}
 
+	privateKeyBytes, err := x509.MarshalECPrivateKey(privKey)
+	if err != nil {
+		return
+	}
+
 	secret = &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ko.Spec.Binding.TlsSecretName,
@@ -352,7 +357,7 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 		},
 		Type: v1.SecretTypeTLS,
 		Data: map[string][]byte{
-			"tls.key": pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privKey)}),
+			"tls.key": pem.EncodeToMemory(&pem.Block{Type: "OPENSSH PRIVATE KEY", Bytes: privateKeyBytes}),
 			"tls.crt": {},
 			"tls.csr": csr,
 		},
@@ -426,12 +431,12 @@ func extractNamespaceUIDFromMetadata(metadata string) (string, error) {
 }
 
 // nolint:unused
-func generateCSR(privKey *rsa.PrivateKey) ([]byte, error) {
+func generateCSR(privKey *ecdsa.PrivateKey) ([]byte, error) {
 	subj := pkix.Name{}
 
 	template := x509.CertificateRequest{
 		Subject:            subj,
-		SignatureAlgorithm: x509.SHA256WithRSA,
+		SignatureAlgorithm: x509.ECDSAWithSHA512,
 	}
 
 	var buf bytes.Buffer
