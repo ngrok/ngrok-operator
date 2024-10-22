@@ -3,6 +3,7 @@ package bindings
 import (
 	"testing"
 
+	"github.com/go-logr/logr"
 	v6 "github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -12,7 +13,10 @@ import (
 
 func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 	t.Parallel()
-	assert := assert.New(t)
+
+	examplePoller := EndpointBindingPoller{
+		Log: logr.Discard(),
+	}
 
 	// some example EndpointBindings we can use for test cases
 	uriExample1 := "http://service1.namespace1:8080"
@@ -52,7 +56,7 @@ func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 			Name: "abcd1234-abcd-1234-abcd-1234abcd1234",
 		},
 		Spec: bindingsv1alpha1.EndpointBindingSpec{
-			EndpointURI: uriExample3, // example 3 on purpos, see Name
+			EndpointURI: uriExample3, // example 3 on purpose, see Name
 		},
 	}
 
@@ -128,17 +132,17 @@ func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 		{
 			name: "delete/create, rather than update",
 			existing: []bindingsv1alpha1.EndpointBinding{
-				epdExample3,
+				epdExample4,
 			},
 			desired: ngrokapi.AggregatedEndpoints{
-				uriExample3: epdExample4, // example4 on purpose
+				uriExample3: epdExample3, // example4 on purpose
 			},
 			wantCreate: []bindingsv1alpha1.EndpointBinding{
-				epdExample4,
+				epdExample3,
 			},
 			wantUpdate: []bindingsv1alpha1.EndpointBinding{},
 			wantDelete: []bindingsv1alpha1.EndpointBinding{
-				epdExample3,
+				epdExample4,
 			},
 		},
 	}
@@ -146,8 +150,9 @@ func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			assert := assert.New(t)
 
-			gotCreate, gotUpdate, gotDelete := filterEndpointBindingActions(test.existing, test.desired)
+			gotCreate, gotUpdate, gotDelete := examplePoller.filterEndpointBindingActions(test.existing, test.desired)
 
 			assert.Equal(test.wantCreate, gotCreate)
 			assert.Equal(test.wantUpdate, gotUpdate)
@@ -158,7 +163,6 @@ func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 
 func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 	t.Parallel()
-	assert := assert.New(t)
 
 	// some example EndpointBindings we can use for test cases
 	uriExample1 := "http://service1.namespace1:8080"
@@ -282,6 +286,7 @@ func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			assert := assert.New(t)
 
 			got := endpointBindingNeedsUpdate(test.existing, test.desired)
 			assert.Equal(test.want, got)

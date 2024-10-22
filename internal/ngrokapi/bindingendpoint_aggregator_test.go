@@ -11,7 +11,6 @@ import (
 
 func Test_parseHostport(t *testing.T) {
 	t.Parallel()
-	assert := assert.New(t)
 
 	tests := []struct {
 		name    string
@@ -35,6 +34,8 @@ func Test_parseHostport(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			assert := assert.New(t)
+
 			got, err := parseHostport(test.proto, test.url)
 			if test.wantErr {
 				assert.Error(err)
@@ -48,7 +49,6 @@ func Test_parseHostport(t *testing.T) {
 
 func Test_AggregateBindingEndpoints(t *testing.T) {
 	t.Parallel()
-	assert := assert.New(t)
 
 	tests := []struct {
 		name      string
@@ -174,6 +174,8 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			assert := assert.New(t)
+
 			got, err := AggregateBindingEndpoints(test.endpoints)
 			if test.wantErr {
 				assert.Error(err)

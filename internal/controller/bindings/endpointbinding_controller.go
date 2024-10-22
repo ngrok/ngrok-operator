@@ -204,6 +204,7 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 		r.Recorder.Event(&existingTargetService, v1.EventTypeNormal, "Updated", "Updated Target Service")
 	}
 
+	r.Recorder.Event(cr, v1.EventTypeNormal, "Updated", "Updated Services")
 	return nil
 }
 
