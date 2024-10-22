@@ -31,11 +31,15 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
@@ -123,6 +127,20 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 
 		return []string{fmt.Sprintf("%s/%s", epbNamespace, epbName)}
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// Index the EndpointBindings by their target namespace
+	err = mgr.GetFieldIndexer().IndexField(context.Background(), &bindingsv1alpha1.EndpointBinding{}, EndpointBindingTargetNamespacePath, func(obj client.Object) []string {
+		binding, ok := obj.(*bindingsv1alpha1.EndpointBinding)
+		if !ok || binding == nil {
+			return nil
+		}
+
+		return []string{binding.Spec.Target.Namespace}
 	})
 
 	if err != nil {
