@@ -41,7 +41,6 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	ngrokv1beta1 "github.com/ngrok/ngrok-operator/api/ngrok/v1beta1"
 	agentcontroller "github.com/ngrok/ngrok-operator/internal/controller/agent"
 	"github.com/ngrok/ngrok-operator/internal/healthcheck"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -60,7 +59,6 @@ func init() {
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(ngrokv1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

@@ -52,7 +52,6 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	ngrokv1beta1 "github.com/ngrok/ngrok-operator/api/ngrok/v1beta1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
@@ -76,7 +75,6 @@ func init() {
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(ngrokv1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -498,19 +496,6 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 	}); err != nil {
 		return err
 	}
-
-	// TLS Secret
-	// TODO(hkatz) enable this controller when we have a use case for it
-	// if err = (&bindingscontroller.TlsSecretReconciler{
-	// 	Client:    mgr.GetClient(),
-	// 	Scheme:    mgr.GetScheme(),
-	// 	Log:       ctrl.Log.WithName("controllers").WithName("TlsSecret"),
-	// 	Recorder:  mgr.GetEventRecorderFor("bindings-controller"),
-	// 	Namespace: opts.namespace,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	setupLog.Error(err, "unable to create controller", "controller", "TlsSecret")
-	// 	os.Exit(1)
-	// }
 
 	return nil
 }
