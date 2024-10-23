@@ -45,11 +45,17 @@ type TCPEdgeSpec struct {
 	// IPRestriction is an IPRestriction to apply to this edge
 	IPRestriction *EndpointIPPolicy `json:"ipRestriction,omitempty"`
 
-	// raw json policy string that was applied to the ngrok API
+	// DEPRECATED: use TrafficPolicy instead
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object
 	Policy json.RawMessage `json:"policy,omitempty"`
+
+	// TrafficPolicy is the raw json policy string that was applied to the ngrok API
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Type=object
+	TrafficPolicy json.RawMessage `json:"trafficPolicy,omitempty"`
 }
 
 // TCPEdgeStatus defines the observed state of TCPEdge
