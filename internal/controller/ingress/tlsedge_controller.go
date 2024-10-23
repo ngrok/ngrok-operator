@@ -119,6 +119,8 @@ func (r *TLSEdgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if err := r.reconcileDomains(ctx, edge); err != nil {
 		return err
 	}
@@ -138,7 +140,7 @@ func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TL
 	}
 
 	// No edge has been created for this edge, create one
-	r.Log.Info("Creating new TLSEdge", "namespace", edge.Namespace, "name", edge.Name)
+	log.Info("Creating new TLSEdge", "namespace", edge.Namespace, "name", edge.Name)
 	resp, err = r.NgrokClientset.TLSEdges().Create(ctx, &ngrok.TLSEdgeCreate{
 		Hostports:   edge.Spec.Hostports,
 		Description: edge.Spec.Description,
@@ -150,7 +152,7 @@ func (r *TLSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TL
 	if err != nil {
 		return err
 	}
-	r.Log.Info("Created new TLSEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
+	log.Info("Created new TLSEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
 
 	return r.updateEdge(ctx, edge, resp)
 }
@@ -440,16 +442,18 @@ func (r *TLSEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 }
 
 func (r *TLSEdgeReconciler) listTLSEdgesForIPPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
-	r.Log.Info("Listing TLSEdges for ip policy to determine if they need to be reconciled")
+	log := ctrl.LoggerFrom(ctx)
+
+	log.Info("Listing TLSEdges for ip policy to determine if they need to be reconciled")
 	policy, ok := obj.(*ingressv1alpha1.IPPolicy)
 	if !ok {
-		r.Log.Error(nil, "failed to convert object to IPPolicy", "object", obj)
+		log.Error(nil, "failed to convert object to IPPolicy", "object", obj)
 		return []reconcile.Request{}
 	}
 
 	edges := &ingressv1alpha1.TLSEdgeList{}
 	if err := r.Client.List(ctx, edges); err != nil {
-		r.Log.Error(err, "failed to list TLSEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
+		log.Error(err, "failed to list TLSEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
 		return []reconcile.Request{}
 	}
 
@@ -472,19 +476,21 @@ func (r *TLSEdgeReconciler) listTLSEdgesForIPPolicy(ctx context.Context, obj cli
 		}
 	}
 
-	r.Log.Info("IPPolicy change triggered TLSEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
+	log.Info("IPPolicy change triggered TLSEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
 	return recs
 }
 
 func (r *TLSEdgeReconciler) listTLSEdgesForDomain(ctx context.Context, obj client.Object) []reconcile.Request {
-	r.Log.Info("Listing TLSEdges for domain to determine if they need to be reconciled")
+	log := ctrl.LoggerFrom(ctx)
+
+	log.Info("Listing TLSEdges for domain to determine if they need to be reconciled")
 	domain, ok := obj.(*ingressv1alpha1.Domain)
 	if !ok {
-		r.Log.Error(nil, "failed to convert object to Domain", "object", obj)
+		log.Error(nil, "failed to convert object to Domain", "object", obj)
 		return []reconcile.Request{}
 	}
 
-	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain.Name, "namespace", domain.Namespace)
+	log = log.WithValues("domain", domain.Name, "namespace", domain.Namespace)
 
 	edges := &ingressv1alpha1.TLSEdgeList{}
 	if err := r.Client.List(ctx, edges); err != nil {
@@ -519,22 +525,24 @@ func (r *TLSEdgeReconciler) listTLSEdgesForDomain(ctx context.Context, obj clien
 }
 
 func (r *TLSEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TLSEdge, remoteEdge *ngrok.TLSEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	policy := edge.Spec.Policy
 	client := r.NgrokClientset.EdgeModules().TLS().RawPolicy()
 
 	// Early return if nothing to be done
 	if policy == nil {
 		if remoteEdge.Policy == nil {
-			r.Log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
+			log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
 
 			return nil
 		}
 
-		r.Log.Info("Deleting Policy module")
+		log.Info("Deleting Policy module")
 		return client.Delete(ctx, edge.Status.ID)
 	}
 
-	r.Log.Info("Updating Policy module")
+	log.Info("Updating Policy module")
 	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTLSPolicyReplace{
 		ID:     remoteEdge.ID,
 		Module: policy,

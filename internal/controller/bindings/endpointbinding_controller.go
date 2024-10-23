@@ -159,7 +159,7 @@ func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 }
 
 func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
+	targetService, upstreamService := r.convertEndpointBindingToServices(ctx, cr)
 
 	if err := r.createUpstreamService(ctx, cr, upstreamService); err != nil {
 		return err
@@ -208,7 +208,7 @@ func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, o
 func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	desiredTargetService, desiredUpstreamService := r.convertEndpointBindingToServices(cr)
+	desiredTargetService, desiredUpstreamService := r.convertEndpointBindingToServices(ctx, cr)
 
 	var existingTargetService v1.Service
 	var existingUpstreamService v1.Service
@@ -278,7 +278,7 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
+	targetService, upstreamService := r.convertEndpointBindingToServices(ctx, cr)
 	if err := r.Client.Delete(ctx, targetService); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			return nil
@@ -307,7 +307,9 @@ func (r *EndpointBindingReconciler) errResult(op controller.BaseControllerOp, cr
 }
 
 // convertEndpointBindingToServices converts an EndpointBinding into 2 Services: Target(ExternalName) and Upstream(Pod Forwarders)
-func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBinding *bindingsv1alpha1.EndpointBinding) (*v1.Service, *v1.Service) {
+func (r *EndpointBindingReconciler) convertEndpointBindingToServices(ctx context.Context, endpointBinding *bindingsv1alpha1.EndpointBinding) (*v1.Service, *v1.Service) {
+	log := ctrl.LoggerFrom(ctx)
+
 	// Send traffic to any Node in the cluster
 	internalTrafficPolicy := v1.ServiceInternalTrafficPolicyCluster
 
@@ -319,7 +321,7 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 		parts := strings.Split(label, "=")
 
 		if len(parts) != 2 {
-			r.Log.Error(fmt.Errorf("invalid Pod Forwarder label: %s", label), "invalid Pod Forwarder label")
+			log.Error(fmt.Errorf("invalid Pod Forwarder label: %s", label), "invalid Pod Forwarder label")
 		}
 
 		podForwarderSelector[parts[0]] = parts[1]
@@ -406,7 +408,7 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 
 func (r *EndpointBindingReconciler) findEndpointBindingsForNamespace(ctx context.Context, namespace client.Object) []reconcile.Request {
 	nsName := namespace.GetName()
-	log := r.Log.WithValues("namespace", nsName)
+	log := ctrl.LoggerFrom(ctx).WithValues("namespace", nsName)
 
 	log.V(3).Info("Finding endpoint bindings for namespace")
 	endpointBindings := &bindingsv1alpha1.EndpointBindingList{}
@@ -437,7 +439,7 @@ func (r *EndpointBindingReconciler) findEndpointBindingsForNamespace(ctx context
 }
 
 func (r *EndpointBindingReconciler) findEndpointBindingsForService(ctx context.Context, svc client.Object) []reconcile.Request {
-	log := r.Log.WithValues("service.name", svc.GetName(), "service.namespace", svc.GetNamespace())
+	log := ctrl.LoggerFrom(ctx).WithValues("service.name", svc.GetName(), "service.namespace", svc.GetNamespace())
 	log.V(3).Info("Finding endpoint bindings for service")
 
 	svcLabels := svc.GetLabels()

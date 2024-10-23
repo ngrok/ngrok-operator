@@ -1,6 +1,7 @@
 package bindings
 
 import (
+	"context"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -152,7 +153,7 @@ func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 			t.Parallel()
 			assert := assert.New(t)
 
-			gotCreate, gotUpdate, gotDelete := examplePoller.filterEndpointBindingActions(test.existing, test.desired)
+			gotCreate, gotUpdate, gotDelete := examplePoller.filterEndpointBindingActions(context.TODO(), test.existing, test.desired)
 
 			assert.Equal(test.wantCreate, gotCreate)
 			assert.Equal(test.wantUpdate, gotUpdate)

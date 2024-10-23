@@ -171,7 +171,7 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // being watched (in our case, service objects). If you tail the controller
 // logs and delete, update, edit service objects, you see the events come in.
 func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("service", req.NamespacedName)
+	log := ctrl.LoggerFrom(ctx).WithValues("service", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
 
 	svc := &corev1.Service{}
@@ -281,10 +281,12 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *ServiceReconciler) findServicesForModuleSet(ctx context.Context, moduleSet client.Object) []reconcile.Request {
+	log := ctrl.LoggerFrom(ctx)
+
 	moduleSetNamespace := moduleSet.GetNamespace()
 	moduleSetName := moduleSet.GetName()
 
-	r.Log.V(3).Info("Finding services for module set", "namespace", moduleSetNamespace, "name", moduleSetName)
+	log.V(3).Info("Finding services for module set", "namespace", moduleSetNamespace, "name", moduleSetName)
 	services := &corev1.ServiceList{}
 	listOpts := &client.ListOptions{
 		Namespace:     moduleSetNamespace,
@@ -292,7 +294,7 @@ func (r *ServiceReconciler) findServicesForModuleSet(ctx context.Context, module
 	}
 	err := r.Client.List(ctx, services, listOpts)
 	if err != nil {
-		r.Log.Error(err, "Failed to list services for module set")
+		log.Error(err, "Failed to list services for module set")
 		return []reconcile.Request{}
 	}
 
@@ -306,16 +308,18 @@ func (r *ServiceReconciler) findServicesForModuleSet(ctx context.Context, module
 				Name:      svcName,
 			},
 		}
-		r.Log.V(3).Info("Triggering reconciliation for service", "namespace", svcNamespace, "name", svcName)
+		log.V(3).Info("Triggering reconciliation for service", "namespace", svcNamespace, "name", svcName)
 	}
 	return requests
 }
 
 func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, policy client.Object) []reconcile.Request {
+	log := ctrl.LoggerFrom(ctx)
+
 	policyNamespace := policy.GetNamespace()
 	policyName := policy.GetName()
 
-	r.Log.V(3).Info("Finding services for traffic policy", "namespace", policyNamespace, "name", policyName)
+	log.V(3).Info("Finding services for traffic policy", "namespace", policyNamespace, "name", policyName)
 	services := &corev1.ServiceList{}
 	listOpts := &client.ListOptions{
 		Namespace:     policyNamespace,
@@ -323,7 +327,7 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 	}
 	err := r.Client.List(ctx, services, listOpts)
 	if err != nil {
-		r.Log.Error(err, "Failed to list services for traffic policy")
+		log.Error(err, "Failed to list services for traffic policy")
 		return []reconcile.Request{}
 	}
 
@@ -337,12 +341,14 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 				Name:      svcName,
 			},
 		}
-		r.Log.V(3).Info("Triggering reconciliation for service", "namespace", svcNamespace, "name", svcName)
+		log.V(3).Info("Triggering reconciliation for service", "namespace", svcNamespace, "name", svcName)
 	}
 	return requests
 }
 
 func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.Service) ([]client.Object, error) {
+	log := ctrl.LoggerFrom(ctx)
+
 	port := svc.Spec.Ports[0].Port
 	objects := make([]client.Object, 0)
 
@@ -371,13 +377,13 @@ func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.
 	// Get the modules from the service annotations
 	moduleSets, err := getNgrokModuleSetForService(ctx, r.Client, svc)
 	if err != nil {
-		r.Log.Error(err, "Failed to get module sets")
+		log.Error(err, "Failed to get module sets")
 		return objects, err
 	}
 
 	policy, err := getNgrokTrafficPolicyForService(ctx, r.Client, svc)
 	if err != nil {
-		r.Log.Error(err, "Failed to get traffic policy")
+		log.Error(err, "Failed to get traffic policy")
 		return objects, err
 	}
 

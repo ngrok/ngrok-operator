@@ -134,7 +134,8 @@ func (r *TCPEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.TC
 	if err != nil {
 		return err
 	}
-	r.Log.Info("Created new TCPEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
+
+	log.Info("Created new TCPEdge", "edge.ID", resp.ID, "name", edge.Name, "namespace", edge.Namespace)
 
 	return r.updateEdge(ctx, edge, resp)
 }
@@ -410,16 +411,18 @@ func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 }
 
 func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
-	r.Log.Info("Listing TCPEdges for ip policy to determine if they need to be reconciled")
+	log := ctrl.LoggerFrom(ctx)
+
+	log.Info("Listing TCPEdges for ip policy to determine if they need to be reconciled")
 	policy, ok := obj.(*ingressv1alpha1.IPPolicy)
 	if !ok {
-		r.Log.Error(nil, "failed to convert object to IPPolicy", "object", obj)
+		log.Error(nil, "failed to convert object to IPPolicy", "object", obj)
 		return []reconcile.Request{}
 	}
 
 	edges := &ingressv1alpha1.TCPEdgeList{}
 	if err := r.Client.List(ctx, edges); err != nil {
-		r.Log.Error(err, "failed to list TCPEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
+		log.Error(err, "failed to list TCPEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
 		return []reconcile.Request{}
 	}
 
@@ -442,27 +445,29 @@ func (r *TCPEdgeReconciler) listTCPEdgesForIPPolicy(ctx context.Context, obj cli
 		}
 	}
 
-	r.Log.Info("IPPolicy change triggered TCPEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
+	log.Info("IPPolicy change triggered TCPEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
 	return recs
 }
 
 func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	policy := edge.Spec.Policy
 	client := r.NgrokClientset.EdgeModules().TCP().RawPolicy()
 
 	// Early return if nothing to be done
 	if policy == nil {
 		if remoteEdge.Policy == nil {
-			r.Log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
+			log.Info("Module matches desired state, skipping update", "module", "Policy", "comparison", routeModuleComparisonBothNil)
 
 			return nil
 		}
 
-		r.Log.Info("Deleting Policy module")
+		log.Info("Deleting Policy module")
 		return client.Delete(ctx, edge.Status.ID)
 	}
 
-	r.Log.Info("Updating Policy module")
+	log.Info("Updating Policy module")
 	_, err := client.Replace(ctx, &ngrokapi.EdgeRawTCPPolicyReplace{
 		ID:     remoteEdge.ID,
 		Module: policy,

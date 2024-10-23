@@ -66,7 +66,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // being watched (in our case, ingress objects). If you tail the controller
 // logs and delete, update, edit ingress objects, you see the events come in.
 func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("ingress", req.NamespacedName)
+	log := ctrl.LoggerFrom(ctx).WithValues("ingress", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
 
 	ingress := &netv1.Ingress{}

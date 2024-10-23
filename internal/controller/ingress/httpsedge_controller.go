@@ -450,17 +450,19 @@ func (r *HTTPSEdgeReconciler) getMatchingRouteFromEdgeStatus(edge *ingressv1alph
 }
 
 //nolint:unused
-func (r *HTTPSEdgeReconciler) listHTTPSEdgesForIPPolicy(obj client.Object) []reconcile.Request {
-	r.Log.Info("Listing HTTPSEdges for ip policy to determine if they need to be reconciled")
+func (r *HTTPSEdgeReconciler) listHTTPSEdgesForIPPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
+	log := ctrl.LoggerFrom(ctx)
+
+	log.Info("Listing HTTPSEdges for ip policy to determine if they need to be reconciled")
 	policy, ok := obj.(*ingressv1alpha1.IPPolicy)
 	if !ok {
-		r.Log.Error(nil, "failed to convert object to IPPolicy", "object", obj)
+		log.Error(nil, "failed to convert object to IPPolicy", "object", obj)
 		return []reconcile.Request{}
 	}
 
 	edges := &ingressv1alpha1.HTTPSEdgeList{}
 	if err := r.Client.List(context.Background(), edges); err != nil {
-		r.Log.Error(err, "failed to list HTTPSEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
+		log.Error(err, "failed to list HTTPSEdges for ippolicy", "name", policy.Name, "namespace", policy.Namespace)
 		return []reconcile.Request{}
 	}
 
@@ -486,7 +488,7 @@ func (r *HTTPSEdgeReconciler) listHTTPSEdgesForIPPolicy(obj client.Object) []rec
 		}
 	}
 
-	r.Log.Info("IPPolicy change triggered HTTPSEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
+	log.Info("IPPolicy change triggered HTTPSEdge reconciliation", "count", len(recs), "policy", policy.Name, "namespace", policy.Namespace)
 	return recs
 }
 
