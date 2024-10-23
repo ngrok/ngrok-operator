@@ -68,6 +68,8 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 	log := self.Log.WithValues("resource", objFullName)
 	ctx = ctrl.LoggerInto(ctx, log)
 
+	log.V(1).Info("Reconciling Resource", "ID", self.StatusID(obj))
+
 	if IsUpsert(obj) {
 		if err := RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
 			return ctrl.Result{}, err

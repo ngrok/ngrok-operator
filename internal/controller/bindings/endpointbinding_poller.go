@@ -162,7 +162,8 @@ func (r *EndpointBindingPoller) reconcileEndpointBindingAction(ctx context.Conte
 				// process from list
 				for _, binding := range remainingBindings {
 					if err := action(ctx, binding); err != nil {
-						r.Log.Error(err, "Failed to reconcile EndpointBinding", "action", actionMsg, "name", binding.Name, "uri", binding.Spec.EndpointURI)
+						name := hashURI(binding.Spec.EndpointURI)
+						r.Log.Error(err, "Failed to reconcile EndpointBinding", "action", actionMsg, "name", name, "uri", binding.Spec.EndpointURI)
 						failedBindings = append(failedBindings, binding)
 					}
 				}
@@ -249,9 +250,22 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 
 	r.Log.Info("Creating new EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
 	if err := r.Create(ctx, toCreate); err != nil {
-		r.Log.Error(err, "Failed to create EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
-		r.Recorder.Event(toCreate, v1.EventTypeWarning, "Created", fmt.Sprintf("Failed to create EndpointBinding: %v", err))
-		return err
+		if client.IgnoreAlreadyExists(err) == nil {
+			r.Log.Info("EndpointBinding already existing, skipping create...", "name", name, "uri", toCreate.Spec.EndpointURI)
+
+			if toCreate.Status.HashedName != "" && len(toCreate.Status.Endpoints) > 0 {
+				// Status is filled, no need to update
+				return nil
+			} else {
+				// intentionally blonk
+				// we want to fall through and fill in the status
+				r.Log.Info("EndpointBinding already existing, but status is empty, filling in status...", "name", name, "uri", toCreate.Spec.EndpointURI, "toCreate", toCreate)
+			}
+		} else {
+			r.Log.Error(err, "Failed to create EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
+			r.Recorder.Event(toCreate, v1.EventTypeWarning, "Created", fmt.Sprintf("Failed to create EndpointBinding: %v", err))
+			return err
+		}
 	}
 
 	// now fill in the status into the returned resource
@@ -289,17 +303,17 @@ func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindi
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// EndpointBinding doesn't exist, create it on the next polling loop
-			r.Log.Info("Unable to find existing EndpointBinding, skipping update...", "name", desired.Name, "uri", desired.Spec.EndpointURI)
+			r.Log.Info("Unable to find existing EndpointBinding, skipping update...", "name", desiredName, "uri", desired.Spec.EndpointURI)
 			return nil // not an error
 		} else {
 			// real error
-			r.Log.Error(err, "Failed to find existing EndpointBinding", "name", desired.Name, "uri", desired.Spec.EndpointURI)
+			r.Log.Error(err, "Failed to find existing EndpointBinding", "name", desiredName, "uri", desired.Spec.EndpointURI)
 			return err
 		}
 	}
 
 	if !endpointBindingNeedsUpdate(existing, desired) {
-		r.Log.Info("EndpointBinding already matches existing state, skipping update...", "name", desired.Name, "uri", desired.Spec.EndpointURI)
+		r.Log.Info("EndpointBinding already matches existing state, skipping update...", "name", desiredName, "uri", desired.Spec.EndpointURI)
 		return nil
 	}
 

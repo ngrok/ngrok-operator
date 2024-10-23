@@ -83,14 +83,19 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
+		StatusID:  func(obj *bindingsv1alpha1.EndpointBinding) string { return obj.Name },
 		Create:    r.create,
 		Update:    r.update,
 		Delete:    r.delete,
 		ErrResult: r.errResult,
 	}
 
+	// initialize
+	r.getEndpointBindingUIDForServiceUID = make(map[string]string)
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&bindingsv1alpha1.EndpointBinding{}).
+		Owns(&v1.Service{}).
 		Complete(r)
 }
 
@@ -105,11 +110,11 @@ func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
 	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
 
-	if err := r.createUpstreamService(ctx, upstreamService); err != nil {
+	if err := r.createUpstreamService(ctx, cr, upstreamService); err != nil {
 		return err
 	}
 
-	if err := r.createTargetService(ctx, targetService); err != nil {
+	if err := r.createTargetService(ctx, cr, targetService); err != nil {
 		return err
 	}
 
@@ -118,24 +123,28 @@ func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1al
 	return nil
 }
 
-func (r *EndpointBindingReconciler) createTargetService(ctx context.Context, service *v1.Service) error {
+func (r *EndpointBindingReconciler) createTargetService(ctx context.Context, owner *bindingsv1alpha1.EndpointBinding, service *v1.Service) error {
 	if err := r.Client.Create(ctx, service); err != nil {
-		r.Recorder.Event(service, v1.EventTypeWarning, "Created", "Failed to create Target Service")
+		r.Recorder.Event(owner, v1.EventTypeWarning, "Created", "Failed to create Target Service")
 		r.Log.Error(err, "Failed to create Target Service")
 		return err
 	}
 	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Target Service")
+	r.Recorder.Event(owner, v1.EventTypeNormal, "Created", "Created Target Service")
+	r.Log.Info("Created Upstream Service", "service", service.Name)
 
 	return nil
 }
 
-func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, service *v1.Service) error {
+func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, owner *bindingsv1alpha1.EndpointBinding, service *v1.Service) error {
 	if err := r.Client.Create(ctx, service); err != nil {
-		r.Recorder.Event(service, v1.EventTypeWarning, "Created", "Failed to create Upstream Service")
+		r.Recorder.Event(owner, v1.EventTypeWarning, "Created", "Failed to create Upstream Service")
 		r.Log.Error(err, "Failed to create Upstream Service")
 		return err
 	}
 	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Upstream Service")
+	r.Recorder.Event(owner, v1.EventTypeNormal, "Created", "Created Upstream Service")
+	r.Log.Info("Created Upstream Service", "service", service.Name)
 
 	return nil
 }
@@ -152,7 +161,7 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 		if client.IgnoreNotFound(err) == nil {
 			// Upstream Service doesn't exist, create it
 			r.Log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
-			if err := r.createUpstreamService(ctx, desiredUpstreamService); err != nil {
+			if err := r.createUpstreamService(ctx, cr, desiredUpstreamService); err != nil {
 				return err
 			}
 		} else {
@@ -181,7 +190,7 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 		if client.IgnoreNotFound(err) == nil {
 			// Target Service doesn't exist, create it
 			r.Log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
-			if err := r.createTargetService(ctx, desiredTargetService); err != nil {
+			if err := r.createTargetService(ctx, cr, desiredTargetService); err != nil {
 				return err
 			}
 		} else {
@@ -212,15 +221,23 @@ func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1al
 	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
 
 	if err := r.Client.Delete(ctx, targetService); err != nil {
-		r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
-		r.Log.Error(err, "Failed to delete Target Service")
-		return err
+		if client.IgnoreNotFound(err) == nil {
+			return nil
+		} else {
+			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
+			r.Log.Error(err, "Failed to delete Target Service")
+			return err
+		}
 	}
 
 	if err := r.Client.Delete(ctx, upstreamService); err != nil {
-		r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
-		r.Log.Error(err, "Failed to delete Upstream Service")
-		return err
+		if client.IgnoreNotFound(err) == nil {
+			return nil
+		} else {
+			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
+			r.Log.Error(err, "Failed to delete Upstream Service")
+			return err
+		}
 	}
 
 	return nil
@@ -252,10 +269,16 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 	targetLabels := endpointBinding.Spec.Target.Metadata.Labels
 	targetAnnotations := endpointBinding.Spec.Target.Metadata.Annotations
 
-	finalLabels := targetLabels // no extra labels to integrate for now
+	finalLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ngrok-operator",
+	}
+
 	finalAnnotations := map[string]string{
-		"managed-by": "ngrok-operator", // TODO(hkatz) extra metadata?
-		"points-to":  endpointBinding.Name,
+		"bindings.k8s.ngrok.io/points-to": endpointBinding.Name,
+	}
+
+	for k, v := range targetLabels {
+		finalLabels[k] = v
 	}
 
 	for k, v := range targetAnnotations {
@@ -301,10 +324,12 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      endpointBinding.Name,
 			Namespace: endpointBinding.Namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "ngrok-operator",
+			},
 			Annotations: map[string]string{
 				// TODO(hkatz) Implement Metadata
-				"managed-by":    "ngrok-operator", // TODO(hkatz) extra metadata?
-				"receives-from": endpointURL,
+				"bindings.k8s.ngrok.io/receives-from": endpointURL,
 			},
 		},
 		Spec: v1.ServiceSpec{
