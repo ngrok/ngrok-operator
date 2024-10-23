@@ -479,8 +479,7 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 		Log:                ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
 		Recorder:           mgr.GetEventRecorderFor("bindings-controller"),
 		ClusterDomain:      opts.clusterDomain,
-		PodForwarderLabels: []string{},                                                 // TODO(hkatz) Implement me
-		PortRange:          bindingscontroller.PortRangeConfig{Min: 30000, Max: 32767}, // TODO(hkatz) Implement me
+		PodForwarderLabels: []string{}, // TODO(hkatz) Implement me
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
 		os.Exit(1)
@@ -494,6 +493,8 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 		Recorder:        mgr.GetEventRecorderFor("endpoint-binding-poller"),
 		Namespace:       opts.namespace,
 		PollingInterval: 5 * time.Minute,
+		// NOTE: This range must stay static for the current implementation.
+		PortRange: bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},
 	}); err != nil {
 		return err
 	}
