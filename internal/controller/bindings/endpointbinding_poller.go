@@ -19,6 +19,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// PortRangeConfig is a configuration for a port range
+// Note: PortRange is inclusive: `[Min, Max]`
+type PortRangeConfig struct {
+	// Start is the minimum port number
+	Min uint16
+
+	// Max is the maximum port number
+	Max uint16
+}
+
 // EndpointBindingPoller is a process to poll the ngrok API for binding_endpoints and reconcile the desired state with the cluster state of EndpointBindings
 type EndpointBindingPoller struct {
 	client.Client
@@ -31,6 +41,12 @@ type EndpointBindingPoller struct {
 
 	// PollingInterval is how often to poll the ngrok API for reconciling the BindingEndpoints
 	PollingInterval time.Duration
+
+	// PortRange is the allocatable port range for the Service definitions to Pod Forwarders
+	PortRange PortRangeConfig
+
+	// portAllocator manages the unique port allocations
+	portAllocator *portBitmap
 
 	// Channel to stop the API polling goroutine
 	stopCh chan struct{}
@@ -106,6 +122,20 @@ func (r *EndpointBindingPoller) reconcileEndpointBindingsFromAPI(ctx context.Con
 		return err
 	}
 	existingEndpointBindings := epbList.Items
+
+	// since we have the existing EndpointBindings and their Ports
+	// let's use this opportunity to refresh the port allocater's state
+	// NOTE: This range must stay static using this implementation.
+	currentPortAllocations := newPortBitmap(r.PortRange.Min, r.PortRange.Max)
+	for _, existingEndpointBinding := range existingEndpointBindings {
+		if err := currentPortAllocations.Set(existingEndpointBinding.Spec.Port); err != nil {
+			r.Log.Error(err, "Failed to refresh port allocation", "port", existingEndpointBinding.Spec.Port, "name", existingEndpointBinding.Name)
+			return err
+		}
+	}
+
+	// reassign port allocations
+	r.portAllocator = currentPortAllocations
 
 	toCreate, toUpdate, toDelete := r.filterEndpointBindingActions(existingEndpointBindings, desiredEndpointBindings)
 
@@ -221,10 +251,16 @@ func (r *EndpointBindingPoller) filterEndpointBindingActions(existingEndpointBin
 	return toCreate, toUpdate, toDelete
 }
 
-// TODO: Port
 // TODO: Metadata
 func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindingsv1alpha1.EndpointBinding) error {
 	name := hashURI(desired.Spec.EndpointURI)
+
+	// allocate a port
+	port, err := r.portAllocator.SetAny()
+	if err != nil {
+		r.Log.Error(err, "Failed to allocate port for EndpointBinding", "name", name, "uri", desired.Spec.EndpointURI)
+		return err
+	}
 
 	toCreate := &bindingsv1alpha1.EndpointBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -238,7 +274,7 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 		Spec: bindingsv1alpha1.EndpointBindingSpec{
 			EndpointURI: desired.Spec.EndpointURI,
 			Scheme:      desired.Spec.Scheme,
-			Port:        1111,
+			Port:        port,
 			Target: bindingsv1alpha1.EndpointTarget{
 				Protocol:  desired.Spec.Target.Protocol,
 				Namespace: desired.Spec.Target.Namespace,
@@ -251,7 +287,7 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 	r.Log.Info("Creating new EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
 	if err := r.Create(ctx, toCreate); err != nil {
 		if client.IgnoreAlreadyExists(err) == nil {
-			r.Log.Info("EndpointBinding already existing, skipping create...", "name", name, "uri", toCreate.Spec.EndpointURI)
+			r.Log.Info("EndpointBinding already exists, skipping create...", "name", name, "uri", toCreate.Spec.EndpointURI)
 
 			if toCreate.Status.HashedName != "" && len(toCreate.Status.Endpoints) > 0 {
 				// Status is filled, no need to update
@@ -259,7 +295,13 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 			} else {
 				// intentionally blonk
 				// we want to fall through and fill in the status
-				r.Log.Info("EndpointBinding already existing, but status is empty, filling in status...", "name", name, "uri", toCreate.Spec.EndpointURI, "toCreate", toCreate)
+				r.Log.Info("EndpointBinding already exists, but status is empty, filling in status...", "name", name, "uri", toCreate.Spec.EndpointURI, "toCreate", toCreate)
+
+				// refresh the toCreate object with existing data
+				if err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: name}, toCreate); err != nil {
+					r.Log.Error(err, "Failed to get existing EndpointBinding, skipping status update...", "name", name, "uri", toCreate.Spec.EndpointURI)
+					return nil
+				}
 			}
 		} else {
 			r.Log.Error(err, "Failed to create EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
@@ -320,6 +362,7 @@ func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindi
 	// found existing endpoint
 	// now let's merge them together
 	toUpdate := &existing
+	toUpdate.Spec.Port = existing.Spec.Port // keep the same port
 	toUpdate.Spec.Scheme = desired.Spec.Scheme
 	toUpdate.Spec.Target = desired.Spec.Target
 	toUpdate.Spec.EndpointURI = desired.Spec.EndpointURI
@@ -364,6 +407,9 @@ func (r *EndpointBindingPoller) deleteBinding(ctx context.Context, endpointBindi
 		return err
 	} else {
 		r.Log.Info("Deleted EndpointBinding", "name", endpointBinding.Name, "uri", endpointBinding.Spec.EndpointURI)
+
+		// unset the port allocation
+		r.portAllocator.Unset(endpointBinding.Spec.Port)
 	}
 
 	return nil

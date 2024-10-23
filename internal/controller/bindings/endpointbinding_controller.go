@@ -67,16 +67,6 @@ var (
 	}
 )
 
-// PortRangeConfig is a configuration for a port range
-// Note: PortRange is inclusive: `[Min, Max]`
-type PortRangeConfig struct {
-	// Min is the minimum port number
-	Min int32
-
-	// Max is the maximum port number
-	Max int32
-}
-
 // EndpointBindingReconciler reconciles a EndpointBinding object
 type EndpointBindingReconciler struct {
 	client.Client
@@ -91,10 +81,6 @@ type EndpointBindingReconciler struct {
 
 	// PodForwarderLabels are the set of labels for the Pod Forwarders
 	PodForwarderLabels []string
-
-	// PortRange is the allocatable port range for the Service definitions to Pod Forwarders
-	// TODO(hkatz): Implement Me
-	PortRange PortRangeConfig
 }
 
 // +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=endpointbindings,verbs=get;list;watch;create;update;patch;delete
@@ -374,7 +360,9 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 				{
 					Name:     endpointBinding.Spec.Scheme,
 					Protocol: v1.Protocol(endpointBinding.Spec.Target.Protocol),
-					Port:     endpointBinding.Spec.Target.Port,
+					// Both Port and TargetPort for the Target Service should match the expected Target.Port on the EndpointBinding
+					Port:       endpointBinding.Spec.Target.Port,
+					TargetPort: intstr.FromInt(int(endpointBinding.Spec.Target.Port)),
 				},
 			},
 		},
@@ -402,10 +390,12 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 			Selector:              podForwarderSelector,
 			Ports: []v1.ServicePort{
 				{
-					Name:       endpointBinding.Spec.Scheme,
-					Protocol:   v1.Protocol(endpointBinding.Spec.Target.Protocol),
-					Port:       endpointBinding.Spec.Target.Port,
-					TargetPort: intstr.FromInt(1111), // TODO(hkatz) Implement Port Allocation
+					Name:     endpointBinding.Spec.Scheme,
+					Protocol: v1.Protocol(endpointBinding.Spec.Target.Protocol),
+					// ExternalName Target Service's port will need to point to the same port on the Upstream Service
+					Port: endpointBinding.Spec.Target.Port,
+					// TargetPort is the port within the pod forwarders' containers that is pre-allocated for this EndpointBinding
+					TargetPort: intstr.FromInt(int(endpointBinding.Spec.Port)),
 				},
 			},
 		},

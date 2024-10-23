@@ -3,6 +3,7 @@ module github.com/ngrok/ngrok-operator
 go 1.22
 
 require (
+	github.com/docker/docker v27.3.1+incompatible
 	github.com/go-logr/logr v1.4.1
 	github.com/golang/mock v1.4.4
 	github.com/google/uuid v1.3.1

@@ -50,9 +50,9 @@ type EndpointBindingSpec struct {
 	// +kubebuilder:validation:Enum=tcp;http;https;tls
 	Scheme string `json:"scheme"`
 
-	// Port is the Service port this Endpoint uses internally to communicate with its pod forwarders
+	// Port is the Service port this Endpoint uses internally to communicate with its Upstream Service
 	// +kubebuilder:validation:Required
-	Port int32 `json:"port"`
+	Port uint16 `json:"port"`
 
 	// EndpointTarget is the target Service that this Endpoint projects
 	// +kubebuilder:validation:Required
@@ -92,7 +92,7 @@ type EndpointTarget struct {
 	// +kubebuilder:validation:Enum=TCP
 	Protocol string `json:"protocol"`
 
-	// Port is the Service targetPort this Endpoint uses for the Pod Forwarders
+	// Port is the Service targetPort this Endpoint's Target Service uses for requests
 	// +kubebuilder:validation:Required
 	Port int32 `json:"port"`
 

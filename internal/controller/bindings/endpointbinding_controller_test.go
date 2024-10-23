@@ -44,10 +44,6 @@ func Test_convertEndpointBindingToServices(t *testing.T) {
 
 	controller := &EndpointBindingReconciler{
 		ClusterDomain: "svc.cluster.local",
-		PortRange: PortRangeConfig{
-			Min: 1000,
-			Max: 65535,
-		},
 	}
 
 	endpointBinding := &bindingsv1alpha1.EndpointBinding{

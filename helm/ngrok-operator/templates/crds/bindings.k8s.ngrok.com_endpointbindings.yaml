@@ -58,8 +58,7 @@ spec:
                 type: string
               port:
                 description: Port is the Service port this Endpoint uses internally
-                  to communicate with its pod forwarders
-                format: int32
+                  to communicate with its Upstream Service
                 type: integer
               scheme:
                 default: https
@@ -104,8 +103,8 @@ spec:
                       this Endpoint projects
                     type: string
                   port:
-                    description: Port is the Service targetPort this Endpoint uses
-                      for the Pod Forwarders
+                    description: Port is the Service targetPort this Endpoint's Target
+                      Service uses for requests
                     format: int32
                     type: integer
                   protocol:
