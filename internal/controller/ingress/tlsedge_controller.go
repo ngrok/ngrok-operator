@@ -40,7 +40,6 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
@@ -94,11 +93,11 @@ func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&ingressv1alpha1.TLSEdge{}).
 		Watches(
 			&ingressv1alpha1.IPPolicy{},
-			handler.EnqueueRequestsFromMapFunc(r.listTLSEdgesForIPPolicy),
+			r.controller.NewEnqueueRequestForMapFunc(r.listTLSEdgesForIPPolicy),
 		).
 		Watches(
 			&ingressv1alpha1.Domain{},
-			handler.EnqueueRequestsFromMapFunc(r.listTLSEdgesForDomain),
+			r.controller.NewEnqueueRequestForMapFunc(r.listTLSEdgesForDomain),
 		)
 
 	return controller.Complete(r)

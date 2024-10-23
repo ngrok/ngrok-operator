@@ -281,7 +281,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *ServiceReconciler) findServicesForModuleSet(ctx context.Context, moduleSet client.Object) []reconcile.Request {
-	log := ctrl.LoggerFrom(ctx)
+	log := r.Log
 
 	moduleSetNamespace := moduleSet.GetNamespace()
 	moduleSetName := moduleSet.GetName()
@@ -314,7 +314,7 @@ func (r *ServiceReconciler) findServicesForModuleSet(ctx context.Context, module
 }
 
 func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, policy client.Object) []reconcile.Request {
-	log := ctrl.LoggerFrom(ctx)
+	log := r.Log
 
 	policyNamespace := policy.GetNamespace()
 	policyName := policy.GetName()

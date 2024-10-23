@@ -38,7 +38,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
@@ -141,11 +140,11 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&bindingsv1alpha1.EndpointBinding{}).
 		Watches(
 			&v1.Service{},
-			handler.EnqueueRequestsFromMapFunc(r.findEndpointBindingsForService),
+			r.controller.NewEnqueueRequestForMapFunc(r.findEndpointBindingsForService),
 		).
 		Watches(
 			&v1.Namespace{},
-			handler.EnqueueRequestsFromMapFunc(r.findEndpointBindingsForNamespace),
+			r.controller.NewEnqueueRequestForMapFunc(r.findEndpointBindingsForNamespace),
 		).
 		Complete(r)
 }

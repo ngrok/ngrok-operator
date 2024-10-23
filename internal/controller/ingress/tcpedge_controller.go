@@ -39,7 +39,6 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
@@ -83,7 +82,7 @@ func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&ingressv1alpha1.TCPEdge{}).
 		Watches(
 			&ingressv1alpha1.IPPolicy{},
-			handler.EnqueueRequestsFromMapFunc(r.listTCPEdgesForIPPolicy),
+			r.controller.NewEnqueueRequestForMapFunc(r.listTCPEdgesForIPPolicy),
 		).
 		Complete(r)
 }
