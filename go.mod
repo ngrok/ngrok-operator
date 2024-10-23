@@ -5,6 +5,7 @@ go 1.22
 require (
 	github.com/go-logr/logr v1.4.1
 	github.com/golang/mock v1.4.4
+	github.com/google/uuid v1.3.1
 	github.com/imdario/mergo v0.3.16
 	github.com/ngrok/ngrok-api-go/v5 v5.4.1
 	github.com/ngrok/ngrok-api-go/v6 v6.0.1-0.20241015200239-7c32f2a7d4d9
@@ -54,7 +55,6 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/google/uuid v1.3.1 // indirect
 	github.com/inconshreveable/log15 v3.0.0-testing.5+incompatible // indirect
 	github.com/inconshreveable/log15/v3 v3.0.0-testing.5 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

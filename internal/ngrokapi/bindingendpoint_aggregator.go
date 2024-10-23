@@ -55,7 +55,6 @@ func AggregateBindingEndpoints(endpoints []v6.Endpoint) (AggregatedEndpoints, er
 					},
 				},
 				Status: bindingsv1alpha1.EndpointBindingStatus{
-					// empty list of endpoints (to be filled in by this loop)
 					Endpoints: []bindingsv1alpha1.BindingEndpoint{},
 				},
 			}

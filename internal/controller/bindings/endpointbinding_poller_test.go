@@ -3,6 +3,7 @@ package bindings
 import (
 	"testing"
 
+	"github.com/go-logr/logr"
 	v6 "github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -12,7 +13,10 @@ import (
 
 func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 	t.Parallel()
-	assert := assert.New(t)
+
+	examplePoller := EndpointBindingPoller{
+		Log: logr.Discard(),
+	}
 
 	// some example EndpointBindings we can use for test cases
 	uriExample1 := "http://service1.namespace1:8080"
@@ -42,6 +46,17 @@ func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 		},
 		Spec: bindingsv1alpha1.EndpointBindingSpec{
 			EndpointURI: uriExample3,
+		},
+	}
+
+	epdExample4 := bindingsv1alpha1.EndpointBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			// Name does not match example3 on puprose
+			// to test if re-names trigger delete/create rather than update
+			Name: "abcd1234-abcd-1234-abcd-1234abcd1234",
+		},
+		Spec: bindingsv1alpha1.EndpointBindingSpec{
+			EndpointURI: uriExample3, // example 3 on purpose, see Name
 		},
 	}
 
@@ -114,13 +129,30 @@ func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 				epdExample2,
 			},
 		},
+		{
+			name: "delete/create, rather than update",
+			existing: []bindingsv1alpha1.EndpointBinding{
+				epdExample4,
+			},
+			desired: ngrokapi.AggregatedEndpoints{
+				uriExample3: epdExample3, // example4 on purpose
+			},
+			wantCreate: []bindingsv1alpha1.EndpointBinding{
+				epdExample3,
+			},
+			wantUpdate: []bindingsv1alpha1.EndpointBinding{},
+			wantDelete: []bindingsv1alpha1.EndpointBinding{
+				epdExample4,
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			assert := assert.New(t)
 
-			gotCreate, gotUpdate, gotDelete := filterEndpointBindingActions(test.existing, test.desired)
+			gotCreate, gotUpdate, gotDelete := examplePoller.filterEndpointBindingActions(test.existing, test.desired)
 
 			assert.Equal(test.wantCreate, gotCreate)
 			assert.Equal(test.wantUpdate, gotUpdate)
@@ -131,7 +163,6 @@ func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 
 func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 	t.Parallel()
-	assert := assert.New(t)
 
 	// some example EndpointBindings we can use for test cases
 	uriExample1 := "http://service1.namespace1:8080"
@@ -255,9 +286,25 @@ func Test_EndpointBindingPoller_endpointBindingNeedsUpdate(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			assert := assert.New(t)
 
 			got := endpointBindingNeedsUpdate(test.existing, test.desired)
 			assert.Equal(test.want, got)
 		})
+	}
+}
+
+func Test_EndpointBindingPoller_hashURI(t *testing.T) {
+	assert := assert.New(t)
+
+	endpointURI := "http://service.namespace:8080"
+
+	// hash must be consistent
+	for i := 0; i < 100; i++ {
+		hashed := hashURI(endpointURI)
+
+		// ensure hashed name meets k8s DNS naming requirements
+		assert.True(len(hashed) <= 63)
+		assert.Regexp("^[a-z]([-a-z0-9]*[a-z0-9])?$", hashed)
 	}
 }

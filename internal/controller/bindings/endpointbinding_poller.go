@@ -2,16 +2,17 @@ package bindings
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/google/uuid"
 	v6 "github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"golang.org/x/sync/errgroup"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -33,6 +34,10 @@ type EndpointBindingPoller struct {
 
 	// Channel to stop the API polling goroutine
 	stopCh chan struct{}
+
+	// reconcilingCancel is the active context's cancel function that is managing the reconciling goroutines
+	// this context should be canceled and recreated during each reconcile loop
+	reconcilingCancel context.CancelFunc
 }
 
 // Start implements the manager.Runnable interface.
@@ -73,7 +78,11 @@ func (r *EndpointBindingPoller) startPollingAPI(ctx context.Context) {
 // reconcileEndpointBindingsFromAPI fetches the desired binding_endpoints for this kubernetes operator binding
 // then creates, updates, or deletes the EndpointBindings in-cluster
 func (r *EndpointBindingPoller) reconcileEndpointBindingsFromAPI(ctx context.Context) error {
-	// Fetch the mock endpoint data from the API.
+	if r.reconcilingCancel != nil {
+		r.reconcilingCancel() // cancel the previous reconcile loop
+	}
+
+	// Fetch the mock endpoint data from the API
 	resp, err := fetchEndpoints()
 	if err != nil {
 		return err
@@ -98,49 +107,104 @@ func (r *EndpointBindingPoller) reconcileEndpointBindingsFromAPI(ctx context.Con
 	}
 	existingEndpointBindings := epbList.Items
 
-	toCreate, toUpdate, toDelete := filterEndpointBindingActions(existingEndpointBindings, desiredEndpointBindings)
+	toCreate, toUpdate, toDelete := r.filterEndpointBindingActions(existingEndpointBindings, desiredEndpointBindings)
 
-	for _, binding := range toCreate {
-		if err := r.createBinding(ctx, binding); err != nil {
-			r.Log.Error(err, "Failed to create EndpointBinding", "name", binding.Name, "uri", binding.Spec.EndpointURI)
-			// continue on purpose
-		}
-	}
+	// create context + errgroup for managing/closing the future goroutine in the reconcile actions loops
+	errGroup, ctx := errgroup.WithContext(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	r.reconcilingCancel = cancel
 
-	for _, binding := range toUpdate {
-		if err := r.updateBinding(ctx, binding); err != nil {
-			r.Log.Error(err, "Failed to update EndpointBinding", "name", binding.Name, "uri", binding.Spec.EndpointURI)
-			// continue on purpose
-		}
-	}
+	// launch goroutines to reconcile the EndpointBindings' actions in the background until the next polling loop
 
-	for _, binding := range toDelete {
-		// best effort
-		r.deleteBinding(ctx, binding)
-	}
+	r.reconcileEndpointBindingAction(ctx, errGroup, toCreate, "create", func(ctx context.Context, binding bindingsv1alpha1.EndpointBinding) error {
+		return r.createBinding(ctx, binding)
+	})
+
+	r.reconcileEndpointBindingAction(ctx, errGroup, toUpdate, "update", func(ctx context.Context, binding bindingsv1alpha1.EndpointBinding) error {
+		return r.updateBinding(ctx, binding)
+	})
+
+	r.reconcileEndpointBindingAction(ctx, errGroup, toDelete, "delete", func(ctx context.Context, binding bindingsv1alpha1.EndpointBinding) error {
+		return r.deleteBinding(ctx, binding)
+	})
 
 	return nil
+}
+
+// endpointBindingActionFn reprents an action to take on an EndpointBinding during reconciliation
+type endpointBindingActionFn func(context.Context, bindingsv1alpha1.EndpointBinding) error
+
+// reconcileEndpointBindingAction runs a goroutine to try and process a list of EndpointBindings
+// for their desired action over and over again until stopChan is closed or receives a value
+func (r *EndpointBindingPoller) reconcileEndpointBindingAction(ctx context.Context, errGroup *errgroup.Group, endpointBindings []bindingsv1alpha1.EndpointBinding, actionMsg string, action endpointBindingActionFn) {
+	errGroup.Go(func() error {
+		// attempt reconciliation actions every so often
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		// remainingBindings is the list of EndpointBindings that still need to be actioned upon
+		remainingBindings := endpointBindings
+
+		for {
+			select {
+			// stop go routine and return, there is a new reconcile poll happening actively
+			case <-ctx.Done():
+				r.Log.Error(ctx.Err(), "Reconcile context canceled, stopping EndpointBinding reconcile loop early", "action", actionMsg)
+				return nil
+			case <-ticker.C:
+				r.Log.V(9).Info("Received tick", "action", actionMsg, "remaining", remainingBindings)
+				if len(remainingBindings) == 0 {
+					return nil // all bindings have been processed
+				}
+
+				failedBindings := []bindingsv1alpha1.EndpointBinding{}
+
+				// process from list
+				for _, binding := range remainingBindings {
+					if err := action(ctx, binding); err != nil {
+						name := hashURI(binding.Spec.EndpointURI)
+						r.Log.Error(err, "Failed to reconcile EndpointBinding", "action", actionMsg, "name", name, "uri", binding.Spec.EndpointURI)
+						failedBindings = append(failedBindings, binding)
+					}
+				}
+
+				// update the remaining list with the failed bindings
+				remainingBindings = failedBindings
+			}
+		}
+	})
 }
 
 // filterEndpointBindingActions takse 2 sets of existing and desired EndpointBindings
 // and returns 3 lists: toCreate, toUpdate, toDelete
 // representing the actions needed to reconcile the existing set with the desired set
-func filterEndpointBindingActions(existingEndpointBindings []bindingsv1alpha1.EndpointBinding, desiredEndpoints ngrokapi.AggregatedEndpoints) (toCreate []bindingsv1alpha1.EndpointBinding, toUpdate []bindingsv1alpha1.EndpointBinding, toDelete []bindingsv1alpha1.EndpointBinding) {
+func (r *EndpointBindingPoller) filterEndpointBindingActions(existingEndpointBindings []bindingsv1alpha1.EndpointBinding, desiredEndpoints ngrokapi.AggregatedEndpoints) (toCreate []bindingsv1alpha1.EndpointBinding, toUpdate []bindingsv1alpha1.EndpointBinding, toDelete []bindingsv1alpha1.EndpointBinding) {
 	toCreate = []bindingsv1alpha1.EndpointBinding{}
 	toUpdate = []bindingsv1alpha1.EndpointBinding{}
 	toDelete = []bindingsv1alpha1.EndpointBinding{}
 
-	for _, endpointBinding := range existingEndpointBindings {
-		uri := endpointBinding.Spec.EndpointURI
+	r.Log.V(9).Info("Filtering EndpointBindings", "existing", existingEndpointBindings, "desired", desiredEndpoints)
+
+	for _, existingEndpointBinding := range existingEndpointBindings {
+		uri := existingEndpointBinding.Spec.EndpointURI
 
 		if desiredEndpointBinding, ok := desiredEndpoints[uri]; ok {
-			// existing endpoint is in our desired set
-			// update this EndpointBinding
-			toUpdate = append(toUpdate, desiredEndpointBinding)
+			expectedName := hashURI(desiredEndpointBinding.Spec.EndpointURI)
+
+			// if the names match, then they are the same resource and we can update it
+			if existingEndpointBinding.Name == expectedName {
+				// existing endpoint is in our desired set
+				// update this EndpointBinding
+				toUpdate = append(toUpdate, desiredEndpointBinding)
+			} else {
+				// otherwise, we need a delete + create, rather than an update
+				toDelete = append(toDelete, existingEndpointBinding)
+				toCreate = append(toCreate, desiredEndpointBinding)
+			}
 		} else {
 			// existing endpoint is not in our desired set
 			// delete this EndpointBinding
-			toDelete = append(toDelete, endpointBinding)
+			toDelete = append(toDelete, existingEndpointBinding)
 		}
 
 		// remove the desired endpoint from the set
@@ -186,9 +250,22 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 
 	r.Log.Info("Creating new EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
 	if err := r.Create(ctx, toCreate); err != nil {
-		r.Log.Error(err, "Failed to create EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
-		r.Recorder.Event(toCreate, "Warning", "Created", fmt.Sprintf("Failed to create EndpointBinding: %v", err))
-		return err
+		if client.IgnoreAlreadyExists(err) == nil {
+			r.Log.Info("EndpointBinding already existing, skipping create...", "name", name, "uri", toCreate.Spec.EndpointURI)
+
+			if toCreate.Status.HashedName != "" && len(toCreate.Status.Endpoints) > 0 {
+				// Status is filled, no need to update
+				return nil
+			} else {
+				// intentionally blonk
+				// we want to fall through and fill in the status
+				r.Log.Info("EndpointBinding already existing, but status is empty, filling in status...", "name", name, "uri", toCreate.Spec.EndpointURI, "toCreate", toCreate)
+			}
+		} else {
+			r.Log.Error(err, "Failed to create EndpointBinding", "name", name, "uri", toCreate.Spec.EndpointURI)
+			r.Recorder.Event(toCreate, v1.EventTypeWarning, "Created", fmt.Sprintf("Failed to create EndpointBinding: %v", err))
+			return err
+		}
 	}
 
 	// now fill in the status into the returned resource
@@ -210,11 +287,11 @@ func (r *EndpointBindingPoller) createBinding(ctx context.Context, desired bindi
 
 	toCreate.Status = toCreateStatus
 
-	if err := r.updateBindingStatus(ctx, *toCreate); err != nil {
+	if err := r.updateBindingStatus(ctx, toCreate); err != nil {
 		return err
 	}
 
-	r.Recorder.Event(toCreate, "Normal", "Created", "EndpointBinding created successfully")
+	r.Recorder.Event(toCreate, v1.EventTypeNormal, "Created", "EndpointBinding created successfully")
 	return nil
 }
 
@@ -226,17 +303,17 @@ func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindi
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// EndpointBinding doesn't exist, create it on the next polling loop
-			r.Log.Info("Unable to find existing EndpointBinding, skipping update...", "name", desired.Name, "uri", desired.Spec.EndpointURI)
+			r.Log.Info("Unable to find existing EndpointBinding, skipping update...", "name", desiredName, "uri", desired.Spec.EndpointURI)
 			return nil // not an error
 		} else {
 			// real error
-			r.Log.Error(err, "Failed to find existing EndpointBinding", "name", desired.Name, "uri", desired.Spec.EndpointURI)
+			r.Log.Error(err, "Failed to find existing EndpointBinding", "name", desiredName, "uri", desired.Spec.EndpointURI)
 			return err
 		}
 	}
 
 	if !endpointBindingNeedsUpdate(existing, desired) {
-		r.Log.Info("EndpointBinding already matches existing state, skipping update...", "name", desired.Name, "uri", desired.Spec.EndpointURI)
+		r.Log.Info("EndpointBinding already matches existing state, skipping update...", "name", desiredName, "uri", desired.Spec.EndpointURI)
 		return nil
 	}
 
@@ -250,7 +327,7 @@ func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindi
 	r.Log.Info("Updating EndpointBinding", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
 	if err := r.Update(ctx, toUpdate); err != nil {
 		r.Log.Error(err, "Failed updating EndpointBinding", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
-		r.Recorder.Event(toUpdate, "Warning", "Updated", fmt.Sprintf("Failed to update EndpointBinding: %v", err))
+		r.Recorder.Event(toUpdate, v1.EventTypeWarning, "Updated", fmt.Sprintf("Failed to update EndpointBinding: %v", err))
 		return err
 	}
 
@@ -273,24 +350,27 @@ func (r *EndpointBindingPoller) updateBinding(ctx context.Context, desired bindi
 
 	toUpdate.Status = toUpdateStatus
 
-	if err := r.updateBindingStatus(ctx, *toUpdate); err != nil {
+	if err := r.updateBindingStatus(ctx, toUpdate); err != nil {
 		return err
 	}
 
-	r.Recorder.Event(toUpdate, "Normal", "Updated", "EndpointBinding updated successfully")
+	r.Recorder.Event(toUpdate, v1.EventTypeNormal, "Updated", "EndpointBinding updated successfully")
 	return nil
 }
 
-func (r *EndpointBindingPoller) deleteBinding(ctx context.Context, endpointBinding bindingsv1alpha1.EndpointBinding) {
+func (r *EndpointBindingPoller) deleteBinding(ctx context.Context, endpointBinding bindingsv1alpha1.EndpointBinding) error {
 	if err := r.Delete(ctx, &endpointBinding); err != nil {
 		r.Log.Error(err, "Failed to delete EndpointBinding", "name", endpointBinding.Name, "uri", endpointBinding.Spec.EndpointURI)
+		return err
 	} else {
 		r.Log.Info("Deleted EndpointBinding", "name", endpointBinding.Name, "uri", endpointBinding.Spec.EndpointURI)
 	}
+
+	return nil
 }
 
-func (r *EndpointBindingPoller) updateBindingStatus(ctx context.Context, desired bindingsv1alpha1.EndpointBinding) error {
-	toUpdate := &desired
+func (r *EndpointBindingPoller) updateBindingStatus(ctx context.Context, desired *bindingsv1alpha1.EndpointBinding) error {
+	toUpdate := desired
 	toUpdate.Status = desired.Status
 
 	if err := r.Status().Update(ctx, toUpdate); err != nil {
@@ -334,8 +414,8 @@ func endpointBindingNeedsUpdate(existing bindingsv1alpha1.EndpointBinding, desir
 
 // hashURI hashes a URI to a unique string that can be used as EndpointBinding.metadata.name
 func hashURI(uri string) string {
-	hash := sha256.Sum256([]byte(uri))
-	return hex.EncodeToString(hash[:])
+	uid := uuid.NewSHA1(uuid.NameSpaceURL, []byte(uri))
+	return "ngrok-" + uid.String()
 }
 
 // fetchEndpoints mocks an API call to retrieve a list of endpoint bindings.

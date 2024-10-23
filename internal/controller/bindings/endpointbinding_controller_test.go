@@ -27,7 +27,9 @@ package bindings
 import (
 	"testing"
 
+	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Test_EndpointBinding(t *testing.T) {
@@ -35,4 +37,46 @@ func Test_EndpointBinding(t *testing.T) {
 
 	// TODO(hkatz) implement me
 	assert.True(true)
+}
+
+func Test_convertEndpointBindingToServices(t *testing.T) {
+	assert := assert.New(t)
+
+	controller := &EndpointBindingReconciler{
+		ClusterDomain: "svc.cluster.local",
+		PortRange: PortRangeConfig{
+			Min: 1000,
+			Max: 65535,
+		},
+	}
+
+	endpointBinding := &bindingsv1alpha1.EndpointBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "abc123", // hashed/unique name
+			Namespace: "ngrok-op",
+		},
+		Spec: bindingsv1alpha1.EndpointBindingSpec{
+			Scheme: "https",
+			Target: bindingsv1alpha1.EndpointTarget{
+				Service:   "client-service",
+				Namespace: "client-namespace",
+				Protocol:  "TCP",
+				Port:      8080,
+			},
+		},
+		Status: bindingsv1alpha1.EndpointBindingStatus{
+			HashedName: "abc123",
+		},
+	}
+
+	targetService, upstreamService := controller.convertEndpointBindingToServices(endpointBinding)
+
+	assert.Equal(targetService.Name, "client-service")
+	assert.Equal(targetService.Namespace, "client-namespace")
+	assert.Equal(targetService.Spec.Ports[0].Port, int32(8080))
+	assert.Equal(targetService.Spec.Ports[0].Name, "https")
+	assert.Equal(targetService.Spec.ExternalName, "abc123.ngrok-op.svc.cluster.local")
+
+	assert.Equal(upstreamService.Name, "abc123")
+	assert.Equal(upstreamService.Spec.Ports[0].Name, "https")
 }
