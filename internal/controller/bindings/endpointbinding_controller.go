@@ -53,8 +53,12 @@ const (
 	LabelEndpointBindingNamespace = "bindings.k8s.ngrok.com/endpoint-binding-namespace"
 	LabelEndpointURL              = "bindings.k8s.ngrok.com/endpoint-url"
 
-	EndpointBindingOwnerKey            = ".metadata.controller"
-	EndpointBindingTargetNamespacePath = "spec.target.namespace"
+	// Used for indexing Services by their EndpointBinding owner. Not an actual
+	// field on the Service object.
+	EndpointBindingOwnerKey = ".metadata.controller"
+	// Used for indexing EndpointBindings by their target namespace. Not an actual
+	// field on the EndpointBinding object.
+	EndpointBindingTargetNamespacePath = ".spec.targetNamespace"
 )
 
 var (
