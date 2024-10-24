@@ -478,7 +478,7 @@ var _ = Describe("Driver", func() {
 					Namespace: namespace,
 				},
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
-					Policy: []byte(`{"on_http_request": [{"name":"t","actions":[{"type":"deny"}]}], "on_http_response": []}`),
+					Policy: []byte(`{"on_http_request": [{"name":"t","actions":[{"type":"deny"}]}]}`),
 				},
 			}
 			Expect(driver.store.Add(policyCrd)).To(BeNil())
@@ -537,9 +537,10 @@ var _ = Describe("Driver", func() {
 				},
 			}
 
-			expectedPolicy := `{"on_http_request":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+			expectedPolicy := `{"on_http_request":[{"name":"Inbound HTTPRouteRule 1","actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}]},{"name":"t","actions":[{"type":"deny"}]},{"name":"Inbound HTTPRouteRule 2","actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}]}]}`
 
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
+			fmt.Println(string(policy))
 			Expect(err).To(BeNil())
 			Expect(policy).ToNot(BeNil())
 
@@ -585,7 +586,7 @@ var _ = Describe("Driver", func() {
 				},
 			}
 
-			expectedPolicy := `{"on_http_request":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+			expectedPolicy := `{"on_http_request":[{"name":"Inbound HTTPRouteRule 1","actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}]},{"name":"t","actions":[{"type":"deny"}]},{"name":"Inbound HTTPRouteRule 2","actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}]}]}`
 
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())

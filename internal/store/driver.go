@@ -1317,8 +1317,12 @@ func extractPolicy(jsonMessage json.RawMessage) (map[string][]json.RawMessage, e
 		extensionRefTrafficPolicy := map[string][]json.RawMessage{}
 		// at time of writing, handleExtensionRef only supports HTTP edges, so these are the only phases we need
 		// to worry about
-		extensionRefTrafficPolicy["on_http_request"] = legacyPolicyStruct.Inbound
-		extensionRefTrafficPolicy["on_http_response"] = legacyPolicyStruct.Outbound
+		if len(legacyPolicyStruct.Inbound) > 0 {
+			extensionRefTrafficPolicy["on_http_request"] = legacyPolicyStruct.Inbound
+		}
+		if len(legacyPolicyStruct.Outbound) > 0 {
+			extensionRefTrafficPolicy["on_http_response"] = legacyPolicyStruct.Outbound
+		}
 
 		return extensionRefTrafficPolicy, nil
 	}
