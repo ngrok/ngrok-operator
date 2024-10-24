@@ -14,6 +14,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // BaseControllerOp is an enum for the different operations that can be performed by a BaseController
@@ -112,6 +114,17 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// NewEnqueueRequestForMapFunc wraps a map function to be used as an event handler.
+// It also takes care to make sure that the controllers logger is passed through to the map function, so
+// that we can use our common pattern of getting the logger from the context.
+func (self *BaseController[T]) NewEnqueueRequestForMapFunc(f func(ctx context.Context, obj client.Object) []reconcile.Request) handler.EventHandler {
+	wrappedFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
+		ctx = ctrl.LoggerInto(ctx, self.Log)
+		return f(ctx, obj)
+	}
+	return handler.EnqueueRequestsFromMapFunc(wrappedFunc)
 }
 
 // handleErr is a helper function to handle errors in the controller. If an ErrResult function is not provided,

@@ -55,7 +55,7 @@ type HTTPRouteReconciler struct {
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;update
 
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("HTTPRoute", req.NamespacedName)
+	log := ctrl.LoggerFrom(ctx).WithValues("HTTPRoute", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
 
 	httproute := new(gatewayv1.HTTPRoute)
