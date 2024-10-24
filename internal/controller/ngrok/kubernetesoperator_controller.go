@@ -432,9 +432,12 @@ func generateCSR(privKey *ecdsa.PrivateKey) ([]byte, error) {
 		SignatureAlgorithm: x509.ECDSAWithSHA512,
 	}
 
-	var buf bytes.Buffer
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, privKey)
+	if err != nil {
+		return nil, err
+	}
 
-	csrBytes, _ := x509.CreateCertificateRequest(rand.Reader, &template, privKey)
+	var buf bytes.Buffer
 	if err := pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes}); err != nil {
 		return nil, err
 	}
