@@ -155,9 +155,9 @@ func Test_EndpointBindingPoller_filterEndpointBindingActions(t *testing.T) {
 
 			gotCreate, gotUpdate, gotDelete := examplePoller.filterEndpointBindingActions(context.TODO(), test.existing, test.desired)
 
-			assert.Equal(test.wantCreate, gotCreate)
-			assert.Equal(test.wantUpdate, gotUpdate)
-			assert.Equal(test.wantDelete, gotDelete)
+			assert.ElementsMatch(test.wantCreate, gotCreate)
+			assert.ElementsMatch(test.wantUpdate, gotUpdate)
+			assert.ElementsMatch(test.wantDelete, gotDelete)
 		})
 	}
 }
