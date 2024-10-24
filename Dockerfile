@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/go \
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
-COPY --from=builder /workspace/bin/api-manager /workspace/bin/agent-manager ./
+COPY --from=builder /workspace/bin/api-manager /workspace/bin/agent-manager /workspace/bin/bindings-forwarder-manager ./
 USER 65532:65532
 
 ENTRYPOINT ["/api-manager"]

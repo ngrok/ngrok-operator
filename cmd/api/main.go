@@ -472,12 +472,14 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
 	// EndpointBindings
 	if err := (&bindingscontroller.EndpointBindingReconciler{
-		Client:             mgr.GetClient(),
-		Scheme:             mgr.GetScheme(),
-		Log:                ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
-		Recorder:           mgr.GetEventRecorderFor("bindings-controller"),
-		ClusterDomain:      opts.clusterDomain,
-		PodForwarderLabels: []string{}, // TODO(hkatz) Implement me
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		Log:           ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
+		Recorder:      mgr.GetEventRecorderFor("bindings-controller"),
+		ClusterDomain: opts.clusterDomain,
+		UpstreamServiceLabelSelector: map[string]string{
+			"app.kubernetes.io/component": "bindings-forwarder",
+		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
 		os.Exit(1)

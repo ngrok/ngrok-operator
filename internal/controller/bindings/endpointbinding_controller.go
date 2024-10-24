@@ -27,7 +27,6 @@ package bindings
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,8 +77,8 @@ type EndpointBindingReconciler struct {
 	// ClusterDomain is the last part of the FQDN for Service DNS in-cluster
 	ClusterDomain string
 
-	// PodForwarderLabels are the set of labels for the Pod Forwarders
-	PodForwarderLabels []string
+	// UpstreamServiceLabelSelectors are the set of labels for the Pod Forwarders
+	UpstreamServiceLabelSelector map[string]string
 }
 
 // +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=endpointbindings,verbs=get;list;watch;create;update;patch;delete
@@ -158,7 +157,7 @@ func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 }
 
 func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	targetService, upstreamService := r.convertEndpointBindingToServices(ctx, cr)
+	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
 
 	if err := r.createUpstreamService(ctx, cr, upstreamService); err != nil {
 		return err
@@ -207,7 +206,7 @@ func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, o
 func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	desiredTargetService, desiredUpstreamService := r.convertEndpointBindingToServices(ctx, cr)
+	desiredTargetService, desiredUpstreamService := r.convertEndpointBindingToServices(cr)
 
 	var existingTargetService v1.Service
 	var existingUpstreamService v1.Service
@@ -277,7 +276,7 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	targetService, upstreamService := r.convertEndpointBindingToServices(ctx, cr)
+	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
 	if err := r.Client.Delete(ctx, targetService); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			return nil
@@ -306,25 +305,11 @@ func (r *EndpointBindingReconciler) errResult(op controller.BaseControllerOp, cr
 }
 
 // convertEndpointBindingToServices converts an EndpointBinding into 2 Services: Target(ExternalName) and Upstream(Pod Forwarders)
-func (r *EndpointBindingReconciler) convertEndpointBindingToServices(ctx context.Context, endpointBinding *bindingsv1alpha1.EndpointBinding) (*v1.Service, *v1.Service) {
-	log := ctrl.LoggerFrom(ctx)
-
+func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBinding *bindingsv1alpha1.EndpointBinding) (*v1.Service, *v1.Service) {
 	// Send traffic to any Node in the cluster
 	internalTrafficPolicy := v1.ServiceInternalTrafficPolicyCluster
 
 	endpointURL := fmt.Sprintf("%s.%s.%s", endpointBinding.Name, endpointBinding.Namespace, r.ClusterDomain)
-
-	podForwarderSelector := map[string]string{}
-
-	for _, label := range r.PodForwarderLabels {
-		parts := strings.Split(label, "=")
-
-		if len(parts) != 2 {
-			log.Error(fmt.Errorf("invalid Pod Forwarder label: %s", label), "invalid Pod Forwarder label")
-		}
-
-		podForwarderSelector[parts[0]] = parts[1]
-	}
 
 	thisBindingLabels := map[string]string{
 		LabelEndpointBindingName:      endpointBinding.Name,
@@ -388,7 +373,7 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(ctx context
 			Type:                  v1.ServiceTypeClusterIP,
 			InternalTrafficPolicy: &internalTrafficPolicy,
 			SessionAffinity:       v1.ServiceAffinityClientIP,
-			Selector:              podForwarderSelector,
+			Selector:              r.UpstreamServiceLabelSelector,
 			Ports: []v1.ServicePort{
 				{
 					Name:     endpointBinding.Spec.Scheme,

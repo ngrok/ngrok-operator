@@ -25,7 +25,6 @@ SOFTWARE.
 package bindings
 
 import (
-	"context"
 	"testing"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
@@ -66,7 +65,7 @@ func Test_convertEndpointBindingToServices(t *testing.T) {
 		},
 	}
 
-	targetService, upstreamService := controller.convertEndpointBindingToServices(context.TODO(), endpointBinding)
+	targetService, upstreamService := controller.convertEndpointBindingToServices(endpointBinding)
 
 	assert.Equal(targetService.Name, "client-service")
 	assert.Equal(targetService.Namespace, "client-namespace")

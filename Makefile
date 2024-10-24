@@ -104,6 +104,9 @@ _build:
 	go build -o bin/agent-manager -trimpath -ldflags "-s -w \
 		-X $(REPO_URL)/internal/version.gitCommit=$(GIT_COMMIT) \
 		-X $(REPO_URL)/internal/version.version=$(VERSION)" cmd/agent/main.go
+	go build -o bin/bindings-forwarder-manager -trimpath -ldflags "-s -w \
+		-X $(REPO_URL)/internal/version.gitCommit=$(GIT_COMMIT) \
+		-X $(REPO_URL)/internal/version.version=$(VERSION)" cmd/bindings-forwarder/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
