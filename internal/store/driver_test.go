@@ -478,7 +478,7 @@ var _ = Describe("Driver", func() {
 					Namespace: namespace,
 				},
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
-					Policy: []byte(`{"on_http_request": [{"name":"t","actions":[{"type":"deny"}]}], "on_http_response": []}`),
+					Policy: []byte(`{"on_http_request": [{"name":"t","actions":[{"type":"deny"}]}]}`),
 				},
 			}
 			Expect(driver.store.Add(policyCrd)).To(BeNil())
@@ -499,8 +499,6 @@ var _ = Describe("Driver", func() {
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
 			Expect(policy).ToNot(BeNil())
-			Expect(len(policy.OnHttpRequest)).To(BeZero())
-			Expect(len(policy.OnHttpResponse)).To(BeZero())
 		})
 
 		It("Should return a merged policy if there rules with extensionRef", func() {
@@ -539,7 +537,7 @@ var _ = Describe("Driver", func() {
 				},
 			}
 
-			expectedPolicy := `{"on_http_request":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+			expectedPolicy := `{"on_http_request":[{"name":"Inbound HTTPRouteRule 1","actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}]},{"name":"t","actions":[{"type":"deny"}]},{"name":"Inbound HTTPRouteRule 2","actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}]}]}`
 
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
@@ -548,8 +546,6 @@ var _ = Describe("Driver", func() {
 			jsonString, err := json.Marshal(policy)
 			Expect(err).To(BeNil())
 
-			Expect(len(policy.OnHttpRequest) == 3).To(BeTrue())
-			Expect(len(policy.OnHttpResponse)).To(BeZero())
 			Expect(string(jsonString)).To(Equal(expectedPolicy))
 		})
 
@@ -589,7 +585,7 @@ var _ = Describe("Driver", func() {
 				},
 			}
 
-			expectedPolicy := `{"on_http_request":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+			expectedPolicy := `{"on_http_request":[{"name":"Inbound HTTPRouteRule 1","actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}]},{"name":"t","actions":[{"type":"deny"}]},{"name":"Inbound HTTPRouteRule 2","actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}]}]}`
 
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
@@ -598,8 +594,6 @@ var _ = Describe("Driver", func() {
 			jsonString, err := json.Marshal(policy)
 			Expect(err).To(BeNil())
 
-			Expect(len(policy.OnHttpRequest) == 3).To(BeTrue())
-			Expect(len(policy.OnHttpResponse)).To(BeZero())
 			Expect(string(jsonString)).To(Equal(expectedPolicy))
 		})
 	})
@@ -676,65 +670,37 @@ func TestExtractPolicy(t *testing.T) {
 	testCases := []struct {
 		name                  string
 		msg                   json.RawMessage
-		expectedTrafficPolicy ingressv1alpha1.EndpointTrafficPolicy
+		expectedTrafficPolicy map[string][]RawRule
 		expectedErr           error
 	}{
 		{
 			name: "legacy policy configuration",
 			msg:  []byte(`{"inbound":[{"name":"test-inbound","actions":[{"type":"deny"}]}],"outbound":[{"name":"test-outbound","actions":[{"type":"some-action"}]}]}`),
-			expectedTrafficPolicy: ingressv1alpha1.EndpointTrafficPolicy{
-				OnHttpRequest: []ingressv1alpha1.EndpointRule{
-					{
-						Name: "test-inbound",
-						Actions: []ingressv1alpha1.EndpointAction{
-							{
-								Type: "deny",
-							},
-						},
-					},
+			expectedTrafficPolicy: map[string][]RawRule{
+				phaseOnHttpRequest: {
+					[]byte(`{"name":"test-inbound","actions":[{"type":"deny"}]}`),
 				},
-				OnHttpResponse: []ingressv1alpha1.EndpointRule{
-					{
-						Name: "test-outbound",
-						Actions: []ingressv1alpha1.EndpointAction{
-							{
-								Type: "some-action",
-							},
-						},
-					},
+				phaseOnHttpResponse: {
+					[]byte(`{"name":"test-outbound","actions":[{"type":"some-action"}]}`),
 				},
 			},
 		},
 		{
 			name: "phase-based policy config",
 			msg:  []byte(`{"on_http_request":[{"name":"test-inbound","actions":[{"type":"deny"}]}],"on_http_response":[{"name":"test-outbound","actions":[{"type":"some-action"}]}]}`),
-			expectedTrafficPolicy: ingressv1alpha1.EndpointTrafficPolicy{
-				OnHttpRequest: []ingressv1alpha1.EndpointRule{
-					{
-						Name: "test-inbound",
-						Actions: []ingressv1alpha1.EndpointAction{
-							{
-								Type: "deny",
-							},
-						},
-					},
+			expectedTrafficPolicy: map[string][]RawRule{
+				phaseOnHttpRequest: {
+					[]byte(`{"name":"test-inbound","actions":[{"type":"deny"}]}`),
 				},
-				OnHttpResponse: []ingressv1alpha1.EndpointRule{
-					{
-						Name: "test-outbound",
-						Actions: []ingressv1alpha1.EndpointAction{
-							{
-								Type: "some-action",
-							},
-						},
-					},
+				phaseOnHttpResponse: {
+					[]byte(`{"name":"test-outbound","actions":[{"type":"some-action"}]}`),
 				},
 			},
 		},
 		{
 			name:                  "mixed legacy and phase based (not allowed)",
 			msg:                   []byte(`{"on_http_request":[{"name":"test-inbound","actions":[{"type":"deny"}]}],"outbound":[{"name":"test-outbound","actions":[{"type":"some-action"}]}]}`),
-			expectedTrafficPolicy: ingressv1alpha1.EndpointTrafficPolicy{},
+			expectedTrafficPolicy: nil,
 			expectedErr:           fmt.Errorf(`json: unknown field "on_http_request"`),
 		},
 		{
@@ -767,5 +733,215 @@ func TestExtractPolicy(t *testing.T) {
 				assert.Equal(t, tc.expectedErr.Error(), err.Error())
 			}
 		})
+	}
+}
+
+func TestMergeFullTrafficPolicy(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                        string
+		addedTrafficPolicy          map[string][]RawRule
+		expectedMergedTrafficPolicy map[string][]RawRule
+	}{
+		{
+			name: "added traffic policy, existing and new phases",
+			addedTrafficPolicy: map[string][]RawRule{
+				phaseOnHttpRequest: {
+					[]byte(`b`),
+				},
+				phaseOnHttpResponse: {
+					[]byte(`c`),
+				},
+			},
+			expectedMergedTrafficPolicy: map[string][]RawRule{
+				phaseOnHttpRequest: {
+					[]byte(`a`),
+					[]byte(`b`),
+				},
+				phaseOnHttpResponse: {
+					[]byte(`c`),
+				},
+			},
+		},
+		{
+			name:                        "empty added map",
+			addedTrafficPolicy:          map[string][]RawRule{},
+			expectedMergedTrafficPolicy: newBaseTrafficPolicy(t),
+		},
+		{
+			name:                        "nil added map",
+			addedTrafficPolicy:          nil,
+			expectedMergedTrafficPolicy: newBaseTrafficPolicy(t),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			baseTrafficPolicy := newBaseTrafficPolicy(t)
+
+			mergeFullTrafficPolicy(baseTrafficPolicy, tc.addedTrafficPolicy)
+
+			assert.Equal(t, tc.expectedMergedTrafficPolicy, baseTrafficPolicy)
+		})
+	}
+}
+
+func TestMergeEndpointRule(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                        string
+		addedRule                   EndpointRule
+		addedPhase                  string
+		expectedMergedTrafficPolicy map[string][]RawRule
+		expectedErr                 error
+	}{
+		{
+			name: "rule added to existing phase",
+			addedRule: EndpointRule{
+				Name: "test-rule",
+				Actions: []RawAction{
+					[]byte(`{"c":"d"}`),
+				},
+			},
+			addedPhase: phaseOnHttpRequest,
+			expectedMergedTrafficPolicy: map[string][]RawRule{
+				phaseOnHttpRequest: {
+					[]byte(`a`),
+					[]byte(`{"name":"test-rule","actions":[{"c":"d"}]}`),
+				},
+			},
+		},
+		{
+			name: "rule added to new phase",
+			addedRule: EndpointRule{
+				Name: "test-rule",
+				Actions: []RawAction{
+					[]byte(`{"c":"d"}`),
+				},
+			},
+			addedPhase: phaseOnHttpResponse,
+			expectedMergedTrafficPolicy: map[string][]RawRule{
+				phaseOnHttpRequest: {
+					[]byte(`a`),
+				},
+				phaseOnHttpResponse: {
+					[]byte(`{"name":"test-rule","actions":[{"c":"d"}]}`),
+				},
+			},
+		},
+		{
+			name: "malformed json",
+			addedRule: EndpointRule{
+				Name: "test-rule",
+				Actions: []RawAction{
+					[]byte(`invalid-json`),
+				},
+			},
+			addedPhase: phaseOnHttpRequest,
+			// original traffic policy should be unaffected
+			expectedMergedTrafficPolicy: newBaseTrafficPolicy(t),
+			expectedErr:                 fmt.Errorf("json: error calling MarshalJSON for type json.RawMessage: invalid character 'i' looking for beginning of value"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			baseTrafficPolicy := newBaseTrafficPolicy(t)
+
+			err := mergeEndpointRule(baseTrafficPolicy, tc.addedRule, tc.addedPhase)
+
+			assert.Equal(t, tc.expectedMergedTrafficPolicy, baseTrafficPolicy)
+			if tc.expectedErr == nil {
+				assert.NoError(t, err)
+			} else {
+				// Can't compare the exact error as we don't have access to json SyntaxError underlying `msg` field`
+				assert.Equal(t, tc.expectedErr.Error(), err.Error())
+			}
+		})
+	}
+}
+
+func TestMergeSinglePhase(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                        string
+		addedRules                  []RawRule
+		addedPhase                  string
+		expectedMergedTrafficPolicy map[string][]RawRule
+	}{
+		{
+			name: "rules merged into existing phase",
+			addedRules: []RawRule{
+				[]byte(`b`),
+				[]byte(`c`),
+			},
+			addedPhase: phaseOnHttpRequest,
+			expectedMergedTrafficPolicy: map[string][]RawRule{
+				phaseOnHttpRequest: {
+					[]byte(`a`),
+					[]byte(`b`),
+					[]byte(`c`),
+				},
+			},
+		},
+		{
+			name: "rules merged into non-existing phase",
+			addedRules: []RawRule{
+				[]byte(`b`),
+				[]byte(`c`),
+			},
+			addedPhase: phaseOnHttpResponse,
+			expectedMergedTrafficPolicy: map[string][]RawRule{
+				phaseOnHttpRequest: {
+					[]byte(`a`),
+				},
+				phaseOnHttpResponse: {
+					[]byte(`b`),
+					[]byte(`c`),
+				},
+			},
+		},
+		{
+			name:                        "empty added rules",
+			addedRules:                  []RawRule{},
+			addedPhase:                  phaseOnHttpRequest,
+			expectedMergedTrafficPolicy: newBaseTrafficPolicy(t),
+		},
+		{
+			name:                        "nil added rules",
+			addedRules:                  nil,
+			addedPhase:                  phaseOnHttpResponse,
+			expectedMergedTrafficPolicy: newBaseTrafficPolicy(t),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			baseTrafficPolicy := newBaseTrafficPolicy(t)
+
+			mergeSinglePhase(baseTrafficPolicy, tc.addedRules, tc.addedPhase)
+
+			assert.Equal(t, tc.expectedMergedTrafficPolicy, baseTrafficPolicy)
+		})
+	}
+}
+
+// newBaseTrafficPolicy gives a simple base that the "merge" functions can use for testing.
+func newBaseTrafficPolicy(t *testing.T) map[string][]RawRule {
+	t.Helper()
+
+	return map[string][]RawRule{
+		phaseOnHttpRequest: {
+			[]byte(`a`),
+		},
 	}
 }
