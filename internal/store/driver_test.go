@@ -499,9 +499,6 @@ var _ = Describe("Driver", func() {
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
 			Expect(policy).ToNot(BeNil())
-			// TODO(ryan): try to fix this
-			// Expect(len(policy.OnHttpRequest)).To(BeZero())
-			// Expect(len(policy.OnHttpResponse)).To(BeZero())
 		})
 
 		It("Should return a merged policy if there rules with extensionRef", func() {
@@ -549,9 +546,6 @@ var _ = Describe("Driver", func() {
 			jsonString, err := json.Marshal(policy)
 			Expect(err).To(BeNil())
 
-			// TODO(ryan): try to fix this
-			// Expect(len(policy.OnHttpRequest) == 3).To(BeTrue())
-			// Expect(len(policy.OnHttpResponse)).To(BeZero())
 			Expect(string(jsonString)).To(Equal(expectedPolicy))
 		})
 
@@ -600,9 +594,6 @@ var _ = Describe("Driver", func() {
 			jsonString, err := json.Marshal(policy)
 			Expect(err).To(BeNil())
 
-			// TODO(ryan): try to fix this
-			// Expect(len(policy.OnHttpRequest) == 3).To(BeTrue())
-			// Expect(len(policy.OnHttpResponse)).To(BeZero())
 			Expect(string(jsonString)).To(Equal(expectedPolicy))
 		})
 	})
