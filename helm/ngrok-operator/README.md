@@ -43,7 +43,6 @@ To uninstall the chart:
 | `commonLabels`      | Labels to add to all deployed objects                              | `{}`                                      |
 | `commonAnnotations` | Annotations to add to all deployed objects                         | `{}`                                      |
 
-
 ### Image configuration
 
 | Name                | Description                                                                       | Value                  |
@@ -53,7 +52,6 @@ To uninstall the chart:
 | `image.tag`         | The ngrok operator image tag. Defaults to the chart's appVersion if not specified | `""`                   |
 | `image.pullPolicy`  | The ngrok operator image pull policy.                                             | `IfNotPresent`         |
 | `image.pullSecrets` | An array of imagePullSecrets to be used when pulling the image.                   | `[]`                   |
-
 
 ### ngrok configuration
 
@@ -66,7 +64,6 @@ To uninstall the chart:
 | `metaData`      | DEPRECATED: Use ngrokMetadata instead                                                                                 |                     |
 | `ngrokMetadata` | This is a map of key=value,key=value pairs that will be added as metadata to all ngrok api resources created          | `{}`                |
 | `clusterDomain` | Configure the default cluster base domain for your kubernetes cluster DNS resolution                                  | `svc.cluster.local` |
-
 
 ### Operator Manager parameters
 
@@ -95,7 +92,6 @@ To uninstall the chart:
 | `serviceAccount.name`                | The name of the ServiceAccount to use.                                                    | `""`    |
 | `serviceAccount.annotations`         | Additional annotations to add to the ServiceAccount                                       | `{}`    |
 
-
 ### Logging configuration
 
 | Name                  | Description                                                   | Value   |
@@ -104,7 +100,6 @@ To uninstall the chart:
 | `log.stacktraceLevel` | The level to report stacktrace logs one of 'info' or 'error'. | `error` |
 | `log.format`          | The log format to use. One of console, json.                  | `json`  |
 
-
 ### Credentials configuration
 
 | Name                      | Description                                                                                                           | Value |
@@ -112,7 +107,6 @@ To uninstall the chart:
 | `credentials.secret.name` | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.    | `""`  |
 | `credentials.apiKey`      | Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well. | `""`  |
 | `credentials.authtoken`   | Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.  | `""`  |
-
 
 ### Kubernetes Ingress feature configuration
 
@@ -130,7 +124,6 @@ To uninstall the chart:
 | `ingress.watchNamespace`       | The namespace to watch for ingress resources (default all)      | `""`                               |
 | `ingress.controllerName`       | The name of the controller to look for matching ingress classes | `k8s.ngrok.com/ingress-controller` |
 
-
 ### Agent configuration
 
 | Name                               | Description                                                         | Value  |
@@ -141,14 +134,12 @@ To uninstall the chart:
 | `agent.serviceAccount.name`        | The name of the ServiceAccount to use for the agent.                | `""`   |
 | `agent.serviceAccount.annotations` | Additional annotations to add to the agent ServiceAccount           | `{}`   |
 
-
 ### Kubernetes Gateway feature configuration
 
 | Name                        | Description                              | Value   |
 | --------------------------- | ---------------------------------------- | ------- |
 | `useExperimentalGatewayApi` | DEPRECATED: Use gateway.enabled instead  |         |
 | `gateway.enabled`           | When true, enable the Gateway controller | `false` |
-
 
 ### Kubernetes Bindings feature configuration
 
