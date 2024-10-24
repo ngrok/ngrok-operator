@@ -21,6 +21,10 @@ spec:
     - jsonPath: .spec.port
       name: Port
       type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:
