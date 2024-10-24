@@ -463,14 +463,6 @@ func (amazon *EndpointOAuthAmazon) ToNgrok(clientSecret *string) *ngrok.Endpoint
 	return mod
 }
 
-// EndpointTrafficPolicy is not exposed and is mostly used for assisting in processing Gateway API filters.
-type EndpointTrafficPolicy struct {
-	// OnHttpRequest traffic rule
-	OnHttpRequest []EndpointRule `json:"on_http_request,omitempty"`
-	// OnHttpResponse traffic rule
-	OnHttpResponse []EndpointRule `json:"on_http_response,omitempty"`
-}
-
 type EndpointPolicy struct {
 	// Determines if the rule will be applied to traffic
 	Enabled *bool `json:"enabled,omitempty"`

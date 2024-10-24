@@ -1070,17 +1070,12 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 							// this HTTPRouteRule comes direct from gateway api yaml, and func returns the policy,
 							// which goes directly into the edge route in ngrok.
 							policy, err := d.createEndpointPolicyForGateway(&rule, httproute.Namespace)
-
 							if err != nil {
 								d.log.Error(err, "error creating policy from HTTPRouteRule", "rule", rule)
 								continue
 							}
-							policyStr, err := json.Marshal(policy)
-							if err != nil {
-								d.log.Error(err, "cannot convert policy json", "Policy", policy)
-								continue
-							}
-							route.TrafficPolicy = policyStr
+
+							route.TrafficPolicy = policy
 
 							for idx, backendref := range rule.BackendRefs {
 								// currently the ingress controller doesn't support weighted backends
@@ -1122,16 +1117,20 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 }
 
 type Actions struct {
-	endpointActions []ingressv1alpha1.EndpointAction
+	endpointActions []json.RawMessage
 }
 
-type EndpointRules struct {
-	rules []ingressv1alpha1.EndpointRule
+type EndpointAction struct {
+	Type   string          `json:"type"`
+	Config json.RawMessage `json:"config"`
 }
 
-func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (*ingressv1alpha1.EndpointTrafficPolicy, error) {
-	onHttpRequestActions := Actions{}
-	onHttpResponseActions := Actions{}
+type EndpointRule struct {
+	Name    string            `json:"name"`
+	Actions []json.RawMessage `json:"actions"`
+}
+
+func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (json.RawMessage, error) {
 	pathPrefixMatches := []string{}
 
 	// NOTE: matches are only defined on requests, and fitlers are only triggered by matches,
@@ -1167,8 +1166,13 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 		}
 	}
 
-	onHttpRequestRules := EndpointRules{}
-	onHttpResponseRules := EndpointRules{}
+	fullTrafficPolicy := map[string][]json.RawMessage{}
+
+	// "hard-coded" phases. Since Filters are translated to rules in particular phases, the operator has to be aware of these.
+	// There isn't really a way around this.
+	onHttpRequestActions := Actions{}
+	onHttpResponseActions := Actions{}
+
 	flushCount := 0
 
 	flushActionsToRules := func() {
@@ -1179,21 +1183,25 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 		flushCount++
 		if len(onHttpRequestActions.endpointActions) > 0 {
 			// flush actions to a rule
-			onHttpRequestRules.rules = append(onHttpRequestRules.rules, ingressv1alpha1.EndpointRule{
+			rule := EndpointRule{
 				Actions: onHttpRequestActions.endpointActions,
 				Name:    fmt.Sprint("Inbound HTTPRouteRule ", flushCount),
-			})
+			}
+			mergeEndpointRule(fullTrafficPolicy, rule, "on_http_request")
+
 			// clear
-			onHttpRequestActions.endpointActions = []ingressv1alpha1.EndpointAction{}
+			onHttpRequestActions = Actions{}
 		}
 		if len(onHttpResponseActions.endpointActions) > 0 {
 			// flush actions to a rule
-			onHttpResponseRules.rules = append(onHttpResponseRules.rules, ingressv1alpha1.EndpointRule{
+			rule := EndpointRule{
 				Actions: onHttpResponseActions.endpointActions,
 				Name:    fmt.Sprint("Outbound HTTPRouteRule ", flushCount),
-			})
+			}
+			mergeEndpointRule(fullTrafficPolicy, rule, "on_http_response")
+
 			// clear
-			onHttpResponseActions.endpointActions = []ingressv1alpha1.EndpointAction{}
+			onHttpResponseActions = Actions{}
 		}
 	}
 
@@ -1228,7 +1236,7 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 			flushActionsToRules()
 
 			// a PolicyCRD can have expressions, so send in rule pointers so expressions can be on those rules
-			err := d.handleExtensionRef(filter.ExtensionRef, namespace, &onHttpRequestRules, &onHttpResponseRules)
+			err := d.handleExtensionRef(filter.ExtensionRef, namespace, fullTrafficPolicy)
 			if err != nil {
 				return nil, err
 			}
@@ -1240,12 +1248,42 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 	// flush any leftover actions to rules
 	flushActionsToRules()
 
-	policy := &ingressv1alpha1.EndpointTrafficPolicy{
-		OnHttpRequest:  onHttpRequestRules.rules,
-		OnHttpResponse: onHttpResponseRules.rules,
+	policy, err := json.Marshal(&fullTrafficPolicy)
+	if err != nil {
+		return nil, err
 	}
 
 	return policy, nil
+}
+
+// mergeTrafficPolicy merges addedTP traffic policy into that of originalTP. If a phase from the incoming traffic policy
+// already exists in the original, the associated rules are appended. If not, the phase is added to the original traffic
+// policy.
+func mergeFullTrafficPolicy(originalTP map[string][]json.RawMessage, addedTP map[string][]json.RawMessage) {
+	for phase, rules := range addedTP {
+		mergeSinglePhase(originalTP, rules, phase)
+	}
+}
+
+// mergeEndpointRule marshals the rule, then merges it into the correct phase within the traffic policy document.
+func mergeEndpointRule(originalTP map[string][]json.RawMessage, rule EndpointRule, phase string) error {
+	rawRule, err := json.Marshal(&rule)
+	if err != nil {
+		return err
+	}
+
+	mergeSinglePhase(originalTP, []json.RawMessage{rawRule}, phase)
+
+	return nil
+}
+
+func mergeSinglePhase(originalTP map[string][]json.RawMessage, addedRules []json.RawMessage, phase string) {
+	if rules, ok := originalTP[phase]; ok {
+		originalTP[phase] = append(rules, addedRules...)
+		return
+	}
+
+	originalTP[phase] = addedRules
 }
 
 type RemoveHeadersConfig struct {
@@ -1259,38 +1297,42 @@ type AddHeadersConfig struct {
 // extractPolicy parses the policy message into a format such that it can be combined with policy from other filters.
 // If the legacy "inbound/outbound" format is detected, inbound remaps to `on_http_request`, outbound remaps to
 // `on_http_response`. This is safe so long as HTTP Edges are the only ones supported on the gateway API.
-func extractPolicy(jsonMessage json.RawMessage) (ingressv1alpha1.EndpointTrafficPolicy, error) {
-	var trafficPolicyStruct ingressv1alpha1.EndpointTrafficPolicy
+func extractPolicy(jsonMessage json.RawMessage) (map[string][]json.RawMessage, error) {
+	var extensionRefTrafficPolicy map[string][]json.RawMessage
 
 	if util.IsLegacyPolicy(jsonMessage) {
-		var legacyPolicyStruct ingressv1alpha1.EndpointPolicy
+		type legacyStruct struct {
+			Inbound  []json.RawMessage `json:"inbound"`
+			Outbound []json.RawMessage `json:"outbound"`
+		}
+		var legacyPolicyStruct legacyStruct
 
 		// disallow unknown fields so we can detect mismatches/unsupported phases/values/etc
 		decoder := json.NewDecoder(bytes.NewReader(jsonMessage))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&legacyPolicyStruct); err != nil {
-			return trafficPolicyStruct, err
+			return nil, err
 		}
 
+		extensionRefTrafficPolicy := map[string][]json.RawMessage{}
 		// at time of writing, handleExtensionRef only supports HTTP edges, so these are the only phases we need
 		// to worry about
-		trafficPolicyStruct.OnHttpRequest = append(trafficPolicyStruct.OnHttpRequest, legacyPolicyStruct.Inbound...)
-		trafficPolicyStruct.OnHttpResponse = append(trafficPolicyStruct.OnHttpResponse, legacyPolicyStruct.Outbound...)
+		extensionRefTrafficPolicy["on_http_request"] = legacyPolicyStruct.Inbound
+		extensionRefTrafficPolicy["on_http_response"] = legacyPolicyStruct.Outbound
 
-		return trafficPolicyStruct, nil
+		return extensionRefTrafficPolicy, nil
 	}
 
 	// base case, properly formatted using phases
-	err := json.Unmarshal(jsonMessage, &trafficPolicyStruct)
+	err := json.Unmarshal(jsonMessage, &extensionRefTrafficPolicy)
 	if err != nil {
-		return trafficPolicyStruct, err
+		return nil, err
 	}
 
-	return trafficPolicyStruct, nil
+	return extensionRefTrafficPolicy, nil
 }
 
-func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference, namespace string, onHttpRequestRules *EndpointRules,
-	onHttpResponseRules *EndpointRules) error {
+func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference, namespace string, trafficPolicy map[string][]json.RawMessage) error {
 
 	switch extensionRef.Kind {
 	case "NgrokTrafficPolicy":
@@ -1306,14 +1348,12 @@ func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference
 		}
 
 		// transform into structured format
-		policyStruct, err := extractPolicy(jsonMessage)
+		extensionRefTrafficPolicy, err := extractPolicy(jsonMessage)
 		if err != nil {
 			return err
 		}
 
-		// copy the rules
-		onHttpRequestRules.rules = append(onHttpRequestRules.rules, policyStruct.OnHttpRequest...)
-		onHttpResponseRules.rules = append(onHttpResponseRules.rules, policyStruct.OnHttpResponse...)
+		mergeFullTrafficPolicy(trafficPolicy, extensionRefTrafficPolicy)
 	default:
 		return errors.NewErrorNotFound(fmt.Sprintf("Unknown ExtensionRef Kind %v found, Name: %v", extensionRef.Kind, extensionRef.Name))
 	}
@@ -1351,10 +1391,17 @@ func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions 
 		return err
 	}
 
-	actions.endpointActions = append(actions.endpointActions, ingressv1alpha1.EndpointAction{
+	action := EndpointAction{
 		Type:   "remove-headers",
 		Config: removeHeaders,
-	})
+	}
+
+	rawAction, err := json.Marshal(&action)
+	if err != nil {
+		return err
+	}
+
+	actions.endpointActions = append(actions.endpointActions, rawAction)
 
 	return nil
 }
@@ -1381,10 +1428,17 @@ func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, 
 		return err
 	}
 
-	actions.endpointActions = append(actions.endpointActions, ingressv1alpha1.EndpointAction{
+	action := EndpointAction{
 		Type:   "add-headers",
 		Config: addHeaders,
-	})
+	}
+
+	rawAction, err := json.Marshal(&action)
+	if err != nil {
+		return nil
+	}
+
+	actions.endpointActions = append(actions.endpointActions, rawAction)
 
 	return nil
 }
@@ -1430,13 +1484,18 @@ func (d *Driver) createUrlRedirectConfig(from string, to string, requestHeaders 
 		d.log.Error(err, "cannot convert request redirect filter to json", "HTTPRequestRedirectFilter", urlRedirectAction)
 		return err
 	}
-	actions.endpointActions = append(
-		actions.endpointActions,
-		ingressv1alpha1.EndpointAction{
-			Type:   "redirect",
-			Config: config,
-		},
-	)
+
+	action := EndpointAction{
+		Type:   "redirect",
+		Config: config,
+	}
+
+	rawAction, err := json.Marshal(&action)
+	if err != nil {
+		return err
+	}
+
+	actions.endpointActions = append(actions.endpointActions, rawAction)
 
 	return nil
 }
@@ -1457,13 +1516,18 @@ func (d *Driver) createURLRewriteConfig(from string, to string, actions *Actions
 		d.log.Error(err, "cannot convert request rewrite filter to json", "HTTPRequestRewriteFilter", urlRewriteAction)
 		return err
 	}
-	actions.endpointActions = append(
-		actions.endpointActions,
-		ingressv1alpha1.EndpointAction{
-			Type:   "url-rewrite",
-			Config: config,
-		},
-	)
+
+	action := EndpointAction{
+		Type:   "url-rewrite",
+		Config: config,
+	}
+
+	rawAction, err := json.Marshal(&action)
+	if err != nil {
+		return err
+	}
+
+	actions.endpointActions = append(actions.endpointActions, rawAction)
 
 	return nil
 }
