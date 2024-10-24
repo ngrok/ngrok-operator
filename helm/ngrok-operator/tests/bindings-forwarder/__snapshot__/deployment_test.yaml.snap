@@ -1,0 +1,93 @@
+Should match snapshot:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      annotations:
+        checksum/rbac: 2c79f18bfeb71e9ec363f715df607b994ee4a9a5fe3552f6840bf273fc375868
+      labels:
+        app.kubernetes.io/component: bindings-forwarder
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.12.2
+        helm.sh/chart: ngrok-operator-0.15.0
+      name: RELEASE-NAME-ngrok-operator-bindings-forwarder
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: bindings-forwarder
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: ngrok-operator
+      template:
+        metadata:
+          annotations:
+            checksum/rbac: 2c79f18bfeb71e9ec363f715df607b994ee4a9a5fe3552f6840bf273fc375868
+            prometheus.io/path: /metrics
+            prometheus.io/port: "8080"
+            prometheus.io/scrape: "true"
+          labels:
+            app.kubernetes.io/component: bindings-forwarder
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: ngrok-operator
+        spec:
+          affinity:
+            nodeAffinity: null
+            podAffinity: null
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/component: bindings-forwarder
+                        app.kubernetes.io/instance: RELEASE-NAME
+                        app.kubernetes.io/name: ngrok-operator
+                    topologyKey: kubernetes.io/hostname
+                  weight: 1
+          containers:
+            - args:
+                - --description="The official ngrok Kubernetes Operator."
+                - --zap-log-level=info
+                - --zap-stacktrace-level=error
+                - --zap-encoder=json
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=:8080
+                - --manager-name=RELEASE-NAME-ngrok-operator-bindings-forwarder
+              command:
+                - /bindings-forwarder-manager
+              env:
+                - name: NGROK_AUTHTOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: AUTHTOKEN
+                      name: RELEASE-NAME-ngrok-operator-credentials
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: HELM_RELEASE_NAME
+                  value: RELEASE-NAME
+              image: docker.io/ngrok/ngrok-operator:0.12.2
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                initialDelaySeconds: 15
+                periodSeconds: 20
+              name: forwarder
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: 8081
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              resources:
+                limits: {}
+                requests: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+          serviceAccountName: RELEASE-NAME-ngrok-operator-bindings-forwarder
