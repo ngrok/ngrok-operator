@@ -76,3 +76,88 @@ func Test_convertEndpointBindingToServices(t *testing.T) {
 	assert.Equal(upstreamService.Name, "abc123")
 	assert.Equal(upstreamService.Spec.Ports[0].Name, "https")
 }
+
+func Test_setEndpointsStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		endpointBinding *bindingsv1alpha1.EndpointBinding
+		desired         *bindingsv1alpha1.BindingEndpoint
+	}{
+		{
+			name: "Set provisioning status",
+			endpointBinding: &bindingsv1alpha1.EndpointBinding{
+				Status: bindingsv1alpha1.EndpointBindingStatus{
+					Endpoints: []bindingsv1alpha1.BindingEndpoint{
+						{
+							Status:       bindingsv1alpha1.StatusUnknown,
+							ErrorCode:    "",
+							ErrorMessage: "",
+						},
+						{
+							Status:       bindingsv1alpha1.StatusProvisioning,
+							ErrorCode:    "",
+							ErrorMessage: "",
+						},
+						{
+							Status:       bindingsv1alpha1.StatusProvisioning,
+							ErrorCode:    "",
+							ErrorMessage: "",
+						},
+					},
+				},
+			},
+			desired: &bindingsv1alpha1.BindingEndpoint{
+				Status:       bindingsv1alpha1.StatusProvisioning,
+				ErrorCode:    "",
+				ErrorMessage: "",
+			},
+		},
+		{
+			name: "Set error status",
+			endpointBinding: &bindingsv1alpha1.EndpointBinding{
+				Status: bindingsv1alpha1.EndpointBindingStatus{
+					Endpoints: []bindingsv1alpha1.BindingEndpoint{
+						{
+							Status:       bindingsv1alpha1.StatusProvisioning,
+							ErrorCode:    "",
+							ErrorMessage: "",
+						},
+						{
+							Status:       bindingsv1alpha1.StatusProvisioning,
+							ErrorCode:    "",
+							ErrorMessage: "",
+						},
+						{
+							Status:       bindingsv1alpha1.StatusProvisioning,
+							ErrorCode:    "",
+							ErrorMessage: "",
+						},
+					},
+				},
+			},
+			desired: &bindingsv1alpha1.BindingEndpoint{
+				Status:       bindingsv1alpha1.StatusError,
+				ErrorCode:    "NGROK_ERR_1234",
+				ErrorMessage: "Exampl Error Message",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			assert := assert.New(t)
+
+			setEndpointsStatus(test.endpointBinding, test.desired)
+
+			for _, endpoint := range test.endpointBinding.Status.Endpoints {
+				assert.Equal(endpoint.Status, test.desired.Status)
+				assert.Equal(endpoint.ErrorCode, test.desired.ErrorCode)
+				assert.Equal(endpoint.ErrorMessage, test.desired.ErrorMessage)
+			}
+		})
+	}
+
+}
