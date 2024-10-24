@@ -24,6 +24,10 @@ spec:
     - jsonPath: .status.endpoints[0].status
       name: Status
       type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:
