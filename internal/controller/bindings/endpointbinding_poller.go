@@ -498,6 +498,7 @@ func fetchEndpoints() (*MockApiResponse, error) {
 				{ID: "ep_201", PublicURL: "tcp://service2.namespace2:2020"},
 				{ID: "ep_300", PublicURL: "service3.namespace3"},
 				{ID: "ep_400", PublicURL: "http://service4.namespace4:8080"},
+				{ID: "ep_500", PublicURL: "http://example-files.example:80"},
 			},
 		},
 	}, nil
