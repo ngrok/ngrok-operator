@@ -97,10 +97,21 @@ Create the name of the controller service account to use
 Create the name of the agent service account to use
 */}}
 {{- define "ngrok-operator.agent.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-    {{ default (printf "%s-agent" (include "ngrok-operator.fullname" .)) .Values.serviceAccount.name }}
+{{- if .Values.agent.serviceAccount.create -}}
+    {{ default (printf "%s-agent" (include "ngrok-operator.fullname" .)) .Values.agent.serviceAccount.name }}
 {{- else -}}
-    {{ default "default" .Values.serviceAccount.name }}
+    {{ default "default" .Values.agent.serviceAccount.name }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Create the name of the bindings-forwarder service account to use
+*/}}
+{{- define "ngrok-operator.bindings.forwarder.serviceAccountName" -}}
+{{- if .Values.bindings.forwarder.serviceAccount.create -}}
+    {{ default (printf "%s-bindings-forwarder" (include "ngrok-operator.fullname" .)) .Values.bindings.forwarder.serviceAccount.name }}
+{{- else -}}
+    {{ default "default" .Values.bindings.forwarder.serviceAccount.name }}
 {{- end -}}
 {{- end -}}
 

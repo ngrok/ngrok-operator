@@ -143,12 +143,15 @@ To uninstall the chart:
 
 ### Kubernetes Bindings feature configuration
 
-| Name                          | Description                                                                          | Value                       |
-| ----------------------------- | ------------------------------------------------------------------------------------ | --------------------------- |
-| `bindings.enabled`            | Whether to enable the Endpoint Bindings feature                                      | `false`                     |
-| `bindings.name`               | Unique name of this kubernetes binding in your ngrok account                         | `""`                        |
-| `bindings.description`        | Description of this kubernetes binding in your ngrok account                         | `Created by ngrok-operator` |
-| `bindings.allowedURLs`        | List of allowed endpoint URL formats that this binding will project into the cluster | `["*"]`                     |
-| `bindings.serviceAnnotations` | Annotations to add to projected services bound to an endpoint                        | `{}`                        |
-| `bindings.serviceLabels`      | Labels to add to projected services bound to an endpoint                             | `{}`                        |
-
+| Name                                            | Description                                                                             | Value                       |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------- |
+| `bindings.enabled`                              | Whether to enable the Endpoint Bindings feature                                         | `false`                     |
+| `bindings.name`                                 | Unique name of this kubernetes binding in your ngrok account                            | `""`                        |
+| `bindings.description`                          | Description of this kubernetes binding in your ngrok account                            | `Created by ngrok-operator` |
+| `bindings.allowedURLs`                          | List of allowed endpoint URL formats that this binding will project into the cluster    | `["*"]`                     |
+| `bindings.serviceAnnotations`                   | Annotations to add to projected services bound to an endpoint                           | `{}`                        |
+| `bindings.serviceLabels`                        | Labels to add to projected services bound to an endpoint                                | `{}`                        |
+| `bindings.forwarder.replicaCount`               | The number of bindings forwarders to run.                                               | `1`                         |
+| `bindings.forwarder.serviceAccount.create`      | Specifies whether a ServiceAccount should be created for the bindings forwarder pod(s). | `true`                      |
+| `bindings.forwarder.serviceAccount.name`        | The name of the ServiceAccount to use for the bindings forwarder pod(s).                | `""`                        |
+| `bindings.forwarder.serviceAccount.annotations` | Additional annotations to add to the bindings-forwarder ServiceAccount                  | `{}`                        |

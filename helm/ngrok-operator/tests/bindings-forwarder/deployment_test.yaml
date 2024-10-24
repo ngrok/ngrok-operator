@@ -1,0 +1,21 @@
+suite: test bindings forwarder deployment
+templates:
+- bindings-forwarder/deployment.yaml
+- bindings-forwarder/rbac.yaml
+set:
+  bindings.enabled: true
+tests:
+- it: Should match snapshot
+  template: bindings-forwarder/deployment.yaml
+  asserts:
+  - matchSnapshot: {}
+- it: should create a deployment if bindings.enabled is true
+  template: bindings-forwarder/deployment.yaml
+  asserts:
+  - isKind:
+      of: Deployment
+  - isAPIVersion:
+      of: apps/v1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-bindings-forwarder

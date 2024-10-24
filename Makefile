@@ -104,6 +104,9 @@ _build:
 	go build -o bin/agent-manager -trimpath -ldflags "-s -w \
 		-X $(REPO_URL)/internal/version.gitCommit=$(GIT_COMMIT) \
 		-X $(REPO_URL)/internal/version.version=$(VERSION)" cmd/agent/main.go
+	go build -o bin/bindings-forwarder-manager -trimpath -ldflags "-s -w \
+		-X $(REPO_URL)/internal/version.gitCommit=$(GIT_COMMIT) \
+		-X $(REPO_URL)/internal/version.version=$(VERSION)" cmd/bindings-forwarder/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -264,4 +267,7 @@ helm-test: _helm_setup ## Run helm unittest plugin
 
 .PHONY: helm-update-snapshots
 helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
+	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
+
+helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuilding dependencies
 	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots

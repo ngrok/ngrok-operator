@@ -1,0 +1,35 @@
+suite: test bindings forwarder rbac
+templates:
+- bindings-forwarder/rbac.yaml
+set:
+  bindings.enabled: true
+tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}
+- it: should not create a role or role binding if bindings.enabled is false
+  set:
+    bindings.enabled: false
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: should create a role if bindings.enabled is true
+  documentIndex: 0
+  asserts:
+  - isKind:
+      of: Role
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-bindings-forwarder
+- it: should create a rolebinding if bindings.enabled is true
+  documentIndex: 1
+  asserts:
+  - isKind:
+      of: RoleBinding
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-bindings-forwarder-rolebinding
