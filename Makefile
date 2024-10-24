@@ -265,3 +265,6 @@ helm-test: _helm_setup ## Run helm unittest plugin
 .PHONY: helm-update-snapshots
 helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
 	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
+
+helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuilding dependencies
+	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
