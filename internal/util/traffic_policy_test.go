@@ -9,6 +9,8 @@ import (
 )
 
 func TestIsLegacyPolicy(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name             string
 		msg              json.RawMessage
@@ -39,10 +41,22 @@ func TestIsLegacyPolicy(t *testing.T) {
 			msg:              []byte(`ngrok is All-in-one API gateway, Kubernetes Ingress, DDoS protection, firewall, and global load balancing as a service.`),
 			expectedIsLegacy: false,
 		},
+		{
+			name:             "message is empty json message",
+			msg:              []byte(""),
+			expectedIsLegacy: false,
+		},
+		{
+			name:             "message is nil",
+			msg:              nil,
+			expectedIsLegacy: false,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			isLegacy := IsLegacyPolicy(tc.msg)
 			assert.Equal(t, tc.expectedIsLegacy, isLegacy)
 		})
@@ -50,6 +64,8 @@ func TestIsLegacyPolicy(t *testing.T) {
 }
 
 func TestExtractEnabledField(t *testing.T) {
+	t.Parallel()
+
 	expectedTrue := true
 	expectedFalse := false
 
@@ -94,6 +110,20 @@ func TestExtractEnabledField(t *testing.T) {
 			expectedErr:           fmt.Errorf("invalid character 'I' looking for beginning of value"),
 		},
 		{
+			name:                  "message is empty json",
+			msg:                   []byte(""),
+			expectedReturnedMsg:   []byte(""),
+			expectedSetEnabledVal: nil,
+			expectedErr:           nil,
+		},
+		{
+			name:                  "message is nil",
+			msg:                   nil,
+			expectedReturnedMsg:   nil,
+			expectedSetEnabledVal: nil,
+			expectedErr:           nil,
+		},
+		{
 			name:                  "enabled present but doesn't map to anything meaningful",
 			msg:                   []byte(`{"enabled":"howdidthisgethere","on_http_request":{"config":"yes"}}`),
 			expectedReturnedMsg:   []byte(`{"on_http_request":{"config":"yes"}}`),
@@ -104,6 +134,8 @@ func TestExtractEnabledField(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			returnedMsg, setEnabledVal, err := ExtractEnabledField(tc.msg)
 
 			assert.Equal(t, tc.expectedReturnedMsg, returnedMsg)

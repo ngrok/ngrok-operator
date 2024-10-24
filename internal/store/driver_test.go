@@ -3,10 +3,13 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"testing"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -666,3 +669,103 @@ var _ = Describe("Driver", func() {
 		})
 	})
 })
+
+func TestExtractPolicy(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                  string
+		msg                   json.RawMessage
+		expectedTrafficPolicy ingressv1alpha1.EndpointTrafficPolicy
+		expectedErr           error
+	}{
+		{
+			name: "legacy policy configuration",
+			msg:  []byte(`{"inbound":[{"name":"test-inbound","actions":[{"type":"deny"}]}],"outbound":[{"name":"test-outbound","actions":[{"type":"some-action"}]}]}`),
+			expectedTrafficPolicy: ingressv1alpha1.EndpointTrafficPolicy{
+				OnHttpRequest: []ingressv1alpha1.EndpointRule{
+					{
+						Name: "test-inbound",
+						Actions: []ingressv1alpha1.EndpointAction{
+							{
+								Type: "deny",
+							},
+						},
+					},
+				},
+				OnHttpResponse: []ingressv1alpha1.EndpointRule{
+					{
+						Name: "test-outbound",
+						Actions: []ingressv1alpha1.EndpointAction{
+							{
+								Type: "some-action",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "phase-based policy config",
+			msg:  []byte(`{"on_http_request":[{"name":"test-inbound","actions":[{"type":"deny"}]}],"on_http_response":[{"name":"test-outbound","actions":[{"type":"some-action"}]}]}`),
+			expectedTrafficPolicy: ingressv1alpha1.EndpointTrafficPolicy{
+				OnHttpRequest: []ingressv1alpha1.EndpointRule{
+					{
+						Name: "test-inbound",
+						Actions: []ingressv1alpha1.EndpointAction{
+							{
+								Type: "deny",
+							},
+						},
+					},
+				},
+				OnHttpResponse: []ingressv1alpha1.EndpointRule{
+					{
+						Name: "test-outbound",
+						Actions: []ingressv1alpha1.EndpointAction{
+							{
+								Type: "some-action",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:                  "mixed legacy and phase based (not allowed)",
+			msg:                   []byte(`{"on_http_request":[{"name":"test-inbound","actions":[{"type":"deny"}]}],"outbound":[{"name":"test-outbound","actions":[{"type":"some-action"}]}]}`),
+			expectedTrafficPolicy: ingressv1alpha1.EndpointTrafficPolicy{},
+			expectedErr:           fmt.Errorf(`json: unknown field "on_http_request"`),
+		},
+		{
+			name:        "invalid json message",
+			msg:         []byte(`ngrok operates a global network where it accepts traffic to your upstream services from clients.`),
+			expectedErr: fmt.Errorf("invalid character 'g' in literal null (expecting 'u')"),
+		},
+		{
+			name:        "empty json message",
+			msg:         []byte(""),
+			expectedErr: fmt.Errorf("unexpected end of JSON input"),
+		},
+		{
+			name:        "nil json message",
+			expectedErr: fmt.Errorf("unexpected end of JSON input"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			trafficPolicy, err := extractPolicy(tc.msg)
+
+			assert.Equal(t, tc.expectedTrafficPolicy, trafficPolicy)
+			if tc.expectedErr == nil {
+				assert.NoError(t, err)
+			} else {
+				// Can't compare the exact error as we don't have access to json SyntaxError underlying `msg` field`
+				assert.Equal(t, tc.expectedErr.Error(), err.Error())
+			}
+		})
+	}
+}

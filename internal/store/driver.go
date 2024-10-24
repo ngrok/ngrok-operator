@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -1263,11 +1264,16 @@ func extractPolicy(jsonMessage json.RawMessage) (ingressv1alpha1.EndpointTraffic
 
 	if util.IsLegacyPolicy(jsonMessage) {
 		var legacyPolicyStruct ingressv1alpha1.EndpointPolicy
-		if err := json.Unmarshal(jsonMessage, &legacyPolicyStruct); err != nil {
+
+		// disallow unknown fields so we can detect mismatches/unsupported phases/values/etc
+		decoder := json.NewDecoder(bytes.NewReader(jsonMessage))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&legacyPolicyStruct); err != nil {
 			return trafficPolicyStruct, err
 		}
 
-		// at time of writing, handleExtensionRef only support
+		// at time of writing, handleExtensionRef only supports HTTP edges, so these are the only phases we need
+		// to worry about
 		trafficPolicyStruct.OnHttpRequest = append(trafficPolicyStruct.OnHttpRequest, legacyPolicyStruct.Inbound...)
 		trafficPolicyStruct.OnHttpResponse = append(trafficPolicyStruct.OnHttpResponse, legacyPolicyStruct.Outbound...)
 

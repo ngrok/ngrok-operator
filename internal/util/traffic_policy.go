@@ -31,6 +31,10 @@ func IsLegacyPolicy(msg json.RawMessage) bool {
 //
 // If the "enabled" field is not present in the message, the message is returned unmodified.
 func ExtractEnabledField(msg json.RawMessage) (json.RawMessage, *bool, error) {
+	if msg == nil || len(msg) == 0 {
+		return msg, nil, nil
+	}
+
 	var policyData map[string]any
 	err := json.Unmarshal(msg, &policyData)
 	if err != nil {

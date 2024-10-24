@@ -1111,11 +1111,15 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteTrafficPolicy(ctx context.Context, 
 
 	module.Value = string(trafficPolicy)
 
-	log.Info("Updating Traffic Policy module")
+	u.recorder.Eventf(u.edge, v1.EventTypeNormal, "Update", "Updating Traffic Policy on edge.")
 	_, err = client.Replace(ctx, &ngrok.EdgeRouteTrafficPolicyReplace{
 		EdgeID: route.EdgeID,
 		ID:     route.ID,
 		Module: module,
 	})
+	if err == nil {
+		u.recorder.Eventf(u.edge, v1.EventTypeNormal, "Update", "Traffic Policy successfully updated.")
+	}
+
 	return err
 }

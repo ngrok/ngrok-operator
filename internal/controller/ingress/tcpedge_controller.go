@@ -492,11 +492,14 @@ func (r *TCPEdgeReconciler) updatePolicyModule(ctx context.Context, edge *ingres
 
 	module.Value = string(trafficPolicy)
 
-	r.Log.Info("Updating Traffic Policy module")
+	r.Recorder.Eventf(edge, v1.EventTypeNormal, "Update", "Updating Traffic Policy on edge.")
 	_, err = client.Replace(ctx, &ngrok.EdgeTrafficPolicyReplace{
 		ID:     remoteEdge.ID,
 		Module: module,
 	})
+	if err == nil {
+		r.Recorder.Eventf(edge, v1.EventTypeNormal, "Update", "Traffic Policy successfully updated.")
+	}
 
 	return err
 }
