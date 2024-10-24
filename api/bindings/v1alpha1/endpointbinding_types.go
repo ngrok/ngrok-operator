@@ -125,6 +125,7 @@ type BindingEndpoint struct {
 	v6.Ref `json:",inline"`
 
 	// +kubebuilder:validation:Required
+	// +kube:validation:Enum=provisioning;bound;error;unknown
 	// +kubebuilder:default="unknown"
 	Status BindingEndpointStatus `json:"status"`
 
@@ -158,6 +159,7 @@ const (
 // EndpointBinding is the Schema for the endpointbindings API
 // +kubebuilder:printcolumn:name="URI",type="string",JSONPath=".spec.endpointURI"
 // +kubebuilder:printcolumn:name="Port",type="string",JSONPath=".spec.port"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 type EndpointBinding struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

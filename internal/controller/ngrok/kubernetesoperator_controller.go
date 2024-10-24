@@ -51,6 +51,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	ngrokgo "golang.ngrok.com/ngrok"
 )
 
 // TODO: features need to be capitalized in the ngrok API currently, this is subject to change
@@ -116,17 +117,23 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
+	var k8sOp *ngrok.KubernetesOperator
+	var ngrokErr ngrokgo.Error
+
 	k8sOp, err := r.findExisting(ctx, ko)
 	if err != nil {
 		return err
 	}
 
+	// defer status update
+	defer func() {
+		// best effort
+		_ = r.updateStatus(ctx, ko, k8sOp, ngrokErr)
+	}()
+
 	// Already exists, so update the status to match the existing KubernetesOperator
 	// and make sure it is up to date
 	if k8sOp != nil {
-		if err := r.updateStatus(ctx, ko, k8sOp); err != nil {
-			return err
-		}
 		return r._update(ctx, ko, k8sOp)
 	}
 
@@ -160,11 +167,11 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	// Create the KubernetesOperator in the ngrok API
 	k8sOp, err = r.NgrokClientset.KubernetesOperators().Create(ctx, createParams)
 	if err != nil {
-		return err
-	}
-
-	// Update the status with the KubernetesOperator ID
-	if err := r.updateStatus(ctx, ko, k8sOp); err != nil {
+		if errors.As(err, &ngrokErr) {
+			// nothing to do?
+		} else {
+			ngrokErr = nil // some other error
+		}
 		return err
 	}
 
@@ -181,7 +188,7 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1al
 		// If we can't find it, we'll clear the ID and re-reconcile
 		if ngrok.IsNotFound(err) {
 			log.Error(err, "expected to find KubernetesOperator in ngrok API, but it was not found")
-			_ = r.updateStatus(ctx, ko, nil)
+			_ = r.updateStatus(ctx, ko, nil, nil)
 		}
 		return err
 	}
@@ -197,27 +204,57 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1al
 	return err
 }
 
-func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator) error {
+func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator, ngrokErr ngrokgo.Error) error {
+	log := ctrl.LoggerFrom(ctx)
 	patch := client.MergeFrom(ko.DeepCopy())
 
-	if ngrokKo == nil {
-		if ko.Status.ID == "" && ko.Status.URI == "" { // No need to update the status
-			return nil
-		}
+	if ngrokErr != nil {
+		// registration failed
 		ko.Status.ID = ""
 		ko.Status.URI = ""
+		ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusError
+		ko.Status.RegistrationErrorCode = ngrokErr.ErrorCode()
+		ko.Status.RegistrationErrorMessage = ngrokErr.Msg()
 	} else {
-		if ko.Status.ID == ngrokKo.ID && ko.Status.URI == ngrokKo.URI { // No need to update the status
-			return nil
+		if ngrokKo == nil {
+			// If the KubernetesOperator is not found, clear the status fields
+			ko.Status.ID = ""
+			ko.Status.URI = ""
+			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusUnknown
+			ko.Status.RegistrationErrorCode = ""
+			ko.Status.RegistrationErrorMessage = ""
+		} else {
+			// If the KubernetesOperator is found, update the status fields
+			ko.Status.ID = ngrokKo.ID
+			ko.Status.URI = ngrokKo.URI
+			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess
+			ko.Status.RegistrationErrorCode = ""
+			ko.Status.RegistrationErrorMessage = ""
 		}
-		ko.Status.ID = ngrokKo.ID
-		ko.Status.URI = ngrokKo.URI
 	}
 
-	return r.Status().Patch(ctx, ko, patch)
+	if err := r.Status().Patch(ctx, ko, patch); err != nil {
+		r.Recorder.Event(ko, v1.EventTypeWarning, "StatusUpdateFailed", "Failed to update status")
+		log.Error(err, "Failed to Update KubernetesOperator status")
+		return err
+	}
+
+	r.Recorder.Event(ko, v1.EventTypeNormal, "StatusUpdateSuccess", "Updated status")
+	log.Info("Updated KubernetesOperator status")
+	return nil
 }
 
 func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator) (err error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	var ngrokErr ngrokgo.Error
+
+	// defer status update
+	defer func() {
+		// best effort
+		_ = r.updateStatus(ctx, ko, ngrokKo, ngrokErr)
+	}()
+
 	// Update the KubernetesOperator in the ngrok API
 	updateParams := &ngrok.KubernetesOperatorUpdate{
 		ID:              ngrokKo.ID,
@@ -243,10 +280,12 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 
 	ngrokKo, err = r.NgrokClientset.KubernetesOperators().Update(ctx, updateParams)
 	if err != nil {
-		return err
-	}
-
-	if err := r.updateStatus(ctx, ko, ngrokKo); err != nil {
+		log.Error(err, "failed to update KubernetesOperator in ngrok API")
+		if errors.As(err, &ngrokErr) {
+			// nothing to do?
+		} else {
+			ngrokErr = nil // some other error
+		}
 		return err
 	}
 
@@ -300,7 +339,8 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 		iterLogger.V(3).Info("found matching KubernetesOperator")
 		return item, nil
 	}
-	return nil, nil
+
+	return nil, iter.Err()
 }
 
 func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
