@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Install readme-generator-for-helm
-        run: npm install -g @bitnami/readme-generator-for-helm@2.4.2
+        run: npm install -g @bitnami/readme-generator-for-helm@2.6.1
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
