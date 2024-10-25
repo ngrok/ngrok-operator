@@ -19,9 +19,6 @@ spec:
       jsonPath: .status.id
       name: ID
       type: string
-    - jsonPath: .metadata.name
-      name: Name
-      type: string
     - jsonPath: .status.registrationStatus
       name: Status
       type: string

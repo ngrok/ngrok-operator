@@ -137,7 +137,6 @@ type KubernetesOperatorSpec struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Kubernetes Operator ID"
-// +kubebuilder:printcolumn:name="Name",type="string",JSONPath=".metadata.name"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.registrationStatus"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
