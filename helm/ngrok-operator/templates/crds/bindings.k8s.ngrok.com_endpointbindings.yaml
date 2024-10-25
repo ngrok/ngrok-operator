@@ -21,6 +21,9 @@ spec:
     - jsonPath: .spec.port
       name: Port
       type: string
+    - jsonPath: .status.endpoints[0].status
+      name: Status
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:

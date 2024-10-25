@@ -158,6 +158,7 @@ const (
 // EndpointBinding is the Schema for the endpointbindings API
 // +kubebuilder:printcolumn:name="URI",type="string",JSONPath=".spec.endpointURI"
 // +kubebuilder:printcolumn:name="Port",type="string",JSONPath=".spec.port"
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.endpoints[0].status"
 type EndpointBinding struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
