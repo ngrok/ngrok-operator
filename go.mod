@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.3.1
 	github.com/imdario/mergo v0.3.16
 	github.com/ngrok/ngrok-api-go/v5 v5.4.1
-	github.com/ngrok/ngrok-api-go/v6 v6.0.1-0.20241015200239-7c32f2a7d4d9
+	github.com/ngrok/ngrok-api-go/v6 v6.1.1-0.20241025160627-dcdb6f5b23f8
 	github.com/onsi/ginkgo/v2 v2.14.0
 	github.com/onsi/gomega v1.30.0
 	github.com/spf13/cobra v1.7.0
