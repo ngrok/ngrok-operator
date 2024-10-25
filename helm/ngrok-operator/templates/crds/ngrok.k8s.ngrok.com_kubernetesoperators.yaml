@@ -131,7 +131,7 @@ spec:
                 pattern: ^NGROK_ERR_\d+$
                 type: string
               registrationStatus:
-                default: unknown
+                default: pending
                 description: RegistrationStatus is the status of the registration
                   of this Kubernetes Operator with the ngrok API
                 type: string

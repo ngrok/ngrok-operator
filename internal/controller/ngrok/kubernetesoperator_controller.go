@@ -220,7 +220,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 			// If the KubernetesOperator is not found, clear the status fields
 			ko.Status.ID = ""
 			ko.Status.URI = ""
-			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusUnknown
+			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusPending
 			ko.Status.RegistrationErrorCode = ""
 			ko.Status.RegistrationErrorMessage = ""
 		} else {
