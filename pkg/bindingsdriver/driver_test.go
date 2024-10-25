@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -35,7 +36,7 @@ func TestBindingsListener(t *testing.T) {
 	assert.NotNil(t, bl)
 
 	// test that we can connect to the listener
-	conn, err := net.Dial("tcp", loopbackAddr(port))
+	conn, err := net.DialTimeout("tcp", loopbackAddr(port), 10*time.Millisecond)
 	assert.NoError(t, err)
 
 	out, err := io.ReadAll(conn)
@@ -44,6 +45,13 @@ func TestBindingsListener(t *testing.T) {
 	assert.Equal(t, "hello world", string(out))
 
 	assert.NotPanics(t, func() { bl.Stop() })
+
+	// test that we can't connect to the listener after it's stopped
+	conn, err = net.DialTimeout("tcp", loopbackAddr(port), 10*time.Millisecond)
+	assert.Error(t, err)
+	assert.Nil(t, conn)
+
+	// test that we can stop the listener multiple times
 	assert.NotPanics(t, func() { bl.Stop() })
 }
 
