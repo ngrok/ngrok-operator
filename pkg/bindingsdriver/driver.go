@@ -59,9 +59,11 @@ type ConnectionHandler func(net.Conn) error
 
 type bindingsListener struct {
 	listener    net.Listener
-	stop        chan struct{}
 	cnxnHandler ConnectionHandler
 	log         logr.Logger
+
+	stopOnce sync.Once
+	stop     chan struct{}
 }
 
 func newBindingsListener(address string, cnxnHandler ConnectionHandler) (*bindingsListener, error) {
@@ -72,8 +74,8 @@ func newBindingsListener(address string, cnxnHandler ConnectionHandler) (*bindin
 
 	bl := &bindingsListener{
 		listener:    l,
-		stop:        make(chan struct{}),
 		cnxnHandler: cnxnHandler,
+		stop:        make(chan struct{}),
 	}
 
 	go bl.run()
@@ -83,18 +85,16 @@ func newBindingsListener(address string, cnxnHandler ConnectionHandler) (*bindin
 
 // Stop stops the listener. It is safe to call stop multiple times.
 func (b *bindingsListener) Stop() {
-	select {
-	case b.stop <- struct{}{}:
-		close(b.stop)
-	default:
-	}
+	b.stopOnce.Do(func() {
+		b.listener.Close()
+		b.stop <- struct{}{}
+	})
 }
 
 func (b *bindingsListener) run() {
 	for {
 		select {
 		case <-b.stop:
-			b.listener.Close()
 			return
 		default:
 		}
