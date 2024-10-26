@@ -39,7 +39,10 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -97,6 +100,18 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressv1alpha1.HTTPSEdge{}).
+		Watches(
+			&v1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.findHTTPSEdgeForSecret),
+			builder.WithPredicates(&predicate.Funcs{
+				// Ignore Deletes since it would just cause a failure to look it up and reconcile the edge
+				// Instead if its being deleted they are likely either deleting this edge as well, or replacing
+				// the secret with a different one which means this httpsedge crd will get updated
+				DeleteFunc: func(e event.DeleteEvent) bool {
+					return false
+				},
+			}),
+		).
 		WithEventFilter(predicate.Or(
 			predicate.AnnotationChangedPredicate{},
 			predicate.GenerationChangedPredicate{},
@@ -1088,4 +1103,103 @@ func (u *edgeRouteModuleUpdater) setEdgeRoutePolicy(ctx context.Context, route *
 		Module: policy,
 	})
 	return err
+}
+
+// extractSecretReferences traverses the HTTPSEdge spec to find all referenced secret names.
+func (r *HTTPSEdgeReconciler) extractSecretReferences(edge *ingressv1alpha1.HTTPSEdge) []string {
+	var secrets []string
+
+	// Traverse nested fields for secret references
+	for _, route := range edge.Spec.Routes {
+		// OAuth secrets
+		if route.OAuth != nil {
+			secrets = append(secrets, r.getSecretName(route.OAuth.Google.ClientSecret))
+			secrets = append(secrets, r.getSecretName(route.OAuth.Github.ClientSecret))
+			secrets = append(secrets, r.getSecretName(route.OAuth.Gitlab.ClientSecret))
+			secrets = append(secrets, r.getSecretName(route.OAuth.Amazon.ClientSecret))
+			secrets = append(secrets, r.getSecretName(route.OAuth.Facebook.ClientSecret))
+			secrets = append(secrets, r.getSecretName(route.OAuth.Microsoft.ClientSecret))
+			secrets = append(secrets, r.getSecretName(route.OAuth.Twitch.ClientSecret))
+			secrets = append(secrets, r.getSecretName(route.OAuth.Linkedin.ClientSecret))
+		}
+
+		// OIDC secrets
+		if route.OIDC != nil {
+			secrets = append(secrets, r.getSecretName(&route.OIDC.ClientSecret))
+		}
+
+		// Webhook Verification secrets
+		if route.WebhookVerification != nil && route.WebhookVerification.SecretRef != nil {
+			secrets = append(secrets, route.WebhookVerification.SecretRef.Name)
+		}
+	}
+
+	// Remove empty and duplicate entries
+	return filterAndRemoveDuplicates(secrets)
+}
+
+// getSecretName extracts the secret name from OAuth or OIDC configurations.
+func (r *HTTPSEdgeReconciler) getSecretName(ref *ingressv1alpha1.SecretKeyRef) string {
+	if ref != nil && ref.Name != "" {
+		return ref.Name
+	}
+	return ""
+}
+
+// filterAndRemoveDuplicates removes empty strings and duplicates from a slice.
+func filterAndRemoveDuplicates(secrets []string) []string {
+	seen := make(map[string]struct{})
+	var result []string
+	for _, secret := range secrets {
+		if secret == "" {
+			continue
+		}
+		if _, found := seen[secret]; !found {
+			seen[secret] = struct{}{}
+			result = append(result, secret)
+		}
+	}
+	return result
+}
+
+// findHTTPSEdgeForSecret lists all HTTPSEdges and returns those that reference the given secret.
+func (r *HTTPSEdgeReconciler) findHTTPSEdgeForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*v1.Secret)
+	if !ok {
+		// Log an error and return an empty list
+		return nil
+	}
+
+	// List all HTTPSEdges
+	edges := &ingressv1alpha1.HTTPSEdgeList{}
+	if err := r.Client.List(context.Background(), edges); err != nil {
+		r.Log.Error(err, "Failed to list HTTPSEdges for Secret", "secret", secret.Name, "namespace", secret.Namespace)
+		return nil
+	}
+
+	var recs []reconcile.Request
+	for _, edge := range edges.Items {
+		secretRefs := r.extractSecretReferences(&edge)
+		if contains(secretRefs, secret.Name) {
+			recs = append(recs, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      edge.GetName(),
+					Namespace: edge.GetNamespace(),
+				},
+			})
+		}
+	}
+
+	r.Log.Info("Secret change triggered HTTPSEdge reconciliation", "count", len(recs), "secret", secret.Name, "namespace", secret.Namespace)
+	return recs
+}
+
+// contains checks if a slice contains a specific string.
+func contains(slice []string, item string) bool {
+	for _, str := range slice {
+		if str == item {
+			return true
+		}
+	}
+	return false
 }
