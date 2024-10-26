@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -384,6 +385,7 @@ func (s Store) ListNgrokModuleSetsV1() []*ingressv1alpha1.NgrokModuleSet {
 	return modules
 }
 
+// shouldHandleIngress checks if the ingress should be handled by the controller based on validation and ingress class
 func (s Store) shouldHandleIngress(ing *netv1.Ingress) (bool, error) {
 	ok, err := s.shouldHandleIngressIsValid(ing)
 	if err != nil {
@@ -392,39 +394,41 @@ func (s Store) shouldHandleIngress(ing *netv1.Ingress) (bool, error) {
 	return s.shouldHandleIngressCheckClass(ing)
 }
 
-// shouldHandleIngressCheckClass checks if the ingress should be handled by the controller based on the ingress class
-func (s Store) shouldHandleIngressCheckClass(ing *netv1.Ingress) (bool, error) {
-	ngrokClasses := s.ListNgrokIngressClassesV1()
-	if ing.Spec.IngressClassName != nil {
-		for _, class := range ngrokClasses {
-			if *ing.Spec.IngressClassName == class.Name {
-				return true, nil
-			}
-		}
-	} else {
-		for _, class := range ngrokClasses {
-			if class.Annotations["ingressclass.kubernetes.io/is-default-class"] == "true" {
-				return true, nil
-			}
-		}
-	}
-	return false, errors.NewErrDifferentIngressClass(s.ListNgrokIngressClassesV1(), ing.Spec.IngressClassName)
-}
-
 // shouldHandleIngressIsValid checks if the ingress should be handled by the controller based on the ingress spec
 func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 	errs := errors.NewErrInvalidIngressSpec()
+
+	// Check for missing rules
 	if len(ing.Spec.Rules) == 0 {
 		errs.AddError("At least one rule is required to be set")
+		s.logWarning(ing, "InvalidIngressSpec", "Ingress must have at least one rule defined")
 	} else {
+		// Check for hostless rules
 		if ing.Spec.Rules[0].Host == "" {
 			errs.AddError("A host is required to be set")
+			s.logWarning(ing, "InvalidIngressSpec", "Ingress rules must have a host specified")
 		}
 
-		for _, path := range ing.Spec.Rules[0].HTTP.Paths {
-			if path.Backend.Resource != nil {
-				errs.AddError("Resource backends are not supported")
+		// Check for default backends
+		if ing.Spec.DefaultBackend != nil {
+			errs.AddError("Default backends are not supported")
+			s.logWarning(ing, "InvalidIngressSpec", "Default backends are not supported and will be ignored")
+		}
+
+		// Check for resource backends in rules
+		if ing.Spec.Rules[0].HTTP != nil {
+			for _, path := range ing.Spec.Rules[0].HTTP.Paths {
+				if path.Backend.Resource != nil {
+					errs.AddError("Resource backends are not supported")
+					s.logWarning(ing, "InvalidIngressSpec", "Resource backends are not supported and will be ignored")
+				}
 			}
+		}
+
+		// Handle duplicate host/path conflicts
+		if s.isHostPathConflict(ing) {
+			errs.AddError("Duplicate host/path conflict detected")
+			s.logWarning(ing, "ConflictIngress", "Duplicate host/path detected, ignoring conflicting ingress")
 		}
 	}
 
@@ -432,4 +436,76 @@ func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 		return false, errs
 	}
 	return true, nil
+}
+
+// shouldHandleIngressCheckClass checks if the ingress should be handled by the controller based on the ingress class
+func (s Store) shouldHandleIngressCheckClass(ing *netv1.Ingress) (bool, error) {
+	ngrokClasses := s.ListNgrokIngressClassesV1()
+
+	// Handle IngressClass in Spec
+	if ing.Spec.IngressClassName != nil {
+		for _, class := range ngrokClasses {
+			if *ing.Spec.IngressClassName == class.Name {
+				return true, nil
+			}
+		}
+		s.logWarning(ing, "UnknownIngressClass", fmt.Sprintf(
+			"Ingress class %s is not recognized by the controller", *ing.Spec.IngressClassName))
+		return false, errors.NewErrDifferentIngressClass(ngrokClasses, ing.Spec.IngressClassName)
+	}
+
+	// Handle deprecated IngressClass annotation
+	if annotation, exists := ing.Annotations["kubernetes.io/ingress.class"]; exists {
+		s.logWarning(ing, "DeprecatedIngressClass", fmt.Sprintf(
+			"Ingress class annotation is deprecated and ignored: %s", annotation))
+	}
+
+	// Handle default IngressClass
+	for _, class := range ngrokClasses {
+		if class.Annotations["ingressclass.kubernetes.io/is-default-class"] == "true" {
+			return true, nil
+		}
+	}
+
+	return false, errors.NewErrDifferentIngressClass(ngrokClasses, ing.Spec.IngressClassName)
+}
+
+// isHostPathConflict checks if there is a duplicate host/path conflict
+func (s Store) isHostPathConflict(ing *netv1.Ingress) bool {
+	// Check existing ingresses to detect conflicts
+	for _, existing := range s.ListNgrokIngressesV1() {
+		if existing.Spec.Rules[0].Host == ing.Spec.Rules[0].Host &&
+			existing.Spec.Rules[0].HTTP.Paths[0].Path == ing.Spec.Rules[0].HTTP.Paths[0].Path {
+			return true
+		}
+	}
+	return false
+}
+
+// logWarning logs a warning message for a specific ingress
+func (s Store) logWarning(ing *netv1.Ingress, reason, message string) {
+	s.log.Info(message, "reason", reason, "ingress", ing.Name, "namespace", ing.Namespace)
+}
+
+// checkNgrokIngressClass periodically checks for the existence of the ngrok IngressClass
+func (s Store) checkNgrokIngressClass() {
+	ticker := time.NewTicker(5 * time.Minute)
+	go func() {
+		for range ticker.C {
+			if !s.ngrokIngressClassExists() {
+				s.log.Error(errors.New("Ngrok IngressClass is missing"),
+					"Ensure the Ngrok IngressClass is created")
+			}
+		}
+	}()
+}
+
+// ngrokIngressClassExists checks if the ngrok IngressClass exists
+func (s Store) ngrokIngressClassExists() bool {
+	for _, class := range s.ListNgrokIngressClassesV1() {
+		if class.Name == "ngrok" {
+			return true
+		}
+	}
+	return false
 }
