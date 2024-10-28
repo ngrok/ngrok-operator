@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	v6 "github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
@@ -40,6 +41,9 @@ type EndpointBindingPoller struct {
 	// Namespace is the namespace to manage for EndpointBindings
 	Namespace string
 
+	// KubernetesOperatorConfigName is the expected name of the KubernetesOperator that we should poll
+	KubernetesOperatorConfigName string
+
 	// PollingInterval is how often to poll the ngrok API for reconciling the BindingEndpoints
 	PollingInterval time.Duration
 
@@ -55,19 +59,67 @@ type EndpointBindingPoller struct {
 	// reconcilingCancel is the active context's cancel function that is managing the reconciling goroutines
 	// this context should be canceled and recreated during each reconcile loop
 	reconcilingCancel context.CancelFunc
+
+	// koId is the KubernetesOperator ID from the ngrok API
+	koId string
 }
 
 // Start implements the manager.Runnable interface.
 func (r *EndpointBindingPoller) Start(ctx context.Context) error {
 	log := ctrl.LoggerFrom(ctx)
 
+	// retrieve k8sop ID
+	r.koId = r.getKubernetesOperatorId(ctx)
+
 	log.Info("Starting the BindingConfiguration polling routine")
 	r.stopCh = make(chan struct{})
 	defer close(r.stopCh)
+
+	// background polling
 	go r.startPollingAPI(ctx)
+
+	// handle cancellations
 	<-ctx.Done()
 	log.Info("Stopping the BindingConfiguration polling routine")
 	return nil
+}
+
+// getKubernetesOperatorId waits to retrieve the k8sop ID from the KubernetesOperator resource, post-registration
+func (r *EndpointBindingPoller) getKubernetesOperatorId(ctx context.Context) string {
+	log := ctrl.LoggerFrom(ctx)
+
+	log.V(1).Info("Waiting for KubernetesOperator to be registered and ID returned")
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			var ko ngrokv1alpha1.KubernetesOperator
+			err := r.Client.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: r.KubernetesOperatorConfigName}, &ko)
+			if err != nil {
+				log.Error(err, "Failed to get KubernetesOperator", "name", r.KubernetesOperatorConfigName)
+				continue
+			}
+
+			if ko.Status.RegistrationStatus != ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess {
+				log.V(1).Info("KubernetesOperator not yet registered, waiting...")
+				continue
+			}
+
+			if ko.Status.ID == "" {
+				log.V(1).Info("KubernetesOperator registered with missing ID, waiting...")
+				continue
+			}
+
+			log.Info("KubernetesOperator registered successfully", "id", ko.Status.ID)
+			return ko.Status.ID
+		case <-ctx.Done():
+			log.Info("Context canceled, stopping KubernetesOperator ID retrieval")
+			return ""
+		}
+	}
 }
 
 // startPollingAPI polls a mock API every over a polling interval and updates the BindingConfiguration's status.
