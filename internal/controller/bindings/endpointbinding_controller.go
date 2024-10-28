@@ -160,20 +160,24 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - ExternalName Target Service in the Target Namespace/Service name pointed at the Upstream Service
 // - Upstream Service in the ngrok-op namespace pointed at the Pod Forwarders
 func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.Reconcile(ctx, req, new(bindingsv1alpha1.EndpointBinding))
+	cr := &bindingsv1alpha1.EndpointBinding{}
+	if ctrlErr, err := r.controller.Reconcile(ctx, req, cr); err != nil {
+		return ctrlErr, err
+	}
+
+	// update ngrok api resource status on upsert
+	if controller.IsUpsert(cr) {
+		if err := postEndpointBindingUpdateToNgrokAPI(ctx, cr); err != nil {
+			return controller.CtrlResultForErr(err)
+		}
+	}
+
+	// success
+	return ctrl.Result{}, nil
 }
 
 func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
 	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
-
-	// defer updating statuses
-	defer func() {
-		// best effort
-		_ = r.updateEndpointBindingStatus(ctx, cr)
-
-		// best effort for now TODO(hkatz) retries?
-		_ = postEndpointBindingUpdateToNgrokAPI(ctx, cr)
-	}()
 
 	if err := r.createUpstreamService(ctx, cr, upstreamService); err != nil {
 		return err
@@ -185,33 +189,6 @@ func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1al
 
 	go r.tryToBindEndpointBinding(ctx, cr)
 
-	return nil
-}
-
-// updateEndpointBindingStatus updates the status of the EndpointBinding to the desired state
-func (r *EndpointBindingReconciler) updateEndpointBindingStatus(ctx context.Context, desired *bindingsv1alpha1.EndpointBinding) error {
-	log := ctrl.LoggerFrom(ctx).WithValues("name", desired.Name)
-
-	existing := desired.DeepCopy()
-	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(desired), existing); err != nil {
-		log.Error(err, "Failed to get EndpointBinding for status update")
-		r.Recorder.Event(desired, v1.EventTypeWarning, "UpdateFailed", "Failed to get EndpointBinding for status update")
-		return err
-	}
-
-	// use existing
-
-	// set status to desired
-	existing.Status = desired.Status
-
-	if err := r.Client.Status().Update(ctx, existing); err != nil {
-		log.Error(err, "Failed to update EndpointBinding status")
-		r.Recorder.Event(existing, v1.EventTypeWarning, "UpdateFailed", "Failed to update EndpointBinding status")
-		return err
-	}
-
-	log.Info("Updated EndpointBinding status")
-	r.Recorder.Event(existing, v1.EventTypeNormal, "Updated", "Updated EndpointBinding status")
 	return nil
 }
 
@@ -284,15 +261,6 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 
 	var existingTargetService v1.Service
 	var existingUpstreamService v1.Service
-
-	// defer updating statuses
-	defer func() {
-		// best effort
-		_ = r.updateEndpointBindingStatus(ctx, cr)
-
-		// best effort for now TODO(hkatz) retries?
-		_ = postEndpointBindingUpdateToNgrokAPI(ctx, cr)
-	}()
 
 	// upstream service
 	err := r.Get(ctx, client.ObjectKey{Namespace: desiredUpstreamService.Namespace, Name: desiredUpstreamService.Name}, &existingUpstreamService)
@@ -615,8 +583,17 @@ func (r *EndpointBindingReconciler) tryToBindEndpointBinding(ctx context.Context
 	setEndpointsStatus(endpointBinding, desired)
 
 	// best effort
-	_ = r.updateEndpointBindingStatus(ctx, endpointBinding)
+	_, err := r.controller.ReconcileStatus(ctx, endpointBinding)
+	if err != nil {
+		// try one more time
+		time.Sleep(10 * time.Second)
+		_, _ = r.controller.ReconcileStatus(ctx, endpointBinding)
+	}
 
-	// best effort for now TODO(hkatz) retries?
-	_ = postEndpointBindingUpdateToNgrokAPI(ctx, endpointBinding)
+	// best effort update to ngrok API
+	if err := postEndpointBindingUpdateToNgrokAPI(ctx, endpointBinding); err != nil {
+		// try one more time
+		time.Sleep(10 * time.Second)
+		_ = postEndpointBindingUpdateToNgrokAPI(ctx, endpointBinding)
+	}
 }
