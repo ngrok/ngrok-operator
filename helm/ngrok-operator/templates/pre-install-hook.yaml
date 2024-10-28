@@ -1,14 +1,13 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "ngrok-operator.fullname" . }}-diagnose-test
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
   annotations:
-    "helm.sh/hook": pre-install
-    "helm.sh/hook": test
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": "pre-install,test"
+    # "helm.sh/hook-delete-policy": "hook-succeeded"
 spec:
   template:
     spec:
@@ -16,5 +15,5 @@ spec:
         - name: ngrok-diagnose
           image: ngrok/ngrok:latest
           command: ["/bin/sh", "-c"]
-          args: ["ngrok diagnose"]
+          args: ["ngrok diagnose -w /tmp/diagnose_output.txt && cat /tmp/diagnose_output.txt"]
       restartPolicy: Never
