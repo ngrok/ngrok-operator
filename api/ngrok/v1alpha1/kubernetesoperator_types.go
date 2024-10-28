@@ -80,7 +80,29 @@ type KubernetesOperatorStatus struct {
 
 	// URI is the URI for this Kubernetes Operator
 	URI string `json:"uri,omitempty"`
+
+	// RegistrationStatus is the status of the registration of this Kubernetes Operator with the ngrok API
+	// +kubebuilder:validation:Required
+	// +kube:validation:Enum=registered;error;pending
+	// +kubebuilder:default="pending"
+	RegistrationStatus string `json:"registrationStatus,omitempty"`
+
+	// RegistrationErrorCode is the returned ngrok error code
+	// +kube:validation:Optional
+	// +kubebuilder:validation:Pattern=`^NGROK_ERR_\d+$`
+	RegistrationErrorCode string `json:"registrationErrorCode,omitempty"`
+
+	// RegistrationErrorMessage is a free-form error message if the status is error
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxLength=4096
+	RegistrationErrorMessage string `json:"errorMessage,omitempty"`
 }
+
+const (
+	KubernetesOperatorRegistrationStatusSuccess = "registered"
+	KubernetesOperatorRegistrationStatusError   = "error"
+	KubernetesOperatorRegistrationStatusPending = "pending"
+)
 
 const (
 	KubernetesOperatorFeatureIngress  = "ingress"
@@ -115,6 +137,7 @@ type KubernetesOperatorSpec struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Kubernetes Operator ID"
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.registrationStatus"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
 // KubernetesOperator is the Schema for the ngrok kubernetesoperators API
