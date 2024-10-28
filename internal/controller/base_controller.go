@@ -81,32 +81,17 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating %s", objName))
 			if err := self.Create(ctx, obj); err != nil {
 				self.Recorder.Event(obj, v1.EventTypeWarning, "CreateError", fmt.Sprintf("Failed to Create %s: %s", objName, err.Error()))
-
-				// update status on create error
-				if _, err := self.ReconcileStatus(ctx, obj); err != nil {
-					log.Error(err, "Failed to reconcile status")
-				}
-
-				return self.handleErr(UpdateOp, obj, err)
+				return self.handleErr(CreateOp, obj, err)
 			}
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Created", fmt.Sprintf("Created %s", objName))
 		} else {
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Updating", fmt.Sprintf("Updating %s", objName))
 			if err := self.Update(ctx, obj); err != nil {
 				self.Recorder.Event(obj, v1.EventTypeWarning, "UpdateError", fmt.Sprintf("Failed to update %s: %s", objName, err.Error()))
-
-				// update status on update error
-				if _, err := self.ReconcileStatus(ctx, obj); err != nil {
-					log.Error(err, "Failed to reconcile status")
-				}
-
 				return self.handleErr(UpdateOp, obj, err)
 			}
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s", objName))
 		}
-
-		// update status on upsert success
-		return self.ReconcileStatus(ctx, obj)
 	} else {
 		if HasFinalizer(obj) {
 			if self.StatusID != nil && self.StatusID(obj) != "" {
@@ -126,8 +111,6 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 				return ctrl.Result{}, err
 			}
 		}
-
-		// no status updates needed for delete
 	}
 
 	return ctrl.Result{}, nil
@@ -154,19 +137,19 @@ func (self *BaseController[T]) handleErr(op BaseControllerOp, obj T, err error) 
 }
 
 // ReconcileStatus is a helper function to reconcile the status of an object and requeue on update errors
-func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T) (ctrl.Result, error) {
+// Note: obj must be the latest resource version from k8s api
+func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T, origErr error) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	patch := client.MergeFrom(obj)
-	if err := self.Kube.Status().Patch(ctx, obj, patch); err != nil {
+	if err := self.Kube.Status().Update(ctx, obj); err != nil {
 		self.Recorder.Event(obj, v1.EventTypeWarning, "StatusError", fmt.Sprintf("Failed to reconcile status: %s", err.Error()))
 		log.V(1).Error(err, "Failed to update status")
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+		return fmt.Errorf("Error occured during status update: %w: %w", StatusError{origErr}, err)
 	}
 
 	self.Recorder.Event(obj, v1.EventTypeNormal, "Status", "Successfully reconciled status")
 	log.V(1).Info("Successfully updated status")
-	return ctrl.Result{}, nil
+	return origErr
 }
 
 // CtrlResultForErr is a helper function to convert an error into a ctrl.Result passing through ngrok error mappings
@@ -184,5 +167,20 @@ func CtrlResultForErr(err error) (ctrl.Result, error) {
 		}
 	}
 
+	// if error was because of status update, requeue for 10 seconds
+	var serr *StatusError
+	if errors.As(err, &serr) {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, serr
+	}
+
 	return ctrl.Result{}, err
+}
+
+// StatusError wraps .Status().*() errors returned from k8s client
+type StatusError struct {
+	err error
+}
+
+func (e StatusError) Error() string {
+	return e.err.Error()
 }

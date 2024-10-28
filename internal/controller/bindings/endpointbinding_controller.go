@@ -168,7 +168,7 @@ func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	// update ngrok api resource status on upsert
 	if controller.IsUpsert(cr) {
 		if err := postEndpointBindingUpdateToNgrokAPI(ctx, cr); err != nil {
-			return controller.CtrlResultForErr(err)
+			return controller.CtrlResultForErr(r.controller.ReconcileStatus(ctx, cr, err))
 		}
 	}
 
@@ -180,16 +180,18 @@ func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1al
 	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
 
 	if err := r.createUpstreamService(ctx, cr, upstreamService); err != nil {
-		return err
+		return r.controller.ReconcileStatus(ctx, cr, err)
 	}
 
 	if err := r.createTargetService(ctx, cr, targetService); err != nil {
-		return err
+		return r.controller.ReconcileStatus(ctx, cr, err)
 	}
 
-	go r.tryToBindEndpointBinding(ctx, cr)
+	if err := r.tryToBindEndpointBinding(ctx, cr); err != nil {
+		return r.controller.ReconcileStatus(ctx, cr, err)
+	}
 
-	return nil
+	return r.controller.ReconcileStatus(ctx, cr, nil)
 }
 
 // setEndpointsStatus sets the status of every endpoint on endpointBinding to the desired status
@@ -228,7 +230,6 @@ func (r *EndpointBindingReconciler) createTargetService(ctx context.Context, own
 	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Target Service")
 	r.Recorder.Event(owner, v1.EventTypeNormal, "Created", "Created Target Service")
 	log.Info("Created Upstream Service", "service", service.Name)
-
 	return nil
 }
 
@@ -247,6 +248,7 @@ func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, o
 
 		return err
 	}
+
 	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Upstream Service")
 	r.Recorder.Event(owner, v1.EventTypeNormal, "Created", "Created Upstream Service")
 	log.Info("Created Upstream Service", "service", service.Name)
@@ -269,12 +271,12 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 			// Upstream Service doesn't exist, create it
 			log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
 			if err := r.createUpstreamService(ctx, cr, desiredUpstreamService); err != nil {
-				return err
+				return r.controller.ReconcileStatus(ctx, cr, err)
 			}
 		} else {
 			// real error
 			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
-			return err
+			return r.controller.ReconcileStatus(ctx, cr, err)
 		}
 	} else {
 		// update upstream service
@@ -287,7 +289,7 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 			r.Recorder.Event(&existingUpstreamService, v1.EventTypeWarning, "UpdateFailed", "Failed to update Upstream Service")
 			r.Recorder.Event(cr, v1.EventTypeWarning, "UpdateFailed", "Failed to update Upstream Service")
 			log.Error(err, "Failed to update Upstream Service")
-			return err
+			return r.controller.ReconcileStatus(ctx, cr, err)
 		}
 		r.Recorder.Event(&existingUpstreamService, v1.EventTypeNormal, "Updated", "Updated Upstream Service")
 	}
@@ -299,12 +301,12 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 			// Target Service doesn't exist, create it
 			log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
 			if err := r.createTargetService(ctx, cr, desiredTargetService); err != nil {
-				return err
+				return r.controller.ReconcileStatus(ctx, cr, err)
 			}
 		} else {
 			// real error
 			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
-			return err
+			return r.controller.ReconcileStatus(ctx, cr, err)
 		}
 	} else {
 		// update target service
@@ -317,15 +319,17 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 			r.Recorder.Event(&existingTargetService, v1.EventTypeWarning, "UpdateFailed", "Failed to update Target Service")
 			r.Recorder.Event(cr, v1.EventTypeWarning, "UpdateFailed", "Failed to update Target Service")
 			log.Error(err, "Failed to update Target Service")
-			return err
+			return r.controller.ReconcileStatus(ctx, cr, err)
 		}
 		r.Recorder.Event(&existingTargetService, v1.EventTypeNormal, "Updated", "Updated Target Service")
 	}
 
-	go r.tryToBindEndpointBinding(ctx, cr)
+	if err := r.tryToBindEndpointBinding(ctx, cr); err != nil {
+		return r.controller.ReconcileStatus(ctx, cr, err)
+	}
 
 	r.Recorder.Event(cr, v1.EventTypeNormal, "Updated", "Updated Services")
-	return nil
+	return r.controller.ReconcileStatus(ctx, cr, nil)
 }
 
 func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
@@ -517,7 +521,7 @@ func (r *EndpointBindingReconciler) findEndpointBindingsForService(ctx context.C
 }
 
 // tryToBindEndpointBinding attempts a TCP connection through the provisioned services for the EndpointBinding
-func (r *EndpointBindingReconciler) tryToBindEndpointBinding(ctx context.Context, endpointBinding *bindingsv1alpha1.EndpointBinding) {
+func (r *EndpointBindingReconciler) tryToBindEndpointBinding(ctx context.Context, endpointBinding *bindingsv1alpha1.EndpointBinding) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("uri", endpointBinding.Spec.EndpointURI)
 
 	retries := 5
@@ -581,19 +585,5 @@ func (r *EndpointBindingReconciler) tryToBindEndpointBinding(ctx context.Context
 
 	// set status
 	setEndpointsStatus(endpointBinding, desired)
-
-	// best effort
-	_, err := r.controller.ReconcileStatus(ctx, endpointBinding)
-	if err != nil {
-		// try one more time
-		time.Sleep(10 * time.Second)
-		_, _ = r.controller.ReconcileStatus(ctx, endpointBinding)
-	}
-
-	// best effort update to ngrok API
-	if err := postEndpointBindingUpdateToNgrokAPI(ctx, endpointBinding); err != nil {
-		// try one more time
-		time.Sleep(10 * time.Second)
-		_ = postEndpointBindingUpdateToNgrokAPI(ctx, endpointBinding)
-	}
+	return bindErr
 }
