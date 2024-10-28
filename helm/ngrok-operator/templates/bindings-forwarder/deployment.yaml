@@ -62,6 +62,7 @@ spec:
         command:
         - /bindings-forwarder-manager
         args:
+        - --release-name={{ .Release.Name }}
         {{- if .Values.description }}
         - --description={{ .Values.description | quote }}
         {{- end }}

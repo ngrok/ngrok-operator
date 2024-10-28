@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
@@ -54,6 +55,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 }
 
 func main() {
@@ -65,6 +67,7 @@ func main() {
 
 type managerOpts struct {
 	// flags
+	releaseName string
 	metricsAddr string
 	probeAddr   string
 	description string
@@ -84,6 +87,7 @@ func cmd() *cobra.Command {
 		},
 	}
 
+	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
@@ -134,11 +138,12 @@ func runController(_ context.Context, opts managerOpts) error {
 	bd := bindingsdriver.New()
 
 	if err = (&bindingscontroller.ForwarderReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("bindings-forwarder"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("bindings-forwarder-controller"),
-		BindingsDriver: bd,
+		Client:                 mgr.GetClient(),
+		Log:                    ctrl.Log.WithName("controllers").WithName("bindings-forwarder"),
+		Scheme:                 mgr.GetScheme(),
+		Recorder:               mgr.GetEventRecorderFor("bindings-forwarder-controller"),
+		BindingsDriver:         bd,
+		KubernetesOperatorName: opts.releaseName,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BindingsForwarder")
 		os.Exit(1)
