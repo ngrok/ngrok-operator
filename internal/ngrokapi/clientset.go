@@ -1,14 +1,17 @@
 package ngrokapi
 
 import (
-	"github.com/ngrok/ngrok-api-go/v6"
-	tunnel_group_backends "github.com/ngrok/ngrok-api-go/v6/backends/tunnel_group"
-	https_edges "github.com/ngrok/ngrok-api-go/v6/edges/https"
-	https_edge_routes "github.com/ngrok/ngrok-api-go/v6/edges/https_routes"
-	tcp_edges "github.com/ngrok/ngrok-api-go/v6/edges/tcp"
-	tls_edges "github.com/ngrok/ngrok-api-go/v6/edges/tls"
-	"github.com/ngrok/ngrok-api-go/v6/ip_policies"
-	"github.com/ngrok/ngrok-api-go/v6/ip_policy_rules"
+	"github.com/ngrok/ngrok-api-go/v5"
+	tunnel_group_backends "github.com/ngrok/ngrok-api-go/v5/backends/tunnel_group"
+	https_edges "github.com/ngrok/ngrok-api-go/v5/edges/https"
+	https_edge_routes "github.com/ngrok/ngrok-api-go/v5/edges/https_routes"
+	tcp_edges "github.com/ngrok/ngrok-api-go/v5/edges/tcp"
+	tls_edges "github.com/ngrok/ngrok-api-go/v5/edges/tls"
+	"github.com/ngrok/ngrok-api-go/v5/ip_policies"
+	"github.com/ngrok/ngrok-api-go/v5/ip_policy_rules"
+	"github.com/ngrok/ngrok-api-go/v5/reserved_addrs"
+	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
+	"github.com/ngrok/ngrok-api-go/v6/endpoints"
 	"github.com/ngrok/ngrok-api-go/v6/kubernetes_operators"
 	"github.com/ngrok/ngrok-api-go/v6/reserved_addrs"
 	"github.com/ngrok/ngrok-api-go/v6/reserved_domains"
@@ -17,6 +20,7 @@ import (
 type Clientset interface {
 	Domains() *reserved_domains.Client
 	EdgeModules() EdgeModulesClientset
+	Endpoints() *endpoints.Client
 	HTTPSEdges() *https_edges.Client
 	HTTPSEdgeRoutes() *https_edge_routes.Client
 	IPPolicies() *ip_policies.Client
@@ -31,6 +35,7 @@ type Clientset interface {
 type DefaultClientset struct {
 	domainsClient             *reserved_domains.Client
 	edgeModulesClientset      *defaultEdgeModulesClientset
+	endpointsClient           *endpoints.Client
 	httpsEdgesClient          *https_edges.Client
 	httpsEdgeRoutesClient     *https_edge_routes.Client
 	ipPoliciesClient          *ip_policies.Client
@@ -47,6 +52,7 @@ func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
 	return &DefaultClientset{
 		domainsClient:             reserved_domains.NewClient(config),
 		edgeModulesClientset:      newEdgeModulesClientset(config),
+		endpointsClient:           endpoints.NewClient(config),
 		httpsEdgesClient:          https_edges.NewClient(config),
 		httpsEdgeRoutesClient:     https_edge_routes.NewClient(config),
 		ipPoliciesClient:          ip_policies.NewClient(config),
@@ -65,6 +71,10 @@ func (c *DefaultClientset) Domains() *reserved_domains.Client {
 
 func (c *DefaultClientset) EdgeModules() EdgeModulesClientset {
 	return c.edgeModulesClientset
+}
+
+func (c *DefaultClientset) Endpoints() *endpoints.Client {
+	return c.endpointsClient
 }
 
 func (c *DefaultClientset) HTTPSEdges() *https_edges.Client {

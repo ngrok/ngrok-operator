@@ -440,6 +440,17 @@ func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 		os.Exit(1)
 	}
 
+	if err := (&ngrokcontroller.CloudEndpointReconciler{
+		Client:         mgr.GetClient(),
+		Log:            ctrl.Log.WithName("controllers").WithName("cloud-endpoint"),
+		Scheme:         mgr.GetScheme(),
+		Recorder:       mgr.GetEventRecorderFor("cloud-endpoint-controller"),
+		NgrokClientset: ngrokClientset,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "CloudEndpoint")
+		os.Exit(1)
+	}
+
 	return nil
 }
 

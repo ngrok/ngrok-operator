@@ -1,0 +1,91 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: cloudendpoints.ngrok.k8s.ngrok.com
+spec:
+  group: ngrok.k8s.ngrok.com
+  names:
+    kind: CloudEndpoint
+    listKind: CloudEndpointList
+    plural: cloudendpoints
+    singular: cloudendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.url
+      name: URL
+      type: string
+    - jsonPath: .spec.trafficPolicyName
+      name: Traffic Policy
+      type: string
+    - jsonPath: .spec.bindings
+      name: Bindings
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CloudEndpoint is the Schema for the cloudendpoints API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CloudEndpointSpec defines the desired state of CloudEndpoint
+            properties:
+              bindings:
+                description: |-
+                  Bindings is the list of Binding IDs to associate with the endpoint
+                  Accepted values are "public", "internal", or strings matching the pattern "k8s/*"
+                items:
+                  type: string
+                type: array
+              description:
+                default: Created by the ngrok-operator
+                description: Description is a human-readable description of this cloud
+                  endpoint
+                type: string
+              metadata:
+                default: '{"owned-by":"ngrok-operator"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the object in the ngrok API/Dashboard
+                type: string
+              trafficPolicyName:
+                description: TrafficPolicyRef is a reference to the TrafficPolicy
+                  resource to attach to the Cloud Endpoint
+                type: string
+              url:
+                description: The unique URL for this cloud endpoint. This URL is the
+                  public address
+                type: string
+            required:
+            - url
+            type: object
+          status:
+            description: CloudEndpointStatus defines the observed state of CloudEndpoint
+            properties:
+              id:
+                description: ID is the unique identifier for this endpoint
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

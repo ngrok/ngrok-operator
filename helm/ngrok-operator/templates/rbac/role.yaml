@@ -342,6 +342,32 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
+  - cloudendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
   - kubernetesoperators
   verbs:
   - create

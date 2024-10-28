@@ -99,6 +99,8 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 				self.Recorder.Event(obj, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s", objName))
 				if err := self.Delete(ctx, obj); err != nil {
 					if !ngrok.IsNotFound(err) {
+						log.Info(fmt.Sprintf("Inside the base controller delete error flow. Definitely says this err %v is Not a IsNotFound error", err))
+						log.Info(fmt.Sprintf("The error's status code is %v", err.(*ngrok.Error).StatusCode))
 						self.Recorder.Event(obj, v1.EventTypeWarning, "DeleteError", fmt.Sprintf("Failed to delete %s: %s", objName, err.Error()))
 						return self.handleErr(DeleteOp, obj, err)
 					}
