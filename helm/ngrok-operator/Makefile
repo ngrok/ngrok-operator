@@ -22,4 +22,4 @@ update-snapshots: ## Update helm unittest snapshots
 
 .PHONY: update-readme
 update-readme: ## Updates the README.md file with the chart values
-	readme-generator --values "values.yaml" --readme "README.md" --schema "/tmp/schema.json"
+	readme-generator --values "values.yaml" --readme "README.md" --schema "values.schema.json"

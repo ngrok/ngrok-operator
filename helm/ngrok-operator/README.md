@@ -81,8 +81,8 @@ To uninstall the chart:
 | `priorityClassName`                  | Priority class for pod scheduling                                                         | `""`    |
 | `lifecycle`                          | an object containing lifecycle configuration                                              | `{}`    |
 | `podDisruptionBudget.create`         | Enable a Pod Disruption Budget creation                                                   | `false` |
+| `podDisruptionBudget.maxUnavailable` | Maximum number/percentage of pods that may be made unavailable                            | `""`    |
 | `podDisruptionBudget.minAvailable`   | Minimum number/percentage of pods that should remain scheduled                            | `""`    |
-| `podDisruptionBudget.maxUnavailable` | Maximum number/percentage of pods that may be made unavailable                            | `1`     |
 | `resources.limits`                   | The resources limits for the container                                                    | `{}`    |
 | `resources.requests`                 | The requested resources for the container                                                 | `{}`    |
 | `extraVolumes`                       | An array of extra volumes to add to the controller.                                       | `[]`    |
@@ -102,11 +102,11 @@ To uninstall the chart:
 
 ### Credentials configuration
 
-| Name                      | Description                                                                                                           | Value |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----- |
-| `credentials.secret.name` | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.    | `""`  |
-| `credentials.apiKey`      | Your ngrok API key. If provided, it will be will be written to the secret and the authtoken must be provided as well. | `""`  |
-| `credentials.authtoken`   | Your ngrok authtoken. If provided, it will be will be written to the secret and the apiKey must be provided as well.  | `""`  |
+| Name                      | Description                                                                                                        | Value |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----- |
+| `credentials.secret.name` | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name. | `""`  |
+| `credentials.apiKey`      | Your ngrok API key. If provided, it will be written to the secret and the authtoken must be provided as well.      | `""`  |
+| `credentials.authtoken`   | Your ngrok authtoken. If provided, it will be written to the secret and the apiKey must be provided as well.       | `""`  |
 
 ### Kubernetes Ingress feature configuration
 

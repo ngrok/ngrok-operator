@@ -27,8 +27,8 @@ tests:
   set:
     podDisruptionBudget:
       create: true
-      minAvailable: 1
-      maxUnavailable: ""
+      minAvailable: "1"
+      maxUnavailable: null
   asserts:
   - equal:
       path: spec.minAvailable
