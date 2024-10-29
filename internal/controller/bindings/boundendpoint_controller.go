@@ -62,9 +62,9 @@ const (
 	BoundEndpointTargetNamespacePath = ".spec.targetNamespace"
 
 	// TODO(hkatz) ngrok-error-codes
-	NgrokErrorUpstreamServiceCreateFailed = "NGROK_ERR_0001"
-	NgrokErrorTargetServiceCreateFailed   = "NGROK_ERR_0002"
-	NgrokErrorFailedToBind                = "NGROK_ERR_003"
+	NgrokErrorUpstreamServiceCreateFailed = "ERR_NGROK_0001"
+	NgrokErrorTargetServiceCreateFailed   = "ERR_NGROK_0002"
+	NgrokErrorFailedToBind                = "ERR_NGROK_003"
 )
 
 var (

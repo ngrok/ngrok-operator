@@ -139,7 +139,7 @@ func Test_setEndpointsStatus(t *testing.T) {
 			},
 			desired: &bindingsv1alpha1.BindingEndpoint{
 				Status:       bindingsv1alpha1.StatusError,
-				ErrorCode:    "NGROK_ERR_1234",
+				ErrorCode:    "ERR_NGROK_1234",
 				ErrorMessage: "Exampl Error Message",
 			},
 		},
