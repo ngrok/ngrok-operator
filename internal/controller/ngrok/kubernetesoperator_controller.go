@@ -137,6 +137,8 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		EnabledFeatures: calculateFeaturesEnabled(ko),
 		Region:          ko.Spec.Region,
 		Deployment: ngrok.KubernetesOperatorDeployment{
+			// TODO(hkatz) clusterId
+			// Cluster: ko.Spec.Deployment.Cluster,
 			Name:      ko.Spec.Deployment.Name,
 			Namespace: ko.Spec.Deployment.Namespace,
 			Version:   ko.Spec.Deployment.Version,
@@ -290,6 +292,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 
 	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
 	if err != nil {
+		log.V(3).Error(err, "failed to get namespace UID")
 		return nil, nil
 	}
 
@@ -305,9 +308,15 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 
 		iterLogger.V(5).Info("checking if KubernetesOperator matches")
 
+		// TODO(hkatz) clusterId
+		// if item.Deployment.Cluster != ko.Spec.Deployment.Cluster {
+		// 	continue
+		// }
+
 		if item.Deployment.Name != ko.Spec.Deployment.Name {
 			continue
 		}
+
 		if item.Deployment.Namespace != ko.GetNamespace() {
 			continue
 		}
@@ -320,18 +329,21 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 			uid, err := extractNamespaceUIDFromMetadata(metadata)
 			// In case the metadata is not a JSON object or we can't extract it,
 			// we'll ignore it and continue our search
-			if err != nil || uid == "" {
-				continue
-			}
-			if uid != string(namespaceUID) {
+			if err != nil || uid == "" || uid != string(namespaceUID) {
+				// namespace UID does not match, but deployment information do match
+				// warn the user that this is an unexpected case and their ngrok-operator
+				// will not be able to register with the API
+				iterLogger.Error(err, "Namespace UID mismatch between ngrok-operator deployment and ngrok API kubernetes_operators, operator will not register!", "expected", string(namespaceUID), "actual", uid)
+				r.Recorder.Event(ko, v1.EventTypeWarning, "NamespaceMismatch", "Namespace UID mismatch between ngrok-operator deployment and ngrok API kubernetes_operators, operator will not register!")
 				continue
 			}
 		}
 
-		iterLogger.V(3).Info("found matching KubernetesOperator")
+		iterLogger.V(3).Info("found matching KubernetesOperator", "id", item.ID)
 		return item, nil
 	}
 
+	log.V(3).Info("no matching KubernetesOperator found")
 	return nil, iter.Err()
 }
 
