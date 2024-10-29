@@ -59,6 +59,7 @@ spec:
         - /api-manager
         args:
         - --release-name={{ .Release.Name }}
+        - --cluster-id={{ .Values.clusterId | required "Missing required .Values.clusterId!"}}
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
         {{- if .Values.oneClickDemoMode }}
         - --one-click-demo-mode

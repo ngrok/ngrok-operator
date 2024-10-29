@@ -53,6 +53,7 @@ Should match all-options snapshot:
           containers:
             - args:
                 - --release-name=RELEASE-NAME
+                - --cluster-id=test-cluster
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=false
                 - --description="The official ngrok Kubernetes Operator."
@@ -718,6 +719,7 @@ Should match default snapshot:
           containers:
             - args:
                 - --release-name=RELEASE-NAME
+                - --cluster-id=test-cluster
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=false
                 - --description="The official ngrok Kubernetes Operator."

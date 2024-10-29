@@ -98,6 +98,10 @@ spec:
               deployment:
                 description: Deployment information of this Kubernetes Operator
                 properties:
+                  cluster:
+                    description: Cluster is the name of the k8s cluster in which the
+                      operator is deployed
+                    type: string
                   name:
                     description: Name is the name of the k8s deployment for the operator
                     type: string
