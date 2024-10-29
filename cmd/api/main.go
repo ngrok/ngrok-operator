@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -59,6 +58,7 @@ import (
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/store"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	//+kubebuilder:scaffold:imports
@@ -312,17 +312,9 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options mana
 		store.WithClusterDomain(options.clusterDomain),
 	)
 	if options.ngrokMetadata != "" {
-		metadata := strings.TrimSuffix(options.ngrokMetadata, ",")
-		// metadata is a comma separated list of key=value pairs.
-		// e.g. "foo=bar,baz=qux"
-		customMetadata := make(map[string]string)
-		pairs := strings.Split(metadata, ",")
-		for _, pair := range pairs {
-			kv := strings.Split(pair, "=")
-			if len(kv) != 2 {
-				return nil, fmt.Errorf("invalid metadata pair: %q", pair)
-			}
-			customMetadata[kv[0]] = kv[1]
+		customMetadata, err := util.ParseHelmDictionary(options.ngrokMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse ngrokMetadata: %w", err)
 		}
 		d.WithNgrokMetadata(customMetadata)
 	}
