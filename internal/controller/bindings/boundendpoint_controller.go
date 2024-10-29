@@ -49,35 +49,35 @@ import (
 )
 
 const (
-	LabelManagedBy                = "app.kubernetes.io/managed-by"
-	LabelEndpointBindingName      = "bindings.k8s.ngrok.com/endpoint-binding-name"
-	LabelEndpointBindingNamespace = "bindings.k8s.ngrok.com/endpoint-binding-namespace"
-	LabelEndpointURL              = "bindings.k8s.ngrok.com/endpoint-url"
+	LabelManagedBy              = "app.kubernetes.io/managed-by"
+	LabelBoundEndpointName      = "bindings.k8s.ngrok.com/endpoint-binding-name"
+	LabelBoundEndpointNamespace = "bindings.k8s.ngrok.com/endpoint-binding-namespace"
+	LabelEndpointURL            = "bindings.k8s.ngrok.com/endpoint-url"
 
-	// Used for indexing Services by their EndpointBinding owner. Not an actual
+	// Used for indexing Services by their BoundEndpoint owner. Not an actual
 	// field on the Service object.
-	EndpointBindingOwnerKey = ".metadata.controller"
-	// Used for indexing EndpointBindings by their target namespace. Not an actual
-	// field on the EndpointBinding object.
-	EndpointBindingTargetNamespacePath = ".spec.targetNamespace"
+	BoundEndpointOwnerKey = ".metadata.controller"
+	// Used for indexing BoundEndpoints by their target namespace. Not an actual
+	// field on the BoundEndpoint object.
+	BoundEndpointTargetNamespacePath = ".spec.targetNamespace"
 
 	// TODO(hkatz) ngrok-error-codes
-	NgrokErrorUpstreamServiceCreateFailed = "NGROK_ERR_0001"
-	NgrokErrorTargetServiceCreateFailed   = "NGROK_ERR_0002"
-	NgrokErrorFailedToBind                = "NGROK_ERR_003"
+	NgrokErrorUpstreamServiceCreateFailed = "ERR_NGROK_0001"
+	NgrokErrorTargetServiceCreateFailed   = "ERR_NGROK_0002"
+	NgrokErrorFailedToBind                = "ERR_NGROK_003"
 )
 
 var (
-	commonEndpointBindingLabels = map[string]string{
+	commonBoundEndpointLabels = map[string]string{
 		LabelManagedBy: "ngrok-operator",
 	}
 )
 
-// EndpointBindingReconciler reconciles a EndpointBinding object
-type EndpointBindingReconciler struct {
+// BoundEndpointReconciler reconciles a BoundEndpoint object
+type BoundEndpointReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
-	controller *controller.BaseController[*bindingsv1alpha1.EndpointBinding]
+	controller *controller.BaseController[*bindingsv1alpha1.BoundEndpoint]
 
 	Log      logr.Logger
 	Recorder record.EventRecorder
@@ -89,18 +89,18 @@ type EndpointBindingReconciler struct {
 	UpstreamServiceLabelSelector map[string]string
 }
 
-// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=endpointbindings,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=endpointbindings/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=endpointbindings/finalizers,verbs=update
+// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints/finalizers,verbs=update
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.controller = &controller.BaseController[*bindingsv1alpha1.EndpointBinding]{
+func (r *BoundEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.controller = &controller.BaseController[*bindingsv1alpha1.BoundEndpoint]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		StatusID:  func(obj *bindingsv1alpha1.EndpointBinding) string { return obj.Name },
+		StatusID:  func(obj *bindingsv1alpha1.BoundEndpoint) string { return obj.Name },
 		Create:    r.create,
 		Update:    r.update,
 		Delete:    r.delete,
@@ -109,17 +109,17 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// create field indexer for to mimic OwnerReferences. We are creating services in other namespaces,
 	// so we can't use OwnerReferences.
-	err := mgr.GetFieldIndexer().IndexField(context.Background(), &v1.Service{}, EndpointBindingOwnerKey, func(obj client.Object) []string {
+	err := mgr.GetFieldIndexer().IndexField(context.Background(), &v1.Service{}, BoundEndpointOwnerKey, func(obj client.Object) []string {
 		service := obj.(*v1.Service)
 		svcLabels := service.GetLabels()
 		if svcLabels == nil {
 			return nil // skip, service has no labels
 		}
 
-		epbName := svcLabels[LabelEndpointBindingName]
-		epbNamespace := svcLabels[LabelEndpointBindingNamespace]
+		epbName := svcLabels[LabelBoundEndpointName]
+		epbNamespace := svcLabels[LabelBoundEndpointNamespace]
 		if epbName == "" || epbNamespace == "" {
-			return nil // skip, service is not part of an EndpointBinding
+			return nil // skip, service is not part of an BoundEndpoint
 		}
 
 		return []string{fmt.Sprintf("%s/%s", epbNamespace, epbName)}
@@ -129,9 +129,9 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	// Index the EndpointBindings by their target namespace
-	err = mgr.GetFieldIndexer().IndexField(context.Background(), &bindingsv1alpha1.EndpointBinding{}, EndpointBindingTargetNamespacePath, func(obj client.Object) []string {
-		binding, ok := obj.(*bindingsv1alpha1.EndpointBinding)
+	// Index the BoundEndpoints by their target namespace
+	err = mgr.GetFieldIndexer().IndexField(context.Background(), &bindingsv1alpha1.BoundEndpoint{}, BoundEndpointTargetNamespacePath, func(obj client.Object) []string {
+		binding, ok := obj.(*bindingsv1alpha1.BoundEndpoint)
 		if !ok || binding == nil {
 			return nil
 		}
@@ -144,30 +144,30 @@ func (r *EndpointBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&bindingsv1alpha1.EndpointBinding{}).
+		For(&bindingsv1alpha1.BoundEndpoint{}).
 		Watches(
 			&v1.Service{},
-			r.controller.NewEnqueueRequestForMapFunc(r.findEndpointBindingsForService),
+			r.controller.NewEnqueueRequestForMapFunc(r.findBoundEndpointsForService),
 		).
 		Watches(
 			&v1.Namespace{},
-			r.controller.NewEnqueueRequestForMapFunc(r.findEndpointBindingsForNamespace),
+			r.controller.NewEnqueueRequestForMapFunc(r.findBoundEndpointsForNamespace),
 		).
 		Complete(r)
 }
 
-// Reconcile turns EndpointBindings into 2 Services
+// Reconcile turns BoundEndpoints into 2 Services
 // - ExternalName Target Service in the Target Namespace/Service name pointed at the Upstream Service
 // - Upstream Service in the ngrok-op namespace pointed at the Pod Forwarders
-func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	cr := &bindingsv1alpha1.EndpointBinding{}
+func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	cr := &bindingsv1alpha1.BoundEndpoint{}
 	if ctrlErr, err := r.controller.Reconcile(ctx, req, cr); err != nil {
 		return ctrlErr, err
 	}
 
 	// update ngrok api resource status on upsert
 	if controller.IsUpsert(cr) {
-		if err := postEndpointBindingUpdateToNgrokAPI(ctx, cr); err != nil {
+		if err := postBoundEndpointUpdateToNgrokAPI(ctx, cr); err != nil {
 			return controller.CtrlResultForErr(r.controller.ReconcileStatus(ctx, cr, err))
 		}
 	}
@@ -176,8 +176,8 @@ func (r *EndpointBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return ctrl.Result{}, nil
 }
 
-func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
-	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
+func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
+	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
 
 	if err := r.createUpstreamService(ctx, cr, upstreamService); err != nil {
 		return r.controller.ReconcileStatus(ctx, cr, err)
@@ -187,31 +187,31 @@ func (r *EndpointBindingReconciler) create(ctx context.Context, cr *bindingsv1al
 		return r.controller.ReconcileStatus(ctx, cr, err)
 	}
 
-	if err := r.tryToBindEndpointBinding(ctx, cr); err != nil {
+	if err := r.tryToBindEndpoint(ctx, cr); err != nil {
 		return r.controller.ReconcileStatus(ctx, cr, err)
 	}
 
 	return r.controller.ReconcileStatus(ctx, cr, nil)
 }
 
-// setEndpointsStatus sets the status of every endpoint on endpointBinding to the desired status
+// setEndpointsStatus sets the status of every endpoint on boundEndpoint to the desired status
 // Note: All endpoints share the same status since they are represented by the same resources (Target/Upstream Services)
-func setEndpointsStatus(endpointBinding *bindingsv1alpha1.EndpointBinding, desired *bindingsv1alpha1.BindingEndpoint) {
-	for i := range endpointBinding.Status.Endpoints {
-		endpoint := &endpointBinding.Status.Endpoints[i]
+func setEndpointsStatus(boundEndpoint *bindingsv1alpha1.BoundEndpoint, desired *bindingsv1alpha1.BindingEndpoint) {
+	for i := range boundEndpoint.Status.Endpoints {
+		endpoint := &boundEndpoint.Status.Endpoints[i]
 		endpoint.Status = desired.Status
 		endpoint.ErrorCode = desired.ErrorCode
 		endpoint.ErrorMessage = desired.ErrorMessage
 	}
 }
 
-// postEndpointBindingUpdateToNgrokAPI sends an update to the ngrok API to update the endpoint binding and status fields
-func postEndpointBindingUpdateToNgrokAPI(ctx context.Context, endpointBinding *bindingsv1alpha1.EndpointBinding) error {
+// postBoundEndpointUpdateToNgrokAPI sends an update to the ngrok API to update the endpoint binding and status fields
+func postBoundEndpointUpdateToNgrokAPI(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
 	// TODO(hkatz) Implement me
 	return nil
 }
 
-func (r *EndpointBindingReconciler) createTargetService(ctx context.Context, owner *bindingsv1alpha1.EndpointBinding, service *v1.Service) error {
+func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner *bindingsv1alpha1.BoundEndpoint, service *v1.Service) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	if err := r.Client.Create(ctx, service); err != nil {
@@ -233,7 +233,7 @@ func (r *EndpointBindingReconciler) createTargetService(ctx context.Context, own
 	return nil
 }
 
-func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, owner *bindingsv1alpha1.EndpointBinding, service *v1.Service) error {
+func (r *BoundEndpointReconciler) createUpstreamService(ctx context.Context, owner *bindingsv1alpha1.BoundEndpoint, service *v1.Service) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	if err := r.Client.Create(ctx, service); err != nil {
@@ -256,10 +256,10 @@ func (r *EndpointBindingReconciler) createUpstreamService(ctx context.Context, o
 	return nil
 }
 
-func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
+func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	desiredTargetService, desiredUpstreamService := r.convertEndpointBindingToServices(cr)
+	desiredTargetService, desiredUpstreamService := r.convertBoundEndpointToServices(cr)
 
 	var existingTargetService v1.Service
 	var existingUpstreamService v1.Service
@@ -324,7 +324,7 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 		r.Recorder.Event(&existingTargetService, v1.EventTypeNormal, "Updated", "Updated Target Service")
 	}
 
-	if err := r.tryToBindEndpointBinding(ctx, cr); err != nil {
+	if err := r.tryToBindEndpoint(ctx, cr); err != nil {
 		return r.controller.ReconcileStatus(ctx, cr, err)
 	}
 
@@ -332,10 +332,10 @@ func (r *EndpointBindingReconciler) update(ctx context.Context, cr *bindingsv1al
 	return r.controller.ReconcileStatus(ctx, cr, nil)
 }
 
-func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.EndpointBinding) error {
+func (r *BoundEndpointReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	targetService, upstreamService := r.convertEndpointBindingToServices(cr)
+	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
 	if err := r.Client.Delete(ctx, targetService); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			return nil
@@ -359,20 +359,20 @@ func (r *EndpointBindingReconciler) delete(ctx context.Context, cr *bindingsv1al
 	return nil
 }
 
-func (r *EndpointBindingReconciler) errResult(op controller.BaseControllerOp, cr *bindingsv1alpha1.EndpointBinding, err error) (ctrl.Result, error) {
+func (r *BoundEndpointReconciler) errResult(op controller.BaseControllerOp, cr *bindingsv1alpha1.BoundEndpoint, err error) (ctrl.Result, error) {
 	return ctrl.Result{}, err
 }
 
-// convertEndpointBindingToServices converts an EndpointBinding into 2 Services: Target(ExternalName) and Upstream(Pod Forwarders)
-func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBinding *bindingsv1alpha1.EndpointBinding) (*v1.Service, *v1.Service) {
+// convertBoundEndpointToServices converts an BoundEndpoint into 2 Services: Target(ExternalName) and Upstream(Pod Forwarders)
+func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *bindingsv1alpha1.BoundEndpoint) (*v1.Service, *v1.Service) {
 	// Send traffic to any Node in the cluster
 	internalTrafficPolicy := v1.ServiceInternalTrafficPolicyCluster
 
-	endpointURL := fmt.Sprintf("%s.%s.%s", endpointBinding.Name, endpointBinding.Namespace, r.ClusterDomain)
+	endpointURL := fmt.Sprintf("%s.%s.%s", boundEndpoint.Name, boundEndpoint.Namespace, r.ClusterDomain)
 
 	thisBindingLabels := map[string]string{
-		LabelEndpointBindingName:      endpointBinding.Name,
-		LabelEndpointBindingNamespace: endpointBinding.Namespace,
+		LabelBoundEndpointName:      boundEndpoint.Name,
+		LabelBoundEndpointNamespace: boundEndpoint.Namespace,
 	}
 
 	// Target Labels in order of increasing precedence
@@ -380,19 +380,19 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 	// 2. User's labels
 	// 3. Our label selectors (endpoint-binding-name, endpoint-binding-namespace) to mimic OwnerReferences
 	targetLabels := util.MergeMaps(
-		commonEndpointBindingLabels,
-		endpointBinding.Spec.Target.Metadata.Labels,
+		commonBoundEndpointLabels,
+		boundEndpoint.Spec.Target.Metadata.Labels,
 		thisBindingLabels,
 	)
 
-	targetAnnotations := endpointBinding.Spec.Target.Metadata.Annotations
+	targetAnnotations := boundEndpoint.Spec.Target.Metadata.Annotations
 
 	// targetService represents the user's configured endpoint binding as a Service
 	// Clients will send requests to this service: <scheme>://<service>.<namespace>:<port>
 	targetService := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        endpointBinding.Spec.Target.Service,
-			Namespace:   endpointBinding.Spec.Target.Namespace,
+			Name:        boundEndpoint.Spec.Target.Service,
+			Namespace:   boundEndpoint.Spec.Target.Namespace,
 			Labels:      targetLabels,
 			Annotations: targetAnnotations,
 		},
@@ -403,17 +403,17 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 			SessionAffinity:       v1.ServiceAffinityClientIP,
 			Ports: []v1.ServicePort{
 				{
-					Name:     endpointBinding.Spec.Scheme,
-					Protocol: v1.Protocol(endpointBinding.Spec.Target.Protocol),
-					// Both Port and TargetPort for the Target Service should match the expected Target.Port on the EndpointBinding
-					Port:       endpointBinding.Spec.Target.Port,
-					TargetPort: intstr.FromInt(int(endpointBinding.Spec.Target.Port)),
+					Name:     boundEndpoint.Spec.Scheme,
+					Protocol: v1.Protocol(boundEndpoint.Spec.Target.Protocol),
+					// Both Port and TargetPort for the Target Service should match the expected Target.Port on the BoundEndpoint
+					Port:       boundEndpoint.Spec.Target.Port,
+					TargetPort: intstr.FromInt(int(boundEndpoint.Spec.Target.Port)),
 				},
 			},
 		},
 	}
 
-	upstreamLabels := util.MergeMaps(commonEndpointBindingLabels, thisBindingLabels)
+	upstreamLabels := util.MergeMaps(commonBoundEndpointLabels, thisBindingLabels)
 	upstreamAnnotations := map[string]string{
 		// TODO(hkatz) Implement Metadata
 		LabelEndpointURL: endpointURL,
@@ -423,8 +423,8 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 	// This Service will point to the Pod Forwarders' containers on a dedicated allocated port
 	upstreamService := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        endpointBinding.Name,
-			Namespace:   endpointBinding.Namespace,
+			Name:        boundEndpoint.Name,
+			Namespace:   boundEndpoint.Namespace,
 			Labels:      upstreamLabels,
 			Annotations: upstreamAnnotations,
 		},
@@ -435,12 +435,12 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 			Selector:              r.UpstreamServiceLabelSelector,
 			Ports: []v1.ServicePort{
 				{
-					Name:     endpointBinding.Spec.Scheme,
-					Protocol: v1.Protocol(endpointBinding.Spec.Target.Protocol),
+					Name:     boundEndpoint.Spec.Scheme,
+					Protocol: v1.Protocol(boundEndpoint.Spec.Target.Protocol),
 					// ExternalName Target Service's port will need to point to the same port on the Upstream Service
-					Port: endpointBinding.Spec.Target.Port,
-					// TargetPort is the port within the pod forwarders' containers that is pre-allocated for this EndpointBinding
-					TargetPort: intstr.FromInt(int(endpointBinding.Spec.Port)),
+					Port: boundEndpoint.Spec.Target.Port,
+					// TargetPort is the port within the pod forwarders' containers that is pre-allocated for this BoundEndpoint
+					TargetPort: intstr.FromInt(int(boundEndpoint.Spec.Port)),
 				},
 			},
 		},
@@ -449,24 +449,24 @@ func (r *EndpointBindingReconciler) convertEndpointBindingToServices(endpointBin
 	return targetService, upstreamService
 }
 
-func (r *EndpointBindingReconciler) findEndpointBindingsForNamespace(ctx context.Context, namespace client.Object) []reconcile.Request {
+func (r *BoundEndpointReconciler) findBoundEndpointsForNamespace(ctx context.Context, namespace client.Object) []reconcile.Request {
 	nsName := namespace.GetName()
 	log := ctrl.LoggerFrom(ctx).WithValues("namespace", nsName)
 
 	log.V(3).Info("Finding endpoint bindings for namespace")
-	endpointBindings := &bindingsv1alpha1.EndpointBindingList{}
+	boundEndpoints := &bindingsv1alpha1.BoundEndpointList{}
 	listOpts := &client.ListOptions{
-		FieldSelector: fields.OneTermEqualSelector(EndpointBindingTargetNamespacePath, nsName),
+		FieldSelector: fields.OneTermEqualSelector(BoundEndpointTargetNamespacePath, nsName),
 	}
 
-	err := r.Client.List(ctx, endpointBindings, listOpts)
+	err := r.Client.List(ctx, boundEndpoints, listOpts)
 	if err != nil {
 		log.Error(err, "Failed to list endpoint bindings for namespace")
 		return []reconcile.Request{}
 	}
 
-	requests := make([]reconcile.Request, len(endpointBindings.Items))
-	for i, binding := range endpointBindings.Items {
+	requests := make([]reconcile.Request, len(boundEndpoints.Items))
+	for i, binding := range boundEndpoints.Items {
 		requests[i] = reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Namespace: binding.Namespace,
@@ -481,7 +481,7 @@ func (r *EndpointBindingReconciler) findEndpointBindingsForNamespace(ctx context
 	return requests
 }
 
-func (r *EndpointBindingReconciler) findEndpointBindingsForService(ctx context.Context, svc client.Object) []reconcile.Request {
+func (r *BoundEndpointReconciler) findBoundEndpointsForService(ctx context.Context, svc client.Object) []reconcile.Request {
 	log := ctrl.LoggerFrom(ctx).WithValues("service.name", svc.GetName(), "service.namespace", svc.GetNamespace())
 	log.V(3).Info("Finding endpoint bindings for service")
 
@@ -491,22 +491,22 @@ func (r *EndpointBindingReconciler) findEndpointBindingsForService(ctx context.C
 		return []reconcile.Request{}
 	}
 
-	epbName := svcLabels[LabelEndpointBindingName]
-	epbNamespace := svcLabels[LabelEndpointBindingNamespace]
+	epbName := svcLabels[LabelBoundEndpointName]
+	epbNamespace := svcLabels[LabelBoundEndpointNamespace]
 	if epbName == "" || epbNamespace == "" {
-		log.V(3).Info("Service is not part of an EndpointBinding")
+		log.V(3).Info("Service is not part of an BoundEndpoint")
 		return []reconcile.Request{}
 	}
 
-	epb := &bindingsv1alpha1.EndpointBinding{}
+	epb := &bindingsv1alpha1.BoundEndpoint{}
 	err := r.Client.Get(ctx, types.NamespacedName{Namespace: epbNamespace, Name: epbName}, epb)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			log.V(3).Info("EndpointBinding not found")
+			log.V(3).Info("BoundEndpoint not found")
 			return []reconcile.Request{}
 		}
 
-		log.Error(err, "Failed to get EndpointBinding")
+		log.Error(err, "Failed to get BoundEndpoint")
 		return []reconcile.Request{}
 	}
 
@@ -520,9 +520,9 @@ func (r *EndpointBindingReconciler) findEndpointBindingsForService(ctx context.C
 	}
 }
 
-// tryToBindEndpointBinding attempts a TCP connection through the provisioned services for the EndpointBinding
-func (r *EndpointBindingReconciler) tryToBindEndpointBinding(ctx context.Context, endpointBinding *bindingsv1alpha1.EndpointBinding) error {
-	log := ctrl.LoggerFrom(ctx).WithValues("uri", endpointBinding.Spec.EndpointURI)
+// tryToBindEndpoint attempts a TCP connection through the provisioned services for the BoundEndpoint
+func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
+	log := ctrl.LoggerFrom(ctx).WithValues("uri", boundEndpoint.Spec.EndpointURI)
 
 	retries := 5
 	attempt := 0
@@ -539,15 +539,15 @@ func (r *EndpointBindingReconciler) tryToBindEndpointBinding(ctx context.Context
 		time.Sleep(waitDuration)
 
 		// rely on kube-dns to resolve the targetService's ExternalName
-		uri, err := url.Parse(endpointBinding.Spec.EndpointURI)
+		uri, err := url.Parse(boundEndpoint.Spec.EndpointURI)
 		if err != nil {
-			bindErr = fmt.Errorf("failed to parse EndpointBinding URI %s: %w", endpointBinding.Spec.EndpointURI, err)
+			bindErr = fmt.Errorf("failed to parse BoundEndpoint URI %s: %w", boundEndpoint.Spec.EndpointURI, err)
 			continue
 		}
 
 		conn, err := net.DialTimeout("tcp", uri.Host, dialTimeout)
 		if err != nil {
-			log.Error(err, "Failed to bind EndpointBinding", "attempt", attempt, "retries", retries)
+			log.Error(err, "Failed to bind BoundEndpoint", "attempt", attempt, "retries", retries)
 			bindErr = err
 		} else {
 			// conn exists, close it
@@ -571,7 +571,7 @@ func (r *EndpointBindingReconciler) tryToBindEndpointBinding(ctx context.Context
 		desired = &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusError,
 			ErrorCode:    NgrokErrorFailedToBind,
-			ErrorMessage: fmt.Sprintf("Failed to bind EndpointBinding: %s", bindErr),
+			ErrorMessage: fmt.Sprintf("Failed to bind BoundEndpoint: %s", bindErr),
 		}
 	} else {
 		// success
@@ -584,6 +584,6 @@ func (r *EndpointBindingReconciler) tryToBindEndpointBinding(ctx context.Context
 	}
 
 	// set status
-	setEndpointsStatus(endpointBinding, desired)
+	setEndpointsStatus(boundEndpoint, desired)
 	return bindErr
 }

@@ -56,7 +56,7 @@ type KubernetesOperatorBinding struct {
 	// +kubebuilder:validation:Pattern=`^k8s[/][a-zA-Z0-9-]{1,63}$`
 	Name string `json:"name,omitempty"`
 
-	// AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which EndpointBindings are allowed to be created by the operator
+	// AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which BoundEndpoints are allowed to be created by the operator
 	// TODO(hkatz) We are only implementing `*` for now
 	// Support more patterns in the future, see product spec
 	// +kubebuilder:validation:Required

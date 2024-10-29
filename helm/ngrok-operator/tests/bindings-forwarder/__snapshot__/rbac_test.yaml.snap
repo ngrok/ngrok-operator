@@ -9,7 +9,7 @@ Should match snapshot:
       - apiGroups:
           - bindings.k8s.ngrok.com
         resources:
-          - endpointbindings
+          - boundendpoints
         verbs:
           - get
           - list

@@ -472,26 +472,26 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
 func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
-	// EndpointBindings
-	if err := (&bindingscontroller.EndpointBindingReconciler{
+	// BoundEndpoints
+	if err := (&bindingscontroller.BoundEndpointReconciler{
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
-		Log:           ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
+		Log:           ctrl.Log.WithName("controllers").WithName("BoundEndpoint"),
 		Recorder:      mgr.GetEventRecorderFor("bindings-controller"),
 		ClusterDomain: opts.clusterDomain,
 		UpstreamServiceLabelSelector: map[string]string{
 			"app.kubernetes.io/component": "bindings-forwarder",
 		},
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
+		setupLog.Error(err, "unable to create controller", "controller", "BoundEndpoint")
 		os.Exit(1)
 	}
 
 	// Create a new Runnable that implements Start that the manager can manage running
-	if err := mgr.Add(&bindingscontroller.EndpointBindingPoller{
+	if err := mgr.Add(&bindingscontroller.BoundEndpointPoller{
 		Client:                       mgr.GetClient(),
 		Scheme:                       mgr.GetScheme(),
-		Log:                          ctrl.Log.WithName("controllers").WithName("EndpointBindingPoller"),
+		Log:                          ctrl.Log.WithName("controllers").WithName("BoundEndpointPoller"),
 		Recorder:                     mgr.GetEventRecorderFor("endpoint-binding-poller"),
 		Namespace:                    opts.namespace,
 		KubernetesOperatorConfigName: opts.releaseName,
