@@ -52,6 +52,7 @@ Should match all-options snapshot:
                   weight: 1
           containers:
             - args:
+                - --release-name=RELEASE-NAME
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=false
                 - --description="The official ngrok Kubernetes Operator."
@@ -655,6 +656,7 @@ Should match default snapshot:
                   weight: 1
           containers:
             - args:
+                - --release-name=RELEASE-NAME
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=false
                 - --description="The official ngrok Kubernetes Operator."

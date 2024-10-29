@@ -61,6 +61,7 @@ spec:
         command:
         - /api-manager
         args:
+        - --release-name={{ .Release.Name }}
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
         {{- if .Values.bindings.enabled }}
         - --bindings-name={{ .Values.bindings.name }}

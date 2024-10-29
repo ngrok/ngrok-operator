@@ -87,6 +87,7 @@ func main() {
 
 type managerOpts struct {
 	// flags
+	releaseName           string
 	metricsAddr           string
 	electionID            string
 	probeAddr             string
@@ -126,6 +127,7 @@ func cmd() *cobra.Command {
 		},
 	}
 
+	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
@@ -487,12 +489,13 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 
 	// Create a new Runnable that implements Start that the manager can manage running
 	if err := mgr.Add(&bindingscontroller.EndpointBindingPoller{
-		Client:          mgr.GetClient(),
-		Scheme:          mgr.GetScheme(),
-		Log:             ctrl.Log.WithName("controllers").WithName("EndpointBindingPoller"),
-		Recorder:        mgr.GetEventRecorderFor("endpoint-binding-poller"),
-		Namespace:       opts.namespace,
-		PollingInterval: 5 * time.Minute,
+		Client:                       mgr.GetClient(),
+		Scheme:                       mgr.GetScheme(),
+		Log:                          ctrl.Log.WithName("controllers").WithName("EndpointBindingPoller"),
+		Recorder:                     mgr.GetEventRecorderFor("endpoint-binding-poller"),
+		Namespace:                    opts.namespace,
+		KubernetesOperatorConfigName: opts.releaseName,
+		PollingInterval:              5 * time.Minute,
 		// NOTE: This range must stay static for the current implementation.
 		PortRange: bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},
 	}); err != nil {
@@ -505,7 +508,7 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 func createKubernetesOperator(ctx context.Context, client client.Client, opts managerOpts) error {
 	k8sOperator := &ngrokv1alpha1.KubernetesOperator{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ngrok-operator",
+			Name:      opts.releaseName,
 			Namespace: opts.namespace,
 		},
 	}
@@ -513,7 +516,7 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
 			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Name:      "ngrok-operator",
+				Name:      opts.releaseName,
 				Namespace: opts.namespace,
 				Version:   version.GetVersion(),
 			},
