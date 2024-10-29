@@ -64,7 +64,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 			},
 			want: AggregatedEndpoints{
 				"https://service1.namespace1:443": {
-					Spec: bindingsv1alpha1.EndpointBindingSpec{
+					Spec: bindingsv1alpha1.BoundEndpointSpec{
 						EndpointURI: "https://service1.namespace1:443",
 						Scheme:      "https",
 						Target: bindingsv1alpha1.EndpointTarget{
@@ -74,7 +74,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 							Protocol:  "TCP",
 						},
 					},
-					Status: bindingsv1alpha1.EndpointBindingStatus{
+					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
 							{Ref: v6.Ref{ID: "ep_123"}},
 						},
@@ -96,7 +96,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 			},
 			want: AggregatedEndpoints{
 				"https://service1.namespace1:443": {
-					Spec: bindingsv1alpha1.EndpointBindingSpec{
+					Spec: bindingsv1alpha1.BoundEndpointSpec{
 						EndpointURI: "https://service1.namespace1:443",
 						Scheme:      "https",
 						Target: bindingsv1alpha1.EndpointTarget{
@@ -106,7 +106,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 							Protocol:  "TCP",
 						},
 					},
-					Status: bindingsv1alpha1.EndpointBindingStatus{
+					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
 							{Ref: v6.Ref{ID: "ep_100"}},
 							{Ref: v6.Ref{ID: "ep_101"}},
@@ -115,7 +115,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 				},
 				"tcp://service2.namespace2:2020": {
-					Spec: bindingsv1alpha1.EndpointBindingSpec{
+					Spec: bindingsv1alpha1.BoundEndpointSpec{
 						EndpointURI: "tcp://service2.namespace2:2020",
 						Scheme:      "tcp",
 						Target: bindingsv1alpha1.EndpointTarget{
@@ -125,7 +125,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 							Protocol:  "TCP",
 						},
 					},
-					Status: bindingsv1alpha1.EndpointBindingStatus{
+					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
 							{Ref: v6.Ref{ID: "ep_200"}},
 							{Ref: v6.Ref{ID: "ep_201"}},
@@ -133,7 +133,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 				},
 				"https://service3.namespace3:443": {
-					Spec: bindingsv1alpha1.EndpointBindingSpec{
+					Spec: bindingsv1alpha1.BoundEndpointSpec{
 						EndpointURI: "https://service3.namespace3:443",
 						Scheme:      "https",
 						Target: bindingsv1alpha1.EndpointTarget{
@@ -143,14 +143,14 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 							Protocol:  "TCP",
 						},
 					},
-					Status: bindingsv1alpha1.EndpointBindingStatus{
+					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
 							{Ref: v6.Ref{ID: "ep_300"}},
 						},
 					},
 				},
 				"http://service4.namespace4:8080": {
-					Spec: bindingsv1alpha1.EndpointBindingSpec{
+					Spec: bindingsv1alpha1.BoundEndpointSpec{
 						EndpointURI: "http://service4.namespace4:8080",
 						Scheme:      "http",
 						Target: bindingsv1alpha1.EndpointTarget{
@@ -160,7 +160,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 							Protocol:  "TCP",
 						},
 					},
-					Status: bindingsv1alpha1.EndpointBindingStatus{
+					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
 							{Ref: v6.Ref{ID: "ep_400"}},
 						},

@@ -32,26 +32,26 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func Test_EndpointBinding(t *testing.T) {
+func Test_BoundEndpoint(t *testing.T) {
 	assert := assert.New(t)
 
 	// TODO(hkatz) implement me
 	assert.True(true)
 }
 
-func Test_convertEndpointBindingToServices(t *testing.T) {
+func Test_convertBoundEndpointToServices(t *testing.T) {
 	assert := assert.New(t)
 
-	controller := &EndpointBindingReconciler{
+	controller := &BoundEndpointReconciler{
 		ClusterDomain: "svc.cluster.local",
 	}
 
-	endpointBinding := &bindingsv1alpha1.EndpointBinding{
+	boundEndpoint := &bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "abc123", // hashed/unique name
 			Namespace: "ngrok-op",
 		},
-		Spec: bindingsv1alpha1.EndpointBindingSpec{
+		Spec: bindingsv1alpha1.BoundEndpointSpec{
 			Scheme: "https",
 			Target: bindingsv1alpha1.EndpointTarget{
 				Service:   "client-service",
@@ -60,12 +60,12 @@ func Test_convertEndpointBindingToServices(t *testing.T) {
 				Port:      8080,
 			},
 		},
-		Status: bindingsv1alpha1.EndpointBindingStatus{
+		Status: bindingsv1alpha1.BoundEndpointStatus{
 			HashedName: "abc123",
 		},
 	}
 
-	targetService, upstreamService := controller.convertEndpointBindingToServices(endpointBinding)
+	targetService, upstreamService := controller.convertBoundEndpointToServices(boundEndpoint)
 
 	assert.Equal(targetService.Name, "client-service")
 	assert.Equal(targetService.Namespace, "client-namespace")
@@ -81,14 +81,14 @@ func Test_setEndpointsStatus(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		endpointBinding *bindingsv1alpha1.EndpointBinding
-		desired         *bindingsv1alpha1.BindingEndpoint
+		name          string
+		boundEndpoint *bindingsv1alpha1.BoundEndpoint
+		desired       *bindingsv1alpha1.BindingEndpoint
 	}{
 		{
 			name: "Set provisioning status",
-			endpointBinding: &bindingsv1alpha1.EndpointBinding{
-				Status: bindingsv1alpha1.EndpointBindingStatus{
+			boundEndpoint: &bindingsv1alpha1.BoundEndpoint{
+				Status: bindingsv1alpha1.BoundEndpointStatus{
 					Endpoints: []bindingsv1alpha1.BindingEndpoint{
 						{
 							Status:       bindingsv1alpha1.StatusUnknown,
@@ -116,8 +116,8 @@ func Test_setEndpointsStatus(t *testing.T) {
 		},
 		{
 			name: "Set error status",
-			endpointBinding: &bindingsv1alpha1.EndpointBinding{
-				Status: bindingsv1alpha1.EndpointBindingStatus{
+			boundEndpoint: &bindingsv1alpha1.BoundEndpoint{
+				Status: bindingsv1alpha1.BoundEndpointStatus{
 					Endpoints: []bindingsv1alpha1.BindingEndpoint{
 						{
 							Status:       bindingsv1alpha1.StatusProvisioning,
@@ -150,9 +150,9 @@ func Test_setEndpointsStatus(t *testing.T) {
 			t.Parallel()
 			assert := assert.New(t)
 
-			setEndpointsStatus(test.endpointBinding, test.desired)
+			setEndpointsStatus(test.boundEndpoint, test.desired)
 
-			for _, endpoint := range test.endpointBinding.Status.Endpoints {
+			for _, endpoint := range test.boundEndpoint.Status.Endpoints {
 				assert.Equal(endpoint.Status, test.desired.Status)
 				assert.Equal(endpoint.ErrorCode, test.desired.ErrorCode)
 				assert.Equal(endpoint.ErrorMessage, test.desired.ErrorMessage)

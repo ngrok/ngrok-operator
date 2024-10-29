@@ -1,16 +1,16 @@
-# permissions for end users to view endpointbindings
+# permissions for end users to view boundendpoints
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: rbac
-  name: {{ include "ngrok-operator.fullname" . }}-endpointbinding-viewer-role
+  name: {{ include "ngrok-operator.fullname" . }}-boundendpoint-viewer-role
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - endpointbindings
+  - boundendpoints
   verbs:
   - get
   - list
@@ -18,7 +18,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - endpointbindings/status
+  - boundendpoints/status
   verbs:
   - get
 

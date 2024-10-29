@@ -57,7 +57,7 @@ spec:
                 properties:
                   allowedURLs:
                     description: |-
-                      AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which EndpointBindings are allowed to be created by the operator
+                      AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which BoundEndpoints are allowed to be created by the operator
                       TODO(hkatz) We are only implementing `*` for now
                       Support more patterns in the future, see product spec
                     items:
