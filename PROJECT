@@ -104,7 +104,7 @@ resources:
   controller: true
   domain: k8s.ngrok.com
   group: bindings
-  kind: EndpointBinding
+  kind: BoundEndpoint
   path: github.com/ngrok/ngrok-operator/api/bindings/v1alpha1
   version: v1alpha1
 - controller: true

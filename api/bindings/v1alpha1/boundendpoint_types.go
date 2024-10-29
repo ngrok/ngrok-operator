@@ -32,10 +32,10 @@ import (
 // NOTE: Run "make" to regenerate code after modifying this file
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// EndpointBindingSpec defines the desired state of EndpointBinding
-type EndpointBindingSpec struct {
+// BoundEndpointSpec defines the desired state of BoundEndpoint
+type BoundEndpointSpec struct {
 	// EndpointURI is the unique identifier
-	// representing the EndpointBinding + its Endpoints
+	// representing the BoundEndpoint + its Endpoints
 	// Format: <scheme>://<service>.<namespace>:<port>
 	//
 	// +kubebuilder:validation:Required
@@ -59,14 +59,14 @@ type EndpointBindingSpec struct {
 	Target EndpointTarget `json:"target"`
 }
 
-// EndpointBindingStatus defines the observed state of EndpointBinding
-type EndpointBindingStatus struct {
-	// Endpoints is the list of BindingEndpoints that are created for this EndpointBinding
+// BoundEndpointStatus defines the observed state of BoundEndpoint
+type BoundEndpointStatus struct {
+	// Endpoints is the list of BindingEndpoints that are created for this BoundEndpoint
 	//
 	// Note: The collection of Endpoints per Binding are Many-to-One
 	//       The uniqueness of each Endpoint is not ID, but rather the 4-tuple <scheme,service-name,namespace,port>
-	//       All Endpoints bound to a EndpointBinding will share the same 4-tuple, statuses, errors, etc...
-	//       this is because EndpointBinding represents 1 Service, yet many Endpoints
+	//       All Endpoints bound to a BoundEndpoint will share the same 4-tuple, statuses, errors, etc...
+	//       this is because BoundEndpoint represents 1 Service, yet many Endpoints
 	//
 	// +kubebuilder:validation:Required
 	Endpoints []BindingEndpoint `json:"endpoints"`
@@ -125,12 +125,13 @@ type BindingEndpoint struct {
 	v6.Ref `json:",inline"`
 
 	// +kubebuilder:validation:Required
+	// +kube:validation:Enum=provisioning;bound;error;unknown
 	// +kubebuilder:default="unknown"
 	Status BindingEndpointStatus `json:"status"`
 
 	// ErrorCode is the ngrok API error code if the status is error
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^NGROK_ERR_\d+$`
+	// +kubebuilder:validation:Pattern=`^ERR_NGROK_\d+$`
 	// TODO(hkatz) Define error codes and implement in the API
 	ErrorCode string `json:"errorCode,omitempty"`
 
@@ -155,28 +156,29 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// EndpointBinding is the Schema for the endpointbindings API
+// BoundEndpoint is the Schema for the boundendpoints API
 // +kubebuilder:printcolumn:name="URI",type="string",JSONPath=".spec.endpointURI"
 // +kubebuilder:printcolumn:name="Port",type="string",JSONPath=".spec.port"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.endpoints[0].status"
-type EndpointBinding struct {
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+type BoundEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   EndpointBindingSpec   `json:"spec,omitempty"`
-	Status EndpointBindingStatus `json:"status,omitempty"`
+	Spec   BoundEndpointSpec   `json:"spec,omitempty"`
+	Status BoundEndpointStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;create;update;delete;list;watch
 
-// EndpointBindingList contains a list of EndpointBinding
-type EndpointBindingList struct {
+// BoundEndpointList contains a list of BoundEndpoint
+type BoundEndpointList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []EndpointBinding `json:"items"`
+	Items           []BoundEndpoint `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&EndpointBinding{}, &EndpointBindingList{})
+	SchemeBuilder.Register(&BoundEndpoint{}, &BoundEndpointList{})
 }

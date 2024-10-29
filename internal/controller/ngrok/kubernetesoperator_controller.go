@@ -116,17 +116,15 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
+	var k8sOp *ngrok.KubernetesOperator
 	k8sOp, err := r.findExisting(ctx, ko)
 	if err != nil {
-		return err
+		return r.updateStatus(ctx, ko, nil, err)
 	}
 
 	// Already exists, so update the status to match the existing KubernetesOperator
 	// and make sure it is up to date
 	if k8sOp != nil {
-		if err := r.updateStatus(ctx, ko, k8sOp); err != nil {
-			return err
-		}
 		return r._update(ctx, ko, k8sOp)
 	}
 
@@ -145,7 +143,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 
 	var tlsSecret *v1.Secret
 	if slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings) {
-		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
+		tlsSecret, err := r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return err
 		}
@@ -160,15 +158,11 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	// Create the KubernetesOperator in the ngrok API
 	k8sOp, err = r.NgrokClientset.KubernetesOperators().Create(ctx, createParams)
 	if err != nil {
-		return err
+		return r.updateStatus(ctx, ko, nil, err)
 	}
 
-	// Update the status with the KubernetesOperator ID
-	if err := r.updateStatus(ctx, ko, k8sOp); err != nil {
-		return err
-	}
-
-	return r.updateTLSSecretCert(ctx, tlsSecret, k8sOp)
+	updateTlsErr := r.updateTLSSecretCert(ctx, tlsSecret, k8sOp)
+	return r.updateStatus(ctx, ko, k8sOp, updateTlsErr)
 }
 
 func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
@@ -176,14 +170,12 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1al
 
 	log.V(3).Info("fetching KubernetesOperator from ngrok API")
 	ngrokKo, err := r.NgrokClientset.KubernetesOperators().Get(ctx, ko.Status.ID)
-
 	if err != nil {
 		// If we can't find it, we'll clear the ID and re-reconcile
 		if ngrok.IsNotFound(err) {
 			log.Error(err, "expected to find KubernetesOperator in ngrok API, but it was not found")
-			_ = r.updateStatus(ctx, ko, nil)
 		}
-		return err
+		return r.updateStatus(ctx, ko, nil, err)
 	}
 
 	return r._update(ctx, ko, ngrokKo)
@@ -197,27 +189,48 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1al
 	return err
 }
 
-func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator) error {
-	patch := client.MergeFrom(ko.DeepCopy())
+// updateStatus fills in the status fields of the KubernetesOperator CRD based on the current state of the ngrok API and updates the status in k8s
+func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator, err error) error {
+	if err != nil {
+		errorCode := ""             // default unset
+		errorMessage := err.Error() // default
 
-	if ngrokKo == nil {
-		if ko.Status.ID == "" && ko.Status.URI == "" { // No need to update the status
-			return nil
+		var ngrokErr *ngrok.Error
+		if errors.As(err, &ngrokErr) {
+			errorCode = ngrokErr.ErrorCode
+			errorMessage = ngrokErr.Msg
 		}
+
+		// registration failed
 		ko.Status.ID = ""
 		ko.Status.URI = ""
+		ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusError
+		ko.Status.RegistrationErrorCode = errorCode
+		ko.Status.RegistrationErrorMessage = errorMessage
 	} else {
-		if ko.Status.ID == ngrokKo.ID && ko.Status.URI == ngrokKo.URI { // No need to update the status
-			return nil
+		if ngrokKo == nil {
+			// If the KubernetesOperator is not found, clear the status fields
+			ko.Status.ID = ""
+			ko.Status.URI = ""
+			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusPending
+			ko.Status.RegistrationErrorCode = ""
+			ko.Status.RegistrationErrorMessage = ""
+		} else {
+			// If the KubernetesOperator is found, update the status fields
+			ko.Status.ID = ngrokKo.ID
+			ko.Status.URI = ngrokKo.URI
+			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess
+			ko.Status.RegistrationErrorCode = ""
+			ko.Status.RegistrationErrorMessage = ""
 		}
-		ko.Status.ID = ngrokKo.ID
-		ko.Status.URI = ngrokKo.URI
 	}
 
-	return r.Status().Patch(ctx, ko, patch)
+	return r.controller.ReconcileStatus(ctx, ko, err)
 }
 
 func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator) (err error) {
+	log := ctrl.LoggerFrom(ctx)
+
 	// Update the KubernetesOperator in the ngrok API
 	updateParams := &ngrok.KubernetesOperatorUpdate{
 		ID:              ngrokKo.ID,
@@ -231,7 +244,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	if slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings) {
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
-			return err
+			return r.updateStatus(ctx, ko, nil, err)
 		}
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
@@ -243,14 +256,12 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 
 	ngrokKo, err = r.NgrokClientset.KubernetesOperators().Update(ctx, updateParams)
 	if err != nil {
-		return err
+		log.Error(err, "failed to update KubernetesOperator in ngrok API")
+		return r.updateStatus(ctx, ko, nil, err)
 	}
 
-	if err := r.updateStatus(ctx, ko, ngrokKo); err != nil {
-		return err
-	}
-
-	return r.updateTLSSecretCert(ctx, tlsSecret, ngrokKo)
+	updateTlsErr := r.updateTLSSecretCert(ctx, tlsSecret, ngrokKo)
+	return r.updateStatus(ctx, ko, ngrokKo, updateTlsErr)
 }
 
 // fuzzy match against the ngrok API to find an existing KubernetesOperator
@@ -300,7 +311,8 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 		iterLogger.V(3).Info("found matching KubernetesOperator")
 		return item, nil
 	}
-	return nil, nil
+
+	return nil, iter.Err()
 }
 
 func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {

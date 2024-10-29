@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v5"
+	"github.com/ngrok/ngrok-api-go/v6"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
@@ -136,6 +136,22 @@ func (self *BaseController[T]) handleErr(op BaseControllerOp, obj T, err error) 
 	return CtrlResultForErr(err)
 }
 
+// ReconcileStatus is a helper function to reconcile the status of an object and requeue on update errors
+// Note: obj must be the latest resource version from k8s api
+func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T, origErr error) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	if err := self.Kube.Status().Update(ctx, obj); err != nil {
+		self.Recorder.Event(obj, v1.EventTypeWarning, "StatusError", fmt.Sprintf("Failed to reconcile status: %s", err.Error()))
+		log.V(1).Error(err, "Failed to update status")
+		return StatusError{origErr, err}
+	}
+
+	self.Recorder.Event(obj, v1.EventTypeNormal, "Status", "Successfully reconciled status")
+	log.V(1).Info("Successfully updated status")
+	return origErr
+}
+
 // CtrlResultForErr is a helper function to convert an error into a ctrl.Result passing through ngrok error mappings
 func CtrlResultForErr(err error) (ctrl.Result, error) {
 	var nerr *ngrok.Error
@@ -151,5 +167,25 @@ func CtrlResultForErr(err error) (ctrl.Result, error) {
 		}
 	}
 
+	// if error was because of status update, requeue for 10 seconds
+	var serr StatusError
+	if errors.As(err, &serr) {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, serr
+	}
+
 	return ctrl.Result{}, err
+}
+
+// StatusError wraps .Status().*() errors returned from k8s client
+type StatusError struct {
+	err   error
+	cause error
+}
+
+func (e StatusError) Error() string {
+	return fmt.Sprintf("%s: %s", e.cause, e.err)
+}
+
+func (e StatusError) Unwrap() error {
+	return e.cause
 }

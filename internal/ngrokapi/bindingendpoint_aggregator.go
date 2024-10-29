@@ -20,7 +20,7 @@ var (
 )
 
 // AggregatedEndpoints is a map of hostport to BindingEndpoint (partially filled in)
-type AggregatedEndpoints map[string]bindingsv1alpha1.EndpointBinding
+type AggregatedEndpoints map[string]bindingsv1alpha1.BoundEndpoint
 
 // AggregateBindingEndpoints aggregates the endpoints into a map of hostport to BindingEndpoint
 // by parsing the hostport 4-tuple into each piece ([<scheme>://]<service>.<namespcace>[:<port>])
@@ -37,14 +37,14 @@ func AggregateBindingEndpoints(endpoints []v6.Endpoint) (AggregatedEndpoints, er
 		endpointURI := parsed.String()
 
 		// Create a new BindingEndpoint if one doesn't exist
-		var bindingEndpoint bindingsv1alpha1.EndpointBinding
+		var bindingEndpoint bindingsv1alpha1.BoundEndpoint
 		if val, ok := aggregated[endpointURI]; ok {
 			bindingEndpoint = val
 		} else {
-			// newly found hostport, create a new EndpointBinding
-			bindingEndpoint = bindingsv1alpha1.EndpointBinding{
+			// newly found hostport, create a new BoundEndpoint
+			bindingEndpoint = bindingsv1alpha1.BoundEndpoint{
 				// parsed bits are shared across endpoints with the same hostport
-				Spec: bindingsv1alpha1.EndpointBindingSpec{
+				Spec: bindingsv1alpha1.BoundEndpointSpec{
 					EndpointURI: endpointURI,
 					Scheme:      parsed.Scheme,
 					Target: bindingsv1alpha1.EndpointTarget{
@@ -54,7 +54,7 @@ func AggregateBindingEndpoints(endpoints []v6.Endpoint) (AggregatedEndpoints, er
 						Protocol:  "TCP", // always tcp for now
 					},
 				},
-				Status: bindingsv1alpha1.EndpointBindingStatus{
+				Status: bindingsv1alpha1.BoundEndpointStatus{
 					Endpoints: []bindingsv1alpha1.BindingEndpoint{},
 				},
 			}

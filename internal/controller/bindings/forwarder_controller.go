@@ -54,7 +54,7 @@ type ForwarderReconciler struct {
 	Recorder       record.EventRecorder
 	BindingsDriver *bindingsdriver.BindingsDriver
 
-	controller *controller.BaseController[*bindingsv1alpha1.EndpointBinding]
+	controller *controller.BaseController[*bindingsv1alpha1.BoundEndpoint]
 }
 
 func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
@@ -62,7 +62,7 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 		return fmt.Errorf("BindingsDriver is required")
 	}
 
-	r.controller = &controller.BaseController[*bindingsv1alpha1.EndpointBinding]{
+	r.controller = &controller.BaseController[*bindingsv1alpha1.BoundEndpoint]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
@@ -84,7 +84,7 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	}
 
 	err = cont.Watch(
-		source.Kind(mgr.GetCache(), &bindingsv1alpha1.EndpointBinding{}),
+		source.Kind(mgr.GetCache(), &bindingsv1alpha1.BoundEndpoint{}),
 		&handler.EnqueueRequestForObject{},
 		predicate.Or(
 			predicate.AnnotationChangedPredicate{},
@@ -100,10 +100,10 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 }
 
 func (r *ForwarderReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.Reconcile(ctx, req, new(bindingsv1alpha1.EndpointBinding))
+	return r.controller.Reconcile(ctx, req, new(bindingsv1alpha1.BoundEndpoint))
 }
 
-func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.EndpointBinding) error {
+func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx).WithValues(
 		"endpoint-binding", map[string]string{
 			"namespace": epb.Namespace,
@@ -119,7 +119,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 	return r.BindingsDriver.Listen(port, exampleConnectionHandler(epb))
 }
 
-func (r *ForwarderReconciler) delete(ctx context.Context, epb *bindingsv1alpha1.EndpointBinding) error {
+func (r *ForwarderReconciler) delete(ctx context.Context, epb *bindingsv1alpha1.BoundEndpoint) error {
 	port := int32(epb.Spec.Port)
 	r.BindingsDriver.Close(port)
 	return nil
@@ -128,13 +128,13 @@ func (r *ForwarderReconciler) delete(ctx context.Context, epb *bindingsv1alpha1.
 // Always returns the endpoint binding's "namespace/name". This is different than most of our other
 // controllers which return a .Status.ID field. We do this to always trigger the update handler of
 // the base controller.
-func (r *ForwarderReconciler) statusID(epb *bindingsv1alpha1.EndpointBinding) string {
+func (r *ForwarderReconciler) statusID(epb *bindingsv1alpha1.BoundEndpoint) string {
 	return fmt.Sprintf("%s/%s", epb.Namespace, epb.Name)
 }
 
 // exampleConnectionHandler is a simple example of a connection handler that echos back each line
 // it reads from the client. It also sends a welcome message to the client.
-func exampleConnectionHandler(epb *bindingsv1alpha1.EndpointBinding) bindingsdriver.ConnectionHandler {
+func exampleConnectionHandler(epb *bindingsv1alpha1.BoundEndpoint) bindingsdriver.ConnectionHandler {
 	return func(conn net.Conn) error {
 		defer conn.Close()
 		_, err := conn.Write([]byte(

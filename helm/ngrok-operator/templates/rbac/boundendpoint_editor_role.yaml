@@ -1,16 +1,16 @@
-# permissions for end users to edit endpointbindings
+# permissions for end users to edit boundendpoints
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: rbac
-  name: {{ include "ngrok-operator.fullname" . }}-endpointbinding-editor-role
+  name: {{ include "ngrok-operator.fullname" . }}-boundendpoint-editor-role
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - endpointbindings
+  - boundendpoints
   verbs:
   - create
   - delete
@@ -22,6 +22,6 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - endpointbindings/status
+  - boundendpoints/status
   verbs:
   - get
