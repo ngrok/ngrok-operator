@@ -89,7 +89,7 @@ type KubernetesOperatorStatus struct {
 
 	// RegistrationErrorCode is the returned ngrok error code
 	// +kube:validation:Optional
-	// +kubebuilder:validation:Pattern=`^NGROK_ERR_\d+$`
+	// +kubebuilder:validation:Pattern=`^ERR_NGROK_\d+$`
 	RegistrationErrorCode string `json:"registrationErrorCode,omitempty"`
 
 	// RegistrationErrorMessage is a free-form error message if the status is error
