@@ -136,7 +136,7 @@ func (r *BoundEndpointPoller) getKubernetesOperatorId(ctx context.Context) strin
 func (r *BoundEndpointPoller) startPollingAPI(ctx context.Context) {
 	log := ctrl.LoggerFrom(ctx)
 
-	ticker := time.NewTicker(r.PollingInterval)
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	// Reconcile on startup
