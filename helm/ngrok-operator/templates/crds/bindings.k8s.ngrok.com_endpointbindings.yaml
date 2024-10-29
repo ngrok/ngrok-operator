@@ -156,7 +156,7 @@ spec:
                       description: |-
                         ErrorCode is the ngrok API error code if the status is error
                         TODO(hkatz) Define error codes and implement in the API
-                      pattern: ^NGROK_ERR_\d+$
+                      pattern: ^ERR_NGROK_\d+$
                       type: string
                     errorMessage:
                       description: ErrorMessage is a free-form error message if the

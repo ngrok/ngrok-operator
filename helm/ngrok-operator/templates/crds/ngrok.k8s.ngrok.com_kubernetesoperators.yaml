@@ -128,7 +128,7 @@ spec:
                 type: string
               registrationErrorCode:
                 description: RegistrationErrorCode is the returned ngrok error code
-                pattern: ^NGROK_ERR_\d+$
+                pattern: ^ERR_NGROK_\d+$
                 type: string
               registrationStatus:
                 default: pending
