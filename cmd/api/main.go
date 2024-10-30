@@ -490,8 +490,6 @@ func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Ma
 		UpstreamServiceLabelSelector: map[string]string{
 			"app.kubernetes.io/component": "bindings-forwarder",
 		},
-		TargetServiceAnnotations: targetServiceAnnotations,
-		TargetServiceLabels:      targetServiceLabels,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BoundEndpoint")
 		os.Exit(1)
@@ -505,6 +503,8 @@ func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Ma
 		Recorder:                     mgr.GetEventRecorderFor("endpoint-binding-poller"),
 		Namespace:                    opts.namespace,
 		KubernetesOperatorConfigName: opts.releaseName,
+		TargetServiceAnnotations:     targetServiceAnnotations,
+		TargetServiceLabels:          targetServiceLabels,
 		PollingInterval:              5 * time.Minute,
 		// NOTE: This range must stay static for the current implementation.
 		PortRange: bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},
