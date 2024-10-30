@@ -61,7 +61,7 @@ rules:
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
-  - endpointbindings
+  - boundendpoints
   verbs:
   - create
   - delete
@@ -73,13 +73,13 @@ rules:
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
-  - endpointbindings/finalizers
+  - boundendpoints/finalizers
   verbs:
   - update
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
-  - endpointbindings/status
+  - boundendpoints/status
   verbs:
   - get
   - patch

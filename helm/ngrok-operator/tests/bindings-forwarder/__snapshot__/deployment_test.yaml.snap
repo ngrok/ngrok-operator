@@ -4,7 +4,7 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/rbac: 2c79f18bfeb71e9ec363f715df607b994ee4a9a5fe3552f6840bf273fc375868
+        checksum/rbac: b65bdfec14430fda58dbbf530f639790ab8e9d58926cf0e8405122c80fd4fbba
       labels:
         app.kubernetes.io/component: bindings-forwarder
         app.kubernetes.io/instance: RELEASE-NAME
@@ -25,7 +25,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
-            checksum/rbac: 2c79f18bfeb71e9ec363f715df607b994ee4a9a5fe3552f6840bf273fc375868
+            checksum/rbac: b65bdfec14430fda58dbbf530f639790ab8e9d58926cf0e8405122c80fd4fbba
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"

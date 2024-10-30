@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -59,6 +58,7 @@ import (
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/store"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	//+kubebuilder:scaffold:imports
@@ -107,8 +107,10 @@ type managerOpts struct {
 	enableFeatureBindings bool
 
 	bindings struct {
-		allowedURLs []string
-		name        string
+		allowedURLs        []string
+		name               string
+		serviceAnnotations string
+		serviceLabels      string
 	}
 
 	// env vars
@@ -149,6 +151,8 @@ func cmd() *cobra.Command {
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 	c.Flags().StringSliceVar(&opts.bindings.allowedURLs, "bindings-allowed-urls", []string{"*"}, "Allowed URLs for Endpoint Bindings")
 	c.Flags().StringVar(&opts.bindings.name, "bindings-name", "default", "Name of the Endpoint Binding Configuration")
+	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
+	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -312,17 +316,9 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options mana
 		store.WithClusterDomain(options.clusterDomain),
 	)
 	if options.ngrokMetadata != "" {
-		metadata := strings.TrimSuffix(options.ngrokMetadata, ",")
-		// metadata is a comma separated list of key=value pairs.
-		// e.g. "foo=bar,baz=qux"
-		customMetadata := make(map[string]string)
-		pairs := strings.Split(metadata, ",")
-		for _, pair := range pairs {
-			kv := strings.Split(pair, "=")
-			if len(kv) != 2 {
-				return nil, fmt.Errorf("invalid metadata pair: %q", pair)
-			}
-			customMetadata[kv[0]] = kv[1]
+		customMetadata, err := util.ParseHelmDictionary(options.ngrokMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse ngrokMetadata: %w", err)
 		}
 		d.WithNgrokMetadata(customMetadata)
 	}
@@ -482,30 +478,44 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 }
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
-func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
-	// EndpointBindings
-	if err := (&bindingscontroller.EndpointBindingReconciler{
+func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
+	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
+	if err != nil {
+		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")
+		targetServiceAnnotations = make(map[string]string)
+	}
+
+	targetServiceLabels, err := util.ParseHelmDictionary(opts.bindings.serviceLabels)
+	if err != nil {
+		setupLog.WithValues("serviceLabels", opts.bindings.serviceLabels).Error(err, "unable to parse service labels")
+		targetServiceLabels = make(map[string]string)
+	}
+
+	// BoundEndpoints
+	if err := (&bindingscontroller.BoundEndpointReconciler{
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
-		Log:           ctrl.Log.WithName("controllers").WithName("EndpointBinding"),
+		Log:           ctrl.Log.WithName("controllers").WithName("BoundEndpoint"),
 		Recorder:      mgr.GetEventRecorderFor("bindings-controller"),
 		ClusterDomain: opts.clusterDomain,
 		UpstreamServiceLabelSelector: map[string]string{
 			"app.kubernetes.io/component": "bindings-forwarder",
 		},
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "EndpointBinding")
+		setupLog.Error(err, "unable to create controller", "controller", "BoundEndpoint")
 		os.Exit(1)
 	}
 
 	// Create a new Runnable that implements Start that the manager can manage running
-	if err := mgr.Add(&bindingscontroller.EndpointBindingPoller{
+	if err := mgr.Add(&bindingscontroller.BoundEndpointPoller{
 		Client:                       mgr.GetClient(),
 		Scheme:                       mgr.GetScheme(),
-		Log:                          ctrl.Log.WithName("controllers").WithName("EndpointBindingPoller"),
+		Log:                          ctrl.Log.WithName("controllers").WithName("BoundEndpointPoller"),
 		Recorder:                     mgr.GetEventRecorderFor("endpoint-binding-poller"),
 		Namespace:                    opts.namespace,
 		KubernetesOperatorConfigName: opts.releaseName,
+		TargetServiceAnnotations:     targetServiceAnnotations,
+		TargetServiceLabels:          targetServiceLabels,
 		PollingInterval:              5 * time.Minute,
 		// NOTE: This range must stay static for the current implementation.
 		PortRange: bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},

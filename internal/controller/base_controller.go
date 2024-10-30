@@ -144,7 +144,7 @@ func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T, origE
 	if err := self.Kube.Status().Update(ctx, obj); err != nil {
 		self.Recorder.Event(obj, v1.EventTypeWarning, "StatusError", fmt.Sprintf("Failed to reconcile status: %s", err.Error()))
 		log.V(1).Error(err, "Failed to update status")
-		return fmt.Errorf("Error occured during status update: %w: %w", StatusError{origErr}, err)
+		return StatusError{origErr, err}
 	}
 
 	self.Recorder.Event(obj, v1.EventTypeNormal, "Status", "Successfully reconciled status")
@@ -168,7 +168,7 @@ func CtrlResultForErr(err error) (ctrl.Result, error) {
 	}
 
 	// if error was because of status update, requeue for 10 seconds
-	var serr *StatusError
+	var serr StatusError
 	if errors.As(err, &serr) {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, serr
 	}
@@ -178,9 +178,14 @@ func CtrlResultForErr(err error) (ctrl.Result, error) {
 
 // StatusError wraps .Status().*() errors returned from k8s client
 type StatusError struct {
-	err error
+	err   error
+	cause error
 }
 
 func (e StatusError) Error() string {
-	return e.err.Error()
+	return fmt.Sprintf("%s: %s", e.cause, e.err)
+}
+
+func (e StatusError) Unwrap() error {
+	return e.cause
 }

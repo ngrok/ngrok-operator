@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: endpointbindings.bindings.k8s.ngrok.com
+  name: boundendpoints.bindings.k8s.ngrok.com
 spec:
   group: bindings.k8s.ngrok.com
   names:
-    kind: EndpointBinding
-    listKind: EndpointBindingList
-    plural: endpointbindings
-    singular: endpointbinding
+    kind: BoundEndpoint
+    listKind: BoundEndpointList
+    plural: boundendpoints
+    singular: boundendpoint
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -31,7 +31,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: EndpointBinding is the Schema for the endpointbindings API
+        description: BoundEndpoint is the Schema for the boundendpoints API
         properties:
           apiVersion:
             description: |-
@@ -51,12 +51,12 @@ spec:
           metadata:
             type: object
           spec:
-            description: EndpointBindingSpec defines the desired state of EndpointBinding
+            description: BoundEndpointSpec defines the desired state of BoundEndpoint
             properties:
               endpointURI:
                 description: |-
                   EndpointURI is the unique identifier
-                  representing the EndpointBinding + its Endpoints
+                  representing the BoundEndpoint + its Endpoints
                   Format: <scheme>://<service>.<namespace>:<port>
 
 
@@ -137,17 +137,17 @@ spec:
             - target
             type: object
           status:
-            description: EndpointBindingStatus defines the observed state of EndpointBinding
+            description: BoundEndpointStatus defines the observed state of BoundEndpoint
             properties:
               endpoints:
                 description: |-
-                  Endpoints is the list of BindingEndpoints that are created for this EndpointBinding
+                  Endpoints is the list of BindingEndpoints that are created for this BoundEndpoint
 
 
                   Note: The collection of Endpoints per Binding are Many-to-One
                         The uniqueness of each Endpoint is not ID, but rather the 4-tuple <scheme,service-name,namespace,port>
-                        All Endpoints bound to a EndpointBinding will share the same 4-tuple, statuses, errors, etc...
-                        this is because EndpointBinding represents 1 Service, yet many Endpoints
+                        All Endpoints bound to a BoundEndpoint will share the same 4-tuple, statuses, errors, etc...
+                        this is because BoundEndpoint represents 1 Service, yet many Endpoints
                 items:
                   description: BindingEndpoint is a reference to an Endpoint object
                     in the ngrok API that is attached to the kubernetes operator binding
@@ -156,7 +156,7 @@ spec:
                       description: |-
                         ErrorCode is the ngrok API error code if the status is error
                         TODO(hkatz) Define error codes and implement in the API
-                      pattern: ^NGROK_ERR_\d+$
+                      pattern: ^ERR_NGROK_\d+$
                       type: string
                     errorMessage:
                       description: ErrorMessage is a free-form error message if the
