@@ -35,6 +35,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"slices"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -207,6 +208,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 		ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusError
 		ko.Status.RegistrationErrorCode = errorCode
 		ko.Status.RegistrationErrorMessage = errorMessage
+		ko.Status.EnabledFeatures = strings.Join(ngrokKo.EnabledFeatures, ",")
 	} else {
 		if ngrokKo == nil {
 			// If the KubernetesOperator is not found, clear the status fields
@@ -215,6 +217,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusPending
 			ko.Status.RegistrationErrorCode = ""
 			ko.Status.RegistrationErrorMessage = ""
+			ko.Status.EnabledFeatures = ""
 		} else {
 			// If the KubernetesOperator is found, update the status fields
 			ko.Status.ID = ngrokKo.ID
@@ -222,6 +225,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess
 			ko.Status.RegistrationErrorCode = ""
 			ko.Status.RegistrationErrorMessage = ""
+			ko.Status.EnabledFeatures = strings.Join(ngrokKo.EnabledFeatures, ",")
 		}
 	}
 
