@@ -87,12 +87,6 @@ type BoundEndpointReconciler struct {
 
 	// UpstreamServiceLabelSelectors are the set of labels for the Pod Forwarders
 	UpstreamServiceLabelSelector map[string]string
-
-	// TargetServiceAnnotations is a map of key/value pairs to propagate to the Target Service
-	TargetServiceAnnotations map[string]string
-
-	// TargetServiceAnnotations is a map of key/value pairs to propagate to the Target Service
-	TargetServiceLabels map[string]string
 }
 
 // +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints,verbs=get;list;watch;create;update;patch;delete
