@@ -822,6 +822,11 @@
                     "description": "Labels to add to projected services bound to an endpoint",
                     "default": {}
                 },
+                "ingressEndpoint": {
+                    "type": "string",
+                    "description": "The hostname of the ingress endpoint for the bindings",
+                    "default": "kubernetes-binding-ingress.ngrok.io:443"
+                },
                 "forwarder": {
                     "type": "object",
                     "properties": {
