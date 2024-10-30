@@ -107,8 +107,10 @@ type managerOpts struct {
 	enableFeatureBindings bool
 
 	bindings struct {
-		allowedURLs []string
-		name        string
+		allowedURLs        []string
+		name               string
+		serviceAnnotations string
+		serviceLabels      string
 	}
 
 	// env vars
@@ -149,6 +151,8 @@ func cmd() *cobra.Command {
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 	c.Flags().StringSliceVar(&opts.bindings.allowedURLs, "bindings-allowed-urls", []string{"*"}, "Allowed URLs for Endpoint Bindings")
 	c.Flags().StringVar(&opts.bindings.name, "bindings-name", "default", "Name of the Endpoint Binding Configuration")
+	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
+	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -463,7 +467,19 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 }
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
-func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
+func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
+	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
+	if err != nil {
+		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")
+		targetServiceAnnotations = make(map[string]string)
+	}
+
+	targetServiceLabels, err := util.ParseHelmDictionary(opts.bindings.serviceLabels)
+	if err != nil {
+		setupLog.WithValues("serviceLabels", opts.bindings.serviceLabels).Error(err, "unable to parse service labels")
+		targetServiceLabels = make(map[string]string)
+	}
+
 	// BoundEndpoints
 	if err := (&bindingscontroller.BoundEndpointReconciler{
 		Client:        mgr.GetClient(),
@@ -474,6 +490,8 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 		UpstreamServiceLabelSelector: map[string]string{
 			"app.kubernetes.io/component": "bindings-forwarder",
 		},
+		TargetServiceAnnotations: targetServiceAnnotations,
+		TargetServiceLabels:      targetServiceLabels,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BoundEndpoint")
 		os.Exit(1)
