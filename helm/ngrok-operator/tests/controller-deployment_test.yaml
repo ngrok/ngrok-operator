@@ -173,6 +173,25 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --ngrokMetadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
+- it: Should pass bindings.serviceAnnotations and bindings.serviceLabels to the controller
+  set:
+    bindings:
+      enabled: true
+      serviceAnnotations:
+        serviceAnnotationKey1: serviceAnnotationValue1
+        serviceAnnotationKey2: serviceAnnotationValue2
+      serviceLabels:
+        serviceLabelKey1: serviceLabelValue1
+        serviceLabelKey2: serviceLabelValue2
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --bindings-service-annotations=serviceAnnotationKey1=serviceAnnotationValue1,serviceAnnotationKey2=serviceAnnotationValue2
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --bindings-service-labels=serviceLabelKey1=serviceLabelValue1,serviceLabelKey2=serviceLabelValue2
 - it: Should pass through extra volumes and extra volume mounts
   set:
     extraVolumes:

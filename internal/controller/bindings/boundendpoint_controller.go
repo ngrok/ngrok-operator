@@ -415,7 +415,6 @@ func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *
 
 	upstreamLabels := util.MergeMaps(commonBoundEndpointLabels, thisBindingLabels)
 	upstreamAnnotations := map[string]string{
-		// TODO(hkatz) Implement Metadata
 		LabelEndpointURL: endpointURL,
 	}
 	// upstreamService represents the Pod Forwarders as a Service

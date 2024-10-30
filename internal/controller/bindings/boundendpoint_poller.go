@@ -50,6 +50,12 @@ type BoundEndpointPoller struct {
 	// PortRange is the allocatable port range for the Service definitions to Pod Forwarders
 	PortRange PortRangeConfig
 
+	// TargetServiceAnnotations is a map of key/value pairs to attach to the BoundEndpoint's Target Service
+	TargetServiceAnnotations map[string]string
+
+	// TargetServiceAnnotations is a map of key/value pairs to attach to the BoundEndpoint's Target Service
+	TargetServiceLabels map[string]string
+
 	// portAllocator manages the unique port allocations
 	portAllocator *portBitmap
 
@@ -315,7 +321,6 @@ func (r *BoundEndpointPoller) filterBoundEndpointActions(ctx context.Context, ex
 	return toCreate, toUpdate, toDelete
 }
 
-// TODO: Metadata
 func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
@@ -346,6 +351,10 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 				Namespace: desired.Spec.Target.Namespace,
 				Service:   desired.Spec.Target.Service,
 				Port:      desired.Spec.Target.Port,
+				Metadata: bindingsv1alpha1.TargetMetadata{
+					Annotations: r.TargetServiceAnnotations,
+					Labels:      r.TargetServiceLabels,
+				},
 			},
 		},
 	}
@@ -407,6 +416,10 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 	log := ctrl.LoggerFrom(ctx)
 
 	desiredName := hashURI(desired.Spec.EndpointURI)
+
+	// Attach the metadata fields to the desired boundendpoint
+	desired.Spec.Target.Metadata.Annotations = r.TargetServiceAnnotations
+	desired.Spec.Target.Metadata.Labels = r.TargetServiceLabels
 
 	var existing bindingsv1alpha1.BoundEndpoint
 	err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: desiredName}, &existing)
@@ -526,8 +539,6 @@ func boundEndpointNeedsUpdate(existing bindingsv1alpha1.BoundEndpoint, desired b
 	}
 
 	return false
-
-	// TODO: Compare Metadata labels and annotations between configured values and existing values
 }
 
 // hashURI hashes a URI to a unique string that can be used as BoundEndpoint.metadata.name

@@ -193,6 +193,40 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 		},
 	}
 
+	epdExample1NewMetadata := bindingsv1alpha1.BoundEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: hashURI(uriExample1),
+		},
+		Spec: bindingsv1alpha1.BoundEndpointSpec{
+			EndpointURI: uriExample1,
+			Target: bindingsv1alpha1.EndpointTarget{
+				Namespace: "namespace1",
+				Service:   "service1",
+				Port:      8080,
+				Protocol:  "TCP",
+				Metadata: bindingsv1alpha1.TargetMetadata{
+					Annotations: map[string]string{
+						"key": "value",
+					},
+					Labels: map[string]string{
+						"key": "value",
+					},
+				},
+			},
+		},
+		Status: bindingsv1alpha1.BoundEndpointStatus{
+			HashedName: hashURI(uriExample1),
+			Endpoints: []bindingsv1alpha1.BindingEndpoint{
+				{
+					Ref:          v6.Ref{ID: "ep_abc123", URI: "example-uri"},
+					Status:       bindingsv1alpha1.StatusProvisioning,
+					ErrorCode:    "",
+					ErrorMessage: "",
+				},
+			},
+		},
+	}
+
 	uriExample2 := "https://service2.namespace2:443"
 	epdExample2 := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
@@ -280,6 +314,12 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			name:     "different statuses",
 			existing: epdExample2,
 			desired:  epdExample2NewStatus,
+			want:     true,
+		},
+		{
+			name:     "different metadata",
+			existing: epdExample1,
+			desired:  epdExample1NewMetadata,
 			want:     true,
 		},
 	}

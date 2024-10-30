@@ -66,6 +66,20 @@ spec:
         {{- if .Values.bindings.enabled }}
         - --bindings-name={{ .Values.bindings.name }}
         - --bindings-allowed-urls={{ join "," .Values.bindings.allowedURLs }}
+        {{- if .Values.bindings.serviceAnnotations }}
+        - --bindings-service-annotations={{- $serviceAnnotations := list -}}
+          {{- range $key, $value := .Values.bindings.serviceAnnotations }}
+          {{- $serviceAnnotations = append $serviceAnnotations (printf "%s=%s" $key $value) -}}
+          {{- end }}
+          {{- $serviceAnnotations | join "," }}
+        {{- end }}
+        {{- if .Values.bindings.serviceLabels }}
+        - --bindings-service-labels={{- $serviceLabels := list -}}
+          {{- range $key, $value := .Values.bindings.serviceLabels }}
+          {{- $serviceLabels = append $serviceLabels (printf "%s=%s" $key $value) -}}
+          {{- end }}
+          {{- $serviceLabels | join "," }}
+        {{- end }}
         {{- end }}
         {{- if .Values.description }}
         - --description={{ .Values.description | quote }}
