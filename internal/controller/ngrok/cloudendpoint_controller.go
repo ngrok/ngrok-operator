@@ -27,17 +27,18 @@ package ngrok
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
@@ -63,6 +64,9 @@ type CloudEndpointReconciler struct {
 	NgrokClientset ngrokapi.Clientset
 }
 
+// Define a custom error type to signal a delayed requeue
+var ErrDomainCreating = errors.New("domain is being created, requeue after delay")
+
 // SetupWithManager sets up the controller with the Manager.
 // It also sets up a Field Indexer to index Cloud Endpoints by their Traffic Policy name
 // Additionally, this triggers updates when a trafficPolicy is created or updated but not when deleted
@@ -80,6 +84,12 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Create:   r.create,
 		Update:   r.update,
 		Delete:   r.delete,
+		ErrResult: func(op controller.BaseControllerOp, cr *ngrokv1alpha1.CloudEndpoint, err error) (ctrl.Result, error) {
+			if errors.Is(err, ErrDomainCreating) {
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			}
+			return controller.CtrlResultForErr(err)
+		},
 	}
 
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &ngrokv1alpha1.CloudEndpoint{}, trafficPolicyNameIndex, func(o client.Object) []string {
@@ -96,7 +106,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&ngrokv1alpha1.CloudEndpoint{}).
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
-			handler.EnqueueRequestsFromMapFunc(r.findCloudEndpointForTrafficPolicy),
+			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointForTrafficPolicy),
 			// Don't process delete events as it will just fail to look it up.
 			// Instead rely on the user to either delete the CloudEndpoint CR or update it with a new TrafficPolicy name
 			builder.WithPredicates(&predicate.Funcs{
@@ -113,9 +123,6 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Define a custom error type to signal a delayed requeue
-var ErrDomainCreating = errors.New("domain is being created, requeue after delay")
-
 // #region Reconcile CRUD
 
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints,verbs=get;list;watch;create;update;patch;delete
@@ -123,18 +130,7 @@ var ErrDomainCreating = errors.New("domain is being created, requeue after delay
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints/finalizers,verbs=update
 
 func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	clep := new(ngrokv1alpha1.CloudEndpoint)
-
-	// Call the base controller's Reconcile method
-	result, err := r.controller.Reconcile(ctx, req, clep)
-
-	// Handle the custom error for domain creation delay
-	if errors.Is(err, ErrDomainCreating) {
-		// Requeue after 10 seconds to allow time for domain registration
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-	}
-
-	return result, err
+	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.CloudEndpoint))
 }
 
 // Create will make sure a domain is created before creating the Cloud Endpoint
@@ -170,8 +166,6 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 // Update is called when we have a status ID and want to update the resource in the ngrok API
 // If it fails to find the resource by ID, create a new one instead
 func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
-	log := ctrl.LoggerFrom(ctx).WithValues("id", clep.Status.ID)
-
 	err := r.ensureDomainExists(ctx, clep)
 	if err != nil {
 		return err
@@ -194,7 +188,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	ngrokClep, err := r.NgrokClientset.Endpoints().Update(ctx, updateParams)
 	if ngrok.IsNotFound(err) {
 		// Couldn't find endpoint by ID to update, so blank it out and create a new one
-		log.Info("Failed to update endpoint %s by ID because it was not found. Creating a new one", clep.Status.ID)
+		r.Recorder.Event(clep, v1.EventTypeWarning, "EndpointNotFound", fmt.Sprintf("Failed to update endpoint %s by ID because it was not found. Creating a new one", clep.Status.ID))
 		clep.Status.ID = ""
 		_ = r.Client.Status().Update(ctx, clep)
 		return r.create(ctx, clep)
@@ -258,7 +252,7 @@ func (r *CloudEndpointReconciler) findTrafficPolicy(ctx context.Context, tpName,
 
 	// Attempt to get the TrafficPolicy from the API server
 	if err := r.Client.Get(ctx, key, tp); err != nil {
-		log.Error(err, "failed to find TrafficPolicy CRD")
+		r.Recorder.Event(tp, v1.EventTypeWarning, "TrafficPolicyNotFound", fmt.Sprintf("Failed to find TrafficPolicy %s", tpName))
 		return "", err
 	}
 
@@ -275,6 +269,7 @@ func (r *CloudEndpointReconciler) findTrafficPolicy(ctx context.Context, tpName,
 // ensureDomainExists checks if the Domain CRD exists, and if not, creates it.
 func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
 	domain := r.extractDomain(clep)
+	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domain)
 	if domainEndsInReservedTLD(domain) {
 		// Skip creating the Domain CRD for reserved TLDs
 		return nil
@@ -284,7 +279,7 @@ func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *
 
 	// Check if the Domain CRD already exists
 	domainObj := &ingressv1alpha1.Domain{}
-	err := r.Get(ctx, client.ObjectKey{Name: domain, Namespace: clep.Namespace}, domainObj)
+	err := r.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: clep.Namespace}, domainObj)
 	if err == nil {
 		// Domain already exists
 		return nil
@@ -298,7 +293,7 @@ func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *
 	// Create the Domain CRD
 	newDomain := &ingressv1alpha1.Domain{
 		ObjectMeta: ctrl.ObjectMeta{
-			Name:      domain,
+			Name:      hyphenatedDomain,
 			Namespace: clep.Namespace,
 		},
 		Spec: ingressv1alpha1.DomainSpec{
@@ -306,11 +301,11 @@ func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *
 		},
 	}
 	if err := r.Create(ctx, newDomain); err != nil {
-		log.Error(err, "failed to create Domain CRD")
+		r.Recorder.Event(clep, v1.EventTypeWarning, "DomainCreationFailed", fmt.Sprintf("Failed to create Domain CRD %s", hyphenatedDomain))
 		return err
 	}
 
-	log.Info("Domain CRD created successfully, requeueing after delay")
+	r.Recorder.Event(clep, v1.EventTypeNormal, "DomainCreated", fmt.Sprintf("Domain CRD %s created successfully", hyphenatedDomain))
 	return ErrDomainCreating
 }
 
@@ -325,18 +320,9 @@ func domainEndsInReservedTLD(domain string) bool {
 func (r *CloudEndpointReconciler) extractDomain(clep *ngrokv1alpha1.CloudEndpoint) string {
 	parsedURL, err := url.Parse(clep.Spec.URL)
 	if err != nil {
-		// Log the error and return an empty string if parsing fails
-		r.Log.Error(err, "failed to parse URL", "url", clep.Spec.URL)
+		r.Recorder.Event(clep, v1.EventTypeWarning, "InvalidURL", fmt.Sprintf("Failed to parse URL: %s", clep.Spec.URL))
 		return ""
 	}
 
-	// Extract the hostname from the parsed URL
-	host := parsedURL.Host
-
-	// Handle cases where the host may include a port (e.g., "example.com:8080")
-	if strings.Contains(host, ":") {
-		host = strings.Split(host, ":")[0]
-	}
-
-	return host
+	return parsedURL.Hostname()
 }
