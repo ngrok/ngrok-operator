@@ -30,14 +30,17 @@ import (
 
 // CloudEndpointSpec defines the desired state of CloudEndpoint
 type CloudEndpointSpec struct {
-
 	// The unique URL for this cloud endpoint. This URL is the public address
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 
 	// TrafficPolicyRef is a reference to the TrafficPolicy resource to attach to the Cloud Endpoint
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	TrafficPolicyName string `json:"trafficPolicyName,omitempty"`
+
+	// TrafficPolicy allows inline definition of a TrafficPolicy object
+	// +kubebuilder:validation:Optional
+	TrafficPolicy *NgrokTrafficPolicySpec `json:"trafficPolicy,omitempty"`
 
 	// Description is a human-readable description of this cloud endpoint
 	// +kubebuilder:default:=`Created by the ngrok-operator`

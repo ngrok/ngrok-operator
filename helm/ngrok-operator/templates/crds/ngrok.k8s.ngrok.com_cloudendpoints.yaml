@@ -66,6 +66,16 @@ spec:
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
+              trafficPolicy:
+                description: TrafficPolicy allows inline definition of a TrafficPolicy
+                  object
+                properties:
+                  policy:
+                    description: The raw json encoded policy that was applied to the
+                      ngrok API
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                type: object
               trafficPolicyName:
                 description: TrafficPolicyRef is a reference to the TrafficPolicy
                   resource to attach to the Cloud Endpoint

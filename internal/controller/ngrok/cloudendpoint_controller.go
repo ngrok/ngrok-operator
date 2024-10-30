@@ -64,8 +64,9 @@ type CloudEndpointReconciler struct {
 	NgrokClientset ngrokapi.Clientset
 }
 
-// Define a custom error type to signal a delayed requeue
+// Define a custom error types to catch and handle requeuing logic for
 var ErrDomainCreating = errors.New("domain is being created, requeue after delay")
+var ErrInvalidTrafficPolicyConfig = errors.New("Invalid TrafficPolicy configuration: both TrafficPolicyName and TrafficPolicy are set")
 
 // SetupWithManager sets up the controller with the Manager.
 // It also sets up a Field Indexer to index Cloud Endpoints by their Traffic Policy name
@@ -87,6 +88,11 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		ErrResult: func(op controller.BaseControllerOp, cr *ngrokv1alpha1.CloudEndpoint, err error) (ctrl.Result, error) {
 			if errors.Is(err, ErrDomainCreating) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			}
+			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
+				r.Recorder.Event(cr, v1.EventTypeWarning, "ConfigError", err.Error())
+				r.Log.Error(err, "invalid TrafficPolicy configuration", "name", cr.Name, "namespace", cr.Namespace)
+				return ctrl.Result{}, nil // Do not requeue
 			}
 			return controller.CtrlResultForErr(err)
 		},
@@ -141,7 +147,7 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 		return err
 	}
 
-	policy, err := r.findTrafficPolicy(ctx, clep.Spec.TrafficPolicyName, clep.Namespace)
+	policy, err := r.getTrafficPolicy(ctx, clep)
 	if err != nil {
 		return err
 	}
@@ -171,7 +177,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return err
 	}
 
-	policy, err := r.findTrafficPolicy(ctx, clep.Spec.TrafficPolicyName, clep.Namespace)
+	policy, err := r.getTrafficPolicy(ctx, clep)
 	if err != nil {
 		return err
 	}
@@ -242,8 +248,36 @@ func (r *CloudEndpointReconciler) findCloudEndpointForTrafficPolicy(ctx context.
 	return requests
 }
 
-// findTrafficPolicy fetches the TrafficPolicy CRD from the API server and returns the JSON policy as a string
-func (r *CloudEndpointReconciler) findTrafficPolicy(ctx context.Context, tpName, tpNamespace string) (string, error) {
+// getTrafficPolicy returns the TrafficPolicy JSON string from either the name reference or inline policy
+func (r *CloudEndpointReconciler) getTrafficPolicy(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) (string, error) {
+	// Ensure mutually exclusive fields are not both set
+	if clep.Spec.TrafficPolicyName != "" && clep.Spec.TrafficPolicy != nil {
+		return "", ErrInvalidTrafficPolicyConfig
+	}
+
+	var policy string
+	var err error
+
+	// Handle either finding the TrafficPolicy by name or using the inline policy
+	if clep.Spec.TrafficPolicyName != "" {
+		policy, err = r.findTrafficPolicyByName(ctx, clep.Spec.TrafficPolicyName, clep.Namespace)
+		if err != nil {
+			return "", err
+		}
+	} else if clep.Spec.TrafficPolicy != nil {
+		// Marshal the inline TrafficPolicy to JSON
+		policyBytes, err := clep.Spec.TrafficPolicy.Policy.MarshalJSON()
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal inline TrafficPolicy: %w", err)
+		}
+		policy = string(policyBytes)
+	}
+
+	return policy, nil
+}
+
+// findTrafficPolicyByName fetches the TrafficPolicy CRD from the API server and returns the JSON policy as a string
+func (r *CloudEndpointReconciler) findTrafficPolicyByName(ctx context.Context, tpName, tpNamespace string) (string, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("name", tpName, "namespace", tpNamespace)
 
 	// Create a TrafficPolicy object to store the fetched result
