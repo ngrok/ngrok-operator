@@ -22,6 +22,17 @@ spec:
     - jsonPath: .status.registrationStatus
       name: Status
       type: string
+    - jsonPath: .status.enabledFeatures
+      name: Enabled Features
+      type: string
+    - jsonPath: .spec.binding.name
+      name: Binding Name
+      priority: 2
+      type: string
+    - jsonPath: .spec.binding.ingressEndpoint
+      name: Binding Ingress Endpoint
+      priority: 2
+      type: string
     - description: Age
       jsonPath: .metadata.creationTimestamp
       name: Age
@@ -118,6 +129,10 @@ spec:
           status:
             description: KubernetesOperatorStatus defines the observed state of KubernetesOperator
             properties:
+              enabledFeatures:
+                description: EnabledFeatures is the string representation of the features
+                  enabled for this Kubernetes Operator
+                type: string
               errorMessage:
                 description: RegistrationErrorMessage is a free-form error message
                   if the status is error

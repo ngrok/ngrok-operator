@@ -111,6 +111,7 @@ type managerOpts struct {
 		name               string
 		serviceAnnotations string
 		serviceLabels      string
+		ingressEndpoint    string
 	}
 
 	// env vars
@@ -153,6 +154,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.bindings.name, "bindings-name", "default", "Name of the Endpoint Binding Configuration")
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
+	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -559,6 +561,9 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 				Name:          opts.bindings.name,
 				TlsSecretName: "ngrok-operator-default-tls",
 				AllowedURLs:   opts.bindings.allowedURLs,
+			}
+			if opts.bindings.ingressEndpoint != "" {
+				k8sOperator.Spec.Binding.IngressEndpoint = &opts.bindings.ingressEndpoint
 			}
 		}
 		k8sOperator.Spec.EnabledFeatures = features
