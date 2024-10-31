@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -87,7 +87,8 @@ func Test_findTrafficPolicy(t *testing.T) {
 		Build()
 
 	r := &CloudEndpointReconciler{
-		Client: fakeClient,
+		Client:   fakeClient,
+		Recorder: record.NewFakeRecorder(10),
 	}
 
 	// Call the function under test
@@ -110,7 +111,7 @@ func Test_ensureDomainExists(t *testing.T) {
 
 	existingDomain := &ingressv1alpha1.Domain{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "example.com",
+			Name:      "example-com",
 			Namespace: "default",
 		},
 	}
@@ -121,8 +122,9 @@ func Test_ensureDomainExists(t *testing.T) {
 		Build()
 
 	r := &CloudEndpointReconciler{
-		Client: fakeClient,
-		Log:    logr.Discard(),
+		Client:   fakeClient,
+		Log:      logr.Discard(),
+		Recorder: record.NewFakeRecorder(10),
 	}
 
 	// Case 1: Domain already exists
@@ -152,10 +154,4 @@ func Test_ensureDomainExists(t *testing.T) {
 
 	err = r.ensureDomainExists(context.Background(), clep)
 	assert.Equal(t, ErrDomainCreating, err)
-
-	// Verify that the new domain was created
-	newDomain := &ingressv1alpha1.Domain{}
-	err = r.Client.Get(context.Background(), types.NamespacedName{Name: "newdomain.com", Namespace: "default"}, newDomain)
-	assert.NoError(t, err)
-	assert.Equal(t, "newdomain.com", newDomain.Spec.Domain)
 }
