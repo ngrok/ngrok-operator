@@ -192,6 +192,12 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1al
 
 // updateStatus fills in the status fields of the KubernetesOperator CRD based on the current state of the ngrok API and updates the status in k8s
 func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator, err error) error {
+	// enabled features that the api believe are configured
+	var apiEnabledFeatures string
+	if ngrokKo != nil && ngrokKo.EnabledFeatures != nil {
+		apiEnabledFeatures = strings.Join(ngrokKo.EnabledFeatures, ",")
+	}
+
 	if err != nil {
 		errorCode := ""             // default unset
 		errorMessage := err.Error() // default
@@ -208,7 +214,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 		ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusError
 		ko.Status.RegistrationErrorCode = errorCode
 		ko.Status.RegistrationErrorMessage = errorMessage
-		ko.Status.EnabledFeatures = strings.Join(ngrokKo.EnabledFeatures, ",")
+		ko.Status.EnabledFeatures = apiEnabledFeatures
 	} else {
 		if ngrokKo == nil {
 			// If the KubernetesOperator is not found, clear the status fields
@@ -225,7 +231,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess
 			ko.Status.RegistrationErrorCode = ""
 			ko.Status.RegistrationErrorMessage = ""
-			ko.Status.EnabledFeatures = strings.Join(ngrokKo.EnabledFeatures, ",")
+			ko.Status.EnabledFeatures = apiEnabledFeatures
 		}
 	}
 
