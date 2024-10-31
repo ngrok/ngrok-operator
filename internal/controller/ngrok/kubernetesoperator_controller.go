@@ -321,6 +321,13 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 			continue
 		}
 
+		// bindings are enabled, check that the binding name matches
+		if slices.Contains(item.EnabledFeatures, featureMap[ngrokv1alpha1.KubernetesOperatorFeatureBindings]) {
+			if item.Binding.Name != ko.Spec.Binding.Name {
+				continue // possibly the same k8sop, but not the same binding
+			}
+		}
+
 		// In case the KubernetesOperator already exists in the ngrok API, check if it's the namespace
 		// UID is the same as the one we are trying to create. If it is, use the existing one since we
 		// get conflicts if we try to create a new one.
