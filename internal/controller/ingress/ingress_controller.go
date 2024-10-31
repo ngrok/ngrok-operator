@@ -2,7 +2,6 @@ package ingress
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -102,12 +101,13 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.Info("Ingress is not of type ngrok so skipping it")
 		return ctrl.Result{}, nil
 	case internalerrors.IsErrorNoDefaultIngressClassFound(err):
-		log.Info("No ingress class found for the controller")
+		r.Recorder.Event(ingress, "Warning", "NoDefaultIngressClassFound", "No ingress class found for this controller")
+		return ctrl.Result{}, nil
 	case internalerrors.IsErrInvalidIngressSpec(err):
-		log.Info(fmt.Sprintf("Ingress is not valid so skipping it: %v", err))
+		r.Recorder.Eventf(ingress, "Warning", "InvalidIngressSpec", "Ingress is not valid so skipping it: %v", err)
 		return ctrl.Result{}, nil
 	default:
-		log.Error(err, "Failed to get ingress from store")
+		r.Recorder.Event(ingress, "Warning", "FailedGetIngress", "Failed to get ingress from store")
 		return ctrl.Result{}, err
 	}
 
