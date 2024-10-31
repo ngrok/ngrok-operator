@@ -480,7 +480,7 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 }
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
-func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
+func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, ngrokClientset ngrokapi.Clientset) error {
 	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
 	if err != nil {
 		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")
@@ -519,6 +519,7 @@ func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Ma
 		TargetServiceAnnotations:     targetServiceAnnotations,
 		TargetServiceLabels:          targetServiceLabels,
 		PollingInterval:              5 * time.Minute,
+		NgrokClientset:               ngrokClientset,
 		// NOTE: This range must stay static for the current implementation.
 		PortRange: bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},
 	}); err != nil {
