@@ -25,6 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"strings"
+
 	"github.com/ngrok/ngrok-api-go/v6"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -114,4 +116,13 @@ func (d *Domain) Equal(ngrokDomain *ngrok.ReservedDomain) bool {
 		d.Status.CNAMETarget == ngrokDomain.CNAMETarget &&
 		d.Spec.Description == ngrokDomain.Description &&
 		d.Spec.Metadata == ngrokDomain.Metadata
+}
+
+var domainNameForResourceNameReplacer = strings.NewReplacer(
+	".", "-", // replace dots with dashes
+	"*", "wildcard", // replace wildcard with the literal "wildcard"
+)
+
+func HyphenatedDomainNameFromURL(domain string) string {
+	return domainNameForResourceNameReplacer.Replace(domain)
 }
