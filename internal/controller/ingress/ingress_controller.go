@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -100,8 +101,10 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	case internalerrors.IsErrDifferentIngressClass(err):
 		log.Info("Ingress is not of type ngrok so skipping it")
 		return ctrl.Result{}, nil
+	case internalerrors.IsErrorNoDefaultIngressClassFound(err):
+		log.Info("No ingress class found for the controller")
 	case internalerrors.IsErrInvalidIngressSpec(err):
-		log.Info("Ingress is not valid so skipping it")
+		log.Info(fmt.Sprintf("Ingress is not valid so skipping it: %v", err))
 		return ctrl.Result{}, nil
 	default:
 		log.Error(err, "Failed to get ingress from store")

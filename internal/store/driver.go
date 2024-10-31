@@ -879,7 +879,6 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 		}
 
 		for _, rule := range ingress.Spec.Rules {
-			// TODO: Handle routes without hosts that then apply to all edges
 			edge, ok := edgeMap[rule.Host]
 			if !ok {
 				d.log.Error(err, "could not find edge associated with rule", "host", rule.Host)
@@ -943,6 +942,14 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 				}
 				route.Metadata = d.ingressNgrokMetadata
 
+				// Loop through existing routes and check if any match the path and match type
+				// If they do, warn about it and continue replacing it
+				for _, existingRoute := range edge.Spec.Routes {
+					if existingRoute.Match == route.Match && existingRoute.MatchType == route.MatchType {
+						d.log.Info("replacing existing route", "route", existingRoute.Match, "newRoute", route.Match)
+						continue
+					}
+				}
 				edge.Spec.Routes = append(edge.Spec.Routes, route)
 			}
 

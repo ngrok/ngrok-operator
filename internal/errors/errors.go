@@ -48,6 +48,28 @@ func IsErrorNotFound(err error) bool {
 	return ok
 }
 
+// ErrIngressClassNotFoundInStore is meant to be used when an object is not found in the store so
+// that the caller can decide what to do with it.
+type ErrIngressClassNotFoundInStore struct {
+	message string
+}
+
+// NewErrorNotFound returns a new ErrIngressClassNotFoundInStore
+func NewIngressClassErrorNotFound(message string) ErrIngressClassNotFoundInStore {
+	return ErrIngressClassNotFoundInStore{message: message}
+}
+
+// Error: Stringer: returns the error message
+func (e ErrIngressClassNotFoundInStore) Error() string {
+	return e.message
+}
+
+// IsErrorIngressClassNotFound: Reflect: returns true if the error is a ErrIngressClassNotFoundInStore
+func IsErrIngressClassNotFound(err error) bool {
+	_, ok := err.(ErrIngressClassNotFoundInStore)
+	return ok
+}
+
 // ErrInvalidIngressClass is meant to be used when an ingress object has an invalid ingress class
 type ErrDifferentIngressClass struct {
 	message string
@@ -84,6 +106,22 @@ func (e ErrDifferentIngressClass) Error() string {
 // IsErrDifferentIngressClass: Reflect: returns true if the error is a ErrDifferentIngressClass
 func IsErrDifferentIngressClass(err error) bool {
 	_, ok := err.(ErrDifferentIngressClass)
+	return ok
+}
+
+type ErrorNoDefaultIngressClassFound struct{}
+
+// NoDefaultIngressClassFound is meant to be used when no default ingress class is found
+func NewNoDefaultIngressClassFound() error {
+	return ErrorNoDefaultIngressClassFound{}
+}
+
+func (e ErrorNoDefaultIngressClassFound) Error() string {
+	return "no default ingress class found"
+}
+
+func IsErrorNoDefaultIngressClassFound(err error) bool {
+	_, ok := err.(ErrorNoDefaultIngressClassFound)
 	return ok
 }
 
