@@ -12,6 +12,11 @@
             "description": "String to fully override generated resource names",
             "default": ""
         },
+        "clusterId": {
+            "type": "string",
+            "description": "String to identify the kubernetes cluster in the ngrok dashboard (must be unique per Helm release per cluster)",
+            "default": ""
+        },
         "description": {
             "type": "string",
             "description": "ngrok-operator description that will appear in the ngrok dashboard",
