@@ -8,7 +8,7 @@ require (
 	github.com/golang/mock v1.4.4
 	github.com/google/uuid v1.3.1
 	github.com/imdario/mergo v0.3.16
-	github.com/ngrok/ngrok-api-go/v6 v6.1.1-0.20241025160627-dcdb6f5b23f8
+	github.com/ngrok/ngrok-api-go/v6 v6.1.1-0.20241031154501-292c6f1e1a7a
 	github.com/onsi/ginkgo/v2 v2.14.0
 	github.com/onsi/gomega v1.30.0
 	github.com/spf13/cobra v1.7.0
