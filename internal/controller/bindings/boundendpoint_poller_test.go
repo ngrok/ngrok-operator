@@ -481,3 +481,125 @@ func Test_BoundEndpointPoller_targetMetadataIsEqual(t *testing.T) {
 		})
 	}
 }
+
+func Test_BoundEndpointPoller_convertAllowedUrlToRegex(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		allowedURL   string
+		wantMatch    []string
+		wantNotMatch []string
+		wantErr      bool
+	}{
+		{
+			name:         "empty",
+			allowedURL:   "",
+			wantMatch:    []string{},
+			wantNotMatch: []string{},
+			wantErr:      true,
+		},
+		{
+			name:         "invalid",
+			allowedURL:   "just-service-name",
+			wantMatch:    []string{},
+			wantNotMatch: []string{},
+			wantErr:      true,
+		},
+		{
+			name:       "wildcard",
+			allowedURL: "*",
+			wantMatch: []string{
+				"http://service.namespace",
+				"https://service.namespace:443",
+				"tls://service.namespace:443",
+				"tcp://service.namespace:1111",
+			},
+			wantNotMatch: []string{},
+			wantErr:      false,
+		},
+		{
+			name:       "any http service",
+			allowedURL: "http://*",
+			wantMatch: []string{
+				"http://service.namespace",
+			},
+			wantNotMatch: []string{
+				"https://service.namespace:443",
+				"tls://service.namespace:443",
+				"tcp://service.namespace:1111",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "any http service any namespace",
+			allowedURL: "http://*.*",
+			wantMatch: []string{
+				"http://service.namespace",
+				"http://service.namespace2",
+				"http://service.namespace3:80",
+			},
+			wantNotMatch: []string{
+				"https://service.namespace:443",
+				"tls://service.namespace:443",
+				"tcp://service.namespace:1111",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "any tcp service in namespace1",
+			allowedURL: "tcp://*.namespace1",
+			wantMatch: []string{
+				"tcp://service.namespace1",
+				"tcp://service2.namespace1",
+			},
+			wantNotMatch: []string{
+				"http://service.namespace3:80",
+				"https://service.namespace:443",
+				"tls://service.namespace:443",
+				"tcp://service.namespace:1111",
+				"tcp://service.namespace2:1111",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "any tls service1 in any namespace",
+			allowedURL: "tls://service1.*",
+			wantMatch: []string{
+				"tls://service1.namespace1",
+				"tls://service1.namespace2",
+			},
+			wantNotMatch: []string{
+				"http://service.namespace3:80",
+				"https://service.namespace:443",
+				"tls://service.namespace:443",
+				"tcp://service2.namespace1:1111",
+				"tcp://service.namespace2:1111",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			assert := assert.New(t)
+
+			gotRegexp, err := convertAllowedUrlToRegex(test.allowedURL)
+			if test.wantErr {
+				assert.Error(err)
+				assert.Empty(gotRegexp)
+			} else {
+				assert.NoError(err)
+
+				for _, shouldMatch := range test.wantMatch {
+					assert.True(gotRegexp.MatchString(shouldMatch), "expected %s to match %s", gotRegexp.String(), shouldMatch)
+				}
+
+				for _, shouldNotMatch := range test.wantNotMatch {
+					assert.False(gotRegexp.MatchString(shouldNotMatch), "expected %s to not match %s", gotRegexp.String(), shouldNotMatch)
+				}
+			}
+		})
+	}
+}

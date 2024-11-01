@@ -2,8 +2,12 @@ package bindings
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -46,6 +50,9 @@ type BoundEndpointPoller struct {
 
 	// NgrokClientset is the ngrok API clientset
 	NgrokClientset ngrokapi.Clientset
+
+	// AllowedURLs is a list of allowed URL patterns for endpoints that may be projected into the cluster
+	AllowedURLs []string
 
 	// PollingInterval is how often to poll the ngrok API for reconciling the BindingEndpoints
 	PollingInterval time.Duration
@@ -609,4 +616,80 @@ func boundEndpointNeedsUpdate(ctx context.Context, existing bindingsv1alpha1.Bou
 func hashURI(uri string) string {
 	uid := uuid.NewSHA1(uuid.NameSpaceURL, []byte(uri))
 	return "ngrok-" + uid.String()
+}
+
+// convertAllowedUrlToRegex converts a URL pattern to a regex pattern for endpoint matching
+func convertAllowedUrlToRegex(allowedURL string) (*regexp.Regexp, error) {
+	if len(allowedURL) == 0 {
+		return nil, errors.New("cannot parse empty url")
+	}
+
+	// all urls are allowed
+	if allowedURL == "*" {
+		return regexp.Compile(`^.*$`)
+	}
+
+	// parse as a URL
+	// Note: We ignore/discard the port in the regex (all ports are allowed)
+	uri, err := url.Parse(allowedURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	var service string
+	var namespace string
+	var quotedScheme string
+	var quotedService string
+	var quotedNamespace string
+	var quotedSeparator string
+
+	quotedScheme = regexp.QuoteMeta(uri.Scheme)
+
+	// separate hostname into service.namespace pieces (if exist)
+	parts := strings.Split(uri.Hostname(), ".")
+	if len(parts) == 1 {
+		// only one part must be a wildcard for all service.namespace cases
+		if parts[0] == "*" {
+			service = "*"
+			namespace = "*"
+		} else {
+			// just service name or namepsace is not allowed
+			return nil, errors.New("invalid allowedURL: just service name or namespace is not allowed, must be wildcard or include .namespace suffix")
+		}
+	} else if len(parts) == 2 {
+		// service.namespace
+		service = parts[0]
+		namespace = parts[1]
+		quotedSeparator = regexp.QuoteMeta(".")
+	} else {
+		// invalid
+		return nil, errors.New("too many parts per hostname, only service.namespace is allowed")
+	}
+
+	// convert the service and namespace to regex patterns
+	if service == "*" {
+		// match any service
+		// Note: DNS Names are already validated by the CRD validation
+		quotedService = `.+`
+	} else {
+		// quote exact service name
+		quotedService = regexp.QuoteMeta(service)
+	}
+
+	if namespace == "*" {
+		// match any namespace
+		// Note: DNS Names are already validated by the CRD validation
+		quotedNamespace = `.+`
+	} else {
+		// quote exact namespace name
+		quotedNamespace = regexp.QuoteMeta(namespace)
+	}
+
+	// combine the parts into a regex pattern
+	return regexp.Compile(fmt.Sprintf(`^%s://%s%s%s$`, quotedScheme, quotedService, quotedSeparator, quotedNamespace))
+}
+
+// MockApiResponse represents a mock response from the API.
+type MockApiResponse struct {
+	BindingEndpoints *v6.EndpointList
 }
