@@ -54,6 +54,9 @@ type BoundEndpointPoller struct {
 	// AllowedURLs is a list of allowed URL patterns for endpoints that may be projected into the cluster
 	AllowedURLs []string
 
+	// allowedUrlRegexes is the parsed regexes matching the patterns defined by AllowedURLs
+	allowedUrlRegexes []*regexp.Regexp
+
 	// PollingInterval is how often to poll the ngrok API for reconciling the BindingEndpoints
 	PollingInterval time.Duration
 
@@ -83,6 +86,13 @@ type BoundEndpointPoller struct {
 // Start implements the manager.Runnable interface.
 func (r *BoundEndpointPoller) Start(ctx context.Context) error {
 	log := ctrl.LoggerFrom(ctx)
+
+	// parse the allowed URLs into regex patterns
+	var err error
+	r.allowedUrlRegexes, err = convertAllowedUrlsToRegexes(r.AllowedURLs)
+	if err != nil {
+		return err
+	}
 
 	// retrieve k8sop ID
 	r.koId = r.getKubernetesOperatorId(ctx)
@@ -574,6 +584,34 @@ func targetMetadataIsEqual(a bindingsv1alpha1.TargetMetadata, b bindingsv1alpha1
 	return true
 }
 
+// allowDenyEndpointByURL modifies the given endpoints as allowed or denied
+// based on their matching AllowedURLs policy
+func allowDenyEndpointByURL(ctx context.Context, endpoints ngrokapi.AggregatedEndpoints, regexes []*regexp.Regexp) {
+	log := ctrl.LoggerFrom(ctx)
+
+	for uri, endpoint := range endpoints {
+		allowed := false
+		for _, regex := range regexes {
+			if regex.MatchString(uri) {
+				// endpoint matches allowedURL expression, allowed to project into the cluster
+				log.V(9).Info("Endpoint allowed", "uri", uri, "matches", regex.String())
+				// Note: We use this intermediary so we can skip over resetting the endpoint.Spec.Allowed to false outside the outer endpoint loop
+				allowed = true
+				break // continue below
+			}
+		}
+
+		// non matched, not allowed
+		if !allowed {
+			log.V(9).Info("Endpoint denied, no match", "uri", uri)
+		}
+
+		// reassign value
+		endpoint.Spec.Allowed = allowed
+		endpoints[uri] = endpoint
+	}
+}
+
 // boundEndpointNeedsUpdate returns true if the data in desired does not match existing, and therefore existing needs updating to match desired
 func boundEndpointNeedsUpdate(ctx context.Context, existing bindingsv1alpha1.BoundEndpoint, desired bindingsv1alpha1.BoundEndpoint) bool {
 	log := ctrl.LoggerFrom(ctx)
@@ -636,6 +674,7 @@ func convertAllowedUrlToRegex(allowedURL string) (*regexp.Regexp, error) {
 		return nil, fmt.Errorf("failed to parse URL: %w", err)
 	}
 
+	var scheme string
 	var service string
 	var namespace string
 	var quotedScheme string
@@ -643,10 +682,23 @@ func convertAllowedUrlToRegex(allowedURL string) (*regexp.Regexp, error) {
 	var quotedNamespace string
 	var quotedSeparator string
 
-	quotedScheme = regexp.QuoteMeta(uri.Scheme)
+	scheme = uri.Scheme
+	if scheme == "" {
+		// all supported schemes
+		quotedScheme = `(http|https|tcp|tls)`
+	} else {
+		// specific scheme allowed
+		quotedScheme = regexp.QuoteMeta(scheme)
+	}
 
 	// separate hostname into service.namespace pieces (if exist)
-	parts := strings.Split(uri.Hostname(), ".")
+	hostname := uri.Hostname()
+	if hostname == "" {
+		// sometimes url.Parse() puts our invalid hostname globs into the .Path
+		// so we check here too
+		hostname = uri.Path
+	}
+	parts := strings.Split(hostname, ".")
 	if len(parts) == 1 {
 		// only one part must be a wildcard for all service.namespace cases
 		if parts[0] == "*" {
@@ -686,7 +738,22 @@ func convertAllowedUrlToRegex(allowedURL string) (*regexp.Regexp, error) {
 	}
 
 	// combine the parts into a regex pattern
-	return regexp.Compile(fmt.Sprintf(`^%s://%s%s%s$`, quotedScheme, quotedService, quotedSeparator, quotedNamespace))
+	// Note: Matching on Port is optional
+	return regexp.Compile(fmt.Sprintf(`^%s://%s%s%s(:\d+)?$`, quotedScheme, quotedService, quotedSeparator, quotedNamespace))
+}
+
+// convertAllowedUrlsToRegexes is a convenience function for turning all allowedURLs into a list of regexes
+func convertAllowedUrlsToRegexes(allowedURLs []string) ([]*regexp.Regexp, error) {
+	allowedUrlRegexes := make([]*regexp.Regexp, len(allowedURLs))
+	for idx, allowedURL := range allowedURLs {
+		regex, err := convertAllowedUrlToRegex(allowedURL)
+		if err != nil {
+			return nil, err
+		}
+		allowedUrlRegexes[idx] = regex
+	}
+
+	return allowedUrlRegexes, nil
 }
 
 // MockApiResponse represents a mock response from the API.

@@ -34,6 +34,11 @@ import (
 
 // BoundEndpointSpec defines the desired state of BoundEndpoint
 type BoundEndpointSpec struct {
+	// Allowed is a flag that determines if the BoundEndpoint is allowed to be projected into the cluster
+	// This is controlled by the KubernetesOperator CRD .spec.allowedURLs field
+	// +kubebuilder:validation:Required
+	Allowed bool `json:"allowed"`
+
 	// EndpointURI is the unique identifier
 	// representing the BoundEndpoint + its Endpoints
 	// Format: <scheme>://<service>.<namespace>:<port>
