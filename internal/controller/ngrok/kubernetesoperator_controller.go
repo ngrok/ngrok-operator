@@ -142,8 +142,10 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		},
 	}
 
+	bindingsEnabled := slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
 	var tlsSecret *v1.Secret
-	if slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings) {
+
+	if bindingsEnabled {
 		tlsSecret, err := r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return err
@@ -162,8 +164,12 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		return r.updateStatus(ctx, ko, nil, err)
 	}
 
-	updateTlsErr := r.updateTLSSecretCert(ctx, tlsSecret, k8sOp)
-	return r.updateStatus(ctx, ko, k8sOp, updateTlsErr)
+	if bindingsEnabled {
+		updateTlsErr := r.updateTLSSecretCert(ctx, tlsSecret, k8sOp)
+		return r.updateStatus(ctx, ko, k8sOp, updateTlsErr)
+	}
+
+	return nil
 }
 
 func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
@@ -250,8 +256,10 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		Region:          ptr.To(ko.Spec.Region),
 	}
 
+	bindingsEnabled := slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
 	var tlsSecret *v1.Secret
-	if slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings) {
+
+	if bindingsEnabled {
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return r.updateStatus(ctx, ko, nil, err)
@@ -270,8 +278,11 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		return r.updateStatus(ctx, ko, nil, err)
 	}
 
-	updateTlsErr := r.updateTLSSecretCert(ctx, tlsSecret, ngrokKo)
-	return r.updateStatus(ctx, ko, ngrokKo, updateTlsErr)
+	if bindingsEnabled {
+		updateTlsErr := r.updateTLSSecretCert(ctx, tlsSecret, ngrokKo)
+		return r.updateStatus(ctx, ko, ngrokKo, updateTlsErr)
+	}
+	return nil
 }
 
 // fuzzy match against the ngrok API to find an existing KubernetesOperator
@@ -384,7 +395,7 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 
 // Update the KubernetesOperator with the latest TLS certificate from the ngrok API
 func (r *KubernetesOperatorReconciler) updateTLSSecretCert(ctx context.Context, secret *v1.Secret, ngrokKo *ngrok.KubernetesOperator) error {
-	if ngrokKo.Binding == nil {
+	if ngrokKo == nil || ngrokKo.Binding == nil || secret == nil {
 		return nil
 	}
 
