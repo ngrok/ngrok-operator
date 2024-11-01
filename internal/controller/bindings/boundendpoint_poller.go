@@ -435,7 +435,7 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 		}
 	}
 
-	if !boundEndpointNeedsUpdate(existing, desired) {
+	if !boundEndpointNeedsUpdate(ctx, existing, desired) {
 		log.Info("BoundEndpoint already matches existing state, skipping update...", "name", desiredName, "uri", desired.Spec.EndpointURI)
 		return nil
 	}
@@ -513,17 +513,65 @@ func (r *BoundEndpointPoller) updateBindingStatus(ctx context.Context, desired *
 	return nil
 }
 
+// targetMetadataIsEqual returns true if the metadata fields in a and b are equal
+func targetMetadataIsEqual(a bindingsv1alpha1.TargetMetadata, b bindingsv1alpha1.TargetMetadata) bool {
+	if len(a.Annotations) != len(b.Annotations) {
+		return false
+	}
+
+	if len(a.Labels) != len(b.Labels) {
+		return false
+	}
+
+	// massage the maps to conform to reflect.DeepEqual()
+
+	if a.Annotations == nil && b.Annotations != nil {
+		a.Annotations = map[string]string{}
+	}
+
+	if a.Labels == nil && b.Labels != nil {
+		a.Labels = map[string]string{}
+	}
+
+	if b.Annotations == nil && a.Annotations != nil {
+		b.Annotations = map[string]string{}
+	}
+
+	if b.Labels == nil && a.Labels != nil {
+		b.Labels = map[string]string{}
+	}
+
+	if !reflect.DeepEqual(a.Annotations, b.Annotations) {
+		return false
+	}
+
+	if !reflect.DeepEqual(a.Labels, b.Labels) {
+		return false
+	}
+
+	return true
+}
+
 // boundEndpointNeedsUpdate returns true if the data in desired does not match existing, and therefore existing needs updating to match desired
-func boundEndpointNeedsUpdate(existing bindingsv1alpha1.BoundEndpoint, desired bindingsv1alpha1.BoundEndpoint) bool {
+func boundEndpointNeedsUpdate(ctx context.Context, existing bindingsv1alpha1.BoundEndpoint, desired bindingsv1alpha1.BoundEndpoint) bool {
+	log := ctrl.LoggerFrom(ctx)
+
 	hasSpecChanged := existing.Spec.Scheme != desired.Spec.Scheme ||
-		!reflect.DeepEqual(existing.Spec.Target, desired.Spec.Target)
+		existing.Spec.Target.Port != desired.Spec.Target.Port ||
+		existing.Spec.Target.Protocol != desired.Spec.Target.Protocol ||
+		existing.Spec.Target.Service != desired.Spec.Target.Service ||
+		existing.Spec.Target.Namespace != desired.Spec.Target.Namespace ||
+		existing.Spec.EndpointURI != desired.Spec.EndpointURI ||
+		!targetMetadataIsEqual(existing.Spec.Target.Metadata, desired.Spec.Target.Metadata)
 
 	if hasSpecChanged {
+		log.V(3).Info("BoundEndpoint spec has changed", "existing", existing.Spec, "desired", desired.Spec)
 		return true
 	}
 
 	// compare the list of endpoints in the status
 	if len(existing.Status.Endpoints) != len(desired.Status.Endpoints) {
+		log.V(3).Info("BoundEndpoint status endpoints have changed", "existing", existing.Status.Endpoints, "desired", desired.Status.Endpoints)
 		return true
 	}
 
@@ -534,6 +582,7 @@ func boundEndpointNeedsUpdate(existing bindingsv1alpha1.BoundEndpoint, desired b
 
 	for _, desiredEndpoint := range desired.Status.Endpoints {
 		if _, ok := existingEndpoints[desiredEndpoint.Ref.ID]; !ok {
+			log.V(3).Info("BoundEndpoint status endpoints have changed", "existing", existing.Status.Endpoints, "desired", desired.Status.Endpoints)
 			return true // at least one endpoint has changed
 		}
 	}
