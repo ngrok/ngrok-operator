@@ -454,6 +454,16 @@ func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 
 // enableGatewayFeatureSet enables the Gateway feature set for the operator
 func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager, driver *store.Driver, _ ngrokapi.Clientset) error {
+	if err := (&gatewaycontroller.GatewayClassReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("GatewayClass"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("gateway-class"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
+		os.Exit(1)
+	}
+
 	if err := (&gatewaycontroller.GatewayReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
