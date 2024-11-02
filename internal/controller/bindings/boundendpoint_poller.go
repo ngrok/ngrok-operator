@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	"github.com/ngrok/ngrok-api-go/v6"
 	v6 "github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -43,6 +44,9 @@ type BoundEndpointPoller struct {
 
 	// KubernetesOperatorConfigName is the expected name of the KubernetesOperator that we should poll
 	KubernetesOperatorConfigName string
+
+	// NgrokClientset is the ngrok API clientset
+	NgrokClientset ngrokapi.Clientset
 
 	// PollingInterval is how often to poll the ngrok API for reconciling the BindingEndpoints
 	PollingInterval time.Duration
@@ -163,18 +167,24 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 		r.reconcilingCancel() // cancel the previous reconcile loop
 	}
 
+	if r.koId == "" {
+		return nil
+	}
+
 	// Fetch the mock endpoint data from the API
-	resp, err := fetchEndpoints()
+	var apiBindingEndpoints []v6.Endpoint
+	iter := r.NgrokClientset.KubernetesOperators().GetBoundEndpoints(r.koId, &ngrok.Paging{})
+	for iter.Next(ctx) {
+		item := iter.Item()
+		if item != nil {
+			apiBindingEndpoints = append(apiBindingEndpoints, *item)
+		}
+	}
+
+	err := iter.Err()
 	if err != nil {
 		log.Error(err, "Failed to fetch binding_endpoints from API")
 		return err
-	}
-
-	var apiBindingEndpoints []v6.Endpoint
-	if resp.BindingEndpoints == nil {
-		apiBindingEndpoints = []v6.Endpoint{} // empty
-	} else {
-		apiBindingEndpoints = resp.BindingEndpoints.Endpoints
 	}
 
 	desiredBoundEndpoints, err := ngrokapi.AggregateBindingEndpoints(apiBindingEndpoints)
@@ -435,7 +445,7 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 		}
 	}
 
-	if !boundEndpointNeedsUpdate(existing, desired) {
+	if !boundEndpointNeedsUpdate(ctx, existing, desired) {
 		log.Info("BoundEndpoint already matches existing state, skipping update...", "name", desiredName, "uri", desired.Spec.EndpointURI)
 		return nil
 	}
@@ -513,17 +523,65 @@ func (r *BoundEndpointPoller) updateBindingStatus(ctx context.Context, desired *
 	return nil
 }
 
+// targetMetadataIsEqual returns true if the metadata fields in a and b are equal
+func targetMetadataIsEqual(a bindingsv1alpha1.TargetMetadata, b bindingsv1alpha1.TargetMetadata) bool {
+	if len(a.Annotations) != len(b.Annotations) {
+		return false
+	}
+
+	if len(a.Labels) != len(b.Labels) {
+		return false
+	}
+
+	// massage the maps to conform to reflect.DeepEqual()
+
+	if a.Annotations == nil && b.Annotations != nil {
+		a.Annotations = map[string]string{}
+	}
+
+	if a.Labels == nil && b.Labels != nil {
+		a.Labels = map[string]string{}
+	}
+
+	if b.Annotations == nil && a.Annotations != nil {
+		b.Annotations = map[string]string{}
+	}
+
+	if b.Labels == nil && a.Labels != nil {
+		b.Labels = map[string]string{}
+	}
+
+	if !reflect.DeepEqual(a.Annotations, b.Annotations) {
+		return false
+	}
+
+	if !reflect.DeepEqual(a.Labels, b.Labels) {
+		return false
+	}
+
+	return true
+}
+
 // boundEndpointNeedsUpdate returns true if the data in desired does not match existing, and therefore existing needs updating to match desired
-func boundEndpointNeedsUpdate(existing bindingsv1alpha1.BoundEndpoint, desired bindingsv1alpha1.BoundEndpoint) bool {
+func boundEndpointNeedsUpdate(ctx context.Context, existing bindingsv1alpha1.BoundEndpoint, desired bindingsv1alpha1.BoundEndpoint) bool {
+	log := ctrl.LoggerFrom(ctx)
+
 	hasSpecChanged := existing.Spec.Scheme != desired.Spec.Scheme ||
-		!reflect.DeepEqual(existing.Spec.Target, desired.Spec.Target)
+		existing.Spec.Target.Port != desired.Spec.Target.Port ||
+		existing.Spec.Target.Protocol != desired.Spec.Target.Protocol ||
+		existing.Spec.Target.Service != desired.Spec.Target.Service ||
+		existing.Spec.Target.Namespace != desired.Spec.Target.Namespace ||
+		existing.Spec.EndpointURI != desired.Spec.EndpointURI ||
+		!targetMetadataIsEqual(existing.Spec.Target.Metadata, desired.Spec.Target.Metadata)
 
 	if hasSpecChanged {
+		log.V(3).Info("BoundEndpoint spec has changed", "existing", existing.Spec, "desired", desired.Spec)
 		return true
 	}
 
 	// compare the list of endpoints in the status
 	if len(existing.Status.Endpoints) != len(desired.Status.Endpoints) {
+		log.V(3).Info("BoundEndpoint status endpoints have changed", "existing", existing.Status.Endpoints, "desired", desired.Status.Endpoints)
 		return true
 	}
 
@@ -534,6 +592,7 @@ func boundEndpointNeedsUpdate(existing bindingsv1alpha1.BoundEndpoint, desired b
 
 	for _, desiredEndpoint := range desired.Status.Endpoints {
 		if _, ok := existingEndpoints[desiredEndpoint.Ref.ID]; !ok {
+			log.V(3).Info("BoundEndpoint status endpoints have changed", "existing", existing.Status.Endpoints, "desired", desired.Status.Endpoints)
 			return true // at least one endpoint has changed
 		}
 	}
@@ -545,29 +604,4 @@ func boundEndpointNeedsUpdate(existing bindingsv1alpha1.BoundEndpoint, desired b
 func hashURI(uri string) string {
 	uid := uuid.NewSHA1(uuid.NameSpaceURL, []byte(uri))
 	return "ngrok-" + uid.String()
-}
-
-// fetchEndpoints mocks an API call to retrieve a list of endpoint bindings.
-func fetchEndpoints() (*MockApiResponse, error) {
-	// TODO(hkatz): Implement the actual API call to fetch the binding_epndoints
-	// Mock response with sample data.
-	return &MockApiResponse{
-		BindingEndpoints: &v6.EndpointList{
-			Endpoints: []v6.Endpoint{
-				{ID: "ep_100", PublicURL: "https://service1.namespace1"},
-				{ID: "ep_101", PublicURL: "https://service1.namespace1"},
-				{ID: "ep_102", PublicURL: "https://service1.namespace1"},
-				{ID: "ep_200", PublicURL: "tcp://service2.namespace2:2020"},
-				{ID: "ep_201", PublicURL: "tcp://service2.namespace2:2020"},
-				{ID: "ep_300", PublicURL: "service3.namespace3"},
-				{ID: "ep_400", PublicURL: "http://service4.namespace4:8080"},
-				{ID: "ep_500", PublicURL: "http://example-files.example:80"},
-			},
-		},
-	}, nil
-}
-
-// MockApiResponse represents a mock response from the API.
-type MockApiResponse struct {
-	BindingEndpoints *v6.EndpointList
 }

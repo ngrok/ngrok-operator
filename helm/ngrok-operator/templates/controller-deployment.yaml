@@ -80,6 +80,7 @@ spec:
           {{- end }}
           {{- $serviceLabels | join "," }}
         {{- end }}
+        - --bindings-ingress-endpoint={{ .Values.bindings.ingressEndpoint }}
         {{- end }}
         {{- if .Values.description }}
         - --description={{ .Values.description | quote }}

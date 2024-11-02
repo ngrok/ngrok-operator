@@ -31,11 +31,6 @@ import (
 
 const defaultClusterDomain = "svc.cluster.local"
 
-var domainNameForResourceNameReplacer = strings.NewReplacer(
-	".", "-", // replace dots with dashes
-	"*", "wildcard", // replace wildcard with the literal "wildcard"
-)
-
 const (
 	labelControllerNamespace = "k8s.ngrok.com/controller-namespace"
 	labelControllerName      = "k8s.ngrok.com/controller-name"
@@ -691,7 +686,7 @@ func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain
 
 			domain := ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      domainNameForResourceNameReplacer.Replace(rule.Host),
+					Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(rule.Host),
 					Namespace: ingress.Namespace,
 				},
 				Spec: ingressv1alpha1.DomainSpec{
@@ -723,7 +718,7 @@ func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1
 			}
 			domain := ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      domainNameForResourceNameReplacer.Replace(domainName),
+					Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(domainName),
 					Namespace: gw.Namespace,
 				},
 				Spec: ingressv1alpha1.DomainSpec{

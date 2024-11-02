@@ -25,15 +25,23 @@ SOFTWARE.
 package bindings
 
 import (
-	"bufio"
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
+	"net/url"
+	"strconv"
+	"time"
 
 	"github.com/go-logr/logr"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/mux"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
+	"golang.org/x/sync/errgroup"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
@@ -49,17 +57,22 @@ import (
 type ForwarderReconciler struct {
 	client.Client
 
-	Log            logr.Logger
-	Scheme         *runtime.Scheme
-	Recorder       record.EventRecorder
-	BindingsDriver *bindingsdriver.BindingsDriver
-
 	controller *controller.BaseController[*bindingsv1alpha1.BoundEndpoint]
+	Log        logr.Logger
+	Scheme     *runtime.Scheme
+	Recorder   record.EventRecorder
+
+	BindingsDriver         *bindingsdriver.BindingsDriver
+	KubernetesOperatorName string
 }
 
 func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	if r.BindingsDriver == nil {
 		return fmt.Errorf("BindingsDriver is required")
+	}
+
+	if r.KubernetesOperatorName == "" {
+		return fmt.Errorf("KubernetesOperatorName is required")
 	}
 
 	r.controller = &controller.BaseController[*bindingsv1alpha1.BoundEndpoint]{
@@ -112,11 +125,104 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		"port", epb.Spec.Port,
 	)
 
-	log.Info("Listening on port")
-	port := int32(epb.Spec.Port)
+	// Get the KubernetesOperator
 
-	// TODO: wire this up to ngrok. For now, we'll just use the example connection handler
-	return r.BindingsDriver.Listen(port, exampleConnectionHandler(epb))
+	op := ngrokv1alpha1.KubernetesOperator{}
+	objectKey := client.ObjectKey{Name: r.KubernetesOperatorName, Namespace: epb.Namespace}
+	if err := r.Client.Get(ctx, objectKey, &op); err != nil {
+		return err
+	}
+
+	// Bindings should be enabled on the operator, if they aren't we can't do anything
+	if op.Spec.Binding == nil {
+		return fmt.Errorf("operator does not have binding configuration")
+	}
+
+	if op.Spec.Binding.IngressEndpoint == nil {
+		return fmt.Errorf("operator binding configuration does not have an ingress endpoint")
+	}
+
+	// Get the secret
+	secret := v1.Secret{}
+	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: op.Namespace, Name: op.Spec.Binding.TlsSecretName}, &secret); err != nil {
+		return err
+	}
+
+	keyData, hasKey := secret.Data["tls.key"]
+	certData, hasCert := secret.Data["tls.crt"]
+
+	if !hasKey || !hasCert {
+		return fmt.Errorf("missing tls.key or tls.crt")
+	}
+
+	cert, err := tls.X509KeyPair(certData, keyData)
+	if err != nil {
+		return err
+	}
+
+	tlsDialer := tls.Dialer{
+		NetDialer: &net.Dialer{
+			Timeout: 3 * time.Minute,
+		},
+		Config: &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		},
+	}
+
+	endpointURI, err := url.Parse(epb.Spec.EndpointURI)
+	if err != nil {
+		return err
+	}
+
+	host := endpointURI.Hostname()
+	port, err := strconv.Atoi(endpointURI.Port())
+	if err != nil {
+		return err
+	}
+
+	cnxnHandler := func(conn net.Conn) error {
+		defer conn.Close()
+
+		log := log.WithValues(
+			"remoteAddr", conn.RemoteAddr(),
+			"ingress", map[string]string{
+				"endpoint": *op.Spec.Binding.IngressEndpoint,
+			},
+			"binding", map[string]string{
+				"host": host,
+				"port": endpointURI.Port(),
+			},
+		)
+
+		log.Info("Handling connnection")
+
+		ngrokConn, err := tlsDialer.Dial("tcp", *op.Spec.Binding.IngressEndpoint)
+		if err != nil {
+			log.Error(err, "failed to dial ingress endpoint")
+			return err
+		}
+
+		// Upgrade the connection to a binding connection
+		resp, err := mux.UpgradeToBindingConnection(log, ngrokConn, host, port)
+		log = log.WithValues("endpoint.id", resp.EndpointID, "proto", resp.Proto)
+		if err != nil {
+			log.Error(err, "failed to upgrade connection")
+			return err
+		}
+
+		if resp.ErrorCode != "" || resp.ErrorMessage != "" {
+			err := fmt.Errorf("%s: %s", resp.ErrorCode, resp.ErrorMessage)
+			log.Error(err, "failed to upgrade connection", "errorCode", resp.ErrorCode, "errorMessage", resp.ErrorMessage)
+			return err
+		}
+
+		log.Info("Bound connection")
+		return joinConnections(log, conn, ngrokConn)
+	}
+
+	log.Info("Listening on port")
+
+	return r.BindingsDriver.Listen(int32(epb.Spec.Port), cnxnHandler)
 }
 
 func (r *ForwarderReconciler) delete(ctx context.Context, epb *bindingsv1alpha1.BoundEndpoint) error {
@@ -132,40 +238,27 @@ func (r *ForwarderReconciler) statusID(epb *bindingsv1alpha1.BoundEndpoint) stri
 	return fmt.Sprintf("%s/%s", epb.Namespace, epb.Name)
 }
 
-// exampleConnectionHandler is a simple example of a connection handler that echos back each line
-// it reads from the client. It also sends a welcome message to the client.
-func exampleConnectionHandler(epb *bindingsv1alpha1.BoundEndpoint) bindingsdriver.ConnectionHandler {
-	return func(conn net.Conn) error {
-		defer conn.Close()
-		_, err := conn.Write([]byte(
-			fmt.Sprintf(
-				`
-Hello from the ngrok-operator bindings-forwarder
-
-You are connected to my port: %d
-The endpoint binding is: %s/%s
-
-Type anything and hit enter to see it echoed back
-Type an empty line to close the connection
-
->`, epb.Spec.Port, epb.Namespace, epb.Name,
-			),
-		))
-		if err != nil {
-			return err
-		}
-		scanner := bufio.NewScanner(conn)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if line == "" { // empty line means the client is done
-				break
+func joinConnections(log logr.Logger, conn1, conn2 net.Conn) error {
+	var g errgroup.Group
+	g.Go(func() error {
+		defer func() {
+			if err := conn1.Close(); err != nil {
+				log.Error(err, "failed closing connection to destination: %v", err)
 			}
+		}()
 
-			_, err := conn.Write([]byte(line + "\n> "))
-			if err != nil {
-				return err
+		_, err := io.Copy(conn1, conn2)
+		return err
+	})
+	g.Go(func() error {
+		defer func() {
+			if err := conn2.Close(); err != nil {
+				log.Error(err, "failed closing connection to client: %v", err)
 			}
-		}
-		return nil
-	}
+		}()
+
+		_, err := io.Copy(conn2, conn1)
+		return err
+	})
+	return g.Wait()
 }

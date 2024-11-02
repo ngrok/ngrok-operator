@@ -227,6 +227,36 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 		},
 	}
 
+	epdExample1EmptyMetadata := bindingsv1alpha1.BoundEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: hashURI(uriExample1),
+		},
+		Spec: bindingsv1alpha1.BoundEndpointSpec{
+			EndpointURI: uriExample1,
+			Target: bindingsv1alpha1.EndpointTarget{
+				Namespace: "namespace1",
+				Service:   "service1",
+				Port:      8080,
+				Protocol:  "TCP",
+				Metadata: bindingsv1alpha1.TargetMetadata{
+					Annotations: map[string]string{},
+					Labels:      map[string]string{},
+				},
+			},
+		},
+		Status: bindingsv1alpha1.BoundEndpointStatus{
+			HashedName: hashURI(uriExample1),
+			Endpoints: []bindingsv1alpha1.BindingEndpoint{
+				{
+					Ref:          v6.Ref{ID: "ep_abc123", URI: "example-uri"},
+					Status:       bindingsv1alpha1.StatusProvisioning,
+					ErrorCode:    "",
+					ErrorMessage: "",
+				},
+			},
+		},
+	}
+
 	uriExample2 := "https://service2.namespace2:443"
 	epdExample2 := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
@@ -322,6 +352,12 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			desired:  epdExample1NewMetadata,
 			want:     true,
 		},
+		{
+			name:     "different empty/nil metadata",
+			existing: epdExample1,
+			desired:  epdExample1EmptyMetadata,
+			want:     false,
+		},
 	}
 
 	for _, test := range tests {
@@ -329,7 +365,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			t.Parallel()
 			assert := assert.New(t)
 
-			got := boundEndpointNeedsUpdate(test.existing, test.desired)
+			got := boundEndpointNeedsUpdate(context.TODO(), test.existing, test.desired)
 			assert.Equal(test.want, got)
 		})
 	}
@@ -347,5 +383,101 @@ func Test_BoundEndpointPoller_hashURI(t *testing.T) {
 		// ensure hashed name meets k8s DNS naming requirements
 		assert.True(len(hashed) <= 63)
 		assert.Regexp("^[a-z]([-a-z0-9]*[a-z0-9])?$", hashed)
+	}
+}
+
+func Test_BoundEndpointPoller_targetMetadataIsEqual(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		a    bindingsv1alpha1.TargetMetadata
+		b    bindingsv1alpha1.TargetMetadata
+		want bool
+	}{
+		{
+			name: "both unset",
+			a:    bindingsv1alpha1.TargetMetadata{},
+			b:    bindingsv1alpha1.TargetMetadata{},
+			want: true,
+		},
+		{
+			name: "different annotations",
+			a:    bindingsv1alpha1.TargetMetadata{},
+			b: bindingsv1alpha1.TargetMetadata{
+				Annotations: map[string]string{
+					"key": "value",
+				},
+			},
+			want: false,
+		},
+		{
+			name: "different labels",
+			a:    bindingsv1alpha1.TargetMetadata{},
+			b: bindingsv1alpha1.TargetMetadata{
+				Labels: map[string]string{
+					"key": "value",
+				},
+			},
+			want: false,
+		},
+		{
+			name: "changed annotations",
+			a: bindingsv1alpha1.TargetMetadata{
+				Annotations: map[string]string{
+					"key": "value",
+				},
+			},
+			b: bindingsv1alpha1.TargetMetadata{
+				Annotations: map[string]string{
+					"key": "changed",
+				},
+			},
+			want: false,
+		},
+		{
+			name: "changed labels",
+			a: bindingsv1alpha1.TargetMetadata{
+				Labels: map[string]string{
+					"key": "value",
+				},
+			},
+			b: bindingsv1alpha1.TargetMetadata{
+				Labels: map[string]string{
+					"key": "changed",
+				},
+			},
+			want: false,
+		},
+		{
+			name: "annotations: nil vs. empty",
+			a: bindingsv1alpha1.TargetMetadata{
+				Annotations: nil,
+			},
+			b: bindingsv1alpha1.TargetMetadata{
+				Annotations: map[string]string{},
+			},
+			want: true,
+		},
+		{
+			name: "labels: nil vs. empty",
+			a: bindingsv1alpha1.TargetMetadata{
+				Labels: nil,
+			},
+			b: bindingsv1alpha1.TargetMetadata{
+				Labels: map[string]string{},
+			},
+			want: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			assert := assert.New(t)
+
+			got := targetMetadataIsEqual(test.a, test.b)
+			assert.Equal(test.want, got)
+		})
 	}
 }

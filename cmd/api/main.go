@@ -111,6 +111,7 @@ type managerOpts struct {
 		name               string
 		serviceAnnotations string
 		serviceLabels      string
+		ingressEndpoint    string
 	}
 
 	// env vars
@@ -153,6 +154,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.bindings.name, "bindings-name", "default", "Name of the Endpoint Binding Configuration")
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
+	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -436,6 +438,17 @@ func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 		os.Exit(1)
 	}
 
+	if err := (&ngrokcontroller.CloudEndpointReconciler{
+		Client:         mgr.GetClient(),
+		Log:            ctrl.Log.WithName("controllers").WithName("cloud-endpoint"),
+		Scheme:         mgr.GetScheme(),
+		Recorder:       mgr.GetEventRecorderFor("cloud-endpoint-controller"),
+		NgrokClientset: ngrokClientset,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "CloudEndpoint")
+		os.Exit(1)
+	}
+
 	return nil
 }
 
@@ -467,7 +480,7 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 }
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
-func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, _ ngrokapi.Clientset) error {
+func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, ngrokClientset ngrokapi.Clientset) error {
 	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
 	if err != nil {
 		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")
@@ -506,6 +519,7 @@ func enableBindingsFeatureSet(ctx context.Context, opts managerOpts, mgr ctrl.Ma
 		TargetServiceAnnotations:     targetServiceAnnotations,
 		TargetServiceLabels:          targetServiceLabels,
 		PollingInterval:              5 * time.Minute,
+		NgrokClientset:               ngrokClientset,
 		// NOTE: This range must stay static for the current implementation.
 		PortRange: bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},
 	}); err != nil {
@@ -548,6 +562,9 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 				Name:          opts.bindings.name,
 				TlsSecretName: "ngrok-operator-default-tls",
 				AllowedURLs:   opts.bindings.allowedURLs,
+			}
+			if opts.bindings.ingressEndpoint != "" {
+				k8sOperator.Spec.Binding.IngressEndpoint = &opts.bindings.ingressEndpoint
 			}
 		}
 		k8sOperator.Spec.EnabledFeatures = features
