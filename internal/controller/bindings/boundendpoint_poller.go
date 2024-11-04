@@ -208,6 +208,9 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 		return err
 	}
 
+	// modify the desired BoundEndpoints updating their Allow/Deny status
+	allowDenyEndpointByURL(ctx, desiredBoundEndpoints, r.allowedUrlRegexes)
+
 	// Get all current BoundEndpoint resources in the cluster.
 	var epbList bindingsv1alpha1.BoundEndpointList
 	if err := r.List(ctx, &epbList); err != nil {
@@ -375,6 +378,7 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 			Namespace: r.Namespace,
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
+			Allowed:     desired.Spec.Allowed,
 			EndpointURI: desired.Spec.EndpointURI,
 			Scheme:      desired.Spec.Scheme,
 			Port:        port,
@@ -453,8 +457,8 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 	desired.Spec.Target.Metadata.Annotations = r.TargetServiceAnnotations
 	desired.Spec.Target.Metadata.Labels = r.TargetServiceLabels
 
-	var existing bindingsv1alpha1.BoundEndpoint
-	err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: desiredName}, &existing)
+	existing := &bindingsv1alpha1.BoundEndpoint{}
+	err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: desiredName}, existing)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// BoundEndpoint doesn't exist, create it on the next polling loop
@@ -467,14 +471,15 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 		}
 	}
 
-	if !boundEndpointNeedsUpdate(ctx, existing, desired) {
+	if !boundEndpointNeedsUpdate(ctx, *existing, desired) {
 		log.Info("BoundEndpoint already matches existing state, skipping update...", "name", desiredName, "uri", desired.Spec.EndpointURI)
 		return nil
 	}
 
 	// found existing endpoint
 	// now let's merge them together
-	toUpdate := &existing
+	toUpdate := existing
+	toUpdate.Spec.Allowed = desired.Spec.Allowed
 	toUpdate.Spec.Port = existing.Spec.Port // keep the same port
 	toUpdate.Spec.Scheme = desired.Spec.Scheme
 	toUpdate.Spec.Target = desired.Spec.Target
@@ -616,7 +621,8 @@ func allowDenyEndpointByURL(ctx context.Context, endpoints ngrokapi.AggregatedEn
 func boundEndpointNeedsUpdate(ctx context.Context, existing bindingsv1alpha1.BoundEndpoint, desired bindingsv1alpha1.BoundEndpoint) bool {
 	log := ctrl.LoggerFrom(ctx)
 
-	hasSpecChanged := existing.Spec.Scheme != desired.Spec.Scheme ||
+	hasSpecChanged := existing.Spec.Allowed != desired.Spec.Allowed ||
+		existing.Spec.Scheme != desired.Spec.Scheme ||
 		existing.Spec.Target.Port != desired.Spec.Target.Port ||
 		existing.Spec.Target.Protocol != desired.Spec.Target.Protocol ||
 		existing.Spec.Target.Service != desired.Spec.Target.Service ||

@@ -281,7 +281,7 @@ bindings:
   name: ""
   description: "Created by ngrok-operator"
   allowedURLs:
-  - "*" # TODO(hkatz) only supporting this for now, implement others later
+  - "*"
   serviceAnnotations: {}
   serviceLabels: {}
   ingressEndpoint: "kubernetes-binding-ingress.ngrok.io:443"

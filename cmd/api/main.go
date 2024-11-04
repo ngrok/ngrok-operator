@@ -533,6 +533,7 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 		Recorder:                     mgr.GetEventRecorderFor("endpoint-binding-poller"),
 		Namespace:                    opts.namespace,
 		KubernetesOperatorConfigName: opts.releaseName,
+		AllowedURLs:                  opts.bindings.allowedURLs,
 		TargetServiceAnnotations:     targetServiceAnnotations,
 		TargetServiceLabels:          targetServiceLabels,
 		PollingInterval:              10 * time.Second,
@@ -584,6 +585,8 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 			}
 		}
 		k8sOperator.Spec.EnabledFeatures = features
+
+		setupLog.Info("created KubernetesOperator", "name", k8sOperator.Name, "namespace", k8sOperator.Namespace, "op", fmt.Sprintf("%+v", k8sOperator.Spec.Binding))
 		return nil
 	})
 	return err

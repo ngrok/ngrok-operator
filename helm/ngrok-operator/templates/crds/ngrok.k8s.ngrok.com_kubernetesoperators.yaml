@@ -74,7 +74,7 @@ spec:
                         - All services in a namespace: `*.namespace`
                         - All namespaces: `*.*`
                         - Named service in all namespaces: `service.*`
-                      See: https://regex101.com/r/APbE3G/2
+                      See: https://regex101.com/r/APbE3G/4
                     items:
                       type: string
                     type: array

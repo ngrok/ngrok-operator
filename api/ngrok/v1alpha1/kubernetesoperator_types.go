@@ -62,9 +62,9 @@ type KubernetesOperatorBinding struct {
 	//   - All services in a namespace: `*.namespace`
 	//   - All namespaces: `*.*`
 	//   - Named service in all namespaces: `service.*`
-	// See: https://regex101.com/r/APbE3G/2
+	// See: https://regex101.com/r/APbE3G/4
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:items:Pattern=`^([*]|(https?|tls|tcp)://([*]|([*]|[a-z]([-a-z0-9]{0,61}[a-z0-9])?)[.]([*]|[a-z]([-a-z0-9]{0,61}[a-z0-9])?)))$`
+	// +kubebuilder:validation:items:Pattern=`^(([*]|(https?|tls|tcp)://)?([*]|([*]|[a-z]([-a-z0-9]{0,61}[a-z0-9])?)[.]([*]|[a-z]([-a-z0-9]{0,61}[a-z0-9])?)))$`
 	AllowedURLs []string `json:"allowedURLs,omitempty"`
 
 	// The public ingress endpoint for this Kubernetes Operator
