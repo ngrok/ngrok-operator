@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 901e1447a64dbf546626208030d17f9fd92faae1d55e1c75b760201f831d4d2a
+        checksum/controller-role: 36a2606a2d9807d10e842e52e0cdc5254e8cf739228e32984674f8de78446c78
         checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
       labels:
         app.kubernetes.io/component: controller
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 901e1447a64dbf546626208030d17f9fd92faae1d55e1c75b760201f831d4d2a
+            checksum/controller-role: 36a2606a2d9807d10e842e52e0cdc5254e8cf739228e32984674f8de78446c78
             checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -313,8 +313,16 @@ Should match all-options snapshot:
         verbs:
           - get
           - list
+          - patch
           - update
           - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/finalizers
+        verbs:
+          - patch
+          - update
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -322,6 +330,7 @@ Should match all-options snapshot:
         verbs:
           - get
           - list
+          - patch
           - update
           - watch
       - apiGroups:
@@ -634,7 +643,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 901e1447a64dbf546626208030d17f9fd92faae1d55e1c75b760201f831d4d2a
+        checksum/controller-role: 36a2606a2d9807d10e842e52e0cdc5254e8cf739228e32984674f8de78446c78
         checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
       labels:
         app.kubernetes.io/component: controller
@@ -656,7 +665,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 901e1447a64dbf546626208030d17f9fd92faae1d55e1c75b760201f831d4d2a
+            checksum/controller-role: 36a2606a2d9807d10e842e52e0cdc5254e8cf739228e32984674f8de78446c78
             checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -930,8 +939,16 @@ Should match default snapshot:
         verbs:
           - get
           - list
+          - patch
           - update
           - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/finalizers
+        verbs:
+          - patch
+          - update
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -939,6 +956,7 @@ Should match default snapshot:
         verbs:
           - get
           - list
+          - patch
           - update
           - watch
       - apiGroups:
