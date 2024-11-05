@@ -45,6 +45,7 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
@@ -350,12 +351,22 @@ func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
 func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (secret *v1.Secret, err error) {
 	secret = &v1.Secret{}
 	err = r.Client.Get(ctx, client.ObjectKey{Namespace: ko.GetNamespace(), Name: ko.Spec.Binding.TlsSecretName}, secret)
-	if err == nil {
+	if !apierrors.IsNotFound(err) {
 		return
 	}
 
-	if !apierrors.IsNotFound(err) {
-		return
+	if err == nil {
+		isValid := secret.Type == v1.SecretTypeTLS &&
+			// tls.crt is managed by updateTLSSecretCert
+			// secret.Data["tls.crt"] != nil &&
+			secret.Data["tls.key"] != nil &&
+			secret.Data["tls.csr"] != nil
+
+		if isValid {
+			return
+		}
+
+		// otherwise fallthrough to generate the CSR
 	}
 
 	// If the secret doesn't exist, create it with a new private key and a CSR
@@ -379,17 +390,21 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 	secret = &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ko.Spec.Binding.TlsSecretName,
-			Namespace: ko.GetNamespace(),
+			Namespace: r.Namespace,
 		},
 		Type: v1.SecretTypeTLS,
-		Data: map[string][]byte{
+	}
+
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.Data = map[string][]byte{
 			"tls.key": pem.EncodeToMemory(&pem.Block{Type: "OPENSSH PRIVATE KEY", Bytes: privateKeyBytes}),
 			"tls.crt": {},
 			"tls.csr": csr,
-		},
-	}
+		}
 
-	err = r.Client.Create(ctx, secret)
+		return nil
+	})
+
 	return
 }
 
