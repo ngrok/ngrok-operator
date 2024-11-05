@@ -86,6 +86,8 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: {{ .Release.Name | quote }}
+        - name: SSL_CERT_DIR
+          value: /etc/ssl/certs/ngrok
         {{- range $key, $value := .Values.extraEnv }}
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}
@@ -93,6 +95,14 @@ spec:
         {{- if .Values.extraVolumeMounts  }}
         volumeMounts:
         {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
+        - name: ngrok-ca
+          mountPath: /etc/ssl/certs/ngrok
+          readOnly: true
+        {{- else }}
+        volumeMounts:
+        - name: ngrok-ca
+          mountPath: /etc/ssl/certs/ngrok
+          readOnly: true
         {{- end }}
         {{- if .Values.lifecycle }}
         lifecycle:
@@ -115,5 +125,13 @@ spec:
       {{- if .Values.extraVolumes }}
       volumes:
         {{ toYaml .Values.extraVolumes | nindent 6 }}
+        - name: ngrok-ca
+          configMap:
+            name: ngrok-intermediate-ca
+      {{- else }}
+      volumes:
+        - name: ngrok-ca
+          configMap:
+            name: ngrok-intermediate-ca
       {{- end }}
 {{- end }}
