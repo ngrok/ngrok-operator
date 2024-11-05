@@ -5,6 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/kubernetes-ingress-controller-0.12.2...kubernetes-ingress-controller-0.13.0
+
+
+### :warning: :warning: :warning: Notice :warning: :warning: :warning:
+
+This version of the controller is not backwards compatible with previous versions and is only compatible with
+version 0.16.0 of the `ngrok/ngrok-operator` helm chart and later. Using this version or later of the controller with the `ngrok/kubernetes-ingress-controller` helm chart will result in the controller not functioning correctly.
+
+Even though we are in major version 0, and semver v2.0.0 allows that anything may change until a 1.0.0 release, we try not to break backwards compatibility. However, this change is necessary to support new features and improvements in the operator.
+
+### Added
+
+#### Kubernetes Operator
+
+The operator installation will now be registered with the ngrok API. This will allow you to view the status of the operator in the ngrok dashboard, see what version of the operator is running, and power new features
+in the future. This is powered by a new `KubernetesOperator` CRD that is created by the operator in its
+own namespace when it starts up.
+
+- Register operator by @jonstacks in [#457](https://github.com/ngrok/ngrok-operator/pull/457)
+- Add status to KubernetesOperator by @hjkatz in [#467](https://github.com/ngrok/ngrok-operator/pull/467)
+- fix: Add nil checks to prevent potential panics by @jonstacks in [#483](https://github.com/ngrok/ngrok-operator/pull/483)
+
+#### Endpoint Bindings (private beta)
+
+Endpoint bindings is a new feature that allows you to securely access a ngrok endpoint no matter where it is running. Specifically, Kubernetes bound endpoints allow you to project services running outside of your Kubernetes cluster or in other clusters into your cluster as native Kubernetes services.
+
+- Add feature flag support for bindings by @hjkatz in [#424](https://github.com/ngrok/ngrok-operator/pull/424)
+- feat: Initial bindings driver by @stacks in [#450](https://github.com/ngrok/ngrok-operator/pull/450)
+- Modify EndpointBinding CRD to reflect cardinality of bound Endpoints by @hjkatz in [#452](https://github.com/ngrok/ngrok-operator/pull/452)
+- Implement AggregateBindingEndpoints for interacting with the ngrok api by @hjkatz in [#453](https://github.com/ngrok/ngrok-operator/pull/453)
+- Implement BindingEndpoint polling by @hjkatz in [#458](https://github.com/ngrok/ngrok-operator/pull/458)
+- Implement EndpointBinding -> Services creation by @hjkatz in [#459](https://github.com/ngrok/ngrok-operator/pull/459)
+- Implement port allocation by @hjkatz in [#460](https://github.com/ngrok/ngrok-operator/pull/460)
+- Bindings forwarder by @jonstacks in [#465](https://github.com/ngrok/ngrok-operator/pull/465)
+- Add endpoint status to EndpointBinding kubectl output by @hjkatz in [#464](https://github.com/ngrok/ngrok-operator/pull/464)
+- chore: Update ngrok-api-go to pull in new changes by @jonstacks in [#468](https://github.com/ngrok/ngrok-operator/pull/468)
+- Ensure endpoint poller does not start until k8sop is regestered with API by @hjkatz in [#470](https://github.com/ngrok/ngrok-operator/pull/470)
+- Rename EndpointBinding to BoundEndpoint by @hjkatz in [#475](https://github.com/ngrok/ngrok-operator/pull/475)
+- Implement Target Metadata by @hjkatz in [#477](https://github.com/ngrok/ngrok-operator/pull/477)
+- Bindings forwarder implementation by @jonstacks in [#476](https://github.com/ngrok/ngrok-operator/pull/476)
+- Ensure KubernetesOperator.Status.EnabledFeatures is set properly from the API by @hjkatz in [#480](https://github.com/ngrok/ngrok-operator/pull/480)
+- Add equality tests for Target.Metadata by @hjkatz in [#482](https://github.com/ngrok/ngrok-operator/pull/482)
+- feat: BoundEndpointPoller polls from the API by @jonstacks in [#481](https://github.com/ngrok/ngrok-operator/pull/481)
+
+
+#### Cloud Endpoints (private beta)
+
+[Cloud Endpoints](https://ngrok.com/docs/network-edge/cloud-endpoints/) can now be created and managed by the operator via a new `CloudEndpoint` CRD.
+
+- Allow configuring ngrok Cloud Endpoints using CRDs by @alex-bezek in [#471](https://github.com/ngrok/ngrok-operator/pull/471)
+
+
+### Changed
+
+#### Ingress/Gateway
+
+* Seed additional types when first starting by @alex-bezek in [#431](https://github.com/ngrok/ngrok-operator/pull/431).
+
+#### Traffic Policy
+
+Updates `TrafficPolicy` CRD and inline policy to support new phase-based names as well as the new `TrafficPolicy` API.
+
+- update traffic policy for phase-based naming by @TheConcierge in [#456](https://github.com/ngrok/ngrok-operator/pull/456)
+
+
+#### Splitting controllers into multiple manager instances
+
+The controllers have been split into multiple manager instances to improve performance and scalability. This now allows the ngrok agent manager which handles traffic to run independently of the API managers which reconcile CRDs with the ngrok API. This change also allows for more fine-grained control over the controllers and their resources.
+
+- refactor: Split the agent and API controllers by @jonstacks in [#446](https://github.com/ngrok/ngrok-operator/pull/446)
+
+### Fixes
+
+#### Gateway API
+
+- fix: Add `GatewayClass` controller by @jonstacks in [#484](https://github.com/ngrok/ngrok-operator/pull/484)
+
+
+### Documentation
+* Update README.md to use ngrok Kubernetes Operator instead of ingress controller. by @stmcallister in [#433](https://github.com/ngrok/ngrok-operator/pull/433)
+
+### New Contributors
+- @TheConcierge made their first contribution in [#456](https://github.com/ngrok/ngrok-operator/pull/456)
+
+
+
 ## 0.12.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/kubernetes-ingress-controller-0.12.1...kubernetes-ingress-controller-0.12.2
 
@@ -36,7 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - feat: Auto-provision domain for TLS Edges [#386](https://github.com/ngrok/ngrok-operator/pull/386)
 - feat: Support for Load Balancer services [#387](https://github.com/ngrok/ngrok-operator/pull/387)
-- feat: Support TLS termination in modulesets for Load Balancer Services [388](https://github.com/ngrok/ngrok-operator/pull/388)
+- feat: Support TLS termination in modulesets for Load Balancer Services [#388](https://github.com/ngrok/ngrok-operator/pull/388)
 
 ### Changed
 
