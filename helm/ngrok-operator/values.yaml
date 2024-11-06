@@ -302,7 +302,7 @@ bindings:
       annotations: {}
 
   ## @param bindings.ngrokCA The ngrok intermediate CA certificate to use for verifyng self-signed TLS certs from ngrok
-  ## Note: This is temporarilyt vendored and will be removed in a future release.
+  ## Note: This is temporarily vendored and will be removed in a future release.
   ngrokCA: | # ngrok intermediate CA
     -----BEGIN CERTIFICATE-----
     MIIDwjCCAqqgAwIBAgIUZqF2AkB17pISojTndgc2U5BDt7wwDQYJKoZIhvcNAQEL
