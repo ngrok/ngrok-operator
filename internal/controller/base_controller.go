@@ -139,7 +139,7 @@ func (self *BaseController[T]) handleErr(op BaseControllerOp, obj T, err error) 
 // ReconcileStatus is a helper function to reconcile the status of an object and requeue on update errors
 // Note: obj must be the latest resource version from k8s api
 func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T, origErr error) error {
-	log := ctrl.LoggerFrom(ctx)
+	log := ctrl.LoggerFrom(ctx).WithValues("originalError", origErr)
 
 	if err := self.Kube.Status().Update(ctx, obj); err != nil {
 		self.Recorder.Event(obj, v1.EventTypeWarning, "StatusError", fmt.Sprintf("Failed to reconcile status: %s", err.Error()))
@@ -161,6 +161,8 @@ func CtrlResultForErr(err error) (ctrl.Result, error) {
 			return ctrl.Result{}, err
 		case nerr.StatusCode == http.StatusTooManyRequests:
 			return ctrl.Result{RequeueAfter: time.Minute}, nil
+		case nerr.StatusCode == http.StatusNotFound:
+			return ctrl.Result{}, err
 		default:
 			// the rest are client errors, we don't retry by default
 			return ctrl.Result{}, nil
