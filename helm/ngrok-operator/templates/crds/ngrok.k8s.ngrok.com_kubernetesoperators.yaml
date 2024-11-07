@@ -100,6 +100,11 @@ spec:
                   namespace:
                     description: The namespace in which the operator is deployed
                     type: string
+                  startedAt:
+                    description: StartedAt is the time at which the operator was last
+                      started
+                    format: date-time
+                    type: string
                   version:
                     description: The version of the operator that is currently running
                     type: string

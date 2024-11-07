@@ -48,6 +48,9 @@ type KubernetesOperatorDeployment struct {
 	Namespace string `json:"namespace,omitempty"`
 	// The version of the operator that is currently running
 	Version string `json:"version,omitempty"`
+
+	// StartedAt is the time at which the operator was last started
+	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 }
 
 type KubernetesOperatorBinding struct {

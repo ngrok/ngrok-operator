@@ -29,6 +29,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/utils/ptr"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -553,6 +554,7 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 				Name:      opts.releaseName,
 				Namespace: opts.namespace,
 				Version:   version.GetVersion(),
+				StartedAt: ptr.To(metav1.Now()),
 			},
 			Region: opts.region,
 		}
@@ -580,5 +582,6 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 		k8sOperator.Spec.EnabledFeatures = features
 		return nil
 	})
+
 	return err
 }
