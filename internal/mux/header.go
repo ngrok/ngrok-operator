@@ -17,20 +17,24 @@ func ReadProxyMessage(conn net.Conn, msg proto.Message) error {
 	var hdrLength uint16
 	err := binary.Read(conn, binary.LittleEndian, &hdrLength)
 	if err != nil {
-		return err
+		// Note: If you are seeing this error it likely means the TLS handshake from client -> mux did not work
+		// This can happen if:
+		// * the cert is bad or empty
+		// * the cert was signed by a different mux than the one you are connecting to (i.e. the ingress-binding-endpoint is mismatched to the tls.crt)
+		return fmt.Errorf("failed to read header length: %w", err)
 	}
 
 	// read header bytes
 	buf := make([]byte, hdrLength)
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read header: %w", err)
 	}
 
 	// unmarshal header
 	err = proto.Unmarshal(buf, msg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal header: %w", err)
 	}
 
 	return nil
@@ -40,12 +44,12 @@ func ReadProxyMessage(conn net.Conn, msg proto.Message) error {
 func WriteProxyMessage(conn net.Conn, msg proto.Message) error {
 	buf, err := proto.Marshal(msg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
 	hdrlen := uint16(len(buf))
 	if err = binary.Write(conn, binary.LittleEndian, hdrlen); err != nil {
-		return err
+		return fmt.Errorf("failed to write header length: %w", err)
 	}
 
 	_, err = conn.Write(buf)
