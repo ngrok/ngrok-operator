@@ -528,7 +528,7 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 		KubernetesOperatorConfigName: opts.releaseName,
 		TargetServiceAnnotations:     targetServiceAnnotations,
 		TargetServiceLabels:          targetServiceLabels,
-		PollingInterval:              5 * time.Minute,
+		PollingInterval:              10 * time.Second,
 		NgrokClientset:               ngrokClientset,
 		// NOTE: This range must stay static for the current implementation.
 		PortRange: bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},
