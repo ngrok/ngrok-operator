@@ -546,7 +546,6 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 			Namespace: opts.namespace,
 		},
 	}
-
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
 			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
