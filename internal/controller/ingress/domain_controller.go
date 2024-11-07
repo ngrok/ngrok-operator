@@ -137,6 +137,12 @@ func (r *DomainReconciler) create(ctx context.Context, domain *ingressv1alpha1.D
 func (r *DomainReconciler) update(ctx context.Context, domain *ingressv1alpha1.Domain) error {
 	resp, err := r.DomainsClient.Get(ctx, domain.Status.ID)
 	if err != nil {
+		// If the domain is gone, clear the status and trigger a re-reconcile
+		if ngrok.IsNotFound(err) {
+			domain.Status = ingressv1alpha1.DomainStatus{}
+			return r.controller.ReconcileStatus(ctx, domain, err)
+		}
+
 		return err
 	}
 
