@@ -1941,3 +1941,66 @@ func (d *Driver) ngrokLabels(namespace, serviceUID, serviceName string, port int
 		labelPort:       strconv.Itoa(int(port)),
 	}
 }
+
+// MigrateKubernetesIngressControllerLabelsToNgrokOperator migrates the labels from the old Kubernetes Ingress Controller to the new ngrok operator labels
+// so that the ngrok operator can take over management of items previously managed by the Kubernetes Ingress Controller.
+// TODO: Delete this function after users have migrated from the ngrok Kubernetes Ingress Controller to the ngrok Operator.
+func (d *Driver) MigrateKubernetesIngressControllerLabelsToNgrokOperator(ctx context.Context, k8sClient client.Client) error {
+	typesToMigrate := []interface{}{
+		&ingressv1alpha1.Domain{},
+		&ingressv1alpha1.Tunnel{},
+		&ingressv1alpha1.HTTPSEdge{},
+	}
+
+	for _, t := range typesToMigrate {
+		objs, err := listObjectsForType(ctx, k8sClient, t)
+		if err != nil {
+			return err
+		}
+
+		for _, obj := range objs {
+
+			name := obj.GetName()
+			namespace := obj.GetNamespace()
+			kind := obj.GetObjectKind().GroupVersionKind().Kind
+
+			log := d.log.WithValues("name", name, "namespace", namespace, "kind", kind)
+
+			labels := obj.GetLabels()
+
+			controllerName, controllerNameOk := labels[labelControllerName]
+			controllerNamespace, controllerNamespaceOk := labels[labelControllerNamespace]
+
+			// If it doesn't have both of the controller name and namespace labels, skip it
+			if !controllerNameOk || !controllerNamespaceOk {
+				log.V(1).Info("Skipping object without controller name and namespace labels")
+				continue
+			}
+
+			// If the controller name and namespace are the same as the current controller name and namespace, skip it
+			if controllerName == d.managerName.Name && controllerNamespace == d.managerName.Namespace {
+				log.V(1).Info("Skipping object with matching controller name and namespace labels")
+				continue
+			}
+
+			// Deep copy the object so we can modify it.
+			// We must also re-assign the labels to the new object so that
+			// we don't modify the original object's labels.
+			newObj := obj.DeepCopyObject().(client.Object)
+			labels = newObj.GetLabels()
+
+			// Now we know it has both labels and at least one of the two labels doesn't match
+			// so we can update the labels to match what the new operator expects.
+			labels[labelControllerName] = d.managerName.Name
+			labels[labelControllerNamespace] = d.managerName.Namespace
+
+			newObj.SetLabels(labels)
+
+			if err := k8sClient.Patch(ctx, newObj, client.MergeFrom(obj)); err != nil {
+				return err
+			}
+			log.V(1).Info("Migrated labels")
+		}
+	}
+	return nil
+}

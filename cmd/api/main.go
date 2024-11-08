@@ -236,11 +236,18 @@ func runController(ctx context.Context, opts managerOpts) error {
 	var k8sResourceDriver *store.Driver
 	if opts.enableFeatureIngress || opts.enableFeatureGateway {
 		// we only need a driver if these features are enabled
-		if driver, err := getK8sResourceDriver(ctx, mgr, opts); err != nil {
+		k8sResourceDriver, err = getK8sResourceDriver(ctx, mgr, opts)
+		if err != nil {
 			return fmt.Errorf("unable to create Driver: %w", err)
-		} else {
-			k8sResourceDriver = driver
 		}
+
+		// Run a migration for migrating from the old ingress controller to the operator
+		// TODO: Delete me after the initial releae of the ngrok-operator
+		setupLog.Info("Migrating Kubernetes Ingress Controller labels to ngrok operator")
+		if err := k8sResourceDriver.MigrateKubernetesIngressControllerLabelsToNgrokOperator(ctx, k8sClinet); err != nil {
+			return fmt.Errorf("unable to migrate Kubernetes Ingress Controller labels to ngrok operator: %w", err)
+		}
+		setupLog.Info("Kubernetes Ingress controller labels migrated to ngrok operator")
 	}
 
 	if opts.enableFeatureIngress {
