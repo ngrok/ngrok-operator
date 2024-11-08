@@ -1,4 +1,4 @@
-# This file registers ownership for certain parts of the ngrok ingress controller code.
+# This file registers ownership for certain parts of the ngrok-operator code.
 # Review from a member of the corresponding code owner is required to merge pull requests.
 #
 # The last matching pattern takes precedence.
