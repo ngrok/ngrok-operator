@@ -13,7 +13,6 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
-	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -216,22 +215,21 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 	toCreate, toUpdate, toDelete := r.filterBoundEndpointActions(ctx, existingBoundEndpoints, desiredBoundEndpoints)
 
 	// create context + errgroup for managing/closing the future goroutine in the reconcile actions loops
-	errGroup, reconcileActionCtx := errgroup.WithContext(context.Background())
-	reconcileActionCtx, cancel := context.WithCancel(reconcileActionCtx)
+	reconcileActionCtx, cancel := context.WithCancel(context.Background())
 	reconcileActionCtx = ctrl.LoggerInto(reconcileActionCtx, log)
 	r.reconcilingCancel = cancel
 
 	// launch goroutines to reconcile the BoundEndpoints' actions in the background until the next polling loop
 
-	r.reconcileBoundEndpointAction(reconcileActionCtx, errGroup, toCreate, "create", func(reconcileActionCtx context.Context, binding bindingsv1alpha1.BoundEndpoint) error {
+	r.reconcileBoundEndpointAction(reconcileActionCtx, toCreate, "create", func(reconcileActionCtx context.Context, binding bindingsv1alpha1.BoundEndpoint) error {
 		return r.createBinding(reconcileActionCtx, binding)
 	})
 
-	r.reconcileBoundEndpointAction(reconcileActionCtx, errGroup, toUpdate, "update", func(reconcileActionCtx context.Context, binding bindingsv1alpha1.BoundEndpoint) error {
+	r.reconcileBoundEndpointAction(reconcileActionCtx, toUpdate, "update", func(reconcileActionCtx context.Context, binding bindingsv1alpha1.BoundEndpoint) error {
 		return r.updateBinding(reconcileActionCtx, binding)
 	})
 
-	r.reconcileBoundEndpointAction(reconcileActionCtx, errGroup, toDelete, "delete", func(reconcileActionCtx context.Context, binding bindingsv1alpha1.BoundEndpoint) error {
+	r.reconcileBoundEndpointAction(reconcileActionCtx, toDelete, "delete", func(reconcileActionCtx context.Context, binding bindingsv1alpha1.BoundEndpoint) error {
 		return r.deleteBinding(reconcileActionCtx, binding)
 	})
 
@@ -243,7 +241,7 @@ type boundEndpointActionFn func(context.Context, bindingsv1alpha1.BoundEndpoint)
 
 // reconcileBoundEndpointAction runs a goroutine to try and process a list of BoundEndpoints
 // for their desired action over and over again until stopChan is closed or receives a value
-func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, errGroup *errgroup.Group, boundEndpoints []bindingsv1alpha1.BoundEndpoint, actionMsg string, action boundEndpointActionFn) {
+func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, boundEndpoints []bindingsv1alpha1.BoundEndpoint, actionMsg string, action boundEndpointActionFn) {
 	log := ctrl.LoggerFrom(ctx)
 
 	if len(boundEndpoints) == 0 {
@@ -251,7 +249,7 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, 
 		return
 	}
 
-	errGroup.Go(func() error {
+	go func() {
 		// attempt reconciliation actions every so often
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -261,14 +259,14 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, 
 
 		for {
 			if len(remainingBindings) == 0 {
-				return nil // all bindings have been processed
+				return
 			}
 
 			select {
 			// stop go routine and return, there is a new reconcile poll happening actively
 			case <-ctx.Done():
 				log.Info("Reconcile Action context canceled, stopping BoundEndpoint reconcile action loop early", "action", actionMsg)
-				return nil
+				return
 			case <-ticker.C:
 				log.V(9).Info("Received tick", "action", actionMsg, "remaining", remainingBindings)
 
@@ -287,7 +285,7 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, 
 				remainingBindings = failedBindings
 			}
 		}
-	})
+	}()
 }
 
 // filterBoundEndpointActions takse 2 sets of existing and desired BoundEndpoints
