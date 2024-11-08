@@ -525,9 +525,9 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 
 	retries := 5
 	attempt := 0
-	waitDuration := 0 * time.Second     // start immediately
-	backoffDuration := 10 * time.Second // increasing duration to wait between retries
-	dialTimeout := 5 * time.Second      // timeout for dialing the targetService
+	waitDuration := 0 * time.Second    // start immediately
+	backoffDuration := 3 * time.Second // increasing duration to wait between retries
+	dialTimeout := 1 * time.Second     // timeout for dialing the targetService
 
 	// to be filled in
 	var bindErr error
