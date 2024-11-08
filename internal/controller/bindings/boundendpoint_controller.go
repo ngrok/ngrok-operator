@@ -162,8 +162,10 @@ func (r *BoundEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - Upstream Service in the ngrok-op namespace pointed at the Pod Forwarders
 func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	cr := &bindingsv1alpha1.BoundEndpoint{}
-	if ctrlErr, err := r.controller.Reconcile(ctx, req, cr); err != nil {
-		return ctrlErr, err
+	var res ctrl.Result
+	var err error
+	if res, err = r.controller.Reconcile(ctx, req, cr); err != nil {
+		return res, err
 	}
 
 	// update ngrok api resource status on upsert
@@ -265,7 +267,7 @@ func (r *BoundEndpointReconciler) createUpstreamService(ctx context.Context, own
 func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// binding is not allowed to be created
+	// binding is not allowed
 	if !cr.Spec.Allowed {
 		if err := r.deleteBoundEndpointServices(ctx, cr); err != nil {
 			return r.controller.ReconcileStatus(ctx, cr, err)
@@ -381,7 +383,7 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 
 	if err := r.Client.Delete(ctx, upstreamService); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			return nil
+			// fallthrough, nothing to do
 		} else {
 			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
 			log.Error(err, "Failed to delete Upstream Service")
