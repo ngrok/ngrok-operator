@@ -358,23 +358,24 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
 
 	targetNamespace := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: targetService.Namespace}}
-
 	if err := r.Client.Get(ctx, types.NamespacedName{Name: targetNamespace.Name}, targetNamespace); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			return nil
+			// fallthrough, no Target Service to delete
 		} else {
 			log.Error(err, "Failed to get Target Namespace")
 			return err
 		}
-	}
+	} else {
+		// Target Namespace exists, try to delete the Target Service
 
-	if err := r.Client.Delete(ctx, targetService); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			return nil
-		} else {
-			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
-			log.Error(err, "Failed to delete Target Service")
-			return err
+		if err := r.Client.Delete(ctx, targetService); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return nil
+			} else {
+				r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
+				log.Error(err, "Failed to delete Target Service")
+				return err
+			}
 		}
 	}
 
@@ -600,6 +601,7 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 	var desired *bindingsv1alpha1.BindingEndpoint
 	if bindErr != nil {
 		// error
+		log.Error(bindErr, "Failed to bind BoundEndpoint, moving to error")
 		desired = &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusError,
 			ErrorCode:    NgrokErrorFailedToBind,
@@ -607,6 +609,7 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 		}
 	} else {
 		// success
+		log.Info("Bound BoundEndpoint successfully, moving to bound")
 		desired = &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusBound,
 			ErrorCode:    "",

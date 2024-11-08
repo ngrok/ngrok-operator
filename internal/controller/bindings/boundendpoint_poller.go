@@ -711,7 +711,7 @@ func convertAllowedUrlToRegex(allowedURL string) (*regexp.Regexp, error) {
 			service = "*"
 			namespace = "*"
 		} else {
-			// just service name or namepsace is not allowed
+			// just service name or namespace is not allowed
 			return nil, errors.New("invalid allowedURL: just service name or namespace is not allowed, must be wildcard or include .namespace suffix")
 		}
 	} else if len(parts) == 2 {
@@ -760,9 +760,4 @@ func convertAllowedUrlsToRegexes(allowedURLs []string) ([]*regexp.Regexp, error)
 	}
 
 	return allowedUrlRegexes, nil
-}
-
-// MockApiResponse represents a mock response from the API.
-type MockApiResponse struct {
-	BindingEndpoints *v6.EndpointList
 }
