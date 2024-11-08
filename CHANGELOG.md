@@ -5,8 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.0...ngrok-operator-0.13.1
+
+### Changed
+
+- Use goroutine instead of errGroup by @hjkatz in [#497](https://github.com/ngrok/ngrok-operator/pull/497)
+- Reduce polling interval to 10 seconds by @hjkatz in [#491](https://github.com/ngrok/ngrok-operator/pull/491)
+
+### Fixed
+
+- fix: domain stuck when ID is not found by @jonstacks in [#488](https://github.com/ngrok/ngrok-operator/pull/488)
+- Ensure the TLS secret is valid otherwise upsert by @hjkatz in [#486](https://github.com/ngrok/ngrok-operator/pull/486)
+- Use unique context for endpoint poller reconcile actions by @hjkatz in [#489](https://github.com/ngrok/ngrok-operator/pull/489)
+- fix: Make sure we update the status by @jonstacks in [#493](https://github.com/ngrok/ngrok-operator/pull/493)
+- Add more logging for binding forwarder mux handshake by @hjkatz in [#494](https://github.com/ngrok/ngrok-operator/pull/494)
+- fix: Better migration path from the ngrok kuberntes-ingress-controller to the ngrok-operator by @jonstacks in [#495](https://github.com/ngrok/ngrok-operator/pull/495)
+
 ## 0.13.0
-**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/kubernetes-ingress-controller-0.12.2...kubernetes-ingress-controller-0.13.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/kubernetes-ingress-controller-0.12.2...ngrok-operator-0.13.0
 
 
 ### :warning: :warning: :warning: Notice :warning: :warning: :warning:
