@@ -87,6 +87,22 @@ func IsErrDifferentIngressClass(err error) bool {
 	return ok
 }
 
+type ErrorNoDefaultIngressClassFound struct{}
+
+// NoDefaultIngressClassFound is meant to be used when no default ingress class is found
+func NewNoDefaultIngressClassFound() error {
+	return ErrorNoDefaultIngressClassFound{}
+}
+
+func (e ErrorNoDefaultIngressClassFound) Error() string {
+	return "no default ingress class found"
+}
+
+func IsErrorNoDefaultIngressClassFound(err error) bool {
+	_, ok := err.(ErrorNoDefaultIngressClassFound)
+	return ok
+}
+
 // ErrInvalidIngressSpec is meant to be used when an ingress object has an invalid spec
 type ErrInvalidIngressSpec struct {
 	errors []string

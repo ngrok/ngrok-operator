@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: a41c8f76592b0ef3ba7efedf22bbb93e912f1a283e549e0bcb3e8116ceb81744
+        checksum/controller-role: 36a2606a2d9807d10e842e52e0cdc5254e8cf739228e32984674f8de78446c78
         checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
       labels:
         app.kubernetes.io/component: controller
@@ -12,8 +12,8 @@ Should match all-options snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.12.2
-        helm.sh/chart: ngrok-operator-0.15.0
+        app.kubernetes.io/version: 0.13.1
+        helm.sh/chart: ngrok-operator-0.16.0-rc.2
       name: RELEASE-NAME-ngrok-operator-manager
       namespace: NAMESPACE
     spec:
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: a41c8f76592b0ef3ba7efedf22bbb93e912f1a283e549e0bcb3e8116ceb81744
+            checksum/controller-role: 36a2606a2d9807d10e842e52e0cdc5254e8cf739228e32984674f8de78446c78
             checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -52,8 +52,11 @@ Should match all-options snapshot:
                   weight: 1
           containers:
             - args:
+                - --release-name=RELEASE-NAME
+                - --enable-feature-ingress=true
+                - --enable-feature-gateway=false
                 - --description="The official ngrok Kubernetes Operator."
-                - --controller-name=k8s.ngrok.com/ingress-controller
+                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json
@@ -63,22 +66,19 @@ Should match all-options snapshot:
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
                 - --cluster-domain=svc.cluster.local
               command:
-                - /manager
+                - /api-manager
               env:
                 - name: NGROK_API_KEY
                   valueFrom:
                     secretKeyRef:
                       key: API_KEY
                       name: RELEASE-NAME-ngrok-operator-credentials
-                - name: NGROK_AUTHTOKEN
-                  valueFrom:
-                    secretKeyRef:
-                      key: AUTHTOKEN
-                      name: RELEASE-NAME-ngrok-operator-credentials
                 - name: POD_NAMESPACE
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
+                - name: HELM_RELEASE_NAME
+                  value: RELEASE-NAME
                 - name: SECRET_ENV_VAR
                   value:
                     secretKeyRef:
@@ -86,7 +86,7 @@ Should match all-options snapshot:
                     value: test-value
                 - name: TEST_ENV_VAR
                   value: test
-              image: docker.io/ngrok/ngrok-operator:0.12.2
+              image: docker.io/ngrok/ngrok-operator:0.13.1
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
@@ -272,7 +272,7 @@ Should match all-options snapshot:
       - apiGroups:
           - bindings.k8s.ngrok.com
         resources:
-          - bindingconfigurations
+          - boundendpoints
         verbs:
           - create
           - delete
@@ -284,43 +284,28 @@ Should match all-options snapshot:
       - apiGroups:
           - bindings.k8s.ngrok.com
         resources:
-          - bindingconfigurations/finalizers
+          - boundendpoints/finalizers
         verbs:
           - update
       - apiGroups:
           - bindings.k8s.ngrok.com
         resources:
-          - bindingconfigurations/status
+          - boundendpoints/status
         verbs:
           - get
           - patch
           - update
       - apiGroups:
-          - bindings.k8s.ngrok.com
+          - ""
         resources:
-          - endpointbindings
+          - services
         verbs:
           - create
           - delete
           - get
           - list
-          - patch
           - update
           - watch
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - endpointbindings/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - endpointbindings/status
-        verbs:
-          - get
-          - patch
-          - update
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -328,8 +313,16 @@ Should match all-options snapshot:
         verbs:
           - get
           - list
+          - patch
           - update
           - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/finalizers
+        verbs:
+          - patch
+          - update
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -337,6 +330,7 @@ Should match all-options snapshot:
         verbs:
           - get
           - list
+          - patch
           - update
           - watch
       - apiGroups:
@@ -540,32 +534,6 @@ Should match all-options snapshot:
           - patch
           - update
       - apiGroups:
-          - k8s.ngrok.com
-        resources:
-          - secrets
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - k8s.ngrok.com
-        resources:
-          - secrets/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - k8s.ngrok.com
-        resources:
-          - secrets/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
           - networking.k8s.io
         resources:
           - ingressclasses
@@ -594,6 +562,58 @@ Should match all-options snapshot:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
+          - cloudendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - cloudendpoints/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - cloudendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - ngroktrafficpolicies
         verbs:
           - create
@@ -617,39 +637,13 @@ Should match all-options snapshot:
           - get
           - patch
           - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - operatorconfigurations
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - operatorconfigurations/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - operatorconfigurations/status
-        verbs:
-          - get
-          - patch
-          - update
 Should match default snapshot:
   1: |
     apiVersion: apps/v1
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: a41c8f76592b0ef3ba7efedf22bbb93e912f1a283e549e0bcb3e8116ceb81744
+        checksum/controller-role: 36a2606a2d9807d10e842e52e0cdc5254e8cf739228e32984674f8de78446c78
         checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
       labels:
         app.kubernetes.io/component: controller
@@ -657,8 +651,8 @@ Should match default snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.12.2
-        helm.sh/chart: ngrok-operator-0.15.0
+        app.kubernetes.io/version: 0.13.1
+        helm.sh/chart: ngrok-operator-0.16.0-rc.2
       name: RELEASE-NAME-ngrok-operator-manager
       namespace: NAMESPACE
     spec:
@@ -671,7 +665,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: a41c8f76592b0ef3ba7efedf22bbb93e912f1a283e549e0bcb3e8116ceb81744
+            checksum/controller-role: 36a2606a2d9807d10e842e52e0cdc5254e8cf739228e32984674f8de78446c78
             checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -697,8 +691,11 @@ Should match default snapshot:
                   weight: 1
           containers:
             - args:
+                - --release-name=RELEASE-NAME
+                - --enable-feature-ingress=true
+                - --enable-feature-gateway=false
                 - --description="The official ngrok Kubernetes Operator."
-                - --controller-name=k8s.ngrok.com/ingress-controller
+                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json
@@ -708,23 +705,20 @@ Should match default snapshot:
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
                 - --cluster-domain=svc.cluster.local
               command:
-                - /manager
+                - /api-manager
               env:
                 - name: NGROK_API_KEY
                   valueFrom:
                     secretKeyRef:
                       key: API_KEY
                       name: RELEASE-NAME-ngrok-operator-credentials
-                - name: NGROK_AUTHTOKEN
-                  valueFrom:
-                    secretKeyRef:
-                      key: AUTHTOKEN
-                      name: RELEASE-NAME-ngrok-operator-credentials
                 - name: POD_NAMESPACE
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
-              image: docker.io/ngrok/ngrok-operator:0.12.2
+                - name: HELM_RELEASE_NAME
+                  value: RELEASE-NAME
+              image: docker.io/ngrok/ngrok-operator:0.13.1
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
@@ -904,7 +898,7 @@ Should match default snapshot:
       - apiGroups:
           - bindings.k8s.ngrok.com
         resources:
-          - bindingconfigurations
+          - boundendpoints
         verbs:
           - create
           - delete
@@ -916,43 +910,28 @@ Should match default snapshot:
       - apiGroups:
           - bindings.k8s.ngrok.com
         resources:
-          - bindingconfigurations/finalizers
+          - boundendpoints/finalizers
         verbs:
           - update
       - apiGroups:
           - bindings.k8s.ngrok.com
         resources:
-          - bindingconfigurations/status
+          - boundendpoints/status
         verbs:
           - get
           - patch
           - update
       - apiGroups:
-          - bindings.k8s.ngrok.com
+          - ""
         resources:
-          - endpointbindings
+          - services
         verbs:
           - create
           - delete
           - get
           - list
-          - patch
           - update
           - watch
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - endpointbindings/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - endpointbindings/status
-        verbs:
-          - get
-          - patch
-          - update
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -960,8 +939,16 @@ Should match default snapshot:
         verbs:
           - get
           - list
+          - patch
           - update
           - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/finalizers
+        verbs:
+          - patch
+          - update
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -969,6 +956,7 @@ Should match default snapshot:
         verbs:
           - get
           - list
+          - patch
           - update
           - watch
       - apiGroups:
@@ -1172,32 +1160,6 @@ Should match default snapshot:
           - patch
           - update
       - apiGroups:
-          - k8s.ngrok.com
-        resources:
-          - secrets
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - k8s.ngrok.com
-        resources:
-          - secrets/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - k8s.ngrok.com
-        resources:
-          - secrets/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
           - networking.k8s.io
         resources:
           - ingressclasses
@@ -1226,6 +1188,58 @@ Should match default snapshot:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
+          - cloudendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - cloudendpoints/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - cloudendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - ngroktrafficpolicies
         verbs:
           - create
@@ -1245,32 +1259,6 @@ Should match default snapshot:
           - ngrok.k8s.ngrok.com
         resources:
           - ngroktrafficpolicies/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - operatorconfigurations
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - operatorconfigurations/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - operatorconfigurations/status
         verbs:
           - get
           - patch

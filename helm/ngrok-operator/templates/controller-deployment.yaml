@@ -59,8 +59,29 @@ spec:
         image: {{ include "ngrok-operator.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
-        - /manager
+        - /api-manager
         args:
+        - --release-name={{ .Release.Name }}
+        {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
+        {{- if .Values.bindings.enabled }}
+        - --bindings-name={{ .Values.bindings.name }}
+        - --bindings-allowed-urls={{ join "," .Values.bindings.allowedURLs }}
+        {{- if .Values.bindings.serviceAnnotations }}
+        - --bindings-service-annotations={{- $serviceAnnotations := list -}}
+          {{- range $key, $value := .Values.bindings.serviceAnnotations }}
+          {{- $serviceAnnotations = append $serviceAnnotations (printf "%s=%s" $key $value) -}}
+          {{- end }}
+          {{- $serviceAnnotations | join "," }}
+        {{- end }}
+        {{- if .Values.bindings.serviceLabels }}
+        - --bindings-service-labels={{- $serviceLabels := list -}}
+          {{- range $key, $value := .Values.bindings.serviceLabels }}
+          {{- $serviceLabels = append $serviceLabels (printf "%s=%s" $key $value) -}}
+          {{- end }}
+          {{- $serviceLabels | join "," }}
+        {{- end }}
+        - --bindings-ingress-endpoint={{ .Values.bindings.ingressEndpoint }}
+        {{- end }}
         {{- if .Values.description }}
         - --description={{ .Values.description | quote }}
         {{- end }}
@@ -85,15 +106,9 @@ spec:
           {{- end }}
           {{- $metadataArgs | join "," }}
         {{- end }}
-        - --controller-name={{ .Values.controllerName }}
-        {{- if .Values.watchNamespace }}
-        - --watch-namespace={{ .Values.watchNamespace}}
-        {{- end }}
-        {{- if .Values.bindings.enabled }}
-        - --enable-feature-bindings={{ .Values.bindings.enabled }}
-        {{- end }}
-        {{- if .Values.useExperimentalGatewayApi }}
-        - --use-experimental-gateway-api={{ .Values.useExperimentalGatewayApi }}
+        - --ingress-controller-name={{ .Values.controllerName | default .Values.ingress.controllerName }}
+        {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
+        - --ingress-watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
         {{- end }}
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
@@ -113,15 +128,12 @@ spec:
             secretKeyRef:
               key: API_KEY
               name: {{ include "ngrok-operator.credentialsSecretName" . }}
-        - name: NGROK_AUTHTOKEN
-          valueFrom:
-            secretKeyRef:
-              key: AUTHTOKEN
-              name: {{ include "ngrok-operator.credentialsSecretName" . }}
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: HELM_RELEASE_NAME
+          value: {{ .Release.Name | quote }}
         {{- range $key, $value := .Values.extraEnv }}
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}

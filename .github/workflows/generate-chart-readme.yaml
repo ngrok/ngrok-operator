@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Install readme-generator-for-helm
-        run: npm install -g @bitnami/readme-generator-for-helm@2.4.2
+        run: npm install -g @bitnami/readme-generator-for-helm@2.6.1
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
@@ -25,8 +25,8 @@ jobs:
       - name: Execute readme-generator-for-helm
         working-directory: helm/ngrok-operator
         run: |
-          readme-generator --values "values.yaml" --readme "README.md" --schema "/tmp/schema.json"
+          make update-readme
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: Update README.md with readme-generator-for-helm
+          commit_message: Update README.md and values.schema.json with readme-generator-for-helm

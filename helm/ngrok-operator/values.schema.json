@@ -1,0 +1,435 @@
+{
+    "title": "Chart Values",
+    "type": "object",
+    "properties": {
+        "nameOverride": {
+            "type": "string",
+            "description": "String to partially override generated resource names",
+            "default": ""
+        },
+        "fullnameOverride": {
+            "type": "string",
+            "description": "String to fully override generated resource names",
+            "default": ""
+        },
+        "description": {
+            "type": "string",
+            "description": "ngrok-operator description that will appear in the ngrok dashboard",
+            "default": "The official ngrok Kubernetes Operator."
+        },
+        "commonLabels": {
+            "type": "object",
+            "description": "Labels to add to all deployed objects",
+            "default": {}
+        },
+        "commonAnnotations": {
+            "type": "object",
+            "description": "Annotations to add to all deployed objects",
+            "default": {}
+        },
+        "image": {
+            "type": "object",
+            "properties": {
+                "registry": {
+                    "type": "string",
+                    "description": "The ngrok operator image registry.",
+                    "default": "docker.io"
+                },
+                "repository": {
+                    "type": "string",
+                    "description": "The ngrok operator image repository.",
+                    "default": "ngrok/ngrok-operator"
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "The ngrok operator image tag. Defaults to the chart's appVersion if not specified",
+                    "default": ""
+                },
+                "pullPolicy": {
+                    "type": "string",
+                    "description": "The ngrok operator image pull policy.",
+                    "default": "IfNotPresent"
+                },
+                "pullSecrets": {
+                    "type": "array",
+                    "description": "An array of imagePullSecrets to be used when pulling the image.",
+                    "default": [],
+                    "items": {}
+                }
+            }
+        },
+        "region": {
+            "type": "string",
+            "description": "ngrok region to create tunnels in. Defaults to connect to the closest geographical region.",
+            "default": ""
+        },
+        "rootCAs": {
+            "type": "string",
+            "description": "Set to \"trusted\" for the ngrok agent CA or \"host\" to trust the host's CA. Defaults to \"trusted\".",
+            "default": ""
+        },
+        "serverAddr": {
+            "type": "string",
+            "description": "This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address.",
+            "default": ""
+        },
+        "apiURL": {
+            "type": "string",
+            "description": "This is the URL of the ngrok API. You should set this if you are using a custom API URL.",
+            "default": ""
+        },
+        "ngrokMetadata": {
+            "type": "object",
+            "description": "This is a map of key=value,key=value pairs that will be added as metadata to all ngrok api resources created",
+            "default": {}
+        },
+        "clusterDomain": {
+            "type": "string",
+            "description": "Configure the default cluster base domain for your kubernetes cluster DNS resolution",
+            "default": "svc.cluster.local"
+        },
+        "podAnnotations": {
+            "type": "object",
+            "description": "Used to apply custom annotations to the ingress pods.",
+            "default": {}
+        },
+        "podLabels": {
+            "type": "object",
+            "description": "Used to apply custom labels to the ingress pods.",
+            "default": {}
+        },
+        "replicaCount": {
+            "type": "number",
+            "description": "The number of controllers to run.",
+            "default": 1
+        },
+        "affinity": {
+            "type": "object",
+            "description": "Affinity for the controller pod assignment",
+            "default": {}
+        },
+        "podAffinityPreset": {
+            "type": "string",
+            "description": "Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`",
+            "default": ""
+        },
+        "podAntiAffinityPreset": {
+            "type": "string",
+            "description": "Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`",
+            "default": "soft"
+        },
+        "nodeAffinityPreset": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "description": "Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`",
+                    "default": ""
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Node label key to match. Ignored if `affinity` is set.",
+                    "default": ""
+                },
+                "values": {
+                    "type": "array",
+                    "description": "Node label values to match. Ignored if `affinity` is set.",
+                    "default": [],
+                    "items": {}
+                }
+            }
+        },
+        "priorityClassName": {
+            "type": "string",
+            "description": "Priority class for pod scheduling",
+            "default": ""
+        },
+        "lifecycle": {
+            "type": "object",
+            "description": "an object containing lifecycle configuration",
+            "default": {}
+        },
+        "podDisruptionBudget": {
+            "type": "object",
+            "properties": {
+                "create": {
+                    "type": "boolean",
+                    "description": "Enable a Pod Disruption Budget creation",
+                    "default": false
+                },
+                "maxUnavailable": {
+                    "type": "string",
+                    "description": "Maximum number/percentage of pods that may be made unavailable",
+                    "default": "\"\""
+                },
+                "minAvailable": {
+                    "type": "string",
+                    "description": "Minimum number/percentage of pods that should remain scheduled",
+                    "default": "\"\""
+                }
+            }
+        },
+        "resources": {
+            "type": "object",
+            "properties": {
+                "limits": {
+                    "type": "object",
+                    "description": "The resources limits for the container",
+                    "default": {}
+                },
+                "requests": {
+                    "type": "object",
+                    "description": "The requested resources for the container",
+                    "default": {}
+                }
+            }
+        },
+        "extraVolumes": {
+            "type": "array",
+            "description": "An array of extra volumes to add to the controller.",
+            "default": [],
+            "items": {}
+        },
+        "extraVolumeMounts": {
+            "type": "array",
+            "description": "An array of extra volume mounts to add to the controller.",
+            "default": [],
+            "items": {}
+        },
+        "extraEnv": {
+            "type": "object",
+            "description": "an object of extra environment variables to add to the controller.",
+            "default": {}
+        },
+        "serviceAccount": {
+            "type": "object",
+            "properties": {
+                "create": {
+                    "type": "boolean",
+                    "description": "Specifies whether a ServiceAccount should be created",
+                    "default": true
+                },
+                "name": {
+                    "type": "string",
+                    "description": "The name of the ServiceAccount to use.",
+                    "default": ""
+                },
+                "annotations": {
+                    "type": "object",
+                    "description": "Additional annotations to add to the ServiceAccount",
+                    "default": {}
+                }
+            }
+        },
+        "log": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": "string",
+                    "description": "The level to log at. One of 'debug', 'info', or 'error'.",
+                    "default": "info"
+                },
+                "stacktraceLevel": {
+                    "type": "string",
+                    "description": "The level to report stacktrace logs one of 'info' or 'error'.",
+                    "default": "error"
+                },
+                "format": {
+                    "type": "string",
+                    "description": "The log format to use. One of console, json.",
+                    "default": "json"
+                }
+            }
+        },
+        "credentials": {
+            "type": "object",
+            "properties": {
+                "secret": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.",
+                            "default": ""
+                        }
+                    }
+                },
+                "apiKey": {
+                    "type": "string",
+                    "description": "Your ngrok API key. If provided, it will be written to the secret and the authtoken must be provided as well.",
+                    "default": ""
+                },
+                "authtoken": {
+                    "type": "string",
+                    "description": "Your ngrok authtoken. If provided, it will be written to the secret and the apiKey must be provided as well.",
+                    "default": ""
+                }
+            }
+        },
+        "ingress": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "When true, enable the Ingress controller features",
+                    "default": true
+                },
+                "ingressClass": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the ingress class to use.",
+                            "default": "ngrok"
+                        },
+                        "create": {
+                            "type": "boolean",
+                            "description": "Whether to create the ingress class.",
+                            "default": true
+                        },
+                        "default": {
+                            "type": "boolean",
+                            "description": "Whether to set the ingress class as default.",
+                            "default": false
+                        }
+                    }
+                },
+                "watchNamespace": {
+                    "type": "string",
+                    "description": "The namespace to watch for ingress resources (default all)",
+                    "default": ""
+                },
+                "controllerName": {
+                    "type": "string",
+                    "description": "The name of the controller to look for matching ingress classes",
+                    "default": "k8s.ngrok.com/ingress-controller"
+                }
+            }
+        },
+        "agent": {
+            "type": "object",
+            "properties": {
+                "priorityClassName": {
+                    "type": "string",
+                    "description": "Priority class for pod scheduling.",
+                    "default": ""
+                },
+                "replicaCount": {
+                    "type": "number",
+                    "description": "The number of agents to run.",
+                    "default": 1
+                },
+                "serviceAccount": {
+                    "type": "object",
+                    "properties": {
+                        "create": {
+                            "type": "boolean",
+                            "description": "Specifies whether a ServiceAccount should be created for the agent.",
+                            "default": true
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the ServiceAccount to use for the agent.",
+                            "default": ""
+                        },
+                        "annotations": {
+                            "type": "object",
+                            "description": "Additional annotations to add to the agent ServiceAccount",
+                            "default": {}
+                        }
+                    }
+                }
+            }
+        },
+        "gateway": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "When true, enable the Gateway controller",
+                    "default": false
+                }
+            }
+        },
+        "bindings": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Whether to enable the Endpoint Bindings feature",
+                    "default": false
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Unique name of this kubernetes binding in your ngrok account",
+                    "default": ""
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of this kubernetes binding in your ngrok account",
+                    "default": "Created by ngrok-operator"
+                },
+                "allowedURLs": {
+                    "type": "array",
+                    "description": "List of allowed endpoint URL formats that this binding will project into the cluster",
+                    "default": [
+                        "*"
+                    ],
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "serviceAnnotations": {
+                    "type": "object",
+                    "description": "Annotations to add to projected services bound to an endpoint",
+                    "default": {}
+                },
+                "serviceLabels": {
+                    "type": "object",
+                    "description": "Labels to add to projected services bound to an endpoint",
+                    "default": {}
+                },
+                "ingressEndpoint": {
+                    "type": "string",
+                    "description": "The hostname of the ingress endpoint for the bindings",
+                    "default": "kubernetes-binding-ingress.ngrok.io:443"
+                },
+                "forwarder": {
+                    "type": "object",
+                    "properties": {
+                        "replicaCount": {
+                            "type": "number",
+                            "description": "The number of bindings forwarders to run.",
+                            "default": 1
+                        },
+                        "serviceAccount": {
+                            "type": "object",
+                            "properties": {
+                                "create": {
+                                    "type": "boolean",
+                                    "description": "Specifies whether a ServiceAccount should be created for the bindings forwarder pod(s).",
+                                    "default": true
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "The name of the ServiceAccount to use for the bindings forwarder pod(s).",
+                                    "default": ""
+                                },
+                                "annotations": {
+                                    "type": "object",
+                                    "description": "Additional annotations to add to the bindings-forwarder ServiceAccount",
+                                    "default": {}
+                                }
+                            }
+                        }
+                    }
+                },
+                "ngrokCA": {
+                    "type": "string",
+                    "description": "The ngrok intermediate CA certificate to use for verifyng self-signed TLS certs from ngrok",
+                    "default": "-----BEGIN CERTIFICATE-----\nMIIDwjCCAqqgAwIBAgIUZqF2AkB17pISojTndgc2U5BDt7wwDQYJKoZIhvcNAQEL\nBQAwbzEQMA4GA1UEAwwHUm9vdCBDQTENMAsGA1UECwwEcHJvZDESMBAGA1UECgwJ\nbmdyb2sgSW5jMRYwFAYDVQQHDA1TYW4gRnJhbmNpc2NvMRMwEQYDVQQIDApDYWxp\nZm9ybmlhMQswCQYDVQQGEwJVUzAeFw0yMjA4MzExNDU5NDhaFw0zMjA4MjgxNDU5\nNDhaMF8xCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQK\nDAluZ3JvayBJbmMxDTALBgNVBAsMBHByb2QxGDAWBgNVBAMMD0ludGVybWVkaWF0\nZSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAK+t8q9Ost9BxCWX\nfyGG0mVQOpIiyrzzZWyqT6CZpMY2fpOadLuZeBP7ti2Iw4FgCpfLntL0RldvMMNY\n4qq61dVrCwhL/v2ldsaHUdzjtFj1i+ZNGUtV4E9korHxm2YdsD91w6WIjF/J0lvo\nX2koLwFlGc/CkhT8z2VWebY8a6mYNyz5S7yPTQh2/mQ14lx/QPJgZSFEE/EEkMDC\nbs4BoMuqKMhCpqEP8m4+CxPQ5/V6POSqUIxT4A7eWWj2MRpnmirmVbXOc24Aznqk\nbdQUP4qagiR/i7qPsRx+f4mFfDninPsXp/djjByo0xzdh+i1HFyOR/7nyNDKlJ+e\nrymRgnUCAwEAAaNmMGQwHQYDVR0OBBYEFJ47nRzHaOT+vY44N3TCMYtGlBjIMB8G\nA1UdIwQYMBaAFNxeUxPIM8G7cX0DhFc81pLD4W+HMBIGA1UdEwEB/wQIMAYBAf8C\nAQAwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4IBAQBRmnMoOtQbYL7P\nCo1B5Chslb86HP2WI1jGRXhbfwAF2ySDFnX2ZbRPVtoQ+IuqXWxyXAeicYjXR6kz\nxX8hLWfD14kWUIz6ZgT3uZrDSIzmQ+tz8ztbT6mTI1ECWdjLV/i58f6vKzgLD8Vp\n3VdVns8NA9ee6a65QNjZEnwBVeccysoWkOwM/KzuazhSGcGu44y/S4ny9pAg7Pol\n2kV4NicDKD6tSAdXmPmjFalYUfnMmyhurZIPrS2dgYgpOrGVMwronTOZ3BUf4DL4\nzkkmcLXss1KztQnLd23nuNiIscwMcGM58a3O5zUp7aorfrm7cdRgkFmcYVNO/6uG\nQ5iJ+Ppk\n-----END CERTIFICATE-----\n"
+                }
+            }
+        }
+    }
+}

@@ -61,7 +61,7 @@ rules:
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
-  - bindingconfigurations
+  - boundendpoints
   verbs:
   - create
   - delete
@@ -73,43 +73,28 @@ rules:
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
-  - bindingconfigurations/finalizers
+  - boundendpoints/finalizers
   verbs:
   - update
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
-  - bindingconfigurations/status
+  - boundendpoints/status
   verbs:
   - get
   - patch
   - update
 - apiGroups:
-  - bindings.k8s.ngrok.com
+  - ""
   resources:
-  - endpointbindings
+  - services
   verbs:
   - create
   - delete
   - get
   - list
-  - patch
   - update
   - watch
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - endpointbindings/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - endpointbindings/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
@@ -117,8 +102,16 @@ rules:
   verbs:
   - get
   - list
+  - patch
   - update
   - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/finalizers
+  verbs:
+  - patch
+  - update
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
@@ -126,6 +119,7 @@ rules:
   verbs:
   - get
   - list
+  - patch
   - update
   - watch
 - apiGroups:
@@ -329,32 +323,6 @@ rules:
   - patch
   - update
 - apiGroups:
-  - k8s.ngrok.com
-  resources:
-  - secrets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - k8s.ngrok.com
-  resources:
-  - secrets/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - k8s.ngrok.com
-  resources:
-  - secrets/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - networking.k8s.io
   resources:
   - ingressclasses
@@ -383,6 +351,58 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
+  - cloudendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
   - ngroktrafficpolicies
   verbs:
   - create
@@ -402,32 +422,6 @@ rules:
   - ngrok.k8s.ngrok.com
   resources:
   - ngroktrafficpolicies/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - operatorconfigurations
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - operatorconfigurations/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - operatorconfigurations/status
   verbs:
   - get
   - patch

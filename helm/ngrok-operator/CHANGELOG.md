@@ -1,22 +1,85 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to the helm chart will be documented in this file. Please see the top-level [CHANGELOG.md](../../CHANGELOG.md) for changes to the controller itself.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.16.0
-**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.14.3...helm-chart-0.16.0
+
+## 0.16.0-rc.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.16.0-rc.1...helm-chart-0.16.0-rc.2
+
+### Added
+- Temporarily vendor ngrok intermediate CA for bindings by @hjkatz in [#487](https://github.com/ngrok/ngrok-operator/pull/487)
+
+
+## 0.16.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.14.3...helm-chart-0.16.0-rc.1
+
+### :warning: :warning: :warning: Notice :warning: :warning: :warning:
+
+This release is a release candidate for the upcoming 0.16.0 release. The helm chart has been renamed to `ngrok/ngrok-operator`. Please test this release in a non-production environment before upgrading your production environment. Documentation for migrating from `ngrok/kubernetes-ingress-controller` to `ngrok/ngrok-operator` can be found [here](/docs/deployment-guide/migrating.md).
+
+### Added
+
+#### Kubernetes Operator
+
+The operator installation will now be registered with the ngrok API. This will allow you to view the status of the operator in the ngrok dashboard, see what version of the operator is running, and power new features
+in the future. This is powered by a new `KubernetesOperator` CRD that is created by the operator in its
+own namespace when it starts up.
+
+- Register operator by @jonstacks in [#457](https://github.com/ngrok/ngrok-operator/pull/457)
+- Add status to KubernetesOperator by @hjkatz in [#467](https://github.com/ngrok/ngrok-operator/pull/467)
+
+#### Endpoint Bindings (private beta)
+
+Endpoint bindings is a new feature that allows you to securely access a ngrok endpoint no matter where it is running. Specifically, Kubernetes bound endpoints allow you to project services running outside of your Kubernetes cluster or in other clusters into your cluster as native Kubernetes services.
+
+- Add feature flag support for bindings by @hjkatz in [#424](https://github.com/ngrok/ngrok-operator/pull/424)
+- Modify EndpointBinding CRD to reflect cardinality of bound Endpoints by @hjkatz in [#452](https://github.com/ngrok/ngrok-operator/pull/452)
+- Implement AggregateBindingEndpoints for interacting with the ngrok api by @hjkatz in [#453](https://github.com/ngrok/ngrok-operator/pull/453)
+- Implement BindingEndpoint polling by @hjkatz in [#458](https://github.com/ngrok/ngrok-operator/pull/458)
+- Implement EndpointBinding -> Services creation by @hjkatz in [#459](https://github.com/ngrok/ngrok-operator/pull/459)
+- Implement port allocation by @hjkatz in [#460](https://github.com/ngrok/ngrok-operator/pull/460)
+- Bindings forwarder by @jonstacks in [#465](https://github.com/ngrok/ngrok-operator/pull/465)
+- Add endpoint status to EndpointBinding kubectl output by @hjkatz in [#464](https://github.com/ngrok/ngrok-operator/pull/464)
+- Ensure endpoint poller does not start until k8sop is regestered with API by @hjkatz in [#470](https://github.com/ngrok/ngrok-operator/pull/470)
+- Rename EndpointBinding to BoundEndpoint by @hjkatz in [#475](https://github.com/ngrok/ngrok-operator/pull/475)
+- Implement Target Metadata by @hjkatz in [#477](https://github.com/ngrok/ngrok-operator/pull/477)
+- Bindings forwarder implementation by @jonstacks in [#476](https://github.com/ngrok/ngrok-operator/pull/476)
+
+#### Helm values.yaml schema validation
+
+The `ngrok-operator` helm chart now includes a `schema.json` file that can be used to validate the `values.yaml` file.
+
+- Generate and commit schema.json file by @alex-bezek in [#472](https://github.com/ngrok/ngrok-operator/pull/472)
 
 ### Changed
 
-- Deprecate `.Values.metaData` in favor of `.Values.ngrokMetadata` for clarity
+#### Traffic Policy
+
+Updates `TrafficPolicy` CRD and inline policy to support new phase-based names as well as the new `TrafficPolicy` API.
+
+- update traffic policy for phase-based naming by @TheConcierge in [#456](https://github.com/ngrok/ngrok-operator/pull/456)
+
+#### Values.yaml file deprecations
+
+- Rename .Values.metaData -> .Values.ngrokMetadata by @hjkatz in [#434](https://github.com/ngrok/ngrok-operator/pull/434).
+  - Deprecate `.Values.metaData` in favor of `.Values.ngrokMetadata` for clarity
+  - Deprecate `.Values.ingressClass` in favor of `.Values.ingress.ingressClass` for feature set namespacing
+  - Deprecate `.Values.useExperimentalGatewayApi` in favor of `.Values.gateway.enabled` for feature set namespacing
+  - Deprecate `.Values.watchNamespace` in favor of `.Values.ingress.watchNamespace` for feature set namespacing
+  - Deprecate `.Values.controllerName` in favor of `.Values.ingress.controllerName` for feature set namespacing
+
+### New Contributors
+- @TheConcierge made their first contribution in [#456](https://github.com/ngrok/ngrok-operator/pull/456)
+
 
 ## 0.15.0
 
 ### DEPRECATION ANNOUNCEMENT / ACTION REQUIRED
 
-See Full Announcement: https://github.com/ngrok/ngrok-operator/discussions
+See Full Announcement: https://github.com/ngrok/kubernetes-ingress-controller/discussions/4
 
 On Wednesday September 11th, 2024 this Helm Chart will be renamed to ngrok/ngrok-operator.
 

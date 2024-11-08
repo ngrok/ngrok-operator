@@ -37,8 +37,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v5"
-	"github.com/ngrok/ngrok-api-go/v5/reserved_domains"
+	"github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v6/reserved_domains"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 )
@@ -137,6 +137,12 @@ func (r *DomainReconciler) create(ctx context.Context, domain *ingressv1alpha1.D
 func (r *DomainReconciler) update(ctx context.Context, domain *ingressv1alpha1.Domain) error {
 	resp, err := r.DomainsClient.Get(ctx, domain.Status.ID)
 	if err != nil {
+		// If the domain is gone, clear the status and trigger a re-reconcile
+		if ngrok.IsNotFound(err) {
+			domain.Status = ingressv1alpha1.DomainStatus{}
+			return r.controller.ReconcileStatus(ctx, domain, err)
+		}
+
 		return err
 	}
 

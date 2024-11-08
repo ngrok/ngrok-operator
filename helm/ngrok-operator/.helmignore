@@ -23,3 +23,6 @@
 
 # helmtest plugin tests
 tests
+
+# Makefile used in development
+Makefile

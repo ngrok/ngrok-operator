@@ -1,0 +1,145 @@
+Should match snapshot:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      annotations:
+        checksum/rbac: e9e450066ed032f571956e2f2569594bc0f943a0ff96fda8b7476638ac4a260b
+      labels:
+        app.kubernetes.io/component: agent
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.13.1
+        helm.sh/chart: ngrok-operator-0.16.0-rc.2
+      name: RELEASE-NAME-ngrok-operator-agent
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: agent
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: ngrok-operator
+      template:
+        metadata:
+          annotations:
+            checksum/rbac: e9e450066ed032f571956e2f2569594bc0f943a0ff96fda8b7476638ac4a260b
+            prometheus.io/path: /metrics
+            prometheus.io/port: "8080"
+            prometheus.io/scrape: "true"
+          labels:
+            app.kubernetes.io/component: agent
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: ngrok-operator
+        spec:
+          affinity:
+            nodeAffinity: null
+            podAffinity: null
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/component: agent
+                        app.kubernetes.io/instance: RELEASE-NAME
+                        app.kubernetes.io/name: ngrok-operator
+                    topologyKey: kubernetes.io/hostname
+                  weight: 1
+          containers:
+            - args:
+                - --enable-feature-ingress=true
+                - --enable-feature-gateway=false
+                - --description="The official ngrok Kubernetes Operator."
+                - --zap-log-level=info
+                - --zap-stacktrace-level=error
+                - --zap-encoder=json
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=:8080
+                - --manager-name=RELEASE-NAME-ngrok-operator-agent-manager
+              command:
+                - /agent-manager
+              env:
+                - name: NGROK_AUTHTOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: AUTHTOKEN
+                      name: RELEASE-NAME-ngrok-operator-credentials
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: HELM_RELEASE_NAME
+                  value: RELEASE-NAME
+              image: docker.io/ngrok/ngrok-operator:0.13.1
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                initialDelaySeconds: 15
+                periodSeconds: 20
+              name: agent
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: 8081
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              resources:
+                limits: {}
+                requests: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+          serviceAccountName: RELEASE-NAME-ngrok-operator-agent
+  2: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-role
+    rules:
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tunnels
+        verbs:
+          - get
+          - list
+          - watch
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tunnels/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - tunnels/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+  3: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-rolebinding
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: RELEASE-NAME-ngrok-operator-agent-role
+    subjects:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-agent
+        namespace: NAMESPACE

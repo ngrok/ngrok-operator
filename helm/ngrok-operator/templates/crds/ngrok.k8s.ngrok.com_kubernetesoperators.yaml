@@ -1,0 +1,161 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: kubernetesoperators.ngrok.k8s.ngrok.com
+spec:
+  group: ngrok.k8s.ngrok.com
+  names:
+    kind: KubernetesOperator
+    listKind: KubernetesOperatorList
+    plural: kubernetesoperators
+    singular: kubernetesoperator
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Kubernetes Operator ID
+      jsonPath: .status.id
+      name: ID
+      type: string
+    - jsonPath: .status.registrationStatus
+      name: Status
+      type: string
+    - jsonPath: .status.enabledFeatures
+      name: Enabled Features
+      type: string
+    - jsonPath: .spec.binding.name
+      name: Binding Name
+      priority: 2
+      type: string
+    - jsonPath: .spec.binding.ingressEndpoint
+      name: Binding Ingress Endpoint
+      priority: 2
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: KubernetesOperator is the Schema for the ngrok kubernetesoperators
+          API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              binding:
+                description: Configuration for the binding feature of this Kubernetes
+                  Operator
+                properties:
+                  allowedURLs:
+                    description: |-
+                      AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which BoundEndpoints are allowed to be created by the operator
+                      TODO(hkatz) We are only implementing `*` for now
+                      Support more patterns in the future, see product spec
+                    items:
+                      type: string
+                    type: array
+                  ingressEndpoint:
+                    description: The public ingress endpoint for this Kubernetes Operator
+                    type: string
+                  name:
+                    description: Name is the name of the k8s-binding for the account
+                      to bind to this configuration and the ngrok API
+                    pattern: ^k8s[/][a-zA-Z0-9-]{1,63}$
+                    type: string
+                  tlsSecretName:
+                    default: default-tls
+                    description: TlsSecretName is the name of the k8s secret that
+                      contains the TLS private/public keys to use for the ngrok forwarding
+                      endpoint
+                    type: string
+                required:
+                - tlsSecretName
+                type: object
+              deployment:
+                description: Deployment information of this Kubernetes Operator
+                properties:
+                  name:
+                    description: Name is the name of the k8s deployment for the operator
+                    type: string
+                  namespace:
+                    description: The namespace in which the operator is deployed
+                    type: string
+                  version:
+                    description: The version of the operator that is currently running
+                    type: string
+                type: object
+              description:
+                default: Created by ngrok-operator
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
+                type: string
+              enabledFeatures:
+                description: Features enabled for this Kubernetes Operator
+                items:
+                  type: string
+                type: array
+              metadata:
+                default: '{"owned-by":"ngrok-operator"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the object in the ngrok API/Dashboard
+                type: string
+              region:
+                default: global
+                description: |-
+                  The ngrok region in which the ingress for this operator is served. Defaults to
+                  "global" if not specified.
+                type: string
+            type: object
+          status:
+            description: KubernetesOperatorStatus defines the observed state of KubernetesOperator
+            properties:
+              enabledFeatures:
+                description: EnabledFeatures is the string representation of the features
+                  enabled for this Kubernetes Operator
+                type: string
+              errorMessage:
+                description: RegistrationErrorMessage is a free-form error message
+                  if the status is error
+                maxLength: 4096
+                type: string
+              id:
+                description: ID is the unique identifier for this Kubernetes Operator
+                type: string
+              registrationErrorCode:
+                description: RegistrationErrorCode is the returned ngrok error code
+                pattern: ^ERR_NGROK_\d+$
+                type: string
+              registrationStatus:
+                default: pending
+                description: RegistrationStatus is the status of the registration
+                  of this Kubernetes Operator with the ngrok API
+                type: string
+              uri:
+                description: URI is the URI for this Kubernetes Operator
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

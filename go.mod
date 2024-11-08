@@ -3,10 +3,12 @@ module github.com/ngrok/ngrok-operator
 go 1.22
 
 require (
+	github.com/docker/docker v27.3.1+incompatible
 	github.com/go-logr/logr v1.4.1
 	github.com/golang/mock v1.4.4
+	github.com/google/uuid v1.3.1
 	github.com/imdario/mergo v0.3.16
-	github.com/ngrok/ngrok-api-go/v5 v5.4.1
+	github.com/ngrok/ngrok-api-go/v6 v6.1.1-0.20241031154501-292c6f1e1a7a
 	github.com/onsi/ginkgo/v2 v2.14.0
 	github.com/onsi/gomega v1.30.0
 	github.com/spf13/cobra v1.7.0
@@ -14,6 +16,7 @@ require (
 	golang.ngrok.com/ngrok v1.7.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/sync v0.5.0
+	google.golang.org/protobuf v1.31.0
 	k8s.io/api v0.29.2
 	k8s.io/apimachinery v0.29.2
 	k8s.io/client-go v0.29.2
@@ -53,7 +56,6 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/google/uuid v1.3.1 // indirect
 	github.com/inconshreveable/log15 v3.0.0-testing.5+incompatible // indirect
 	github.com/inconshreveable/log15/v3 v3.0.0-testing.5 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -94,7 +96,6 @@ require (
 	golang.org/x/tools v0.16.1 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

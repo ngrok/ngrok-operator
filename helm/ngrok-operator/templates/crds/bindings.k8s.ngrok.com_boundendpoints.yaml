@@ -1,0 +1,199 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: boundendpoints.bindings.k8s.ngrok.com
+spec:
+  group: bindings.k8s.ngrok.com
+  names:
+    kind: BoundEndpoint
+    listKind: BoundEndpointList
+    plural: boundendpoints
+    singular: boundendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.endpointURI
+      name: URI
+      type: string
+    - jsonPath: .spec.port
+      name: Port
+      type: string
+    - jsonPath: .status.endpoints[0].status
+      name: Status
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: BoundEndpoint is the Schema for the boundendpoints API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: BoundEndpointSpec defines the desired state of BoundEndpoint
+            properties:
+              endpointURI:
+                description: |-
+                  EndpointURI is the unique identifier
+                  representing the BoundEndpoint + its Endpoints
+                  Format: <scheme>://<service>.<namespace>:<port>
+
+
+                  See: https://regex101.com/r/9QkXWl/1
+                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$
+                type: string
+              port:
+                description: Port is the Service port this Endpoint uses internally
+                  to communicate with its Upstream Service
+                type: integer
+              scheme:
+                default: https
+                description: |-
+                  Scheme is a user-defined field for endpoints that describe how the data packets
+                  are framed by the pod forwarders mTLS connection to the ngrok edge
+                enum:
+                - tcp
+                - http
+                - https
+                - tls
+                type: string
+              target:
+                description: EndpointTarget is the target Service that this Endpoint
+                  projects
+                properties:
+                  metadata:
+                    description: Metadata is a subset of metav1.ObjectMeta that is
+                      added to the Service
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Annotations is an unstructured key value map stored with a resource that may be
+                          set by external tools to store and retrieve arbitrary metadata. They are not
+                          queryable and should be preserved when modifying objects.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Map of string keys and values that can be used to organize and categorize
+                          (scope and select) objects. May match selectors of replication controllers
+                          and services.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+                        type: object
+                    type: object
+                  namespace:
+                    description: Namespace is the destination Namespace for the Service
+                      this Endpoint projects
+                    type: string
+                  port:
+                    description: Port is the Service targetPort this Endpoint's Target
+                      Service uses for requests
+                    format: int32
+                    type: integer
+                  protocol:
+                    default: TCP
+                    description: Protocol is the Service protocol this Endpoint uses
+                    enum:
+                    - TCP
+                    type: string
+                  service:
+                    description: Service is the name of the Service that this Endpoint
+                      projects
+                    type: string
+                required:
+                - namespace
+                - port
+                - protocol
+                - service
+                type: object
+            required:
+            - endpointURI
+            - port
+            - scheme
+            - target
+            type: object
+          status:
+            description: BoundEndpointStatus defines the observed state of BoundEndpoint
+            properties:
+              endpoints:
+                description: |-
+                  Endpoints is the list of BindingEndpoints that are created for this BoundEndpoint
+
+
+                  Note: The collection of Endpoints per Binding are Many-to-One
+                        The uniqueness of each Endpoint is not ID, but rather the 4-tuple <scheme,service-name,namespace,port>
+                        All Endpoints bound to a BoundEndpoint will share the same 4-tuple, statuses, errors, etc...
+                        this is because BoundEndpoint represents 1 Service, yet many Endpoints
+                items:
+                  description: BindingEndpoint is a reference to an Endpoint object
+                    in the ngrok API that is attached to the kubernetes operator binding
+                  properties:
+                    errorCode:
+                      description: |-
+                        ErrorCode is the ngrok API error code if the status is error
+                        TODO(hkatz) Define error codes and implement in the API
+                      pattern: ^ERR_NGROK_\d+$
+                      type: string
+                    errorMessage:
+                      description: ErrorMessage is a free-form error message if the
+                        status is error
+                      maxLength: 4096
+                      type: string
+                    id:
+                      description: a resource identifier
+                      type: string
+                    status:
+                      default: unknown
+                      description: |-
+                        BindingEndpointStatus is an enum that represents the status of a BindingEndpoint
+                        TODO(https://github.com/ngrok-private/ngrok/issues/32666)
+                      enum:
+                      - unknown
+                      - provisioning
+                      - bound
+                      - error
+                      type: string
+                    uri:
+                      description: a uri for locating a resource
+                      type: string
+                  required:
+                  - status
+                  type: object
+                type: array
+              hashedName:
+                description: HashName is the hashed output of the TargetService and
+                  TargetNamespace for unique identification
+                type: string
+            required:
+            - endpoints
+            - hashedName
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

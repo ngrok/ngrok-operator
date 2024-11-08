@@ -1,0 +1,61 @@
+Should match snapshot:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-bindings-forwarder
+      namespace: NAMESPACE
+    rules:
+      - apiGroups:
+          - bindings.k8s.ngrok.com
+        resources:
+          - boundendpoints
+        verbs:
+          - get
+          - list
+          - watch
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+  2: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-bindings-forwarder-rolebinding
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: RELEASE-NAME-ngrok-operator-bindings-forwarder
+    subjects:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-bindings-forwarder
+        namespace: NAMESPACE

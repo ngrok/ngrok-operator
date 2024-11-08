@@ -337,4 +337,151 @@ var _ = Describe("Store", func() {
 			})
 		})
 	})
+
+	var _ = Describe("Store Validation", func() {
+		var store Store
+		var logger logr.Logger
+
+		BeforeEach(func() {
+			// Setup the Store directly instead of through the Storer interface
+			logger = logr.New(logr.Discard().GetSink())
+			cacheStores := NewCacheStores(logger)
+			store = Store{
+				stores:         cacheStores,
+				controllerName: defaultControllerName,
+				log:            logger,
+			}
+			ngrokClass := NewTestIngressClass("ngrok", true, true)
+			Expect(store.Add(&ngrokClass)).To(BeNil())
+		})
+
+		Context("when ingress has missing HTTP rules", func() {
+			It("returns an error without crashing", func() {
+				ing := NewTestIngressV1("ingress-no-rules", "test-namespace")
+				ing.Spec.Rules = []netv1.IngressRule{{
+					Host: "test.com",
+				}}
+				ok, err := store.shouldHandleIngressIsValid(&ing)
+				Expect(ok).To(BeFalse())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("HTTP rules are required for ingress"))
+			})
+		})
+
+		Context("when ingress has unsupported default backend", func() {
+			It("ignores the ingress with default backend and returns an error", func() {
+				ing := NewTestIngressV1("ingress-default-backend", "test-namespace")
+				ing.Spec.DefaultBackend = &netv1.IngressBackend{
+					Service: &netv1.IngressServiceBackend{
+						Name: "default-service",
+						Port: netv1.ServiceBackendPort{Number: 80},
+					},
+				}
+				ok, err := store.shouldHandleIngressIsValid(&ing)
+				Expect(ok).To(BeFalse())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("Default backends are not supported"))
+			})
+		})
+
+		Context("when ingress rule is missing hostname", func() {
+			It("flags the ingress as invalid", func() {
+				ing := NewTestIngressV1("ingress-no-host", "test-namespace")
+				ing.Spec.Rules = []netv1.IngressRule{
+					{
+						Host: "a-hostname.com",
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "test-service",
+												Port: netv1.ServiceBackendPort{Number: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Host: "", // Missing hostname
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "test-service",
+												Port: netv1.ServiceBackendPort{Number: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				ok, err := store.shouldHandleIngressIsValid(&ing)
+				Expect(ok).To(BeFalse())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("A host is required to be set"))
+			})
+		})
+
+		Context("when ingress uses deprecated ingress annotation", func() {
+			It("logs a warning about the deprecated annotation", func() {
+				ing := NewTestIngressV1("ingress-deprecated-annotation", "test-namespace")
+				ingressClassName := "not-ngrok"
+				ing.Spec.IngressClassName = &ingressClassName
+				ing.Annotations = map[string]string{
+					"kubernetes.io/ingress.class": "ngrok",
+				}
+				ok, err := store.shouldHandleIngress(&ing)
+				Expect(ok).To(BeFalse())
+				Expect(err).ToNot(BeNil())
+			})
+		})
+
+		Context("when ingress class does not match", func() {
+			It("returns an error message showing the ingress class name", func() {
+				ing := NewTestIngressV1WithClass("ingress-wrong-class", "test-namespace", "not-ngrok")
+				ok, err := store.shouldHandleIngressCheckClass(&ing)
+				Expect(ok).To(BeFalse())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("ingress class mismatching"))
+				Expect(err.Error()).To(ContainSubstring("not-ngrok"))
+			})
+		})
+
+		Context("when no matching ingress classes are configured", func() {
+			It("lists known ingress classes in the error message", func() {
+				ing := NewTestIngressV1WithClass("ingress-no-match", "test-namespace", "no-match-class")
+				ok, err := store.shouldHandleIngressCheckClass(&ing)
+				Expect(ok).To(BeFalse())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("no-match-class"))
+				Expect(err.Error()).To(ContainSubstring("ngrok"))
+			})
+		})
+
+		Context("when configured ingress class cannot be found", func() {
+			BeforeEach(func() {
+				// Delete the ngrok ingress class to simulate missing configuration
+				ngrokClass := NewTestIngressClass("ngrok", true, true)
+				Expect(store.Delete(&ngrokClass)).To(BeNil())
+			})
+
+			It("emits a warning or event about the missing class", func() {
+				ing := NewTestIngressV1WithClass("ingress-missing-class", "test-namespace", "ngrok")
+				ok, err := store.shouldHandleIngressCheckClass(&ing)
+				Expect(ok).To(BeFalse())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("no default ingress class found"))
+			})
+		})
+	})
 })

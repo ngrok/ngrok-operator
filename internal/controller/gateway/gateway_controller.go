@@ -63,7 +63,7 @@ type GatewayReconciler struct {
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/status,verbs=get;list;watch;update
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("Gateway", req.NamespacedName)
+	log := ctrl.LoggerFrom(ctx).WithValues("Gateway", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
 
 	gw := new(gatewayv1.Gateway)

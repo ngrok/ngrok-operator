@@ -36,9 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v5"
-	"github.com/ngrok/ngrok-api-go/v5/ip_policies"
-	"github.com/ngrok/ngrok-api-go/v5/ip_policy_rules"
+	"github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v6/ip_policies"
+	"github.com/ngrok/ngrok-api-go/v6/ip_policy_rules"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 )
@@ -152,6 +152,8 @@ func (r *IPPolicyReconciler) delete(ctx context.Context, policy *ingressv1alpha1
 }
 
 func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	remoteRules, err := r.getRemotePolicyRules(ctx, policy.Status.ID)
 	if err != nil {
 		return err
@@ -160,29 +162,29 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 
 	for iter.Next() {
 		for _, d := range iter.NeedsDelete() {
-			r.Log.V(3).Info("Deleting IP Policy Rule", "id", d.ID, "policy.id", policy.Status.ID, "cidr", d.CIDR, "action", d.Action)
+			log.V(3).Info("Deleting IP Policy Rule", "id", d.ID, "policy.id", policy.Status.ID, "cidr", d.CIDR, "action", d.Action)
 			if err := r.IPPolicyRulesClient.Delete(ctx, d.ID); err != nil {
 				return err
 			}
-			r.Log.V(3).Info("Deleted IP Policy Rule", "id", d.ID)
+			log.V(3).Info("Deleted IP Policy Rule", "id", d.ID)
 		}
 
 		for _, c := range iter.NeedsCreate() {
-			r.Log.V(3).Info("Creating IP Policy Rule", "policy.id", policy.Status.ID, "cidr", c.CIDR, "action", c.Action)
+			log.V(3).Info("Creating IP Policy Rule", "policy.id", policy.Status.ID, "cidr", c.CIDR, "action", c.Action)
 			rule, err := r.IPPolicyRulesClient.Create(ctx, c)
 			if err != nil {
 				return err
 			}
-			r.Log.V(3).Info("Created IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID, "cidr", rule.CIDR, "action", rule.Action)
+			log.V(3).Info("Created IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID, "cidr", rule.CIDR, "action", rule.Action)
 		}
 
 		for _, u := range iter.NeedsUpdate() {
-			r.Log.V(3).Info("Updating IP Policy Rule", "id", u.ID, "policy.id", policy.Status.ID, "cidr", u.CIDR, "metadata", u.Metadata, "description", u.Description)
+			log.V(3).Info("Updating IP Policy Rule", "id", u.ID, "policy.id", policy.Status.ID, "cidr", u.CIDR, "metadata", u.Metadata, "description", u.Description)
 			rule, err := r.IPPolicyRulesClient.Update(ctx, u)
 			if err != nil {
 				return err
 			}
-			r.Log.V(3).Info("Updated IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID)
+			log.V(3).Info("Updated IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID)
 		}
 	}
 

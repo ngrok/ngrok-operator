@@ -1,0 +1,24 @@
+# permissions for end users to view cloudendpoints
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+  name: {{ include "ngrok-operator.fullname" . }}-cloudendpoint-viewer-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get
+

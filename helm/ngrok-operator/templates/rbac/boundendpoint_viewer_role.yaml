@@ -1,0 +1,25 @@
+# permissions for end users to view boundendpoints
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+  name: {{ include "ngrok-operator.fullname" . }}-boundendpoint-viewer-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - boundendpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - boundendpoints/status
+  verbs:
+  - get
+
+

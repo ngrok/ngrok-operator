@@ -3,14 +3,19 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"testing"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -19,6 +24,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 const defaultManagerName = "ngrok-ingress-controller"
@@ -170,183 +176,212 @@ var _ = Describe("Driver", func() {
 	})
 
 	Describe("calculateIngressLoadBalancerIPStatus", func() {
-		It("Should return the correct status", func() {
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain.com",
-					},
-				},
-			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+		var domains []ingressv1alpha1.Domain
+		var ingress netv1.Ingress
+		var c client.WithWatch
+		var status []netv1.IngressLoadBalancerIngress
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(len(status)).To(Equal(1))
-			Expect(status[0].Hostname).To(Equal(cname))
+		JustBeforeEach(func() {
+			c = fake.NewClientBuilder().
+				WithLists(
+					&ingressv1alpha1.DomainList{
+						Items: domains,
+					},
+				).
+				WithScheme(scheme).
+				Build()
+			status = driver.calculateIngressLoadBalancerIPStatus(&ingress, c)
 		})
 
-		It("Should return empty status if no matching domain found", func() {
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain.com",
-					},
+		addIngressHostname := func(i *netv1.Ingress, hostname string) {
+			if i.Spec.Rules == nil {
+				i.Spec.Rules = []netv1.IngressRule{}
+			}
+			i.Spec.Rules = append(i.Spec.Rules, netv1.IngressRule{
+				Host: hostname,
+			})
+		}
+		newTestDomain := func(name, domain string, cnameTarget *string) ingressv1alpha1.Domain {
+			return ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: domain,
+				},
+				Status: ingressv1alpha1.DomainStatus{
+					Domain:      domain,
+					CNAMETarget: cnameTarget,
 				},
 			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "another-domain.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+		}
+		newTestDomainList := func(domains ...ingressv1alpha1.Domain) []ingressv1alpha1.Domain {
+			return domains
+		}
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(len(status)).To(Equal(0))
+		When("the CNAME is present", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				domains = newTestDomainList(
+					newTestDomain(
+						"example-com",
+						"example.com",
+						&cname,
+					),
+				)
+			})
+
+			It("should return the CNAME as the status", func() {
+				Expect(len(status)).To(Equal(1))
+				Expect(status[0].Hostname).To(Equal(cname))
+			})
 		})
 
-		It("Should return empty status if domain CNAME target is nil", func() {
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain.com",
-					},
-				},
-			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: nil,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
+		When("no matching domain is found", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				domains = newTestDomainList(
+					newTestDomain(
+						"another-domain-com",
+						"another-domain.com",
+						&cname,
+					),
+				)
+			})
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(len(status)).To(Equal(0))
+			It("should return an empty status", func() {
+				Expect(len(status)).To(Equal(0))
+			})
 		})
 
-		It("Should return multiple statuses for multiple different domains", func() {
+		When("the CNAME target is nil and the domain.status.domain is empty", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				domains = newTestDomainList(
+					ingressv1alpha1.Domain{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "example-com",
+						},
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: "example.com",
+						},
+						Status: ingressv1alpha1.DomainStatus{},
+					},
+				)
+			})
+
+			It("should return an empty status", func() {
+				Expect(len(status)).To(Equal(0))
+			})
+		})
+
+		When("the domain is a non-wildcard ngrok managed domain", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress.Spec = netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{
+							Host: "example.ngrok.io",
+						},
+					},
+				}
+				domains = newTestDomainList(
+					newTestDomain(
+						"example-ngrok-io",
+						"example.ngrok.io",
+						nil,
+					),
+				)
+			})
+
+			It("should have a status hostname matching the domain", func() {
+				Expect(len(status)).To(Equal(1))
+				Expect(status[0].Hostname).To(Equal("example.ngrok.io"))
+			})
+		})
+
+		When("the domain is a wildcard ngrok managed domain", func() {
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress.Spec = netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{
+							Host: "*.example.ngrok.io",
+						},
+					},
+				}
+				domains = newTestDomainList(
+					newTestDomain(
+						"wildcard-example-ngrok-io",
+						"*.example.ngrok.io",
+						nil,
+					),
+				)
+			})
+
+			It("should have a .Status[].Hostname equal to the domain without the wildcard", func() {
+				Expect(len(status)).To(Equal(1))
+				Expect(status[0].Hostname).To(Equal("example.ngrok.io"))
+			})
+		})
+
+		When("There are multiple domains", func() {
 			cname1 := "cnametarget1.com"
 			cname2 := "cnametarget2.com"
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain1.com",
-					},
-					{
-						Host: "test-domain2.com",
-					},
-				},
-			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-domain1.com",
-						},
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain1.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname1,
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-domain2.com",
-						},
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain2.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname2,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(status).Should(ConsistOf(
-				HaveField("Hostname", cname1),
-				HaveField("Hostname", cname2),
-			))
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				addIngressHostname(&ingress, "test-domain1.com")
+				addIngressHostname(&ingress, "test-domain2.com")
+				domains = newTestDomainList(
+					newTestDomain(
+						"test-domain1-com",
+						"test-domain1.com",
+						&cname1,
+					),
+					newTestDomain(
+						"test-domain2-com",
+						"test-domain2.com",
+						&cname2,
+					),
+				)
+			})
+
+			It("should return multiple statuses with those domains", func() {
+				Expect(status).Should(ConsistOf(
+					HaveField("Hostname", cname1),
+					HaveField("Hostname", cname2),
+				))
+			})
 		})
 
-		It("Should only have a single status for multiple domains that match", func() {
+		When("The ingress has multiple duplicate hostnames", func() {
 			cname1 := "cnametarget1.com"
 			cname2 := "cnametarget2.com"
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i1.Spec = netv1.IngressSpec{
-				Rules: []netv1.IngressRule{
-					{
-						Host: "test-domain1.com",
-					},
-					{
-						Host: "test-domain1.com",
-					},
-				},
-			}
-			domainList := &ingressv1alpha1.DomainList{
-				Items: []ingressv1alpha1.Domain{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-domain1.com",
-						},
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain1.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname1,
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-domain2.com",
-						},
-						Spec: ingressv1alpha1.DomainSpec{
-							Domain: "test-domain2.com",
-						},
-						Status: ingressv1alpha1.DomainStatus{
-							CNAMETarget: &cname2,
-						},
-					},
-				},
-			}
-			c := fake.NewClientBuilder().WithLists(domainList).WithScheme(scheme).Build()
 
-			status := driver.calculateIngressLoadBalancerIPStatus(&i1, c)
-			Expect(status).Should(ConsistOf(
-				HaveField("Hostname", cname1),
-			))
+			BeforeEach(func() {
+				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				addIngressHostname(&ingress, "test-domain1.com")
+				addIngressHostname(&ingress, "test-domain1.com")
+				domains = newTestDomainList(
+					newTestDomain(
+						"test-domain1-com",
+						"test-domain1.com",
+						&cname1,
+					),
+					newTestDomain(
+						"test-domain2-com",
+						"test-domain2.com",
+						&cname2,
+					),
+				)
+			})
+
+			It("should only have a single status the unique domain", func() {
+				Expect(status).Should(ConsistOf(
+					HaveField("Hostname", cname1),
+				))
+			})
 		})
 	})
 
@@ -433,28 +468,39 @@ var _ = Describe("Driver", func() {
 		var rule *gatewayv1.HTTPRouteRule
 		var namespace string
 		var policyCrd *ngrokv1alpha1.NgrokTrafficPolicy
+		var legacyPolicyCrd *ngrokv1alpha1.NgrokTrafficPolicy
 
 		BeforeEach(func() {
 			rule = &gatewayv1.HTTPRouteRule{}
 			namespace = "test"
+
 			policyCrd = &ngrokv1alpha1.NgrokTrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-policy",
 					Namespace: namespace,
 				},
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
-					Policy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
+					Policy: []byte(`{"on_http_request": [{"name":"t","actions":[{"type":"deny"}]}]}`),
 				},
 			}
 			Expect(driver.store.Add(policyCrd)).To(BeNil())
+
+			legacyPolicyCrd = &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "legacy-test-policy",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+					Policy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
+				},
+			}
+			Expect(driver.store.Add(legacyPolicyCrd)).To(BeNil())
 		})
 
 		It("Should return an empty policy if the rule has nothing in it", func() {
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
 			Expect(policy).ToNot(BeNil())
-			Expect(len(policy.Inbound)).To(BeZero())
-			Expect(len(policy.Outbound)).To(BeZero())
 		})
 
 		It("Should return a merged policy if there rules with extensionRef", func() {
@@ -493,7 +539,7 @@ var _ = Describe("Driver", func() {
 				},
 			}
 
-			expectedPolicy := `{"enabled":true,"inbound":[{"actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}],"name":"Inbound HTTPRouteRule 1"},{"actions":[{"type":"deny"}],"name":"t"},{"actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}],"name":"Inbound HTTPRouteRule 2"}]}`
+			expectedPolicy := `{"on_http_request":[{"name":"Inbound HTTPRouteRule 1","actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}]},{"actions":[{"type":"deny"}],"name":"t"},{"name":"Inbound HTTPRouteRule 2","actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}]}]}`
 
 			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
 			Expect(err).To(BeNil())
@@ -501,9 +547,53 @@ var _ = Describe("Driver", func() {
 
 			jsonString, err := json.Marshal(policy)
 			Expect(err).To(BeNil())
+			Expect(string(jsonString)).To(Equal(expectedPolicy))
+		})
 
-			Expect(len(policy.Inbound) == 3).To(BeTrue())
-			Expect(len(policy.Outbound)).To(BeZero())
+		It("Should return a merged policy if there rules with extensionRef, legacy policy is remapped", func() {
+			hostname := gatewayv1.PreciseHostname("test-hostname.com")
+			replacePrefixMatch := "/paprika"
+
+			rule.Filters = []gatewayv1.HTTPRouteFilter{
+				{
+					Type: "RequestHeaderModifier",
+					RequestHeaderModifier: &gatewayv1.HTTPHeaderFilter{
+						Add: []gatewayv1.HTTPHeader{
+							{
+								Name:  "test-header",
+								Value: "test-value",
+							},
+						},
+					},
+				},
+				{
+					Type: "ExtensionRef",
+					ExtensionRef: &gatewayv1.LocalObjectReference{
+						Name:  "legacy-test-policy",
+						Kind:  "NgrokTrafficPolicy",
+						Group: "ngrok.k8s.ngrok.com",
+					},
+				},
+				{
+					Type: "URLRewrite",
+					URLRewrite: &gatewayv1.HTTPURLRewriteFilter{
+						Hostname: &hostname,
+						Path: &gatewayv1.HTTPPathModifier{
+							Type:               "ReplacePrefixMatch",
+							ReplacePrefixMatch: &replacePrefixMatch,
+						},
+					},
+				},
+			}
+
+			expectedPolicy := `{"on_http_request":[{"name":"Inbound HTTPRouteRule 1","actions":[{"type":"add-headers","config":{"headers":{"test-header":"test-value"}}}]},{"actions":[{"type":"deny"}],"name":"t"},{"name":"Inbound HTTPRouteRule 2","actions":[{"type":"add-headers","config":{"headers":{"Host":"test-hostname.com"}}}]}]}`
+
+			policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
+			Expect(err).To(BeNil())
+			Expect(policy).ToNot(BeNil())
+
+			jsonString, err := json.Marshal(policy)
+			Expect(err).To(BeNil())
 			Expect(string(jsonString)).To(Equal(expectedPolicy))
 		})
 	})
@@ -573,3 +663,75 @@ var _ = Describe("Driver", func() {
 		})
 	})
 })
+
+func TestExtractPolicy(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                  string
+		msg                   json.RawMessage
+		expectedTrafficPolicy map[string][]util.RawRule
+		expectedErr           error
+	}{
+		{
+			name: "legacy policy configuration",
+			msg:  []byte(`{"inbound":[{"name":"test-inbound","actions":[{"type":"deny"}]}],"outbound":[{"name":"test-outbound","actions":[{"type":"some-action"}]}]}`),
+			expectedTrafficPolicy: map[string][]util.RawRule{
+				util.PhaseOnHttpRequest: {
+					[]byte(`{"actions":[{"type":"deny"}],"name":"test-inbound"}`),
+				},
+				util.PhaseOnHttpResponse: {
+					[]byte(`{"actions":[{"type":"some-action"}],"name":"test-outbound"}`),
+				},
+			},
+		},
+		{
+			name: "phase-based policy config",
+			msg:  []byte(`{"on_http_request":[{"name":"test-inbound","actions":[{"type":"deny"}]}],"on_http_response":[{"name":"test-outbound","actions":[{"type":"some-action"}]}]}`),
+			expectedTrafficPolicy: map[string][]util.RawRule{
+				util.PhaseOnHttpRequest: {
+					[]byte(`{"actions":[{"type":"deny"}],"name":"test-inbound"}`),
+				},
+				util.PhaseOnHttpResponse: {
+					[]byte(`{"actions":[{"type":"some-action"}],"name":"test-outbound"}`),
+				},
+			},
+		},
+		{
+			name:        "invalid json message",
+			msg:         []byte(`ngrok operates a global network where it accepts traffic to your upstream services from clients.`),
+			expectedErr: fmt.Errorf("invalid character 'g' in literal null (expecting 'u')"),
+		},
+		{
+			name:        "empty json message",
+			msg:         []byte(""),
+			expectedErr: fmt.Errorf("unexpected end of JSON input"),
+		},
+		{
+			name:        "nil json message",
+			expectedErr: fmt.Errorf("unexpected end of JSON input"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			trafficPolicy, err := extractPolicy(tc.msg)
+
+			if tc.expectedTrafficPolicy == nil {
+				assert.Nil(t, trafficPolicy)
+			} else {
+				assert.Equal(t, tc.expectedTrafficPolicy, trafficPolicy.Deconstruct())
+			}
+
+			if tc.expectedErr == nil {
+				assert.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				// Can't compare the exact error as we don't have access to json SyntaxError underlying `msg` field`
+				assert.Equal(t, tc.expectedErr.Error(), err.Error())
+			}
+		})
+	}
+}
