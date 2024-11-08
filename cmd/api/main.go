@@ -217,12 +217,12 @@ func runController(ctx context.Context, opts managerOpts) error {
 
 	// create default config and clientset for use outside the mgr.Start() blocking loop
 	k8sConfig := ctrl.GetConfigOrDie()
-	k8sClinet, err := client.New(k8sConfig, client.Options{Scheme: scheme})
+	k8sClient, err := client.New(k8sConfig, client.Options{Scheme: scheme})
 	if err != nil {
 		return fmt.Errorf("unable to create k8s client: %w", err)
 	}
 
-	if err := createKubernetesOperator(ctx, k8sClinet, opts); err != nil {
+	if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
 		return fmt.Errorf("unable to create KubernetesOperator: %w", err)
 	}
 
@@ -244,7 +244,7 @@ func runController(ctx context.Context, opts managerOpts) error {
 		// Run a migration for migrating from the old ingress controller to the operator
 		// TODO: Delete me after the initial releae of the ngrok-operator
 		setupLog.Info("Migrating Kubernetes Ingress Controller labels to ngrok operator")
-		if err := k8sResourceDriver.MigrateKubernetesIngressControllerLabelsToNgrokOperator(ctx, k8sClinet); err != nil {
+		if err := k8sResourceDriver.MigrateKubernetesIngressControllerLabelsToNgrokOperator(ctx, k8sClient); err != nil {
 			return fmt.Errorf("unable to migrate Kubernetes Ingress Controller labels to ngrok operator: %w", err)
 		}
 		setupLog.Info("Kubernetes Ingress controller labels migrated to ngrok operator")
