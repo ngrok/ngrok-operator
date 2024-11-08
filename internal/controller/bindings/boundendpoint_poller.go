@@ -251,7 +251,7 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, 
 
 	go func() {
 		// attempt reconciliation actions every so often
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 
 		// remainingBindings is the list of BoundEndpoints that still need to be actioned upon
