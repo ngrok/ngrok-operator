@@ -291,7 +291,7 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, 
 			// stop go routine and return, there is a new reconcile poll happening actively
 			case <-ctx.Done():
 				log.V(1).Info("Reconcile Action context canceled, stopping BoundEndpoint reconcile action loop early", "action", actionMsg)
-				return nil
+				return
 			case <-ticker.C:
 				log.V(9).Info("Received tick", "action", actionMsg, "remaining", remainingBindings)
 
