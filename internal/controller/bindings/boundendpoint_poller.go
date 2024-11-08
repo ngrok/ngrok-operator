@@ -116,12 +116,17 @@ func (r *BoundEndpointPoller) getKubernetesOperatorId(ctx context.Context) strin
 
 	log.V(1).Info("Waiting for KubernetesOperator to be registered and ID returned")
 
-	ticker := time.NewTicker(30 * time.Second)
+	// tick immediately
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
+			// restart the ticker at a slower interval
+			ticker.Stop()
+			ticker.Reset(30 * time.Second)
+
 			var ko ngrokv1alpha1.KubernetesOperator
 			err := r.Client.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: r.KubernetesOperatorConfigName}, &ko)
 			if err != nil {
@@ -163,7 +168,7 @@ func (r *BoundEndpointPoller) startPollingAPI(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			log.Info("Polling API for binding_endpoints")
+			log.V(9).Info("Polling API for binding_endpoints")
 			if err := r.reconcileBoundEndpointsFromAPI(ctx); err != nil {
 				log.Error(err, "Failed to update binding_endpoints from API")
 			}
@@ -285,8 +290,8 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, 
 			select {
 			// stop go routine and return, there is a new reconcile poll happening actively
 			case <-ctx.Done():
-				log.Info("Reconcile Action context canceled, stopping BoundEndpoint reconcile action loop early", "action", actionMsg)
-				return
+				log.V(1).Info("Reconcile Action context canceled, stopping BoundEndpoint reconcile action loop early", "action", actionMsg)
+				return nil
 			case <-ticker.C:
 				log.V(9).Info("Received tick", "action", actionMsg, "remaining", remainingBindings)
 
