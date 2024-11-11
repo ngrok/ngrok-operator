@@ -91,6 +91,10 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	// Store the originally found ingress separately to use later
+	// incase there is an error updating and finding it below
+	originalFoundIngress := ingress
+
 	// Ensure the ingress object is up to date in the store
 	// Leverage the store to ensure this works off the same data as everything else
 	ingress, err = r.Driver.UpdateIngress(ingress)
@@ -101,13 +105,13 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.Info("Ingress is not of type ngrok so skipping it")
 		return ctrl.Result{}, nil
 	case internalerrors.IsErrorNoDefaultIngressClassFound(err):
-		r.Recorder.Event(ingress, "Warning", "NoDefaultIngressClassFound", "No ingress class found for this controller")
+		r.Recorder.Event(originalFoundIngress, "Warning", "NoDefaultIngressClassFound", "No ingress class found for this controller")
 		return ctrl.Result{}, nil
 	case internalerrors.IsErrInvalidIngressSpec(err):
-		r.Recorder.Eventf(ingress, "Warning", "InvalidIngressSpec", "Ingress is not valid so skipping it: %v", err)
+		r.Recorder.Eventf(originalFoundIngress, "Warning", "InvalidIngressSpec", "Ingress is not valid so skipping it: %v", err)
 		return ctrl.Result{}, nil
 	default:
-		r.Recorder.Event(ingress, "Warning", "FailedGetIngress", "Failed to get ingress from store")
+		r.Recorder.Event(originalFoundIngress, "Warning", "FailedGetIngress", "Failed to get ingress from store")
 		return ctrl.Result{}, err
 	}
 
