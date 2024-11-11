@@ -57,10 +57,14 @@ type KubernetesOperatorBinding struct {
 	Name string `json:"name,omitempty"`
 
 	// AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which BoundEndpoints are allowed to be created by the operator
-	// TODO(hkatz) We are only implementing `*` for now
-	// Support more patterns in the future, see product spec
+	// You may specify a wildcard for:
+	//   - All endpoints: `*`
+	//   - All services in a namespace: `*.namespace`
+	//   - All namespaces: `*.*`
+	//   - Named service in all namespaces: `service.*`
+	// See: https://regex101.com/r/APbE3G/4
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:items:Pattern=`^[*]$`
+	// +kubebuilder:validation:items:Pattern=`^(([*]|(https?|tls|tcp)://)?([*]|([*]|[a-z]([-a-z0-9]{0,61}[a-z0-9])?)[.]([*]|[a-z]([-a-z0-9]{0,61}[a-z0-9])?)))$`
 	AllowedURLs []string `json:"allowedURLs,omitempty"`
 
 	// The public ingress endpoint for this Kubernetes Operator

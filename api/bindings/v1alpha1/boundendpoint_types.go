@@ -34,6 +34,11 @@ import (
 
 // BoundEndpointSpec defines the desired state of BoundEndpoint
 type BoundEndpointSpec struct {
+	// Allowed is a flag that determines if the BoundEndpoint is allowed to be projected into the cluster
+	// This is controlled by the KubernetesOperator CRD .spec.allowedURLs field
+	// +kubebuilder:validation:Required
+	Allowed bool `json:"allowed"`
+
 	// EndpointURI is the unique identifier
 	// representing the BoundEndpoint + its Endpoints
 	// Format: <scheme>://<service>.<namespace>:<port>
@@ -125,7 +130,7 @@ type BindingEndpoint struct {
 	v6.Ref `json:",inline"`
 
 	// +kubebuilder:validation:Required
-	// +kube:validation:Enum=provisioning;bound;error;unknown
+	// +kube:validation:Enum=provisioning;bound;denied;error;unknown
 	// +kubebuilder:default="unknown"
 	Status BindingEndpointStatus `json:"status"`
 
@@ -143,12 +148,13 @@ type BindingEndpoint struct {
 
 // BindingEndpointStatus is an enum that represents the status of a BindingEndpoint
 // TODO(https://github.com/ngrok-private/ngrok/issues/32666)
-// +kubebuilder:validation:Enum=unknown;provisioning;bound;error
+// +kubebuilder:validation:Enum=unknown;provisioning;denied;bound;error
 type BindingEndpointStatus string
 
 const (
 	StatusUnknown      BindingEndpointStatus = "unknown"
 	StatusProvisioning BindingEndpointStatus = "provisioning"
+	StatusDenied       BindingEndpointStatus = "denied"
 	StatusBound        BindingEndpointStatus = "bound"
 	StatusError        BindingEndpointStatus = "error"
 )

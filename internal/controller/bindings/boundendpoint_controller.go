@@ -65,6 +65,7 @@ const (
 	NgrokErrorUpstreamServiceCreateFailed = "ERR_NGROK_0001"
 	NgrokErrorTargetServiceCreateFailed   = "ERR_NGROK_0002"
 	NgrokErrorFailedToBind                = "ERR_NGROK_003"
+	NgrokErrorNotAllowed                  = "ERR_NGROK_004"
 )
 
 var (
@@ -161,8 +162,10 @@ func (r *BoundEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - Upstream Service in the ngrok-op namespace pointed at the Pod Forwarders
 func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	cr := &bindingsv1alpha1.BoundEndpoint{}
-	if ctrlErr, err := r.controller.Reconcile(ctx, req, cr); err != nil {
-		return ctrlErr, err
+	var res ctrl.Result
+	var err error
+	if res, err = r.controller.Reconcile(ctx, req, cr); err != nil {
+		return res, err
 	}
 
 	// update ngrok api resource status on upsert
@@ -178,6 +181,11 @@ func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
+
+	// binding is not allowed to be created
+	if !cr.Spec.Allowed {
+		return r.denyBoundEndpoint(ctx, cr)
+	}
 
 	if err := r.createUpstreamService(ctx, cr, upstreamService); err != nil {
 		return r.controller.ReconcileStatus(ctx, cr, err)
@@ -259,6 +267,15 @@ func (r *BoundEndpointReconciler) createUpstreamService(ctx context.Context, own
 func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
+	// binding is not allowed
+	if !cr.Spec.Allowed {
+		if err := r.deleteBoundEndpointServices(ctx, cr); err != nil {
+			return r.controller.ReconcileStatus(ctx, cr, err)
+		}
+
+		return r.denyBoundEndpoint(ctx, cr)
+	}
+
 	desiredTargetService, desiredUpstreamService := r.convertBoundEndpointToServices(cr)
 
 	var existingTargetService v1.Service
@@ -333,22 +350,40 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 }
 
 func (r *BoundEndpointReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
+	return r.deleteBoundEndpointServices(ctx, cr)
+}
+
+// deleteBoundEndpointServices deletes the Target and Upstream Services for the BoundEndpoint
+func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
-	if err := r.Client.Delete(ctx, targetService); err != nil {
+
+	targetNamespace := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: targetService.Namespace}}
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: targetNamespace.Name}, targetNamespace); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			return nil
+			// fallthrough, no Target Service to delete
 		} else {
-			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
-			log.Error(err, "Failed to delete Target Service")
+			log.Error(err, "Failed to get Target Namespace")
 			return err
+		}
+	} else {
+		// Target Namespace exists, try to delete the Target Service
+
+		if err := r.Client.Delete(ctx, targetService); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return nil
+			} else {
+				r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
+				log.Error(err, "Failed to delete Target Service")
+				return err
+			}
 		}
 	}
 
 	if err := r.Client.Delete(ctx, upstreamService); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			return nil
+			// fallthrough, nothing to do
 		} else {
 			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
 			log.Error(err, "Failed to delete Upstream Service")
@@ -555,6 +590,7 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 				bindErr = err
 			} else {
 				// success case: we dialed and closed the connection
+				bindErr = nil
 				break
 			}
 		}
@@ -567,6 +603,7 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 	var desired *bindingsv1alpha1.BindingEndpoint
 	if bindErr != nil {
 		// error
+		log.Error(bindErr, "Failed to bind BoundEndpoint, moving to error")
 		desired = &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusError,
 			ErrorCode:    NgrokErrorFailedToBind,
@@ -574,6 +611,7 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 		}
 	} else {
 		// success
+		log.Info("Bound BoundEndpoint successfully, moving to bound")
 		desired = &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusBound,
 			ErrorCode:    "",
@@ -585,4 +623,18 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 	// set status
 	setEndpointsStatus(boundEndpoint, desired)
 	return bindErr
+}
+
+// denyBoundEndpoint sets the status of the BoundEndpoint to denied
+func (r *BoundEndpointReconciler) denyBoundEndpoint(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
+	reason := "Endpoint URI is not allowed by KubernetesOperator allowedURLs configuration"
+
+	setEndpointsStatus(boundEndpoint, &bindingsv1alpha1.BindingEndpoint{
+		Status:       bindingsv1alpha1.StatusDenied,
+		ErrorCode:    NgrokErrorNotAllowed,
+		ErrorMessage: reason,
+	})
+
+	r.Recorder.Event(boundEndpoint, v1.EventTypeWarning, "Denied", reason)
+	return r.controller.ReconcileStatus(ctx, boundEndpoint, nil)
 }

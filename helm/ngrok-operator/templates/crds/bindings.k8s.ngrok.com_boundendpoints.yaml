@@ -53,6 +53,11 @@ spec:
           spec:
             description: BoundEndpointSpec defines the desired state of BoundEndpoint
             properties:
+              allowed:
+                description: |-
+                  Allowed is a flag that determines if the BoundEndpoint is allowed to be projected into the cluster
+                  This is controlled by the KubernetesOperator CRD .spec.allowedURLs field
+                type: boolean
               endpointURI:
                 description: |-
                   EndpointURI is the unique identifier
@@ -131,6 +136,7 @@ spec:
                 - service
                 type: object
             required:
+            - allowed
             - endpointURI
             - port
             - scheme
@@ -174,6 +180,7 @@ spec:
                       enum:
                       - unknown
                       - provisioning
+                      - denied
                       - bound
                       - error
                       type: string
