@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.1...ngrok-operator-0.13.2
+
+### Added
+
+- Support allowedURLs by @hjkatz in [#496](https://github.com/ngrok/ngrok-operator/pull/496)
+
+### Fixed
+
+- fix: Clear status and re-reconcile if httpsedge is not found by @jonstacks in [#501](https://github.com/ngrok/ngrok-operator/pull/501)
+- Use the previously ingress in the error messages by @alex-bezek in [#500](https://github.com/ngrok/ngrok-operator/pull/500)
+
 ## 0.13.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.0...ngrok-operator-0.13.1
 
