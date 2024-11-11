@@ -142,6 +142,13 @@ func (r *HTTPSEdgeReconciler) create(ctx context.Context, edge *ingressv1alpha1.
 func (r *HTTPSEdgeReconciler) update(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
 	remoteEdge, err := r.NgrokClientset.HTTPSEdges().Get(ctx, edge.Status.ID)
 	if err != nil {
+		// If the edge is not found, then we clear the status and let the
+		// reconciler re-reconcile the edge
+		if ngrok.IsNotFound(err) {
+			edge.Status = ingressv1alpha1.HTTPSEdgeStatus{}
+			return r.controller.ReconcileStatus(ctx, edge, err)
+		}
+
 		return err
 	}
 
