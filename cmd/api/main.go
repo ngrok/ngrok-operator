@@ -222,8 +222,11 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create k8s client: %w", err)
 	}
 
-	if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
-		return fmt.Errorf("unable to create KubernetesOperator: %w", err)
+	// TODO(hkatz) for now we are hiding the k8sop API regstration behind the bindings feature flag
+	if opts.enableFeatureBindings {
+		if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
+			return fmt.Errorf("unable to create KubernetesOperator: %w", err)
+		}
 	}
 
 	mgr, err := ctrl.NewManager(k8sConfig, options)
