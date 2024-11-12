@@ -27,6 +27,11 @@
             "description": "Annotations to add to all deployed objects",
             "default": {}
         },
+        "oneClickDemoMode": {
+            "type": "boolean",
+            "description": "If true, then the operator will startup without required fields or API registration, become Ready, but not actually be running",
+            "default": false
+        },
         "image": {
             "type": "object",
             "properties": {
