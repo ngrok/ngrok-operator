@@ -6,11 +6,13 @@
 ## @param description ngrok-operator description that will appear in the ngrok dashboard
 ## @param commonLabels Labels to add to all deployed objects
 ## @param commonAnnotations Annotations to add to all deployed objects
+## @param oneClickDemoMode If true, then the operator will startup without required fields or API registration, become Ready, but not actually be running
 nameOverride: ""
 fullnameOverride: ""
 description: "The official ngrok Kubernetes Operator."
 commonLabels: {}
 commonAnnotations: {}
+oneClickDemoMode: false
 
 ##
 ## @section Image configuration
