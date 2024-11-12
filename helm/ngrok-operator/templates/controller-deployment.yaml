@@ -59,7 +59,11 @@ spec:
         - /api-manager
         args:
         - --release-name={{ .Release.Name }}
+        {{- if .Values.oneClickDemoMode }}
+        - --cluster-id=one-click-demo-mode
+        {{- else }}
         - --cluster-id={{ .Values.clusterId | required "Missing required .Values.clusterId!"}}
+        {{- end }}
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
         {{- if .Values.oneClickDemoMode }}
         - --one-click-demo-mode
