@@ -2,6 +2,9 @@ suite: test agent deployment
 templates:
 - agent/deployment.yaml
 - agent/rbac.yaml
+set:
+  ingress:
+    enabled: true
 tests:
 - it: Should match snapshot
   asserts:

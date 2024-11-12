@@ -1,3 +1,4 @@
+{{- if and .Values.ingress.enabled (not .Values.oneClickDemoMode) }}
 {{- $component := "agent" }}
 {{- $rbacChecksum := include (print $.Template.BasePath "/agent/rbac.yaml") . | sha256sum }}
 {{- $agent := .Values.agent }}
@@ -124,3 +125,4 @@ spec:
       volumes:
         {{ toYaml .Values.extraVolumes | nindent 6 }}
       {{- end }}
+{{- end }}

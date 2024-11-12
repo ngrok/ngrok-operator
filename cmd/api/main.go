@@ -102,6 +102,15 @@ type managerOpts struct {
 	zapOpts               *zap.Options
 	clusterDomain         string
 
+	// when true, ngrok-op will allow required fields to be optional
+	// then it will go Ready and log errors about registration state due to missing required fields
+	// this is useful for marketplace installations where our users do not have a chance to add their required configuration
+	// yet we still want a 1-click install to work
+	//
+	// when false, ngrok-op will require all required fields to be present before going Ready
+	// and will log errors about missing required fields
+	oneClickDemoMode bool
+
 	// feature flags
 	enableFeatureIngress  bool
 	enableFeatureGateway  bool
@@ -146,6 +155,7 @@ func cmd() *cobra.Command {
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
 	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", "svc.cluster.local", "Cluster domain used in the cluster")
+	c.Flags().BoolVar(&opts.oneClickDemoMode, "one-click-demo-mode", false, "Run the operator in one-click-demo mode (Ready, but not running)")
 
 	// feature flags
 	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
@@ -190,6 +200,10 @@ func startOperator(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to load manager: %w", err)
 	}
 
+	if opts.oneClickDemoMode {
+		return runOneClickDemoMode(ctx, opts, k8sClient, mgr)
+	}
+
 	return runNormalMode(ctx, opts, k8sClient, mgr)
 }
 
@@ -198,6 +212,35 @@ func startOperator(ctx context.Context, opts managerOpts) error {
 // - the operator will log errors about missing required fields
 // - the operator will go Ready and log errors about registration state due to missing required fields
 func runOneClickDemoMode(ctx context.Context, opts managerOpts, k8sClient client.Client, mgr ctrl.Manager) error {
+	// register healthchecks
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		return fmt.Errorf("error setting up readyz check: %w", err)
+	}
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		return fmt.Errorf("error setting up health check: %w", err)
+	}
+
+	// start a ticker to print demo log messages
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		for {
+			select {
+			case <-ctx.Done():
+				break
+			case <-ticker.C:
+				setupLog.Error(errors.New("Running in one-click-demo mode"), "Ready even if required fields are missing!")
+				setupLog.Info("The ngrok-operator is running in one-click-demo mode which means the operator is not actually reconciling resources.")
+				setupLog.Info("Please provide ngrok API key and ngrok Authtoken in your Helm values to run the operator for real.")
+				setupLog.Info("Please set `oneClickDemoMode: false` in your Helm values to run the operator for real.")
+			}
+		}
+	}()
+
+	setupLog.Info("starting api-manager in one-click-demo mode")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		return fmt.Errorf("error starting api-manager: %w", err)
+	}
+
 	return nil
 }
 
@@ -288,7 +331,7 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 		return fmt.Errorf("error setting up health check: %w", err)
 	}
 
-	setupLog.Info("starting api-manager")
+	setupLog.Info("starting api-manager in normal mode")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		return fmt.Errorf("error starting api-manager: %w", err)
 	}
