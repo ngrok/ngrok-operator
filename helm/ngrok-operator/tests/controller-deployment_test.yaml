@@ -246,6 +246,22 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --one-click-demo-mode
+- it: Should pass cluster-id
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --cluster-id=test-cluster
+- it: Should pass cluster-id as demo mode when enabled
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  set:
+    oneClickDemoMode: true
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --cluster-id=one-click-demo-mode
 - it: Should pass log format argument if set
   set:
     log:
