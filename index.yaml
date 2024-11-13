@@ -593,4 +593,30 @@ entries:
     urls:
     - https://github.com/ngrok/ngrok-ingress-controller/releases/download/ngrok-ingress-controller-0.1.0/ngrok-ingress-controller-0.1.0.tgz
     version: 0.1.0
-generated: "2024-09-05T21:20:48.862698726Z"
+  ngrok-operator:
+  - apiVersion: v2
+    appVersion: 0.13.3
+    created: "2024-11-13T17:26:21.333597442Z"
+    dependencies:
+    - name: common
+      repository: https://charts.bitnami.com/bitnami
+      tags:
+      - bitnami-common
+      version: 2.x.x
+    description: The official ngrok Kubernetes Operator.
+    digest: e12d0cf19e53f267020f066fc0ea85ea70e4695e12b2e3ff0e7f5b88cad7d4e4
+    home: https://ngrok.com
+    icon: https://charts.ngrok.com/assets/ngrok-favicon.svg
+    keywords:
+    - ngrok
+    - networking
+    - ingress
+    - edge
+    - api gateway
+    name: ngrok-operator
+    sources:
+    - https://github.com/ngrok/ngrok-operator
+    urls:
+    - https://github.com/ngrok/ngrok-operator/releases/download/helm-chart-0.16.0/ngrok-operator-0.16.0.tgz
+    version: 0.16.0
+generated: "2024-11-13T17:26:21.333656743Z"
