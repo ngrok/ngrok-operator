@@ -67,5 +67,6 @@ jobs:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CR_RELEASE_NAME_TEMPLATE: "helm-chart-{{ .Version }}" # Publishes a new release. Ex: helm-chart-0.1.0
           CR_SKIP_EXISTING: "true"
+          CR_GIT_REPO: "helm-charts" # https://github.com/ngrok/helm-charts
         with:
           charts_dir: helm
