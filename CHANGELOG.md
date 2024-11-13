@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.3
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.1...ngrok-operator-0.13.3
+
+### Added
+
+- Add support for 1-click demo mode by @hjkatz in [#503](https://github.com/ngrok/ngrok-operator/pull/503)
+- Enable automatic Helm releases for `ngrok/ngrok-operator` in `.github/workflows` by @hjkatz in (this PR)
+
+### Fixed
+
+- Hide `kind: KubernetesOperator` API registration behind the `bindings.enable` feature flag by @hjkatz in [#504](https://github.com/ngrok/ngrok-operator/pull/504)
+
 ## 0.13.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.1...ngrok-operator-0.13.2
 
