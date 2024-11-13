@@ -18,7 +18,7 @@ jobs:
       contents: read
       pull-requests: read
     # TODO(operator-rename): Change this to ngrok/ngrok-operator when we are ready to release the helm chart
-    if: github.repository == 'ngrok/kubernetes-ingress-controller'
+    if: github.repository == 'ngrok/ngrok-operator'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -39,7 +39,7 @@ jobs:
     needs: [changes]
     # TODO(operator-rename): Change this to ngrok/ngrok-operator when we are ready to release the helm chart
     if: |
-      (github.repository == 'ngrok/kubernetes-ingress-controller') &&
+      (github.repository == 'ngrok/ngrok-operator') &&
       (needs.changes.outputs.charts == 'true')
     steps:
       - name: Checkout repo
