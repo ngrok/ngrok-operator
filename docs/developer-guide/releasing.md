@@ -9,6 +9,31 @@
     - [Helm Chart](#helm-chart-1)
     - [Controller](#controller)
 
+# Release Steps
+
+Overview:
+1. Create a new branch like `release-ngrok-operator-<version>`
+1. Update versions and changelogs
+1. Submit a PR to `main`
+1. Merge PR (triggers `.github/workflows` to publish the new release)
+
+Determine:
+* The Helm Chart version: `helm/ingress-operator/Chart.yaml`
+* The ngrok-op App version: `VERSION`
+
+Steps:
+* App Version Bump
+    1. Update `VERSION` to new version
+    1. Write a new section in `CHANGELOG`
+        * Note: Use the expected tag `ngrok-operator-<VERSION>` for the full
+        changelog (this tag will be created for you when your release PR is merged)
+        * Note: Find the new commits using a link, such as `https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-<version>...main`
+* Helm Chart Version Bump
+    1. Update `version` to new version
+    1. Update the `appVersion` to the desired `VERSION`
+    1. Write a new section in `CHANGELOG`
+    1. Run `$ make helm-update-snapshots helm-test`
+
 ## Artifacts
 
 The ngrok Ingress Controller has 2 main artifacts, a docker image and a helm chart.
