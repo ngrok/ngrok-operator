@@ -63,6 +63,9 @@ spec:
         args:
         - --release-name={{ .Release.Name }}
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
+        {{- if .Values.oneClickDemoMode }}
+        - --one-click-demo-mode
+        {{- end }}
         {{- if .Values.bindings.enabled }}
         - --bindings-name={{ .Values.bindings.name }}
         - --bindings-allowed-urls={{ join "," .Values.bindings.allowedURLs }}

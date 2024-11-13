@@ -1,4 +1,4 @@
-{{- if .Values.bindings.enabled }}
+{{- if and .Values.bindings.enabled (not .Values.oneClickDemoMode) }}
 {{- $component := "bindings-forwarder" }}
 {{- $rbacChecksum := include (print $.Template.BasePath "/bindings-forwarder/rbac.yaml") . | sha256sum }}
 {{- $forwarder := .Values.bindings.forwarder }}

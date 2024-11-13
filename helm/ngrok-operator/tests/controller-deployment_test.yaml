@@ -235,6 +235,15 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --bindings-allowed-urls=test.example,http://*
+- it: Should pass one-click-demo mode if set
+  set:
+    oneClickDemoMode: true
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --one-click-demo-mode
 - it: Should pass log format argument if set
   set:
     log:

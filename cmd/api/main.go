@@ -29,6 +29,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -101,6 +102,15 @@ type managerOpts struct {
 	zapOpts               *zap.Options
 	clusterDomain         string
 
+	// when true, ngrok-op will allow required fields to be optional
+	// then it will go Ready and log errors about registration state due to missing required fields
+	// this is useful for marketplace installations where our users do not have a chance to add their required configuration
+	// yet we still want a 1-click install to work
+	//
+	// when false, ngrok-op will require all required fields to be present before going Ready
+	// and will log errors about missing required fields
+	oneClickDemoMode bool
+
 	// feature flags
 	enableFeatureIngress  bool
 	enableFeatureGateway  bool
@@ -126,7 +136,7 @@ func cmd() *cobra.Command {
 	c := &cobra.Command{
 		Use: "api-manager",
 		RunE: func(c *cobra.Command, args []string) error {
-			return runController(c.Context(), opts)
+			return startOperator(c.Context(), opts)
 		},
 	}
 
@@ -145,6 +155,7 @@ func cmd() *cobra.Command {
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
 	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", "svc.cluster.local", "Cluster domain used in the cluster")
+	c.Flags().BoolVar(&opts.oneClickDemoMode, "one-click-demo-mode", false, "Run the operator in one-click-demo mode (Ready, but not running)")
 
 	// feature flags
 	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
@@ -164,8 +175,19 @@ func cmd() *cobra.Command {
 	return c
 }
 
-func runController(ctx context.Context, opts managerOpts) error {
+// startOperator starts the ngrok-op
+func startOperator(ctx context.Context, opts managerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+
+	buildInfo := version.Get()
+	setupLog.Info("starting api-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
+
+	// create default kubernetes config and clientset
+	k8sConfig := ctrl.GetConfigOrDie()
+	k8sClient, err := client.New(k8sConfig, client.Options{Scheme: scheme})
+	if err != nil {
+		return fmt.Errorf("unable to create k8s client: %w", err)
+	}
 
 	var ok bool
 	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
@@ -173,65 +195,69 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
 	}
 
-	opts.ngrokAPIKey, ok = os.LookupEnv("NGROK_API_KEY")
-	if !ok {
-		return errors.New("NGROK_API_KEY environment variable should be set, but was not")
-	}
-
-	buildInfo := version.Get()
-	setupLog.Info("starting api-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
-
-	clientConfigOpts := []ngrok.ClientConfigOption{
-		ngrok.WithUserAgent(version.GetUserAgent()),
-	}
-
-	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
-	if opts.apiURL != "" {
-		u, err := url.Parse(opts.apiURL)
-		if err != nil {
-			setupLog.Error(err, "api-url must be a valid ngrok API URL")
-		}
-		ngrokClientConfig.BaseURL = u
-	}
-	setupLog.Info("configured API client", "base_url", ngrokClientConfig.BaseURL)
-
-	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
-	options := ctrl.Options{
-		Scheme: scheme,
-		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
-		},
-		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
-		LeaderElection:         opts.electionID != "",
-		LeaderElectionID:       opts.electionID,
-	}
-
-	if opts.ingressWatchNamespace != "" {
-		options.Cache = cache.Options{
-			DefaultNamespaces: map[string]cache.Config{
-				opts.ingressWatchNamespace: {},
-			},
-		}
-	}
-
-	// create default config and clientset for use outside the mgr.Start() blocking loop
-	k8sConfig := ctrl.GetConfigOrDie()
-	k8sClient, err := client.New(k8sConfig, client.Options{Scheme: scheme})
+	mgr, err := loadManager(ctx, k8sConfig, opts)
 	if err != nil {
-		return fmt.Errorf("unable to create k8s client: %w", err)
+		return fmt.Errorf("unable to load manager: %w", err)
 	}
+
+	if opts.oneClickDemoMode {
+		return runOneClickDemoMode(ctx, opts, k8sClient, mgr)
+	}
+
+	return runNormalMode(ctx, opts, k8sClient, mgr)
+}
+
+// runOneClickDemoMode runs the operator in a one-click demo mode, meaning:
+// - the operator will start even if required fields are missing
+// - the operator will log errors about missing required fields
+// - the operator will go Ready and log errors about registration state due to missing required fields
+func runOneClickDemoMode(ctx context.Context, opts managerOpts, k8sClient client.Client, mgr ctrl.Manager) error {
+	// register healthchecks
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		return fmt.Errorf("error setting up readyz check: %w", err)
+	}
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		return fmt.Errorf("error setting up health check: %w", err)
+	}
+
+	// start a ticker to print demo log messages
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		for {
+			select {
+			case <-ctx.Done():
+				break
+			case <-ticker.C:
+				setupLog.Error(errors.New("Running in one-click-demo mode"), "Ready even if required fields are missing!")
+				setupLog.Info("The ngrok-operator is running in one-click-demo mode which means the operator is not actually reconciling resources.")
+				setupLog.Info("Please provide ngrok API key and ngrok Authtoken in your Helm values to run the operator for real.")
+				setupLog.Info("Please set `oneClickDemoMode: false` in your Helm values to run the operator for real.")
+			}
+		}
+	}()
+
+	setupLog.Info("starting api-manager in one-click-demo mode")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		return fmt.Errorf("error starting api-manager: %w", err)
+	}
+
+	return nil
+}
+
+// runNormalMode runs the operator in normal operation mode
+func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Client, mgr ctrl.Manager) error {
+	ngrokClientset, err := loadNgrokClientset(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
+	}
+
 
 	// TODO(hkatz) for now we are hiding the k8sop API regstration behind the bindings feature flag
 	if opts.enableFeatureBindings {
+		// register the k8sop in the ngrok API
 		if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
 			return fmt.Errorf("unable to create KubernetesOperator: %w", err)
 		}
-	}
-
-	mgr, err := ctrl.NewManager(k8sConfig, options)
-	if err != nil {
-		return fmt.Errorf("unable to start api-manager: %w", err)
 	}
 
 	// k8sResourceDriver is the driver that will be used to interact with the k8s resources for all controllers
@@ -305,12 +331,67 @@ func runController(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("error setting up health check: %w", err)
 	}
 
-	setupLog.Info("starting api-manager")
+	setupLog.Info("starting api-manager in normal mode")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		return fmt.Errorf("error starting api-manager: %w", err)
 	}
 
 	return nil
+}
+
+// loadManager loads the controller-runtime manager with the provided options
+func loadManager(ctx context.Context, k8sConfig *rest.Config, opts managerOpts) (manager.Manager, error) {
+	options := ctrl.Options{
+		Scheme: scheme,
+		Metrics: server.Options{
+			BindAddress: opts.metricsAddr,
+		},
+		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
+		HealthProbeBindAddress: opts.probeAddr,
+		LeaderElection:         opts.electionID != "",
+		LeaderElectionID:       opts.electionID,
+	}
+
+	if opts.ingressWatchNamespace != "" {
+		options.Cache = cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				opts.ingressWatchNamespace: {},
+			},
+		}
+	}
+
+	mgr, err := ctrl.NewManager(k8sConfig, options)
+	if err != nil {
+		return nil, fmt.Errorf("unable to start api-manager: %w", err)
+	}
+
+	return mgr, nil
+}
+
+// loadNgrokClientset loads the ngrok API clientset from the environment and managerOpts
+func loadNgrokClientset(ctx context.Context, opts managerOpts) (ngrokapi.Clientset, error) {
+	var ok bool
+	opts.ngrokAPIKey, ok = os.LookupEnv("NGROK_API_KEY")
+	if !ok {
+		return nil, errors.New("NGROK_API_KEY environment variable should be set, but was not")
+	}
+
+	clientConfigOpts := []ngrok.ClientConfigOption{
+		ngrok.WithUserAgent(version.GetUserAgent()),
+	}
+
+	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
+	if opts.apiURL != "" {
+		u, err := url.Parse(opts.apiURL)
+		if err != nil {
+			setupLog.Error(err, "api-url must be a valid ngrok API URL")
+		}
+		ngrokClientConfig.BaseURL = u
+	}
+	setupLog.Info("configured API client", "base_url", ngrokClientConfig.BaseURL)
+
+	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
+	return ngrokClientset, nil
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.

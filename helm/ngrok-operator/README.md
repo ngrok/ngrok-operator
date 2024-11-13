@@ -35,13 +35,14 @@ To uninstall the chart:
 
 ### Common parameters
 
-| Name                | Description                                                        | Value                                     |
-| ------------------- | ------------------------------------------------------------------ | ----------------------------------------- |
-| `nameOverride`      | String to partially override generated resource names              | `""`                                      |
-| `fullnameOverride`  | String to fully override generated resource names                  | `""`                                      |
-| `description`       | ngrok-operator description that will appear in the ngrok dashboard | `The official ngrok Kubernetes Operator.` |
-| `commonLabels`      | Labels to add to all deployed objects                              | `{}`                                      |
-| `commonAnnotations` | Annotations to add to all deployed objects                         | `{}`                                      |
+| Name                | Description                                                                                                                    | Value                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `nameOverride`      | String to partially override generated resource names                                                                          | `""`                                      |
+| `fullnameOverride`  | String to fully override generated resource names                                                                              | `""`                                      |
+| `description`       | ngrok-operator description that will appear in the ngrok dashboard                                                             | `The official ngrok Kubernetes Operator.` |
+| `commonLabels`      | Labels to add to all deployed objects                                                                                          | `{}`                                      |
+| `commonAnnotations` | Annotations to add to all deployed objects                                                                                     | `{}`                                      |
+| `oneClickDemoMode`  | If true, then the operator will startup without required fields or API registration, become Ready, but not actually be running | `false`                                   |
 
 ### Image configuration
 
