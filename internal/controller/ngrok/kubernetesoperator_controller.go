@@ -31,7 +31,6 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"slices"
@@ -132,7 +131,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 
 	// Not found, so we'll create the KubernetesOperator
 	createParams := &ngrok.KubernetesOperatorCreate{
-		Metadata:        r.tryMergeMetadata(ctx, ko),
+		Metadata:        ko.Spec.Metadata,
 		Description:     ko.Spec.Description,
 		EnabledFeatures: calculateFeaturesEnabled(ko),
 		Region:          ko.Spec.Region,
@@ -181,6 +180,13 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1al
 	ngrokKo, err := r.NgrokClientset.KubernetesOperators().Get(ctx, ko.Status.ID)
 	if err != nil {
 		return r.updateStatus(ctx, ko, nil, err)
+	}
+
+	// confirm that the ngrokKo we recieve matches our given ko we're updating
+	// otherwise we need to create a new ngrokKo with the new information and ID
+	if !ngrokK8sopMatchesKubernetesOperator(ngrokKo, ko) {
+		log.V(3).Info("existing KubernetesOperator does not match, creating new k8sop")
+		return r.create(ctx, ko) // create will find or create
 	}
 
 	return r._update(ctx, ko, ngrokKo)
@@ -250,7 +256,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	updateParams := &ngrok.KubernetesOperatorUpdate{
 		ID:              ngrokKo.ID,
 		Description:     ptr.To(ko.Spec.Description),
-		Metadata:        ptr.To(r.tryMergeMetadata(ctx, ko)),
+		Metadata:        ptr.To(ko.Spec.Metadata),
 		EnabledFeatures: calculateFeaturesEnabled(ko),
 		Region:          ptr.To(ko.Spec.Region),
 	}
@@ -290,12 +296,6 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (*ngrok.KubernetesOperator, error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
-	if err != nil {
-		log.V(3).Error(err, "failed to get namespace UID")
-		return nil, nil
-	}
-
 	iter := r.NgrokClientset.KubernetesOperators().List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		item := iter.Item()
@@ -307,43 +307,9 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 		)
 
 		iterLogger.V(5).Info("checking if KubernetesOperator matches")
-
-		// TODO(hkatz) clusterId
-		// if item.Deployment.Cluster != ko.Spec.Deployment.Cluster {
-		// 	continue
-		// }
-
-		if item.Deployment.Name != ko.Spec.Deployment.Name {
+		if !ngrokK8sopMatchesKubernetesOperator(item, ko) {
+			iterLogger.V(5).Info("KubernetesOperator does not match")
 			continue
-		}
-
-		if item.Deployment.Namespace != ko.GetNamespace() {
-			continue
-		}
-
-		// bindings are enabled, check that the binding name matches
-		if slices.Contains(item.EnabledFeatures, featureMap[ngrokv1alpha1.KubernetesOperatorFeatureBindings]) {
-			if item.Binding.Name != ko.Spec.Binding.Name {
-				continue // possibly the same k8sop, but not the same binding
-			}
-		}
-
-		// In case the KubernetesOperator already exists in the ngrok API, check if it's the namespace
-		// UID is the same as the one we are trying to create. If it is, use the existing one since we
-		// get conflicts if we try to create a new one.
-		metadata := item.Metadata
-		if metadata != "" {
-			uid, err := extractNamespaceUIDFromMetadata(metadata)
-			// In case the metadata is not a JSON object or we can't extract it,
-			// we'll ignore it and continue our search
-			if err != nil || uid == "" || uid != string(namespaceUID) {
-				// namespace UID does not match, but deployment information do match
-				// warn the user that this is an unexpected case and their ngrok-operator
-				// will not be able to register with the API
-				iterLogger.Error(err, "Namespace UID mismatch between ngrok-operator deployment and ngrok API kubernetes_operators, operator will not register!", "expected", string(namespaceUID), "actual", uid)
-				r.Recorder.Event(ko, v1.EventTypeWarning, "NamespaceMismatch", "Namespace UID mismatch between ngrok-operator deployment and ngrok API kubernetes_operators, operator will not register!")
-				continue
-			}
 		}
 
 		iterLogger.V(3).Info("found matching KubernetesOperator", "id", item.ID)
@@ -352,6 +318,39 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 
 	log.V(3).Info("no matching KubernetesOperator found")
 	return nil, iter.Err()
+}
+
+// ngrokK8sopMatchesKubernetesOperator checks if the KubernetesOperator in the ngrok API matches the KubernetesOperator CRD
+func ngrokK8sopMatchesKubernetesOperator(k8sop *ngrok.KubernetesOperator, ko *ngrokv1alpha1.KubernetesOperator) bool {
+	if k8sop == nil || ko == nil {
+		return false
+	}
+
+	// TODO(hkatz) clusterId
+	// if item.Deployment.Cluster != ko.Spec.Deployment.Cluster {
+	// 	continue
+	// }
+
+	if k8sop.Deployment.Name != ko.Spec.Deployment.Name {
+		return false
+	}
+
+	if k8sop.Deployment.Namespace != ko.Spec.Deployment.Namespace {
+		return false
+	}
+
+	// bindings enabled on the CRD
+	if slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings) {
+		// bindings enabled in the API
+		if slices.Contains(k8sop.EnabledFeatures, featureMap[ngrokv1alpha1.KubernetesOperatorFeatureBindings]) {
+			// names must match
+			if k8sop.Binding.Name != ko.Spec.Binding.Name {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
@@ -442,52 +441,6 @@ func (r *KubernetesOperatorReconciler) updateTLSSecretCert(ctx context.Context, 
 	return r.Client.Patch(ctx, newSecret, client.MergeFrom(secret))
 }
 
-// Try merging the user-provided metadata in the KubernetesOperator spec with the namespace UID.
-// This is done to see if we can adopt an existing KubernetesOperator in the ngrok API going forward.
-// If there are any errors, the original metadata is returned.
-func (r *KubernetesOperatorReconciler) tryMergeMetadata(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) string {
-	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
-	if err != nil {
-		return ko.Spec.Metadata
-	}
-
-	metadata, err := mergeMetadata(ko.Spec.Metadata, namespaceUID)
-	if err != nil {
-		return ko.Spec.Metadata
-	}
-
-	return metadata
-}
-
-const UIDNamespaceMetadataKey = "namespace.uid"
-
-// mergeMetadata merges the UID of the namespace of the kubernetes operator with the metadata
-// provided by the user.
-func mergeMetadata(metadata string, namespaceUID string) (string, error) {
-	m := map[string]any{}
-	if err := json.Unmarshal([]byte(metadata), &m); err != nil {
-		return "", err
-	}
-	m[UIDNamespaceMetadataKey] = namespaceUID
-	metadataBytes, err := json.Marshal(m)
-	if err != nil {
-		return "", err
-	}
-	return string(metadataBytes), nil
-}
-
-func extractNamespaceUIDFromMetadata(metadata string) (string, error) {
-	m := map[string]any{}
-	if err := json.Unmarshal([]byte(metadata), &m); err != nil {
-		return "", err
-	}
-	uid, ok := m[UIDNamespaceMetadataKey].(string)
-	if !ok {
-		return "", nil
-	}
-	return uid, nil
-}
-
 // nolint:unused
 func generateCSR(privKey *ecdsa.PrivateKey) ([]byte, error) {
 	subj := pkix.Name{}
@@ -507,13 +460,4 @@ func generateCSR(privKey *ecdsa.PrivateKey) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
-}
-
-func getNamespaceUID(ctx context.Context, r client.Reader, namespace string) (string, error) {
-	ns := &v1.Namespace{}
-	err := r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: namespace}, ns)
-	if err != nil {
-		return "", err
-	}
-	return string(ns.UID), nil
 }
