@@ -1,68 +1,60 @@
-=== DEPRECATION ANNOUNCEMENT / ACTION REQUIRED =================================
+Thank you for installing the ngrok-operator!
 
-See Full Announcement: https://github.com/ngrok/ngrok-operator/discussions
+You've deployed the following features:
 
-On Wednesday September 11th, 2024 this Helm Chart will be renamed to ngrok/ngrok-operator.
+{{- /* Ingress */}}
+{{- if .Values.ingress.enabled }}
 
-If you take no action, then you will not receive future updates to the ingress controller.
+=== Ingress ==============================;======================================
 
-Please update your Helm repo with the following commands:
+You have enabled the Ingress featureset of the ngrok-operator.
+This allows you to expose `kind: Ingress` and `kind: Service` to the internet via the ngrok platform!
 
-    $ helm repo add ngrok charts.ngrok.com --force-update
-    $ helm repo update
-
-If you need additional help, please reach out to our support team at https://ngrok.com/support
-
-================================================================================
-The ngrok Ingress controller has been deployed as a Deployment type to your
-cluster.
-
-If you haven't yet, create some Ingress resources in your cluster and they will
-be automatically configured on the internet using ngrok.
-
-
-{{- $found := false }}
-{{- range $svcIndex, $service := (lookup "v1" "Service" "" "").items }}
-  {{- if not $found }}
-    {{- range $portMapIdx, $portMap := $service.spec.ports }}
-      {{- if eq $portMap.port 80 443 }}
-        {{- if ne $service.metadata.name "kubernetes" }}
-          {{- $found = true -}}
-          {{- $randomStr := randAlphaNum 8 | lower }}
-
-One example, taken from your cluster, is the Service:
-   {{ $service.metadata.name | quote }}
-
-You can make this accessible via ngrok with the following manifest:
---------------------------------------------------------------------------------
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ $service.metadata.name }}
-  namespace: {{ $service.metadata.namespace }}
-spec:
-  ingressClassName: ngrok
-  rules:
-  - host: {{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.app
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ $service.metadata.name }}
-            port:
-              number: {{ $portMap.port }}
---------------------------------------------------------------------------------
-Applying this manifest will make the service {{ $service.metadata.name | quote }}
-available on the public internet at "https://{{ $service.metadata.name -}}-{{- $randomStr -}}.ngrok.app/".
-        {{- end }}
-      {{- end }}
-    {{- end }}
-  {{- end}}
+{{ if .Values.ingress.ingressClass.create -}}
+Use IngressClass: `{{ .Values.ingress.ingressClass.name }}`
 {{- end }}
 
-Once done, view your edges in the Dashboard https://dashboard.ngrok.com/cloud-edge/edges
-Find the tunnels running in your cluster here https://dashboard.ngrok.com/tunnels/agents
+{{/* TODO(hkatz) Update this docs link */ -}}
+Check out the docs for the Ingress features at https://ngrok.com/docs/k8s/getting-started-kic/
 
-If you have any questions or feedback, please join us in https://ngrok.com/slack and let us know!
+{{- end }}
+
+{{- /* Gateway */}}
+{{- if .Values.gateway.enabled }}
+
+=== Gateway API ================================================================
+
+You have enabled the Gateway API featureset of the ngrok-operator.
+This allows you to manage `kind: GatewayClass`, `kind: Gateway`, and create `kind: HTTPRoute` to the internet via the ngrok platform!
+
+{{/* TODO(hkatz) Update this docs link */ -}}
+Check out the docs for the Gateway API features at https://ngrok.com/docs/k8s/getting-started-kic/
+
+{{- end }}
+
+{{- /* Bindings */}}
+{{- if .Values.bindings.enabled }}
+
+=== Bindings ===================================================================
+
+You have enabled the Kubernetes Bindings featureset of the ngrok-operator.
+This allows you to project `kind: Service` into your Namespaces from already existing Endpoints in the ngrok platform!
+
+Kubernetes Binding: `{{ .Values.bindings.name }}`
+> {{ .Values.bindings.description }}
+
+How to bind an endpoint to this ngrok-operator:
+
+    $ ngrok http 80 --binding {{ .Values.bindings.name }} --url http://example-service.example-namespace
+
+You are allowing projection of the following Endpoint URLs:
+{{- range .Values.bindings.allowedURLs}}
+- {{.}}
+{{- end}}
+
+{{/* TODO(hkatz) Update this docs link */ -}}
+Check out the docs for the Kubernetes Bindings features at https://ngrok.com/docs/k8s/getting-started-kic/
+
+{{- end }}
+
+If you have any questions or feedback please use our Github Issue tracker at https://github.com/ngrok/ngrok-operator/issues and let us know!
