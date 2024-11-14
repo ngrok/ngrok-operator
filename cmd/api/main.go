@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -259,6 +260,7 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
 	}
 
+	// TODO(hkatz) for now we are hiding the k8sop API regstration behind the bindings feature flag
 	if opts.enableFeatureBindings {
 		// register the k8sop in the ngrok API
 		if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
@@ -687,7 +689,12 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 		}
 		k8sOperator.Spec.EnabledFeatures = features
 
-		setupLog.Info("created KubernetesOperator", "name", k8sOperator.Name, "namespace", k8sOperator.Namespace, "op", fmt.Sprintf("%+v", k8sOperator.Spec.Binding))
+		if data, err := json.Marshal(k8sOperator); err == nil {
+			setupLog.Info("created KubernetesOperator", "name", k8sOperator.Name, "namespace", k8sOperator.Namespace, "op", string(data))
+		} else {
+			setupLog.Info("created KubernetesOperator", "name", k8sOperator.Name, "namespace", k8sOperator.Namespace, "op", fmt.Sprintf("%+v", k8sOperator))
+		}
+
 		return nil
 	})
 	return err
