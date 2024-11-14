@@ -115,8 +115,8 @@ changelog_next_version=$(cat <<EOF
 ## $to_version
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/$tag-$from_version...$tag-$to_version
 
-- Update app image version to \`$next_app_version\`
-- Update chart image version to \`$next_chart_version\`
+- Update ngrok-operator version to \`$next_app_version\`
+- Update Helm chart version to \`$next_chart_version\`
 
 <!-- remove empty sections -->
 <!-- PRs since last release: -->
