@@ -5,6 +5,16 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.16.0...helm-chart-0.16.1
+
+- Update ngrok-operator version to `0.13.4`
+- Update Helm chart version to `0.16.1`
+
+### Changed
+
+- Update NOTES.txt for new feature sets by @hjkatz <hjkatz03@gmail.com> in [#508](https://github.com/ngrok/ngrok-operator/pull/508)
+
 ## 0.16.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.16.0...helm-chart-0.15.0
 
