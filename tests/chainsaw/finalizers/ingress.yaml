@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minimal-ingress-https
+spec:
+  ingressClassName: ngrok
+  rules:
+  - host: foo.bar.com
+    http:
+      paths:
+      - path: /https-echo-plain
+        pathType: Prefix
+        backend:
+          service:
+            name: https-echo-svc
+            port:
+              number: 80
+      - path: /https-echo-tls
+        pathType: Prefix
+        backend:
+          service:
+            name: https-echo-svc
+            port:
+              number: 443

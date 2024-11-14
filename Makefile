@@ -277,3 +277,9 @@ helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
 
 helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuilding dependencies
 	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
+
+##@ Chainsaw
+
+.PHONY: chainsaw-tests
+chainsaw-tests: ## Run chainsaw tests
+	chainsaw test ./tests/chainsaw
