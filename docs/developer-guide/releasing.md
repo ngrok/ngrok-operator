@@ -11,6 +11,10 @@
 
 # Release Steps
 
+tl;dr Run: `$ make release`
+
+## Manual Steps
+
 Overview:
 1. Create a new branch like `release-ngrok-operator-<version>`
 1. Update versions and changelogs
