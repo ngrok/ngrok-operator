@@ -39,6 +39,7 @@ To uninstall the chart:
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
 | `nameOverride`      | String to partially override generated resource names                                                                          | `""`                                      |
 | `fullnameOverride`  | String to fully override generated resource names                                                                              | `""`                                      |
+| `clusterId`         | String to identify the kubernetes cluster in the ngrok dashboard (must be unique per Helm release per cluster)                 | `""`                                      |
 | `description`       | ngrok-operator description that will appear in the ngrok dashboard                                                             | `The official ngrok Kubernetes Operator.` |
 | `commonLabels`      | Labels to add to all deployed objects                                                                                          | `{}`                                      |
 | `commonAnnotations` | Annotations to add to all deployed objects                                                                                     | `{}`                                      |
