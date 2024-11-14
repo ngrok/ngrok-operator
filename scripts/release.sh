@@ -90,12 +90,12 @@ function gather_prs () {
     fi
 
     # format: <commit-sha> <commit-msg> ()<pr-number>)
-    git log --pretty=format:"%h %s" --merges --grep="Merge pull request" $1..$2 \
+    git log --pretty=format:"%h %s" --merges --grep="#\d+" $1..$2 \
       | while read line ; do
-            commit_sha=$(echo $line | awk '{print $1}') # first field
-            commit_msg=$(echo $line | awk '{$1=$NF=""; print }' | sed 's/^\ *//') # 2nd through 2nd-to-last fields, trim leading whitespace
-            pr_number=$(echo $line | awk '{print $NF}' | tr -d '()#') # last field, remove parens and hash
-            echo "- $commit_msg by @<gh-user> <$(git show -s --format='%an' $commit_sha)> in [#${pr_number}](https://github.com/ngrok/ngrok-operator/pull/${pr_number})"
+            commit_sha=$(echo "$line" | awk '{print $1}') # first field
+            commit_msg=$(echo "$line" | awk '{$1=""; if ($NF ~ /[(]#[0-9]+[)]/) {$NF=""} ; print }' | sed 's/^\s*//' | sed 's/\s*$//') # 2nd through 2nd-to-last fields, trim leading and trailing whitespace, remove trailing (#PR) field
+            pr_number=$(echo "$line" | grep -o -E '(\s|[(])#[0-9]+(\s|[)])' | tr -d ' ()#') # find the PR number, remove parens, spaces, and hash
+            echo "- $commit_msg by @<gh-user> <$(git show -s --format='%ae' $commit_sha)> in [#${pr_number}](https://github.com/ngrok/ngrok-operator/pull/${pr_number})"
     done
 }
 
