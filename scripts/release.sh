@@ -115,6 +115,9 @@ changelog_next_version=$(cat <<EOF
 ## $to_version
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/$tag-$from_version...$tag-$to_version
 
+- Update app image version to \`$next_app_version\`
+- Update chart image version to \`$next_chart_version\`
+
 <!-- remove empty sections -->
 <!-- PRs since last release: -->
 $prs_since_last_release
@@ -125,7 +128,6 @@ $prs_since_last_release
 
 ### Changed
 
-- Bump image version to \`$to_version\`
 - Update some feature by @<user> in [#PR](https://github.com/ngrok/ngrok-operator/pull/0000)
 
 ### Fixed
@@ -210,7 +212,7 @@ echo "" # formatting
 
 # files are updated, commit and share diff
 echo "Committing changes..."
-git add VERSION helm/ngrok-operator/Chart.yaml $app_changelog_path $chart_changelog_path
+git add . # all files
 git commit -m "Release ngrok-operator-$next_app_version helm-chart-$next_chart_version"
 echo "" # formatting
 echo "Please review the changes, then push the commit"
