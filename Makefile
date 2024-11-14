@@ -25,6 +25,8 @@ VERSION = $(shell cat VERSION)
 
 # Tools
 
+SCRIPT_DIR = ./scripts
+
 HELM_CHART_DIR = ./helm/ngrok-operator
 HELM_TEMPLATES_DIR = $(HELM_CHART_DIR)/templates
 
@@ -129,6 +131,10 @@ endif
 KUBE_NAMESPACE ?= ngrok-operator
 HELM_RELEASE_NAME ?= ngrok-operator
 KUBE_DEPLOYMENT_NAME ?= ngrok-operator-manager
+
+.PHONY: release
+release:
+	$(SCRIPT_DIR)/release.sh
 
 .PHONY: deploy
 deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
