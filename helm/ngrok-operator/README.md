@@ -1,6 +1,6 @@
-# ngrok Ingress Controller
+# ngrok Kubernetes Operator
 
-This is the helm chart to install the ngrok ingress controller
+This is the Helm chart to install official the ngrok Kubernetes Operator
 
 # Usage
 
@@ -10,21 +10,21 @@ The cluster Must be setup with a secret named `ngrok-operator-credentials` with 
 * AUTHTOKEN
 * API\_KEY
 
-## Install the controller with helm
+## Installation
 
-[Helm](https://helm.sh) must be installed to use the charts.  Please refer to
-Helm's [documentation](https://helm.sh/docs) to get started.
+[Helm](https://helm.sh) must be installed to use the charts.
+Please refer to Helm's [documentation](https://helm.sh/docs) to get started.
 
 Once Helm has been set up correctly, add the repo as follows:
 
 `helm repo add ngrok https://charts.ngrok.com`
 
-If you had already added this repo earlier, run `helm repo update` to retrieve
-the latest versions of the packages.  You can then run `helm search repo ngrok` to see the charts.
+If you had already added this repo earlier, run `helm repo update` to retrieve the latest versions of the packages.
+You can then run `helm search repo ngrok` to see the charts.
 
 To install the ngrok-operator chart:
 
-`helm install my-ngrok-operator ngrok/ngrok-operator`
+`helm install ngrok-operator ngrok/ngrok-operator`
 
 To uninstall the chart:
 
