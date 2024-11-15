@@ -12,7 +12,7 @@ Should match snapshot:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.13.4
-        helm.sh/chart: ngrok-operator-0.16.1
+        helm.sh/chart: ngrok-operator-0.16.2
       name: RELEASE-NAME-ngrok-operator-agent
       namespace: NAMESPACE
     spec:
