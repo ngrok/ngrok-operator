@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.5
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.4...ngrok-operator-0.13.5
+
+- Update ngrok-operator version to `0.13.5`
+- Update Helm chart version to `0.16.2`
+
+### Added
+
+- Sign ngrok-operator Helm chart with GPG key by @hjkatz <hjkatz03@gmail.com> in [#514](https://github.com/ngrok/ngrok-operator/pull/514)
+
+### Fixed
+
+- Update README.md with new rename by @<gh-user> <hjkatz03@gmail.com> in [#516](https://github.com/ngrok/ngrok-operator/pull/516)
+
 ## 0.13.4
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.3...ngrok-operator-0.13.4
 
