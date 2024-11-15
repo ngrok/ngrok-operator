@@ -53,6 +53,11 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
+      - name: Import GPG Key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --dearmor --output keyring.gpg
+          echo "${{ secrets.GPG_PASSWORD }}" > gpg-password.txt
+
       - name: Install Helm
         uses: azure/setup-helm@v3
         with:
@@ -67,6 +72,9 @@ jobs:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CR_RELEASE_NAME_TEMPLATE: "helm-chart-{{ .Version }}" # Publishes a new release. Ex: helm-chart-0.1.0
           CR_SKIP_EXISTING: "true"
-          CR_GIT_REPO: "helm-charts" # https://github.com/ngrok/helm-charts
+          CR_KEY: FE3A2438526F6AC3ABDBC474A3DF63AE5999A2E2 # ngrok-operator gpg key fingerprint
+          CR_KEYRING: keyring.gpg
+          CR_PASSPHRASE_FILE: gpg-password.txt
+          CR_SIGN: true
         with:
           charts_dir: helm
