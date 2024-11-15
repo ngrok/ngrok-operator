@@ -162,7 +162,7 @@ jobs:
 
     - name: Run e2e tests
       run: |
-        make chainsaw-tests
+        make e2e-tests
 
   helm:
     runs-on: ubuntu-latest
