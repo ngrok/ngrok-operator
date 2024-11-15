@@ -1,3 +1,4 @@
+<!-- primary links -->
 <p>
   <a href="https://ngrok.com">
     <img src="docs/assets/images/ngrok-blue-lrg.png" alt="ngrok Logo" width="300" url="https://ngrok.com" />
@@ -7,6 +8,7 @@
   </a>
 </p>
 
+<!-- badges -->
 <p>
   <a href="https://github.com/ngrok/ngrok-operator/actions?query=branch%3Amain+event%3Apush">
       <img src="https://github.com/ngrok/ngrok-operator/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
@@ -25,6 +27,9 @@
   </a>
   <a href="https://twitter.com/intent/follow?screen_name=ngrokHQ">
     <img src="https://img.shields.io/twitter/follow/ngrokHQ.svg?style=social&label=Follow" alt="Twitter"/>
+  </a>
+  <a href="https://artifacthub.io/packages/search?repo=ngrok&operators=true&sort=relevance&page=1">
+    <img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/ngrok" alt="Artifacthub"/>
   </a>
 </p>
 
