@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.6
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.5...ngrok-operator-0.13.6
+
+- Update ngrok-operator version to `0.13.6`
+- Update Helm chart version to `0.16.3`
+
+### Changed
+
+- Updated GPG Key
+
 ## 0.13.5
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.4...ngrok-operator-0.13.5
 
