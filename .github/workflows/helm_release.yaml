@@ -17,7 +17,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    # TODO(operator-rename): Change this to ngrok/ngrok-operator when we are ready to release the helm chart
     if: github.repository == 'ngrok/ngrok-operator'
     steps:
       - name: Checkout repo
@@ -37,7 +36,6 @@ jobs:
     permissions:
       contents: write # need to write releases
     needs: [changes]
-    # TODO(operator-rename): Change this to ngrok/ngrok-operator when we are ready to release the helm chart
     if: |
       (github.repository == 'ngrok/ngrok-operator') &&
       (needs.changes.outputs.charts == 'true')
@@ -72,7 +70,7 @@ jobs:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CR_RELEASE_NAME_TEMPLATE: "helm-chart-{{ .Version }}" # Publishes a new release. Ex: helm-chart-0.1.0
           CR_SKIP_EXISTING: "true"
-          CR_KEY: 49F2349C462C7EFFE6D74B52594A5C7ABD5A7A8A # ngrok-operator gpg key fingerprint
+          CR_KEY: "Team Eng Infra (ngrok.com) (Key for signing ngrok-operator Helm chart) <team-infra@ngrok.com>" # full key name
           CR_KEYRING: keyring.gpg
           CR_PASSPHRASE_FILE: gpg-password.txt
           CR_SIGN: true
