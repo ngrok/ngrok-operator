@@ -72,7 +72,7 @@ jobs:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CR_RELEASE_NAME_TEMPLATE: "helm-chart-{{ .Version }}" # Publishes a new release. Ex: helm-chart-0.1.0
           CR_SKIP_EXISTING: "true"
-          CR_KEY: FE3A2438526F6AC3ABDBC474A3DF63AE5999A2E2 # ngrok-operator gpg key fingerprint
+          CR_KEY: 49F2349C462C7EFFE6D74B52594A5C7ABD5A7A8A # ngrok-operator gpg key fingerprint
           CR_KEYRING: keyring.gpg
           CR_PASSPHRASE_FILE: gpg-password.txt
           CR_SIGN: true
