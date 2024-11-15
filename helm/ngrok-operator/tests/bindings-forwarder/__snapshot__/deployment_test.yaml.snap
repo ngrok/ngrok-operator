@@ -11,8 +11,8 @@ Should match snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.13.6
-        helm.sh/chart: ngrok-operator-0.16.3
+        app.kubernetes.io/version: 0.13.7
+        helm.sh/chart: ngrok-operator-0.16.4
       name: RELEASE-NAME-ngrok-operator-bindings-forwarder
       namespace: NAMESPACE
     spec:
@@ -73,7 +73,7 @@ Should match snapshot:
                   value: RELEASE-NAME
                 - name: SSL_CERT_DIR
                   value: /etc/ssl/certs/ngrok
-              image: docker.io/ngrok/ngrok-operator:0.13.6
+              image: docker.io/ngrok/ngrok-operator:0.13.7
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
