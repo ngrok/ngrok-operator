@@ -30,6 +30,7 @@ import (
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -48,6 +49,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v6/api_keys"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -251,8 +253,6 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
 	}
 
-
-	// TODO(hkatz) for now we are hiding the k8sop API regstration behind the bindings feature flag
 	if opts.enableFeatureBindings {
 		// register the k8sop in the ngrok API
 		if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
@@ -389,6 +389,16 @@ func loadNgrokClientset(ctx context.Context, opts managerOpts) (ngrokapi.Clients
 		ngrokClientConfig.BaseURL = u
 	}
 	setupLog.Info("configured API client", "base_url", ngrokClientConfig.BaseURL)
+
+	// validate the API key and Authtoken works with ngrok API
+	// by making a dummy request to list API keys
+	// and checking for errors
+	cApiKeys := api_keys.NewClient(ngrokClientConfig)
+	cIter := cApiKeys.List(&ngrok.Paging{Limit: ptr.To("1")})
+	cIter.Next(ctx)
+	if cIter.Err() != nil {
+		return nil, fmt.Errorf("Unable to verify API Key: %w", cIter.Err())
+	}
 
 	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
 	return ngrokClientset, nil
