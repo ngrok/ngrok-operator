@@ -180,10 +180,9 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 			}
 		}),
 	)
-	//nolint:errcheck
-	go ngrok.Connect(ctx, connOpts...)
+	_, err := ngrok.Connect(ctx, connOpts...)
 
-	return td, nil
+	return td, err
 }
 
 // Ready implements the healthcheck.HealthChecker interface for when the TunnelDriver is ready to serve tunnels
