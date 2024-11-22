@@ -18,6 +18,8 @@ jobs:
       chartyaml: ${{ steps.filter.outputs.chartyaml }}
       go: ${{ steps.filter.outputs.go }}
       tag: ${{ steps.filter.outputs.tag }}
+      tests: ${{ steps.filter.outputs.tests }}
+      make: ${{ steps.filter.outputs.make }}
     permissions:
       contents: read
       pull-requests: read
