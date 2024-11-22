@@ -146,7 +146,15 @@ jobs:
       run: make docker-build
 
     - name: Deploy controller to local cluster
-      run: make deploy NGROK_API_KEY=fake-ci-key NGROK_AUTHTOKEN=fake-ci-token
+      run: |
+        # create some namespaces for bindings tests
+        kubectl create ns e2e || true
+
+        # deploy ngrok-op for e2e tests
+        make deploy_for_e2e \
+          NGROK_API_KEY="{{ secrets.NGROK_CI_API_KEY }}" \
+          NGROK_AUTHTOKEN="{{ secrets.NGROK_CI_AUTHTOKEN }}" \
+          E2E_BINDING_NAME="e2e-{{ env.GITHUB_RUN_ID }}" \
 
     - name: Check if controller is up
       run: |
