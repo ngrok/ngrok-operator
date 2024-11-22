@@ -207,7 +207,7 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set bindings.enabled=true \
 		--set bindings.name=$(E2E_BINDING_NAME) \
 		--set bindings.description="Example binding for CI e2e tests" \
-		--set bindings.allowedURLs="{*.e2e}" \
+		--set bindings.allowedURLs='{*.e2e}' \
 		--set bindings.serviceAnnotations.annotation1="val1" \
 		--set bindings.serviceAnnotations.annotation2="val2" \
 		--set bindings.serviceLabels.label1="val1"
