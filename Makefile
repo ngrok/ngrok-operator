@@ -304,3 +304,11 @@ helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuild
 .PHONY: e2e-tests
 e2e-tests: ## Run e2e tests
 	chainsaw test ./tests/chainsaw
+
+.PHONY: e2e-clean
+e2e-clean: ## Clean up e2e tests
+	kubectl delete ns e2e
+	kubectl delete --all boundendpoints -n ngrok-operator
+	kubectl delete --all services -n ngrok-operator
+	kubectl delete --all kubernetesoperators -n ngrok-operator
+	helm uninstall ngrok-operator
