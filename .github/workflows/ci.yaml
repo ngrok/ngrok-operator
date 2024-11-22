@@ -158,8 +158,8 @@ jobs:
 
     - name: Deploy controller to local cluster
       env:
-        NGROK_API_KEY: ${{ secrets.NGROK_CI_API_KEY }}
-        NGROK_AUTHTOKEN: ${{ secrets.NGROK_CI_AUTHTOKEN }}
+        NGROK_API_KEY: ${{ github.repository == 'ngrok/ngrok-operator' && secrets.NGROK_CI_API_KEY || 'fake-api-key' }}
+        NGROK_AUTHTOKEN: ${{ github.repository == 'ngrok/ngrok-operator' && secrets.NGROK_CI_AUTHTOKEN || 'fake-authtoken' }}
         E2E_BINDING_NAME: k8s/e2e-${{ env.GITHUB_RUN_ID }}
       run: |
         # create some namespaces for bindings tests
