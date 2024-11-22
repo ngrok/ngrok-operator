@@ -181,7 +181,7 @@ jobs:
         verify: true
 
     - name: Run e2e tests
-      if: "github.repository == 'ngrok/ngrok-operator'"
+      if: github.repository == 'ngrok/ngrok-operator'
       run: |
         make e2e-tests
 
