@@ -45,6 +45,8 @@ jobs:
             - 'VERSION'
           tests:
             - 'test/**'
+          make:
+            - 'Makefile'
           tag:
             - 'VERSION'
 

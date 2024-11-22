@@ -1,4 +1,3 @@
-
 # Image URL to use all building/pushing image targets
 IMG ?= ngrok-operator
 
