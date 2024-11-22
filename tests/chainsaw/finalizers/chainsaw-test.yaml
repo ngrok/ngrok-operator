@@ -4,7 +4,7 @@ kind: Test
 metadata:
   name: finalizers
 spec:
-  steps: 
+  steps:
   - name: create an ingress
     try:
     - create:

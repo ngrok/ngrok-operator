@@ -4,7 +4,7 @@ kind: Test
 metadata:
   name: sanity-checks
 spec:
-  steps: 
+  steps:
   - name: check ingress class exists
     try:
     - assert:
