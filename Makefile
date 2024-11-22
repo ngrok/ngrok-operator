@@ -210,7 +210,7 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set bindings.allowedURLs="{*.e2e}" \
 		--set bindings.serviceAnnotations.annotation1="val1" \
 		--set bindings.serviceAnnotations.annotation2="val2" \
-		--set bindings.serviceLabels.label1="val1" \
+		--set bindings.serviceLabels.label1="val1"
 
 .PHONY: _deploy-check-env-vars
 _deploy-check-env-vars:

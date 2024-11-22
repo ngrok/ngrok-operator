@@ -163,7 +163,7 @@ jobs:
         make deploy_for_e2e \
           NGROK_API_KEY="{{ secrets.NGROK_CI_API_KEY }}" \
           NGROK_AUTHTOKEN="{{ secrets.NGROK_CI_AUTHTOKEN }}" \
-          E2E_BINDING_NAME="e2e-{{ env.GITHUB_RUN_ID }}" \
+          E2E_BINDING_NAME="k8s/e2e-{{ env.GITHUB_RUN_ID }}" \
 
     - name: Check if controller is up
       run: |
