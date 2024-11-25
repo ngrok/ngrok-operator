@@ -12,6 +12,7 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - uses: actions/checkout@v3
     - id: filter
       uses: dorny/paths-filter@v2.11.1
       with:
