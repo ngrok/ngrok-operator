@@ -31,6 +31,11 @@ HELM_TEMPLATES_DIR = $(HELM_CHART_DIR)/templates
 
 CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/...}
 
+# Default Environment Variables
+
+# when true, deploy with --set oneClickDemoMode=true
+DEPLOY_ONE_CLICK_DEMO_MODE ?= false
+
 # Targets
 
 .PHONY: all
@@ -194,6 +199,7 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
+		--set oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
