@@ -198,7 +198,7 @@ func file_agent_conn_header_proto_init() {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_agent_conn_header_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_conn_header_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} { //nolint:staticcheck
 			switch v := v.(*ConnRequest); i {
 			case 0:
 				return &v.state
@@ -210,7 +210,7 @@ func file_agent_conn_header_proto_init() {
 				return nil
 			}
 		}
-		file_agent_conn_header_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_conn_header_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} { //nolint:staticcheck
 			switch v := v.(*ConnResponse); i {
 			case 0:
 				return &v.state
