@@ -82,6 +82,18 @@ jobs:
     - run: git diff --exit-code go.mod
     - run: git diff --exit-code go.sum
 
+  echo:
+    runs-on: ubuntu-latest
+    needs: [changes]
+    steps:
+    - uses: actions/checkout@v3
+    - run: |
+        echo "go: ${{ needs.changes.outputs.go }}"
+        echo "charts: ${{ needs.changes.outputs.charts }}"
+        echo "chartyaml: ${{ needs.changes.outputs.chartyaml }}"
+        echo "tests: ${{ needs.changes.outputs.tests }}"
+        echo "make: ${{ needs.changes.outputs.make }}"
+
   build-and-test:
     runs-on: ubuntu-latest
     needs:
