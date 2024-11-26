@@ -60,7 +60,7 @@ runs:
       shell: bash
       env:
         # deploy with 1-click demo mode when not running e2e tests
-        DEPLOY_ONE_CLICK_DEMO_MODE: ${{ inputs.run-e2e &&  'false' || 'true' }}
+        DEPLOY_ONE_CLICK_DEMO_MODE: ${{ inputs.run-e2e == 'true' &&  'false' || 'true' }}
         NGROK_API_KEY: ${{ inputs.ngrok-api-key }}
         NGROK_AUTHTOKEN: ${{ inputs.ngrok-authtoken }}
         E2E_BINDING_NAME: k8s/e2e-${{ github.run_id }}
@@ -78,17 +78,17 @@ runs:
         kubectl get pods -A
 
     - name: Install cosign
-      if: inputs.run-e2e
+      if: ${{ inputs.run-e2e == 'true' }}
       uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
     - name: Install chainsaw
-      if: inputs.run-e2e
+      if: ${{ inputs.run-e2e == 'true' }}
       uses: kyverno/action-install-chainsaw@d311eacde764f806c9658574ff64c9c3b21f8397 # v0.2.11
       with:
         verify: true
 
     - name: Run e2e tests
       shell: bash
-      if: inputs.run-e2e
+      if: ${{ inputs.run-e2e == 'true' }}
       run: |
         make e2e-tests
 
@@ -97,6 +97,6 @@ runs:
     # that hopefully helps not pollute our ngrok-operator-ci account
     - name: Cleanup e2e tests
       shell: bash
-      if: inputs.run-e2e
+      if: ${{ inputs.run-e2e == 'true' }}
       run: |
         make e2e-clean
