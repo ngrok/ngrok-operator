@@ -40,3 +40,5 @@ jobs:
       with:
         run-e2e: true
         go-version: ${{ env.GO_VERSION }}
+        ngrok-api-key: ${{ secrets.NGROK_CI_API_KEY }}
+        ngrok-authtoken: ${{ secrets.NGROK_CI_AUTHTOKEN }}
