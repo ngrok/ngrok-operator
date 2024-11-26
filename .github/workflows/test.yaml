@@ -15,6 +15,13 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    outputs:
+      charts: ${{ steps.changes.outputs.charts }}
+      chartyaml: ${{ steps.changes.outputs.chartyaml }}
+      go: ${{ steps.changes.outputs.go }}
+      tag: ${{ steps.changes.outputs.tag }}
+      tests: ${{ steps.changes.outputs.tests }}
+      make: ${{ steps.changes.outputs.make }}
     steps:
     - uses: actions/checkout@v3
     - uses: "./.github/actions/changes"
