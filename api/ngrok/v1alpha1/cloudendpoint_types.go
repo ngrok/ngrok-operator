@@ -30,28 +30,45 @@ import (
 
 // CloudEndpointSpec defines the desired state of CloudEndpoint
 type CloudEndpointSpec struct {
-	// The unique URL for this cloud endpoint. This URL is the public address
+	// The unique URL for this cloud endpoint. This URL is the public address. The following formats are accepted
+	// Domain - example.org
+	//     When using the domain format you are only defining the domain. The scheme and port will be inferred.
+	// Origin - https://example.ngrok.app or https://example.ngrok.app:443 or tcp://1.tcp.ngrok.io:12345 or tls://example.ngrok.app
+	//     When using the origin format you are defining the protocol, domain and port. HTTP endpoints accept ports 80 or 443 with respective protocol.
+	// Scheme (shorthand) - https:// or tcp:// or tls:// or http://
+	//     When using scheme you are defining the protocol and will receive back a randomly assigned ngrok address.
+	// Empty - ``
+	//     When empty your endpoint will default to be https and receive back a randomly assigned ngrok address.
+	// Internal - some.domain.internal
+	//     When ending your url with .internal, an internal endpoint will be created. nternal Endpoints cannot be accessed directly, but rather
+	//     can only be accessed using the forward-internal traffic policy action.
+	//
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 
-	// TrafficPolicyRef is a reference to the TrafficPolicy resource to attach to the Cloud Endpoint
+	// Reference to the TrafficPolicy resource to attach to the Cloud Endpoint
+	//
 	// +kubebuilder:validation:Optional
 	TrafficPolicyName string `json:"trafficPolicyName,omitempty"`
 
-	// TrafficPolicy allows inline definition of a TrafficPolicy object
+	// Allows inline definition of a TrafficPolicy object
+	//
 	// +kubebuilder:validation:Optional
 	TrafficPolicy *NgrokTrafficPolicySpec `json:"trafficPolicy,omitempty"`
 
-	// Description is a human-readable description of this cloud endpoint
+	// Human-readable description of this cloud endpoint
+	//
 	// +kubebuilder:default:=`Created by the ngrok-operator`
 	Description string `json:"description,omitempty"`
 
-	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
+	// String of arbitrary data associated with the object in the ngrok API/Dashboard
+	//
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
 	Metadata string `json:"metadata,omitempty"`
 
 	// Bindings is the list of Binding IDs to associate with the endpoint
 	// Accepted values are "public", "internal", or strings matching the pattern "k8s/*"
+	//
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Items=pattern=`^(public|internal|k8s/.*)$`
 	Bindings []string `json:"bindings,omitempty"`
@@ -63,13 +80,16 @@ type CloudEndpointStatus struct {
 	ID string `json:"id,omitempty"`
 }
 
+// CloudEndpoint is the Schema for the cloudendpoints API
+//
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:categories="networking";"ngrok"
+// +kubebuilder:resource:shortName=cep
 // +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".spec.url"
 // +kubebuilder:printcolumn:name="Traffic Policy",type="string",JSONPath=".spec.trafficPolicyName"
 // +kubebuilder:printcolumn:name="Bindings",type="string",JSONPath=".spec.bindings"
-
-// CloudEndpoint is the Schema for the cloudendpoints API
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type CloudEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -78,9 +98,9 @@ type CloudEndpoint struct {
 	Status CloudEndpointStatus `json:"status,omitempty"`
 }
 
-// +kubebuilder:object:root=true
-
 // CloudEndpointList contains a list of CloudEndpoint
+//
+// +kubebuilder:object:root=true
 type CloudEndpointList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
