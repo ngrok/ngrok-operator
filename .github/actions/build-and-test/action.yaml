@@ -5,11 +5,10 @@ inputs:
   run-e2e:
     description: "Run e2e tests"
     required: false
-    default: false
+    default: "false"
   go-version:
     description: "Go version to use"
-    required: false
-    default: "${{ env.GO_VERSION }}"
+    required: true
 
 runs:
   using: "composite"
