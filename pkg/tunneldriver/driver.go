@@ -261,8 +261,14 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingr
 	log := log.FromContext(ctx)
 
 	if tun, ok := td.tunnels[name]; ok {
-		if maps.Equal(tun.Labels(), spec.Labels) {
-			log.Info("Tunnel labels match existing tunnel, doing nothing")
+		// Check if the tunnel matches the spec
+		var appProto string
+		if fwdProto, ok := tun.(interface{ ForwardsProto() string }); ok {
+			appProto = fwdProto.ForwardsProto()
+		}
+
+		if maps.Equal(tun.Labels(), spec.Labels) && tun.ForwardsTo() == spec.ForwardsTo && appProto == spec.AppProtocol {
+			log.Info("Tunnel already exists and matches spec")
 			return nil
 		}
 		// There is already a tunnel with this name, start the new one and defer closing the old one
