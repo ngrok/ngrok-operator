@@ -12,7 +12,7 @@ spec:
     listKind: CloudEndpointList
     plural: cloudendpoints
     shortNames:
-    - cep
+    - clep
     singular: cloudendpoint
   scope: Namespaced
   versions:

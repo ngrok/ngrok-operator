@@ -85,7 +85,7 @@ type CloudEndpointStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:categories="networking";"ngrok"
-// +kubebuilder:resource:shortName=cep
+// +kubebuilder:resource:shortName=clep
 // +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".spec.url"
 // +kubebuilder:printcolumn:name="Traffic Policy",type="string",JSONPath=".spec.trafficPolicyName"
 // +kubebuilder:printcolumn:name="Bindings",type="string",JSONPath=".spec.bindings"
