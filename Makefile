@@ -1,4 +1,3 @@
-
 # Image URL to use all building/pushing image targets
 IMG ?= ngrok-operator
 
@@ -31,6 +30,11 @@ HELM_CHART_DIR = ./helm/ngrok-operator
 HELM_TEMPLATES_DIR = $(HELM_CHART_DIR)/templates
 
 CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/...}
+
+# Default Environment Variables
+
+# when true, deploy with --set oneClickDemoMode=true
+DEPLOY_ONE_CLICK_DEMO_MODE ?= false
 
 # Targets
 
@@ -190,6 +194,29 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		&&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
+.PHONY: deploy_for_e2e
+deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+		--namespace $(KUBE_NAMESPACE) \
+		--create-namespace \
+		--set oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
+		--set image.repository=$(IMG) \
+		--set image.tag="latest" \
+		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
+		--set credentials.apiKey=$(NGROK_API_KEY) \
+		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set log.format=console \
+		--set log.level=debug \
+		--set log.stacktraceLevel=panic \
+		--set metaData.env=local,metaData.from=makefile \
+		--set bindings.enabled=true \
+		--set bindings.name=$(E2E_BINDING_NAME) \
+		--set bindings.description="Example binding for CI e2e tests" \
+		--set bindings.allowedURLs='{*.e2e}' \
+		--set bindings.serviceAnnotations.annotation1="val1" \
+		--set bindings.serviceAnnotations.annotation2="val2" \
+		--set bindings.serviceLabels.label1="val1"
+
 .PHONY: _deploy-check-env-vars
 _deploy-check-env-vars:
 ifndef NGROK_API_KEY
@@ -277,3 +304,17 @@ helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
 
 helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuilding dependencies
 	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
+
+##@ E2E tests
+
+.PHONY: e2e-tests
+e2e-tests: ## Run e2e tests
+	chainsaw test ./tests/chainsaw
+
+.PHONY: e2e-clean
+e2e-clean: ## Clean up e2e tests
+	kubectl delete ns e2e
+	kubectl delete --all boundendpoints -n ngrok-operator
+	kubectl delete --all services -n ngrok-operator
+	kubectl delete --all kubernetesoperators -n ngrok-operator
+	helm uninstall ngrok-operator

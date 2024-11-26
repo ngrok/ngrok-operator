@@ -1,0 +1,6 @@
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: ngrok
+spec:
+  controller: k8s.ngrok.com/ingress-controller

@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: sanity-checks
+spec:
+  steps:
+  - name: check ingress class exists
+    try:
+    - assert:
+        file: ./ingress-class.yaml
+  - name: check credentials exist
+    try:
+    - assert:
+        file: ./ngrok-operator-credentials.yaml
+  - name: check operator manager config
+    try:
+    - assert:
+        file: ./ngrok-operator-manager-config.yaml
+  - name: check operator pods are running
+    try:
+    - assert:
+        file: ./operator-pod.yaml
+  - name: check agent pods are running
+    try:
+    - assert:
+        file: ./agent-pod.yaml

@@ -1,0 +1,52 @@
+name: Action - Changes
+description: "Detect changes in the repository"
+
+outputs:
+  charts:
+    description: "If any part of Helm charts have changed"
+    value: ${{ steps.filter.outputs.charts }}
+  chartyaml:
+    description: "If the Helm Chart.yaml has changed"
+    value: ${{ steps.filter.outputs.chartyaml }}
+  go:
+    description: "If the go (build) files have changed"
+    value: ${{ steps.filter.outputs.go }}
+  tag:
+    description: "If the tag (VERSION) has changed"
+    value: ${{ steps.filter.outputs.tag }}
+  tests:
+    description: "If the tests have changed"
+    value: ${{ steps.filter.outputs.tests }}
+  make:
+    description: "If the Makefile has changed"
+    value: ${{ steps.filter.outputs.make }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: filter
+      id: filter
+      uses: dorny/paths-filter@v2.11.1
+      with:
+        filters: |
+          chartyaml:
+            - 'helm/ngrok-operator/Chart.yaml'
+          charts:
+            - 'helm/ngrok-operator/**'
+            - 'scripts/e2e.sh'
+          go:
+            - '**.go'
+            - 'go.mod'
+            - 'go.sum'
+            - 'cmd/**'
+            - 'internal/**'
+            - 'pkg/**'
+            - 'Dockerfile'
+            - 'scripts/e2e.sh'
+            - 'VERSION'
+          tests:
+            - 'test/**'
+          make:
+            - 'Makefile'
+          tag:
+            - 'VERSION'

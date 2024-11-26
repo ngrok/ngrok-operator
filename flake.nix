@@ -19,6 +19,7 @@
           kubebuilder
           jq
           yq
+          kyverno-chainsaw
         ];
       };
     }));

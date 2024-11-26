@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: finalizers
+spec:
+  steps:
+  - name: create an ingress
+    try:
+    - create:
+        file: ./ingress.yaml
+  - name: verify finalizers
+    try:
+    - assert:
+        resource:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: minimal-ingress-https
+            finalizers:
+            - k8s.ngrok.com/finalizer
