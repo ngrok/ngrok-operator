@@ -36,8 +36,8 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:categories="networking";"ngrok"
 // +kubebuilder:resource:shortName=aep
-// +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".status.assignedURL"
-// +kubebuilder:printcolumn:name="Traffic Policy",type="string",JSONPath=".status.trafficPolicy"
+// +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".spec.url"
+// +kubebuilder:printcolumn:name="Upstream URL",type="string",JSONPath=".spec.upstream.url"
 // +kubebuilder:printcolumn:name="Bindings",type="string",JSONPath=".spec.bindings"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type=='Status')].status"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
@@ -47,6 +47,81 @@ type AgentEndpoint struct {
 
 	Spec AgentEndpointSpec `json:"spec,omitempty"`
 	// Status AgentEndpointStatus `json:"status,omitempty"` Status subresource not yet supported
+}
+
+type UpstreamProtocol string
+
+const (
+	UpstreamProtocol_HTTP1 UpstreamProtocol = "http1"
+	UpstreamProtocol_HTTP2 UpstreamProtocol = "http2"
+)
+
+func (t UpstreamProtocol) IsKnown() bool {
+	switch t {
+	case UpstreamProtocol_HTTP1, UpstreamProtocol_HTTP2:
+		return true
+	default:
+		return false
+	}
+}
+
+type ProxyProtocolVersion string
+
+const (
+	ProxyProtocolVersion_1 ProxyProtocolVersion = "1"
+	ProxyProtocolVersion_2 ProxyProtocolVersion = "2"
+)
+
+func (t ProxyProtocolVersion) IsKnown() bool {
+	switch t {
+	case ProxyProtocolVersion_1, ProxyProtocolVersion_2:
+		return true
+	default:
+		return false
+	}
+}
+
+type EndpointUpstream struct {
+	// The local or remote address you would like to incoming traffic to be forwarded to. Accepted formats are:
+	// Origin - https://example.org or http://example.org:80 or tcp://127.0.0.1:80
+	//     When using the origin format you are defining the protocol, domain and port.
+	//         When no port is present and scheme is https or http the port will be inferred.
+	//             For https port will be443.
+	//             For http port will be 80.
+	// Domain - example.org
+	//     This is only allowed for https and http endpoints.
+	//         For tcp and tls endpoints host and port is required.
+	//     When using the domain format you are only defining the host.
+	//         Scheme will default to http.
+	//         Port will default to 80.
+	// Scheme (shorthand) - https://
+	//     This only works for https and http.
+	//         For tcp and tls host and port is required.
+	//     When using scheme you are defining the protocol and the port will be inferred on the local host.
+	//         For https port will be443.
+	//         For http port will be 80.
+	//         Host will be localhost.
+	// Port (shorthand) - 8080
+	//     When using port you are defining the port on the local host that will receive traffic.
+	//         Scheme will default to http.
+	//         Host will default to localhost.
+	//
+	// +kubebuilder:validation:Required
+	URL string `json:"url"`
+
+	// Specifies the protocol to use when connecting to the upstream. Currently only http1 and http2 are supported
+	// with prior knowledge (defaulting to http1). alpn negotiation is not currently supported.
+	//
+	// +kubebuilder:validation:Enum=http1;http2
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=http1
+	Protocol UpstreamProtocol `json:"protocol"`
+
+	// Optionally specify the version of proxy protocol to use if the upstream requires it
+	//
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=1;2
+	ProxyProtocolVersion *ProxyProtocolVersion `json:"proxyProtocolVersion"`
 }
 
 // AgentEndpointSpec defines the desired state of an AgentEndpoint
@@ -67,6 +142,11 @@ type AgentEndpointSpec struct {
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 
+	// Defines the destination for traffic to this AgentEndpoint
+	//
+	// +kubebuilder:validation:Required
+	Upstream EndpointUpstream `json:"upstream"`
+
 	// Allows configuring a TrafficPolicy to be used with this AgentEndpoint
 	//
 	// +kubebuilder:validation:Optional
@@ -74,12 +154,12 @@ type AgentEndpointSpec struct {
 
 	// Human-readable description of this agent endpoint
 	//
-	// +kubebuilder:default:=`Created by the ngrok-operator`
+	// +kubebuilder:default=`Created by the ngrok-operator`
 	Description string `json:"description,omitempty"`
 
 	// String of arbitrary data associated with the object in the ngrok API/Dashboard
 	//
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
+	// +kubebuilder:default=`{"owned-by":"ngrok-operator"}`
 	Metadata string `json:"metadata,omitempty"`
 
 	// List of Binding IDs to associate with the endpoint

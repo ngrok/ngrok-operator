@@ -17,11 +17,11 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.assignedURL
+    - jsonPath: .spec.url
       name: URL
       type: string
-    - jsonPath: .status.trafficPolicy
-      name: Traffic Policy
+    - jsonPath: .spec.upstream.url
+      name: Upstream URL
       type: string
     - jsonPath: .spec.bindings
       name: Bindings
@@ -112,6 +112,55 @@ spec:
                     must not be set.
                   rule: 'self.type == ''targetRef'' ? has(self.targetRef) && !has(self.inline)
                     : true'
+              upstream:
+                description: Defines the destination for traffic to this AgentEndpoint
+                properties:
+                  protocol:
+                    default: http1
+                    description: |-
+                      Specifies the protocol to use when connecting to the upstream. Currently only http1 and http2 are supported
+                      with prior knowledge (defaulting to http1). alpn negotiation is not currently supported.
+                    enum:
+                    - http1
+                    - http2
+                    type: string
+                  proxyProtocolVersion:
+                    description: Optionally specify the version of proxy protocol
+                      to use if the upstream requires it
+                    enum:
+                    - 1
+                    - 2
+                    type: string
+                  url:
+                    description: |-
+                      The local or remote address you would like to incoming traffic to be forwarded to. Accepted formats are:
+                      Origin - https://example.org or http://example.org:80 or tcp://127.0.0.1:80
+                          When using the origin format you are defining the protocol, domain and port.
+                              When no port is present and scheme is https or http the port will be inferred.
+                                  For https port will be443.
+                                  For http port will be 80.
+                      Domain - example.org
+                          This is only allowed for https and http endpoints.
+                              For tcp and tls endpoints host and port is required.
+                          When using the domain format you are only defining the host.
+                              Scheme will default to http.
+                              Port will default to 80.
+                      Scheme (shorthand) - https://
+                          This only works for https and http.
+                              For tcp and tls host and port is required.
+                          When using scheme you are defining the protocol and the port will be inferred on the local host.
+                              For https port will be443.
+                              For http port will be 80.
+                              Host will be localhost.
+                      Port (shorthand) - 8080
+                          When using port you are defining the port on the local host that will receive traffic.
+                              Scheme will default to http.
+                              Host will default to localhost.
+                    type: string
+                required:
+                - protocol
+                - url
+                type: object
               url:
                 description: |-
                   The unique URL for this agent endpoint. This URL is the public address. The following formats are accepted
@@ -128,6 +177,7 @@ spec:
                       can only be accessed using the forward-internal traffic policy action.
                 type: string
             required:
+            - upstream
             - url
             type: object
         type: object
