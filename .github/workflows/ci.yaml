@@ -87,12 +87,12 @@ jobs:
     needs:
     - changes
     - kubebuilder-diff
-    # if: |
-    #   (needs.changes.outputs.go == 'true') ||
-    #   (needs.changes.outputs.charts == 'true') ||
-    #   (needs.changes.outputs.chartyaml == 'true') ||
-    #   (needs.changes.outputs.tests == 'true') ||
-    #   (needs.changes.outputs.make == 'true')
+    if: |
+      (needs.changes.outputs.go == 'true') ||
+      (needs.changes.outputs.charts == 'true') ||
+      (needs.changes.outputs.chartyaml == 'true') ||
+      (needs.changes.outputs.tests == 'true') ||
+      (needs.changes.outputs.make == 'true')
     permissions:
       contents: read
       pull-requests: read
