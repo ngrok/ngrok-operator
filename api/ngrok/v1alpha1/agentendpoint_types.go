@@ -45,8 +45,8 @@ type AgentEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AgentEndpointSpec   `json:"spec,omitempty"`
-	Status AgentEndpointStatus `json:"status,omitempty"`
+	Spec AgentEndpointSpec `json:"spec,omitempty"`
+	// Status AgentEndpointStatus `json:"status,omitempty"` Status subresource not yet supported
 }
 
 // AgentEndpointSpec defines the desired state of an AgentEndpoint
