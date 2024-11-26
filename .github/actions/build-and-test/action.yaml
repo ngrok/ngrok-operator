@@ -17,7 +17,9 @@ runs:
       id: k3s
       with:
         version: 'latest'
-    - run: |
+
+    - shell: bash
+      run: |
         kubectl get nodes
         kubectl get pods -A
 
@@ -27,21 +29,27 @@ runs:
         go-version: ${{ inputs.go-version }}
 
     - name: Build
+      shell: bash
       run: make build
 
     - name: Lint
+      shell: bash
       run: make lint
 
     - name: Setup Envtest
+      shell: bash
       run: make envtest
 
     - name: Test
+      shell: bash
       run: make test
 
     - name: Build the Docker image
+      shell: bash
       run: make docker-build
 
     - name: Deploy controller to local cluster
+      shell: bash
       env:
         # deploy with 1-click demo mode when not running e2e tests
         DEPLOY_ONE_CLICK_DEMO_MODE: ${{ inputs.run-e2e &&  'false' || 'true' }}
@@ -56,6 +64,7 @@ runs:
         make deploy_for_e2e
 
     - name: Check if controller is up
+      shell: bash
       run: |
         kubectl get nodes
         kubectl get pods -A
@@ -70,6 +79,7 @@ runs:
         verify: true
 
     - name: Run e2e tests
+      shell: bash
       if: inputs.run-e2e
       run: |
         make e2e-tests
@@ -78,6 +88,7 @@ runs:
     # this allows our finalizers to delete upstream ngrok API resources too
     # that hopefully helps not pollute our ngrok-operator-ci account
     - name: Cleanup e2e tests
+      shell: bash
       if: inputs.run-e2e
       run: |
         make e2e-clean
