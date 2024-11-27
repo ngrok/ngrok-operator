@@ -4,7 +4,6 @@ IMG ?= ngrok-operator
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
 
-# Repository URL
 REPO_URL = github.com/ngrok/ngrok-operator
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -318,4 +317,4 @@ e2e-clean: ## Clean up e2e tests
 	kubectl delete --all boundendpoints -n ngrok-operator
 	kubectl delete --all services -n ngrok-operator
 	kubectl delete --all kubernetesoperators -n ngrok-operator
-	helm uninstall ngrok-operator
+	helm --namespace ngrok-operator uninstall ngrok-operator
