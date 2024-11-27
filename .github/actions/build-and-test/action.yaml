@@ -81,6 +81,8 @@ runs:
         kubectl -n ngrok-operator wait --for=condition=ready pod -l app.kubernetes.io/name=ngrok-operator --timeout=1m || true
         kubectl get pods -A
         kubectl -n ngrok-operator describe pod -l app.kubernetes.io/name=ngrok-operator
+        kubectl -n ngrok-operator describe kubernetesoperators --all
+        kubectl -n ngrok-operator get kubernetesoperators --all
 
     - name: Install cosign
       if: ${{ inputs.run-e2e == 'true' }}
