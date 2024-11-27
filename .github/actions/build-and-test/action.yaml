@@ -76,6 +76,10 @@ runs:
       run: |
         kubectl get nodes
         kubectl get pods -A
+        sleep 20
+        kubectl get pods -A
+        kubectl describe pod -l app.kubernetes.io/component=controller
+        kubectl logs -l app.kubernetes.io/component=controller --tail=-1
 
     - name: Install cosign
       if: ${{ inputs.run-e2e == 'true' }}
