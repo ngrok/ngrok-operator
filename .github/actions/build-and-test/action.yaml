@@ -97,6 +97,6 @@ runs:
     # that hopefully helps not pollute our ngrok-operator-ci account
     - name: Cleanup e2e tests
       shell: bash
-      if: ${{ inputs.run-e2e == 'true' }}
+      if: ${{ always() && inputs.run-e2e == 'true' }}
       run: |
         make e2e-clean
