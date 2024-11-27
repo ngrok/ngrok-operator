@@ -32,7 +32,7 @@ jobs:
     needs:
     - changes
     if: |
-      (github.event.type == 'PushEvent' && github.ref_name == 'main')
+      (github.event_name == 'push' && github.ref_name == 'main')
       ||
       (
         (needs.changes.outputs.go == 'true') ||
