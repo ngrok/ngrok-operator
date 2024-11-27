@@ -27,7 +27,7 @@ jobs:
     - uses: "./.github/actions/changes"
       id: changes
 
-  build-and-test:
+  build-and-test-e2e:
     runs-on: ubuntu-latest
     needs:
     - changes
