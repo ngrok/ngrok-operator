@@ -45,7 +45,8 @@ runs:
             - 'scripts/e2e.sh'
             - 'VERSION'
           tests:
-            - 'test/**'
+            - 'tests/**'
+            - 'scripts/e2e.sh'
           make:
             - 'Makefile'
           tag:
