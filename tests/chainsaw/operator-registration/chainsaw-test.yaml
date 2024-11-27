@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: operator-registration
+spec:
+  steps:
+  - name: assert KubernetesOperator/ngrok-operator is registered
+    try:
+    - assert:
+        resource:
+          apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+          kind: KubernetesOperator
+          metadata:
+            name: ngrok-operator
+            namespace: ngrok-operator
+          spec:
+            deployment:
+              name: ngrok-operator
+              namespace: ngrok-operator
+            enabledFeatures:
+            - ingress
+            - bindings
+            # - gateway
+            binding:
+              tlsSecretName: ngrok-operator-default-tls
+              (not_null(name) == true && starts_with(name, "k8s/")): true
+          status:
+            registrationStatus: registered
+            (not_null(id) == true && starts_with(id, "k8sop_")): true
+            (not_null(uri) == true ): true
+
+  - name: assert Secret/ngrok-operator-default-tls exists (CSR is signed)
+    try:
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: ngrok-operator
+            namespace: ngrok-operator-default-tls
+          type: kubernetes.io/tls
+          data:
+            (not_null(tls.crt) == true): true
+            (not_null(tls.csr) == true): true
+            (not_null(tls.key) == true): true
+
+
