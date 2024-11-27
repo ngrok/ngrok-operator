@@ -94,7 +94,7 @@ spec:
         {{- end }}
         {{- if .Values.extraVolumeMounts  }}
         volumeMounts:
-        {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
+        {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
         - name: ngrok-ca
           mountPath: /etc/ssl/certs/ngrok
           readOnly: true
@@ -106,7 +106,7 @@ spec:
         {{- end }}
         {{- if .Values.lifecycle }}
         lifecycle:
-        {{ toYaml .Values.lifecycle | nindent 10 }}
+        {{- toYaml .Values.lifecycle | nindent 10 }}
         {{- end }}
         livenessProbe:
           httpGet:
@@ -124,7 +124,7 @@ spec:
         {{- toYaml .Values.resources | nindent 10 }}
       {{- if .Values.extraVolumes }}
       volumes:
-        {{ toYaml .Values.extraVolumes | nindent 6 }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
         - name: ngrok-ca
           configMap:
             name: ngrok-intermediate-ca
