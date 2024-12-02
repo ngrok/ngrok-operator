@@ -1,0 +1,187 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: agentendpoints.ngrok.k8s.ngrok.com
+spec:
+  group: ngrok.k8s.ngrok.com
+  names:
+    kind: AgentEndpoint
+    listKind: AgentEndpointList
+    plural: agentendpoints
+    shortNames:
+    - aep
+    singular: agentendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.url
+      name: URL
+      type: string
+    - jsonPath: .spec.upstream.url
+      name: Upstream URL
+      type: string
+    - jsonPath: .spec.bindings
+      name: Bindings
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Status')].status
+      name: Status
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: AgentEndpoint is the Schema for the agentendpoints API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AgentEndpointSpec defines the desired state of an AgentEndpoint
+            properties:
+              bindings:
+                description: |-
+                  List of Binding IDs to associate with the endpoint
+                  Accepted values are "public", "internal", or strings matching the pattern "k8s/*"
+                items:
+                  type: string
+                type: array
+              description:
+                default: Created by the ngrok-operator
+                description: Human-readable description of this agent endpoint
+                type: string
+              metadata:
+                default: '{"owned-by":"ngrok-operator"}'
+                description: String of arbitrary data associated with the object in
+                  the ngrok API/Dashboard
+                type: string
+              trafficPolicy:
+                description: Allows configuring a TrafficPolicy to be used with this
+                  AgentEndpoint
+                properties:
+                  inline:
+                    description: |-
+                      Inline definition of a TrafficPolicy to attach to the agent Endpoint
+                      The raw json encoded policy that was applied to the ngrok API
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  targetRef:
+                    description: Reference to a TrafficPolicy resource to attach to
+                      the Agent Endpoint
+                    properties:
+                      name:
+                        description: The name of the Kubernetes resource being referenced
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  type:
+                    description: Controls the way that the TrafficPolicy configuration
+                      will be provided to the Agent Endpoint
+                    enum:
+                    - targetRef
+                    - inline
+                    type: string
+                required:
+                - type
+                type: object
+                x-kubernetes-validations:
+                - message: When type is inline, inline must be set, and targetRef
+                    must not be set.
+                  rule: 'self.type == ''inline'' ? has(self.inline) && !has(self.targetRef)
+                    : true'
+                - message: When type is targetRef, targetRef must be set, and inline
+                    must not be set.
+                  rule: 'self.type == ''targetRef'' ? has(self.targetRef) && !has(self.inline)
+                    : true'
+              upstream:
+                description: Defines the destination for traffic to this AgentEndpoint
+                properties:
+                  protocol:
+                    default: http1
+                    description: |-
+                      Specifies the protocol to use when connecting to the upstream. Currently only http1 and http2 are supported
+                      with prior knowledge (defaulting to http1). alpn negotiation is not currently supported.
+                    enum:
+                    - http1
+                    - http2
+                    type: string
+                  proxyProtocolVersion:
+                    description: Optionally specify the version of proxy protocol
+                      to use if the upstream requires it
+                    enum:
+                    - 1
+                    - 2
+                    type: string
+                  url:
+                    description: |-
+                      The local or remote address you would like to incoming traffic to be forwarded to. Accepted formats are:
+                      Origin - https://example.org or http://example.org:80 or tcp://127.0.0.1:80
+                          When using the origin format you are defining the protocol, domain and port.
+                              When no port is present and scheme is https or http the port will be inferred.
+                                  For https port will be443.
+                                  For http port will be 80.
+                      Domain - example.org
+                          This is only allowed for https and http endpoints.
+                              For tcp and tls endpoints host and port is required.
+                          When using the domain format you are only defining the host.
+                              Scheme will default to http.
+                              Port will default to 80.
+                      Scheme (shorthand) - https://
+                          This only works for https and http.
+                              For tcp and tls host and port is required.
+                          When using scheme you are defining the protocol and the port will be inferred on the local host.
+                              For https port will be443.
+                              For http port will be 80.
+                              Host will be localhost.
+                      Port (shorthand) - 8080
+                          When using port you are defining the port on the local host that will receive traffic.
+                              Scheme will default to http.
+                              Host will default to localhost.
+                    type: string
+                required:
+                - protocol
+                - url
+                type: object
+              url:
+                description: |-
+                  The unique URL for this agent endpoint. This URL is the public address. The following formats are accepted
+                  Domain - example.org
+                      When using the domain format you are only defining the domain. The scheme and port will be inferred.
+                  Origin - https://example.ngrok.app or https://example.ngrok.app:443 or tcp://1.tcp.ngrok.io:12345 or tls://example.ngrok.app
+                      When using the origin format you are defining the protocol, domain and port. HTTP endpoints accept ports 80 or 443 with respective protocol.
+                  Scheme (shorthand) - https:// or tcp:// or tls:// or http://
+                      When using scheme you are defining the protocol and will receive back a randomly assigned ngrok address.
+                  Empty - ``
+                      When empty your endpoint will default to be https and receive back a randomly assigned ngrok address.
+                  Internal - some.domain.internal
+                      When ending your url with .internal, an internal endpoint will be created. nternal Endpoints cannot be accessed directly, but rather
+                      can only be accessed using the forward-internal traffic policy action.
+                type: string
+            required:
+            - upstream
+            - url
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

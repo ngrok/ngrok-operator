@@ -11,6 +11,8 @@ spec:
     kind: CloudEndpoint
     listKind: CloudEndpointList
     plural: cloudendpoints
+    shortNames:
+    - clep
     singular: cloudendpoint
   scope: Namespaced
   versions:
@@ -24,6 +26,9 @@ spec:
     - jsonPath: .spec.bindings
       name: Bindings
       type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -58,17 +63,15 @@ spec:
                 type: array
               description:
                 default: Created by the ngrok-operator
-                description: Description is a human-readable description of this cloud
-                  endpoint
+                description: Human-readable description of this cloud endpoint
                 type: string
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
-                description: Metadata is a string of arbitrary data associated with
-                  the object in the ngrok API/Dashboard
+                description: String of arbitrary data associated with the object in
+                  the ngrok API/Dashboard
                 type: string
               trafficPolicy:
-                description: TrafficPolicy allows inline definition of a TrafficPolicy
-                  object
+                description: Allows inline definition of a TrafficPolicy object
                 properties:
                   policy:
                     description: The raw json encoded policy that was applied to the
@@ -77,12 +80,23 @@ spec:
                     x-kubernetes-preserve-unknown-fields: true
                 type: object
               trafficPolicyName:
-                description: TrafficPolicyRef is a reference to the TrafficPolicy
-                  resource to attach to the Cloud Endpoint
+                description: Reference to the TrafficPolicy resource to attach to
+                  the Cloud Endpoint
                 type: string
               url:
-                description: The unique URL for this cloud endpoint. This URL is the
-                  public address
+                description: |-
+                  The unique URL for this cloud endpoint. This URL is the public address. The following formats are accepted
+                  Domain - example.org
+                      When using the domain format you are only defining the domain. The scheme and port will be inferred.
+                  Origin - https://example.ngrok.app or https://example.ngrok.app:443 or tcp://1.tcp.ngrok.io:12345 or tls://example.ngrok.app
+                      When using the origin format you are defining the protocol, domain and port. HTTP endpoints accept ports 80 or 443 with respective protocol.
+                  Scheme (shorthand) - https:// or tcp:// or tls:// or http://
+                      When using scheme you are defining the protocol and will receive back a randomly assigned ngrok address.
+                  Empty - ``
+                      When empty your endpoint will default to be https and receive back a randomly assigned ngrok address.
+                  Internal - some.domain.internal
+                      When ending your url with .internal, an internal endpoint will be created. nternal Endpoints cannot be accessed directly, but rather
+                      can only be accessed using the forward-internal traffic policy action.
                 type: string
             required:
             - url
