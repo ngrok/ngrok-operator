@@ -51,7 +51,11 @@ jobs:
       contents: read
       pull-requests: read
     steps:
+    # checkout the repo at the PR's head sha (inside the fork's commits)
+    # this allows forks to test changes to the go code and e2e tests
     - uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
     - uses: "./.github/actions/build-and-test"
       with:
         run-e2e: true
