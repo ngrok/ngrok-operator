@@ -114,6 +114,11 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 	tunnelComment := opts.Comments
 	comments := []string{}
 
+	td := &TunnelDriver{
+		tunnels:        make(map[string]ngrok.Tunnel),
+		agentEndpoints: newAgentEndpointMap(),
+	}
+
 	if tunnelComment != nil {
 		commentJson, err := json.Marshal(tunnelComment)
 		if err != nil {
@@ -131,6 +136,15 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		ngrok.WithClientInfo("ngrok-operator", version.GetVersion(), comments...),
 		ngrok.WithAuthtokenFromEnv(),
 		ngrok.WithLogger(k8sLogger{logger}),
+		ngrok.WithRestartHandler(func(ctx context.Context, sess ngrok.Session) error {
+			sessionState := td.session.Load()
+			if sessionState != nil && sessionState.session != nil {
+				sessionState.healthErr = fmt.Errorf("ngrok session restarting")
+				td.session.Store(sessionState)
+				logger.Info("ngrok session restarting")
+			}
+			return nil
+		}),
 	}
 
 	if opts.Region != "" {
@@ -161,11 +175,6 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		connOpts = append(connOpts, ngrok.WithTLSConfig(func(c *tls.Config) {
 			c.RootCAs = nil
 		}))
-	}
-
-	td := &TunnelDriver{
-		tunnels:        make(map[string]ngrok.Tunnel),
-		agentEndpoints: newAgentEndpointMap(),
 	}
 
 	td.session.Store(&sessionState{
