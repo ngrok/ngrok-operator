@@ -10,13 +10,16 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
@@ -45,10 +48,47 @@ const (
 	customCertsPath = "/etc/ssl/certs/ngrok/"
 )
 
+type commonEndpointOption interface {
+	config.HTTPEndpointOption
+	config.TLSEndpointOption
+	config.TCPEndpointOption
+}
+
+type agentEndpointMap struct {
+	m  map[string]ngrok.Tunnel
+	mu sync.Mutex
+}
+
+func newAgentEndpointMap() *agentEndpointMap {
+	return &agentEndpointMap{
+		m: make(map[string]ngrok.Tunnel),
+	}
+}
+
+func (a *agentEndpointMap) Add(name string, tun ngrok.Tunnel) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.m[name] = tun
+}
+
+func (a *agentEndpointMap) Get(name string) (ngrok.Tunnel, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	tun, ok := a.m[name]
+	return tun, ok
+}
+
+func (a *agentEndpointMap) Delete(name string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	delete(a.m, name)
+}
+
 // TunnelDriver is a driver for creating and deleting ngrok tunnels
 type TunnelDriver struct {
-	session atomic.Pointer[sessionState]
-	tunnels map[string]ngrok.Tunnel
+	session        atomic.Pointer[sessionState]
+	tunnels        map[string]ngrok.Tunnel
+	agentEndpoints *agentEndpointMap
 }
 
 // TunnelDriverOpts are options for creating a new TunnelDriver
@@ -124,7 +164,8 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 	}
 
 	td := &TunnelDriver{
-		tunnels: make(map[string]ngrok.Tunnel),
+		tunnels:        make(map[string]ngrok.Tunnel),
+		agentEndpoints: newAgentEndpointMap(),
 	}
 
 	td.session.Store(&sessionState{
@@ -307,6 +348,116 @@ func (td *TunnelDriver) DeleteTunnel(ctx context.Context, name string) error {
 	}
 	delete(td.tunnels, name)
 	log.Info("Tunnel deleted successfully")
+	return nil
+}
+
+func (td *TunnelDriver) AddAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec) error {
+	log := log.FromContext(ctx).WithValues(
+		"upstream.url", spec.Upstream.URL,
+		"upstream.protocol", spec.Upstream.Protocol,
+	)
+
+	session, err := td.getSession()
+	if err != nil {
+		return err
+	}
+
+	tun, ok := td.agentEndpoints.Get(name)
+	if ok {
+		// TODO: Check if the tunnel matches the spec. If it does, do nothing.
+		// If it doesn't, stop the old tunnel and start a new one.
+		// For now, we just stop the old tunnel and always start a new one.
+
+		//nolint:errcheck
+		defer td.stopTunnel(context.Background(), tun)
+	}
+
+	var protocol string
+	var appProtocol = string(spec.Upstream.Protocol)
+
+	upstreamURL, err := url.Parse(spec.Upstream.URL)
+	if err != nil {
+		log.Error(err, "error parsing upstream URL")
+	}
+
+	var trafficPolicy string
+	if spec.TrafficPolicy != nil {
+		switch spec.TrafficPolicy.Type {
+		case ngrokv1alpha1.TrafficPolicyCfgType_Inline:
+			trafficPolicy = string(spec.TrafficPolicy.Inline)
+		case ngrokv1alpha1.TrafficPolicyCfgType_K8sRef:
+			// TODO: Resolve the traffic policy reference
+			trafficPolicy = ""
+		}
+	}
+
+	var tunnelConfig config.Tunnel
+	commonOpts := []commonEndpointOption{
+		config.WithURL(spec.URL),
+		config.WithForwardsTo(spec.Upstream.URL),
+		config.WithBindings(spec.Bindings...),
+		config.WithTrafficPolicy(trafficPolicy),
+		config.WithMetadata(spec.Metadata),
+		config.WithDescription(spec.Description),
+	}
+
+	switch upstreamURL.Scheme {
+	case "https":
+		protocol = "HTTPS"
+		fallthrough
+	case "http":
+		opts := []config.HTTPEndpointOption{}
+		for _, o := range commonOpts {
+			opts = append(opts, o)
+		}
+		opts = append(opts, config.WithAppProtocol(appProtocol))
+		tunnelConfig = config.HTTPEndpoint(opts...)
+
+	case "tls":
+		opts := []config.TLSEndpointOption{}
+		for _, o := range commonOpts {
+			opts = append(opts, o)
+		}
+		tunnelConfig = config.TLSEndpoint(opts...)
+
+	case "tcp":
+		opts := []config.TCPEndpointOption{}
+		for _, o := range commonOpts {
+			opts = append(opts, o)
+		}
+		tunnelConfig = config.TCPEndpoint(opts...)
+	default:
+		return fmt.Errorf("unsupported upstream protocol: %s", upstreamURL.Scheme)
+	}
+
+	// Build the tunnel config
+
+	tun, err = session.Listen(ctx, tunnelConfig)
+	if err != nil {
+		return err
+	}
+
+	// Start forwarding connections
+
+	go handleConnections(ctx, &net.Dialer{}, tun, spec.Upstream.URL, protocol, appProtocol)
+	return nil
+}
+
+func (td *TunnelDriver) DeleteAgentEndpoint(ctx context.Context, name string) error {
+	log := log.FromContext(ctx).WithValues("name", name)
+
+	tun, _ := td.agentEndpoints.Get(name)
+	if tun == nil {
+		log.Info("Agent Endpoint tunnel not found while trying to delete tunnel")
+		return nil
+	}
+
+	err := td.stopTunnel(ctx, tun)
+	if err != nil {
+		return err
+	}
+	td.agentEndpoints.Delete(name)
+	log.Info("Agent Endpoint tunnel deleted successfully")
 	return nil
 }
 
