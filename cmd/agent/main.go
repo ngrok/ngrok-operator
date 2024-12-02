@@ -184,6 +184,17 @@ func runController(ctx context.Context, opts managerOpts) error {
 			setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
 			os.Exit(1)
 		}
+
+		if err = (&agentcontroller.AgentEndpointReconciler{
+			Client:       mgr.GetClient(),
+			Log:          ctrl.Log.WithName("controllers").WithName("agentendpoint"),
+			Scheme:       mgr.GetScheme(),
+			Recorder:     mgr.GetEventRecorderFor("agentendpoint-controller"),
+			TunnelDriver: td,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")
+			os.Exit(1)
+		}
 	}
 
 	// register healthchecks
