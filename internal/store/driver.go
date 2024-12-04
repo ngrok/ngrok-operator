@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 
@@ -1626,8 +1627,15 @@ func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alph
 							BackendConfig: &ingressv1alpha1.BackendConfig{
 								Protocol: protocol,
 							},
-							AppProtocol: appProtocol,
 						},
+					}
+					switch appProtocol {
+					case "http2":
+						proto := common.ApplicationProtocol_HTTP2
+						tunnel.Spec.AppProtocol = &proto
+					case "http1":
+						proto := common.ApplicationProtocol_HTTP1
+						tunnel.Spec.AppProtocol = &proto
 					}
 				}
 
@@ -1692,8 +1700,15 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 							BackendConfig: &ingressv1alpha1.BackendConfig{
 								Protocol: protocol,
 							},
-							AppProtocol: appProtocol,
 						},
+					}
+					switch appProtocol {
+					case "http2":
+						proto := common.ApplicationProtocol_HTTP2
+						tunnel.Spec.AppProtocol = &proto
+					case "http1":
+						proto := common.ApplicationProtocol_HTTP1
+						tunnel.Spec.AppProtocol = &proto
 					}
 				}
 

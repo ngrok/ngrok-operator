@@ -49,8 +49,12 @@ spec:
             description: TunnelSpec defines the desired state of Tunnel
             properties:
               appProtocol:
-                description: The appProtocol for the backend. Currently only supports
-                  `http2`
+                description: |-
+                  Specifies the protocol to use when connecting to the backend. Currently only http1 and http2 are supported
+                  with prior knowledge (defaulting to http1).
+                enum:
+                - http1
+                - http2
                 type: string
               backend:
                 description: The configuration for backend connections to services

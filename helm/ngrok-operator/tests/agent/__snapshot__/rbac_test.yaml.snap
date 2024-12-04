@@ -30,6 +30,49 @@ Should match snapshot:
           - patch
           - update
       - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - get
+          - list
+          - watch
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - ngroktrafficpolicies
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - patch
+          - delete
+      - apiGroups:
           - ""
         resources:
           - events

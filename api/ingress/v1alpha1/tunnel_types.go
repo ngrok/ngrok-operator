@@ -26,6 +26,8 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -46,8 +48,11 @@ type TunnelSpec struct {
 	// The configuration for backend connections to services
 	BackendConfig *BackendConfig `json:"backend,omitempty"`
 
-	// The appProtocol for the backend. Currently only supports `http2`
-	AppProtocol string `json:"appProtocol,omitempty"`
+	// Specifies the protocol to use when connecting to the backend. Currently only http1 and http2 are supported
+	// with prior knowledge (defaulting to http1).
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=http1;http2
+	AppProtocol *commonv1alpha1.ApplicationProtocol `json:"appProtocol,omitempty"`
 }
 
 // BackendConfig defines the configuration for backend connections to services.
