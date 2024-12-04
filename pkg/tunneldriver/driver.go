@@ -13,11 +13,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/go-logr/logr"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -310,14 +312,18 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingr
 
 	log := log.FromContext(ctx)
 
+	newAppProtocol := ""
+	if spec.AppProtocol != nil {
+		newAppProtocol = string(*spec.AppProtocol)
+	}
 	if tun, ok := td.tunnels[name]; ok {
 		// Check if the tunnel matches the spec
-		var appProto string
+		var currentAppProtocol string
 		if fwdProto, ok := tun.(interface{ ForwardsProto() string }); ok {
-			appProto = fwdProto.ForwardsProto()
+			currentAppProtocol = fwdProto.ForwardsProto()
 		}
 
-		if maps.Equal(tun.Labels(), spec.Labels) && tun.ForwardsTo() == spec.ForwardsTo && appProto == spec.AppProtocol {
+		if maps.Equal(tun.Labels(), spec.Labels) && tun.ForwardsTo() == spec.ForwardsTo && currentAppProtocol == newAppProtocol {
 			log.Info("Tunnel already exists and matches spec")
 			return nil
 		}
@@ -326,18 +332,40 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingr
 		defer td.stopTunnel(context.Background(), tun)
 	}
 
-	tun, err := session.Listen(ctx, td.buildTunnelConfig(spec.Labels, spec.ForwardsTo, spec.AppProtocol))
+	tun, err := session.Listen(ctx, td.buildTunnelConfig(spec.Labels, spec.ForwardsTo, newAppProtocol))
 	if err != nil {
 		return err
 	}
 	td.tunnels[name] = tun
 
-	protocol := ""
+	upstreamTLS := false
 	if spec.BackendConfig != nil {
-		protocol = spec.BackendConfig.Protocol
+		// This is janky but the CRD just supports any random string here so we need to deal with the fact that is in the wild now
+		switch strings.ToUpper(spec.BackendConfig.Protocol) {
+		case "TLS", "HTTPS":
+			upstreamTLS = true
+		}
 	}
 
-	go handleConnections(ctx, &net.Dialer{}, tun, spec.ForwardsTo, protocol, spec.AppProtocol)
+	service, portStr, err := net.SplitHostPort(spec.ForwardsTo)
+	if err != nil {
+		return fmt.Errorf("invalid spec.forwardsTo (%q): %w", spec.ForwardsTo, err)
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return fmt.Errorf("invalid port for spec.forwardsTo (%q): %w", spec.ForwardsTo, err)
+	}
+
+	go handleTCPConnections(
+		ctx,
+		&net.Dialer{},
+		tun,
+		service,
+		port,
+		upstreamTLS,
+		spec.AppProtocol,
+	)
 	return nil
 }
 
@@ -360,8 +388,10 @@ func (td *TunnelDriver) DeleteTunnel(ctx context.Context, name string) error {
 	return nil
 }
 
-func (td *TunnelDriver) AddAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec) error {
+// CreateAgentEndpoint will create or update an agent endpoint by name using the provided desired configuration state
+func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string) error {
 	log := log.FromContext(ctx).WithValues(
+		"url", spec.Upstream.URL,
 		"upstream.url", spec.Upstream.URL,
 		"upstream.protocol", spec.Upstream.Protocol,
 	)
@@ -381,23 +411,19 @@ func (td *TunnelDriver) AddAgentEndpoint(ctx context.Context, name string, spec 
 		defer td.stopTunnel(context.Background(), tun)
 	}
 
-	var protocol string
-	var appProtocol = string(spec.Upstream.Protocol)
-
-	upstreamURL, err := url.Parse(spec.Upstream.URL)
+	upstreamProtocol := string(spec.Upstream.Protocol)
+	upstreamURL, err := ParseAndSanitizeURL(spec.Upstream.URL)
 	if err != nil {
-		log.Error(err, "error parsing upstream URL")
+		err := fmt.Errorf("error parsing spec.upstream.url: %w", err)
+		log.Error(err, "upstream url parse failed")
+		return err
 	}
 
-	var trafficPolicy string
-	if spec.TrafficPolicy != nil {
-		switch spec.TrafficPolicy.Type {
-		case ngrokv1alpha1.TrafficPolicyCfgType_Inline:
-			trafficPolicy = string(spec.TrafficPolicy.Inline)
-		case ngrokv1alpha1.TrafficPolicyCfgType_K8sRef:
-			// TODO: Resolve the traffic policy reference
-			trafficPolicy = ""
-		}
+	ingressURL, err := ParseAndSanitizeURL(spec.URL)
+	if err != nil {
+		err := fmt.Errorf("error parsing spec.url: %w", err)
+		log.Error(err, "url parse failed")
+		return err
 	}
 
 	var tunnelConfig config.Tunnel
@@ -405,30 +431,31 @@ func (td *TunnelDriver) AddAgentEndpoint(ctx context.Context, name string, spec 
 		config.WithURL(spec.URL),
 		config.WithForwardsTo(spec.Upstream.URL),
 		config.WithBindings(spec.Bindings...),
-		config.WithTrafficPolicy(trafficPolicy),
 		config.WithMetadata(spec.Metadata),
 		config.WithDescription(spec.Description),
 	}
 
-	switch upstreamURL.Scheme {
+	if trafficPolicy != "" {
+		commonOpts = append(commonOpts, config.WithTrafficPolicy(trafficPolicy))
+	}
+
+	// Build the endpoint/tunnel config
+	switch ingressURL.Scheme {
 	case "https":
-		protocol = "HTTPS"
 		fallthrough
 	case "http":
 		opts := []config.HTTPEndpointOption{}
 		for _, o := range commonOpts {
 			opts = append(opts, o)
 		}
-		opts = append(opts, config.WithAppProtocol(appProtocol))
+		opts = append(opts, config.WithAppProtocol(upstreamProtocol))
 		tunnelConfig = config.HTTPEndpoint(opts...)
-
 	case "tls":
 		opts := []config.TLSEndpointOption{}
 		for _, o := range commonOpts {
 			opts = append(opts, o)
 		}
 		tunnelConfig = config.TLSEndpoint(opts...)
-
 	case "tcp":
 		opts := []config.TCPEndpointOption{}
 		for _, o := range commonOpts {
@@ -436,20 +463,103 @@ func (td *TunnelDriver) AddAgentEndpoint(ctx context.Context, name string, spec 
 		}
 		tunnelConfig = config.TCPEndpoint(opts...)
 	default:
-		return fmt.Errorf("unsupported upstream protocol: %s", upstreamURL.Scheme)
+		return fmt.Errorf("unsupported protocol for spec.url: %s", ingressURL.Scheme)
 	}
-
-	// Build the tunnel config
 
 	tun, err = session.Listen(ctx, tunnelConfig)
 	if err != nil {
 		return err
 	}
 
-	// Start forwarding connections
+	upstreamPort, err := strconv.Atoi(upstreamURL.Port())
+	if err != nil {
+		// The port is already validated earlier but this is just to be safe on the Atoi call
+		return fmt.Errorf("invalid spec.upstream.url port (%q): %w", upstreamURL.Port(), err)
+	}
 
-	go handleConnections(ctx, &net.Dialer{}, tun, spec.Upstream.URL, protocol, appProtocol)
+	upstreamTLS := false
+	if upstreamURL.Scheme == "tls" || upstreamURL.Scheme == "https" {
+		upstreamTLS = true
+	}
+
+	// Start forwarding connections
+	go handleTCPConnections(
+		ctx,
+		&net.Dialer{},
+		tun,
+		upstreamURL.Hostname(),
+		upstreamPort,
+		upstreamTLS,
+		&spec.Upstream.Protocol,
+	)
 	return nil
+}
+
+// ParseAndSanitizeURL parses a string and provides a *url.URL following the restrictions for endpoints.
+func ParseAndSanitizeURL(input string) (*url.URL, error) {
+	// Handle shorthand port format, ex: "8080"
+	if _, err := strconv.Atoi(input); err == nil {
+		// Port shorthand defaults to localhost and http scheme
+		return &url.URL{
+			Scheme: "http",
+			Host:   net.JoinHostPort("localhost", input),
+		}, nil
+	}
+
+	// Check if the input contains a colon but no scheme (e.g., "service.default:8080")
+	if strings.Contains(input, ":") && !strings.Contains(input, "://") {
+		// Default to HTTP scheme
+		input = "http://" + input
+	}
+
+	// Parse the input as a URL
+	parsedURL, err := url.Parse(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	// Handle Scheme shorthand format, ex: "https://", "http://", "tcp://", "tls://"
+	if parsedURL.Scheme != "" && parsedURL.Host == "" {
+		switch parsedURL.Scheme {
+		case "http":
+			parsedURL.Host = "localhost:80"
+		case "https":
+			parsedURL.Host = "localhost:443"
+		case "tcp", "tls":
+			return nil, fmt.Errorf("invalid URL for scheme shorthand format (%q): \"tcp://\" and \"tls://\" must provide the hostname and port", input)
+		default:
+			return nil, fmt.Errorf("unsupported scheme for URL (%q): %q", input, parsedURL.Scheme)
+		}
+		return parsedURL, nil
+	}
+
+	// No Scheme (domain shorthand), ex: "example.com"
+	if parsedURL.Scheme == "" {
+		parsedURL.Scheme = "http"
+		// If there is a port, keep it; otherwise, default to HTTP port 80
+		if parsedURL.Port() == "" {
+			parsedURL.Host = net.JoinHostPort(parsedURL.Hostname(), "80")
+		}
+		return parsedURL, nil
+	}
+
+	if parsedURL.Hostname() == "" {
+		return nil, fmt.Errorf("invalid URL (%q), shorthand format not detected and URL is missing a hostname", input)
+	}
+
+	if parsedURL.Port() == "" {
+		switch parsedURL.Scheme {
+		// Default port inference for HTTP/S
+		case "http":
+			parsedURL.Host = net.JoinHostPort(parsedURL.Hostname(), "80")
+		case "https":
+			parsedURL.Host = net.JoinHostPort(parsedURL.Hostname(), "443")
+		case "tls", "tcp":
+			return nil, fmt.Errorf("invalid URL (%q), tls and tcp schemes require a port and a hostname", input)
+		}
+	}
+
+	return parsedURL, nil
 }
 
 func (td *TunnelDriver) DeleteAgentEndpoint(ctx context.Context, name string) error {
@@ -487,10 +597,10 @@ func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination,
 	return config.LabeledTunnel(opts...)
 }
 
-func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, dest string, protocol string, appProtocol string) {
-	logger := log.FromContext(ctx).WithValues("id", tun.ID(), "protocol", protocol, "dest", dest)
+func handleTCPConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, upstreamHostname string, upstreamPort int, upstreamTLS bool, upstreamAppProto *commonv1alpha1.ApplicationProtocol) {
+	logger := log.FromContext(ctx).WithValues("id", tun.ID(), "upstreamHostname", upstreamHostname, "upstreamPort", upstreamPort, "upstreamTLS", upstreamTLS)
 	for {
-		conn, err := tun.Accept()
+		ngrokConnection, err := tun.Accept()
 		if err != nil {
 			logger.Error(err, "Error accepting connection")
 			// Right now, this can only be "Tunnel closed" https://github.com/ngrok/ngrok-go/blob/e1d90c382/internal/tunnel/client/tunnel.go#L81-L89
@@ -501,12 +611,12 @@ func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, des
 			// that should be true.
 			return
 		}
-		connLogger := logger.WithValues("remoteAddr", conn.RemoteAddr())
+		connLogger := logger.WithValues("remoteAddr", ngrokConnection.RemoteAddr())
 		connLogger.Info("Accepted connection")
 
 		go func() {
 			ctx := log.IntoContext(ctx, connLogger)
-			err := handleConn(ctx, dest, protocol, appProtocol, dialer, conn)
+			err := handleTCPConn(ctx, dialer, ngrokConnection, upstreamHostname, upstreamPort, upstreamTLS, upstreamAppProto)
 			if err == nil || errors.Is(err, net.ErrClosed) {
 				connLogger.Info("Connection closed")
 				return
@@ -517,26 +627,27 @@ func handleConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, des
 	}
 }
 
-func handleConn(ctx context.Context, dest string, protocol string, appProtocol string, dialer Dialer, conn net.Conn) error {
+func handleTCPConn(ctx context.Context, dialer Dialer, ngrokConnection net.Conn, upstreamHostname string, upstreamPort int, upstreamTLS bool, upstreamAppProto *commonv1alpha1.ApplicationProtocol) error {
 	log := log.FromContext(ctx)
-	next, err := dialer.DialContext(ctx, "tcp", dest)
+	contextDialStr := fmt.Sprintf("%s:%d", upstreamHostname, upstreamPort)
+	upstreamConnection, err := dialer.DialContext(ctx, "tcp", contextDialStr)
 	if err != nil {
 		return err
 	}
 
-	// Support HTTPS backends
-	if protocol == "HTTPS" {
-		host, _, err := net.SplitHostPort(dest)
-		if err != nil {
-			host = dest
-		}
+	if upstreamTLS {
 		var nextProtos []string
-		if appProtocol == "http2" {
-			nextProtos = []string{"h2", "http/1.1"}
+		if upstreamAppProto != nil {
+			switch *upstreamAppProto {
+			case commonv1alpha1.ApplicationProtocol_HTTP2:
+				nextProtos = []string{"h2", "http/1.1"}
+			case commonv1alpha1.ApplicationProtocol_HTTP1:
+				nextProtos = []string{"http/1.1"}
+			}
 		}
 
-		next = tls.Client(next, &tls.Config{
-			ServerName:         host,
+		upstreamConnection = tls.Client(upstreamConnection, &tls.Config{
+			ServerName:         upstreamHostname,
 			InsecureSkipVerify: true,
 			Renegotiation:      tls.RenegotiateFreelyAsClient,
 			NextProtos:         nextProtos,
@@ -544,24 +655,28 @@ func handleConn(ctx context.Context, dest string, protocol string, appProtocol s
 	}
 
 	var g errgroup.Group
+
+	// Start forwarding from ngrok to the upstream
 	g.Go(func() error {
 		defer func() {
-			if err := next.Close(); err != nil {
+			if err := upstreamConnection.Close(); err != nil {
 				log.Info("Error closing connection to destination: %v", err)
 			}
 		}()
 
-		_, err := io.Copy(next, conn)
+		_, err := io.Copy(upstreamConnection, ngrokConnection)
 		return err
 	})
+
+	// Start forwarding from the upstream back to ngrok
 	g.Go(func() error {
 		defer func() {
-			if err := conn.Close(); err != nil {
+			if err := ngrokConnection.Close(); err != nil {
 				log.Info("Error closing connection from ngrok: %v", err)
 			}
 		}()
 
-		_, err := io.Copy(conn, next)
+		_, err := io.Copy(ngrokConnection, upstreamConnection)
 		return err
 	})
 	return g.Wait()

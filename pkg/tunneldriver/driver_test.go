@@ -29,7 +29,7 @@ func TestConnectionIsClosed(t *testing.T) {
 		mockTun.EXPECT().Accept().Return(mockNgrokConn, nil),
 		// dial the backend
 		mockNgrokConn.EXPECT().RemoteAddr().Return(&net.TCPAddr{}),
-		mockDialer.EXPECT().DialContext(gomock.Any(), "tcp", "target:port").Return(mockBackendConn, nil),
+		mockDialer.EXPECT().DialContext(gomock.Any(), "tcp", "target:80").Return(mockBackendConn, nil),
 	)
 
 	// both conns should receive a read, and if they EOF get closed.
@@ -45,7 +45,15 @@ func TestConnectionIsClosed(t *testing.T) {
 		select {}
 	}).AnyTimes()
 
-	go handleConnections(ctx, mockDialer, mockTun, "target:port", "", "")
+	go handleTCPConnections(
+		ctx,
+		mockDialer,
+		mockTun,
+		"target",
+		80,
+		false,
+		nil,
+	)
 
 	bothClosed.Wait()
 	ctrl.Finish()
