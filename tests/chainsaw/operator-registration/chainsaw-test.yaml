@@ -24,11 +24,11 @@ spec:
             # - gateway
             binding:
               tlsSecretName: ngrok-operator-default-tls
-              (not_null(name) == true && starts_with(name, "k8s/") == true): true
+              (starts_with(name, "k8s/")): true
           status:
             registrationStatus: registered
-            (not_null(id) == true && starts_with(id, "k8sop_") == true): true
-            (not_null(uri) == true ): true
+            (starts_with(id, "k8sop_")): true
+            (not_null(uri)): true
 
   - name: assert Secret/ngrok-operator-default-tls exists (CSR is signed)
     try:
@@ -41,9 +41,9 @@ spec:
             namespace: ngrok-operator
           type: kubernetes.io/tls
           data:
-            (not_null(tls.crt) == true): true
-            (not_null(tls.csr) == true): true
-            (not_null(tls.key) == true): true
+            (not_null(tls.crt)): true
+            (not_null(tls.csr)): true
+            (not_null(tls.key)): true
 
   - name: assert Configmap/ngrok-intermediate-ca exists (tunnels/forwarders will work)
     try:
@@ -55,4 +55,4 @@ spec:
             name: ngrok-intermediate-ca
             namespace: ngrok-operator
           data:
-            (not_null("root.crt") == true): true
+            (not_null("root.crt")): true
