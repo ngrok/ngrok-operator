@@ -61,8 +61,17 @@ jobs:
     # checkout the repo at the PR's head sha (inside the fork's commits)
     # this allows forks to test changes to the go code and e2e tests
     - uses: actions/checkout@v3
+<<<<<<< Updated upstream
       with:
         ref: ${{ github.event.pull_request.head.sha }}
+||||||| Stash base
+=======
+    # now we need to checkout the feature branch
+    # and run the build/test there, but within the context of the ngrok/ngrok-operator repo
+    - run: |
+        git fetch origin ${{ github.event.pull_request.head.ref }}:${{ github.event.pull_request.head.ref }}
+        git checkout ${{ github.event.pull_request.head.ref }}
+>>>>>>> Stashed changes
     - uses: "./.github/actions/build-and-test"
       with:
         run-e2e: true
