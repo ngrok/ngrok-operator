@@ -56,6 +56,7 @@ jobs:
         !(contains(github.event.pull_request.labels.*.name, 'safe to test'))
       run: |
         echo 'This PR is not labeled "safe to test", blocking e2e tests...'
+        echo "Found labels: ${{ github.event.pull_request.labels }}"
         exit 1 # intentionally fail the job
     # checkout the repo at the PR's head sha (inside the fork's commits)
     # this allows forks to test changes to the go code and e2e tests
