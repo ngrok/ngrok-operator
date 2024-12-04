@@ -30,6 +30,7 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -244,7 +245,7 @@ func (in *EndpointUpstream) DeepCopyInto(out *EndpointUpstream) {
 	*out = *in
 	if in.ProxyProtocolVersion != nil {
 		in, out := &in.ProxyProtocolVersion, &out.ProxyProtocolVersion
-		*out = new(ProxyProtocolVersion)
+		*out = new(commonv1alpha1.ProxyProtocolVersion)
 		**out = **in
 	}
 }

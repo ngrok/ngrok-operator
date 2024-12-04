@@ -27,6 +27,8 @@ package v1alpha1
 import (
 	"encoding/json"
 
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -47,38 +49,6 @@ type AgentEndpoint struct {
 
 	Spec AgentEndpointSpec `json:"spec,omitempty"`
 	// Status AgentEndpointStatus `json:"status,omitempty"` Status subresource not yet supported
-}
-
-type UpstreamProtocol string
-
-const (
-	UpstreamProtocol_HTTP1 UpstreamProtocol = "http1"
-	UpstreamProtocol_HTTP2 UpstreamProtocol = "http2"
-)
-
-func (t UpstreamProtocol) IsKnown() bool {
-	switch t {
-	case UpstreamProtocol_HTTP1, UpstreamProtocol_HTTP2:
-		return true
-	default:
-		return false
-	}
-}
-
-type ProxyProtocolVersion string
-
-const (
-	ProxyProtocolVersion_1 ProxyProtocolVersion = "1"
-	ProxyProtocolVersion_2 ProxyProtocolVersion = "2"
-)
-
-func (t ProxyProtocolVersion) IsKnown() bool {
-	switch t {
-	case ProxyProtocolVersion_1, ProxyProtocolVersion_2:
-		return true
-	default:
-		return false
-	}
 }
 
 type EndpointUpstream struct {
@@ -115,13 +85,13 @@ type EndpointUpstream struct {
 	// +kubebuilder:validation:Enum=http1;http2
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default=http1
-	Protocol UpstreamProtocol `json:"protocol"`
+	Protocol commonv1alpha1.ApplicationProtocol `json:"protocol"`
 
 	// Optionally specify the version of proxy protocol to use if the upstream requires it
 	//
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum=1;2
-	ProxyProtocolVersion *ProxyProtocolVersion `json:"proxyProtocolVersion"`
+	ProxyProtocolVersion *commonv1alpha1.ProxyProtocolVersion `json:"proxyProtocolVersion"`
 }
 
 // AgentEndpointSpec defines the desired state of an AgentEndpoint

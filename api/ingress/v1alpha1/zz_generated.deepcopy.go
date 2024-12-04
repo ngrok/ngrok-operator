@@ -30,6 +30,7 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -1532,6 +1533,11 @@ func (in *TunnelSpec) DeepCopyInto(out *TunnelSpec) {
 	if in.BackendConfig != nil {
 		in, out := &in.BackendConfig, &out.BackendConfig
 		*out = new(BackendConfig)
+		**out = **in
+	}
+	if in.AppProtocol != nil {
+		in, out := &in.AppProtocol, &out.AppProtocol
+		*out = new(commonv1alpha1.ApplicationProtocol)
 		**out = **in
 	}
 }
