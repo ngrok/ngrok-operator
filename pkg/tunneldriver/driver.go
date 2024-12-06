@@ -410,7 +410,6 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 		defer td.stopTunnel(context.Background(), tun)
 	}
 
-	upstreamProtocol := string(spec.Upstream.Protocol)
 	upstreamURL, err := ParseAndSanitizeEndpointURL(spec.Upstream.URL, false)
 	if err != nil {
 		err := fmt.Errorf("error parsing spec.upstream.url: %w", err)
@@ -447,7 +446,12 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 		for _, o := range commonOpts {
 			opts = append(opts, o)
 		}
-		opts = append(opts, config.WithAppProtocol(upstreamProtocol))
+		// Default upstream protocol to HTTP1 if not configured
+		upstreamProto := string(commonv1alpha1.ApplicationProtocol_HTTP1)
+		if spec.Upstream.Protocol != nil {
+			upstreamProto = string(*spec.Upstream.Protocol)
+		}
+		opts = append(opts, config.WithAppProtocol(upstreamProto))
 		tunnelConfig = config.HTTPEndpoint(opts...)
 	case "tls":
 		opts := []config.TLSEndpointOption{}
@@ -489,7 +493,7 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 		upstreamURL.Hostname(),
 		upstreamPort,
 		upstreamTLS,
-		&spec.Upstream.Protocol,
+		spec.Upstream.Protocol,
 	)
 	return nil
 }

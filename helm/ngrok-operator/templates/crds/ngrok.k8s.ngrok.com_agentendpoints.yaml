@@ -105,7 +105,6 @@ spec:
                 description: Defines the destination for traffic to this AgentEndpoint
                 properties:
                   protocol:
-                    default: http1
                     description: |-
                       Specifies the protocol to use when connecting to the upstream. Currently only http1 and http2 are supported
                       with prior knowledge (defaulting to http1). alpn negotiation is not currently supported.
@@ -147,7 +146,6 @@ spec:
                               Host will default to localhost.
                     type: string
                 required:
-                - protocol
                 - url
                 type: object
               url:
