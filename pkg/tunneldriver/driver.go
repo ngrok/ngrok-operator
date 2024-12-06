@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -412,14 +411,14 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 	}
 
 	upstreamProtocol := string(spec.Upstream.Protocol)
-	upstreamURL, err := ParseAndSanitizeURL(spec.Upstream.URL)
+	upstreamURL, err := ParseAndSanitizeEndpointURL(spec.Upstream.URL, false)
 	if err != nil {
 		err := fmt.Errorf("error parsing spec.upstream.url: %w", err)
 		log.Error(err, "upstream url parse failed")
 		return err
 	}
 
-	ingressURL, err := ParseAndSanitizeURL(spec.URL)
+	ingressURL, err := ParseAndSanitizeEndpointURL(spec.URL, true)
 	if err != nil {
 		err := fmt.Errorf("error parsing spec.url: %w", err)
 		log.Error(err, "url parse failed")
@@ -493,73 +492,6 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 		&spec.Upstream.Protocol,
 	)
 	return nil
-}
-
-// ParseAndSanitizeURL parses a string and provides a *url.URL following the restrictions for endpoints.
-func ParseAndSanitizeURL(input string) (*url.URL, error) {
-	// Handle shorthand port format, ex: "8080"
-	if _, err := strconv.Atoi(input); err == nil {
-		// Port shorthand defaults to localhost and http scheme
-		return &url.URL{
-			Scheme: "http",
-			Host:   net.JoinHostPort("localhost", input),
-		}, nil
-	}
-
-	// Check if the input contains a colon but no scheme (e.g., "service.default:8080")
-	if strings.Contains(input, ":") && !strings.Contains(input, "://") {
-		// Default to HTTP scheme
-		input = "http://" + input
-	}
-
-	// Parse the input as a URL
-	parsedURL, err := url.Parse(input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL: %w", err)
-	}
-
-	// Handle Scheme shorthand format, ex: "https://", "http://", "tcp://", "tls://"
-	if parsedURL.Scheme != "" && parsedURL.Host == "" {
-		switch parsedURL.Scheme {
-		case "http":
-			parsedURL.Host = "localhost:80"
-		case "https":
-			parsedURL.Host = "localhost:443"
-		case "tcp", "tls":
-			return nil, fmt.Errorf("invalid URL for scheme shorthand format (%q): \"tcp://\" and \"tls://\" must provide the hostname and port", input)
-		default:
-			return nil, fmt.Errorf("unsupported scheme for URL (%q): %q", input, parsedURL.Scheme)
-		}
-		return parsedURL, nil
-	}
-
-	// No Scheme (domain shorthand), ex: "example.com"
-	if parsedURL.Scheme == "" {
-		parsedURL.Scheme = "http"
-		// If there is a port, keep it; otherwise, default to HTTP port 80
-		if parsedURL.Port() == "" {
-			parsedURL.Host = net.JoinHostPort(parsedURL.Hostname(), "80")
-		}
-		return parsedURL, nil
-	}
-
-	if parsedURL.Hostname() == "" {
-		return nil, fmt.Errorf("invalid URL (%q), shorthand format not detected and URL is missing a hostname", input)
-	}
-
-	if parsedURL.Port() == "" {
-		switch parsedURL.Scheme {
-		// Default port inference for HTTP/S
-		case "http":
-			parsedURL.Host = net.JoinHostPort(parsedURL.Hostname(), "80")
-		case "https":
-			parsedURL.Host = net.JoinHostPort(parsedURL.Hostname(), "443")
-		case "tls", "tcp":
-			return nil, fmt.Errorf("invalid URL (%q), tls and tcp schemes require a port and a hostname", input)
-		}
-	}
-
-	return parsedURL, nil
 }
 
 func (td *TunnelDriver) DeleteAgentEndpoint(ctx context.Context, name string) error {
