@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: bindings
+spec:
+  steps:
+  - name: assert BoundEndpoint http://assets-denied.example is denied
+    try:
+    - assert:
+        resource:
+          apiVersion: bindings.k8s.ngrok.com/v1alpha1
+          kind: BoundEndpoint
+          metadata:
+            # no name == any matching resource
+            namespace: ngrok-operator
+          spec:
+            allowed: false
+            endpointURI: "http://assets-denied.example:80"
+            scheme: "http"
+            port: 80
+            target:
+              service: "assets-denied"
+              namespace: "example"
+              protocol: TCP
+              port: 80
+          status:
+            ~.(endpoints):
+              status: "denied"
