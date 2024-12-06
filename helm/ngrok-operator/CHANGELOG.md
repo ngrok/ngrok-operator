@@ -5,6 +5,24 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.16.4...helm-chart-0.17.0-rc.1
+
+- Update ngrok-operator version to `0.14.0`
+- Update Helm chart version to `0.17.0-rc.1`
+
+### Added
+
+- add agentendpoint crd by @Alice-Lilith in [#525](https://github.com/ngrok/ngrok-operator/pull/525)
+- agent endpoints work continued by @Alice-Lilith in [#538](https://github.com/ngrok/ngrok-operator/pull/538)
+- make protocol optional for agentendpoint upstreams by @Alice-Lilith in [#547](https://github.com/ngrok/ngrok-operator/pull/547)
+- remove boilerplate type field from trafficPolicy field by @Alice-Lilith in [#548](https://github.com/ngrok/ngrok-operator/pull/548)
+
+### Fixed
+
+- adjust bindings-forwarder deployment template by @masonj5n in [#529](https://github.com/ngrok/ngrok-operator/pull/529)
+
+
 ## 0.16.4
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.16.3...helm-chart-0.16.4
 
@@ -33,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Sign ngrok-operator Helm chart with GPG key by @hjkatz <hjkatz03@gmail.com> in [#514](https://github.com/ngrok/ngrok-operator/pull/514)
+- Sign ngrok-operator Helm chart with GPG key by @hjkatz in [#514](https://github.com/ngrok/ngrok-operator/pull/514)
 
 ## 0.16.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.16.0...helm-chart-0.16.1
@@ -43,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Update NOTES.txt for new feature sets by @hjkatz <hjkatz03@gmail.com> in [#508](https://github.com/ngrok/ngrok-operator/pull/508)
+- Update NOTES.txt for new feature sets by @hjkatz in [#508](https://github.com/ngrok/ngrok-operator/pull/508)
 
 ## 0.16.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.16.0...helm-chart-0.15.0

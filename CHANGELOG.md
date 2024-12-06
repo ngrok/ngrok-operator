@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.7...ngrok-operator-0.14.0
+
+- Update ngrok-operator version to `0.14.0`
+- Update Helm chart version to `0.17.0-rc.1`
+
+<!-- remove empty sections -->
+<!-- PRs since last release: -->
+
+### Added
+- add agentendpoint crd by @Alice-Lilith in [#525](https://github.com/ngrok/ngrok-operator/pull/525)
+- agent endpoints work continued by @Alice-Lilith in [#538](https://github.com/ngrok/ngrok-operator/pull/538)
+- make protocol optional for agentendpoint upstreams by @Alice-Lilith in [#547](https://github.com/ngrok/ngrok-operator/pull/547)
+- remove boilerplate type field from trafficPolicy field by @Alice-Lilith in [#548](https://github.com/ngrok/ngrok-operator/pull/548)
+
+### Changed
+
+- Error with invalid API key by @hjkatz in [#524](https://github.com/ngrok/ngrok-operator/pull/524)
+
+### Fixed
+
+- fix: Re-create tunnel if forwardsTo or appProto changes by @jonstacks in [#527](https://github.com/ngrok/ngrok-operator/pull/527)
+- adjust bindings-forwarder deployment template by @masonj5n in [#529](https://github.com/ngrok/ngrok-operator/pull/529)
+- skip no-op status and annotation updates for boundendpoint reconciliation by @masonj5n in [#537](https://github.com/ngrok/ngrok-operator/pull/537)
+- fix endpoint url validation helper and add tests by @Alice-Lilith in [#544](https://github.com/ngrok/ngrok-operator/pull/544)
+- fix(agent-endpoints): Delete agent endpoint instead of tunnel by @jonstacks in [#543](https://github.com/ngrok/ngrok-operator/pull/543)
+
+### Internal / CI
+
+- Add artifacthub badge by @hjkatz in [#513](https://github.com/ngrok/ngrok-operator/pull/513)
+- feat: add chainsaw based e2e tests by @eddycharly in [#506](https://github.com/ngrok/ngrok-operator/pull/506)
+- e2e updates / fixes 1 by @hjkatz in [#526](https://github.com/ngrok/ngrok-operator/pull/526)
+- Trigger ci e2e with Makefile change by @hjkatz in [#528](https://github.com/ngrok/ngrok-operator/pull/528)
+- Use correct namespace for debugging by @hjkatz in [#530](https://github.com/ngrok/ngrok-operator/pull/530)
+- Ensure build-and-test runs on push events by @hjkatz in [#531](https://github.com/ngrok/ngrok-operator/pull/531)
+- E2E 5, E5E by @hjkatz in [#532](https://github.com/ngrok/ngrok-operator/pull/532)
+- Fix typo for changes to tests ; Add scripts/e2e.sh too by @hjkatz in [#534](https://github.com/ngrok/ngrok-operator/pull/534)
+- Checkout fork PR HEAD for e2e tests by @hjkatz in [#535](https://github.com/ngrok/ngrok-operator/pull/535)
+- Enable deny gate for 'safe to test' label by @hjkatz in [#539](https://github.com/ngrok/ngrok-operator/pull/539)
+- Add found labels debug message by @hjkatz in [#540](https://github.com/ngrok/ngrok-operator/pull/540)
+- feat: Use a merge group for e2e tests by @jonstacks in [#542](https://github.com/ngrok/ngrok-operator/pull/542)
+- Add some e2e tests as a feature branch by @hjkatz in [#533](https://github.com/ngrok/ngrok-operator/pull/533)
+- feat(ci): Update release script by @jonstacks in [#545](https://github.com/ngrok/ngrok-operator/pull/545)
+
+### New Contributors
+- @eddycharly made their first contribution in https://github.com/ngrok/ngrok-operator/pull/506
+- @masonj5n made their first contribution in https://github.com/ngrok/ngrok-operator/pull/529
+- @Alice-Lilith made their first contribution in https://github.com/ngrok/ngrok-operator/pull/525
+
 ## 0.13.7
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.6...ngrok-operator-0.13.7
 
@@ -33,11 +82,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Sign ngrok-operator Helm chart with GPG key by @hjkatz <hjkatz03@gmail.com> in [#514](https://github.com/ngrok/ngrok-operator/pull/514)
+- Sign ngrok-operator Helm chart with GPG key by @hjkatz in [#514](https://github.com/ngrok/ngrok-operator/pull/514)
 
 ### Fixed
 
-- Update README.md with new rename by @<gh-user> <hjkatz03@gmail.com> in [#516](https://github.com/ngrok/ngrok-operator/pull/516)
+- Update README.md with new rename by @hjkatz in [#516](https://github.com/ngrok/ngrok-operator/pull/516)
 
 ## 0.13.4
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.3...ngrok-operator-0.13.4
@@ -47,7 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add `scripts/release.sh` and `make release` by @hjkatz <hjkatz03@gmail.com> in [#507](https://github.com/ngrok/ngrok-operator/pull/507) [#509](https://github.com/ngrok/ngrok-operator/pull/509) [#510](https://github.com/ngrok/ngrok-operator/pull/510)
+- Add `scripts/release.sh` and `make release` by @hjkatz in [#507](https://github.com/ngrok/ngrok-operator/pull/507) [#509](https://github.com/ngrok/ngrok-operator/pull/509) [#510](https://github.com/ngrok/ngrok-operator/pull/510)
 
 ## 0.13.3
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.1...ngrok-operator-0.13.3
