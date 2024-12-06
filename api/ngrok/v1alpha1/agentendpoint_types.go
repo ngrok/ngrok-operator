@@ -83,9 +83,8 @@ type EndpointUpstream struct {
 	// with prior knowledge (defaulting to http1). alpn negotiation is not currently supported.
 	//
 	// +kubebuilder:validation:Enum=http1;http2
-	// +kubebuilder:validation:Required
-	// +kubebuilder:default=http1
-	Protocol commonv1alpha1.ApplicationProtocol `json:"protocol"`
+	// +kubebuilder:validation:Optional
+	Protocol *commonv1alpha1.ApplicationProtocol `json:"protocol"`
 
 	// Optionally specify the version of proxy protocol to use if the upstream requires it
 	//
