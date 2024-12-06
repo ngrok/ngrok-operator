@@ -156,7 +156,7 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 
 func (r *AgentEndpointReconciler) delete(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
 	tunnelName := r.statusID(endpoint)
-	return r.TunnelDriver.DeleteTunnel(ctx, tunnelName)
+	return r.TunnelDriver.DeleteAgentEndpoint(ctx, tunnelName)
 	// TODO: Delete any associated domain
 }
 
