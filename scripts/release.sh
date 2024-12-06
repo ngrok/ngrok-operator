@@ -90,7 +90,7 @@ function gather_prs () {
     fi
 
     # format: <commit-sha> <commit-msg> ()<pr-number>)
-    git log --pretty=format:"%h %s" --merges --grep="#\d+" $1..$2 \
+    git log --pretty=format:"%h %s" -P --grep="#\d+" $1..$2 \
       | while read line ; do
             commit_sha=$(echo "$line" | awk '{print $1}') # first field
             commit_msg=$(echo "$line" | awk '{$1=""; if ($NF ~ /[(]#[0-9]+[)]/) {$NF=""} ; print }' | sed 's/^\s*//' | sed 's/\s*$//') # 2nd through 2nd-to-last fields, trim leading and trailing whitespace, remove trailing (#PR) field
