@@ -208,7 +208,7 @@ func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngr
 	var policy string
 	var err error
 
-	switch aep.Spec.TrafficPolicy.Type {
+	switch aep.Spec.TrafficPolicy.Type() {
 	case ngrokv1alpha1.TrafficPolicyCfgType_Inline:
 		policyBytes, err := aep.Spec.TrafficPolicy.Inline.MarshalJSON()
 		if err != nil {

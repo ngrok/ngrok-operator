@@ -118,6 +118,7 @@ type AgentEndpointSpec struct {
 	Upstream EndpointUpstream `json:"upstream"`
 
 	// Allows configuring a TrafficPolicy to be used with this AgentEndpoint
+	// When configured, the traffic policy is provided inline or as a reference to an NgrokTrafficPolicy resource
 	//
 	// +kubebuilder:validation:Optional
 	TrafficPolicy *TrafficPolicyCfg `json:"trafficPolicy,omitempty"`
@@ -147,26 +148,11 @@ const (
 	TrafficPolicyCfgType_Inline TrafficPolicyCfgType = "inline"
 )
 
-func (t TrafficPolicyCfgType) IsKnown() bool {
-	switch t {
-	case TrafficPolicyCfgType_K8sRef, TrafficPolicyCfgType_Inline:
-		return true
-	default:
-		return false
-	}
-}
-
-// +kubebuilder:validation:XValidation:rule="self.type == 'inline' ? has(self.inline) && !has(self.targetRef) : true",message="When type is inline, inline must be set, and targetRef must not be set."
-// +kubebuilder:validation:XValidation:rule="self.type == 'targetRef' ? has(self.targetRef) && !has(self.inline) : true",message="When type is targetRef, targetRef must be set, and inline must not be set."
+// +kubebuilder:validation:XValidation:rule="has(self.inline) || has(self.targetRef)", message="targetRef or inline must be provided to trafficPolicy"
+// +kubebuilder:validation:XValidation:rule="has(self.inline) != has(self.targetRef)",message="Only one of inline and targetRef can be configured for trafficPolicy"
 type TrafficPolicyCfg struct {
-	// Controls the way that the TrafficPolicy configuration will be provided to the Agent Endpoint
-	//
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=targetRef;inline
-	Type TrafficPolicyCfgType `json:"type"`
-
 	// Inline definition of a TrafficPolicy to attach to the agent Endpoint
-	// The raw json encoded policy that was applied to the ngrok API
+	// The raw JSON-encoded policy that was applied to the ngrok API
 	//
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Schemaless
@@ -178,6 +164,13 @@ type TrafficPolicyCfg struct {
 	//
 	// +kubebuilder:validation:Optional
 	Reference *K8sObjectRef `json:"targetRef,omitempty"`
+}
+
+func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {
+	if t.Reference != nil {
+		return TrafficPolicyCfgType_K8sRef
+	}
+	return TrafficPolicyCfgType_Inline
 }
 
 // AgentEndpointStatus defines the observed state of an AgentEndpoint
