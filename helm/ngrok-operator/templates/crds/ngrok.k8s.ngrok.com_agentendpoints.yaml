@@ -74,13 +74,14 @@ spec:
                   the ngrok API/Dashboard
                 type: string
               trafficPolicy:
-                description: Allows configuring a TrafficPolicy to be used with this
-                  AgentEndpoint
+                description: |-
+                  Allows configuring a TrafficPolicy to be used with this AgentEndpoint
+                  When configured, the traffic policy is provided inline or as a reference to an NgrokTrafficPolicy resource
                 properties:
                   inline:
                     description: |-
                       Inline definition of a TrafficPolicy to attach to the agent Endpoint
-                      The raw json encoded policy that was applied to the ngrok API
+                      The raw JSON-encoded policy that was applied to the ngrok API
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
                   targetRef:
@@ -93,25 +94,13 @@ spec:
                     required:
                     - name
                     type: object
-                  type:
-                    description: Controls the way that the TrafficPolicy configuration
-                      will be provided to the Agent Endpoint
-                    enum:
-                    - targetRef
-                    - inline
-                    type: string
-                required:
-                - type
                 type: object
                 x-kubernetes-validations:
-                - message: When type is inline, inline must be set, and targetRef
-                    must not be set.
-                  rule: 'self.type == ''inline'' ? has(self.inline) && !has(self.targetRef)
-                    : true'
-                - message: When type is targetRef, targetRef must be set, and inline
-                    must not be set.
-                  rule: 'self.type == ''targetRef'' ? has(self.targetRef) && !has(self.inline)
-                    : true'
+                - message: targetRef or inline must be provided to trafficPolicy
+                  rule: has(self.inline) || has(self.targetRef)
+                - message: Only one of inline and targetRef can be configured for
+                    trafficPolicy
+                  rule: has(self.inline) != has(self.targetRef)
               upstream:
                 description: Defines the destination for traffic to this AgentEndpoint
                 properties:
