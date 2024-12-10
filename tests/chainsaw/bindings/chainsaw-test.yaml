@@ -12,13 +12,13 @@ spec:
           apiVersion: bindings.k8s.ngrok.com/v1alpha1
           kind: BoundEndpoint
           metadata:
-            # no name == any matching resource
+            name: ngrok-238b1294-28ba-5de5-8713-8a2928d8a2f9 # stable hash
             namespace: ngrok-operator
           spec:
             allowed: false
             endpointURI: "http://assets-denied.example:80"
             scheme: "http"
-            port: 80
+            # port: <-- port is allocated and may be out of order, do not assert
             target:
               service: "assets-denied"
               namespace: "example"
@@ -27,3 +27,26 @@ spec:
           status:
             ~.(endpoints):
               status: "denied"
+
+  - name: assert BoundEndpoint http://assets-allowed.e2e is bound
+    try:
+    - assert:
+        resource:
+          apiVersion: bindings.k8s.ngrok.com/v1alpha1
+          kind: BoundEndpoint
+          metadata:
+            name: ngrok-adb90775-7749-5b56-92f4-d52ee756975b # stable hash
+            namespace: ngrok-operator
+          spec:
+            allowed: true
+            endpointURI: "http://assets-allowed.e2e:80"
+            scheme: "http"
+            # port: <-- port is allocated and may be out of order, do not assert
+            target:
+              service: "assets-allowed"
+              namespace: "e2e"
+              protocol: TCP
+              port: 80
+          status:
+            ~.(endpoints):
+              status: "bound"
