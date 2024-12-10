@@ -37,6 +37,9 @@ CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/...}
 # when true, deploy with --set oneClickDemoMode=true
 DEPLOY_ONE_CLICK_DEMO_MODE ?= false
 
+# default name for e2e-deploy k8s binding.name
+E2E_BINDING_NAME ?= k8s/e2e-from-makefile
+
 # Targets
 
 .PHONY: all
@@ -195,29 +198,6 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		&&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
-.PHONY: deploy_for_e2e
-deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
-		--namespace $(KUBE_NAMESPACE) \
-		--create-namespace \
-		--set oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
-		--set image.repository=$(IMG) \
-		--set image.tag="latest" \
-		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
-		--set credentials.apiKey=$(NGROK_API_KEY) \
-		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
-		--set log.format=console \
-		--set log.level=debug \
-		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=true \
-		--set bindings.name=$(E2E_BINDING_NAME) \
-		--set bindings.description="Example binding for CI e2e tests" \
-		--set bindings.allowedURLs='{*.e2e}' \
-		--set bindings.serviceAnnotations.annotation1="val1" \
-		--set bindings.serviceAnnotations.annotation2="val2" \
-		--set bindings.serviceLabels.label1="val1"
-
 .PHONY: _deploy-check-env-vars
 _deploy-check-env-vars:
 ifndef NGROK_API_KEY
@@ -307,6 +287,46 @@ helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuild
 	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
 
 ##@ E2E tests
+
+# NOTE: You will also need to load ngrok-operator:latest image into your local cluster for this to work
+.PHONY: e2e-deploy ## Deploy the operator for e2e tests
+e2e-deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup
+	# create some namespaces for bindings tests
+	kubectl create ns e2e || true
+
+    # deploy for e2e tests
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+		--namespace $(KUBE_NAMESPACE) \
+		--create-namespace \
+		--set oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
+		--set image.repository=$(IMG) \
+		--set image.tag="latest" \
+		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
+		--set credentials.apiKey=$(NGROK_API_KEY) \
+		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set log.format=console \
+		--set log.level=debug \
+		--set log.stacktraceLevel=panic \
+		--set metaData.env=local,metaData.from=makefile \
+		--set bindings.enabled=true \
+		--set bindings.name=$(E2E_BINDING_NAME) \
+		--set bindings.description="Example binding for CI e2e tests" \
+		--set bindings.allowedURLs='{*.e2e}' \
+		--set bindings.serviceAnnotations.annotation1="val1" \
+		--set bindings.serviceAnnotations.annotation2="val2" \
+		--set bindings.serviceLabels.label1="val1"
+
+.PHONY: e2e-start-ngrok
+e2e-start-ngrok: ## Start the ngrok-agent for e2e tests
+	# example assets
+	$(eval ASSETS_DIR := /tmp/assets-$(shell date +%s))
+
+	mkdir -p $(ASSETS_DIR)
+	@echo "Hello from ngrok-operator" > $(ASSETS_DIR)/hello_world.txt
+
+	# start an agent
+	ngrok http file://$(ASSETS_DIR) --url http://assets-allowed.e2e --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
+	ngrok http file://$(ASSETS_DIR) --url http://assets-denied.example --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
 
 .PHONY: e2e-tests
 e2e-tests: ## Run e2e tests
