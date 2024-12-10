@@ -469,6 +469,7 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 		return fmt.Errorf("unsupported protocol for spec.url: %s", ingressURL.Scheme)
 	}
 
+	log.V(1).Info("Adding agent endpoint to ngrok session")
 	tun, err = session.Listen(ctx, tunnelConfig)
 	if err != nil {
 		return err
