@@ -452,6 +452,12 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 			upstreamProto = string(*spec.Upstream.Protocol)
 		}
 		opts = append(opts, config.WithAppProtocol(upstreamProto))
+
+		// TODO: This should probably be inferred from the scheme in the URL
+		if ingressURL.Scheme == "http" {
+			opts = append(opts, config.WithScheme(config.SchemeHTTP))
+		}
+
 		tunnelConfig = config.HTTPEndpoint(opts...)
 	case "tls":
 		opts := []config.TLSEndpointOption{}
