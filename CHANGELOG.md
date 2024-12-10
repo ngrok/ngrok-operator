@@ -5,14 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.14.0...ngrok-operator-0.14.1
+
+### Fixed
+
+- Fix http endpoint scheme by @jonstacks in [#549](https://github.com/ngrok/ngrok-operator/pull/549)
+
+
 ## 0.14.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.13.7...ngrok-operator-0.14.0
 
 - Update ngrok-operator version to `0.14.0`
 - Update Helm chart version to `0.17.0-rc.1`
-
-<!-- remove empty sections -->
-<!-- PRs since last release: -->
 
 ### Added
 - add agentendpoint crd by @Alice-Lilith in [#525](https://github.com/ngrok/ngrok-operator/pull/525)
