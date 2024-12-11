@@ -167,8 +167,8 @@ jobs:
         options: --entrypoint /bin/bash
         run: |
           # auth
-          export NGROK_API_KEY={{ secrets.NGROK_CI_API_KEY }}
-          export NGROK_AUTHTOKEN={{ secrets.NGROK_CI_AUTHTOKEN }}
+          export NGROK_API_KEY=${{ secrets.NGROK_CI_API_KEY }}
+          export NGROK_AUTHTOKEN=${{ secrets.NGROK_CI_AUTHTOKEN }}
 
           # example assets
           mkdir -p /tmp/assets
