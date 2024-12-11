@@ -1,3 +1,6 @@
+# absolute path to cwd relative to Makefile
+CWD := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+
 # Image URL to use all building/pushing image targets
 IMG ?= ngrok-operator
 
@@ -36,6 +39,10 @@ CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/...}
 
 # when true, deploy with --set oneClickDemoMode=true
 DEPLOY_ONE_CLICK_DEMO_MODE ?= false
+
+# example assets
+# Note: contents must match chainsaw tests
+E2E_ASSETS_DIR ?= $(CWD)/e2e-fixtures/ngrok-assets/
 
 # default name for e2e-deploy k8s binding.name
 E2E_BINDING_NAME ?= k8s/e2e-from-makefile
@@ -318,16 +325,10 @@ e2e-deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup
 
 .PHONY: e2e-start-ngrok
 e2e-start-ngrok: ## Start the ngrok-agent for e2e tests
-	# example assets
-	$(eval ASSETS_DIR := /tmp/assets-$(shell date +%s))
-
-	mkdir -p $(ASSETS_DIR)
-	# Note: contents must match chainsaw tests
-	@echo "Hello from ngrok-operator" > $(ASSETS_DIR)/hello_world.txt
-
 	# start an agent
-	ngrok http file://$(ASSETS_DIR) --url http://assets-allowed.e2e --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
-	ngrok http file://$(ASSETS_DIR) --url http://assets-denied.example --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
+	ngrok http file://$(E2E_ASSETS_DIR) --url http://assets-allowed.e2e --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
+	ngrok http file://$(E2E_ASSETS_DIR) --url http://assets-denied.example --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
+	ngrok tcp tcpbin.com:4242 --url tcp://tcp-echo.e2e:4242 --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
 
 .PHONY: e2e-tests
 e2e-tests: ## Run e2e tests
