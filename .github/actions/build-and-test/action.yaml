@@ -86,9 +86,10 @@ runs:
         NGROK_AUTHTOKEN: ${{ inputs.ngrok-authtoken }}
         E2E_BINDING_NAME: k8s/e2e-${{ github.run_id }}
       with:
-        image: ngrok/ngrok:latest
+        image: ngrok/ngrok:alpine
         options: --entrypoint /bin/bash
         run: |
+          apk add --update --no-cache make
           make e2e-start-ngrok
           # give the operator some time to become eventually consistent
           # - operator registration
