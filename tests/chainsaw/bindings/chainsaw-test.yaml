@@ -95,3 +95,15 @@ spec:
           GOT=$(kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- curl -s http://assets-allowed.e2e/hello_world.txt 2>/dev/null | head -n1 | tr -d '\n')
           [ $? -eq 0 ] || { echo "Failed to retrieve assets"; exit 1; }
           [ "$GOT" = "$WANT" ] || { echo "Incorrect assets content: want '$WANT', got '$GOT'"; exit 1; }
+
+  - name: test tcp connection via BoundEndpoint UpstreamService
+    try:
+    - script:
+        content: |
+          WANT_REGEX="Connection to tcp-echo\.e2e .* 4242 port .* succeeded"
+          # 2>/dev/null to suppress kubectl default output
+          # first line is the contents, last line in "deleted pod" message
+          GOT=$(kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- nc -zv tcp-echo.e2e 4242 2>/dev/null | head -n1)
+
+          [ $? -eq 0 ] || { echo "Failed to establish tcp connection"; exit 1; }
+          (echo "$GOT" | grep -q "$WANT_REGEX") || { echo "Unexpected nc output: want '$WANT_REGEX' got '$GOT'"; exit 1; }
