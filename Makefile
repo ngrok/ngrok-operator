@@ -322,6 +322,7 @@ e2e-start-ngrok: ## Start the ngrok-agent for e2e tests
 	$(eval ASSETS_DIR := /tmp/assets-$(shell date +%s))
 
 	mkdir -p $(ASSETS_DIR)
+	# Note: contents must match chainsaw tests
 	@echo "Hello from ngrok-operator" > $(ASSETS_DIR)/hello_world.txt
 
 	# start an agent

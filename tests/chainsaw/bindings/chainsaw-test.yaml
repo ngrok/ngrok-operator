@@ -50,3 +50,48 @@ spec:
           status:
             ~.(endpoints):
               status: "bound"
+    # TargetService
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: assets-allowed
+            namespace: e2e
+          spec:
+            type: ExternalName
+            externalName: ngrok-adb90775-7749-5b56-92f4-d52ee756975b.ngrok-operator.svc.cluster.local # stable hash
+            ~.(ports):
+              name: http
+              port: 80
+              targetPort: 80
+              protocol: TCP
+    # UpstreamService
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: ngrok-adb90775-7749-5b56-92f4-d52ee756975b # stable hash
+            namespace: ngrok-operator
+          spec:
+            type: ClusterIP
+            ~.(ports):
+              name: http
+              port: 80
+              # targetPort: < -- port is allocated and may be out of order, do not assert
+              protocol: TCP
+
+  - name: test assets retrieval via BoundEndpoint TargetService
+    try:
+    - script:
+        content: |
+          # See contents in `make e2e-start-ngrok` task
+          WANT="Hello from ngrok-operator"
+
+          # 2>/dev/null to suppress kubectl default output
+          # first line is the contents, last line in "deleted pod" message
+          # remove newline to compare strings directly
+          GOT=$(kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- curl -s http://assets-allowed.e2e/hello_world.txt 2>/dev/null | head -n1 | tr -d '\n')
+          [ $? -eq 0 ] || { echo "Failed to retrieve assets"; exit 1; }
+          [ "$GOT" = "$WANT" ] || { echo "Incorrect assets content: want '$WANT', got '$GOT'"; exit 1; }
