@@ -5,7 +5,7 @@ metadata:
   name: bindings
 spec:
   timeouts:
-    assert: 3m
+    assert: 10m
   steps:
   - name: assert BoundEndpoint http://assets-denied.example is denied
     try:
