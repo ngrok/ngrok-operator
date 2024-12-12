@@ -99,7 +99,6 @@ runs:
           make \
           ngrok \
 
-        cd /github_workspace
         make e2e-start-ngrok
 
     - name: Install cosign
