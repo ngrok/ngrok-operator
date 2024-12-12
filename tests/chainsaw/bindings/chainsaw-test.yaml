@@ -5,7 +5,7 @@ metadata:
   name: bindings
 spec:
   timeouts:
-    assert: 10m
+    assert: 3m
   steps:
   - name: assert BoundEndpoint http://assets-denied.example is denied
     try:
@@ -28,7 +28,8 @@ spec:
               port: 80
           status:
             ~.(endpoints):
-              status: "denied"
+              status:
+                (@ == "denied"): true
 
   - name: assert BoundEndpoint http://assets-allowed.e2e is bound
     try:
@@ -51,7 +52,8 @@ spec:
               port: 80
           status:
             ~.(endpoints):
-              status: "bound"
+              status:
+                (@ == "bound"): true
     # TargetService
     - assert:
         resource:
