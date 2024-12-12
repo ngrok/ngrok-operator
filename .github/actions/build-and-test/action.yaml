@@ -87,6 +87,7 @@ runs:
           -v ${{ github.workspace }}:/github_workspace
           --user root
           --entrypoint /bin/bash
+          --detach
           -e NGROK_API_KEY=${{ inputs.ngrok-api-key }}
           -e NGROK_AUTHTOKEN=${{ inputs.ngrok-authtoken }}
           -e E2E_BINDING_NAME=k8s/e2e-${{ github.run_id }}
