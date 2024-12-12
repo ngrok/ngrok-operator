@@ -88,11 +88,11 @@ runs:
         E2E_TCP_ENDPOINT_NAME: ${{ github.run_id }}-tcp
       with:
         image: ngrok/ngrok:alpine
-        options: --entrypoint /bin/sh --user root
+        options: --entrypoint /bin/sh --user root -v ${{ github.workspace }}:/github_workspace
         run: |
           apk add --update --no-cache make
 
-          cd /github/workspace
+          cd /github_workspace
           make e2e-start-ngrok || exit 1
 
           # give the operator some time to become eventually consistent
