@@ -87,10 +87,10 @@ runs:
         E2E_BINDING_NAME: k8s/e2e-${{ github.run_id }}
         E2E_TCP_ENDPOINT_NAME: ${{ github.run_id }}-tcp
       with:
-        image: ngrok/ngrok:alpine
-        options: --entrypoint /bin/sh --user root -v ${{ github.workspace }}:/github_workspace
+        image: ngrok/ngrok:latest
+        options: --entrypoint /bin/bash --user root -v ${{ github.workspace }}:/github_workspace
         run: |
-          apk add --update --no-cache make
+          apt-get update && apt-get install -y make
 
           cd /github_workspace
           make e2e-start-ngrok || exit 1
