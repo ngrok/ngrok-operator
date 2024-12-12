@@ -31,7 +31,7 @@ func TestCalculateFeaturesEnabled(t *testing.T) {
 					},
 				},
 			},
-			expected: []string{"Bindings", "Ingress", "Gateway"},
+			expected: []string{"bindings", "ingress", "gateway"},
 		},
 	}
 
