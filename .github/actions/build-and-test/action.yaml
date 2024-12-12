@@ -98,12 +98,6 @@ runs:
           cd /github_workspace
           make e2e-start-ngrok || exit 1
 
-          # give the operator some time to become eventually consistent
-          # - operator registration
-          # - bound endpoints projection
-          echo "Sleeping 60s to allow the operator to reconcile..."
-          sleep 60
-
     - name: Install cosign
       if: ${{ inputs.run-e2e == 'true' }}
       uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
