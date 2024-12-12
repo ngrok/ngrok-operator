@@ -1,0 +1,111 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: bindings
+spec:
+  timeouts:
+    assert: 10m
+  steps:
+  - name: assert BoundEndpoint http://assets-denied.example is denied
+    try:
+    - assert:
+        resource:
+          apiVersion: bindings.k8s.ngrok.com/v1alpha1
+          kind: BoundEndpoint
+          metadata:
+            name: ngrok-238b1294-28ba-5de5-8713-8a2928d8a2f9 # stable hash
+            namespace: ngrok-operator
+          spec:
+            allowed: false
+            endpointURI: "http://assets-denied.example:80"
+            scheme: "http"
+            # port: <-- port is allocated and may be out of order, do not assert
+            target:
+              service: "assets-denied"
+              namespace: "example"
+              protocol: TCP
+              port: 80
+          status:
+            ~.(endpoints):
+              status: "denied"
+
+  - name: assert BoundEndpoint http://assets-allowed.e2e is bound
+    try:
+    - assert:
+        resource:
+          apiVersion: bindings.k8s.ngrok.com/v1alpha1
+          kind: BoundEndpoint
+          metadata:
+            name: ngrok-adb90775-7749-5b56-92f4-d52ee756975b # stable hash
+            namespace: ngrok-operator
+          spec:
+            allowed: true
+            endpointURI: "http://assets-allowed.e2e:80"
+            scheme: "http"
+            # port: <-- port is allocated and may be out of order, do not assert
+            target:
+              service: "assets-allowed"
+              namespace: "e2e"
+              protocol: TCP
+              port: 80
+          status:
+            ~.(endpoints):
+              status: "bound"
+    # TargetService
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: assets-allowed
+            namespace: e2e
+          spec:
+            type: ExternalName
+            externalName: ngrok-adb90775-7749-5b56-92f4-d52ee756975b.ngrok-operator.svc.cluster.local # stable hash
+            ~.(ports):
+              name: http
+              port: 80
+              targetPort: 80
+              protocol: TCP
+    # UpstreamService
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: ngrok-adb90775-7749-5b56-92f4-d52ee756975b # stable hash
+            namespace: ngrok-operator
+          spec:
+            type: ClusterIP
+            ~.(ports):
+              name: http
+              port: 80
+              # targetPort: < -- port is allocated and may be out of order, do not assert
+              protocol: TCP
+
+  - name: test assets retrieval via BoundEndpoint TargetService
+    try:
+    - script:
+        content: |
+          # See contents in `make e2e-start-ngrok` task
+          WANT="Hello from ngrok-operator"
+
+          # 2>/dev/null to suppress kubectl default output
+          # first line is the contents, last line in "deleted pod" message
+          # remove newline to compare strings directly
+          GOT=$(kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- curl -s http://assets-allowed.e2e/hello_world.txt 2>/dev/null | head -n1 | tr -d '\n')
+          [ $? -eq 0 ] || { echo "Failed to retrieve assets"; exit 1; }
+          [ "$GOT" = "$WANT" ] || { echo "Incorrect assets content: want '$WANT', got '$GOT'"; exit 1; }
+
+  - name: test tcp connection via BoundEndpoint UpstreamService
+    try:
+    - script:
+        content: |
+          WANT_REGEX="Connection to tcp-echo\.e2e .* 4242 port .* succeeded"
+          # 2>/dev/null to suppress kubectl default output
+          # first line is the contents, last line in "deleted pod" message
+          GOT=$(kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- nc -zv tcp-echo.e2e 4242 2>/dev/null | head -n1)
+
+          [ $? -eq 0 ] || { echo "Failed to establish tcp connection"; exit 1; }
+          (echo "$GOT" | grep -q "$WANT_REGEX") || { echo "Unexpected nc output: want '$WANT_REGEX' got '$GOT'"; exit 1; }

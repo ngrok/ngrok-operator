@@ -469,7 +469,6 @@ func extractNamespaceUIDFromMetadata(metadata string) (string, error) {
 	return uid, nil
 }
 
-// nolint:unused
 func generateCSR(privKey *ecdsa.PrivateKey) ([]byte, error) {
 	subj := pkix.Name{}
 
