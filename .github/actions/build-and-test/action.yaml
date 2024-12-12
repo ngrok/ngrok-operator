@@ -79,23 +79,28 @@ runs:
         kubectl -n ngrok-operator describe pod -l app.kubernetes.io/name=ngrok-operator
 
     - name: Start an ngrok agent
-      uses: addnab/docker-run-action@v3
       if: ${{ inputs.run-e2e == 'true' }}
-      with:
-        image: ngrok/ngrok:latest
-        options: >-
-          -v ${{ github.workspace }}:/github_workspace
-          --user root
-          --entrypoint /bin/bash
-          --detach
-          -e NGROK_API_KEY=${{ inputs.ngrok-api-key }}
-          -e NGROK_AUTHTOKEN=${{ inputs.ngrok-authtoken }}
-          -e E2E_BINDING_NAME=k8s/e2e-${{ github.run_id }}
-          -e E2E_TCP_ENDPOINT_NAME=${{ github.run_id }}-tcp
-        run: |
-          apt-get update && apt-get install -y make
-          cd /github_workspace
-          make e2e-start-ngrok
+      shell: bash
+      run: |
+        # envars needed for ngrok-agent
+        export NGROK_API_KEY=${{ inputs.ngrok-api-key }}
+        export NGROK_AUTHTOKEN=${{ inputs.ngrok-authtoken }}
+        export E2E_BINDING_NAME=k8s/e2e-${{ github.run_id }}
+        export E2E_TCP_ENDPOINT_NAME=${{ github.run_id }}-tcp
+
+        # add the ngrok apt source
+        curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+          | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null \
+          && echo "deb https://ngrok-agent.s3.amazonaws.com buster main" \
+          | sudo tee /etc/apt/sources.list.d/ngrok.list \
+
+        # install packages
+        apt-get update && apt-get install -y \
+          make \
+          ngrok \
+
+        cd /github_workspace
+        make e2e-start-ngrok
 
     - name: Install cosign
       if: ${{ inputs.run-e2e == 'true' }}
