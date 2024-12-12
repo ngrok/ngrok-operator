@@ -1,4 +1,4 @@
-package store
+package managerdriver
 
 import (
 	"context"
@@ -24,6 +24,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -44,7 +45,7 @@ var _ = Describe("Driver", func() {
 		driver = NewDriver(
 			logger,
 			scheme,
-			defaultControllerName,
+			testutils.DefaultControllerName,
 			types.NamespacedName{Name: defaultManagerName},
 			WithGatewayEnabled(false),
 			WithSyncAllowConcurrent(true),
@@ -57,14 +58,14 @@ var _ = Describe("Driver", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should add all the found items to the store", func() {
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
-			i2 := NewTestIngressV1("test-ingress-2", "test-namespace")
-			ic1 := NewTestIngressClass("test-ingress-class", true, true)
-			ic2 := NewTestIngressClass("test-ingress-class-2", true, true)
-			d1 := NewDomainV1("test-domain.com", "test-namespace")
-			d2 := NewDomainV1("test-domain-2.com", "test-namespace")
-			e1 := NewHTTPSEdge("test-edge", "test-namespace", "test-domain.com")
-			e2 := NewHTTPSEdge("test-edge-2", "test-namespace", "test-domain-2.com")
+			i1 := testutils.NewTestIngressV1("test-ingress", "test-namespace")
+			i2 := testutils.NewTestIngressV1("test-ingress-2", "test-namespace")
+			ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
+			ic2 := testutils.NewTestIngressClass("test-ingress-class-2", true, true)
+			d1 := testutils.NewDomainV1("test-domain.com", "test-namespace")
+			d2 := testutils.NewDomainV1("test-domain-2.com", "test-namespace")
+			e1 := testutils.NewHTTPSEdge("test-edge", "test-namespace", "test-domain.com")
+			e2 := testutils.NewHTTPSEdge("test-edge-2", "test-namespace", "test-domain-2.com")
 			obs := []runtime.Object{&ic1, &ic2, &i1, &i2, &d1, &d2, &e1, &e2}
 
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
@@ -83,7 +84,7 @@ var _ = Describe("Driver", func() {
 
 	Describe("DeleteIngress", func() {
 		It("Should remove the ingress from the store", func() {
-			i1 := NewTestIngressV1("test-ingress", "test-namespace")
+			i1 := testutils.NewTestIngressV1("test-ingress", "test-namespace")
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&i1).Build()
 			err := driver.Seed(context.Background(), c)
 			Expect(err).ToNot(HaveOccurred())
@@ -126,11 +127,11 @@ var _ = Describe("Driver", func() {
 		})
 		Context("When there are just ingresses and CRDs need to be created", func() {
 			It("Should create the CRDs", func() {
-				i1 := NewTestIngressV1("test-ingress", "test-namespace")
-				i2 := NewTestIngressV1("test-ingress-2", "test-namespace")
-				ic1 := NewTestIngressClass("test-ingress-class", true, true)
-				ic2 := NewTestIngressClass("test-ingress-class-2", true, true)
-				s := NewTestServiceV1("example", "test-namespace")
+				i1 := testutils.NewTestIngressV1("test-ingress", "test-namespace")
+				i2 := testutils.NewTestIngressV1("test-ingress-2", "test-namespace")
+				ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
+				ic2 := testutils.NewTestIngressClass("test-ingress-class-2", true, true)
+				s := testutils.NewTestServiceV1("example", "test-namespace")
 				obs := []runtime.Object{&ic1, &ic2, &i1, &i2, &s}
 				c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
 
@@ -221,7 +222,7 @@ var _ = Describe("Driver", func() {
 
 		When("the CNAME is present", func() {
 			BeforeEach(func() {
-				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				domains = newTestDomainList(
 					newTestDomain(
 						"example-com",
@@ -239,7 +240,7 @@ var _ = Describe("Driver", func() {
 
 		When("no matching domain is found", func() {
 			BeforeEach(func() {
-				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				domains = newTestDomainList(
 					newTestDomain(
 						"another-domain-com",
@@ -256,7 +257,7 @@ var _ = Describe("Driver", func() {
 
 		When("the CNAME target is nil and the domain.status.domain is empty", func() {
 			BeforeEach(func() {
-				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				domains = newTestDomainList(
 					ingressv1alpha1.Domain{
 						ObjectMeta: metav1.ObjectMeta{
@@ -277,7 +278,7 @@ var _ = Describe("Driver", func() {
 
 		When("the domain is a non-wildcard ngrok managed domain", func() {
 			BeforeEach(func() {
-				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				ingress.Spec = netv1.IngressSpec{
 					Rules: []netv1.IngressRule{
 						{
@@ -302,7 +303,7 @@ var _ = Describe("Driver", func() {
 
 		When("the domain is a wildcard ngrok managed domain", func() {
 			BeforeEach(func() {
-				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				ingress.Spec = netv1.IngressSpec{
 					Rules: []netv1.IngressRule{
 						{
@@ -330,7 +331,7 @@ var _ = Describe("Driver", func() {
 			cname2 := "cnametarget2.com"
 
 			BeforeEach(func() {
-				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				addIngressHostname(&ingress, "test-domain1.com")
 				addIngressHostname(&ingress, "test-domain2.com")
 				domains = newTestDomainList(
@@ -360,7 +361,7 @@ var _ = Describe("Driver", func() {
 			cname2 := "cnametarget2.com"
 
 			BeforeEach(func() {
-				ingress = NewTestIngressV1("test-ingress", "test-namespace")
+				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				addIngressHostname(&ingress, "test-domain1.com")
 				addIngressHostname(&ingress, "test-domain1.com")
 				domains = newTestDomainList(
@@ -422,7 +423,7 @@ var _ = Describe("Driver", func() {
 		})
 
 		It("Should return an empty module set if the ingress has no modules annotaion", func() {
-			ing := NewTestIngressV1("test-ingress", "test")
+			ing := testutils.NewTestIngressV1("test-ingress", "test")
 			Expect(driver.store.Add(&ing)).To(BeNil())
 
 			ms, err := driver.getNgrokModuleSetForIngress(&ing)
@@ -435,7 +436,7 @@ var _ = Describe("Driver", func() {
 		})
 
 		It("Should return the matching module set if the ingress has a modules annotaion", func() {
-			ing := NewTestIngressV1("test-ingress", "test")
+			ing := testutils.NewTestIngressV1("test-ingress", "test")
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1"})
 			Expect(driver.store.Add(&ing)).To(BeNil())
 
@@ -445,7 +446,7 @@ var _ = Describe("Driver", func() {
 		})
 
 		It("merges modules with the last one winning if multiple module sets are specified", func() {
-			ing := NewTestIngressV1("test-ingress", "test")
+			ing := testutils.NewTestIngressV1("test-ingress", "test")
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1,ms2,ms3"})
 			Expect(driver.store.Add(&ing)).To(BeNil())
 

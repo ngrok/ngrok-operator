@@ -9,10 +9,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	netv1 "k8s.io/api/networking/v1"
+
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 )
 
 const ngrokIngressClass = "ngrok"
-const defaultControllerName = "k8s.ngrok.com/ingress-controller"
 
 func TestStore(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -26,13 +27,13 @@ var _ = Describe("Store", func() {
 		// create a fake logger to pass into the cachestore
 		logger := logr.New(logr.Discard().GetSink())
 		cacheStores := NewCacheStores(logger)
-		store = New(cacheStores, defaultControllerName, logger)
+		store = New(cacheStores, testutils.DefaultControllerName, logger)
 	})
 
 	var _ = Describe("GetIngressClassV1", func() {
 		Context("when the ingress class exists", func() {
 			BeforeEach(func() {
-				ic := NewTestIngressClass(ngrokIngressClass, true, true)
+				ic := testutils.NewTestIngressClass(ngrokIngressClass, true, true)
 				Expect(store.Add(&ic)).To(BeNil())
 			})
 			It("returns the ingress class", func() {
@@ -53,7 +54,7 @@ var _ = Describe("Store", func() {
 	var _ = Describe("GetIngressV1", func() {
 		Context("when the ingress exists", func() {
 			BeforeEach(func() {
-				ing := NewTestIngressV1("test-ingress", "test-namespace")
+				ing := testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				Expect(store.Add(&ing)).To(BeNil())
 			})
 			It("returns the ingress", func() {
@@ -74,7 +75,7 @@ var _ = Describe("Store", func() {
 	var _ = Describe("GetServiceV1", func() {
 		Context("when the service exists", func() {
 			BeforeEach(func() {
-				svc := NewTestServiceV1("test-service", "test-namespace")
+				svc := testutils.NewTestServiceV1("test-service", "test-namespace")
 				Expect(store.Add(&svc)).To(BeNil())
 			})
 			It("returns the service", func() {
@@ -95,9 +96,9 @@ var _ = Describe("Store", func() {
 	var _ = Describe("GetNgrokIngressV1", func() {
 		Context("when the ngrok ingress exists", func() {
 			BeforeEach(func() {
-				ing := NewTestIngressV1WithClass("test-ingress", "test-namespace", ngrokIngressClass)
+				ing := testutils.NewTestIngressV1WithClass("test-ingress", "test-namespace", ngrokIngressClass)
 				Expect(store.Add(&ing)).To(BeNil())
-				ic := NewTestIngressClass(ngrokIngressClass, true, true)
+				ic := testutils.NewTestIngressClass(ngrokIngressClass, true, true)
 				Expect(store.Add(&ic)).To(BeNil())
 			})
 			It("returns the ngrok ingress", func() {
@@ -106,7 +107,7 @@ var _ = Describe("Store", func() {
 				Expect(ing.Name).To(Equal("test-ingress"))
 			})
 			It("Filters out ingresses that don't match the ngrok ingress class", func() {
-				ingNotNgrok := NewTestIngressV1WithClass("ingNotNgrok", "test-namespace", "not-ngrok")
+				ingNotNgrok := testutils.NewTestIngressV1WithClass("ingNotNgrok", "test-namespace", "not-ngrok")
 				Expect(store.Add(&ingNotNgrok)).To(BeNil())
 
 				ing, err := store.GetNgrokIngressV1("ingNotNgrok", "test-namespace")
@@ -114,7 +115,7 @@ var _ = Describe("Store", func() {
 				Expect(ing).To(BeNil())
 			})
 			It("Filters finds ones without a class if we are default", func() {
-				ingNoClass := NewTestIngressV1("ingNoClass", "test-namespace")
+				ingNoClass := testutils.NewTestIngressV1("ingNoClass", "test-namespace")
 				Expect(store.Add(&ingNoClass)).To(BeNil())
 
 				ing, err := store.GetNgrokIngressV1("ingNoClass", "test-namespace")
@@ -134,11 +135,11 @@ var _ = Describe("Store", func() {
 	var _ = Describe("ListNgrokIngressClassesV1", func() {
 		Context("when there are ngrok ingress classes", func() {
 			BeforeEach(func() {
-				ic1 := NewTestIngressClass("ngrok1", true, true)
+				ic1 := testutils.NewTestIngressClass("ngrok1", true, true)
 				Expect(store.Add(&ic1)).To(BeNil())
-				ic2 := NewTestIngressClass("ngrok2", true, true)
+				ic2 := testutils.NewTestIngressClass("ngrok2", true, true)
 				Expect(store.Add(&ic2)).To(BeNil())
-				ic3 := NewTestIngressClass("different", true, false)
+				ic3 := testutils.NewTestIngressClass("different", true, false)
 				Expect(store.Add(&ic3)).To(BeNil())
 			})
 			It("returns the ngrok ingress classes and doesn't return the different one", func() {
@@ -155,15 +156,15 @@ var _ = Describe("Store", func() {
 	})
 
 	var _ = Describe("ListNgrokIngressesV1", func() {
-		icUsDefault := NewTestIngressClass("ngrok", true, true)
-		icUsNotDefault := NewTestIngressClass("ngrok", false, true)
-		icOtherDefault := NewTestIngressClass("test", true, false)
-		icOtherNotDefault := NewTestIngressClass("test", false, false)
+		icUsDefault := testutils.NewTestIngressClass("ngrok", true, true)
+		icUsNotDefault := testutils.NewTestIngressClass("ngrok", false, true)
+		icOtherDefault := testutils.NewTestIngressClass("test", true, false)
+		icOtherNotDefault := testutils.NewTestIngressClass("test", false, false)
 
 		var _ = DescribeTable("IngressClassFiltering", func(ingressClasses []netv1.IngressClass, expectedMatchingIngressesCount int) {
-			iMatching := NewTestIngressV1WithClass("test1", "test", "ngrok")
-			iNotMatching := NewTestIngressV1WithClass("test2", "test", "test")
-			iNoClass := NewTestIngressV1("test3", "test")
+			iMatching := testutils.NewTestIngressV1WithClass("test1", "test", "ngrok")
+			iNotMatching := testutils.NewTestIngressV1WithClass("test2", "test", "test")
+			iNoClass := testutils.NewTestIngressV1("test3", "test")
 			Expect(store.Add(&iMatching)).To(BeNil())
 			Expect(store.Add(&iNotMatching)).To(BeNil())
 			Expect(store.Add(&iNoClass)).To(BeNil())
@@ -188,11 +189,11 @@ var _ = Describe("Store", func() {
 	var _ = Describe("ListNgrokModulesV1", func() {
 		Context("when there are NgrokModuleSets", func() {
 			BeforeEach(func() {
-				m1 := NewTestNgrokModuleSet("ngrok", "test", true)
+				m1 := testutils.NewTestNgrokModuleSet("ngrok", "test", true)
 				Expect(store.Add(&m1)).To(BeNil())
-				m2 := NewTestNgrokModuleSet("ngrok", "test2", true)
+				m2 := testutils.NewTestNgrokModuleSet("ngrok", "test2", true)
 				Expect(store.Add(&m2)).To(BeNil())
-				m3 := NewTestNgrokModuleSet("test", "test", true)
+				m3 := testutils.NewTestNgrokModuleSet("test", "test", true)
 				Expect(store.Add(&m3)).To(BeNil())
 			})
 			It("returns the NgrokModuleSet", func() {
@@ -211,7 +212,7 @@ var _ = Describe("Store", func() {
 	var _ = Describe("GetNgrokModuleSetV1", func() {
 		Context("when the NgrokModuleSet exists", func() {
 			BeforeEach(func() {
-				m := NewTestNgrokModuleSet("ngrok", "test", true)
+				m := testutils.NewTestNgrokModuleSet("ngrok", "test", true)
 				Expect(store.Add(&m)).To(BeNil())
 			})
 			It("returns the NgrokModuleSet", func() {
@@ -233,7 +234,7 @@ var _ = Describe("Store", func() {
 	var _ = Describe("GetNgrokTrafficPolicyV1", func() {
 		Context("when the NgrokTrafficPolicy exists", func() {
 			BeforeEach(func() {
-				tp := NewTestNgrokTrafficPolicy("ngrok", "test", "{\"inbound\": \"you know this can be anything though\"}")
+				tp := testutils.NewTestNgrokTrafficPolicy("ngrok", "test", "{\"inbound\": \"you know this can be anything though\"}")
 				Expect(store.Add(&tp)).To(BeNil())
 			})
 			It("returns the NgrokTrafficPolicy", func() {
@@ -256,11 +257,11 @@ var _ = Describe("Store", func() {
 		var multiRuleIngress netv1.Ingress
 
 		BeforeEach(func() {
-			ngrokClass := NewTestIngressClass(ngrokIngressClass, true, true)
-			otherClass := NewTestIngressClass("other", false, false)
+			ngrokClass := testutils.NewTestIngressClass(ngrokIngressClass, true, true)
+			otherClass := testutils.NewTestIngressClass("other", false, false)
 			Expect(store.Add(&ngrokClass)).ToNot(HaveOccurred())
 			Expect(store.Add(&otherClass)).ToNot(HaveOccurred())
-			multiRuleIngress = NewTestIngressV1WithClass("multi-rule-ingress", "test-namespace", ngrokClass.Name)
+			multiRuleIngress = testutils.NewTestIngressV1WithClass("multi-rule-ingress", "test-namespace", ngrokClass.Name)
 			multiRuleIngress.Spec.Rules = []netv1.IngressRule{
 				{
 					Host: "test1.com",
@@ -348,16 +349,16 @@ var _ = Describe("Store", func() {
 			cacheStores := NewCacheStores(logger)
 			store = Store{
 				stores:         cacheStores,
-				controllerName: defaultControllerName,
+				controllerName: testutils.DefaultControllerName,
 				log:            logger,
 			}
-			ngrokClass := NewTestIngressClass("ngrok", true, true)
+			ngrokClass := testutils.NewTestIngressClass("ngrok", true, true)
 			Expect(store.Add(&ngrokClass)).To(BeNil())
 		})
 
 		Context("when ingress has missing HTTP rules", func() {
 			It("returns an error without crashing", func() {
-				ing := NewTestIngressV1("ingress-no-rules", "test-namespace")
+				ing := testutils.NewTestIngressV1("ingress-no-rules", "test-namespace")
 				ing.Spec.Rules = []netv1.IngressRule{{
 					Host: "test.com",
 				}}
@@ -370,7 +371,7 @@ var _ = Describe("Store", func() {
 
 		Context("when ingress has unsupported default backend", func() {
 			It("ignores the ingress with default backend and returns an error", func() {
-				ing := NewTestIngressV1("ingress-default-backend", "test-namespace")
+				ing := testutils.NewTestIngressV1("ingress-default-backend", "test-namespace")
 				ing.Spec.DefaultBackend = &netv1.IngressBackend{
 					Service: &netv1.IngressServiceBackend{
 						Name: "default-service",
@@ -386,7 +387,7 @@ var _ = Describe("Store", func() {
 
 		Context("when ingress rule is missing hostname", func() {
 			It("flags the ingress as invalid", func() {
-				ing := NewTestIngressV1("ingress-no-host", "test-namespace")
+				ing := testutils.NewTestIngressV1("ingress-no-host", "test-namespace")
 				ing.Spec.Rules = []netv1.IngressRule{
 					{
 						Host: "a-hostname.com",
@@ -434,7 +435,7 @@ var _ = Describe("Store", func() {
 
 		Context("when ingress uses deprecated ingress annotation", func() {
 			It("logs a warning about the deprecated annotation", func() {
-				ing := NewTestIngressV1("ingress-deprecated-annotation", "test-namespace")
+				ing := testutils.NewTestIngressV1("ingress-deprecated-annotation", "test-namespace")
 				ingressClassName := "not-ngrok"
 				ing.Spec.IngressClassName = &ingressClassName
 				ing.Annotations = map[string]string{
@@ -448,7 +449,7 @@ var _ = Describe("Store", func() {
 
 		Context("when ingress class does not match", func() {
 			It("returns an error message showing the ingress class name", func() {
-				ing := NewTestIngressV1WithClass("ingress-wrong-class", "test-namespace", "not-ngrok")
+				ing := testutils.NewTestIngressV1WithClass("ingress-wrong-class", "test-namespace", "not-ngrok")
 				ok, err := store.shouldHandleIngressCheckClass(&ing)
 				Expect(ok).To(BeFalse())
 				Expect(err).To(HaveOccurred())
@@ -459,7 +460,7 @@ var _ = Describe("Store", func() {
 
 		Context("when no matching ingress classes are configured", func() {
 			It("lists known ingress classes in the error message", func() {
-				ing := NewTestIngressV1WithClass("ingress-no-match", "test-namespace", "no-match-class")
+				ing := testutils.NewTestIngressV1WithClass("ingress-no-match", "test-namespace", "no-match-class")
 				ok, err := store.shouldHandleIngressCheckClass(&ing)
 				Expect(ok).To(BeFalse())
 				Expect(err).To(HaveOccurred())
@@ -471,12 +472,12 @@ var _ = Describe("Store", func() {
 		Context("when configured ingress class cannot be found", func() {
 			BeforeEach(func() {
 				// Delete the ngrok ingress class to simulate missing configuration
-				ngrokClass := NewTestIngressClass("ngrok", true, true)
+				ngrokClass := testutils.NewTestIngressClass("ngrok", true, true)
 				Expect(store.Delete(&ngrokClass)).To(BeNil())
 			})
 
 			It("emits a warning or event about the missing class", func() {
-				ing := NewTestIngressV1WithClass("ingress-missing-class", "test-namespace", "ngrok")
+				ing := testutils.NewTestIngressV1WithClass("ingress-missing-class", "test-namespace", "ngrok")
 				ok, err := store.shouldHandleIngressCheckClass(&ing)
 				Expect(ok).To(BeFalse())
 				Expect(err).To(HaveOccurred())

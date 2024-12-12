@@ -1,4 +1,4 @@
-package store
+package managerdriver
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -39,9 +40,9 @@ const (
 // Driver maintains the store of information, can derive new information from the store, and can
 // synchronize the desired state of the store to the actual state of the cluster.
 type Driver struct {
-	store Storer
+	store store.Storer
 
-	cacheStores          CacheStores
+	cacheStores          store.CacheStores
 	log                  logr.Logger
 	scheme               *runtime.Scheme
 	ingressNgrokMetadata string
@@ -80,8 +81,8 @@ func WithClusterDomain(domain string) DriverOpt {
 
 // NewDriver creates a new driver with a basic logger and cache store setup
 func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName, opts ...DriverOpt) *Driver {
-	cacheStores := NewCacheStores(logger)
-	s := New(cacheStores, controllerName, logger)
+	cacheStores := store.NewCacheStores(logger)
+	s := store.New(cacheStores, controllerName, logger)
 	d := &Driver{
 		store:          s,
 		cacheStores:    cacheStores,

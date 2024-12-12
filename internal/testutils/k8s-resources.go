@@ -1,4 +1,4 @@
-package store
+package testutils
 
 import (
 	"encoding/json"
