@@ -94,9 +94,8 @@ runs:
           -e E2E_TCP_ENDPOINT_NAME=${{ github.run_id }}-tcp
         run: |
           apt-get update && apt-get install -y make
-
           cd /github_workspace
-          make e2e-start-ngrok || exit 1
+          make e2e-start-ngrok
 
     - name: Install cosign
       if: ${{ inputs.run-e2e == 'true' }}
