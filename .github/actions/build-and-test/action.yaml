@@ -116,6 +116,19 @@ runs:
       run: |
         make e2e-tests
 
+    # best effort to dump ngrok k8s resources from cluster
+    # this helps us debug pipelines
+    - name: Dump k8s resources
+      shell: bash
+      if: ${{ always() }}
+      run: |
+        make e2e-clean
+        kubectl -n ngrok-operator describe pods
+        kubectl -n ngrok-operator describe services
+        kubectl -n ngrok-operator describe deployments
+        kubectl -n ngrok-operator describe KubernetesOperators
+        kubectl -n ngrok-operator describe BoundEndpoints
+
     # best effort to remove ngrok k8s resources from cluster
     # this allows our finalizers to delete upstream ngrok API resources too
     # that hopefully helps not pollute our ngrok-operator-ci account
