@@ -31,3 +31,7 @@ func (t ProxyProtocolVersion) IsKnown() bool {
 		return false
 	}
 }
+
+const (
+	DefaultClusterDomain = "svc.cluster.local"
+)

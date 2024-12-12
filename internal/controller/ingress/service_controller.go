@@ -31,13 +31,13 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
-	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,10 +71,15 @@ type ServiceReconciler struct {
 	Scheme    *runtime.Scheme
 	Recorder  record.EventRecorder
 	Namespace string
-	Driver    *managerdriver.Driver
+
+	ClusterDomain string
 }
 
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.ClusterDomain == "" {
+		r.ClusterDomain = common.DefaultClusterDomain
+	}
+
 	owns := []client.Object{
 		&ingressv1alpha1.Tunnel{},
 		&ingressv1alpha1.TCPEdge{},
@@ -368,7 +373,7 @@ func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.
 			},
 		},
 		Spec: ingressv1alpha1.TunnelSpec{
-			ForwardsTo: fmt.Sprintf("%s.%s.%s:%d", svc.Name, svc.Namespace, "svc.cluster.local", port),
+			ForwardsTo: fmt.Sprintf("%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
 			Labels:     backendLabels,
 		},
 	}
