@@ -30,8 +30,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const defaultClusterDomain = "svc.cluster.local"
-
 const (
 	labelControllerNamespace = "k8s.ngrok.com/controller-namespace"
 	labelControllerName      = "k8s.ngrok.com/controller-name"
@@ -94,7 +92,7 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 		scheme:         scheme,
 		managerName:    managerName,
 		gatewayEnabled: false,
-		clusterDomain:  defaultClusterDomain,
+		clusterDomain:  common.DefaultClusterDomain,
 	}
 
 	for _, opt := range opts {
@@ -465,14 +463,14 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	}
 
 	// UpdateGatewayStatuses
-	//if err := d.updateGatewayStatuses(ctx, c); err != nil {
-	//	return err
-	//}
+	// if err := d.updateGatewayStatuses(ctx, c); err != nil {
+	// 	return err
+	// }
 
 	// UpdateHTTPRouteStatuses
-	//if err := d.updateHTTPRouteStatuses(ctx, c); err != nil {
-	//	return err
-	//}
+	// if err := d.updateHTTPRouteStatuses(ctx, c); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -1508,7 +1506,7 @@ func (d *Driver) handleURLRewriteFilter(filter *gatewayv1.HTTPURLRewriteFilter, 
 			}
 		}
 	case "ReplaceFullPath":
-		from := ".*" //"^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
+		from := ".*" // "^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
 		to := fmt.Sprintf("$scheme://$authority%s$is_args$args", *filter.Path.ReplaceFullPath)
 		err := d.createURLRewriteConfig(from, to, actions)
 		if err != nil {
@@ -1540,7 +1538,7 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 	}
 
 	if filter.Path == nil {
-		from := ".*" //"^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
+		from := ".*" // "^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
 		to := fmt.Sprintf("%s://%s%s$uri", scheme, hostname, port)
 		err := d.createUrlRedirectConfig(from, to, requestHeaders, filter.StatusCode, actions)
 		if err != nil {
@@ -1560,7 +1558,7 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 			}
 		}
 	case "ReplaceFullPath":
-		from := ".*" //"^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
+		from := ".*" // "^https?://[^/]+(:[0-9]*)?(/[^\\?]*)?(\\?.*)?$"
 		to := fmt.Sprintf("%s://%s%s%s$is_args$args", scheme, hostname, port, *filter.Path.ReplaceFullPath)
 		err := d.createUrlRedirectConfig(from, to, requestHeaders, filter.StatusCode, actions)
 		if err != nil {
@@ -1673,9 +1671,9 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 				// We only support service backends right now.
 				// TODO: support resource backends
 
-				//if path.Backend.Service == nil {
-				//	continue
-				//}
+				// if path.Backend.Service == nil {
+				// 	continue
+				// }
 
 				serviceName := string(backendRef.Name)
 				serviceUID, servicePort, protocol, appProtocol, err := d.getTunnelBackendFromGateway(backendRef.BackendRef, httproute.Namespace)
