@@ -28,8 +28,7 @@ spec:
               port: 80
           status:
             ~.(endpoints):
-              status:
-                (@ == "denied"): true
+              status: "denied"
 
   - name: assert BoundEndpoint http://assets-allowed.e2e is bound
     try:
@@ -52,8 +51,7 @@ spec:
               port: 80
           status:
             ~.(endpoints):
-              status:
-                (@ == "bound"): true
+              status: "bound"
     # TargetService
     - assert:
         resource:
