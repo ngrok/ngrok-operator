@@ -4,6 +4,8 @@ kind: Test
 metadata:
   name: bindings
 spec:
+  timeouts:
+    assert: 3m
   steps:
   - name: assert BoundEndpoint http://assets-denied.example is denied
     try:
