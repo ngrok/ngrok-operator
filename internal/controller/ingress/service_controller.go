@@ -37,7 +37,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
-	"github.com/ngrok/ngrok-operator/internal/store"
+	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,7 +71,7 @@ type ServiceReconciler struct {
 	Scheme    *runtime.Scheme
 	Recorder  record.EventRecorder
 	Namespace string
-	Driver    *store.Driver
+	Driver    *managerdriver.Driver
 }
 
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {

@@ -37,7 +37,7 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
-	"github.com/ngrok/ngrok-operator/internal/store"
+	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 )
 
 // HTTPRouteReconciler reconciles a HTTPRoute object
@@ -47,7 +47,7 @@ type HTTPRouteReconciler struct {
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
-	Driver   *store.Driver
+	Driver   *managerdriver.Driver
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;update
@@ -130,7 +130,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	for _, obj := range storedResources {
 		builder = builder.Watches(
 			obj,
-			store.NewUpdateStoreHandler(
+			managerdriver.NewControllerEventHandler(
 				obj.GetObjectKind().GroupVersionKind().Kind,
 				r.Driver,
 				r.Client,

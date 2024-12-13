@@ -60,9 +60,9 @@ import (
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
-	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
+	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	//+kubebuilder:scaffold:imports
 )
@@ -262,7 +262,7 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 
 	// k8sResourceDriver is the driver that will be used to interact with the k8s resources for all controllers
 	// but primarily for kinds Ingress, Gateway, and ngrok CRDs
-	var k8sResourceDriver *store.Driver
+	var k8sResourceDriver *managerdriver.Driver
 	if opts.enableFeatureIngress || opts.enableFeatureGateway {
 		// we only need a driver if these features are enabled
 		k8sResourceDriver, err = getK8sResourceDriver(ctx, mgr, opts)
@@ -405,9 +405,9 @@ func loadNgrokClientset(ctx context.Context, opts managerOpts) (ngrokapi.Clients
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*store.Driver, error) {
+func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*managerdriver.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
-	d := store.NewDriver(
+	d := managerdriver.NewDriver(
 		logger,
 		mgr.GetScheme(),
 		options.ingressControllerName,
@@ -415,8 +415,8 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options mana
 			Namespace: options.namespace,
 			Name:      options.managerName,
 		},
-		store.WithGatewayEnabled(options.enableFeatureGateway),
-		store.WithClusterDomain(options.clusterDomain),
+		managerdriver.WithGatewayEnabled(options.enableFeatureGateway),
+		managerdriver.WithClusterDomain(options.clusterDomain),
 	)
 	if options.ngrokMetadata != "" {
 		customMetadata, err := util.ParseHelmDictionary(options.ngrokMetadata)
@@ -436,7 +436,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options mana
 }
 
 // enableIngressFeatureSet enables the Ingress feature set for the operator
-func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, driver *store.Driver, ngrokClientset ngrokapi.Clientset) error {
+func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset) error {
 	if err := (&ingresscontroller.IngressReconciler{
 		Client:               mgr.GetClient(),
 		Log:                  ctrl.Log.WithName("controllers").WithName("ingress"),
@@ -554,7 +554,7 @@ func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 }
 
 // enableGatewayFeatureSet enables the Gateway feature set for the operator
-func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager, driver *store.Driver, _ ngrokapi.Clientset) error {
+func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, _ ngrokapi.Clientset) error {
 	if err := (&gatewaycontroller.GatewayClassReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("GatewayClass"),
@@ -591,7 +591,7 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 }
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
-func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *store.Driver, ngrokClientset ngrokapi.Clientset) error {
+func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset) error {
 	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
 	if err != nil {
 		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")
