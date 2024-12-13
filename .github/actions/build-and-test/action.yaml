@@ -122,12 +122,11 @@ runs:
       shell: bash
       if: ${{ always() }}
       run: |
-        make e2e-clean
-        kubectl -n ngrok-operator describe pods
-        kubectl -n ngrok-operator describe services
-        kubectl -n ngrok-operator describe deployments
-        kubectl -n ngrok-operator describe KubernetesOperators
-        kubectl -n ngrok-operator describe BoundEndpoints
+        kubectl -n ngrok-operator describe pods || true
+        kubectl -n ngrok-operator describe services || true
+        kubectl -n ngrok-operator describe deployments || true
+        kubectl -n ngrok-operator describe KubernetesOperators || true
+        kubectl -n ngrok-operator describe BoundEndpoints || true
 
     # best effort to remove ngrok k8s resources from cluster
     # this allows our finalizers to delete upstream ngrok API resources too

@@ -336,8 +336,8 @@ e2e-tests: ## Run e2e tests
 
 .PHONY: e2e-clean
 e2e-clean: ## Clean up e2e tests
-	kubectl delete ns e2e
-	kubectl delete --all boundendpoints -n ngrok-operator
-	kubectl delete --all services -n ngrok-operator
-	kubectl delete --all kubernetesoperators -n ngrok-operator
-	helm --namespace ngrok-operator uninstall ngrok-operator
+	kubectl delete ns e2e || true
+	kubectl delete --all boundendpoints -n ngrok-operator || true
+	kubectl delete --all services -n ngrok-operator || true
+	kubectl delete --all kubernetesoperators -n ngrok-operator || true
+	helm --namespace ngrok-operator uninstall ngrok-operator || true
