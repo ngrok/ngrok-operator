@@ -30,8 +30,8 @@ import (
 	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/events"
-	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/util"
+	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -47,7 +47,7 @@ type NgrokTrafficPolicyReconciler struct {
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
-	Driver   *store.Driver
+	Driver   *managerdriver.Driver
 }
 
 //+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch;create;update;patch;delete

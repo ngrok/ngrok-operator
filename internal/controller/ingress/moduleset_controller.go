@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/store"
+	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -19,7 +19,7 @@ type ModuleSetReconciler struct {
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
-	Driver   *store.Driver
+	Driver   *managerdriver.Driver
 }
 
 func (r *ModuleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {

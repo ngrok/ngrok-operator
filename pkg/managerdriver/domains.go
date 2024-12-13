@@ -1,4 +1,4 @@
-package apimanagerdriver
+package managerdriver
 
 import (
 	"context"

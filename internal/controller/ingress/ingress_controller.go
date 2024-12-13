@@ -9,7 +9,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	internalerrors "github.com/ngrok/ngrok-operator/internal/errors"
-	"github.com/ngrok/ngrok-operator/internal/store"
+	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,7 +27,7 @@ type IngressReconciler struct {
 	Recorder             record.EventRecorder
 	Namespace            string
 	AnnotationsExtractor annotations.Extractor
-	Driver               *store.Driver
+	Driver               *managerdriver.Driver
 }
 
 func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -45,7 +45,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	for _, obj := range storedResources {
 		builder = builder.Watches(
 			obj,
-			store.NewUpdateStoreHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver, r.Client))
+			managerdriver.NewControllerEventHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver, r.Client))
 	}
 
 	return builder.Complete(r)
