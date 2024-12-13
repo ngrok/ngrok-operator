@@ -34,6 +34,12 @@ const (
 	labelServiceUID          = "k8s.ngrok.com/service-uid"
 	labelService             = "k8s.ngrok.com/service"
 	labelPort                = "k8s.ngrok.com/port"
+
+	// When this annotation is present on an Ingress/Gateway resource and set to "true", that Ingress/Gateway
+	// will cause an endpoint to be created instead of an edge
+	annotationUseEndpoint = "k8s.ngrok.com/use-endpoint"
+
+	defaultClusterDomain = "svc.cluster.local"
 )
 
 // Driver maintains the store of information, can derive new information from the store, and can
@@ -416,8 +422,8 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing driver state!!")
-	desiredDomains, desiredIngressDomains, desiredGatewayDomainMap := d.calculateDomains()
-	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, desiredGatewayDomainMap)
+	domains := d.calculateDomainSet()
+	desiredEdges := d.calculateHTTPSEdges(domains)
 	desiredTunnels := d.calculateTunnels()
 
 	currDomains := &ingressv1alpha1.DomainList{}
@@ -443,7 +449,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	if err := d.applyDomains(ctx, c, desiredDomains, currDomains.Items); err != nil {
+	if err := d.applyDomains(ctx, c, domains.totalDomains, currDomains.Items); err != nil {
 		return err
 	}
 
