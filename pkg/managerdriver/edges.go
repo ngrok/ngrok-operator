@@ -24,9 +24,8 @@ func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing edges state!!")
-	_, desiredIngressDomains, desiredGatewayDomainMap := d.calculateDomains()
-
-	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, desiredGatewayDomainMap)
+	domains := d.calculateDomainSet()
+	desiredEdges := d.calculateHTTPSEdges(domains)
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
 	if err := c.List(ctx, currEdges, client.MatchingLabels{
 		labelControllerNamespace: d.managerName.Namespace,
@@ -95,9 +94,9 @@ func (d *Driver) applyHTTPSEdges(ctx context.Context, c client.Client, desiredEd
 	return nil
 }
 
-func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, gatewayDomainMap map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.HTTPSEdge {
-	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(*ingressDomains))
-	for _, domain := range *ingressDomains {
+func (d *Driver) calculateHTTPSEdges(domains *domainSet) map[string]ingressv1alpha1.HTTPSEdge {
+	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(domains.edgeIngressDomains))
+	for _, domain := range domains.edgeIngressDomains {
 		edge := ingressv1alpha1.HTTPSEdge{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: domain.Name + "-",
@@ -126,7 +125,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				if listener.Protocol != gatewayv1.HTTPSProtocolType || int(listener.Port) != 443 {
 					continue
 				}
-				if _, hasDomain := gatewayDomainMap[string(*listener.Hostname)]; !hasDomain {
+				if _, hasDomain := domains.edgeGatewayDomains[string(*listener.Hostname)]; !hasDomain {
 					continue
 				}
 				gatewayDomains[string(*listener.Hostname)] = string(*listener.Hostname)
@@ -192,6 +191,11 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
+		// If this annotation is present and "true", then this ingress should result in an endpoint being created and not an edge
+		if val, found := ingress.Annotations[annotationUseEndpoint]; found && strings.ToLower(val) == "true" {
+			continue
+		}
+
 		modSet, err := d.getNgrokModuleSetForIngress(ingress)
 		if err != nil {
 			d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
@@ -287,8 +291,12 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 
 func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	gateways := d.store.ListGateways()
-
 	for _, gtw := range gateways {
+		// If this annotation is present and "true", then this gateway should result in an endpoint being created and not an edge
+		if val, found := gtw.Annotations[annotationUseEndpoint]; found && strings.ToLower(val) == "true" {
+			continue
+		}
+
 		for _, listener := range gtw.Spec.Listeners {
 			if listener.Hostname == nil {
 				continue

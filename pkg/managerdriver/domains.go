@@ -3,6 +3,7 @@ package managerdriver
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,34 +40,40 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 	return nil
 }
 
-func (d *Driver) calculateDomains() ([]ingressv1alpha1.Domain, []ingressv1alpha1.Domain, map[string]ingressv1alpha1.Domain) {
-	var domains, ingressDomains []ingressv1alpha1.Domain
-	ingressDomainMap := d.calculateDomainsFromIngress()
+// Domain set is a helper data type to encapsulate all of the domains and what sources they are from
+// The key for the domain maps is "name.namespace" of the associated ingress/gateway
+type domainSet struct {
+	// The following two domain maps track domains for ingress/gateway resources that contain the
+	// `ngrok.k8s.io/use-endpoints: "true"` annotation. This causes them to be backed by endpoints instead of edges
+	endpointIngressDomains map[string]ingressv1alpha1.Domain
+	endpointGatewayDomains map[string]ingressv1alpha1.Domain
 
-	ingressDomains = make([]ingressv1alpha1.Domain, 0, len(ingressDomainMap))
-	for _, domain := range ingressDomainMap {
-		ingressDomains = append(ingressDomains, domain)
-		domains = append(domains, domain)
-	}
+	// The following two domain maps track domains for ingress/gateway resources that do not contian the
+	// `ngrok.k8s.io/use-endpoints: "true"` annotation. Without this annotation, they are backed by edges (the default behaviour)
+	edgeIngressDomains map[string]ingressv1alpha1.Domain
+	edgeGatewayDomains map[string]ingressv1alpha1.Domain
 
-	var gatewayDomainMap map[string]ingressv1alpha1.Domain
-	if d.gatewayEnabled {
-		gatewayDomainMap = d.calculateDomainsFromGateway(ingressDomainMap)
-		for _, domain := range gatewayDomainMap {
-			domains = append(domains, domain)
-		}
-	}
-
-	return domains, ingressDomains, gatewayDomainMap
+	// totalDomains tracks all domains regardless of source
+	totalDomains []ingressv1alpha1.Domain
 }
 
-func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain {
-	domainMap := make(map[string]ingressv1alpha1.Domain)
+func (d *Driver) calculateDomainSet() *domainSet {
+	ret := &domainSet{
+		endpointIngressDomains: make(map[string]ingressv1alpha1.Domain),
+		endpointGatewayDomains: make(map[string]ingressv1alpha1.Domain),
+		edgeIngressDomains:     make(map[string]ingressv1alpha1.Domain),
+		edgeGatewayDomains:     make(map[string]ingressv1alpha1.Domain),
+		totalDomains:           []ingressv1alpha1.Domain{},
+	}
 
+	hostnamesOnIngresses := map[string]bool{} // keep track of the hostnames used on ingresses. If the same hostname is used on an ingress and a gateway, it is an error
+
+	// Calculate domains from ingress resources
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		for _, rule := range ingress.Spec.Rules {
-			if rule.Host == "" {
+			domainName := rule.Host
+			if domainName == "" {
 				continue
 			}
 
@@ -76,20 +83,24 @@ func (d *Driver) calculateDomainsFromIngress() map[string]ingressv1alpha1.Domain
 					Namespace: ingress.Namespace,
 				},
 				Spec: ingressv1alpha1.DomainSpec{
-					Domain: rule.Host,
+					Domain: domainName,
 				},
 			}
 			domain.Spec.Metadata = d.ingressNgrokMetadata
-			domainMap[rule.Host] = domain
+
+			// Check the annotation to see if an edge or endpoint is desired from this ingress resource
+
+			hostnamesOnIngresses[domainName] = true
+			if val, found := ingress.Annotations[annotationUseEndpoint]; found && strings.ToLower(val) == "true" {
+				ret.endpointIngressDomains[domainName] = domain
+			} else {
+				ret.edgeIngressDomains[domainName] = domain
+			}
+			ret.totalDomains = append(ret.totalDomains, domain)
 		}
 	}
 
-	return domainMap
-}
-
-func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.Domain {
-	domainMap := make(map[string]ingressv1alpha1.Domain)
-
+	// Calculate domains from gateway resources
 	gateways := d.store.ListGateways()
 	for _, gw := range gateways {
 		for _, listener := range gw.Spec.Listeners {
@@ -97,7 +108,7 @@ func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1
 				continue
 			}
 			domainName := string(*listener.Hostname)
-			if _, hasVal := ingressDomains[domainName]; hasVal {
+			if _, found := hostnamesOnIngresses[domainName]; found {
 				// TODO update gateway status
 				// also add error to error page
 				continue
@@ -112,9 +123,15 @@ func (d *Driver) calculateDomainsFromGateway(ingressDomains map[string]ingressv1
 				},
 			}
 			domain.Spec.Metadata = d.gatewayNgrokMetadata
-			domainMap[domainName] = domain
+
+			// Check the annotation to see if an edge or endpoint is desired from this ingress resource
+			if val, found := gw.Annotations[annotationUseEndpoint]; found && strings.ToLower(val) == "true" {
+				ret.endpointIngressDomains[domainName] = domain
+			} else {
+				ret.edgeIngressDomains[domainName] = domain
+			}
+			ret.totalDomains = append(ret.totalDomains, domain)
 		}
 	}
-
-	return domainMap
+	return ret
 }
