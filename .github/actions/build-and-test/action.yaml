@@ -101,9 +101,6 @@ runs:
 
         make e2e-start-ngrok
 
-        echo "Sleeping for 30s to let everything settle..."
-        sleep 30
-
     - name: Install cosign
       if: ${{ inputs.run-e2e == 'true' }}
       uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
@@ -125,11 +122,27 @@ runs:
       shell: bash
       if: ${{ always() }}
       run: |
+        echo "Dumping k8s resources"
+        echo "=== Pods ==="
         kubectl -n ngrok-operator describe pods || true
+        echo "=== Services ==="
         kubectl -n ngrok-operator describe services || true
+        echo "=== Deployments ==="
         kubectl -n ngrok-operator describe deployments || true
+        echo "=== KubernetesOperators ==="
         kubectl -n ngrok-operator describe KubernetesOperators || true
+        echo "=== BoundEndpoints ==="
         kubectl -n ngrok-operator describe BoundEndpoints || true
+
+    # best effort to dump some logs
+    # this helps us debug pipelines
+    - name: Dump logs
+      shell: bash
+      if: ${{ always() }}
+      run: |
+        echo "Dumping logs"
+        echo "=== Forwarder ==="
+        kubectl -n ngrok-operator logs -l app.kubernetes.io/component=bindings-forwarder --tail=-1 || true
 
     # best effort to remove ngrok k8s resources from cluster
     # this allows our finalizers to delete upstream ngrok API resources too
