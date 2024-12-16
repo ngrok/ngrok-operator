@@ -25,6 +25,7 @@ SOFTWARE.
 package bindings
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -32,6 +33,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -181,10 +183,11 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 	}
 
 	cnxnHandler := func(conn net.Conn) error {
-		defer conn.Close()
+		connReader := connReaderForEndpoint(epb, conn)
+		defer connReader.Close()
 
 		log := log.WithValues(
-			"remoteAddr", conn.RemoteAddr(),
+			"remoteAddr", connReader.RemoteAddr(),
 			"ingress", map[string]string{
 				"endpoint": *op.Spec.Binding.IngressEndpoint,
 			},
@@ -217,12 +220,46 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		}
 
 		log.Info("Bound connection")
-		return joinConnections(log, conn, ngrokConn)
+		return joinConnections(log, connReader, ngrokConn)
 	}
 
 	log.Info("Listening on port")
 
 	return r.BindingsDriver.Listen(int32(epb.Spec.Port), cnxnHandler)
+}
+
+// connReaderForEndpoint returns an io.Reader that will read from the net.Conn
+// this is used in joinConnections()
+func connReaderForEndpoint(ep *bindingsv1alpha1.BoundEndpoint, conn net.Conn) net.Conn {
+	endpointURI, err := url.Parse(ep.Spec.EndpointURI)
+	if err != nil {
+		return conn
+	}
+
+	host := endpointURI.Hostname()
+	scheme := endpointURI.Scheme
+
+	switch {
+	// http protocols are wrapped in Host header rewrites
+	case strings.HasPrefix(scheme, "http"):
+		// TODO(hkatz) Support HTTP/2 and HTTP/3 psuedo header `:authority`
+		wrapped := newConnInterceptor(
+			conn,
+			// matches
+			func(line string) bool {
+				return strings.HasPrefix(line, "Host:")
+			},
+			// desired
+			func(line string) string {
+				return fmt.Sprintf("Host: %s", host)
+			},
+		)
+		return wrapped
+	default:
+		return conn
+	}
+
+	// unreachable
 }
 
 func (r *ForwarderReconciler) delete(ctx context.Context, epb *bindingsv1alpha1.BoundEndpoint) error {
@@ -261,4 +298,65 @@ func joinConnections(log logr.Logger, conn1, conn2 net.Conn) error {
 		return err
 	})
 	return g.Wait()
+}
+
+// connInterceptor is a net.Conn that intercepts a net.Conn.Read() and replaces the expected string with the desired string
+type connInterceptor struct {
+	// original conn
+	net.Conn
+
+	// piped connections
+	reader *io.PipeReader
+	writer *io.PipeWriter
+
+	// if line matches, then replace
+	fnMatches func(string) bool
+
+	// replacement function
+	fnReplace func(string) string
+}
+
+func newConnInterceptor(conn net.Conn, fnMatches func(string) bool, fnReplace func(string) string) *connInterceptor {
+	pipeReader, pipeWriter := io.Pipe()
+
+	i := &connInterceptor{
+		Conn:      conn,
+		fnMatches: fnMatches,
+		fnReplace: fnReplace,
+		reader:    pipeReader,
+		writer:    pipeWriter,
+	}
+
+	go i.intercept()
+
+	return i
+}
+
+func (i *connInterceptor) Read(b []byte) (n int, err error) {
+	return i.reader.Read(b)
+}
+
+// runs in goroutine
+func (i *connInterceptor) intercept() {
+	defer i.writer.Close()
+
+	buffer := bufio.NewReaderSize(i.Conn, 1024)
+
+	for {
+		line, err := buffer.ReadString('\n')
+		if err != nil { // including io.EOF
+			break
+		}
+
+		if i.fnMatches(line) {
+			want := i.fnReplace(line)
+			_, _ = i.writer.Write([]byte(want + "\r\n"))
+			break
+		}
+
+		_, _ = i.writer.Write([]byte(line))
+	}
+
+	// finish the connection by copying the remaining data
+	_, _ = io.Copy(i.writer, buffer)
 }
