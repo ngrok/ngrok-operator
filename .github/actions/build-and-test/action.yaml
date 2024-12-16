@@ -129,6 +129,8 @@ runs:
         kubectl -n ngrok-operator describe services || true
         echo "=== Deployments ==="
         kubectl -n ngrok-operator describe deployments || true
+        echo "=== TLS Cert ==="
+        kubectl -n ngrok-operator describe secret ngrok-operator-default-tls || true
         echo "=== KubernetesOperators ==="
         kubectl -n ngrok-operator describe KubernetesOperators || true
         echo "=== BoundEndpoints ==="
