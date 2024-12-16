@@ -52,10 +52,6 @@ runs:
       shell: bash
       run: make test
 
-    - name: Build the Docker image
-      shell: bash
-      run: make docker-build
-
     - name: Deploy controller to local cluster
       shell: bash
       env:
