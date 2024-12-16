@@ -159,23 +159,6 @@ jobs:
       )
     steps:
     - uses: actions/checkout@v3
-    - name: Start an ngrok agent
-      uses: addnab/docker-run-action@v3
-      timeout-minutes: 5
-      with:
-        image: ngrok/ngrok:latest
-        options: --entrypoint /bin/bash
-        run: |
-          # auth
-          export NGROK_API_KEY=${{ secrets.NGROK_CI_API_KEY }}
-          export NGROK_AUTHTOKEN=${{ secrets.NGROK_CI_AUTHTOKEN }}
-
-          # example assets
-          mkdir -p /tmp/assets
-          echo "Hello from ngrok-operator" > /tmp/assets/hello_world.txt
-
-          # start an agent
-          ngrok https file:///tmp/assets/ &
     - uses: "./.github/actions/build-and-test"
       with:
         run-e2e: true
