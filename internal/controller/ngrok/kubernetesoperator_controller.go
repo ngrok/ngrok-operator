@@ -34,6 +34,8 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
+	"os"
 	"slices"
 	"strings"
 
@@ -147,10 +149,13 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
-		tlsSecret, err := r.findOrCreateTLSSecret(ctx, ko)
+		foundSecret, err := r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return err
 		}
+
+		// remember to set the outer secret
+		tlsSecret = foundSecret
 
 		createParams.Binding = &ngrok.KubernetesOperatorBindingCreate{
 			Name:        ko.Spec.Binding.Name,
