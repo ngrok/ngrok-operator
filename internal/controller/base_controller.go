@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
@@ -163,6 +164,12 @@ func CtrlResultForErr(err error) (ctrl.Result, error) {
 			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		case nerr.StatusCode == http.StatusNotFound:
 			return ctrl.Result{}, err
+		case ngrok.IsErrorCode(nerr, ngrokapi.NgrokOpErrFailedToCreateCSR.Code):
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nerr
+		case ngrok.IsErrorCode(nerr, ngrokapi.NgrokOpErrFailedToCreateUpstreamService.Code, ngrokapi.NgrokOpErrFailedToCreateTargetService.Code):
+			return ctrl.Result{RequeueAfter: 1 * time.Minute}, nerr
+		case ngrok.IsErrorCode(nerr, ngrokapi.NgrokOpErrEndpointDenied.Code):
+			return ctrl.Result{}, nil // do not retry, endpoint poller will take care of this
 		default:
 			// the rest are client errors, we don't retry by default
 			return ctrl.Result{}, nil

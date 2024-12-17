@@ -44,8 +44,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/ngrok-api-go/v6"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -61,12 +63,6 @@ const (
 	// Used for indexing BoundEndpoints by their target namespace. Not an actual
 	// field on the BoundEndpoint object.
 	BoundEndpointTargetNamespacePath = ".spec.targetNamespace"
-
-	// TODO(hkatz) ngrok-error-codes
-	NgrokErrorUpstreamServiceCreateFailed = "ERR_NGROK_0001"
-	NgrokErrorTargetServiceCreateFailed   = "ERR_NGROK_0002"
-	NgrokErrorFailedToBind                = "ERR_NGROK_003"
-	NgrokErrorNotAllowed                  = "ERR_NGROK_004"
 )
 
 var (
@@ -223,13 +219,15 @@ func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner
 		r.Recorder.Event(owner, v1.EventTypeWarning, "Created", "Failed to create Target Service")
 		log.Error(err, "Failed to create Target Service")
 
+		ngrokErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateTargetService, "Failed to create Target Service")
+
 		setEndpointsStatus(owner, &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusError,
-			ErrorCode:    NgrokErrorTargetServiceCreateFailed,
-			ErrorMessage: fmt.Sprintf("Failed to create Target Service: %s", err),
+			ErrorCode:    ngrokErr.ErrorCode,
+			ErrorMessage: ngrokErr.Error(),
 		})
 
-		return err
+		return ngrokErr
 	}
 
 	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Target Service")
@@ -245,13 +243,15 @@ func (r *BoundEndpointReconciler) createUpstreamService(ctx context.Context, own
 		r.Recorder.Event(owner, v1.EventTypeWarning, "Created", "Failed to create Upstream Service")
 		log.Error(err, "Failed to create Upstream Service")
 
+		ngrokErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateUpstreamService, "Failed to create Upstream Service")
+
 		setEndpointsStatus(owner, &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusError,
-			ErrorCode:    NgrokErrorUpstreamServiceCreateFailed,
-			ErrorMessage: fmt.Sprintf("Failed to create Upstream Service: %s", err),
+			ErrorCode:    ngrokErr.ErrorCode,
+			ErrorMessage: ngrokErr.Error(),
 		})
 
-		return err
+		return ngrokErr
 	}
 
 	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Upstream Service")
@@ -589,13 +589,15 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 
 	// update statuses
 	var desired *bindingsv1alpha1.BindingEndpoint
+	var ngrokErr *ngrok.Error
 	if bindErr != nil {
 		// error
 		log.Error(bindErr, "Failed to bind BoundEndpoint, moving to error")
+		ngrokErr = ngrokapi.NewNgrokError(bindErr, ngrokapi.NgrokOpErrFailedToConnectServices, "Failed to bind BoundEndpoint")
 		desired = &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusError,
-			ErrorCode:    NgrokErrorFailedToBind,
-			ErrorMessage: fmt.Sprintf("Failed to bind BoundEndpoint: %s", bindErr),
+			ErrorCode:    ngrokErr.ErrorCode,
+			ErrorMessage: ngrokErr.Error(),
 		}
 	} else {
 		// success
@@ -610,5 +612,5 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 
 	// set status
 	setEndpointsStatus(boundEndpoint, desired)
-	return bindErr
+	return ngrokErr
 }

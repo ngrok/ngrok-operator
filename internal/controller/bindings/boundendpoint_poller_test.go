@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-	v6 "github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v7"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/stretchr/testify/assert"
@@ -184,7 +184,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          v6.Ref{ID: "ep_abc123", URI: "example-uri"},
+					Ref:          ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
@@ -218,7 +218,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          v6.Ref{ID: "ep_abc123", URI: "example-uri"},
+					Ref:          ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
@@ -248,7 +248,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          v6.Ref{ID: "ep_abc123", URI: "example-uri"},
+					Ref:          ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
@@ -275,7 +275,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample2),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          v6.Ref{ID: "ep_def456", URI: "example-uri"},
+					Ref:          ngrok.Ref{ID: "ep_def456", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
@@ -301,19 +301,19 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample2),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          v6.Ref{ID: "ep_def456", URI: "example-uri"},
+					Ref:          ngrok.Ref{ID: "ep_def456", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
 				},
 				{
-					Ref:          v6.Ref{ID: "ep_xyz999", URI: "example-uri"},
+					Ref:          ngrok.Ref{ID: "ep_xyz999", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",
 				},
 				{
-					Ref:          v6.Ref{ID: "ep_www000", URI: "example-uri"},
+					Ref:          ngrok.Ref{ID: "ep_www000", URI: "example-uri"},
 					Status:       bindingsv1alpha1.StatusProvisioning,
 					ErrorCode:    "",
 					ErrorMessage: "",

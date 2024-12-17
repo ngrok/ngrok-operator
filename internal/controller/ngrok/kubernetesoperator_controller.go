@@ -62,6 +62,10 @@ var featureMap = map[string]string{
 	ngrokv1alpha1.KubernetesOperatorFeatureGateway:  "Gateway",
 }
 
+const (
+	NgrokErrorFailedToCreateCSR = "ERR_NGROK_20006"
+)
+
 // KubernetesOperatorReconciler reconciles a KubernetesOperator object
 type KubernetesOperatorReconciler struct {
 	client.Client
@@ -149,7 +153,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	if bindingsEnabled {
 		tlsSecret, err := r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
-			return err
+			return ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateCSR, "failed to create TLS secret for CSR")
 		}
 
 		createParams.Binding = &ngrok.KubernetesOperatorBindingCreate{
