@@ -122,5 +122,9 @@ Return the ngrok operator image name
 {{- $registryName := .Values.image.registry -}}
 {{- $repositoryName := .Values.image.repository -}}
 {{- $tag := .Values.image.tag | default .Chart.AppVersion | toString -}}
+{{- if eq $registryName "" }}
+{{- printf "%s:%s" $repositoryName $tag -}}
+{{- else }}
 {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
+{{- end }}
 {{- end -}}
