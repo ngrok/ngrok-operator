@@ -70,7 +70,7 @@ runs:
       run: |
         kubectl get nodes
         kubectl get pods -A
-        kubectl -n ngrok-operator wait --for=condition=ready pod -l app.kubernetes.io/name=ngrok-operator --timeout=1m || true
+        kubectl -n ngrok-operator wait --for=condition=ready pod -l app.kubernetes.io/name=ngrok-operator --timeout=1m
         kubectl get pods -A
         kubectl -n ngrok-operator describe pod -l app.kubernetes.io/name=ngrok-operator
 
