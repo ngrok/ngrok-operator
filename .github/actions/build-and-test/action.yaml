@@ -21,10 +21,11 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: debianmaster/actions-k3s@master
+    - uses: jupyterhub/action-k3s-helm@v4
       id: k3s
       with:
-        version: 'latest'
+        k3s-channel: 'latest'
+        docker-enabled: true
 
     - shell: bash
       run: |
