@@ -34,8 +34,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"fmt"
-	"os"
 	"slices"
 	"strings"
 
