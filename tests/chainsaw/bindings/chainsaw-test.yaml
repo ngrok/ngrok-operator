@@ -98,7 +98,61 @@ spec:
           [ $? -eq 0 ] || { echo "Failed to retrieve assets"; exit 1; }
           [ "$GOT" = "$WANT" ] || { echo "Incorrect assets content: want '$WANT', got '$GOT'"; exit 1; }
 
-  - name: test tcp connection via BoundEndpoint UpstreamService
+  - name: assert BoundEndpoint http://tcp-echo.e2e is bound
+    try:
+    - assert:
+        resource:
+          apiVersion: bindings.k8s.ngrok.com/v1alpha1
+          kind: BoundEndpoint
+          metadata:
+            name: ngrok-9fcb00e1-d962-5a72-8537-e3aacb420a4f # stable hash
+            namespace: ngrok-operator
+          spec:
+            allowed: true
+            endpointURI: "tcp://tcp-echo.e2e:4242"
+            scheme: "tcp"
+            # port: <-- port is allocated and may be out of order, do not assert
+            target:
+              service: "tcp-echo"
+              namespace: "e2e"
+              protocol: TCP
+              port: 4242
+          status:
+            ~.(endpoints):
+              status: "bound"
+    # TargetService
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: tcp-echo
+            namespace: e2e
+          spec:
+            type: ExternalName
+            externalName: ngrok-9fcb00e1-d962-5a72-8537-e3aacb420a4f.ngrok-operator.svc.cluster.local # stable hash
+            ~.(ports):
+              name: tcp
+              port: 4242
+              targetPort: 4242
+              protocol: TCP
+    # UpstreamService
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: ngrok-9fcb00e1-d962-5a72-8537-e3aacb420a4f # stable hash
+            namespace: ngrok-operator
+          spec:
+            type: ClusterIP
+            ~.(ports):
+              name: tcp
+              port: 4242
+              # targetPort: < -- port is allocated and may be out of order, do not assert
+              protocol: TCP
+
+  - name: test tcp connection via BoundEndpoint TargetService
     try:
     - script:
         content: |
