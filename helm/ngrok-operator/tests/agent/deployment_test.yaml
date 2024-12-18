@@ -33,3 +33,45 @@ tests:
       content:
         labelKey1: labelValue1
         labelKey2: labelValue2
+- it: Supports selecting which nodes the agent should run on with node selectors
+  set:
+    agent:
+      nodeSelector: &nodeSelector
+        disktype: ssd
+  template: agent/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.nodeSelector
+      value: *nodeSelector
+- it: Supports setting tolerations on the agent pods
+  set:
+    agent:
+      tolerations:
+      - &toleration
+        key: "key1"
+        operator: "Equal"
+        value: "value1"
+        effect: "NoSchedule"
+  template: agent/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.tolerations
+      content: *toleration
+- it: Supports setting topologySpreadConstraints on the agent pods
+  set:
+    agent:
+      topologySpreadConstraints:
+      - &tsc
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: foo
+        matchLabelKeys:
+          - pod-template-hash
+  template: agent/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.topologySpreadConstraints
+      content: *tsc
