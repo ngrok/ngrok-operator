@@ -27,7 +27,7 @@ runs:
         k3s-channel: 'latest'
         docker-enabled: true
         traefik-enabled: false
-        metrics-server: false
+        metrics-enabled: false
 
     - shell: bash
       run: |
