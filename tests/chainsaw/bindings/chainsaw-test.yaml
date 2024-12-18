@@ -95,13 +95,14 @@ spec:
           touch result.out
 
           # 2>/dev/null to suppress kubectl default output
-          # first line is the contents, last line in "deleted pod" message
-          # remove newline to compare strings directly
-          kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- curl --silent --show-error --connect-timeout 10s --retry 3 --retry-all-errors --retry-delay 5 http://assets-allowed.e2e/hello_world.txt 2>/dev/null | head -n1 | tr -d '\n' | tee result.out
+          kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- curl --silent --show-error --connect-timeout 10s --retry 3 --retry-all-errors --retry-delay 5 http://assets-allowed.e2e/hello_world.txt | tee result.out
+
           [ $? -eq 0 ] || { echo "Failed to retrieve assets"; exit 1; }
 
           # retrieve the results
-          GOT=$(cat result.out)
+          # first line is the contents, last line in "deleted pod" message
+          # remove newline to compare strings directly
+          GOT=$(cat result.out | head -n1 | tr -d '\n')
           [ "$GOT" = "$WANT" ] || { echo "Incorrect assets content: want '$WANT', got '$GOT'"; exit 1; }
 
   - name: assert BoundEndpoint http://tcp-echo.e2e is bound
