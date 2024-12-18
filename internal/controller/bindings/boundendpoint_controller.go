@@ -626,7 +626,18 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 
 	// set status
 	setEndpointsStatus(boundEndpoint, desired)
-	return ngrokErr
+
+	// Why do we check for nil here and return nil explicitly instead of just `return ngrokErr`?
+	// Because *ngrok.Error meets the interface of error means that error is actually (T=*ngrok.Error, V=nil)
+	// so outer function signature is (error) and not (*ngrok.Error)
+	// and an interface _pointing_ to nil is != to nil itself
+	// therefore *ngrok.Error.(error) is _always_ != nil
+	//
+	// See: https://go.dev/doc/faq#nil_error
+	if ngrokErr != nil {
+		return ngrokErr
+	}
+	return nil
 }
 
 // denyBoundEndpoint sets the status of the BoundEndpoint to denied
