@@ -29,8 +29,6 @@ runs:
       with:
         version: "latest"
         github-token: ${{ inputs.github-token }}
-        k3d-args: >
-          --docker
 
     - shell: bash
       run: |
