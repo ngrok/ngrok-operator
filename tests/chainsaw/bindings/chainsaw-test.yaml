@@ -91,11 +91,17 @@ spec:
           # See contents in `make e2e-start-ngrok` task
           WANT="Hello from ngrok-operator"
 
+          # put results into a file
+          touch result.out
+
           # 2>/dev/null to suppress kubectl default output
           # first line is the contents, last line in "deleted pod" message
           # remove newline to compare strings directly
-          GOT=$(kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- curl --silent --show-error --connect-timeout 10s --retry 3 --retry-all-errors --retry-delay 5 http://assets-allowed.e2e/hello_world.txt 2>/dev/null | head -n1 | tr -d '\n')
+          kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- curl --silent --show-error --connect-timeout 10s --retry 3 --retry-all-errors --retry-delay 5 http://assets-allowed.e2e/hello_world.txt 2>/dev/null | head -n1 | tr -d '\n' | tee result.out
           [ $? -eq 0 ] || { echo "Failed to retrieve assets"; exit 1; }
+
+          # retrieve the results
+          GOT=$(cat result.out)
           [ "$GOT" = "$WANT" ] || { echo "Incorrect assets content: want '$WANT', got '$GOT'"; exit 1; }
 
   - name: assert BoundEndpoint http://tcp-echo.e2e is bound
@@ -159,7 +165,7 @@ spec:
           WANT_REGEX="Connection to tcp-echo\.e2e .* 4242 port .* succeeded"
           # 2>/dev/null to suppress kubectl default output
           # first line is the contents, last line in "deleted pod" message
-          GOT=$(kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- nc -zv tcp-echo.e2e 4242 2>/dev/null | head -n1)
+          GOT=$(kubectl run --restart=Never --rm --attach --image=docker.io/dersimn/netutils net-utils -- nc -zv tcp-echo.e2e 4242 2>/dev/null | head -n1)
 
           [ $? -eq 0 ] || { echo "Failed to establish tcp connection"; exit 1; }
           (echo "$GOT" | grep -q "$WANT_REGEX") || { echo "Unexpected nc output: want '$WANT_REGEX' got '$GOT'"; exit 1; }
