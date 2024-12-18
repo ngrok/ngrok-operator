@@ -260,10 +260,13 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
-		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
+		foundSecret, err := r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return r.updateStatus(ctx, ko, nil, err)
 		}
+
+		// remember to set the outer secret
+		tlsSecret = foundSecret
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
 			Name:        ptr.To(ko.Spec.Binding.Name),
