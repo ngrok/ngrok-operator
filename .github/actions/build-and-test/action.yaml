@@ -2,6 +2,9 @@ name: Action - Build and Test
 description: "Build and test the operator (with optional e2e tests)"
 
 inputs:
+  github-token:
+    description: "GitHub token"
+    required: true
   run-e2e:
     description: "Run e2e tests"
     required: false
@@ -25,7 +28,7 @@ runs:
       id: k3s
       with:
         version: "latest"
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+        github-token: ${{ inputs.github-token }}
         k3d-args: >
           --docker
 
