@@ -21,13 +21,13 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: jupyterhub/action-k3s-helm@v4
+    - uses: nolar/setup-k3d-k3s@v1
       id: k3s
       with:
-        k3s-channel: 'latest'
-        docker-enabled: true
-        traefik-enabled: false
-        metrics-enabled: false
+        version: "latest"
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        k3d-args: >
+          --docker
 
     - shell: bash
       run: |
