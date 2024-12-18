@@ -65,8 +65,8 @@ clusterDomain: svc.cluster.local
 ##
 ## @section Operator Manager parameters
 ##
-## @param podAnnotations Used to apply custom annotations to the ingress pods.
-## @param podLabels Used to apply custom labels to the ingress pods.
+## @param podAnnotations Custom pod annotations to apply to all pods.
+## @param podLabels Custom pod labels to apply to all pods.
 ##
 podAnnotations: {}
 podLabels: {}

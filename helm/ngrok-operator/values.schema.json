@@ -95,12 +95,12 @@
         },
         "podAnnotations": {
             "type": "object",
-            "description": "Used to apply custom annotations to the ingress pods.",
+            "description": "Custom pod annotations to apply to all pods.",
             "default": {}
         },
         "podLabels": {
             "type": "object",
-            "description": "Used to apply custom labels to the ingress pods.",
+            "description": "Custom pod labels to apply to all pods.",
             "default": {}
         },
         "replicaCount": {
