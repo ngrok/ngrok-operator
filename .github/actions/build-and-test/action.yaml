@@ -26,6 +26,8 @@ runs:
       with:
         k3s-channel: 'latest'
         docker-enabled: true
+        traefik-enabled: false
+        metrics-server: false
 
     - shell: bash
       run: |
@@ -97,6 +99,10 @@ runs:
           ngrok \
 
         make e2e-start-ngrok
+
+        # allow the ngrok-operator to settle
+        echo "Sleeping 30s to allow ngrok-operator to settle..."
+        sleep 30
 
     - name: Install cosign
       if: ${{ inputs.run-e2e == 'true' }}
