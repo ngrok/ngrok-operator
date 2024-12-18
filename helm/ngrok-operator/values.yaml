@@ -14,6 +14,11 @@ commonLabels: {}
 commonAnnotations: {}
 oneClickDemoMode: false
 
+## @param podAnnotations Custom pod annotations to apply to all pods.
+## @param podLabels Custom pod labels to apply to all pods.
+podAnnotations: {}
+podLabels: {}
+
 ##
 ## @section Image configuration
 ##
@@ -65,11 +70,6 @@ clusterDomain: svc.cluster.local
 ##
 ## @section Operator Manager parameters
 ##
-## @param podAnnotations Custom pod annotations to apply to all pods.
-## @param podLabels Custom pod labels to apply to all pods.
-##
-podAnnotations: {}
-podLabels: {}
 
 ## @param replicaCount The number of controllers to run.
 ## A minimum of 2 is recommended in production for HA.
@@ -108,6 +108,13 @@ nodeAffinityPreset:
   ##   - e2e-az2
   ##
   values: []
+
+## @param nodeSelector Node labels for manager pod(s)
+## @param tolerations Tolerations for manager pod(s)
+## @param topologySpreadConstraints Topology Spread Constraints for manager pod(s)
+nodeSelector: {}
+tolerations: []
+topologySpreadConstraints: []
 
 ## @param priorityClassName Priority class for pod scheduling
 ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#priorityclass
@@ -258,6 +265,15 @@ agent:
     name: ""
     annotations: {}
 
+  ## @param agent.tolerations Tolerations for the agent pod(s)
+  tolerations: []
+
+  ## @param agent.nodeSelector Node labels for the agent pod(s)
+  nodeSelector: {}
+
+  ## @param agent.topologySpreadConstraints Topology Spread Constraints for the agent pod(s)
+  topologySpreadConstraints: []
+
 ##
 ## @section Kubernetes Gateway feature configuration
 ##
@@ -302,6 +318,15 @@ bindings:
       create: true
       name: ""
       annotations: {}
+
+    ## @param bindings.forwarder.tolerations Tolerations for the bindings forwarder pod(s)
+    tolerations: []
+
+    ## @param bindings.forwarder.nodeSelector Node labels for the bindings forwarder pod(s)
+    nodeSelector: {}
+
+    ## @param bindings.forwarder.topologySpreadConstraints Topology Spread Constraints for the bindings forwarder pod(s)
+    topologySpreadConstraints: []
 
   ## @param bindings.ngrokCA The ngrok intermediate CA certificate to use for verifyng self-signed TLS certs from ngrok
   ## Note: This is temporarily vendored and will be removed in a future release.

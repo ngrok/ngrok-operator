@@ -32,6 +32,16 @@
             "description": "If true, then the operator will startup without required fields or API registration, become Ready, but not actually be running",
             "default": false
         },
+        "podAnnotations": {
+            "type": "object",
+            "description": "Custom pod annotations to apply to all pods.",
+            "default": {}
+        },
+        "podLabels": {
+            "type": "object",
+            "description": "Custom pod labels to apply to all pods.",
+            "default": {}
+        },
         "image": {
             "type": "object",
             "properties": {
@@ -93,16 +103,6 @@
             "description": "Configure the default cluster base domain for your kubernetes cluster DNS resolution",
             "default": "svc.cluster.local"
         },
-        "podAnnotations": {
-            "type": "object",
-            "description": "Custom pod annotations to apply to all pods.",
-            "default": {}
-        },
-        "podLabels": {
-            "type": "object",
-            "description": "Custom pod labels to apply to all pods.",
-            "default": {}
-        },
         "replicaCount": {
             "type": "number",
             "description": "The number of controllers to run.",
@@ -143,6 +143,23 @@
                     "items": {}
                 }
             }
+        },
+        "nodeSelector": {
+            "type": "object",
+            "description": "Node labels for manager pod(s)",
+            "default": {}
+        },
+        "tolerations": {
+            "type": "array",
+            "description": "Tolerations for manager pod(s)",
+            "default": [],
+            "items": {}
+        },
+        "topologySpreadConstraints": {
+            "type": "array",
+            "description": "Topology Spread Constraints for manager pod(s)",
+            "default": [],
+            "items": {}
         },
         "priorityClassName": {
             "type": "string",
@@ -343,6 +360,23 @@
                             "default": {}
                         }
                     }
+                },
+                "tolerations": {
+                    "type": "array",
+                    "description": "Tolerations for the agent pod(s)",
+                    "default": [],
+                    "items": {}
+                },
+                "nodeSelector": {
+                    "type": "object",
+                    "description": "Node labels for the agent pod(s)",
+                    "default": {}
+                },
+                "topologySpreadConstraints": {
+                    "type": "array",
+                    "description": "Topology Spread Constraints for the agent pod(s)",
+                    "default": [],
+                    "items": {}
                 }
             }
         },
@@ -426,6 +460,23 @@
                                     "default": {}
                                 }
                             }
+                        },
+                        "tolerations": {
+                            "type": "array",
+                            "description": "Tolerations for the bindings forwarder pod(s)",
+                            "default": [],
+                            "items": {}
+                        },
+                        "nodeSelector": {
+                            "type": "object",
+                            "description": "Node labels for the bindings forwarder pod(s)",
+                            "default": {}
+                        },
+                        "topologySpreadConstraints": {
+                            "type": "array",
+                            "description": "Topology Spread Constraints for the bindings forwarder pod(s)",
+                            "default": [],
+                            "items": {}
                         }
                     }
                 },
