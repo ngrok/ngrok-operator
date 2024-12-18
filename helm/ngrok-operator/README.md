@@ -70,8 +70,8 @@ To uninstall the chart:
 
 | Name                                 | Description                                                                               | Value   |
 | ------------------------------------ | ----------------------------------------------------------------------------------------- | ------- |
-| `podAnnotations`                     | Used to apply custom annotations to the ingress pods.                                     | `{}`    |
-| `podLabels`                          | Used to apply custom labels to the ingress pods.                                          | `{}`    |
+| `podAnnotations`                     | Custom pod annotations to apply to all pods.                                              | `{}`    |
+| `podLabels`                          | Custom pod labels to apply to all pods.                                                   | `{}`    |
 | `replicaCount`                       | The number of controllers to run.                                                         | `1`     |
 | `affinity`                           | Affinity for the controller pod assignment                                                | `{}`    |
 | `podAffinityPreset`                  | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`       | `""`    |

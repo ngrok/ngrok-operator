@@ -18,9 +18,6 @@ spec:
   selector:
     matchLabels:
       {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
-      {{- if .Values.podLabels }}
-        {{- toYaml .Values.podLabels | nindent 6 }}
-      {{- end }}
       app.kubernetes.io/component: {{ $component }}
   template:
     metadata:

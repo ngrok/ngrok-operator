@@ -354,3 +354,29 @@ tests:
   - equal:
       path: spec.template.spec.priorityClassName
       value: high-priority
+- it: Adds .Values.podLabels to the controller deployment podspec
+  set:
+    podLabels:
+      labelKey1: labelValue1
+      labelKey2: labelValue2
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - isSubset:
+      path: spec.template.metadata.labels
+      content:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
+- it: Does not add .Values.podLabels to the controller deployment's selector
+  set:
+    podLabels:
+      labelKey1: labelValue1
+      labelKey2: labelValue2
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - isNotSubset:
+      path: spec.selector.matchLabels
+      content:
+        labelKey1: labelValue1
+        labelKey2: labelValue2

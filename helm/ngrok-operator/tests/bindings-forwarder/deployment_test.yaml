@@ -19,3 +19,27 @@ tests:
   - equal:
       path: metadata.name
       value: RELEASE-NAME-ngrok-operator-bindings-forwarder
+- it: Adds .Values.podLabels to the controller deployment podspec
+  set:
+    podLabels:
+      labelKey1: labelValue1
+      labelKey2: labelValue2
+  template: bindings-forwarder/deployment.yaml
+  asserts:
+  - isSubset:
+      path: spec.template.metadata.labels
+      content:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
+- it: Does not add .Values.podLabels to the controller deployment's selector
+  set:
+    podLabels:
+      labelKey1: labelValue1
+      labelKey2: labelValue2
+  template: bindings-forwarder/deployment.yaml
+  asserts:
+  - isNotSubset:
+      path: spec.selector.matchLabels
+      content:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
