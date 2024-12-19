@@ -95,7 +95,7 @@ spec:
           touch result.out
 
           # 2>/dev/null to suppress kubectl default output
-          kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- curl --silent --show-error --connect-timeout 10s --retry 3 --retry-all-errors --retry-delay 5 http://assets-allowed.e2e/hello_world.txt | tee result.out
+          kubectl run --restart=Never --rm --attach --image=dersimn/netutils net-utils -- curl --silent --show-error --connect-timeout 10 --retry 3 --retry-all-errors --retry-delay 5 http://assets-allowed.e2e/hello_world.txt | tee result.out
 
           [ $? -eq 0 ] || { echo "Failed to retrieve assets"; exit 1; }
 
