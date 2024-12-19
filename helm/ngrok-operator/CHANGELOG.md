@@ -143,7 +143,7 @@ The `ngrok-operator` helm chart now includes a `schema.json` file that can be us
 
 ### Added
 
-- Required `.Values.clusterId` for the ngrok-operator to register with the ngrok API
+- Required `.Values.clusterName` for the ngrok-operator to register with the ngrok API
 
 ### Changed
 

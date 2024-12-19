@@ -60,9 +60,9 @@ spec:
         args:
         - --release-name={{ .Release.Name }}
         {{- if .Values.oneClickDemoMode }}
-        - --cluster-id=one-click-demo-mode
+        - --cluster-name=one-click-demo-mode
         {{- else }}
-        - --cluster-id={{ .Values.clusterId | required "Missing required .Values.clusterId!"}}
+        - --cluster-name={{ .Values.clusterName | required "Missing required .Values.clusterName!"}}
         {{- end }}
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
         {{- if .Values.oneClickDemoMode }}

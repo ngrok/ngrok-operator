@@ -136,7 +136,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		EnabledFeatures: calculateFeaturesEnabled(ko),
 		Region:          ko.Spec.Region,
 		Deployment: ngrok.KubernetesOperatorDeployment{
-			// TODO(hkatz) clusterId
+			// TODO(hkatz) clusterName
 			// Cluster: ko.Spec.Deployment.Cluster,
 			Name:      ko.Spec.Deployment.Name,
 			Namespace: ko.Spec.Deployment.Namespace,
@@ -326,7 +326,7 @@ func ngrokK8sopMatchesKubernetesOperator(k8sop *ngrok.KubernetesOperator, ko *ng
 		return false
 	}
 
-	// TODO(hkatz) clusterId
+	// TODO(hkatz) clusterName
 	// if item.Deployment.Cluster != ko.Spec.Deployment.Cluster {
 	// 	continue
 	// }

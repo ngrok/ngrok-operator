@@ -1,6 +1,6 @@
 suite: test controller-deployment
 set:
-  clusterId: "test-cluster"
+  clusterName: "test-cluster"
 templates:
 - controller-deployment.yaml
 # The following included templates are needed due to the way helm unittest works.
@@ -246,14 +246,14 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --one-click-demo-mode
-- it: Should pass cluster-id
+- it: Should pass cluster-name
   template: controller-deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
-      content: --cluster-id=test-cluster
-- it: Should pass cluster-id as demo mode when enabled
+      content: --cluster-name=test-cluster
+- it: Should pass cluster-name as demo mode when enabled
   template: controller-deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
@@ -261,7 +261,7 @@ tests:
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
-      content: --cluster-id=one-click-demo-mode
+      content: --cluster-name=one-click-demo-mode
 - it: Should pass log format argument if set
   set:
     log:

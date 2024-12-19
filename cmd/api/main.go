@@ -92,7 +92,7 @@ func main() {
 
 type managerOpts struct {
 	// flags
-	clusterId             string
+	clusterName           string
 	releaseName           string
 	metricsAddr           string
 	electionID            string
@@ -145,7 +145,7 @@ func cmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&opts.clusterId, "cluster-id", "", "Cluster ID where the ngrok-operator is installed")
+	c.Flags().StringVar(&opts.clusterName, "cluster-name", "", "Cluster Name where the ngrok-operator is installed")
 	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -173,7 +173,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
 
-	_ = c.MarkFlagRequired("cluster-id")
+	_ = c.MarkFlagRequired("cluster-name")
 	_ = c.MarkFlagRequired("release-name")
 
 	opts.zapOpts = &zap.Options{}
@@ -659,7 +659,7 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
 			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Cluster:   opts.clusterId,
+				Cluster:   opts.clusterName,
 				Name:      opts.releaseName,
 				Namespace: opts.namespace,
 				Version:   version.GetVersion(),

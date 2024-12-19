@@ -147,7 +147,7 @@ deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## D
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
-		--set clusterId=$(KUBE_CLUSTER_NAME) \
+		--set clusterName=$(KUBE_CLUSTER_NAME) \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
@@ -164,7 +164,7 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
-		--set clusterId=$(KUBE_CLUSTER_NAME) \
+		--set clusterName=$(KUBE_CLUSTER_NAME) \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
@@ -182,7 +182,7 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
-		--set clusterId=$(KUBE_CLUSTER_NAME) \
+		--set clusterName=$(KUBE_CLUSTER_NAME) \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
