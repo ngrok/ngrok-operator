@@ -87,6 +87,7 @@ spec:
   - name: test assets retrieval via BoundEndpoint TargetService
     try:
     - script:
+        timeout: 3m
         content: |
           # See contents in `make e2e-start-ngrok` task
           WANT="Hello from ngrok-operator"
