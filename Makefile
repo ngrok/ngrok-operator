@@ -1,5 +1,9 @@
+# absolute path to cwd relative to Makefile
+CWD := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+
 # Image URL to use all building/pushing image targets
 IMG ?= ngrok-operator
+IMG_REGISTRY ?= "docker.io"
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
@@ -36,6 +40,13 @@ CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/...}
 
 # when true, deploy with --set oneClickDemoMode=true
 DEPLOY_ONE_CLICK_DEMO_MODE ?= false
+
+# example assets
+# Note: contents must match chainsaw tests
+E2E_ASSETS_DIR ?= $(CWD)/e2e-fixtures/ngrok-assets/
+
+# default name for e2e-deploy k8s binding.name
+E2E_BINDING_NAME ?= k8s/e2e-from-makefile
 
 # Targets
 
@@ -127,6 +138,12 @@ docker-build: ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
+.PHONY: _docker-load
+_docker-load: ## Load the docker image into a k8s cluster, as defined by $MAKE_DOCKER_LOAD_COMMAND
+ifdef MAKE_DOCKER_LOAD_COMMAND
+	$(MAKE_DOCKER_LOAD_COMMAND)
+endif
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -194,29 +211,6 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		--set bindings.allowedURLs="{*}" \
 		&&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
-
-.PHONY: deploy_for_e2e
-deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
-		--namespace $(KUBE_NAMESPACE) \
-		--create-namespace \
-		--set oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
-		--set image.repository=$(IMG) \
-		--set image.tag="latest" \
-		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
-		--set credentials.apiKey=$(NGROK_API_KEY) \
-		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
-		--set log.format=console \
-		--set log.level=debug \
-		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=true \
-		--set bindings.name=$(E2E_BINDING_NAME) \
-		--set bindings.description="Example binding for CI e2e tests" \
-		--set bindings.allowedURLs='{*.e2e}' \
-		--set bindings.serviceAnnotations.annotation1="val1" \
-		--set bindings.serviceAnnotations.annotation2="val2" \
-		--set bindings.serviceLabels.label1="val1"
 
 .PHONY: _deploy-check-env-vars
 _deploy-check-env-vars:
@@ -308,14 +302,49 @@ helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuild
 
 ##@ E2E tests
 
+# NOTE: You will also need to load ngrok-operator:latest image into your local cluster for this to work
+.PHONY: e2e-deploy ## Deploy the operator for e2e tests
+e2e-deploy: _deploy-check-env-vars docker-build _docker-load manifests kustomize _helm_setup
+	# create some namespaces for bindings tests
+	kubectl create ns e2e || true
+
+    # deploy for e2e tests
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+		--namespace $(KUBE_NAMESPACE) \
+		--create-namespace \
+		--set oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
+		--set image.repository=$(IMG) \
+		--set image.tag="latest" \
+		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
+		--set credentials.apiKey=$(NGROK_API_KEY) \
+		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set log.format=console \
+		--set log.level=debug \
+		--set log.stacktraceLevel=panic \
+		--set metaData.env=local,metaData.from=makefile \
+		--set bindings.enabled=true \
+		--set bindings.name=$(E2E_BINDING_NAME) \
+		--set bindings.description="Example binding for CI e2e tests" \
+		--set bindings.allowedURLs='{*.e2e}' \
+		--set bindings.serviceAnnotations.annotation1="val1" \
+		--set bindings.serviceAnnotations.annotation2="val2" \
+		--set bindings.serviceLabels.label1="val1"
+
+.PHONY: e2e-start-ngrok
+e2e-start-ngrok: ## Start the ngrok-agent for e2e tests
+	# start an agent
+	ngrok http file://$(E2E_ASSETS_DIR) --url http://assets-allowed.e2e --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
+	ngrok http file://$(E2E_ASSETS_DIR) --url http://assets-denied.example --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
+	ngrok tcp tcpbin.com:4242 --url tcp://tcp-echo.e2e:4242 --binding $(E2E_BINDING_NAME) & echo "WARN: Started ngrok-agent with PID $$!"
+
 .PHONY: e2e-tests
 e2e-tests: ## Run e2e tests
 	chainsaw test ./tests/chainsaw
 
 .PHONY: e2e-clean
 e2e-clean: ## Clean up e2e tests
-	kubectl delete ns e2e
-	kubectl delete --all boundendpoints -n ngrok-operator
-	kubectl delete --all services -n ngrok-operator
-	kubectl delete --all kubernetesoperators -n ngrok-operator
-	helm --namespace ngrok-operator uninstall ngrok-operator
+	kubectl delete ns e2e || true
+	kubectl delete --all boundendpoints -n ngrok-operator || true
+	kubectl delete --all services -n ngrok-operator || true
+	kubectl delete --all kubernetesoperators -n ngrok-operator || true
+	helm --namespace ngrok-operator uninstall ngrok-operator || true

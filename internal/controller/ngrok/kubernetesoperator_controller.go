@@ -147,10 +147,13 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
-		tlsSecret, err := r.findOrCreateTLSSecret(ctx, ko)
+		foundSecret, err := r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return err
 		}
+
+		// remember to set the outer secret
+		tlsSecret = foundSecret
 
 		createParams.Binding = &ngrok.KubernetesOperatorBindingCreate{
 			Name:        ko.Spec.Binding.Name,
@@ -257,10 +260,13 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
-		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
+		foundSecret, err := r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return r.updateStatus(ctx, ko, nil, err)
 		}
+
+		// remember to set the outer secret
+		tlsSecret = foundSecret
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
 			Name:        ptr.To(ko.Spec.Binding.Name),
@@ -469,7 +475,6 @@ func extractNamespaceUIDFromMetadata(metadata string) (string, error) {
 	return uid, nil
 }
 
-// nolint:unused
 func generateCSR(privKey *ecdsa.PrivateKey) ([]byte, error) {
 	subj := pkix.Name{}
 

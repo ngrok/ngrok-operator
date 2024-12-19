@@ -141,14 +141,23 @@ func (self *BaseController[T]) handleErr(op BaseControllerOp, obj T, err error) 
 func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T, origErr error) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("originalError", origErr)
 
-	if err := self.Kube.Status().Update(ctx, obj); err != nil {
+	var curr T = obj.DeepCopyObject().(T)
+	if err := self.Kube.Get(ctx, client.ObjectKeyFromObject(obj), curr); err != nil {
+		self.Recorder.Event(obj, v1.EventTypeWarning, "StatusError", fmt.Sprintf("Failed to retrieve existing object for status update: %s", err.Error()))
+		log.V(1).Error(err, "Failed to retrieve existing object for status update")
+		return StatusError{origErr, err}
+	}
+
+	patch := client.MergeFrom(curr)
+
+	if err := self.Kube.Status().Patch(ctx, obj, patch); err != nil {
 		self.Recorder.Event(obj, v1.EventTypeWarning, "StatusError", fmt.Sprintf("Failed to reconcile status: %s", err.Error()))
-		log.V(1).Error(err, "Failed to update status")
+		log.V(1).Error(err, "Failed to patch status")
 		return StatusError{origErr, err}
 	}
 
 	self.Recorder.Event(obj, v1.EventTypeNormal, "Status", "Successfully reconciled status")
-	log.V(1).Info("Successfully updated status")
+	log.V(1).Info("Successfully patch status")
 	return origErr
 }
 
