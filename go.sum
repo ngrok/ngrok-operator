@@ -416,8 +416,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/nbutton23/zxcvbn-go v0.0.0-20180912185939-ae427f1e4c1d/go.mod h1:o96djdrsSGy3AWPyBgZMAGfxZNfgntdJG+11KU4QvbU=
-github.com/ngrok/ngrok-api-go/v6 v6.1.1-0.20241031154501-292c6f1e1a7a h1:u7nKkWkF1q9ircyXDnks+hdq0S8s61qcyAlgsUf1Jk0=
-github.com/ngrok/ngrok-api-go/v6 v6.1.1-0.20241031154501-292c6f1e1a7a/go.mod h1:KtRxWqEomaHZfgeS+q/7nFHF+gPYFghS5wTl5AIUjIk=
+github.com/ngrok/ngrok-api-go/v6 v6.1.1-0.20241219163904-f9bc510716c0 h1:CvkuidFUpHZA60ctarFLGX17nxCEIpGbZpY//iXNQ3I=
+github.com/ngrok/ngrok-api-go/v6 v6.1.1-0.20241219163904-f9bc510716c0/go.mod h1:KtRxWqEomaHZfgeS+q/7nFHF+gPYFghS5wTl5AIUjIk=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
