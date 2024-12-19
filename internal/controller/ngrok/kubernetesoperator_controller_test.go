@@ -29,15 +29,39 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			ngrokK8sop: &ngrok.KubernetesOperator{
 				EnabledFeatures: []string{"Ingress"}, // API returns title cased features
 				Deployment: ngrok.KubernetesOperatorDeployment{
-					Name:      "example",
-					Namespace: "ngrok-operator",
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
 				},
 			},
 			koK8sop: &ngrokv1alpha1.KubernetesOperator{
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-						Name:      "example",
-						Namespace: "ngrok-operator",
+						ClusterName: "my-cluster",
+						Name:        "example",
+						Namespace:   "ngrok-operator",
+					},
+					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
+				},
+			},
+		},
+		{
+			name: "different clustername",
+			want: false,
+			ngrokK8sop: &ngrok.KubernetesOperator{
+				EnabledFeatures: []string{"Ingress"}, // API returns title cased features
+				Deployment: ngrok.KubernetesOperatorDeployment{
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
+				},
+			},
+			koK8sop: &ngrokv1alpha1.KubernetesOperator{
+				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
+						ClusterName: "different-cluster",
+						Name:        "example",
+						Namespace:   "ngrok-operator",
 					},
 					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
 				},
@@ -49,15 +73,17 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			ngrokK8sop: &ngrok.KubernetesOperator{
 				EnabledFeatures: []string{"Ingress"}, // API returns title cased features
 				Deployment: ngrok.KubernetesOperatorDeployment{
-					Name:      "example",
-					Namespace: "ngrok-operator",
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
 				},
 			},
 			koK8sop: &ngrokv1alpha1.KubernetesOperator{
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-						Name:      "example",
-						Namespace: "different-namespace",
+						ClusterName: "my-cluster",
+						Name:        "example",
+						Namespace:   "different-namespace",
 					},
 					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
 				},
@@ -69,15 +95,39 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			ngrokK8sop: &ngrok.KubernetesOperator{
 				EnabledFeatures: []string{"Ingress"}, // API returns title cased features
 				Deployment: ngrok.KubernetesOperatorDeployment{
-					Name:      "example",
-					Namespace: "ngrok-operator",
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
 				},
 			},
 			koK8sop: &ngrokv1alpha1.KubernetesOperator{
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-						Name:      "different-name",
-						Namespace: "ngrok-operator",
+						ClusterName: "my-cluster",
+						Name:        "different-name",
+						Namespace:   "ngrok-operator",
+					},
+					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
+				},
+			},
+		},
+		{
+			name: "same name, different clustername",
+			want: false,
+			ngrokK8sop: &ngrok.KubernetesOperator{
+				EnabledFeatures: []string{"Ingress"}, // API returns title cased features
+				Deployment: ngrok.KubernetesOperatorDeployment{
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
+				},
+			},
+			koK8sop: &ngrokv1alpha1.KubernetesOperator{
+				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
+						ClusterName: "different-cluster",
+						Name:        "example",
+						Namespace:   "ngrok-operator",
 					},
 					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
 				},
@@ -89,8 +139,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			ngrokK8sop: &ngrok.KubernetesOperator{
 				EnabledFeatures: []string{"Ingress", "Bindings"}, // API returns title cased features
 				Deployment: ngrok.KubernetesOperatorDeployment{
-					Name:      "example",
-					Namespace: "ngrok-operator",
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
 				},
 				Binding: &ngrok.KubernetesOperatorBinding{
 					Name: "example",
@@ -99,8 +150,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			koK8sop: &ngrokv1alpha1.KubernetesOperator{
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-						Name:      "example",
-						Namespace: "ngrok-operator",
+						ClusterName: "my-cluster",
+						Name:        "example",
+						Namespace:   "ngrok-operator",
 					},
 					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress, ngrokv1alpha1.KubernetesOperatorFeatureBindings},
 					Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
@@ -115,8 +167,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			ngrokK8sop: &ngrok.KubernetesOperator{
 				EnabledFeatures: []string{"Ingress", "Bindings"}, // API returns title cased features
 				Deployment: ngrok.KubernetesOperatorDeployment{
-					Name:      "example",
-					Namespace: "ngrok-operator",
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
 				},
 				Binding: &ngrok.KubernetesOperatorBinding{
 					Name: "example",
@@ -125,8 +178,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			koK8sop: &ngrokv1alpha1.KubernetesOperator{
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-						Name:      "example",
-						Namespace: "ngrok-operator",
+						ClusterName: "my-cluster",
+						Name:        "example",
+						Namespace:   "ngrok-operator",
 					},
 					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress, ngrokv1alpha1.KubernetesOperatorFeatureBindings},
 					Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
@@ -141,8 +195,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			ngrokK8sop: &ngrok.KubernetesOperator{
 				EnabledFeatures: []string{"Ingress", "Bindings"}, // API returns title cased features
 				Deployment: ngrok.KubernetesOperatorDeployment{
-					Name:      "example",
-					Namespace: "ngrok-operator",
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
 				},
 				Binding: &ngrok.KubernetesOperatorBinding{
 					Name: "example",
@@ -151,8 +206,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			koK8sop: &ngrokv1alpha1.KubernetesOperator{
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-						Name:      "example",
-						Namespace: "ngrok-operator",
+						ClusterName: "my-cluster",
+						Name:        "example",
+						Namespace:   "ngrok-operator",
 					},
 					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
 				},
@@ -164,8 +220,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			ngrokK8sop: &ngrok.KubernetesOperator{
 				EnabledFeatures: []string{"Ingress"}, // API returns title cased features
 				Deployment: ngrok.KubernetesOperatorDeployment{
-					Name:      "example",
-					Namespace: "ngrok-operator",
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
 				},
 				Binding: &ngrok.KubernetesOperatorBinding{
 					Name: "example",
@@ -174,8 +231,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			koK8sop: &ngrokv1alpha1.KubernetesOperator{
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-						Name:      "example",
-						Namespace: "ngrok-operator",
+						ClusterName: "my-cluster",
+						Name:        "example",
+						Namespace:   "ngrok-operator",
 					},
 					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress, ngrokv1alpha1.KubernetesOperatorFeatureBindings},
 					Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
@@ -194,8 +252,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			ngrokK8sop: &ngrok.KubernetesOperator{
 				EnabledFeatures: []string{"Ingress"}, // API returns title cased features
 				Deployment: ngrok.KubernetesOperatorDeployment{
-					Name:      "example",
-					Namespace: "ngrok-operator",
+					ClusterName: "my-cluster",
+					Name:        "example",
+					Namespace:   "ngrok-operator",
 				},
 				Binding: &ngrok.KubernetesOperatorBinding{
 					Name: "example",
@@ -204,8 +263,9 @@ func Test_ngrokK8sopMatchesKubernetesOperator(t *testing.T) {
 			koK8sop: &ngrokv1alpha1.KubernetesOperator{
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 					Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-						Name:      "example",
-						Namespace: "ngrok-operator",
+						ClusterName: "my-cluster",
+						Name:        "example",
+						Namespace:   "ngrok-operator",
 					},
 					EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress, ngrokv1alpha1.KubernetesOperatorFeatureBindings},
 					Binding: &ngrokv1alpha1.KubernetesOperatorBinding{

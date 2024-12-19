@@ -42,8 +42,8 @@ type ngrokAPICommon struct {
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type KubernetesOperatorDeployment struct {
-	// Cluster is the name of the k8s cluster in which the operator is deployed
-	Cluster string `json:"cluster,omitempty"`
+	// ClusterName is the name of the k8s cluster in which the operator is deployed
+	ClusterName string `json:"clusterName,omitempty"`
 	// Name is the name of the k8s deployment for the operator
 	Name string `json:"name,omitempty"`
 	// The namespace in which the operator is deployed

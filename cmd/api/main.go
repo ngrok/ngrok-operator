@@ -260,12 +260,9 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
 	}
 
-	// TODO(hkatz) for now we are hiding the k8sop API regstration behind the bindings feature flag
-	if opts.enableFeatureBindings {
-		// register the k8sop in the ngrok API
-		if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
-			return fmt.Errorf("unable to create KubernetesOperator: %w", err)
-		}
+	// register the k8sop in the ngrok API
+	if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
+		return fmt.Errorf("unable to create KubernetesOperator: %w", err)
 	}
 
 	// k8sResourceDriver is the driver that will be used to interact with the k8s resources for all controllers
@@ -659,10 +656,10 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
 			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Cluster:   opts.clusterName,
-				Name:      opts.releaseName,
-				Namespace: opts.namespace,
-				Version:   version.GetVersion(),
+				ClusterName: opts.clusterName,
+				Name:        opts.releaseName,
+				Namespace:   opts.namespace,
+				Version:     version.GetVersion(),
 			},
 			Region: opts.region,
 		}
