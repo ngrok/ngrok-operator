@@ -131,16 +131,22 @@ runs:
       run: |
         echo "Dumping k8s resources"
         echo "=== Pods ==="
+        kubectl -n ngrok-operator get pods || true
         kubectl -n ngrok-operator describe pods || true
         echo "=== Services ==="
+        kubectl -n ngrok-operator get services || true
         kubectl -n ngrok-operator describe services || true
         echo "=== Deployments ==="
+        kubectl -n ngrok-operator get deployments || true
         kubectl -n ngrok-operator describe deployments || true
         echo "=== TLS Cert ==="
+        kubectl -n ngrok-operator get secret ngrok-operator-default-tls || true
         kubectl -n ngrok-operator describe secret ngrok-operator-default-tls || true
         echo "=== KubernetesOperators ==="
+        kubectl -n ngrok-operator get KubernetesOperators || true
         kubectl -n ngrok-operator describe KubernetesOperators || true
         echo "=== BoundEndpoints ==="
+        kubectl -n ngrok-operator get BoundEndpoints || true
         kubectl -n ngrok-operator describe BoundEndpoints || true
 
     # best effort to dump some logs
