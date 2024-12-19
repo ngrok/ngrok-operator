@@ -104,6 +104,7 @@ spec:
           # first line is the contents, last line in "deleted pod" message
           # remove newline to compare strings directly
           GOT=$(cat result.out | head -n1 | tr -d '\n')
+
           [ "$GOT" = "$WANT" ] || { echo "Incorrect assets content: want '$WANT', got '$GOT'"; exit 1; }
 
   - name: assert BoundEndpoint http://tcp-echo.e2e is bound
@@ -182,5 +183,4 @@ spec:
           # remove newline to compare strings directly
           GOT=$(cat result.out | head -n1 | tr -d '\n')
 
-          [ $? -eq 0 ] || { echo "Failed to establish tcp connection"; exit 1; }
           (echo "$GOT" | grep -q "$WANT_REGEX") || { echo "Unexpected nc output: want '$WANT_REGEX' got '$GOT'"; exit 1; }
