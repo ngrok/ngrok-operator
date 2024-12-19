@@ -138,6 +138,12 @@ docker-build: ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
+.PHONY: _docker-load
+_docker-load: ## Load the docker image into a k8s cluster, as defined by $MAKE_DOCKER_LOAD_COMMAND
+ifdef MAKE_DOCKER_LOAD_COMMAND
+	$(MAKE_DOCKER_LOAD_COMMAND)
+endif
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -298,7 +304,7 @@ helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuild
 
 # NOTE: You will also need to load ngrok-operator:latest image into your local cluster for this to work
 .PHONY: e2e-deploy ## Deploy the operator for e2e tests
-e2e-deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup
+e2e-deploy: _deploy-check-env-vars docker-build _docker-load manifests kustomize _helm_setup
 	# create some namespaces for bindings tests
 	kubectl create ns e2e || true
 
