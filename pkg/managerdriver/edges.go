@@ -192,7 +192,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		// If this annotation is present and "true", then this ingress should result in an endpoint being created and not an edge
-		if val, found := ingress.Annotations[annotationUseEndpoint]; found && strings.ToLower(val) == "true" {
+		if val, found := ingress.Annotations[annotationUseEndpoints]; found && strings.ToLower(val) == "true" {
 			continue
 		}
 
@@ -248,7 +248,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 				}
 
 				serviceName := httpIngressPath.Backend.Service.Name
-				serviceUID, servicePort, err := d.getEdgeBackend(*httpIngressPath.Backend.Service, ingress.Namespace)
+				serviceUID, servicePort, err := d.getIngressBackend(*httpIngressPath.Backend.Service, ingress.Namespace)
 				if err != nil {
 					d.log.Error(err, "could not find port for service", "namespace", ingress.Namespace, "service", serviceName)
 					continue
@@ -293,7 +293,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 	gateways := d.store.ListGateways()
 	for _, gtw := range gateways {
 		// If this annotation is present and "true", then this gateway should result in an endpoint being created and not an edge
-		if val, found := gtw.Annotations[annotationUseEndpoint]; found && strings.ToLower(val) == "true" {
+		if val, found := gtw.Annotations[annotationUseEndpoints]; found && strings.ToLower(val) == "true" {
 			continue
 		}
 
@@ -420,7 +420,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 	}
 }
 
-func (d *Driver) getEdgeBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, error) {
+func (d *Driver) getIngressBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, error) {
 	service, servicePort, err := d.findBackendServicePort(backendSvc, namespace)
 	if err != nil {
 		return "", 0, err

@@ -37,9 +37,7 @@ const (
 
 	// When this annotation is present on an Ingress/Gateway resource and set to "true", that Ingress/Gateway
 	// will cause an endpoint to be created instead of an edge
-	annotationUseEndpoint = "k8s.ngrok.com/use-endpoint"
-
-	defaultClusterDomain = "svc.cluster.local"
+	annotationUseEndpoints = "k8s.ngrok.com/use-endpoints"
 )
 
 // Driver maintains the store of information, can derive new information from the store, and can
@@ -199,6 +197,14 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 		policies := &ngrokv1alpha1.NgrokTrafficPolicyList{}
 		err := client.List(ctx, policies)
 		return util.ToClientObjects(policies.Items), err
+	case *ngrokv1alpha1.AgentEndpoint:
+		agentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
+		err := client.List(ctx, agentEndpoints)
+		return util.ToClientObjects(agentEndpoints.Items), err
+	case *ngrokv1alpha1.CloudEndpoint:
+		cloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
+		err := client.List(ctx, cloudEndpoints)
+		return util.ToClientObjects(cloudEndpoints.Items), err
 	}
 	return nil, fmt.Errorf("unsupported type %T", v)
 }
@@ -216,6 +222,8 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 // - Tunnels
 // - ModuleSets
 // - TrafficPolicies
+// - AgentEndpoints
+// - CloudEndpoints
 // When the sync method becomes a background process, this likely won't be needed anymore
 func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	typesToSeed := []interface{}{
@@ -228,6 +236,8 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		&ingressv1alpha1.Tunnel{},
 		&ingressv1alpha1.NgrokModuleSet{},
 		&ngrokv1alpha1.NgrokTrafficPolicy{},
+		&ngrokv1alpha1.AgentEndpoint{},
+		&ngrokv1alpha1.CloudEndpoint{},
 	}
 
 	if d.gatewayEnabled {
@@ -377,7 +387,7 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 	return false, func(ctx context.Context) error {
 		select {
 		case err := <-ch:
-			d.log.Info("sync done", "err", err)
+			d.log.Error(err, "sync finished with error")
 			return err
 		case <-ctx.Done():
 			return ctx.Err()
@@ -424,11 +434,14 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	d.log.Info("syncing driver state!!")
 	domains := d.calculateDomainSet()
 	desiredEdges := d.calculateHTTPSEdges(domains)
+	desiredCloudEndpoints, desiredAgentEndpoints := d.calculateEndpoints()
 	desiredTunnels := d.calculateTunnels()
 
 	currDomains := &ingressv1alpha1.DomainList{}
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
 	currTunnels := &ingressv1alpha1.TunnelList{}
+	currAgentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
+	currCloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
 
 	if err := c.List(ctx, currDomains); err != nil {
 		d.log.Error(err, "error listing domains")
@@ -448,12 +461,36 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		d.log.Error(err, "error listing tunnels")
 		return err
 	}
+	if err := c.List(ctx, currAgentEndpoints, client.MatchingLabels{
+		labelControllerNamespace: d.managerName.Namespace,
+		labelControllerName:      d.managerName.Name,
+	}); err != nil {
+		d.log.Error(err, "error listing agent endpoints")
+		return err
+	}
+	if err := c.List(ctx, currCloudEndpoints, client.MatchingLabels{
+		labelControllerNamespace: d.managerName.Namespace,
+		labelControllerName:      d.managerName.Name,
+	}); err != nil {
+		d.log.Error(err, "error listing cloud endpoints")
+		return err
+	}
 
 	if err := d.applyDomains(ctx, c, domains.totalDomains, currDomains.Items); err != nil {
 		return err
 	}
 
 	if err := d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items); err != nil {
+		return err
+	}
+
+	if err := d.applyAgentEndpoints(ctx, c, desiredAgentEndpoints, currAgentEndpoints.Items); err != nil {
+		d.log.Error(err, "applying agent endpoints")
+		return err
+	}
+
+	if err := d.applyCloudEndpoints(ctx, c, desiredCloudEndpoints, currCloudEndpoints.Items); err != nil {
+		d.log.Error(err, "applying cloud endpoints")
 		return err
 	}
 
@@ -1221,4 +1258,11 @@ func (d *Driver) MigrateKubernetesIngressControllerLabelsToNgrokOperator(ctx con
 		}
 	}
 	return nil
+}
+
+func (d *Driver) defaultManagedResourceLabels() map[string]string {
+	return map[string]string{
+		labelControllerNamespace: d.managerName.Namespace,
+		labelControllerName:      d.managerName.Name,
+	}
 }
