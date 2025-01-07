@@ -49,7 +49,7 @@ func TestGetPathMatchType(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
-			actual := driver.getPathMatchType(tc.input)
+			actual := getPathMatchType(driver.log, tc.input)
 			assert.Equal(t, tc.expected, actual)
 		})
 	}

@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -21,7 +19,6 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 
-	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -518,7 +515,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) error {
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
-		newLBIPStatus := d.calculateIngressLoadBalancerIPStatus(ingress, c)
+		newLBIPStatus := calculateIngressLoadBalancerIPStatus(d.log, ingress, c)
 		if !reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
 			ingress.Status.LoadBalancer.Ingress = newLBIPStatus
 			if err := c.Status().Update(ctx, ingress); err != nil {
@@ -530,48 +527,12 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 	return nil
 }
 
-// Given an ingress, it will resolve any ngrok modulesets defined on the ingress to the
-// CRDs and then will merge them in to a single moduleset
-func (d *Driver) getNgrokModuleSetForIngress(ing *netv1.Ingress) (*ingressv1alpha1.NgrokModuleSet, error) {
-	computedModSet := &ingressv1alpha1.NgrokModuleSet{}
-
-	modules, err := annotations.ExtractNgrokModuleSetsFromAnnotations(ing)
-	if err != nil {
-		if errors.IsMissingAnnotations(err) {
-			return computedModSet, nil
-		}
-		return computedModSet, err
-	}
-
-	for _, module := range modules {
-		resolvedMod, err := d.store.GetNgrokModuleSetV1(module, ing.Namespace)
-		if err != nil {
-			return computedModSet, err
-		}
-		computedModSet.Merge(resolvedMod)
-	}
-
-	return computedModSet, nil
-}
-
-func (d *Driver) getNgrokTrafficPolicyForIngress(ing *netv1.Ingress) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
-	policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(ing)
-	if err != nil {
-		if errors.IsMissingAnnotations(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	return d.store.GetNgrokTrafficPolicyV1(policy, ing.Namespace)
-}
-
 // getTrafficPolicyJSON retrieves the traffic policy for an ingress and falls back to the modSet policy if it doesn't exist.
 func (d *Driver) getTrafficPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1alpha1.NgrokModuleSet) (json.RawMessage, error) {
 	var err error
 	var policyJSON json.RawMessage
 
-	trafficPolicy, err := d.getNgrokTrafficPolicyForIngress(ingress)
+	trafficPolicy, err := getNgrokTrafficPolicyForIngress(ingress, d.store)
 
 	if err != nil {
 		d.log.Error(err, "error getting ngrok traffic policy for ingress", "ingress", ingress)
@@ -740,22 +701,6 @@ type RemoveHeadersConfig struct {
 
 type AddHeadersConfig struct {
 	Headers map[string]string `json:"headers"`
-}
-
-// extractPolicy parses the policy message into a format such that it can be combined with policy from other filters.
-// If the legacy "inbound/outbound" format is detected, inbound remaps to `on_http_request`, outbound remaps to
-// `on_http_response`. This is safe so long as HTTP Edges are the only ones supported on the gateway API.
-func extractPolicy(jsonMessage json.RawMessage) (util.TrafficPolicy, error) {
-	extensionRefTrafficPolicy, err := util.NewTrafficPolicyFromJson(jsonMessage)
-	if err != nil {
-		return nil, err
-	}
-
-	if extensionRefTrafficPolicy.IsLegacyPolicy() {
-		extensionRefTrafficPolicy.ConvertLegacyDirectionsToPhases()
-	}
-
-	return extensionRefTrafficPolicy, nil
 }
 
 func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference, namespace string, trafficPolicy util.TrafficPolicy) error {
@@ -1052,74 +997,17 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 	return nil
 }
 
-func (d *Driver) calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, c client.Reader) []netv1.IngressLoadBalancerIngress {
-	ingressHosts := map[string]bool{}
-	for _, rule := range ing.Spec.Rules {
-		ingressHosts[rule.Host] = true
-	}
-
-	domains := &ingressv1alpha1.DomainList{}
-	if err := c.List(context.Background(), domains); err != nil {
-		d.log.Error(err, "failed to list domains")
-		return []netv1.IngressLoadBalancerIngress{}
-	}
-
-	domainsByDomain := map[string]ingressv1alpha1.Domain{}
-	for _, domain := range domains.Items {
-		domainsByDomain[domain.Spec.Domain] = domain
-	}
-
-	status := []netv1.IngressLoadBalancerIngress{}
-
-	for host := range ingressHosts {
-		d, ok := domainsByDomain[host]
-		if !ok {
-			continue
-		}
-
-		var hostname string
-
-		switch {
-		// Custom domain
-		case d.Status.CNAMETarget != nil:
-			hostname = *d.Status.CNAMETarget
-		// ngrok managed domain
-		default:
-			// Trim the wildcard prefix if it exists for ngrok managed domains
-			hostname = strings.TrimPrefix(d.Status.Domain, "*.")
-		}
-
-		if hostname != "" {
-			status = append(status, netv1.IngressLoadBalancerIngress{
-				Hostname: hostname,
-			})
-		}
-	}
-
-	return status
-}
-
 func (d *Driver) findBackendRefServicePort(backendRef gatewayv1.BackendRef, namespace string) (*corev1.Service, *corev1.ServicePort, error) {
 	service, err := d.store.GetServiceV1(string(backendRef.Name), namespace)
 	if err != nil {
 		return nil, nil, err
 	}
-	servicePort, err := d.findBackendRefServicesPort(service, &backendRef)
+	servicePort, err := findBackendRefServicesPort(d.log, service, &backendRef)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return service, servicePort, nil
-}
-
-func (d *Driver) findBackendRefServicesPort(service *corev1.Service, backendRef *gatewayv1.BackendRef) (*corev1.ServicePort, error) {
-	for _, port := range service.Spec.Ports {
-		if (int32(*backendRef.Port) > 0 && port.Port == int32(*backendRef.Port)) || port.Name == string(backendRef.Name) {
-			d.log.V(3).Info("Found matching port for service", "namespace", service.Namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
-			return &port, nil
-		}
-	}
-	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, int32(*backendRef.Port), string(backendRef.Name))
 }
 
 func (d *Driver) findBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (*corev1.Service, *corev1.ServicePort, error) {
@@ -1128,73 +1016,12 @@ func (d *Driver) findBackendServicePort(backendSvc netv1.IngressServiceBackend, 
 		return nil, nil, err
 	}
 
-	servicePort, err := d.findServicesPort(service, backendSvc.Port)
+	servicePort, err := findServicesPort(d.log, service, backendSvc.Port)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return service, servicePort, nil
-}
-
-func (d *Driver) findServicesPort(service *corev1.Service, backendSvcPort netv1.ServiceBackendPort) (*corev1.ServicePort, error) {
-	for _, port := range service.Spec.Ports {
-		if (backendSvcPort.Number > 0 && port.Port == backendSvcPort.Number) || port.Name == backendSvcPort.Name {
-			d.log.V(3).Info("Found matching port for service", "namespace", service.Namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
-			return &port, nil
-		}
-	}
-	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, backendSvcPort.Number, backendSvcPort.Name)
-}
-
-func (d *Driver) getPortAnnotatedProtocol(service *corev1.Service, portName string) (string, error) {
-	if service.Annotations != nil {
-		annotation := service.Annotations["k8s.ngrok.com/app-protocols"]
-		if annotation != "" {
-			d.log.V(3).Info("Annotated app-protocols found", "annotation", annotation, "namespace", service.Namespace, "service", service.Name, "portName", portName)
-			m := map[string]string{}
-			err := json.Unmarshal([]byte(annotation), &m)
-			if err != nil {
-				return "", fmt.Errorf("could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
-			}
-
-			if protocol, ok := m[portName]; ok {
-				d.log.V(3).Info("Found protocol for port name", "protocol", protocol, "namespace", service.Namespace, "service", service.Name)
-				// only allow cases through where we are sure of intent
-				switch upperProto := strings.ToUpper(protocol); upperProto {
-				case "HTTP", "HTTPS":
-					return upperProto, nil
-				default:
-					return "", fmt.Errorf("unhandled protocol annotation: '%s', must be 'HTTP' or 'HTTPS'. From: %s service: %s", upperProto, service.Namespace, service.Name)
-				}
-			}
-		}
-	}
-	return "HTTP", nil
-}
-
-func (d *Driver) getPortAppProtocol(service *corev1.Service, port *corev1.ServicePort) (string, error) {
-	if port.AppProtocol == nil {
-		return "", nil
-	}
-
-	switch proto := *port.AppProtocol; proto {
-	case "k8s.ngrok.com/http2", "kubernetes.io/h2c":
-		return "http2", nil
-	case "":
-		return "", nil
-	default:
-		return "", fmt.Errorf("unsupported appProtocol: '%s', must be 'k8s.ngrok.com/http2', 'kubernetes.io/h2c' or ''. From: %s service: %s", proto, service.Namespace, service.Name)
-	}
-}
-
-// Generates a labels map for matching ngrok Routes to Agent Tunnels
-func (d *Driver) ngrokLabels(namespace, serviceUID, serviceName string, port int32) map[string]string {
-	return map[string]string{
-		labelNamespace:  namespace,
-		labelServiceUID: serviceUID,
-		labelService:    serviceName,
-		labelPort:       strconv.Itoa(int(port)),
-	}
 }
 
 // MigrateKubernetesIngressControllerLabelsToNgrokOperator migrates the labels from the old Kubernetes Ingress Controller to the new ngrok operator labels

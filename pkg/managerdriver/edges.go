@@ -192,11 +192,11 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		// If this annotation is present and "true", then this ingress should result in an endpoint being created and not an edge
-		if val, found := ingress.Annotations[annotationUseEndpoints]; found && strings.ToLower(val) == "true" {
+		if hasUseEndpointsAnnotation(ingress.Annotations) {
 			continue
 		}
 
-		modSet, err := d.getNgrokModuleSetForIngress(ingress)
+		modSet, err := getNgrokModuleSetForIngress(ingress, d.store)
 		if err != nil {
 			d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
 			continue
@@ -258,7 +258,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					Match:     httpIngressPath.Path,
 					MatchType: matchType,
 					Backend: ingressv1alpha1.TunnelGroupBackend{
-						Labels: d.ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
+						Labels: ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
 					},
 					CircuitBreaker:      modSet.Modules.CircuitBreaker,
 					Compression:         modSet.Modules.Compression,
@@ -293,7 +293,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 	gateways := d.store.ListGateways()
 	for _, gtw := range gateways {
 		// If this annotation is present and "true", then this gateway should result in an endpoint being created and not an edge
-		if val, found := gtw.Annotations[annotationUseEndpoints]; found && strings.ToLower(val) == "true" {
+		if hasUseEndpointsAnnotation(gtw.Annotations) {
 			continue
 		}
 
@@ -403,7 +403,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								}
 
 								route.Backend = ingressv1alpha1.TunnelGroupBackend{
-									Labels: d.ngrokLabels(httproute.Namespace, serviceUID, refName, servicePort),
+									Labels: ngrokLabels(httproute.Namespace, serviceUID, refName, servicePort),
 								}
 
 							}
