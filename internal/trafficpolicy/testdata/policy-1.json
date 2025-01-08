@@ -1,0 +1,15 @@
+{
+    "on_http_request": [
+        {
+            "actions": [
+                {
+                    "type":"verify-webhook",
+                    "config": {
+                        "provider": "github",
+                        "secret": "secret"
+                    }
+                }
+            ]
+        }
+    ]
+}

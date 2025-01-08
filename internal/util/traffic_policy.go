@@ -1,8 +1,18 @@
 package util
 
 import (
+	"context"
 	"encoding/json"
+	"time"
+
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/secrets"
+	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
+	"k8s.io/utils/ptr"
 )
+
+type ActionType string
 
 const (
 	PhaseOnHttpRequest  = "on_http_request"
@@ -275,4 +285,221 @@ func mergeSinglePhase(originalTP map[string][]RawRule, addedRules []RawRule, pha
 	}
 
 	originalTP[phase] = addedRules
+}
+
+func NewTrafficPolicyFromModuleset(ctx context.Context, ms *ingressv1alpha1.NgrokModuleSet, secretResolver secrets.Resolver) (*trafficpolicy.TrafficPolicy, error) {
+	if ms == nil {
+		return nil, nil
+	}
+
+	tp := trafficpolicy.NewTrafficPolicy()
+
+	converters := []modulesetConverterFunc{
+		// On TCP Connect Rules (IP Restriction & Mutual TLS)
+		convertModuleSetIPRestriction,
+		convertModuleSetTLS,
+		// On HTTP Request Rules
+		convertModuleSetCompression,
+		convertModuleSetCircuitBreaker,
+		convertModuleSetHeaders,
+		convertModuleSetWebhookVerification(secretResolver),
+		convertModuleSetSAML,
+		convertModuleSetOIDC,
+		convertModuleSetOAuth,
+	}
+
+	for _, converter := range converters {
+		if err := converter(ctx, *ms, tp); err != nil {
+			return nil, err
+		}
+	}
+
+	if tp.IsEmpty() {
+		return nil, nil
+	}
+
+	return tp, nil
+}
+
+type modulesetConverterFunc func(ctx context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error
+
+func convertModuleSetTLS(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+	if ms.Modules.TLSTermination == nil && ms.Modules.MutualTLS == nil {
+		return nil
+	}
+
+	tlsConfig := trafficpolicy.TLSTerminationConfig{}
+
+	if ms.Modules.TLSTermination != nil {
+		tlsConfig.MinVersion = ms.Modules.TLSTermination.MinVersion
+	}
+
+	if ms.Modules.MutualTLS != nil {
+		tlsConfig.MutualTLSCertificateAuthorities = ms.Modules.MutualTLS.CertificateAuthorities
+	}
+
+	rule := trafficpolicy.Rule{
+		Actions: []trafficpolicy.Action{
+			trafficpolicy.NewTerminateTLSAction(tlsConfig),
+		},
+	}
+	tp.AddRuleOnTCPConnect(rule)
+
+	return nil
+}
+
+func convertModuleSetIPRestriction(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+	if ms.Modules.IPRestriction == nil {
+		return nil
+	}
+
+	tp.AddRuleOnTCPConnect(
+		trafficpolicy.Rule{
+			Actions: []trafficpolicy.Action{
+				trafficpolicy.NewRestricIPsActionFromIPPolicies(ms.Modules.IPRestriction.IPPolicies),
+			},
+		},
+	)
+
+	return nil
+}
+
+func convertModuleSetCompression(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+	if ms.Modules.Compression == nil {
+		return nil
+	}
+
+	tp.AddRuleOnHTTPResponse(
+		trafficpolicy.Rule{
+			Actions: []trafficpolicy.Action{
+				trafficpolicy.NewCompressResponseAction(nil),
+			},
+		},
+	)
+	return nil
+}
+
+func convertModuleSetCircuitBreaker(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+	if ms.Modules.CircuitBreaker == nil {
+		return nil
+	}
+
+	var volumeThreshold *uint32
+	if ms.Modules.CircuitBreaker.VolumeThreshold != 0 {
+		volumeThreshold = ptr.To(ms.Modules.CircuitBreaker.VolumeThreshold)
+	}
+
+	var windowDuration *time.Duration
+	if ms.Modules.CircuitBreaker.RollingWindow.Duration != 0 {
+		windowDuration = ptr.To(ms.Modules.CircuitBreaker.RollingWindow.Duration)
+	}
+
+	var trippedDuration *time.Duration
+	if ms.Modules.CircuitBreaker.TrippedDuration.Duration != 0 {
+		trippedDuration = ptr.To(ms.Modules.CircuitBreaker.TrippedDuration.Duration)
+	}
+
+	tp.AddRuleOnHTTPRequest(
+		trafficpolicy.Rule{
+			Actions: []trafficpolicy.Action{
+				trafficpolicy.NewCircuitBreakerAction(
+					ms.Modules.CircuitBreaker.ErrorThresholdPercentage.AsApproximateFloat64(),
+					volumeThreshold,
+					windowDuration,
+					trippedDuration,
+				),
+			},
+		},
+	)
+
+	return nil
+}
+
+func convertModuleSetHeaders(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+	if ms.Modules.Headers == nil {
+		return nil
+	}
+
+	if ms.Modules.Headers.Request != nil {
+		actions := []trafficpolicy.Action{}
+
+		if len(ms.Modules.Headers.Request.Remove) > 0 {
+			actions = append(actions, trafficpolicy.NewRemoveHeadersAction(ms.Modules.Headers.Request.Remove))
+		}
+
+		if len(ms.Modules.Headers.Request.Add) > 0 {
+			actions = append(actions, trafficpolicy.NewAddHeadersAction(ms.Modules.Headers.Request.Add))
+		}
+
+		if len(actions) > 0 {
+			tp.AddRuleOnHTTPRequest(trafficpolicy.Rule{Actions: actions})
+		}
+	}
+
+	if ms.Modules.Headers.Response != nil {
+		actions := []trafficpolicy.Action{}
+		if len(ms.Modules.Headers.Response.Remove) > 0 {
+			actions = append(actions, trafficpolicy.NewRemoveHeadersAction(ms.Modules.Headers.Response.Remove))
+		}
+
+		if len(ms.Modules.Headers.Response.Add) > 0 {
+			actions = append(actions, trafficpolicy.NewAddHeadersAction(ms.Modules.Headers.Response.Add))
+		}
+
+		if len(actions) > 0 {
+			tp.AddRuleOnHTTPResponse(trafficpolicy.Rule{Actions: actions})
+		}
+	}
+
+	return nil
+}
+func convertModuleSetWebhookVerification(secretResolver secrets.Resolver) modulesetConverterFunc {
+	return func(ctx context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+		if ms.Modules.WebhookVerification == nil {
+			return nil
+		}
+
+		provider := ms.Modules.WebhookVerification.Provider
+		secretRef := ms.Modules.WebhookVerification.SecretRef
+
+		// resolve the secretRef to a secret
+		secret, err := secretResolver.GetSecret(ctx, ms.Namespace, secretRef.Name, secretRef.Key)
+		if err != nil {
+			return err
+		}
+
+		tp.AddRuleOnHTTPRequest(
+			trafficpolicy.Rule{
+				Actions: []trafficpolicy.Action{
+					trafficpolicy.NewWebhookVerificationAction(provider, secret),
+				},
+			},
+		)
+
+		return nil
+	}
+}
+
+func convertModuleSetSAML(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+	if ms.Modules.SAML == nil {
+		return nil
+	}
+
+	return errors.NewErrModulesetNotConvertibleToTrafficPolicy("SAML module is not supported at this time")
+}
+
+func convertModuleSetOIDC(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+	if ms.Modules.OIDC == nil {
+		return nil
+	}
+
+	return errors.NewErrModulesetNotConvertibleToTrafficPolicy("OIDC module is not supported at this time")
+}
+
+func convertModuleSetOAuth(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+	if ms.Modules.OAuth == nil {
+		return nil
+	}
+
+	return errors.NewErrModulesetNotConvertibleToTrafficPolicy("OAuth module is not supported at this time")
 }
