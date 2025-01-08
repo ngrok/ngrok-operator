@@ -9,6 +9,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -597,51 +598,22 @@ func newBaseTrafficPolicy(t *testing.T, enabled *bool) *trafficPolicyImpl {
 	}
 }
 
-type mockSecretResolver struct {
-	secrets map[string]map[string]map[string]string
-}
-
-func (m *mockSecretResolver) AddSecret(namespace, name, key, value string) {
-	if m.secrets == nil {
-		m.secrets = make(map[string]map[string]map[string]string)
-	}
-	nsSecrets, ok := m.secrets[namespace]
-	if !ok {
-		nsSecrets = make(map[string]map[string]string)
-		m.secrets[namespace] = nsSecrets
-	}
-	secret, ok := nsSecrets[name]
-	if !ok {
-		secret = make(map[string]string)
-		nsSecrets[name] = secret
-	}
-	secret[key] = value
-}
-
-func (m *mockSecretResolver) GetSecret(ctx context.Context, namespace, name, key string) (string, error) {
-	nsSecrets, ok := m.secrets[namespace]
-	if !ok {
-		return "", fmt.Errorf("namespace not found")
-	}
-	secret, ok := nsSecrets[name]
-	if !ok {
-		return "", fmt.Errorf("secret not found")
-	}
-	value, ok := secret[key]
-	if !ok {
-		return "", fmt.Errorf("key not found")
-	}
-	return value, nil
-}
-
 func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 	namespace := "default"
 	secretName := "webhook-secret"
 	secretKey := "my-key"
 	secretValue := "shhhhhhhhh"
 
-	secretResolver := &mockSecretResolver{}
+	secretResolver := resolvers.NewStaticSecretResolver()
 	secretResolver.AddSecret(namespace, secretName, secretKey, secretValue)
+
+	ipPolicyResolver := resolvers.NewStaticIPPolicyResolver()
+	ipPolicyResolver.AddIPPolicy(namespace, "my-ip-policy", "ipp_123456789012345678901234567")
+
+	msObjectMeta := metav1.ObjectMeta{
+		Namespace: namespace,
+		Name:      "my-custom-moduleset",
+	}
 
 	tests := []struct {
 		name      string
@@ -658,6 +630,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 		{
 			name: "moduleset with oauth",
 			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: msObjectMeta,
 				Modules: ingressv1alpha1.NgrokModuleSetModules{
 					OAuth: &ingressv1alpha1.EndpointOAuth{
 						Google: &ingressv1alpha1.EndpointOAuthGoogle{
@@ -674,6 +647,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 		{
 			name: "moduleset with saml",
 			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: msObjectMeta,
 				Modules: ingressv1alpha1.NgrokModuleSetModules{
 					SAML: &ingressv1alpha1.EndpointSAML{
 						CookiePrefix: "something",
@@ -686,6 +660,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 		{
 			name: "moduleset with oidc",
 			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: msObjectMeta,
 				Modules: ingressv1alpha1.NgrokModuleSetModules{
 					OIDC: &ingressv1alpha1.EndpointOIDC{
 						CookiePrefix: "something",
@@ -698,10 +673,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 		{
 			name: "moduleset with webhook verification",
 			moduleset: &ingressv1alpha1.NgrokModuleSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: namespace,
-					Name:      "my-custom-moduleset",
-				},
+				ObjectMeta: msObjectMeta,
 				Modules: ingressv1alpha1.NgrokModuleSetModules{
 					WebhookVerification: &ingressv1alpha1.EndpointWebhookVerification{
 						Provider: "github",
@@ -732,6 +704,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 		{
 			name: "moduleset with headers",
 			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: msObjectMeta,
 				Modules: ingressv1alpha1.NgrokModuleSetModules{
 					Headers: &ingressv1alpha1.EndpointHeaders{
 						Request: &ingressv1alpha1.EndpointRequestHeaders{
@@ -796,6 +769,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 		{
 			name: "multiple modules",
 			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: msObjectMeta,
 				Modules: ingressv1alpha1.NgrokModuleSetModules{
 					Compression: &ingressv1alpha1.EndpointCompression{
 						Enabled: true,
@@ -806,7 +780,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 						RollingWindow:            metav1.Duration{Duration: 1 * time.Minute},
 					},
 					IPRestriction: &ingressv1alpha1.EndpointIPPolicy{
-						IPPolicies: []string{"ipp_123", "ipp_456"},
+						IPPolicies: []string{"my-ip-policy", "ipp_123456789012345678901234568"},
 					},
 					TLSTermination: &ingressv1alpha1.EndpointTLSTermination{
 						TerminateAt: "edge",
@@ -824,7 +798,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 							{
 								Type: trafficpolicy.ActionType_RestrictIPs,
 								Config: map[string]interface{}{
-									"ip_policies": []string{"ipp_123", "ipp_456"},
+									"ip_policies": []string{"ipp_123456789012345678901234567", "ipp_123456789012345678901234568"},
 								},
 							},
 						},
@@ -874,7 +848,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tp, err := NewTrafficPolicyFromModuleset(context.Background(), tt.moduleset, secretResolver)
+			tp, err := NewTrafficPolicyFromModuleset(context.Background(), tt.moduleset, secretResolver, ipPolicyResolver)
 			assert.Equal(t, tt.err, err)
 
 			jsonTP, err := json.Marshal(tp)

@@ -126,3 +126,9 @@ func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error)
 
 	return "", nil
 }
+
+// Whether or not we should use endpoints in building the ngrok model for resources. Extracts the value
+// from the annotation "k8s.ngrok.com/use-endpoints" if it is present. Otherwise, it defaults to false
+func ExtractUseEndpoints(obj client.Object) (bool, error) {
+	return parser.GetBoolAnnotation("use-endpoints", obj)
+}

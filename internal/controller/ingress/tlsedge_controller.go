@@ -88,7 +88,10 @@ func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
 				return ctrl.Result{}, nil
 			}
-			if ngrok.IsErrorCode(err, 7117) { // https://ngrok.com/docs/errors/err_ngrok_7117, domain not found
+			if ngrok.IsErrorCode(err,
+				7117, // https://ngrok.com/docs/errors/err_ngrok_7117, domain not found
+				7132, // https://ngrok.com/docs/errors/err_ngrok_7132, hostport already in use
+			) {
 				return ctrl.Result{}, err
 			}
 			return controller.CtrlResultForErr(err)

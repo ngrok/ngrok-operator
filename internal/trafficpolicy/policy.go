@@ -1,6 +1,9 @@
 package trafficpolicy
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ActionType is a type of action that can be taken. Ref: https://ngrok.com/docs/traffic-policy/actions/
 type ActionType string
@@ -48,6 +51,13 @@ func NewTrafficPolicy() *TrafficPolicy {
 	}
 }
 
+// NewTrafficPolicyFromJSON creates a new TrafficPolicy from a JSON byte array.
+func NewTrafficPolicyFromJSON(data []byte) (*TrafficPolicy, error) {
+	tp := NewTrafficPolicy()
+	err := json.Unmarshal(data, tp)
+	return tp, err
+}
+
 // AddRuleOnHTTPRequest adds a rule to the OnHTTPRequest phase of the TrafficPolicy.
 func (tp *TrafficPolicy) AddRuleOnHTTPRequest(rule Rule) {
 	tp.OnHTTPRequest = append(tp.OnHTTPRequest, rule)
@@ -61,6 +71,43 @@ func (tp *TrafficPolicy) AddRuleOnHTTPResponse(rule Rule) {
 // AddRuleOnTCPConnect adds a rule to the OnTCPConnect phase of the TrafficPolicy.
 func (tp *TrafficPolicy) AddRuleOnTCPConnect(rule Rule) {
 	tp.OnTCPConnect = append(tp.OnTCPConnect, rule)
+}
+
+func (tp *TrafficPolicy) ContainsAction(actionType ActionType) bool {
+	for _, rule := range tp.OnHTTPRequest {
+		for _, action := range rule.Actions {
+			if action.Type == actionType {
+				return true
+			}
+		}
+	}
+
+	for _, rule := range tp.OnHTTPResponse {
+		for _, action := range rule.Actions {
+			if action.Type == actionType {
+				return true
+			}
+		}
+	}
+
+	for _, rule := range tp.OnTCPConnect {
+		for _, action := range rule.Actions {
+			if action.Type == actionType {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (tp *TrafficPolicy) Merge(other *TrafficPolicy) {
+	if other == nil || other.IsEmpty() {
+		return
+	}
+	tp.OnHTTPRequest = append(tp.OnHTTPRequest, other.OnHTTPRequest...)
+	tp.OnHTTPResponse = append(tp.OnHTTPResponse, other.OnHTTPResponse...)
+	tp.OnTCPConnect = append(tp.OnTCPConnect, other.OnTCPConnect...)
 }
 
 // IsEmpty returns true if the TrafficPolicy has no rules.
@@ -194,6 +241,20 @@ func NewWebhookVerificationAction(provider, secret string) Action {
 
 	return Action{
 		Type:   ActionType_VerifyWebhook,
+		Config: config,
+	}
+}
+
+// NewForwardInternalAction creates a new action that forwards the traffic to an internal endpoint.
+func NewForwardInternalAction(url string) Action {
+	config := struct {
+		URL string `json:"url"`
+	}{
+		URL: url,
+	}
+
+	return Action{
+		Type:   ActionType_ForwardInternal,
 		Config: config,
 	}
 }

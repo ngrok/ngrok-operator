@@ -25,6 +25,7 @@ package ingress
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -38,6 +39,9 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/resolvers"
+	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,6 +77,9 @@ type ServiceReconciler struct {
 	Namespace string
 
 	ClusterDomain string
+
+	IPPolicyResolver resolvers.IPPolicyResolver
+	SecretResolver   resolvers.SecretResolver
 }
 
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -80,10 +87,20 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.ClusterDomain = common.DefaultClusterDomain
 	}
 
+	if r.IPPolicyResolver == nil {
+		r.IPPolicyResolver = resolvers.NewDefaultIPPolicyResolver(mgr.GetClient())
+	}
+
+	if r.SecretResolver == nil {
+		r.SecretResolver = resolvers.NewDefaultSecretResovler(mgr.GetClient())
+	}
+
 	owns := []client.Object{
 		&ingressv1alpha1.Tunnel{},
 		&ingressv1alpha1.TCPEdge{},
 		&ingressv1alpha1.TLSEdge{},
+		&ngrokv1alpha1.AgentEndpoint{},
+		&ngrokv1alpha1.CloudEndpoint{},
 	}
 
 	controller := ctrl.NewControllerManagedBy(mgr).
@@ -189,6 +206,8 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		newServiceTCPEdgeReconciler(),
 		newServiceTLSEdgeReconciler(),
 		newServiceTunnelReconciler(),
+		newServiceCloudEndpointReconciler(),
+		newServiceAgentEndpointReconciler(),
 	}
 
 	ownedResources, err := subResourceReconcilers.GetOwnedResources(ctx, r.Client, svc)
@@ -258,7 +277,32 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	desired, err := r.buildTunnelAndEdge(ctx, svc)
+	var desired []client.Object
+	useEndpoints, err := annotations.ExtractUseEndpoints(svc)
+	if err != nil {
+		if !errors.IsMissingAnnotations(err) {
+			log.Error(err, "Failed to get use-endpoints annotation")
+			// TODO: Add an event to the service
+			return ctrl.Result{}, err
+		}
+		useEndpoints = false
+	}
+
+	// Best effort to try to use endpoints(if configured via annotation and eventually as a global default).
+	// If the conversion of modulesets -> trafficpolicy fails or there is some other error such that we can't
+	// build the desired endpoints correctly, we will fall back to using tunnels and edges
+	// and just bubble up the error as an event on the service
+	if useEndpoints {
+		desired, err = r.buildEndpoints(ctx, svc)
+		if err != nil {
+			log.Error(err, "Failed to build desired endpoints")
+			r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToBuildEndpoints", err.Error())
+			desired, err = r.buildTunnelAndEdge(ctx, svc)
+		}
+	} else {
+		desired, err = r.buildTunnelAndEdge(ctx, svc)
+	}
+
 	if err != nil {
 		log.Error(err, "Failed to build desired resources")
 		return ctrl.Result{}, err
@@ -349,6 +393,118 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 		log.V(3).Info("Triggering reconciliation for service", "namespace", svcNamespace, "name", svcName)
 	}
 	return requests
+}
+
+// buildEndpoints creates a CloudEndpoint and an AgentEndpoint for the given LoadBalancer service. The CloudEndpoint
+// will serve as the public endpoint for the service where we attach the traffic policy if one exists, the AgentEndpoint will
+// serve as the internal endpoint.
+func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Service) ([]client.Object, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	port := svc.Spec.Ports[0].Port
+	objects := make([]client.Object, 0)
+
+	internalURL := fmt.Sprintf("tcp://%s.%s.%s.internal:%d", svc.UID, svc.Name, svc.Namespace, port)
+
+	// The final traffic policy that will be applied to the CloudEndpoint
+	tp := trafficpolicy.NewTrafficPolicy()
+
+	// Get the modules from the service annotations
+	moduleSet, err := getNgrokModuleSetForService(ctx, r.Client, svc)
+	if err != nil {
+		log.Error(err, "Failed to get module sets")
+		return objects, err
+	}
+
+	// If there are modulesets defined on the service, create a traffic policy from them
+	// and merge it with the existing traffic policy
+	moduleSetsTrafficPolicy, err := util.NewTrafficPolicyFromModuleset(ctx, moduleSet, r.SecretResolver, r.IPPolicyResolver)
+	if err != nil {
+		log.Error(err, "Failed to create traffic policy from module set", "moduleSet", moduleSet)
+		return objects, err
+	}
+	tp.Merge(moduleSetsTrafficPolicy)
+
+	// If an explicit traffic policy is defined on the service, merge it with the existing traffic policy
+	// before adding the forward-internal action.
+	// TODO: We still need to handle legacy traffic policy conversion
+	policy, err := getNgrokTrafficPolicyForService(ctx, r.Client, svc)
+	if err != nil {
+		log.Error(err, "Failed to get traffic policy")
+		return objects, err
+	}
+	if policy != nil {
+		explicitTP, err := trafficpolicy.NewTrafficPolicyFromJSON(policy.Spec.Policy)
+		if err != nil {
+			return objects, err
+		}
+
+		tp.Merge(explicitTP)
+	}
+
+	// Finally, add the forward-internal action to the traffic policy
+	tp.AddRuleOnTCPConnect(trafficpolicy.Rule{
+		Actions: []trafficpolicy.Action{
+			trafficpolicy.NewForwardInternalAction(internalURL),
+		},
+	})
+
+	rawPolicy, err := json.Marshal(tp)
+	if err != nil {
+		return objects, err
+	}
+
+	domain, err := parser.GetStringAnnotation("domain", svc)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			domain = ""
+		} else {
+			return objects, err
+		}
+	}
+
+	// If there is no domain annotation, use a TCP CloudEndpoint. ngrok will randomly assign a TCP address for us.
+	// However, if there is a domain annotation, use a TLS CloudEndpoint and specify the domain.
+	cloudEndpointURL := "tcp://"
+	if domain != "" {
+		cloudEndpointURL = fmt.Sprintf("tls://%s:443", domain)
+	}
+
+	cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: svc.Name + "-",
+			Namespace:    svc.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
+			},
+		},
+		Spec: ngrokv1alpha1.CloudEndpointSpec{
+			URL: cloudEndpointURL,
+			TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Policy: rawPolicy,
+			},
+		},
+	}
+	objects = append(objects, cloudEndpoint)
+
+	agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: svc.Name + "-internal-",
+			Namespace:    svc.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
+			},
+		},
+		Spec: ngrokv1alpha1.AgentEndpointSpec{
+			URL: internalURL,
+			Upstream: ngrokv1alpha1.EndpointUpstream{
+				URL: fmt.Sprintf("tcp://%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
+			},
+		},
+	}
+
+	objects = append(objects, agentEndpoint)
+	return objects, nil
 }
 
 func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.Service) ([]client.Object, error) {
@@ -733,10 +889,86 @@ func newServiceTunnelReconciler() serviceSubresourceReconciler {
 	}
 }
 
+func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
+	return &baseSubresourceReconciler[ngrokv1alpha1.CloudEndpoint, *ngrokv1alpha1.CloudEndpoint]{
+		listOwned: func(ctx context.Context, c client.Client, opts ...client.ListOption) ([]ngrokv1alpha1.CloudEndpoint, error) {
+			endpoints := &ngrokv1alpha1.CloudEndpointList{}
+			if err := c.List(ctx, endpoints, opts...); err != nil {
+				return nil, err
+			}
+			return endpoints.Items, nil
+		},
+		matches: func(desired, existing ngrokv1alpha1.CloudEndpoint) bool {
+			return reflect.DeepEqual(existing.Spec, desired.Spec)
+		},
+		mergeExisting: func(desired ngrokv1alpha1.CloudEndpoint, existing *ngrokv1alpha1.CloudEndpoint) {
+			existing.Spec = desired.Spec
+		},
+		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1alpha1.CloudEndpoint) error {
+			clearIngressStatus := func(svc *corev1.Service) error {
+				svc.Status.LoadBalancer.Ingress = nil
+				return c.Status().Update(ctx, svc)
+			}
+
+			domain, err := parser.GetStringAnnotation("domain", svc)
+			if err != nil {
+				if errors.IsMissingAnnotations(err) {
+					return clearIngressStatus(svc)
+				}
+				return err
+			}
+
+			hostname := domain
+			if endpoint.Status.Domain != nil && endpoint.Status.Domain.CNAMETarget != nil {
+				hostname = *endpoint.Status.Domain.CNAMETarget
+			}
+
+			svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
+				{
+					Hostname: hostname,
+					Ports: []corev1.PortStatus{
+						{
+							Port:     443,
+							Protocol: corev1.ProtocolTCP,
+						},
+					},
+				},
+			}
+			return c.Status().Update(ctx, svc)
+		},
+	}
+}
+
+func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
+	return &baseSubresourceReconciler[ngrokv1alpha1.AgentEndpoint, *ngrokv1alpha1.AgentEndpoint]{
+		listOwned: func(ctx context.Context, c client.Client, opts ...client.ListOption) ([]ngrokv1alpha1.AgentEndpoint, error) {
+			endpoints := &ngrokv1alpha1.AgentEndpointList{}
+			if err := c.List(ctx, endpoints, opts...); err != nil {
+				return nil, err
+			}
+			return endpoints.Items, nil
+		},
+		matches: func(desired, existing ngrokv1alpha1.AgentEndpoint) bool {
+			return reflect.DeepEqual(existing.Spec, desired.Spec)
+		},
+		mergeExisting: func(desired ngrokv1alpha1.AgentEndpoint, existing *ngrokv1alpha1.AgentEndpoint) {
+			existing.Spec = desired.Spec
+		},
+		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1alpha1.AgentEndpoint) error {
+			// AgentEndpoints don't interact with the service status
+			return nil
+		},
+	}
+}
+
 // Given a service, it will resolve any ngrok modulesets defined on the service to the
 // CRDs and then will merge them in to a single moduleset
 func getNgrokModuleSetForService(ctx context.Context, c client.Client, svc *corev1.Service) (*ingressv1alpha1.NgrokModuleSet, error) {
-	computedModSet := &ingressv1alpha1.NgrokModuleSet{}
+	computedModSet := &ingressv1alpha1.NgrokModuleSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: svc.Namespace,
+		},
+	}
 
 	modules, err := annotations.ExtractNgrokModuleSetsFromAnnotations(svc)
 	if err != nil {
