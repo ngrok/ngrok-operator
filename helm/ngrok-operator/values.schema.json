@@ -398,11 +398,6 @@
                     "description": "Whether to enable the Endpoint Bindings feature",
                     "default": false
                 },
-                "name": {
-                    "type": "string",
-                    "description": "Unique name of this kubernetes binding in your ngrok account",
-                    "default": ""
-                },
                 "description": {
                     "type": "string",
                     "description": "Description of this kubernetes binding in your ngrok account",
