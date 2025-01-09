@@ -5,8 +5,8 @@ import "time"
 // ActionType is a type of action that can be taken. Ref: https://ngrok.com/docs/traffic-policy/actions/
 type ActionType string
 
-// Expression is a string that represents a
-type Expresson string
+// Expression is a string that represents a traffic policy expression.
+type Expression string
 
 const (
 	ActionType_AddHeaders       ActionType = "add-headers"
