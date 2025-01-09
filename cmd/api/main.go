@@ -121,7 +121,6 @@ type managerOpts struct {
 
 	bindings struct {
 		allowedURLs        []string
-		name               string
 		serviceAnnotations string
 		serviceLabels      string
 		ingressEndpoint    string
@@ -165,7 +164,6 @@ func cmd() *cobra.Command {
 	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 	c.Flags().StringSliceVar(&opts.bindings.allowedURLs, "bindings-allowed-urls", []string{"*"}, "Allowed URLs for Endpoint Bindings")
-	c.Flags().StringVar(&opts.bindings.name, "bindings-name", "default", "Name of the Endpoint Binding Configuration")
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
@@ -671,7 +669,6 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 		if opts.enableFeatureBindings {
 			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
 			k8sOperator.Spec.Binding = &ngrokv1alpha1.KubernetesOperatorBinding{
-				Name:          opts.bindings.name,
 				TlsSecretName: "ngrok-operator-default-tls",
 				AllowedURLs:   opts.bindings.allowedURLs,
 			}
