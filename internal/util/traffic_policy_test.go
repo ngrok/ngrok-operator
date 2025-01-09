@@ -1,11 +1,19 @@
 package util
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 func TestIsLegacyPolicy(t *testing.T) {
@@ -587,5 +595,295 @@ func newBaseTrafficPolicy(t *testing.T, enabled *bool) *trafficPolicyImpl {
 		},
 		enabled: enabled,
 	}
+}
 
+type mockSecretResolver struct {
+	secrets map[string]map[string]map[string]string
+}
+
+func (m *mockSecretResolver) AddSecret(namespace, name, key, value string) {
+	if m.secrets == nil {
+		m.secrets = make(map[string]map[string]map[string]string)
+	}
+	nsSecrets, ok := m.secrets[namespace]
+	if !ok {
+		nsSecrets = make(map[string]map[string]string)
+		m.secrets[namespace] = nsSecrets
+	}
+	secret, ok := nsSecrets[name]
+	if !ok {
+		secret = make(map[string]string)
+		nsSecrets[name] = secret
+	}
+	secret[key] = value
+}
+
+func (m *mockSecretResolver) GetSecret(ctx context.Context, namespace, name, key string) (string, error) {
+	nsSecrets, ok := m.secrets[namespace]
+	if !ok {
+		return "", fmt.Errorf("namespace not found")
+	}
+	secret, ok := nsSecrets[name]
+	if !ok {
+		return "", fmt.Errorf("secret not found")
+	}
+	value, ok := secret[key]
+	if !ok {
+		return "", fmt.Errorf("key not found")
+	}
+	return value, nil
+}
+
+func TestNewTrafficPolicyFromModuleset(t *testing.T) {
+	namespace := "default"
+	secretName := "webhook-secret"
+	secretKey := "my-key"
+	secretValue := "shhhhhhhhh"
+
+	secretResolver := &mockSecretResolver{}
+	secretResolver.AddSecret(namespace, secretName, secretKey, secretValue)
+
+	tests := []struct {
+		name      string
+		moduleset *ingressv1alpha1.NgrokModuleSet
+		tp        *trafficpolicy.TrafficPolicy
+		err       error
+	}{
+		{
+			name:      "nil moduleset",
+			moduleset: nil,
+			tp:        nil,
+			err:       nil,
+		},
+		{
+			name: "moduleset with oauth",
+			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					OAuth: &ingressv1alpha1.EndpointOAuth{
+						Google: &ingressv1alpha1.EndpointOAuthGoogle{
+							OAuthProviderCommon: ingressv1alpha1.OAuthProviderCommon{
+								EmailDomains: []string{"ngrok.com"},
+							},
+						},
+					},
+				},
+			},
+			tp:  nil,
+			err: errors.NewErrModulesetNotConvertibleToTrafficPolicy("OAuth module is not supported at this time"),
+		},
+		{
+			name: "moduleset with saml",
+			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					SAML: &ingressv1alpha1.EndpointSAML{
+						CookiePrefix: "something",
+					},
+				},
+			},
+			tp:  nil,
+			err: errors.NewErrModulesetNotConvertibleToTrafficPolicy("SAML module is not supported at this time"),
+		},
+		{
+			name: "moduleset with oidc",
+			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					OIDC: &ingressv1alpha1.EndpointOIDC{
+						CookiePrefix: "something",
+					},
+				},
+			},
+			tp:  nil,
+			err: errors.NewErrModulesetNotConvertibleToTrafficPolicy("OIDC module is not supported at this time"),
+		},
+		{
+			name: "moduleset with webhook verification",
+			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace,
+					Name:      "my-custom-moduleset",
+				},
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					WebhookVerification: &ingressv1alpha1.EndpointWebhookVerification{
+						Provider: "github",
+						SecretRef: &ingressv1alpha1.SecretKeyRef{
+							Name: secretName,
+							Key:  secretKey,
+						},
+					},
+				},
+			},
+			tp: &trafficpolicy.TrafficPolicy{
+				OnHTTPRequest: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_VerifyWebhook,
+								Config: map[string]string{
+									"provider": "github",
+									"secret":   secretValue,
+								},
+							},
+						},
+					},
+				},
+			},
+			err: nil,
+		},
+		{
+			name: "moduleset with headers",
+			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					Headers: &ingressv1alpha1.EndpointHeaders{
+						Request: &ingressv1alpha1.EndpointRequestHeaders{
+							Add: map[string]string{
+								"X-Header-1": "value1",
+							},
+							Remove: []string{"X-Header-2"},
+						},
+						Response: &ingressv1alpha1.EndpointResponseHeaders{
+							Add: map[string]string{
+								"X-Header-3": "value3",
+							},
+							Remove: []string{"X-Header-4"},
+						},
+					},
+				},
+			},
+			tp: &trafficpolicy.TrafficPolicy{
+				OnHTTPRequest: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_RemoveHeaders,
+								Config: map[string]interface{}{
+									"headers": []string{"X-Header-2"},
+								},
+							},
+							{
+								Type: trafficpolicy.ActionType_AddHeaders,
+								Config: map[string]interface{}{
+									"headers": map[string]string{
+										"X-Header-1": "value1",
+									},
+								},
+							},
+						},
+					},
+				},
+				OnHTTPResponse: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_RemoveHeaders,
+								Config: map[string]interface{}{
+									"headers": []string{"X-Header-4"},
+								},
+							},
+							{
+								Type: trafficpolicy.ActionType_AddHeaders,
+								Config: map[string]interface{}{
+									"headers": map[string]string{
+										"X-Header-3": "value3",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			err: nil,
+		},
+		{
+			name: "multiple modules",
+			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					Compression: &ingressv1alpha1.EndpointCompression{
+						Enabled: true,
+					},
+					CircuitBreaker: &ingressv1alpha1.EndpointCircuitBreaker{
+						ErrorThresholdPercentage: *resource.NewMilliQuantity(100, resource.DecimalSI),
+						TrippedDuration:          metav1.Duration{Duration: 2 * time.Minute},
+						RollingWindow:            metav1.Duration{Duration: 1 * time.Minute},
+					},
+					IPRestriction: &ingressv1alpha1.EndpointIPPolicy{
+						IPPolicies: []string{"ipp_123", "ipp_456"},
+					},
+					TLSTermination: &ingressv1alpha1.EndpointTLSTermination{
+						TerminateAt: "edge",
+						MinVersion:  ptr.To("1.2"),
+					},
+					MutualTLS: &ingressv1alpha1.EndpointMutualTLS{
+						CertificateAuthorities: []string{"ca1", "ca2"},
+					},
+				},
+			},
+			tp: &trafficpolicy.TrafficPolicy{
+				OnTCPConnect: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_RestrictIPs,
+								Config: map[string]interface{}{
+									"ip_policies": []string{"ipp_123", "ipp_456"},
+								},
+							},
+						},
+					},
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_TerminateTLS,
+								Config: map[string]interface{}{
+									"min_version":                        "1.2",
+									"mutual_tls_certificate_authorities": []string{"ca1", "ca2"},
+								},
+							},
+						},
+					},
+				},
+				OnHTTPRequest: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_CircuitBreaker,
+								Config: map[string]interface{}{
+									"error_threshold":  0.1,
+									"window_duration":  1 * time.Minute,
+									"tripped_duration": 2 * time.Minute,
+								},
+							},
+						},
+					},
+				},
+				OnHTTPResponse: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type:   trafficpolicy.ActionType_CompressResponse,
+								Config: map[string]interface{}{},
+							},
+						},
+					},
+				},
+			},
+			err: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tp, err := NewTrafficPolicyFromModuleset(context.Background(), tt.moduleset, secretResolver)
+			assert.Equal(t, tt.err, err)
+
+			jsonTP, err := json.Marshal(tp)
+			assert.NoError(t, err)
+
+			jsonExpectedTP, err := json.Marshal(tt.tp)
+			assert.NoError(t, err)
+
+			assert.JSONEq(t, string(jsonExpectedTP), string(jsonTP))
+		})
+	}
 }

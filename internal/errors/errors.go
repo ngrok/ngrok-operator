@@ -167,3 +167,15 @@ func (e ErrInvalidConfiguration) Error() string {
 func (e ErrInvalidConfiguration) Unwrap() error {
 	return e.cause
 }
+
+type ErrModulesetNotConvertibleToTrafficPolicy struct {
+	message string
+}
+
+func NewErrModulesetNotConvertibleToTrafficPolicy(message string) error {
+	return ErrModulesetNotConvertibleToTrafficPolicy{message: message}
+}
+
+func (e ErrModulesetNotConvertibleToTrafficPolicy) Error() string {
+	return fmt.Sprintf("moduleset not convertible to traffic policy: %s", e.message)
+}

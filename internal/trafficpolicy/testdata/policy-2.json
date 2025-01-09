@@ -1,0 +1,67 @@
+{
+    "on_tcp_connect": [
+        {
+            "expressions": [
+                "[1,2,3].all(x, x > 0)"
+            ],
+            "actions": [
+                {
+                    "type": "restrict-ips",
+                    "config": {
+                        "ip_policies": [
+                            "ipp_123",
+                            "ipp_456"
+                        ]
+                    }
+                },
+                {
+                    "type": "terminate-tls",
+                    "config": {
+                        "min_version": "1.2"
+                    }
+                }
+            ]
+        }
+    ],
+    "on_http_request": [
+        {
+            "actions": [
+                {
+                    "type": "circuit-breaker",
+                    "config": {
+                        "error_threshold": 0.1,
+                        "tripped_duration": 120000000000
+                    }
+                }
+            ]
+        }
+    ],
+    "on_http_response": [
+        {
+            "actions": [
+                {
+                    "type": "add-headers",
+                    "config": {
+                        "headers": {
+                            "X-Header-1": "value1",
+                            "X-Header-2": "value2"
+                        }
+                    }
+                },
+                {
+                    "type": "remove-headers",
+                    "config": {
+                        "headers": [
+                            "X-Header-3",
+                            "X-Header-4"
+                        ]
+                    }
+                },
+                {
+                    "type": "compress-response",
+                    "config": {}
+                }
+            ]
+        }
+    ]
+}
