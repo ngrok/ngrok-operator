@@ -3,6 +3,7 @@
         {
             "actions": [
                 {
+                    "name": "test-name",
                     "type":"verify-webhook",
                     "config": {
                         "provider": "github",
