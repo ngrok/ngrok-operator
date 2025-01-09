@@ -25,6 +25,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -78,6 +79,10 @@ type CloudEndpointSpec struct {
 type CloudEndpointStatus struct {
 	// ID is the unique identifier for this endpoint
 	ID string `json:"id,omitempty"`
+
+	// Domain is the DomainStatus object associated with this endpoint.
+	// For internal endpoints, this will be nil.
+	Domain *ingressv1alpha1.DomainStatus `json:"domain,omitempty"`
 }
 
 // CloudEndpoint is the Schema for the cloudendpoints API
