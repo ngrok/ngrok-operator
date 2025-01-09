@@ -104,6 +104,27 @@ spec:
           status:
             description: CloudEndpointStatus defines the observed state of CloudEndpoint
             properties:
+              domain:
+                description: |-
+                  Domain is the DomainStatus object associated with this endpoint.
+                  For internal endpoints, this will be nil.
+                properties:
+                  cnameTarget:
+                    description: CNAMETarget is the CNAME target for the domain
+                    type: string
+                  domain:
+                    description: Domain is the domain that was reserved
+                    type: string
+                  id:
+                    description: ID is the unique identifier of the domain
+                    type: string
+                  region:
+                    description: Region is the region in which the domain was created
+                    type: string
+                  uri:
+                    description: URI of the reserved domain API resource
+                    type: string
+                type: object
               id:
                 description: ID is the unique identifier for this endpoint
                 type: string

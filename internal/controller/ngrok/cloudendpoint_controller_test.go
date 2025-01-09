@@ -109,16 +109,25 @@ func Test_ensureDomainExists(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = ingressv1alpha1.AddToScheme(scheme)
 
-	existingDomain := &ingressv1alpha1.Domain{
+	existingNotReadyDomain := &ingressv1alpha1.Domain{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "example-com",
 			Namespace: "default",
 		},
 	}
+	existingReadyDomain := &ingressv1alpha1.Domain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "example2-com",
+			Namespace: "default",
+		},
+		Status: ingressv1alpha1.DomainStatus{
+			ID: "rd_123",
+		},
+	}
 
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(existingDomain).
+		WithObjects(existingNotReadyDomain, existingReadyDomain).
 		Build()
 
 	r := &CloudEndpointReconciler{
@@ -127,7 +136,7 @@ func Test_ensureDomainExists(t *testing.T) {
 		Recorder: record.NewFakeRecorder(10),
 	}
 
-	// Case 1: Domain already exists
+	// Case 1: Domain already exists, but is not ready
 	clep := &ngrokv1alpha1.CloudEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cloud-endpoint-1",
@@ -138,10 +147,26 @@ func Test_ensureDomainExists(t *testing.T) {
 		},
 	}
 
-	err := r.ensureDomainExists(context.Background(), clep)
-	assert.NoError(t, err)
+	domain, err := r.ensureDomainExists(context.Background(), clep)
+	assert.Equal(t, ErrDomainCreating, err)
+	assert.Equal(t, existingNotReadyDomain, domain)
 
-	// Case 2: Domain does not exist and should be created
+	// Case 2: Domain already exists, but is not ready
+	clep = &ngrokv1alpha1.CloudEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cloud-endpoint-2",
+			Namespace: "default",
+		},
+		Spec: ngrokv1alpha1.CloudEndpointSpec{
+			URL: "https://example2.com",
+		},
+	}
+
+	domain, err = r.ensureDomainExists(context.Background(), clep)
+	assert.NoError(t, err)
+	assert.Equal(t, existingReadyDomain, domain)
+
+	// Case 3: Domain does not exist and should be created
 	clep = &ngrokv1alpha1.CloudEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cloud-endpoint-2",
@@ -152,6 +177,7 @@ func Test_ensureDomainExists(t *testing.T) {
 		},
 	}
 
-	err = r.ensureDomainExists(context.Background(), clep)
+	domain, err = r.ensureDomainExists(context.Background(), clep)
 	assert.Equal(t, ErrDomainCreating, err)
+	assert.Empty(t, domain.Status.ID)
 }
