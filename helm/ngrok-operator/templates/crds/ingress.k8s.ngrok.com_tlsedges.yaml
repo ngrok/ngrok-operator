@@ -122,11 +122,16 @@ spec:
                       connections to the edge
                     type: string
                   terminateAt:
+                    default: edge
                     description: |-
                       TerminateAt determines where the TLS connection should be terminated.
                       "edge" if the ngrok edge should terminate TLS traffic, "upstream" if TLS
                       traffic should be passed through to the upstream ngrok agent /
                       application server for termination.
+                    enum:
+                    - edge
+                    - agent
+                    - upstream
                     type: string
                 type: object
             type: object

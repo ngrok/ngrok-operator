@@ -69,6 +69,8 @@ type EndpointTLSTermination struct {
 	// "edge" if the ngrok edge should terminate TLS traffic, "upstream" if TLS
 	// traffic should be passed through to the upstream ngrok agent /
 	// application server for termination.
+	// +kubebuilder:validation:Enum=edge;agent;upstream
+	// +kubebuilder:default:=edge
 	TerminateAt string `json:"terminateAt,omitempty"`
 	// MinVersion is the minimum TLS version to allow for connections to the edge
 	MinVersion *string `json:"minVersion,omitempty"`
