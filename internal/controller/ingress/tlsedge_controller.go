@@ -50,6 +50,7 @@ import (
 	ierr "github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/events"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -61,7 +62,7 @@ type TLSEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	controller.IpPolicyResolver
+	IPPolicyResolver resolvers.IPPolicyResolver
 
 	NgrokClientset ngrokapi.Clientset
 
@@ -70,7 +71,9 @@ type TLSEdgeReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.IpPolicyResolver = controller.IpPolicyResolver{Client: mgr.GetClient()}
+	if r.IPPolicyResolver == nil {
+		r.IPPolicyResolver = resolvers.NewDefaultIPPolicyResolver(mgr.GetClient())
+	}
 
 	r.controller = &controller.BaseController[*ingressv1alpha1.TLSEdge]{
 		Kube:     r.Client,
@@ -428,7 +431,7 @@ func (r *TLSEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TLS().IPRestriction().Delete(ctx, edge.Status.ID)
 	}
-	policyIds, err := r.IpPolicyResolver.ResolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
+	policyIds, err := r.IPPolicyResolver.ResolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
 	if err != nil {
 		return err
 	}
@@ -626,7 +629,7 @@ func (r *TLSEdgeReconciler) getDesiredDomains(ctx context.Context, edge *ingress
 
 		domain := ingressv1alpha1.Domain{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        strings.Replace(host, ".", "-", -1),
+				Name:        strings.ReplaceAll(host, ".", "-"),
 				Namespace:   edge.Namespace,
 				Annotations: map[string]string{},
 			},

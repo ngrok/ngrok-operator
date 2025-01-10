@@ -48,6 +48,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/events"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -59,7 +60,7 @@ type TCPEdgeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	controller.IpPolicyResolver
+	IPPolicyResolver resolvers.IPPolicyResolver
 
 	NgrokClientset ngrokapi.Clientset
 
@@ -68,7 +69,9 @@ type TCPEdgeReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TCPEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.IpPolicyResolver = controller.IpPolicyResolver{Client: mgr.GetClient()}
+	if r.IPPolicyResolver == nil {
+		r.IPPolicyResolver = resolvers.NewDefaultIPPolicyResolver(mgr.GetClient())
+	}
 
 	r.controller = &controller.BaseController[*ingressv1alpha1.TCPEdge]{
 		Kube:     r.Client,
@@ -396,7 +399,7 @@ func (r *TCPEdgeReconciler) updateIPRestrictionModule(ctx context.Context, edge 
 	if edge.Spec.IPRestriction == nil || len(edge.Spec.IPRestriction.IPPolicies) == 0 {
 		return r.NgrokClientset.EdgeModules().TCP().IPRestriction().Delete(ctx, edge.Status.ID)
 	}
-	policyIds, err := r.IpPolicyResolver.ResolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
+	policyIds, err := r.IPPolicyResolver.ResolveIPPolicyNamesorIds(ctx, edge.Namespace, edge.Spec.IPRestriction.IPPolicies)
 	if err != nil {
 		return err
 	}
