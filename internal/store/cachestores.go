@@ -47,6 +47,8 @@ type CacheStores struct {
 	HTTPSEdgeV1          cache.Store
 	NgrokModuleV1        cache.Store
 	NgrokTrafficPolicyV1 cache.Store
+	AgentEndpointV1      cache.Store
+	CloudEndpointV1      cache.Store
 
 	log logr.Logger
 	l   *sync.RWMutex
@@ -69,6 +71,8 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		HTTPSEdgeV1:          cache.NewStore(keyFunc),
 		NgrokModuleV1:        cache.NewStore(keyFunc),
 		NgrokTrafficPolicyV1: cache.NewStore(keyFunc),
+		AgentEndpointV1:      cache.NewStore(keyFunc),
+		CloudEndpointV1:      cache.NewStore(keyFunc),
 		l:                    &sync.RWMutex{},
 		log:                  logger,
 	}
@@ -130,6 +134,10 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 		return c.NgrokModuleV1.Get(obj)
 	case *ngrokv1alpha1.NgrokTrafficPolicy:
 		return c.NgrokTrafficPolicyV1.Get(obj)
+	case *ngrokv1alpha1.AgentEndpoint:
+		return c.AgentEndpointV1.Get(obj)
+	case *ngrokv1alpha1.CloudEndpoint:
+		return c.CloudEndpointV1.Get(obj)
 	default:
 		return nil, false, fmt.Errorf("unsupported object type: %T", obj)
 	}
@@ -175,6 +183,10 @@ func (c CacheStores) Add(obj runtime.Object) error {
 		return c.NgrokModuleV1.Add(obj)
 	case *ngrokv1alpha1.NgrokTrafficPolicy:
 		return c.NgrokTrafficPolicyV1.Add(obj)
+	case *ngrokv1alpha1.AgentEndpoint:
+		return c.AgentEndpointV1.Add(obj)
+	case *ngrokv1alpha1.CloudEndpoint:
+		return c.CloudEndpointV1.Add(obj)
 
 	default:
 		return fmt.Errorf("unsupported object type: %T", obj)
@@ -221,6 +233,11 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.NgrokModuleV1.Delete(obj)
 	case *ngrokv1alpha1.NgrokTrafficPolicy:
 		return c.NgrokTrafficPolicyV1.Delete(obj)
+	case *ngrokv1alpha1.AgentEndpoint:
+		return c.AgentEndpointV1.Delete(obj)
+	case *ngrokv1alpha1.CloudEndpoint:
+		return c.CloudEndpointV1.Delete(obj)
+
 	default:
 		return fmt.Errorf("unsupported object type: %T", obj)
 	}
