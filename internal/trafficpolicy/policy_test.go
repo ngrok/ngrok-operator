@@ -36,10 +36,9 @@ func TestTrafficPolicy(t *testing.T) {
 		t.Error("TrafficPolicy is nil")
 	}
 
-	testName := "test-name"
 	tp.AddRuleOnHTTPRequest(
 		Rule{
-			Name: &testName,
+			Name: "test-name",
 			Actions: []Action{
 				NewWebhookVerificationAction("github", "secret"),
 			},

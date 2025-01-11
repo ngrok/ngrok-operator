@@ -73,7 +73,9 @@ func (tp TrafficPolicy) IsEmpty() bool {
 // A Rule allows you to define how traffic is filtered and processed within a phase. Rules
 // consist of expressions and actions. Ref: https://ngrok.com/docs/traffic-policy/concepts/phase-rules/
 type Rule struct {
-	Name        *string  `json:"name,omitempty"`
+	// I think on the server side, this is always handled as a string, but I set it to any because otherwise, json like this:
+	// `name: 404` will fail to marshall/unmarshall even though the server side accepts it.
+	Name        any      `json:"name,omitempty"`
 	Expressions []string `json:"expressions,omitempty"`
 	Actions     []Action `json:"actions"`
 }

@@ -1,9 +1,9 @@
 {
     "on_http_request": [
         {
+            "name": "test-name",
             "actions": [
                 {
-                    "name": "test-name",
                     "type":"verify-webhook",
                     "config": {
                         "provider": "github",
