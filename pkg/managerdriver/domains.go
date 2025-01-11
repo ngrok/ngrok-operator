@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +40,7 @@ func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomai
 		domain.Spec.Metadata = newDomainMetadata
 
 		// Check the annotation to see if an edge or endpoint is desired from this ingress resource
-		if hasUseEndpointsAnnotation(in.Annotations) {
+		if common.HasUseEndpointsAnnotation(in.Annotations) {
 			endpointDomains[domainName] = domain
 		} else {
 			edgeDomains[domainName] = domain
@@ -79,7 +80,7 @@ func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingD
 		domain.Spec.Metadata = newDomainMetadata
 
 		// Check the annotation to see if an edge or endpoint is desired from this ingress resource
-		if hasUseEndpointsAnnotation(in.Annotations) {
+		if common.HasUseEndpointsAnnotation(in.Annotations) {
 			endpointDomains[domainName] = domain
 		} else {
 			edgeDomains[domainName] = domain

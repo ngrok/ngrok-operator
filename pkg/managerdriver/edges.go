@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -192,7 +193,10 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		// If this annotation is present and "true", then this ingress should result in an endpoint being created and not an edge
-		if hasUseEndpointsAnnotation(ingress.Annotations) {
+		if common.HasUseEndpointsAnnotation(ingress.Annotations) {
+			d.log.Info("The following ingress will be provided by ngrok endpoints instead of edges because it has the use-endpoints annotation",
+				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			)
 			continue
 		}
 
@@ -293,7 +297,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 	gateways := d.store.ListGateways()
 	for _, gtw := range gateways {
 		// If this annotation is present and "true", then this gateway should result in an endpoint being created and not an edge
-		if hasUseEndpointsAnnotation(gtw.Annotations) {
+		if common.HasUseEndpointsAnnotation(gtw.Annotations) {
 			continue
 		}
 

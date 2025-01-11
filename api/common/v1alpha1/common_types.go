@@ -1,5 +1,7 @@
 package common
 
+import "strings"
+
 type ApplicationProtocol string
 
 const (
@@ -34,4 +36,17 @@ func (t ProxyProtocolVersion) IsKnown() bool {
 
 const (
 	DefaultClusterDomain = "svc.cluster.local"
+
+	// When this annotation is present on an Ingress/Gateway resource and set to "true", that Ingress/Gateway
+	// will cause an endpoint to be created instead of an edge
+	AnnotationUseEndpoints = "k8s.ngrok.com/use-endpoints"
 )
+
+// hasUseEndpointsAnnotation checks whether or not a set of annotations has the correct annotation for configuring an
+// ingress/gateway to use endpoints instead of edges
+func HasUseEndpointsAnnotation(annotations map[string]string) bool {
+	if val, exists := annotations[AnnotationUseEndpoints]; exists && strings.ToLower(val) == "true" {
+		return true
+	}
+	return false
+}
