@@ -31,10 +31,6 @@ const (
 	labelServiceUID          = "k8s.ngrok.com/service-uid"
 	labelService             = "k8s.ngrok.com/service"
 	labelPort                = "k8s.ngrok.com/port"
-
-	// When this annotation is present on an Ingress/Gateway resource and set to "true", that Ingress/Gateway
-	// will cause an endpoint to be created instead of an edge
-	annotationUseEndpoints = "k8s.ngrok.com/use-endpoints"
 )
 
 // Driver maintains the store of information, can derive new information from the store, and can
@@ -429,10 +425,20 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing driver state!!")
+
+	// TODO (Alice): move domains, edges, tunnels to translator
 	domains := d.calculateDomainSet()
 	desiredEdges := d.calculateHTTPSEdges(domains)
-	desiredCloudEndpoints, desiredAgentEndpoints := d.calculateEndpoints()
 	desiredTunnels := d.calculateTunnels()
+
+	translator := NewTranslator(
+		d.log,
+		d.store,
+		d.defaultManagedResourceLabels(),
+		d.ingressNgrokMetadata,
+		d.clusterDomain,
+	)
+	translationResult := translator.Translate()
 
 	currDomains := &ingressv1alpha1.DomainList{}
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
@@ -481,12 +487,12 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	if err := d.applyAgentEndpoints(ctx, c, desiredAgentEndpoints, currAgentEndpoints.Items); err != nil {
+	if err := d.applyAgentEndpoints(ctx, c, translationResult.AgentEndpoints, currAgentEndpoints.Items); err != nil {
 		d.log.Error(err, "applying agent endpoints")
 		return err
 	}
 
-	if err := d.applyCloudEndpoints(ctx, c, desiredCloudEndpoints, currCloudEndpoints.Items); err != nil {
+	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currCloudEndpoints.Items); err != nil {
 		d.log.Error(err, "applying cloud endpoints")
 		return err
 	}
@@ -539,16 +545,15 @@ func (d *Driver) getTrafficPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1a
 		return nil, err
 	}
 
+	if modSet == nil {
+		if trafficPolicy != nil {
+			return trafficPolicy.Spec.Policy, nil
+		}
+		return policyJSON, nil
+	}
+
 	if modSet.Modules.Policy != nil && trafficPolicy != nil {
 		return nil, fmt.Errorf("cannot have both a traffic policy and a moduleset policy on ingress: %s", ingress.Name)
-	}
-
-	if trafficPolicy != nil {
-		return trafficPolicy.Spec.Policy, nil
-	}
-
-	if modSet == nil {
-		return policyJSON, nil
 	}
 
 	if policyJSON, err = json.Marshal(modSet.Modules.Policy); err != nil {

@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 
@@ -440,11 +441,13 @@ func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 			}
 			if rule.HTTP != nil {
 				for _, path := range rule.HTTP.Paths {
-					if path.Backend.Resource != nil {
-						errs.AddError("Resource backends are not supported")
-					}
-					if path.Backend.Service == nil {
-						errs.AddError("Service backends are required for this ingress")
+					switch {
+					case path.Backend.Resource != nil:
+						if !common.HasUseEndpointsAnnotation(ing.Annotations) {
+							errs.AddError("Resource backends are not supported for ingresses without the \"k8s.ngrok.com/use-endpoints\": \"true\" annotation. Ingresses provided by endpoints instead of edges do support default backends")
+						}
+					case path.Backend.Service == nil:
+						errs.AddError("A valid service backend is required for this ingress since a resource backend was not provided (resource backends are only supported for ingresses with the \"k8s.ngrok.com/use-endpoints\": \"true\" annotation.)")
 					}
 				}
 			} else {
@@ -454,7 +457,9 @@ func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 	}
 
 	if ing.Spec.DefaultBackend != nil {
-		errs.AddError("Default backends are not supported")
+		if !common.HasUseEndpointsAnnotation(ing.Annotations) {
+			errs.AddError("Default backends are not supported for ingresses without the \"k8s.ngrok.com/use-endpoints\": \"true\" annotation. Ingresses provided by endpoints instead of edges do support default backends")
+		}
 	}
 
 	if errs.HasErrors() {
