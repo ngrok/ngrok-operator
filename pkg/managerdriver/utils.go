@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
@@ -40,23 +41,42 @@ func hasDefaultManagedResourceLabels(labels map[string]string, managerName, mana
 }
 
 // internalAgentEndpointName builds a string for the name of an internal AgentEndpoint
-func internalAgentEndpointName(upstreamService, upstreamNamespace, clusterDomain string, upstreamPort int32) string {
-	return sanitizeStringForK8sName(fmt.Sprintf("i-%s-%s-%s-%d",
-		upstreamService,
-		upstreamNamespace,
-		clusterDomain,
-		upstreamPort,
-	))
+func internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain string, upstreamPort int32) string {
+	uidHash := sha256.Sum256([]byte(serviceUID))
+	hashHex := hex.EncodeToString(uidHash[:])
+
+	ret := fmt.Sprintf("%s-%s-%s",
+		hashHex[:5],
+		serviceName,
+		namespace,
+	)
+
+	// Unless we are using a custom cluster domain, leave it out of any generated stuff to keep names more readable
+	if clusterDomain != common.DefaultClusterDomain && clusterDomain != "" {
+		ret += fmt.Sprintf("-%s", clusterDomain)
+	}
+
+	ret += fmt.Sprintf("-%d", upstreamPort)
+	return sanitizeStringForK8sName(ret)
 }
 
 // internalAgentEndpointURL builds a URL string for an internal endpoint
-func internalAgentEndpointURL(serviceName, namespace, clusterDomain string, port int32) string {
-	ret := fmt.Sprintf("https://%s-%s-%s-%d",
+func internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain string, port int32) string {
+	uidHash := sha256.Sum256([]byte(serviceUID))
+	hashHex := hex.EncodeToString(uidHash[:])
+
+	ret := fmt.Sprintf("https://%s-%s-%s",
+		sanitizeStringForURL(hashHex[:5]),
 		sanitizeStringForURL(serviceName),
 		sanitizeStringForURL(namespace),
-		sanitizeStringForURL(clusterDomain),
-		port,
 	)
+
+	// Unless we are using a custom cluster domain, leave it out of any generated stuff to keep names more readable
+	if clusterDomain != common.DefaultClusterDomain && clusterDomain != "" {
+		ret += fmt.Sprintf("-%s", sanitizeStringForURL(clusterDomain))
+	}
+
+	ret += fmt.Sprintf("-%d", port)
 
 	// Even though . is a valid character, trim them so we don't hit the
 	// limit on subdomains for endpoint URLs.
@@ -68,12 +88,18 @@ func internalAgentEndpointURL(serviceName, namespace, clusterDomain string, port
 
 // internalAgentEndpointUpstreamURL builds a URL string for an internal AgentEndpoint's upstream url
 func internalAgentEndpointUpstreamURL(serviceName, namespace, clusterDomain string, port int32) string {
-	return fmt.Sprintf("http://%s.%s.%s:%d",
+	ret := fmt.Sprintf("http://%s.%s",
 		sanitizeStringForURL(serviceName),
 		sanitizeStringForURL(namespace),
-		sanitizeStringForURL(clusterDomain),
-		port,
 	)
+
+	// Unless we are using a custom cluster domain, leave it out of any generated stuff to keep names more readable
+	if clusterDomain != common.DefaultClusterDomain && clusterDomain != "" {
+		ret += fmt.Sprintf("-%s", clusterDomain)
+	}
+
+	ret += fmt.Sprintf(":%d", port)
+	return ret
 }
 
 // Takes an input string and sanitizes any characters not valid for part of a Kubernetes resource name
@@ -126,87 +152,6 @@ func sanitizeStringForURL(s string) string {
 	s = invalidURLChars.ReplaceAllString(s, "-")
 
 	return s
-}
-
-// appendToLabel appends a value to a comma-separated label.
-func appendToLabel(labels map[string]string, key, value string) {
-	if existing, exists := labels[key]; exists {
-		labels[key] = existing + "," + value
-	} else {
-		labels[key] = value
-	}
-}
-
-// hasUseEndpointsAnnotation checks whether or not a set of annotations has the correct annotation for configuring an
-// ingress/gateway to use endpoints instead of edges
-func hasUseEndpointsAnnotation(annotations map[string]string) bool {
-	if val, exists := annotations[annotationUseEndpoints]; exists && strings.ToLower(val) == "true" {
-		return true
-	}
-	return false
-}
-
-// MergeTrafficPolicies takes two traffic policies and merges sourcePolicy into destinationPolicy. So if they both have a phase such as `on_http_request`
-// then the rules from sourcePolicy will be appended into the `on_http_request` phase of destinationPolicy
-func mergeTrafficPolicies(sourcePolicy, destinationPolicy map[string]interface{}) (map[string]interface{}, error) {
-	if len(sourcePolicy) == 0 {
-		return destinationPolicy, nil
-	}
-
-	for sourcePhaseName, sourcePhase := range sourcePolicy {
-		// Ensure the destination traffic policy has a section for the phase we are copying in
-		if destPhase, exists := destinationPolicy[sourcePhaseName]; !exists || destPhase == nil {
-			destinationPolicy[sourcePhaseName] = []map[string]interface{}{}
-		}
-
-		sourcePhaseRules, valid := sourcePhase.([]map[string]interface{})
-		if !valid {
-			return nil, fmt.Errorf("unable to merge traffic policies, source policy rules for phase %q should be a map slice but is not", sourcePhaseName)
-		}
-		destPhaseRules, valid := destinationPolicy[sourcePhaseName].([]map[string]interface{})
-		if !valid {
-			return nil, fmt.Errorf("unable to merge traffic policies, destination policy rules for phase %q should be a map slice but is not", sourcePhaseName)
-		}
-
-		// Append each rule from the current phase in the source policy to the same phase in the destination policy
-		for _, sourcePhaseRule := range sourcePhaseRules {
-			destPhaseRules = append(destPhaseRules, sourcePhaseRule)
-		}
-	}
-
-	return destinationPolicy, nil
-}
-
-func injectExpressionsToPhaseRules(sourcePolicy map[string]interface{}, phaseName string, injectedExpressions []string) (map[string]interface{}, error) {
-	if len(sourcePolicy) == 0 {
-		return sourcePolicy, nil
-	}
-
-	// Ensure the destination traffic policy has a section for the phase we are copying in
-	if phase, exists := sourcePolicy[phaseName]; !exists || phase == nil {
-		return nil, fmt.Errorf("unable to copy")
-	}
-
-	phaseRules, valid := sourcePolicy[phaseName].([]map[string]interface{})
-	if !valid {
-		return nil, fmt.Errorf("unable to inject expressions to traffic policy phase %q, phase should be a map slice but is not", phaseName)
-	}
-
-	for _, phaseRule := range phaseRules {
-		if expressions, exists := phaseRule["expressions"]; exists {
-			if exprList, valid := expressions.([]string); valid {
-				exprList = append(exprList, injectedExpressions...)
-				phaseRule["expressions"] = exprList
-			} else {
-				return nil, fmt.Errorf("todo alice write a better error message")
-			}
-		} else {
-			// Create the `expressions` field if it doesn't exist
-			phaseRule["expressions"] = injectedExpressions
-		}
-	}
-
-	return sourcePolicy, nil
 }
 
 func getPortAppProtocol(service *corev1.Service, port *corev1.ServicePort) (string, error) {
@@ -394,4 +339,18 @@ func getPathMatchType(log logr.Logger, pathType *netv1.PathType) netv1.PathType 
 		log.Error(fmt.Errorf("unknown path type, defaulting to prefix match"), "unknown path type", "pathType", *pathType)
 		return netv1.PathTypePrefix
 	}
+}
+
+// appendStringUnique will append a string to the string slice if it does not already exist
+func appendStringUnique(existing []string, newItem string) []string {
+	uniqueMap := make(map[string]struct{})
+
+	for _, item := range existing {
+		uniqueMap[item] = struct{}{}
+	}
+	if _, exists := uniqueMap[newItem]; !exists {
+		existing = append(existing, newItem)
+	}
+
+	return existing
 }

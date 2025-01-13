@@ -43,6 +43,25 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			continue
 		}
 
+		// We always get back a moduleset from the above function, check if it is empty or not
+		if modules := ingressModuleSet.Modules; modules.CircuitBreaker != nil ||
+			modules.Compression != nil ||
+			modules.Headers != nil ||
+			modules.IPRestriction != nil ||
+			modules.OAuth != nil ||
+			modules.Policy != nil ||
+			modules.OIDC != nil ||
+			modules.SAML != nil ||
+			modules.TLSTermination != nil ||
+			modules.MutualTLS != nil ||
+			modules.WebhookVerification != nil {
+			if common.HasUseEndpointsAnnotation(ingress.Annotations) {
+				t.log.Error(fmt.Errorf("ngrok moduleset supplied to ingress with annotation to use endpoints instead of edges"), "ngrok moduleset are not supported on endpoints. prefer using a traffic policy directly. any fields other than supplying a traffic policy using the module set will be ignored",
+					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+				)
+			}
+		}
+
 		ingressTrafficPolicyCfg, err := getNgrokTrafficPolicyForIngress(ingress, t.store)
 		if err != nil {
 			t.log.Error(err, "error getting ngrok traffic policy for ingress",
@@ -63,12 +82,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 				continue
 			}
 			ingressTrafficPolicy = tmp
-		case ingressModuleSet != nil && ingressModuleSet.Modules.Policy != nil:
-			if common.HasUseEndpointsAnnotation(ingress.Annotations) {
-				t.log.Error(fmt.Errorf("ngrok moduleset supplied to ingress with annotation to use endpoints instead of edges"), "ngrok moduleset are not supported on endpoints. prefer using a traffic policy directly. any fields other than supplying a traffic policy using the module set will be ignored",
-					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
-				)
-			}
+		case ingressModuleSet.Modules.Policy != nil:
 			tpJSON, err := json.Marshal(ingressModuleSet.Modules.Policy)
 			if err != nil {
 				t.log.Error(err, "cannot convert module-set policy json",

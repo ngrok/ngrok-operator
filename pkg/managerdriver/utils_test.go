@@ -3,7 +3,9 @@ package managerdriver
 import (
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
+	netv1 "k8s.io/api/networking/v1"
 )
 
 func TestHasDefaultManagedResourceLabels(t *testing.T) {
@@ -149,6 +151,7 @@ func TestInternalAgentEndpointURL(t *testing.T) {
 		namespace      string
 		clusterDomain  string
 		port           int32
+		serviceUID     string
 		expectedResult string
 	}{
 		{
@@ -157,7 +160,8 @@ func TestInternalAgentEndpointURL(t *testing.T) {
 			namespace:      "default",
 			clusterDomain:  "cluster.local",
 			port:           443,
-			expectedResult: "https://service-default-cluster-local-443.internal",
+			serviceUID:     "1234",
+			expectedResult: "https://03ac6-service-default-cluster-local-443.internal",
 		},
 		{
 			name:           "Handles invalid characters in input",
@@ -165,7 +169,8 @@ func TestInternalAgentEndpointURL(t *testing.T) {
 			namespace:      "namespace-*",
 			clusterDomain:  "domain-*",
 			port:           8080,
-			expectedResult: "https://service-wildcard-namespace-wildcard-domain-wildcard-8080.internal",
+			serviceUID:     "5678",
+			expectedResult: "https://f8638-service-wildcard-namespace-wildcard-domain-wildcard-8080.internal",
 		},
 		{
 			name:           "Replaces dots in cluster domain",
@@ -173,14 +178,24 @@ func TestInternalAgentEndpointURL(t *testing.T) {
 			namespace:      "ns",
 			clusterDomain:  "example.com",
 			port:           8081,
-			expectedResult: "https://svc-ns-example-com-8081.internal",
+			serviceUID:     "12X3D5U07876F12J3",
+			expectedResult: "https://08ad9-svc-ns-example-com-8081.internal",
+		},
+		{
+			name:           "Empty cluster domain",
+			serviceName:    "svc",
+			namespace:      "ns",
+			clusterDomain:  "",
+			port:           8081,
+			serviceUID:     "123456",
+			expectedResult: "https://8d969-svc-ns-8081.internal",
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := internalAgentEndpointURL(tc.serviceName, tc.namespace, tc.clusterDomain, tc.port)
+			result := internalAgentEndpointURL(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port)
 			if result != tc.expectedResult {
 				t.Errorf("expected %s, got %s", tc.expectedResult, result)
 			}
@@ -222,6 +237,111 @@ func TestSanitizeStringForK8sName(t *testing.T) {
 			if result != tt.expectedResult {
 				t.Errorf("expected %s, got %s", tt.expectedResult, result)
 			}
+		})
+	}
+}
+
+func TestGetPathMatchType(t *testing.T) {
+	driver := &Driver{log: logr.New(logr.Discard().GetSink())}
+
+	// Define a custom unknown path type
+	customPathType := netv1.PathType("custom")
+
+	testCases := []struct {
+		name     string
+		input    *netv1.PathType
+		expected netv1.PathType
+	}{
+		{
+			name:     "nil pathType defaults to prefix",
+			input:    nil,
+			expected: netv1.PathTypePrefix,
+		},
+		{
+			name:     "PathTypePrefix returns prefix",
+			input:    ptrToPathType(netv1.PathTypePrefix),
+			expected: netv1.PathTypePrefix,
+		},
+		{
+			name:     "PathTypeImplementationSpecific returns prefix",
+			input:    ptrToPathType(netv1.PathTypeImplementationSpecific),
+			expected: netv1.PathTypePrefix,
+		},
+		{
+			name:     "PathTypeExact returns exact",
+			input:    ptrToPathType(netv1.PathTypeExact),
+			expected: netv1.PathTypeExact,
+		},
+		{
+			name:     "Unknown pathType logs error and defaults to prefix",
+			input:    &customPathType,
+			expected: netv1.PathTypePrefix,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			actual := getPathMatchType(driver.log, tc.input)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+// ptrToPathType is a helper to get a pointer to a PathType.
+func ptrToPathType(pt netv1.PathType) *netv1.PathType {
+	return &pt
+}
+
+func TestAppendStringUnique(t *testing.T) {
+	tests := []struct {
+		name           string
+		existing       []string
+		newItem        string
+		expectedResult []string
+	}{
+		{
+			name:           "Add new item to empty slice",
+			existing:       []string{},
+			newItem:        "apple",
+			expectedResult: []string{"apple"},
+		},
+		{
+			name:           "Add new unique item to non-empty slice",
+			existing:       []string{"apple", "banana"},
+			newItem:        "cherry",
+			expectedResult: []string{"apple", "banana", "cherry"},
+		},
+		{
+			name:           "Do not add duplicate item",
+			existing:       []string{"apple", "banana"},
+			newItem:        "banana",
+			expectedResult: []string{"apple", "banana"},
+		},
+		{
+			name:           "Case-sensitive unique check",
+			existing:       []string{"apple", "banana"},
+			newItem:        "Apple", // Different casing
+			expectedResult: []string{"apple", "banana", "Apple"},
+		},
+		{
+			name:           "Handle slice with one item",
+			existing:       []string{"apple"},
+			newItem:        "banana",
+			expectedResult: []string{"apple", "banana"},
+		},
+		{
+			name:           "Handle slice with duplicates (no-op for duplicates)",
+			existing:       []string{"apple", "apple", "banana"},
+			newItem:        "apple",
+			expectedResult: []string{"apple", "apple", "banana"}, // No changes
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := appendStringUnique(tt.existing, tt.newItem)
+			assert.Equal(t, tt.expectedResult, result, "unexpected result for test case: %s", tt.name)
 		})
 	}
 }
