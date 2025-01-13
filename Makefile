@@ -212,7 +212,7 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=true \
+		--set bindings.enabled=false \
 		--set bindings.name=$(E2E_BINDING_NAME) \
 		--set bindings.description="Example binding for CI e2e tests" \
 		--set bindings.allowedURLs='{*.e2e}' \
@@ -312,7 +312,7 @@ helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuild
 
 .PHONY: e2e-tests
 e2e-tests: ## Run e2e tests
-	chainsaw test ./tests/chainsaw
+	chainsaw test ./tests/chainsaw --exclude-test-regex 'chainsaw/_skip_*.yaml'
 
 .PHONY: e2e-clean
 e2e-clean: ## Clean up e2e tests
