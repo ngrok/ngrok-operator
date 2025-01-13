@@ -152,12 +152,12 @@ func (d *Driver) calculateDomainSet() *domainSet {
 		edgeDomains, endpointDomains := ingressToDomains(ingress, d.ingressNgrokMetadata, nil)
 		for key, val := range edgeDomains {
 			ret.totalDomains[key] = val
+			ret.edgeIngressDomains[key] = val
 		}
 		for key, val := range endpointDomains {
 			ret.totalDomains[key] = val
+			ret.endpointIngressDomains[key] = val
 		}
-		ret.edgeIngressDomains = edgeDomains
-		ret.endpointIngressDomains = endpointDomains
 	}
 
 	// Calculate domains from gateway resources
@@ -166,12 +166,12 @@ func (d *Driver) calculateDomainSet() *domainSet {
 		edgeDomains, endpointDomains := gatewayToDomains(gateway, d.gatewayNgrokMetadata, ret.totalDomains)
 		for key, val := range edgeDomains {
 			ret.totalDomains[key] = val
+			ret.edgeGatewayDomains[key] = val
 		}
 		for key, val := range endpointDomains {
 			ret.totalDomains[key] = val
+			ret.endpointGatewayDomains[key] = val
 		}
-		ret.edgeGatewayDomains = edgeDomains
-		ret.endpointGatewayDomains = endpointDomains
 	}
 	return ret
 }
