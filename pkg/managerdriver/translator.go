@@ -192,9 +192,8 @@ func buildPathMatchExpressionExpressionToTPRule(path string, pathType netv1.Path
 // buildEndpointServiceRouteRule constructs a traffic policy rule to route to an internal url that is provided by an internal Agent Endpoint
 // which will route any requests it receives to its acompanying upstream service
 func buildEndpointServiceRouteRule(routeName string, url string) trafficpolicy.Rule {
-	ruleName := fmt.Sprintf("Generated-Route-%s", routeName)
 	return trafficpolicy.Rule{
-		Name: &ruleName,
+		Name: fmt.Sprintf("Generated-Route-%s", routeName),
 		Actions: []trafficpolicy.Action{
 			{
 				Type: trafficpolicy.ActionType_ForwardInternal,
