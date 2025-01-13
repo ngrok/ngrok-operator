@@ -2,6 +2,9 @@ name: Action - Changes
 description: "Detect changes in the repository"
 
 outputs:
+  actions:
+    description: "If any part of the actions have changed"
+    value: ${{ steps.filter.outputs.actions }}
   charts:
     description: "If any part of Helm charts have changed"
     value: ${{ steps.filter.outputs.charts }}
@@ -29,6 +32,9 @@ runs:
       uses: dorny/paths-filter@v2.11.1
       with:
         filters: |
+          actions:
+            - '.github/workflows/**'
+            - '.github/actions/**'
           chartyaml:
             - 'helm/ngrok-operator/Chart.yaml'
           charts:
