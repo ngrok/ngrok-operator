@@ -1,21 +1,21 @@
 package ngrokapi
 
 import (
-	"github.com/ngrok/ngrok-api-go/v6"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_mutual_tls"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_backend"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_circuit_breaker"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_compression"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_ip_restriction"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_oauth"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_oidc"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_request_headers"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_response_headers"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_saml"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_traffic_policy"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_webhook_verification"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_route_websocket_tcp_converter"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/https_edge_tls_termination"
+	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_mutual_tls"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_backend"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_circuit_breaker"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_compression"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_ip_restriction"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_oauth"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_oidc"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_request_headers"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_response_headers"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_saml"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_traffic_policy"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_webhook_verification"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_route_websocket_tcp_converter"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/https_edge_tls_termination"
 )
 
 type HTTPSEdgeModulesClientset interface {

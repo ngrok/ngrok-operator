@@ -1,6 +1,6 @@
 package ngrokapi
 
-import "github.com/ngrok/ngrok-api-go/v6"
+import "github.com/ngrok/ngrok-api-go/v7"
 
 type EdgeModulesClientset interface {
 	TCP() TCPEdgeModulesClientset
