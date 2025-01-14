@@ -191,7 +191,7 @@ var _ = Describe("Driver", func() {
 				).
 				WithScheme(scheme).
 				Build()
-			status = driver.calculateIngressLoadBalancerIPStatus(&ingress, c)
+			status = calculateIngressLoadBalancerIPStatus(driver.log, &ingress, c)
 		})
 
 		addIngressHostname := func(i *netv1.Ingress, hostname string) {
@@ -426,7 +426,7 @@ var _ = Describe("Driver", func() {
 			ing := testutils.NewTestIngressV1("test-ingress", "test")
 			Expect(driver.store.Add(&ing)).To(BeNil())
 
-			ms, err := driver.getNgrokModuleSetForIngress(&ing)
+			ms, err := getNgrokModuleSetForIngress(&ing, driver.store)
 			Expect(err).To(BeNil())
 			Expect(ms.Modules.Compression).To(BeNil())
 			Expect(ms.Modules.Headers).To(BeNil())
@@ -440,7 +440,7 @@ var _ = Describe("Driver", func() {
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1"})
 			Expect(driver.store.Add(&ing)).To(BeNil())
 
-			ms, err := driver.getNgrokModuleSetForIngress(&ing)
+			ms, err := getNgrokModuleSetForIngress(&ing, driver.store)
 			Expect(err).To(BeNil())
 			Expect(ms.Modules).To(Equal(ms1.Modules))
 		})
@@ -450,7 +450,7 @@ var _ = Describe("Driver", func() {
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1,ms2,ms3"})
 			Expect(driver.store.Add(&ing)).To(BeNil())
 
-			ms, err := driver.getNgrokModuleSetForIngress(&ing)
+			ms, err := getNgrokModuleSetForIngress(&ing, driver.store)
 			Expect(err).To(BeNil())
 			Expect(ms.Modules).To(Equal(
 				ingressv1alpha1.NgrokModuleSetModules{
@@ -661,6 +661,122 @@ var _ = Describe("Driver", func() {
 
 			err := secondWait(context.Background())
 			Expect(err).To(Equal(errSyncDone))
+		})
+	})
+
+	Describe("When no ingresses are opted in to use endpoints", func() {
+		It("Should create edges and not endpoints", func() {
+			ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
+
+			i1 := testutils.NewTestIngressV1WithClass("ingress-1", "test-namespace", ic1.Name)
+			i1.Spec.Rules = []netv1.IngressRule{
+				{
+					Host: "a.customdomain.com",
+					IngressRuleValue: netv1.IngressRuleValue{
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "test-service",
+											Port: netv1.ServiceBackendPort{
+												Number: 80,
+											},
+										},
+									},
+								},
+								{
+									Path: "/api",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "api-service",
+											Port: netv1.ServiceBackendPort{
+												Number: 80,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Host: "b.customdomain.com",
+					IngressRuleValue: netv1.IngressRuleValue{
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/b/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "b-service",
+											Port: netv1.ServiceBackendPort{
+												Number: 80,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			i2 := testutils.NewTestIngressV1WithClass("ingress-2", "other-namespace", ic1.Name)
+			i2.Spec.Rules = []netv1.IngressRule{
+				{
+					Host: "c.customdomain.com",
+					IngressRuleValue: netv1.IngressRuleValue{
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "test-service",
+											Port: netv1.ServiceBackendPort{
+												Number: 80,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Host: "d.customdomain.com",
+					IngressRuleValue: netv1.IngressRuleValue{
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "test-service",
+											Port: netv1.ServiceBackendPort{
+												Number: 80,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			obs := []runtime.Object{&ic1, &i1, &i2}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
+			Expect(driver.Seed(context.Background(), c)).To(BeNil())
+
+			domainSet := driver.calculateDomainSet()
+			Expect(domainSet.edgeIngressDomains).To(HaveLen(4))
+			Expect(domainSet.edgeIngressDomains).To(HaveKey("a.customdomain.com"))
+			Expect(domainSet.edgeIngressDomains).To(HaveKey("b.customdomain.com"))
+			Expect(domainSet.edgeIngressDomains).To(HaveKey("c.customdomain.com"))
+			Expect(domainSet.edgeIngressDomains).To(HaveKey("d.customdomain.com"))
+			Expect(domainSet.endpointIngressDomains).To(HaveLen(0))
 		})
 	})
 })

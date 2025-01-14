@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/utils/ptr"
 )
 
@@ -38,6 +39,7 @@ func TestTrafficPolicy(t *testing.T) {
 
 	tp.AddRuleOnHTTPRequest(
 		Rule{
+			Name: "test-name",
 			Actions: []Action{
 				NewWebhookVerificationAction("github", "secret"),
 			},
@@ -80,4 +82,70 @@ func TestTrafficPolicy(t *testing.T) {
 	)
 
 	assertTrafficPolicyContent(t, tp, loadTestData("policy-2.json"))
+}
+
+func TestTrafficPolicyDeepCopy(t *testing.T) {
+	testCases := []struct {
+		name          string
+		original      *TrafficPolicy
+		modifyCopy    func(copy *TrafficPolicy)
+		expectedEqual bool
+	}{
+		{
+			name: "DeepCopy with no modifications",
+			original: &TrafficPolicy{
+				OnHTTPRequest: []Rule{
+					{
+						Name: "Rule1",
+						Expressions: []string{
+							"req.url.path == \"/example\"",
+						},
+						Actions: []Action{
+							NewAddHeadersAction(map[string]string{
+								"X-Custom-Header": "Value",
+							}),
+						},
+					},
+				},
+			},
+			modifyCopy:    nil,
+			expectedEqual: true,
+		},
+		{
+			name: "DeepCopy with empty TrafficPolicy",
+			original: &TrafficPolicy{
+				OnHTTPRequest:  []Rule{},
+				OnHTTPResponse: []Rule{},
+				OnTCPConnect:   []Rule{},
+			},
+			modifyCopy:    nil,
+			expectedEqual: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			copy, err := tc.original.DeepCopy()
+			require.NoError(t, err, "DeepCopy should not return an error")
+			require.NotNil(t, copy, "DeepCopy result should not be nil")
+
+			if tc.modifyCopy != nil {
+				tc.modifyCopy(copy)
+			}
+
+			if tc.expectedEqual {
+				// Use JSONEq to compare the original and the copy for deep equality.
+				originalJSON, err := json.Marshal(tc.original)
+				require.NoError(t, err, "Failed to marshal original TrafficPolicy")
+
+				copyJSON, err := json.Marshal(copy)
+				require.NoError(t, err, "Failed to marshal copied TrafficPolicy")
+
+				assert.JSONEq(t, string(originalJSON), string(copyJSON), "Original and copy should be equal")
+			} else {
+				assert.NotEqual(t, tc.original, copy, "Original and copy should not be equal after modification")
+			}
+		})
+	}
 }

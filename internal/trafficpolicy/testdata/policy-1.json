@@ -1,6 +1,7 @@
 {
     "on_http_request": [
         {
+            "name": "test-name",
             "actions": [
                 {
                     "type":"verify-webhook",

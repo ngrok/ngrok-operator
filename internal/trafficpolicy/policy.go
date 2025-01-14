@@ -1,6 +1,9 @@
 package trafficpolicy
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ActionType is a type of action that can be taken. Ref: https://ngrok.com/docs/traffic-policy/actions/
 type ActionType string
@@ -70,9 +73,41 @@ func (tp TrafficPolicy) IsEmpty() bool {
 		len(tp.OnTCPConnect) == 0
 }
 
+// DeepCopy creates a deep copy of a TrafficPolicy.
+func (tp *TrafficPolicy) DeepCopy() (*TrafficPolicy, error) {
+	// Serialize the original TrafficPolicy to JSON.
+	data, err := json.Marshal(tp)
+	if err != nil {
+		return nil, err
+	}
+
+	// Deserialize the JSON back into a new TrafficPolicy.
+	var copy TrafficPolicy
+	err = json.Unmarshal(data, &copy)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure slices are initialized
+	if copy.OnHTTPRequest == nil {
+		copy.OnHTTPRequest = []Rule{}
+	}
+	if copy.OnHTTPResponse == nil {
+		copy.OnHTTPResponse = []Rule{}
+	}
+	if copy.OnTCPConnect == nil {
+		copy.OnTCPConnect = []Rule{}
+	}
+
+	return &copy, nil
+}
+
 // A Rule allows you to define how traffic is filtered and processed within a phase. Rules
 // consist of expressions and actions. Ref: https://ngrok.com/docs/traffic-policy/concepts/phase-rules/
 type Rule struct {
+	// I think on the server side, this is always handled as a string, but I set it to any because otherwise, json like this:
+	// `name: 404` will fail to marshall/unmarshall even though the server side accepts it.
+	Name        any      `json:"name,omitempty"`
 	Expressions []string `json:"expressions,omitempty"`
 	Actions     []Action `json:"actions"`
 }

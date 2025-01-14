@@ -117,7 +117,7 @@ func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alph
 						},
 						Spec: ingressv1alpha1.TunnelSpec{
 							ForwardsTo: targetAddr,
-							Labels:     d.ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
+							Labels:     ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
 							BackendConfig: &ingressv1alpha1.BackendConfig{
 								Protocol: protocol,
 							},
@@ -190,7 +190,7 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 						},
 						Spec: ingressv1alpha1.TunnelSpec{
 							ForwardsTo: targetAddr,
-							Labels:     d.ngrokLabels(httproute.Namespace, serviceUID, serviceName, servicePort),
+							Labels:     ngrokLabels(httproute.Namespace, serviceUID, serviceName, servicePort),
 							BackendConfig: &ingressv1alpha1.BackendConfig{
 								Protocol: protocol,
 							},
@@ -237,12 +237,12 @@ func (d *Driver) getTunnelBackend(backendSvc netv1.IngressServiceBackend, namesp
 		return "", 0, "", "", err
 	}
 
-	protocol, err := d.getPortAnnotatedProtocol(service, servicePort.Name)
+	protocol, err := getPortAnnotatedProtocol(d.log, service, servicePort.Name)
 	if err != nil {
 		return "", 0, "", "", err
 	}
 
-	appProtocol, err := d.getPortAppProtocol(service, servicePort)
+	appProtocol, err := getPortAppProtocol(service, servicePort)
 	if err != nil {
 		return "", 0, "", "", err
 	}
@@ -256,12 +256,12 @@ func (d *Driver) getTunnelBackendFromGateway(backendRef gatewayv1.BackendRef, na
 		return "", 0, "", "", err
 	}
 
-	protocol, err := d.getPortAnnotatedProtocol(service, servicePort.Name)
+	protocol, err := getPortAnnotatedProtocol(d.log, service, servicePort.Name)
 	if err != nil {
 		return "", 0, "", "", err
 	}
 
-	appProtocol, err := d.getPortAppProtocol(service, servicePort)
+	appProtocol, err := getPortAppProtocol(service, servicePort)
 	if err != nil {
 		return "", 0, "", "", err
 	}

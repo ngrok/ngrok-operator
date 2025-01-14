@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,9 +25,8 @@ func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing edges state!!")
-	_, desiredIngressDomains, desiredGatewayDomainMap := d.calculateDomains()
-
-	desiredEdges := d.calculateHTTPSEdges(&desiredIngressDomains, desiredGatewayDomainMap)
+	domains := d.calculateDomainSet()
+	desiredEdges := d.calculateHTTPSEdges(domains)
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
 	if err := c.List(ctx, currEdges, client.MatchingLabels{
 		labelControllerNamespace: d.managerName.Namespace,
@@ -95,9 +95,9 @@ func (d *Driver) applyHTTPSEdges(ctx context.Context, c client.Client, desiredEd
 	return nil
 }
 
-func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, gatewayDomainMap map[string]ingressv1alpha1.Domain) map[string]ingressv1alpha1.HTTPSEdge {
-	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(*ingressDomains))
-	for _, domain := range *ingressDomains {
+func (d *Driver) calculateHTTPSEdges(domains *domainSet) map[string]ingressv1alpha1.HTTPSEdge {
+	edgeMap := make(map[string]ingressv1alpha1.HTTPSEdge, len(domains.edgeIngressDomains))
+	for _, domain := range domains.edgeIngressDomains {
 		edge := ingressv1alpha1.HTTPSEdge{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: domain.Name + "-",
@@ -126,7 +126,7 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 				if listener.Protocol != gatewayv1.HTTPSProtocolType || int(listener.Port) != 443 {
 					continue
 				}
-				if _, hasDomain := gatewayDomainMap[string(*listener.Hostname)]; !hasDomain {
+				if _, hasDomain := domains.edgeGatewayDomains[string(*listener.Hostname)]; !hasDomain {
 					continue
 				}
 				gatewayDomains[string(*listener.Hostname)] = string(*listener.Hostname)
@@ -192,7 +192,15 @@ func (d *Driver) calculateHTTPSEdges(ingressDomains *[]ingressv1alpha1.Domain, g
 func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
-		modSet, err := d.getNgrokModuleSetForIngress(ingress)
+		// If this annotation is present and "true", then this ingress should result in an endpoint being created and not an edge
+		if common.HasUseEndpointsAnnotation(ingress.Annotations) {
+			d.log.Info("The following ingress will be provided by ngrok endpoints instead of edges because it has the use-endpoints annotation",
+				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			)
+			continue
+		}
+
+		modSet, err := getNgrokModuleSetForIngress(ingress, d.store)
 		if err != nil {
 			d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
 			continue
@@ -244,7 +252,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 				}
 
 				serviceName := httpIngressPath.Backend.Service.Name
-				serviceUID, servicePort, err := d.getEdgeBackend(*httpIngressPath.Backend.Service, ingress.Namespace)
+				serviceUID, servicePort, err := d.getIngressBackend(*httpIngressPath.Backend.Service, ingress.Namespace)
 				if err != nil {
 					d.log.Error(err, "could not find port for service", "namespace", ingress.Namespace, "service", serviceName)
 					continue
@@ -254,7 +262,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					Match:     httpIngressPath.Path,
 					MatchType: matchType,
 					Backend: ingressv1alpha1.TunnelGroupBackend{
-						Labels: d.ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
+						Labels: ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
 					},
 					CircuitBreaker:      modSet.Modules.CircuitBreaker,
 					Compression:         modSet.Modules.Compression,
@@ -287,8 +295,12 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 
 func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	gateways := d.store.ListGateways()
-
 	for _, gtw := range gateways {
+		// If this annotation is present and "true", then this gateway should result in an endpoint being created and not an edge
+		if common.HasUseEndpointsAnnotation(gtw.Annotations) {
+			continue
+		}
+
 		for _, listener := range gtw.Spec.Listeners {
 			if listener.Hostname == nil {
 				continue
@@ -395,7 +407,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 								}
 
 								route.Backend = ingressv1alpha1.TunnelGroupBackend{
-									Labels: d.ngrokLabels(httproute.Namespace, serviceUID, refName, servicePort),
+									Labels: ngrokLabels(httproute.Namespace, serviceUID, refName, servicePort),
 								}
 
 							}
@@ -412,7 +424,7 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 	}
 }
 
-func (d *Driver) getEdgeBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, error) {
+func (d *Driver) getIngressBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, error) {
 	service, servicePort, err := d.findBackendServicePort(backendSvc, namespace)
 	if err != nil {
 		return "", 0, err
