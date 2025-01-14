@@ -22,7 +22,6 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 	hostnameDefaultDestinations := make(map[ir.IRHostname]*ir.IRDestination)
 	hostnameAnnotationPolicies := make(map[ir.IRHostname]*trafficpolicy.TrafficPolicy)
 
-	irVHosts := []*ir.IRVirtualHost{}
 	ingresses := t.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
 		// We currently require this annotation to be present for an Ingress to be translated into CloudEndpoints/AgentEndpoints, otherwise the default behaviour is to
@@ -107,11 +106,11 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 				t.log.Error(err, "unable to resolve ingress default backend",
 					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 				)
-				return irVHosts
+				continue
 			}
 		}
 
-		newIRVHosts := t.ingressToIR(
+		t.ingressToIR(
 			ingress,
 			ingressTrafficPolicy,
 			defaultDestination,
@@ -120,12 +119,17 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			hostnameDefaultDestinations,
 			hostnameAnnotationPolicies,
 		)
-		irVHosts = append(irVHosts, newIRVHosts...)
 	}
-	return irVHosts
+
+	// Convert the cache of all the hosts we've built into a list
+	ret := []*ir.IRVirtualHost{}
+	for _, irVHost := range hostCache {
+		ret = append(ret, irVHost)
+	}
+	return ret
 }
 
-// ingressToIR translates a single ingress into IR but needs input caches for the hosts and services so that we do not generate duplicate IR for them
+// ingressToIR translates a single ingress into IR and stores entries in the cache. Caches are used so that we do not generate duplicate IR for hostnames/services
 func (t *translator) ingressToIR(
 	ingress *netv1.Ingress,
 	ingressTP *trafficpolicy.TrafficPolicy,
@@ -134,9 +138,7 @@ func (t *translator) ingressToIR(
 	upstreamCache map[ir.IRService]*ir.IRUpstream,
 	hostnameDefaultDestinations map[ir.IRHostname]*ir.IRDestination,
 	hostnameAnnotationPolicies map[ir.IRHostname]*trafficpolicy.TrafficPolicy,
-) []*ir.IRVirtualHost {
-	irVHosts := []*ir.IRVirtualHost{}
-
+) {
 	for _, rule := range ingress.Spec.Rules {
 		ruleHostname := rule.Host
 		if ruleHostname == "" {
@@ -171,8 +173,22 @@ func (t *translator) ingressToIR(
 					)
 					ingressTP = current
 				}
+			} else {
+				hostnameAnnotationPolicies[ir.IRHostname(ruleHostname)] = ingressTP
 			}
-			hostnameAnnotationPolicies[ir.IRHostname(ruleHostname)] = ingressTP
+		}
+
+		// Make a deep copy of the traffic policy so that we don't taint it for subsequent rules
+		var ruleTrafficPolicy *trafficpolicy.TrafficPolicy
+		if ingressTP != nil {
+			var err error
+			ruleTrafficPolicy, err = ingressTP.DeepCopy()
+			if err != nil {
+				t.log.Error(err, "failed to copy traffic policy from ingress",
+					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+				)
+				continue
+			}
 		}
 
 		// Make a new IRVirtualHost for this hostname unless we have one in the cache
@@ -187,7 +203,7 @@ func (t *translator) ingressToIR(
 				Namespace:          ingress.Namespace,
 				OwningResources:    []ir.OwningResource{owningResource},
 				Hostname:           ruleHostname,
-				TrafficPolicy:      ingressTP,
+				TrafficPolicy:      ruleTrafficPolicy,
 				Routes:             []*ir.IRRoute{},
 				DefaultDestination: defaultDestination,
 			}
@@ -210,9 +226,9 @@ func (t *translator) ingressToIR(
 
 		irRoutes := t.ingressPathsToIR(ingress, ruleHostname, rule.HTTP.Paths, upstreamCache)
 		irVHost.Routes = append(irVHost.Routes, irRoutes...)
-		irVHosts = append(irVHosts, irVHost)
+
+		hostCache[ir.IRHostname(ruleHostname)] = irVHost
 	}
-	return irVHosts
 }
 
 // ingressPathsToIR constructs IRRoutes for the path matches under a given ingress rule

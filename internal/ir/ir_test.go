@@ -75,3 +75,93 @@ func TestSortRoutes(t *testing.T) {
 		})
 	}
 }
+
+func TestAddOwningResource(t *testing.T) {
+	testCases := []struct {
+		name          string
+		initial       []OwningResource
+		newResource   OwningResource
+		expectedFinal []OwningResource
+	}{
+		{
+			name:    "Add unique resource to empty list",
+			initial: []OwningResource{},
+			newResource: OwningResource{
+				Kind:      "Ingress",
+				Name:      "test-ingress",
+				Namespace: "default",
+			},
+			expectedFinal: []OwningResource{
+				{
+					Kind:      "Ingress",
+					Name:      "test-ingress",
+					Namespace: "default",
+				},
+			},
+		},
+		{
+			name: "Add unique resource to non-empty list",
+			initial: []OwningResource{
+				{
+					Kind:      "Ingress",
+					Name:      "existing-ingress",
+					Namespace: "default",
+				},
+			},
+			newResource: OwningResource{
+				Kind:      "Ingress",
+				Name:      "test-ingress",
+				Namespace: "default",
+			},
+			expectedFinal: []OwningResource{
+				{
+					Kind:      "Ingress",
+					Name:      "existing-ingress",
+					Namespace: "default",
+				},
+				{
+					Kind:      "Ingress",
+					Name:      "test-ingress",
+					Namespace: "default",
+				},
+			},
+		},
+		{
+			name: "Do not add duplicate resource",
+			initial: []OwningResource{
+				{
+					Kind:      "Ingress",
+					Name:      "test-ingress",
+					Namespace: "default",
+				},
+			},
+			newResource: OwningResource{
+				Kind:      "Ingress",
+				Name:      "test-ingress",
+				Namespace: "default",
+			},
+			expectedFinal: []OwningResource{
+				{
+					Kind:      "Ingress",
+					Name:      "test-ingress",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run("IRVirtualHost/"+tc.name, func(t *testing.T) {
+			host := &IRVirtualHost{OwningResources: tc.initial}
+			host.AddOwningResource(tc.newResource)
+			assert.Equal(t, tc.expectedFinal, host.OwningResources, "unexpected result in test case: %s", tc.name)
+		})
+
+		t.Run("IRUpstream/"+tc.name, func(t *testing.T) {
+			upstream := &IRUpstream{OwningResources: tc.initial}
+			upstream.AddOwningResource(tc.newResource)
+			assert.Equal(t, tc.expectedFinal, upstream.OwningResources, "unexpected result in test case: %s", tc.name)
+		})
+	}
+}

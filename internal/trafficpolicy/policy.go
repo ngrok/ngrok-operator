@@ -1,6 +1,9 @@
 package trafficpolicy
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ActionType is a type of action that can be taken. Ref: https://ngrok.com/docs/traffic-policy/actions/
 type ActionType string
@@ -68,6 +71,35 @@ func (tp TrafficPolicy) IsEmpty() bool {
 	return len(tp.OnHTTPRequest) == 0 &&
 		len(tp.OnHTTPResponse) == 0 &&
 		len(tp.OnTCPConnect) == 0
+}
+
+// DeepCopy creates a deep copy of a TrafficPolicy.
+func (tp *TrafficPolicy) DeepCopy() (*TrafficPolicy, error) {
+	// Serialize the original TrafficPolicy to JSON.
+	data, err := json.Marshal(tp)
+	if err != nil {
+		return nil, err
+	}
+
+	// Deserialize the JSON back into a new TrafficPolicy.
+	var copy TrafficPolicy
+	err = json.Unmarshal(data, &copy)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure slices are initialized
+	if copy.OnHTTPRequest == nil {
+		copy.OnHTTPRequest = []Rule{}
+	}
+	if copy.OnHTTPResponse == nil {
+		copy.OnHTTPResponse = []Rule{}
+	}
+	if copy.OnTCPConnect == nil {
+		copy.OnTCPConnect = []Rule{}
+	}
+
+	return &copy, nil
 }
 
 // A Rule allows you to define how traffic is filtered and processed within a phase. Rules

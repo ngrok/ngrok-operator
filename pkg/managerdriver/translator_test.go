@@ -1,17 +1,28 @@
 package managerdriver
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
+	"github.com/go-logr/logr"
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ir"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 func TestBuildInternalAgentEndpoint(t *testing.T) {
@@ -447,6 +458,68 @@ func TestIRToEndpoints(t *testing.T) {
 			},
 		},
 		{
+			name: "IRVirtualHost with a traffic policy backend",
+			irVHosts: []*ir.IRVirtualHost{
+				{
+					Namespace: "default",
+					Hostname:  "example.com",
+					Routes: []*ir.IRRoute{
+						{
+							Path:     "/foo",
+							PathType: netv1.PathTypeExact,
+							Destination: &ir.IRDestination{
+								TrafficPolicy: &trafficpolicy.TrafficPolicy{
+									OnHTTPRequest: []trafficpolicy.Rule{{
+										Name: "Generated-Route-/foo",
+										Actions: []trafficpolicy.Action{{
+											Type: "custom-response",
+											Config: map[string]interface{}{
+												"content": "custom response page",
+											},
+										}},
+									}},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedParents: map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint{
+				{
+					Name:      "example.com",
+					Namespace: "default",
+				}: {
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "example.com",
+						Namespace: "default",
+					},
+					Spec: ngrokv1alpha1.CloudEndpointSpec{
+						TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
+							Policy: json.RawMessage(`{
+								"on_http_request": [
+									{
+										"name": "Generated-Route-/foo",
+										"actions": [
+											{
+												"type": "custom-response",
+												"config": {
+													"content": "custom response page"
+												}
+											}
+										],
+										"expressions": [
+											"req.url.path == \"/foo\""
+										]
+									}
+								]
+							}`),
+						},
+					},
+				},
+			},
+			expectedChildren: map[types.NamespacedName]*ngrokv1alpha1.AgentEndpoint{},
+		},
+		{
 			name: "IRVirtualHost with service default backend",
 			irVHosts: []*ir.IRVirtualHost{
 				{
@@ -690,4 +763,420 @@ func TestIRToEndpoints(t *testing.T) {
 }
 
 func TestTranslate(t *testing.T) {
+	var driver *Driver
+	var scheme = runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
+	logger := logr.New(logr.Discard().GetSink())
+	driver = NewDriver(
+		logger,
+		scheme,
+		testutils.DefaultControllerName,
+		types.NamespacedName{
+			Name:      "test-manager-name",
+			Namespace: "test-manager-namespace",
+		},
+		WithGatewayEnabled(false),
+		WithSyncAllowConcurrent(true),
+	)
+
+	ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
+	i1 := testutils.NewTestIngressV1WithClass("ingress-1", "default", ic1.Name)
+	i1.Annotations = map[string]string{
+		common.AnnotationUseEndpoints:  "true",
+		"k8s.ngrok.com/traffic-policy": "annotation-traffic-policy",
+	}
+	exactMatch := netv1.PathTypeExact
+	prefixMatch := netv1.PathTypePrefix
+	i1.Spec.DefaultBackend = &netv1.IngressBackend{
+		Resource: &v1.TypedLocalObjectReference{
+			Kind: "NgrokTrafficPolicy",
+			Name: "default-traffic-policy",
+		},
+	}
+	i1.Spec.Rules = []netv1.IngressRule{
+		{
+			Host: "example.com",
+			IngressRuleValue: netv1.IngressRuleValue{
+				HTTP: &netv1.HTTPIngressRuleValue{
+					Paths: []netv1.HTTPIngressPath{
+						{
+							Path:     "/foo",
+							PathType: &prefixMatch,
+							Backend: netv1.IngressBackend{
+								Service: &netv1.IngressServiceBackend{
+									Name: "test-service-1",
+									Port: netv1.ServiceBackendPort{
+										Number: 8080,
+									},
+								},
+							},
+						},
+						{
+							Path:     "/foo/bar",
+							PathType: &prefixMatch,
+							Backend: netv1.IngressBackend{
+								Resource: &v1.TypedLocalObjectReference{
+									Kind: "NgrokTrafficPolicy",
+									Name: "route-traffic-policy",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Host: "foo.example.com",
+			IngressRuleValue: netv1.IngressRuleValue{
+				HTTP: &netv1.HTTPIngressRuleValue{
+					Paths: []netv1.HTTPIngressPath{
+						{
+							Path:     "/test-other-hostname",
+							PathType: &exactMatch,
+							Backend: netv1.IngressBackend{
+								Service: &netv1.IngressServiceBackend{
+									Name: "test-service-2",
+									Port: netv1.ServiceBackendPort{
+										Number: 9090,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	i2 := testutils.NewTestIngressV1WithClass("ingress-2", "default", ic1.Name)
+	i2.Annotations = map[string]string{
+		common.AnnotationUseEndpoints:  "true",
+		"k8s.ngrok.com/traffic-policy": "annotation-traffic-policy",
+	}
+	i2.Spec.DefaultBackend = &netv1.IngressBackend{
+		Resource: &v1.TypedLocalObjectReference{
+			Kind: "NgrokTrafficPolicy",
+			Name: "default-traffic-policy",
+		},
+	}
+	i2.Spec.Rules = []netv1.IngressRule{
+		{
+			Host: "example.com",
+			IngressRuleValue: netv1.IngressRuleValue{
+				HTTP: &netv1.HTTPIngressRuleValue{
+					Paths: []netv1.HTTPIngressPath{
+						{
+							Path:     "/test-merging-ingresses",
+							PathType: &exactMatch,
+							Backend: netv1.IngressBackend{
+								Service: &netv1.IngressServiceBackend{
+									Name: "test-service-2",
+									Port: netv1.ServiceBackendPort{
+										Number: 9090,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	i3 := testutils.NewTestIngressV1WithClass("ingress-3-no-endpoints", "default", ic1.Name)
+	i3.Spec.Rules = []netv1.IngressRule{
+		{
+			Host: "no-endpoints.example.com",
+			IngressRuleValue: netv1.IngressRuleValue{
+				HTTP: &netv1.HTTPIngressRuleValue{
+					Paths: []netv1.HTTPIngressPath{
+						{
+							Path:     "/foo",
+							PathType: &exactMatch,
+							Backend: netv1.IngressBackend{
+								Service: &netv1.IngressServiceBackend{
+									Name: "test-service-1",
+									Port: netv1.ServiceBackendPort{
+										Number: 8080,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	testService1 := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-service-1",
+			Namespace: "default",
+			UID:       "1234",
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{{
+				Port: 8080,
+			}},
+		},
+	}
+	testService2 := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-service-2",
+			Namespace: "default",
+			UID:       "5678",
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{{
+				Port: 9090,
+			}},
+		},
+	}
+
+	routeTrafficPolicyConfig := &trafficpolicy.TrafficPolicy{
+		OnHTTPRequest: []trafficpolicy.Rule{{
+			Name: "route-tp-rule",
+			Actions: []trafficpolicy.Action{{
+				Type: "custom-response",
+				Config: map[string]interface{}{
+					"content": "route page",
+				},
+			}},
+		}},
+	}
+	routeTrafficPolicyJSON, err := json.Marshal(routeTrafficPolicyConfig)
+	require.NoError(t, err)
+	routeTrafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "route-traffic-policy",
+			Namespace: "default",
+		},
+		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+			Policy: routeTrafficPolicyJSON,
+		},
+	}
+
+	annotationTrafficPolicyConfig := &trafficpolicy.TrafficPolicy{
+		OnHTTPRequest: []trafficpolicy.Rule{{
+			Name: "annotation-tp-rule",
+			Expressions: []string{
+				"req.url.path.startsWith(\"somestring\")",
+			},
+			Actions: []trafficpolicy.Action{{
+				Type: "custom-response",
+				Config: map[string]interface{}{
+					"content": "annotation page",
+				},
+			}},
+		}},
+	}
+	annotationTrafficPolicyJSON, err := json.Marshal(annotationTrafficPolicyConfig)
+	require.NoError(t, err)
+	annotationTrafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "annotation-traffic-policy",
+			Namespace: "default",
+		},
+		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+			Policy: annotationTrafficPolicyJSON,
+		},
+	}
+
+	defaultTrafficPolicyConfig := &trafficpolicy.TrafficPolicy{
+		OnHTTPRequest: []trafficpolicy.Rule{{
+			Name: "default-tp-rule",
+			Actions: []trafficpolicy.Action{{
+				Type: "custom-response",
+				Config: map[string]interface{}{
+					"content": "default page",
+				},
+			}},
+		}},
+	}
+	defaultTrafficPolicyJSON, err := json.Marshal(defaultTrafficPolicyConfig)
+	require.NoError(t, err)
+	defaultTrafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default-traffic-policy",
+			Namespace: "default",
+		},
+		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+			Policy: defaultTrafficPolicyJSON,
+		},
+	}
+
+	obs := []runtime.Object{&ic1, &i1, &i2, &i3, testService1, testService2, routeTrafficPolicy, annotationTrafficPolicy, defaultTrafficPolicy}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
+
+	require.NoError(t, driver.Seed(context.Background(), client))
+
+	translator := NewTranslator(
+		driver.log,
+		driver.store,
+		driver.defaultManagedResourceLabels(),
+		driver.ingressNgrokMetadata,
+		"svc.cluster.local",
+	)
+
+	// =========== Validations ===============
+
+	result := translator.Translate()
+	require.Equal(t, 2, len(result.AgentEndpoints)) // Two upstream services
+	require.Equal(t, 2, len(result.CloudEndpoints)) // Two unique hostnames (excluding the one for the ingress not using endpoints)
+
+	aepService1, exists := result.AgentEndpoints[types.NamespacedName{
+		Namespace: "default",
+		Name:      "03ac6-test-service-1-default-8080",
+	}]
+	require.True(t, exists)
+	require.NotNil(t, aepService1)
+
+	aepService2, exists := result.AgentEndpoints[types.NamespacedName{
+		Namespace: "default",
+		Name:      "f8638-test-service-2-default-9090",
+	}]
+	require.True(t, exists)
+	require.NotNil(t, aepService2)
+
+	expectedLabels := map[string]string{
+		"k8s.ngrok.com/controller-name":      "test-manager-name",
+		"k8s.ngrok.com/controller-namespace": "test-manager-namespace",
+	}
+
+	assert.Equal(t, "03ac6-test-service-1-default-8080", aepService1.Name)
+	assert.Equal(t, "f8638-test-service-2-default-9090", aepService2.Name)
+	assert.Equal(t, expectedLabels, aepService1.Labels)
+	assert.Equal(t, expectedLabels, aepService2.Labels)
+	assert.Equal(t, ngrokv1alpha1.AgentEndpointSpec{
+		URL: "https://03ac6-test-service-1-default-8080.internal",
+		Upstream: ngrokv1alpha1.EndpointUpstream{
+			URL: "http://test-service-1.default:8080",
+		},
+	}, aepService1.Spec)
+	assert.Equal(t, ngrokv1alpha1.AgentEndpointSpec{
+		URL: "https://f8638-test-service-2-default-9090.internal",
+		Upstream: ngrokv1alpha1.EndpointUpstream{
+			URL: "http://test-service-2.default:9090",
+		},
+	}, aepService2.Spec)
+
+	clep1, exists := result.CloudEndpoints[types.NamespacedName{
+		Namespace: "default",
+		Name:      "example.com",
+	}]
+	require.True(t, exists)
+	clep2, exists := result.CloudEndpoints[types.NamespacedName{
+		Namespace: "default",
+		Name:      "foo.example.com",
+	}]
+	require.True(t, exists)
+
+	assert.Equal(t, "example.com", clep1.Name)
+	assert.Equal(t, "foo.example.com", clep2.Name)
+	assert.Equal(t, expectedLabels, aepService1.Labels)
+	assert.Equal(t, expectedLabels, aepService2.Labels)
+
+	clep1TP := &trafficpolicy.TrafficPolicy{}
+	clep1JSON, err := json.Marshal(clep1.Spec.TrafficPolicy.Policy)
+	require.NoError(t, err)
+	err = json.Unmarshal(clep1JSON, clep1TP)
+	require.NoError(t, err)
+
+	clep2TP := &trafficpolicy.TrafficPolicy{}
+	clep2JSON, err := json.Marshal(clep2.Spec.TrafficPolicy.Policy)
+	require.NoError(t, err)
+	err = json.Unmarshal(clep2JSON, clep2TP)
+	require.NoError(t, err)
+
+	expectedCLEP1Policy := &trafficpolicy.TrafficPolicy{
+		OnHTTPRequest: []trafficpolicy.Rule{
+			{
+				Name:        "annotation-tp-rule",
+				Expressions: []string{"req.url.path.startsWith(\"somestring\")"},
+				Actions: []trafficpolicy.Action{{
+					Type: trafficpolicy.ActionType_CustomResponse,
+					Config: map[string]interface{}{
+						"content": "annotation page",
+					},
+				}},
+			},
+			{
+				Name:        "Generated-Route-/test-merging-ingresses",
+				Expressions: []string{"req.url.path == \"/test-merging-ingresses\""},
+				Actions: []trafficpolicy.Action{{
+					Type: trafficpolicy.ActionType_ForwardInternal,
+					Config: map[string]interface{}{
+						"url": "https://f8638-test-service-2-default-9090.internal",
+					},
+				}},
+			},
+			{
+				Name:        "route-tp-rule",
+				Expressions: []string{"req.url.path.startsWith(\"/foo/bar\")"},
+				Actions: []trafficpolicy.Action{{
+					Type: trafficpolicy.ActionType_CustomResponse,
+					Config: map[string]interface{}{
+						"content": "route page",
+					},
+				}},
+			},
+			{
+				Name:        "Generated-Route-/foo",
+				Expressions: []string{"req.url.path.startsWith(\"/foo\")"},
+				Actions: []trafficpolicy.Action{{
+					Type: trafficpolicy.ActionType_ForwardInternal,
+					Config: map[string]interface{}{
+						"url": "https://03ac6-test-service-1-default-8080.internal",
+					},
+				}},
+			},
+			{
+				Name: "default-tp-rule",
+				Actions: []trafficpolicy.Action{{
+					Type: trafficpolicy.ActionType_CustomResponse,
+					Config: map[string]interface{}{
+						"content": "default page",
+					},
+				}},
+			},
+		},
+	}
+	assert.Equal(t, expectedCLEP1Policy, clep1TP)
+
+	expectedCLEP2Policy := &trafficpolicy.TrafficPolicy{
+		OnHTTPRequest: []trafficpolicy.Rule{
+			{
+				Name:        "annotation-tp-rule",
+				Expressions: []string{"req.url.path.startsWith(\"somestring\")"},
+				Actions: []trafficpolicy.Action{{
+					Type: trafficpolicy.ActionType_CustomResponse,
+					Config: map[string]interface{}{
+						"content": "annotation page",
+					},
+				}},
+			},
+			{
+				Name:        "Generated-Route-/test-other-hostname",
+				Expressions: []string{"req.url.path == \"/test-other-hostname\""},
+				Actions: []trafficpolicy.Action{{
+					Type: trafficpolicy.ActionType_ForwardInternal,
+					Config: map[string]interface{}{
+						"url": "https://f8638-test-service-2-default-9090.internal",
+					},
+				}},
+			},
+			{
+				Name: "default-tp-rule",
+				Actions: []trafficpolicy.Action{{
+					Type: trafficpolicy.ActionType_CustomResponse,
+					Config: map[string]interface{}{
+						"content": "default page",
+					},
+				}},
+			},
+		},
+	}
+	assert.Equal(t, expectedCLEP2Policy, clep2TP)
 }
