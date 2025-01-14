@@ -51,6 +51,7 @@ import (
 	ierr "github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/events"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -209,8 +210,8 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		recorder:         r.Recorder,
 		edge:             edge,
 		clientset:        r.NgrokClientset.EdgeModules().HTTPS().Routes(),
-		ipPolicyResolver: controller.IpPolicyResolver{Client: r.Client},
-		secretResolver:   controller.SecretResolver{Client: r.Client},
+		ipPolicyResolver: resolvers.NewDefaultIPPolicyResolver(r.Client),
+		secretResolver:   resolvers.NewDefaultSecretResovler(r.Client),
 	}
 
 	edgeRoutes := r.NgrokClientset.HTTPSEdgeRoutes()
@@ -553,8 +554,8 @@ type edgeRouteModuleUpdater struct {
 
 	clientset ngrokapi.HTTPSEdgeRouteModulesClientset
 
-	ipPolicyResolver controller.IpPolicyResolver
-	secretResolver   controller.SecretResolver
+	ipPolicyResolver resolvers.IPPolicyResolver
+	secretResolver   resolvers.SecretResolver
 }
 
 func (u *edgeRouteModuleUpdater) updateModulesForRoute(ctx context.Context, route *ngrok.HTTPSEdgeRoute, routeSpec *ingressv1alpha1.HTTPSEdgeRouteSpec) error {

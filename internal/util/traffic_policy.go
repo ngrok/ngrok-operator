@@ -7,7 +7,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/errors"
-	"github.com/ngrok/ngrok-operator/internal/secrets"
+	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"k8s.io/utils/ptr"
 )
@@ -287,7 +287,7 @@ func mergeSinglePhase(originalTP map[string][]RawRule, addedRules []RawRule, pha
 	originalTP[phase] = addedRules
 }
 
-func NewTrafficPolicyFromModuleset(ctx context.Context, ms *ingressv1alpha1.NgrokModuleSet, secretResolver secrets.Resolver) (*trafficpolicy.TrafficPolicy, error) {
+func NewTrafficPolicyFromModuleset(ctx context.Context, ms *ingressv1alpha1.NgrokModuleSet, secretResolver resolvers.SecretResolver, ipPolicyResolver resolvers.IPPolicyResolver) (*trafficpolicy.TrafficPolicy, error) {
 	if ms == nil {
 		return nil, nil
 	}
@@ -296,7 +296,7 @@ func NewTrafficPolicyFromModuleset(ctx context.Context, ms *ingressv1alpha1.Ngro
 
 	converters := []modulesetConverterFunc{
 		// On TCP Connect Rules (IP Restriction & Mutual TLS)
-		convertModuleSetIPRestriction,
+		convertModuleSetIPRestriction(ipPolicyResolver),
 		convertModuleSetTLS,
 		// On HTTP Request Rules
 		convertModuleSetCompression,
@@ -348,20 +348,27 @@ func convertModuleSetTLS(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, t
 	return nil
 }
 
-func convertModuleSetIPRestriction(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
-	if ms.Modules.IPRestriction == nil {
+func convertModuleSetIPRestriction(ipPolicyResolver resolvers.IPPolicyResolver) modulesetConverterFunc {
+	return func(ctx context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+		if ms.Modules.IPRestriction == nil {
+			return nil
+		}
+
+		ipPolicies, err := ipPolicyResolver.ResolveIPPolicyNamesorIds(ctx, ms.Namespace, ms.Modules.IPRestriction.IPPolicies)
+		if err != nil {
+			return err
+		}
+
+		tp.AddRuleOnTCPConnect(
+			trafficpolicy.Rule{
+				Actions: []trafficpolicy.Action{
+					trafficpolicy.NewRestricIPsActionFromIPPolicies(ipPolicies),
+				},
+			},
+		)
+
 		return nil
 	}
-
-	tp.AddRuleOnTCPConnect(
-		trafficpolicy.Rule{
-			Actions: []trafficpolicy.Action{
-				trafficpolicy.NewRestricIPsActionFromIPPolicies(ms.Modules.IPRestriction.IPPolicies),
-			},
-		},
-	)
-
-	return nil
 }
 
 func convertModuleSetCompression(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
@@ -453,7 +460,7 @@ func convertModuleSetHeaders(_ context.Context, ms ingressv1alpha1.NgrokModuleSe
 
 	return nil
 }
-func convertModuleSetWebhookVerification(secretResolver secrets.Resolver) modulesetConverterFunc {
+func convertModuleSetWebhookVerification(secretResolver resolvers.SecretResolver) modulesetConverterFunc {
 	return func(ctx context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
 		if ms.Modules.WebhookVerification == nil {
 			return nil
