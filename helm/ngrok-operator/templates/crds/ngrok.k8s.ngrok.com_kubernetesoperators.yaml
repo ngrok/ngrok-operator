@@ -66,15 +66,10 @@ spec:
                 description: Configuration for the binding feature of this Kubernetes
                   Operator
                 properties:
-                  allowedURLs:
-                    description: |-
-                      AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which BoundEndpoints are allowed to be created by the operator
-                      You may specify a wildcard for:
-                        - All endpoints: `*`
-                        - All services in a namespace: `*.namespace`
-                        - All namespaces: `*.*`
-                        - Named service in all namespaces: `service.*`
-                      See: https://regex101.com/r/APbE3G/4
+                  endpointSelectors:
+                    description: EndpointSelectors is a list of cel expression that
+                      determine which kubernetes-bound Endpoints will be created by
+                      the operator
                     items:
                       type: string
                     type: array
