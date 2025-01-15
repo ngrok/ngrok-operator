@@ -222,6 +222,19 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --zap-log-level=error
+- it: Should pass endpoint selectors if set
+  set:
+    bindings:
+      enabled: true
+      endpointSelectors:
+      - "true"
+      - "false"
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --bindings-endpoint-selectors=true,false
 - it: Should pass one-click-demo mode if set
   set:
     oneClickDemoMode: true
