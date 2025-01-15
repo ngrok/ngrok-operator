@@ -153,7 +153,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		}
 
 		createParams.Binding = &ngrok.KubernetesOperatorBindingCreate{
-			EndpointSelectors: ko.Spec.Binding.AllowedURLs,
+			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
 			CSR:               string(tlsSecret.Data["tls.csr"]),
 		}
 	}
@@ -262,7 +262,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		}
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
-			EndpointSelectors: ko.Spec.Binding.AllowedURLs,
+			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
 			CSR:               ptr.To(string(tlsSecret.Data["tls.csr"])),
 		}
 	}

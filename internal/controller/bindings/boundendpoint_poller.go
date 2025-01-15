@@ -50,11 +50,8 @@ type BoundEndpointPoller struct {
 	// NgrokClientset is the ngrok API clientset
 	NgrokClientset ngrokapi.Clientset
 
-	// AllowedURLs is a list of allowed URL patterns for endpoints that may be projected into the cluster
-	AllowedURLs []string
-
-	// allowedUrlRegexes is the parsed regexes matching the patterns defined by AllowedURLs
-	allowedUrlRegexes []*regexp.Regexp
+	// EndpointSelectors is a list of cel expressions for filtering endpoints that will be projected into the cluster
+	EndpointSelectors []string
 
 	// PollingInterval is how often to poll the ngrok API for reconciling the BindingEndpoints
 	PollingInterval time.Duration
@@ -85,13 +82,6 @@ type BoundEndpointPoller struct {
 // Start implements the manager.Runnable interface.
 func (r *BoundEndpointPoller) Start(ctx context.Context) error {
 	log := ctrl.LoggerFrom(ctx)
-
-	// parse the allowed URLs into regex patterns
-	var err error
-	r.allowedUrlRegexes, err = convertAllowedUrlsToRegexes(r.AllowedURLs)
-	if err != nil {
-		return err
-	}
 
 	// retrieve k8sop ID
 	r.koId = r.getKubernetesOperatorId(ctx)
@@ -211,9 +201,6 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 	if err != nil {
 		return err
 	}
-
-	// modify the desired BoundEndpoints updating their Allow/Deny status
-	allowDenyEndpointByURL(ctx, desiredBoundEndpoints, r.allowedUrlRegexes)
 
 	// Get all current BoundEndpoint resources in the cluster.
 	var epbList bindingsv1alpha1.BoundEndpointList
