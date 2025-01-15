@@ -2,12 +2,8 @@ package bindings
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/url"
 	"reflect"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -369,7 +365,6 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 			Namespace: r.Namespace,
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			Allowed:     desired.Spec.Allowed,
 			EndpointURI: desired.Spec.EndpointURI,
 			Scheme:      desired.Spec.Scheme,
 			Port:        port,
@@ -470,7 +465,6 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 	// found existing endpoint
 	// now let's merge them together
 	toUpdate := existing
-	toUpdate.Spec.Allowed = desired.Spec.Allowed
 	toUpdate.Spec.Port = existing.Spec.Port // keep the same port
 	toUpdate.Spec.Scheme = desired.Spec.Scheme
 	toUpdate.Spec.Target = desired.Spec.Target
@@ -580,40 +574,11 @@ func targetMetadataIsEqual(a bindingsv1alpha1.TargetMetadata, b bindingsv1alpha1
 	return true
 }
 
-// allowDenyEndpointByURL modifies the given endpoints as allowed or denied
-// based on their matching AllowedURLs policy
-func allowDenyEndpointByURL(ctx context.Context, endpoints ngrokapi.AggregatedEndpoints, regexes []*regexp.Regexp) {
-	log := ctrl.LoggerFrom(ctx)
-
-	for uri, endpoint := range endpoints {
-		allowed := false
-		for _, regex := range regexes {
-			if regex.MatchString(uri) {
-				// endpoint matches allowedURL expression, allowed to project into the cluster
-				log.V(9).Info("Endpoint allowed", "uri", uri, "matches", regex.String())
-				// Note: We use this intermediary so we can skip over resetting the endpoint.Spec.Allowed to false outside the outer endpoint loop
-				allowed = true
-				break // continue below
-			}
-		}
-
-		// non matched, not allowed
-		if !allowed {
-			log.V(9).Info("Endpoint denied, no match", "uri", uri)
-		}
-
-		// reassign value
-		endpoint.Spec.Allowed = allowed
-		endpoints[uri] = endpoint
-	}
-}
-
 // boundEndpointNeedsUpdate returns true if the data in desired does not match existing, and therefore existing needs updating to match desired
 func boundEndpointNeedsUpdate(ctx context.Context, existing bindingsv1alpha1.BoundEndpoint, desired bindingsv1alpha1.BoundEndpoint) bool {
 	log := ctrl.LoggerFrom(ctx)
 
-	hasSpecChanged := existing.Spec.Allowed != desired.Spec.Allowed ||
-		existing.Spec.Scheme != desired.Spec.Scheme ||
+	hasSpecChanged := existing.Spec.Scheme != desired.Spec.Scheme ||
 		existing.Spec.Target.Port != desired.Spec.Target.Port ||
 		existing.Spec.Target.Protocol != desired.Spec.Target.Protocol ||
 		existing.Spec.Target.Service != desired.Spec.Target.Service ||
@@ -651,104 +616,4 @@ func boundEndpointNeedsUpdate(ctx context.Context, existing bindingsv1alpha1.Bou
 func hashURI(uri string) string {
 	uid := uuid.NewSHA1(uuid.NameSpaceURL, []byte(uri))
 	return "ngrok-" + uid.String()
-}
-
-// convertAllowedUrlToRegex converts a URL pattern to a regex pattern for endpoint matching
-func convertAllowedUrlToRegex(allowedURL string) (*regexp.Regexp, error) {
-	if len(allowedURL) == 0 {
-		return nil, errors.New("cannot parse empty url")
-	}
-
-	// all urls are allowed
-	if allowedURL == "*" {
-		return regexp.Compile(`^.*$`)
-	}
-
-	// parse as a URL
-	// Note: We ignore/discard the port in the regex (all ports are allowed)
-	uri, err := url.Parse(allowedURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL: %w", err)
-	}
-
-	var scheme string
-	var service string
-	var namespace string
-	var quotedScheme string
-	var quotedService string
-	var quotedNamespace string
-	var quotedSeparator string
-
-	scheme = uri.Scheme
-	if scheme == "" {
-		// all supported schemes
-		quotedScheme = `(http|https|tcp|tls)`
-	} else {
-		// specific scheme allowed
-		quotedScheme = regexp.QuoteMeta(scheme)
-	}
-
-	// separate hostname into service.namespace pieces (if exist)
-	hostname := uri.Hostname()
-	if hostname == "" {
-		// sometimes url.Parse() puts our invalid hostname globs into the .Path
-		// so we check here too
-		hostname = uri.Path
-	}
-	parts := strings.Split(hostname, ".")
-	if len(parts) == 1 {
-		// only one part must be a wildcard for all service.namespace cases
-		if parts[0] == "*" {
-			service = "*"
-			namespace = "*"
-		} else {
-			// just service name or namespace is not allowed
-			return nil, errors.New("invalid allowedURL: just service name or namespace is not allowed, must be wildcard or include .namespace suffix")
-		}
-	} else if len(parts) == 2 {
-		// service.namespace
-		service = parts[0]
-		namespace = parts[1]
-		quotedSeparator = regexp.QuoteMeta(".")
-	} else {
-		// invalid
-		return nil, errors.New("too many parts per hostname, only service.namespace is allowed")
-	}
-
-	// convert the service and namespace to regex patterns
-	if service == "*" {
-		// match any service
-		// Note: DNS Names are already validated by the CRD validation
-		quotedService = `.+`
-	} else {
-		// quote exact service name
-		quotedService = regexp.QuoteMeta(service)
-	}
-
-	if namespace == "*" {
-		// match any namespace
-		// Note: DNS Names are already validated by the CRD validation
-		quotedNamespace = `.+`
-	} else {
-		// quote exact namespace name
-		quotedNamespace = regexp.QuoteMeta(namespace)
-	}
-
-	// combine the parts into a regex pattern
-	// Note: Matching on Port is optional
-	return regexp.Compile(fmt.Sprintf(`^%s://%s%s%s(:\d+)?$`, quotedScheme, quotedService, quotedSeparator, quotedNamespace))
-}
-
-// convertAllowedUrlsToRegexes is a convenience function for turning all allowedURLs into a list of regexes
-func convertAllowedUrlsToRegexes(allowedURLs []string) ([]*regexp.Regexp, error) {
-	allowedUrlRegexes := make([]*regexp.Regexp, len(allowedURLs))
-	for idx, allowedURL := range allowedURLs {
-		regex, err := convertAllowedUrlToRegex(allowedURL)
-		if err != nil {
-			return nil, err
-		}
-		allowedUrlRegexes[idx] = regex
-	}
-
-	return allowedUrlRegexes, nil
 }
