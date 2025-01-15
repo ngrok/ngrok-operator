@@ -1,10 +1,10 @@
 package ngrokapi
 
 import (
-	"github.com/ngrok/ngrok-api-go/v6"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/tcp_edge_backend"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/tcp_edge_ip_restriction"
-	"github.com/ngrok/ngrok-api-go/v6/edge_modules/tcp_edge_traffic_policy"
+	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/tcp_edge_backend"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/tcp_edge_ip_restriction"
+	"github.com/ngrok/ngrok-api-go/v7/edge_modules/tcp_edge_traffic_policy"
 )
 
 type TCPEdgeModulesClientset interface {

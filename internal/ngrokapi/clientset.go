@@ -1,18 +1,18 @@
 package ngrokapi
 
 import (
-	"github.com/ngrok/ngrok-api-go/v6"
-	tunnel_group_backends "github.com/ngrok/ngrok-api-go/v6/backends/tunnel_group"
-	https_edges "github.com/ngrok/ngrok-api-go/v6/edges/https"
-	https_edge_routes "github.com/ngrok/ngrok-api-go/v6/edges/https_routes"
-	tcp_edges "github.com/ngrok/ngrok-api-go/v6/edges/tcp"
-	tls_edges "github.com/ngrok/ngrok-api-go/v6/edges/tls"
-	"github.com/ngrok/ngrok-api-go/v6/endpoints"
-	"github.com/ngrok/ngrok-api-go/v6/ip_policies"
-	"github.com/ngrok/ngrok-api-go/v6/ip_policy_rules"
-	"github.com/ngrok/ngrok-api-go/v6/kubernetes_operators"
-	"github.com/ngrok/ngrok-api-go/v6/reserved_addrs"
-	"github.com/ngrok/ngrok-api-go/v6/reserved_domains"
+	"github.com/ngrok/ngrok-api-go/v7"
+	tunnel_group_backends "github.com/ngrok/ngrok-api-go/v7/backends/tunnel_group"
+	https_edges "github.com/ngrok/ngrok-api-go/v7/edges/https"
+	https_edge_routes "github.com/ngrok/ngrok-api-go/v7/edges/https_routes"
+	tcp_edges "github.com/ngrok/ngrok-api-go/v7/edges/tcp"
+	tls_edges "github.com/ngrok/ngrok-api-go/v7/edges/tls"
+	"github.com/ngrok/ngrok-api-go/v7/endpoints"
+	"github.com/ngrok/ngrok-api-go/v7/ip_policies"
+	"github.com/ngrok/ngrok-api-go/v7/ip_policy_rules"
+	"github.com/ngrok/ngrok-api-go/v7/kubernetes_operators"
+	"github.com/ngrok/ngrok-api-go/v7/reserved_addrs"
+	"github.com/ngrok/ngrok-api-go/v7/reserved_domains"
 )
 
 type Clientset interface {

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	v6 "github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v7"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 )
 
@@ -25,7 +25,7 @@ type AggregatedEndpoints map[string]bindingsv1alpha1.BoundEndpoint
 // AggregateBindingEndpoints aggregates the endpoints into a map of hostport to BindingEndpoint
 // by parsing the hostport 4-tuple into each piece ([<scheme>://]<service>.<namespcace>[:<port>])
 // and collecting together matching endpoints into a single BindingEndpoint
-func AggregateBindingEndpoints(endpoints []v6.Endpoint) (AggregatedEndpoints, error) {
+func AggregateBindingEndpoints(endpoints []ngrok.Endpoint) (AggregatedEndpoints, error) {
 	aggregated := make(AggregatedEndpoints)
 
 	for _, endpoint := range endpoints {
@@ -62,7 +62,7 @@ func AggregateBindingEndpoints(endpoints []v6.Endpoint) (AggregatedEndpoints, er
 
 		// add the found endpoint to the list of endpoints
 		bindingEndpoint.Status.Endpoints = append(bindingEndpoint.Status.Endpoints, bindingsv1alpha1.BindingEndpoint{
-			Ref: v6.Ref{
+			Ref: ngrok.Ref{
 				ID:  endpoint.ID,
 				URI: endpoint.URI,
 			},

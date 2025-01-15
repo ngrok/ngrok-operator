@@ -51,11 +51,6 @@ type KubernetesOperatorDeployment struct {
 }
 
 type KubernetesOperatorBinding struct {
-	// Name is the name of the k8s-binding for the account to bind to this configuration and the ngrok API
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^k8s[/][a-zA-Z0-9-]{1,63}$`
-	Name string `json:"name,omitempty"`
-
 	// AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which BoundEndpoints are allowed to be created by the operator
 	// You may specify a wildcard for:
 	//   - All endpoints: `*`

@@ -287,7 +287,6 @@ gateway:
 ## @section Kubernetes Bindings feature configuration
 ##
 ## @param bindings.enabled Whether to enable the Endpoint Bindings feature
-## @param bindings.name Unique name of this kubernetes binding in your ngrok account
 ## @param bindings.description Description of this kubernetes binding in your ngrok account
 ## @param bindings.allowedURLs List of allowed endpoint URL formats that this binding will project into the cluster
 ## @param bindings.serviceAnnotations Annotations to add to projected services bound to an endpoint
@@ -296,7 +295,6 @@ gateway:
 ##
 bindings:
   enabled: false # in-development
-  name: ""
   description: "Created by ngrok-operator"
   allowedURLs:
   - "*"

@@ -49,7 +49,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -153,9 +153,8 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		}
 
 		createParams.Binding = &ngrok.KubernetesOperatorBindingCreate{
-			Name:        ko.Spec.Binding.Name,
-			AllowedURLs: ko.Spec.Binding.AllowedURLs,
-			CSR:         string(tlsSecret.Data["tls.csr"]),
+			EndpointSelectors: ko.Spec.Binding.AllowedURLs,
+			CSR:               string(tlsSecret.Data["tls.csr"]),
 		}
 	}
 
@@ -263,9 +262,8 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		}
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
-			Name:        ptr.To(ko.Spec.Binding.Name),
-			AllowedURLs: ko.Spec.Binding.AllowedURLs,
-			CSR:         ptr.To(string(tlsSecret.Data["tls.csr"])),
+			EndpointSelectors: ko.Spec.Binding.AllowedURLs,
+			CSR:               ptr.To(string(tlsSecret.Data["tls.csr"])),
 		}
 	}
 

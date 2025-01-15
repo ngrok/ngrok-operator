@@ -27,7 +27,7 @@ package v1alpha1
 import (
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v7"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

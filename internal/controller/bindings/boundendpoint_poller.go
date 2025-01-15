@@ -12,8 +12,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
-	"github.com/ngrok/ngrok-api-go/v6"
-	v6 "github.com/ngrok/ngrok-api-go/v6"
+	"github.com/ngrok/ngrok-api-go/v7"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -193,7 +192,7 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 	}
 
 	// Fetch the mock endpoint data from the API
-	var apiBindingEndpoints []v6.Endpoint
+	var apiBindingEndpoints []ngrok.Endpoint
 	iter := r.NgrokClientset.KubernetesOperators().GetBoundEndpoints(r.koId, &ngrok.Paging{})
 	for iter.Next(ctx) {
 		item := iter.Item()
