@@ -51,16 +51,9 @@ type KubernetesOperatorDeployment struct {
 }
 
 type KubernetesOperatorBinding struct {
-	// AllowedURLs is a list of URI patterns ([scheme://]<service-name>.<namespace-name>) thet determine which BoundEndpoints are allowed to be created by the operator
-	// You may specify a wildcard for:
-	//   - All endpoints: `*`
-	//   - All services in a namespace: `*.namespace`
-	//   - All namespaces: `*.*`
-	//   - Named service in all namespaces: `service.*`
-	// See: https://regex101.com/r/APbE3G/4
+	// EndpointSelectors is a list of cel expression that determine which kubernetes-bound Endpoints will be created by the operator
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:items:Pattern=`^(([*]|(https?|tls|tcp)://)?([*]|([*]|[a-z]([-a-z0-9]{0,61}[a-z0-9])?)[.]([*]|[a-z]([-a-z0-9]{0,61}[a-z0-9])?)))$`
-	AllowedURLs []string `json:"allowedURLs,omitempty"`
+	EndpointSelectors []string `json:"endpointSelectors,omitempty"`
 
 	// The public ingress endpoint for this Kubernetes Operator
 	// +kubebuilder:validation:Optional

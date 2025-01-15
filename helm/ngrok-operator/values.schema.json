@@ -403,11 +403,11 @@
                     "description": "Description of this kubernetes binding in your ngrok account",
                     "default": "Created by ngrok-operator"
                 },
-                "allowedURLs": {
+                "endpointSelectors": {
                     "type": "array",
-                    "description": "List of allowed endpoint URL formats that this binding will project into the cluster",
+                    "description": "List of cel expressions used to filter which kubernetes-bound endpoints should be projected into this cluster",
                     "default": [
-                        "*"
+                        "true"
                     ],
                     "items": {
                         "type": "string"

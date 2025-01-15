@@ -76,7 +76,7 @@ spec:
         - --one-click-demo-mode
         {{- end }}
         {{- if .Values.bindings.enabled }}
-        - --bindings-allowed-urls={{ join "," .Values.bindings.allowedURLs }}
+        - --bindings-endpoint-selectors={{ join "," .Values.bindings.endpointSelectors }}
         {{- if .Values.bindings.serviceAnnotations }}
         - --bindings-service-annotations={{- $serviceAnnotations := list -}}
           {{- range $key, $value := .Values.bindings.serviceAnnotations }}

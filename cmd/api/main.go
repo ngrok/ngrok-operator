@@ -120,7 +120,7 @@ type managerOpts struct {
 	enableFeatureBindings bool
 
 	bindings struct {
-		allowedURLs        []string
+		endpointSelectors  []string
 		serviceAnnotations string
 		serviceLabels      string
 		ingressEndpoint    string
@@ -163,7 +163,7 @@ func cmd() *cobra.Command {
 	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
 	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
-	c.Flags().StringSliceVar(&opts.bindings.allowedURLs, "bindings-allowed-urls", []string{"*"}, "Allowed URLs for Endpoint Bindings")
+	c.Flags().StringSliceVar(&opts.bindings.endpointSelectors, "bindings-endpoint-selectors", []string{"true"}, "Endpoint Selectors for Endpoint Bindings")
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
@@ -626,7 +626,7 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 		Recorder:                     mgr.GetEventRecorderFor("endpoint-binding-poller"),
 		Namespace:                    opts.namespace,
 		KubernetesOperatorConfigName: opts.releaseName,
-		AllowedURLs:                  opts.bindings.allowedURLs,
+		EndpointSelectors:            opts.bindings.endpointSelectors,
 		TargetServiceAnnotations:     targetServiceAnnotations,
 		TargetServiceLabels:          targetServiceLabels,
 		PollingInterval:              10 * time.Second,
@@ -669,8 +669,8 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 		if opts.enableFeatureBindings {
 			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
 			k8sOperator.Spec.Binding = &ngrokv1alpha1.KubernetesOperatorBinding{
-				TlsSecretName: "ngrok-operator-default-tls",
-				AllowedURLs:   opts.bindings.allowedURLs,
+				TlsSecretName:     "ngrok-operator-default-tls",
+				EndpointSelectors: opts.bindings.endpointSelectors,
 			}
 			if opts.bindings.ingressEndpoint != "" {
 				k8sOperator.Spec.Binding.IngressEndpoint = &opts.bindings.ingressEndpoint
