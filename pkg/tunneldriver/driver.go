@@ -480,6 +480,7 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 	if err != nil {
 		return err
 	}
+	td.agentEndpoints.Add(name, tun)
 
 	upstreamPort, err := strconv.Atoi(upstreamURL.Port())
 	if err != nil {
