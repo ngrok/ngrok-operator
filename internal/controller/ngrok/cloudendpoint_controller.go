@@ -34,6 +34,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -63,6 +64,9 @@ type CloudEndpointReconciler struct {
 	Log            logr.Logger
 	Recorder       record.EventRecorder
 	NgrokClientset ngrokapi.Clientset
+
+	// Holds a map of cloud endpoints and their IDs to avoid race conditions from relying on the cloud endpoint ID from the k8s resource status
+	existingCloudEndpoints map[types.NamespacedName]string
 }
 
 // Define a custom error types to catch and handle requeuing logic for
@@ -77,15 +81,26 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return errors.New("NgrokClientset is required")
 	}
 
+	r.existingCloudEndpoints = make(map[types.NamespacedName]string)
 	r.controller = &controller.BaseController[*ngrokv1alpha1.CloudEndpoint]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
-
-		StatusID: func(clep *ngrokv1alpha1.CloudEndpoint) string { return clep.Status.ID },
-		Create:   r.create,
-		Update:   r.update,
-		Delete:   r.delete,
+		StatusID: func(clep *ngrokv1alpha1.CloudEndpoint) string {
+			// We keep an in-memory map of the existing cloud endpoints to tell if we should create/update the cloud endpoint definition on the ngrok server side
+			// Relying on the resource's status.ID being set is error-prone because it can result in race conditions where the resource is updated
+			// after it was created but before its status.ID is initialized
+			if _, exists := r.existingCloudEndpoints[types.NamespacedName{
+				Name:      clep.Name,
+				Namespace: clep.Namespace,
+			}]; exists {
+				return fmt.Sprintf("%s.%s", clep.Name, clep.Namespace) // Returning a non-empty string lets the controller know to call r.update because this resource exists already
+			}
+			return "" // Returning an empty string lets the controller know to call r.create because this is a new resource
+		},
+		Create: r.create,
+		Update: r.update,
+		Delete: r.delete,
 		ErrResult: func(op controller.BaseControllerOp, cr *ngrokv1alpha1.CloudEndpoint, err error) (ctrl.Result, error) {
 			if errors.Is(err, ErrDomainCreating) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
@@ -166,6 +181,10 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 	if err != nil {
 		return err
 	}
+	r.existingCloudEndpoints[types.NamespacedName{
+		Name:      clep.Name,
+		Namespace: clep.Namespace,
+	}] = ngrokClep.ID
 
 	return r.updateStatus(ctx, clep, ngrokClep, domain)
 }
@@ -183,8 +202,18 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return err
 	}
 
+	// If the endpoint exists in our in-memory map, grab the assigend ID rather than waiting on the ID to be assigned to the reconciled endpoint's status
+	clepKey := types.NamespacedName{
+		Name:      clep.Name,
+		Namespace: clep.Namespace,
+	}
+	existingID, exists := r.existingCloudEndpoints[clepKey]
+	if exists {
+		clep.Status.ID = existingID
+	}
+
 	updateParams := &ngrok.EndpointUpdate{
-		ID:            clep.Status.ID,
+		ID:            existingID,
 		Url:           &clep.Spec.URL,
 		Description:   &clep.Spec.Description,
 		Metadata:      &clep.Spec.Metadata,
@@ -195,24 +224,46 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	ngrokClep, err := r.NgrokClientset.Endpoints().Update(ctx, updateParams)
 	if ngrok.IsNotFound(err) {
 		// Couldn't find endpoint by ID to update, so blank it out and create a new one
-		r.Recorder.Event(clep, v1.EventTypeWarning, "EndpointNotFound", fmt.Sprintf("Failed to update endpoint %s by ID because it was not found. Creating a new one", clep.Status.ID))
+		r.Recorder.Event(clep, v1.EventTypeWarning, "EndpointNotFound", fmt.Sprintf("Failed to update endpoint %q by ID because it was not found. Creating a new one", clep.Status.ID))
 		clep.Status.ID = ""
+		delete(r.existingCloudEndpoints, clepKey)
 		_ = r.Client.Status().Update(ctx, clep)
 		return r.create(ctx, clep)
 	}
 	if err != nil {
 		return err
 	}
-
+	r.existingCloudEndpoints[clepKey] = ngrokClep.ID
 	return r.updateStatus(ctx, clep, ngrokClep, domain)
 }
 
 // Simply attempt to delete it. The base controller handles not found errors
 func (r *CloudEndpointReconciler) delete(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
-	return r.NgrokClientset.Endpoints().Delete(ctx, clep.Status.ID)
+	// If the endpoint exists in our in-memory map, grab the assigend ID rather than waiting on the ID to be assigned to the reconciled endpoint's status
+	clepKey := types.NamespacedName{
+		Name:      clep.Name,
+		Namespace: clep.Namespace,
+	}
+	existingID, exists := r.existingCloudEndpoints[clepKey]
+	if exists {
+		clep.Status.ID = existingID
+	}
+	if err := r.NgrokClientset.Endpoints().Delete(ctx, clep.Status.ID); err != nil {
+		return err
+	}
+	delete(r.existingCloudEndpoints, clepKey)
+	return nil
 }
 
 func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, ngrokClep *ngrok.Endpoint, domain *ingressv1alpha1.Domain) error {
+	// Only update if there's a meaningful change to reduce reconciliation loops
+	if clep.Status.ID == ngrokClep.ID && clep.Status.Domain == &domain.Status {
+		r.Log.Info("No status difference detected for cloud endpoint, skipping status update",
+			"cloud endpoint", fmt.Sprintf("%s.%s", clep.Name, clep.Namespace),
+		)
+		return nil
+	}
+
 	clep.Status.ID = ngrokClep.ID
 	if domain != nil {
 		clep.Status.Domain = &domain.Status
