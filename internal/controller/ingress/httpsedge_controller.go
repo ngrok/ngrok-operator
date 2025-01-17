@@ -45,7 +45,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
-	"github.com/ngrok/ngrok-api-go/v7/backends/tunnel_group"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	ierr "github.com/ngrok/ngrok-operator/internal/errors"
@@ -508,11 +507,11 @@ func (r *HTTPSEdgeReconciler) listHTTPSEdgesForIPPolicy(ctx context.Context, obj
 
 // Tunnel Group Backend planner
 type tunnelGroupBackendReconciler struct {
-	client   *tunnel_group.Client
+	client   ngrokapi.TunnelGroupBackendsClient
 	backends []*ngrok.TunnelGroupBackend
 }
 
-func newTunnelGroupBackendReconciler(client *tunnel_group.Client) (*tunnelGroupBackendReconciler, error) {
+func newTunnelGroupBackendReconciler(client ngrokapi.TunnelGroupBackendsClient) (*tunnelGroupBackendReconciler, error) {
 	backends := make([]*ngrok.TunnelGroupBackend, 0)
 	iter := client.List(&ngrok.Paging{})
 	for iter.Next(context.Background()) {

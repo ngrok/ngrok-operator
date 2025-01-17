@@ -37,10 +37,9 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
-	"github.com/ngrok/ngrok-api-go/v7/ip_policies"
-	"github.com/ngrok/ngrok-api-go/v7/ip_policy_rules"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
 const (
@@ -56,8 +55,8 @@ type IPPolicyReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	IPPoliciesClient    *ip_policies.Client
-	IPPolicyRulesClient *ip_policy_rules.Client
+	IPPoliciesClient    ngrokapi.IPPoliciesClient
+	IPPolicyRulesClient ngrokapi.IPPolicyRulesClient
 
 	controller *controller.BaseController[*ingressv1alpha1.IPPolicy]
 }
