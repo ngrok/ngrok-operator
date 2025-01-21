@@ -1,5 +1,11 @@
 coverage:
   status:
+    patch:
+      default:
+        # Only run in informational mode for now. We want to track coverage
+        # without gating PRs on it until we have better mocking and can do
+        # more thourough testing.
+        informational: true
     project:
       default:
         # Only run in informational mode for now. We want to track coverage
