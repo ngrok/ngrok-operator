@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	netv1 "k8s.io/api/networking/v1"
@@ -27,8 +27,13 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 		// We currently require this annotation to be present for an Ingress to be translated into CloudEndpoints/AgentEndpoints, otherwise the default behaviour is to
 		// translate it into HTTPSEdges (legacy). A future version will remove support for HTTPSEdges and translation into CloudEndpoints/AgentEndpoints will become the new
 		// default behaviour.
-		if !common.HasUseEndpointsAnnotation(ingress.Annotations) {
-			t.log.Info("The following ingress will be provided by ngrok edges instead of endpoints because it is missing the use-endpoints annotation",
+		useEndpoints, err := annotations.ExtractUseEndpoints(ingress)
+		if err != nil {
+			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+		}
+		if !useEndpoints {
+			t.log.Info(fmt.Sprintf("the following ingress will be provided by ngrok edges instead of endpoints because of the %q annotation",
+				annotations.MappingStrategyAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
 			continue
@@ -54,7 +59,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			modules.TLSTermination != nil ||
 			modules.MutualTLS != nil ||
 			modules.WebhookVerification != nil {
-			if common.HasUseEndpointsAnnotation(ingress.Annotations) {
+			if useEndpoints {
 				t.log.Error(fmt.Errorf("ngrok moduleset supplied to ingress with annotation to use endpoints instead of edges"), "ngrok moduleset are not supported on endpoints. prefer using a traffic policy directly. any fields other than supplying a traffic policy using the module set will be ignored",
 					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 				)

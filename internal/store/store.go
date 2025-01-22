@@ -18,10 +18,10 @@ import (
 	"sort"
 	"strings"
 
-	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 
+	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 
 	corev1 "k8s.io/api/core/v1"
@@ -432,6 +432,13 @@ func (s Store) shouldHandleIngressCheckClass(ing *netv1.Ingress) (bool, error) {
 // shouldHandleIngressIsValid checks if the ingress spec meets controller requirements.
 func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 	errs := errors.NewErrInvalidIngressSpec()
+	useEndpoints, err := annotations.ExtractUseEndpoints(ing)
+	if err != nil {
+		errs.AddError(fmt.Sprintf("failed to check %q annotation. defaulting to using edges: %s",
+			annotations.MappingStrategyAnnotation,
+			err.Error(),
+		))
+	}
 	if len(ing.Spec.Rules) == 0 {
 		errs.AddError("At least one rule is required to be set")
 	} else {
@@ -443,11 +450,17 @@ func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 				for _, path := range rule.HTTP.Paths {
 					switch {
 					case path.Backend.Resource != nil:
-						if !common.HasUseEndpointsAnnotation(ing.Annotations) {
-							errs.AddError("Resource backends are not supported for ingresses without the \"k8s.ngrok.com/use-endpoints\": \"true\" annotation. Ingresses provided by endpoints instead of edges do support default backends")
+						if !useEndpoints {
+							errs.AddError(fmt.Sprintf("Resource backends are not supported for ingresses without the %q: %q annotation. Ingresses provided by endpoints instead of edges do support default backends",
+								annotations.MappingStrategyAnnotation,
+								annotations.MappingStrategy_Endpoints,
+							))
 						}
 					case path.Backend.Service == nil:
-						errs.AddError("A valid service backend is required for this ingress since a resource backend was not provided (resource backends are only supported for ingresses with the \"k8s.ngrok.com/use-endpoints\": \"true\" annotation.)")
+						errs.AddError(fmt.Sprintf("A valid service backend is required for this ingress since a resource backend was not provided (resource backends are only supported for ingresses with the %q: %q annotation.)",
+							annotations.MappingStrategyAnnotation,
+							annotations.MappingStrategy_Endpoints,
+						))
 					}
 				}
 			} else {
@@ -457,8 +470,11 @@ func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 	}
 
 	if ing.Spec.DefaultBackend != nil {
-		if !common.HasUseEndpointsAnnotation(ing.Annotations) {
-			errs.AddError("Default backends are not supported for ingresses without the \"k8s.ngrok.com/use-endpoints\": \"true\" annotation. Ingresses provided by endpoints instead of edges do support default backends")
+		if !useEndpoints {
+			errs.AddError(fmt.Sprintf("Default backends are not supported for ingresses without the %q: %q annotation. Ingresses provided by endpoints instead of edges do support default backends",
+				annotations.MappingStrategyAnnotation,
+				annotations.MappingStrategy_Endpoints,
+			))
 		}
 	}
 
