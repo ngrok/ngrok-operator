@@ -2,10 +2,12 @@ package managerdriver
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
-	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/annotations"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -13,7 +15,7 @@ import (
 )
 
 // ingressToDomains constructs domains for edges/endpoints from an input ingress
-func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (edgeDomains map[string]ingressv1alpha1.Domain, endpointDomains map[string]ingressv1alpha1.Domain) {
+func ingressToDomains(log logr.Logger, in *netv1.Ingress, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (edgeDomains map[string]ingressv1alpha1.Domain, endpointDomains map[string]ingressv1alpha1.Domain) {
 	edgeDomains = make(map[string]ingressv1alpha1.Domain)
 	endpointDomains = make(map[string]ingressv1alpha1.Domain)
 
@@ -40,7 +42,11 @@ func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomai
 		domain.Spec.Metadata = newDomainMetadata
 
 		// Check the annotation to see if an edge or endpoint is desired from this ingress resource
-		if common.HasUseEndpointsAnnotation(in.Annotations) {
+		useEndpoints, err := annotations.ExtractUseEndpoints(in)
+		if err != nil {
+			log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+		}
+		if useEndpoints {
 			endpointDomains[domainName] = domain
 		} else {
 			edgeDomains[domainName] = domain
@@ -50,7 +56,7 @@ func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomai
 }
 
 // gatewayToDomains constructs domains for edges/endpoints from an input Gateway
-func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (edgeDomains map[string]ingressv1alpha1.Domain, endpointDomains map[string]ingressv1alpha1.Domain) {
+func gatewayToDomains(log logr.Logger, in *gatewayv1.Gateway, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (edgeDomains map[string]ingressv1alpha1.Domain, endpointDomains map[string]ingressv1alpha1.Domain) {
 	edgeDomains = make(map[string]ingressv1alpha1.Domain)
 	endpointDomains = make(map[string]ingressv1alpha1.Domain)
 	for _, listener := range in.Spec.Listeners {
@@ -80,7 +86,11 @@ func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingD
 		domain.Spec.Metadata = newDomainMetadata
 
 		// Check the annotation to see if an edge or endpoint is desired from this ingress resource
-		if common.HasUseEndpointsAnnotation(in.Annotations) {
+		useEndpoints, err := annotations.ExtractUseEndpoints(in)
+		if err != nil {
+			log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+		}
+		if useEndpoints {
 			endpointDomains[domainName] = domain
 		} else {
 			edgeDomains[domainName] = domain
@@ -123,13 +133,13 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 // Domain set is a helper data type to encapsulate all of the domains and what sources they are from
 // The key for the domain maps is "name.namespace" of the associated ingress/gateway
 type domainSet struct {
-	// The following two domain maps track domains for ingress/gateway resources that contain the
-	// `ngrok.k8s.io/use-endpoints: "true"` annotation. This causes them to be backed by endpoints instead of edges
+	// The following two domain maps track domains for ingress/gateway resources that have opted to
+	// use endpoints
 	endpointIngressDomains map[string]ingressv1alpha1.Domain
 	endpointGatewayDomains map[string]ingressv1alpha1.Domain
 
-	// The following two domain maps track domains for ingress/gateway resources that do not contian the
-	// `ngrok.k8s.io/use-endpoints: "true"` annotation. Without this annotation, they are backed by edges (the default behaviour)
+	// The following two domain maps track domains for ingress/gateway resources that have opted to
+	// use edges
 	edgeIngressDomains map[string]ingressv1alpha1.Domain
 	edgeGatewayDomains map[string]ingressv1alpha1.Domain
 
@@ -149,7 +159,7 @@ func (d *Driver) calculateDomainSet() *domainSet {
 	// Calculate domains from ingress resources
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
-		edgeDomains, endpointDomains := ingressToDomains(ingress, d.ingressNgrokMetadata, nil)
+		edgeDomains, endpointDomains := ingressToDomains(d.log, ingress, d.ingressNgrokMetadata, nil)
 		for key, val := range edgeDomains {
 			ret.totalDomains[key] = val
 			ret.edgeIngressDomains[key] = val
@@ -163,7 +173,7 @@ func (d *Driver) calculateDomainSet() *domainSet {
 	// Calculate domains from gateway resources
 	gateways := d.store.ListGateways()
 	for _, gateway := range gateways {
-		edgeDomains, endpointDomains := gatewayToDomains(gateway, d.gatewayNgrokMetadata, ret.totalDomains)
+		edgeDomains, endpointDomains := gatewayToDomains(d.log, gateway, d.gatewayNgrokMetadata, ret.totalDomains)
 		for key, val := range edgeDomains {
 			ret.totalDomains[key] = val
 			ret.edgeGatewayDomains[key] = val

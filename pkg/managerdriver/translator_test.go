@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
@@ -785,8 +785,8 @@ func TestTranslate(t *testing.T) {
 	ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
 	i1 := testutils.NewTestIngressV1WithClass("ingress-1", "default", ic1.Name)
 	i1.Annotations = map[string]string{
-		common.AnnotationUseEndpoints:  "true",
-		"k8s.ngrok.com/traffic-policy": "annotation-traffic-policy",
+		annotations.MappingStrategyAnnotation: annotations.MappingStrategy_Endpoints,
+		"k8s.ngrok.com/traffic-policy":        "annotation-traffic-policy",
 	}
 	exactMatch := netv1.PathTypeExact
 	prefixMatch := netv1.PathTypePrefix
@@ -852,8 +852,8 @@ func TestTranslate(t *testing.T) {
 	}
 	i2 := testutils.NewTestIngressV1WithClass("ingress-2", "default", ic1.Name)
 	i2.Annotations = map[string]string{
-		common.AnnotationUseEndpoints:  "true",
-		"k8s.ngrok.com/traffic-policy": "annotation-traffic-policy",
+		annotations.MappingStrategyAnnotation: annotations.MappingStrategy_Endpoints,
+		"k8s.ngrok.com/traffic-policy":        "annotation-traffic-policy",
 	}
 	i2.Spec.DefaultBackend = &netv1.IngressBackend{
 		Resource: &v1.TypedLocalObjectReference{

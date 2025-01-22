@@ -280,12 +280,9 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	var desired []client.Object
 	useEndpoints, err := annotations.ExtractUseEndpoints(svc)
 	if err != nil {
-		if !errors.IsMissingAnnotations(err) {
-			log.Error(err, "Failed to get use-endpoints annotation")
-			// TODO: Add an event to the service
-			return ctrl.Result{}, err
-		}
-		useEndpoints = false
+		log.Error(err, fmt.Sprintf("Failed to get %q annotation", annotations.MappingStrategyAnnotation))
+		// TODO: Add an event to the service
+		return ctrl.Result{}, err
 	}
 
 	// Best effort to try to use endpoints(if configured via annotation and eventually as a global default).

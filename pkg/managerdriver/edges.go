@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"strings"
 
-	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/annotations"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -192,9 +192,13 @@ func (d *Driver) calculateHTTPSEdges(domains *domainSet) map[string]ingressv1alp
 func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
-		// If this annotation is present and "true", then this ingress should result in an endpoint being created and not an edge
-		if common.HasUseEndpointsAnnotation(ingress.Annotations) {
-			d.log.Info("The following ingress will be provided by ngrok endpoints instead of edges because it has the use-endpoints annotation",
+		useEndpoints, err := annotations.ExtractUseEndpoints(ingress)
+		if err != nil {
+			d.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+		}
+		if useEndpoints {
+			d.log.Info(fmt.Sprintf("the following ingress will be provided by ngrok endpoints instead of edges because of the %q annotation",
+				annotations.MappingStrategyAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
 			continue
@@ -296,8 +300,11 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	gateways := d.store.ListGateways()
 	for _, gtw := range gateways {
-		// If this annotation is present and "true", then this gateway should result in an endpoint being created and not an edge
-		if common.HasUseEndpointsAnnotation(gtw.Annotations) {
+		useEndpoints, err := annotations.ExtractUseEndpoints(gtw)
+		if err != nil {
+			d.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+		}
+		if useEndpoints {
 			continue
 		}
 

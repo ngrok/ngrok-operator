@@ -18,6 +18,7 @@ package annotations
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/imdario/mergo"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -33,8 +34,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// DeniedKeyName name of the key that contains the reason to deny a location
-const DeniedKeyName = "Denied"
+const (
+	// DeniedKeyName name of the key that contains the reason to deny a location
+	DeniedKeyName = "Denied"
+
+	// This annotation can be used on ingress/gateway resources to control which ngrok resources (endpoints/edges) get created from it
+	MappingStrategyAnnotation    = "k8s.ngrok.com/mapping-strategy"
+	MappingStrategyAnnotationKey = "mapping-strategy"
+	MappingStrategy_Endpoints    = "endpoints"
+	MappingStrategy_Edges        = "edges"
+)
 
 type RouteModules struct {
 	Compression         *ingressv1alpha1.EndpointCompression
@@ -128,7 +137,14 @@ func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error)
 }
 
 // Whether or not we should use endpoints in building the ngrok model for resources. Extracts the value
-// from the annotation "k8s.ngrok.com/use-endpoints" if it is present. Otherwise, it defaults to false
+// from the annotation "k8s.ngrok.com/mapping-strategy" if it is present. Otherwise, it defaults to false
 func ExtractUseEndpoints(obj client.Object) (bool, error) {
-	return parser.GetBoolAnnotation("use-endpoints", obj)
+	val, err := parser.GetStringAnnotation(MappingStrategyAnnotationKey, obj)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return strings.EqualFold(val, MappingStrategy_Endpoints), nil
 }
