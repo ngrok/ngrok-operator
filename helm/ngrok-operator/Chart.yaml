@@ -1,8 +1,8 @@
 apiVersion: v2
 name: ngrok-operator
 description: The official ngrok Kubernetes Operator.
-version: 0.17.0-rc.2
-appVersion: 0.14.1
+version: 0.17.0-rc.3
+appVersion: 0.14.2
 keywords:
   - ngrok
   - networking

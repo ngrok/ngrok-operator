@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.14.1...ngrok-operator-0.14.2
+
+### Added
+
+- Add conversion support from ingress to endpoints by @Alice-Lilith in [#562](https://github.com/ngrok/ngrok-operator/pull/562)
+- feat: Add trafficpolicy package and conversion util by @jonstacks in [#564](https://github.com/ngrok/ngrok-operator/pull/564)
+- feat: Copy domain status to cloud endpoint status by @jonstacks in [#566](https://github.com/ngrok/ngrok-operator/pull/566)
+- feat: Opt-in to endpoints for Load balancer Services by @jonstacks in [#568](https://github.com/ngrok/ngrok-operator/pull/568)
+- feat(ci): Use codecov for coverage reports by @jonstacks in [#571](https://github.com/ngrok/ngrok-operator/pull/571)
+
+### Changed
+
+- chore(deps): Update ngrok-api-go by @jonstacks in [#560](https://github.com/ngrok/ngrok-operator/pull/560)
+- Change `allowed_urls` to `endpoint_selectors` by @masonj5n in [#573](https://github.com/ngrok/ngrok-operator/pull/573)
+- chore(ci): Make codecov patch status informational for now as well by @jonstacks in [#577](https://github.com/ngrok/ngrok-operator/pull/577)
+- update use endpoints annotation by @Alice-Lilith in [#579](https://github.com/ngrok/ngrok-operator/pull/579)
+
+### Fixed
+
+- fix(service-controller): Service controller uses configured cluster domain by @jonstacks in [#552](https://github.com/ngrok/ngrok-operator/pull/552)
+- fix(ngrok-api-go): Update to client that doesn't panic for get_bound_endpoints by @jonstacks in [#561](https://github.com/ngrok/ngrok-operator/pull/561)
+- fix: managerdriver tests not being run by @jonstacks in [#569](https://github.com/ngrok/ngrok-operator/pull/569)
+- fix(ci): Disable bindings for e2e tests by @jonstacks in [#570](https://github.com/ngrok/ngrok-operator/pull/570)
+- add newly created agent endpoints to the map by @Alice-Lilith in [#574](https://github.com/ngrok/ngrok-operator/pull/574)
+- fix(httpsedges): HTTPS Edges should retry on hostport already in use by @jonstacks in [#576](https://github.com/ngrok/ngrok-operator/pull/576)
+
+### Removed
+
+- Remove binding name by @masonj5n in [#567](https://github.com/ngrok/ngrok-operator/pull/567)
+
 ## 0.14.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.14.0...ngrok-operator-0.14.1
 
