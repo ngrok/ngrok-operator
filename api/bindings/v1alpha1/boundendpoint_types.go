@@ -132,7 +132,6 @@ type BindingEndpoint struct {
 	// ErrorCode is the ngrok API error code if the status is error
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^ERR_NGROK_\d+$`
-	// TODO(hkatz) Define error codes and implement in the API
 	ErrorCode string `json:"errorCode,omitempty"`
 
 	// ErrorMessage is a free-form error message if the status is error

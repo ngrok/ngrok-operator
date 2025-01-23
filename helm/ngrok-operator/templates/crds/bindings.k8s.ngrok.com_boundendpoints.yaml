@@ -153,9 +153,8 @@ spec:
                     in the ngrok API that is attached to the kubernetes operator binding
                   properties:
                     errorCode:
-                      description: |-
-                        ErrorCode is the ngrok API error code if the status is error
-                        TODO(hkatz) Define error codes and implement in the API
+                      description: ErrorCode is the ngrok API error code if the status
+                        is error
                       pattern: ^ERR_NGROK_\d+$
                       type: string
                     errorMessage:
