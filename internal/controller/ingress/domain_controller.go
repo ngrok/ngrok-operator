@@ -38,9 +38,9 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
-	"github.com/ngrok/ngrok-api-go/v7/reserved_domains"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
 // DomainReconciler reconciles a Domain object
@@ -50,7 +50,7 @@ type DomainReconciler struct {
 	Log           logr.Logger
 	Scheme        *runtime.Scheme
 	Recorder      record.EventRecorder
-	DomainsClient *reserved_domains.Client
+	DomainsClient ngrokapi.DomainClient
 
 	controller *controller.BaseController[*ingressv1alpha1.Domain]
 }

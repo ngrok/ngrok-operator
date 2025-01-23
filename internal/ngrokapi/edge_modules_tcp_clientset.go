@@ -8,10 +8,16 @@ import (
 )
 
 type TCPEdgeModulesClientset interface {
-	Backend() *tcp_edge_backend.Client
-	IPRestriction() *tcp_edge_ip_restriction.Client
-	TrafficPolicy() *tcp_edge_traffic_policy.Client
+	Backend() TCPEdgeModulesBackendClient
+	IPRestriction() TCPEdgeModulesIPRestrictionClient
+	TrafficPolicy() TCPEdgeModulesTrafficPolicyClient
 }
+
+type (
+	TCPEdgeModulesBackendClient       = edgeModulesClient[*ngrok.EdgeBackendReplace, *ngrok.EndpointBackend]
+	TCPEdgeModulesIPRestrictionClient = edgeModulesClient[*ngrok.EdgeIPRestrictionReplace, *ngrok.EndpointIPPolicy]
+	TCPEdgeModulesTrafficPolicyClient = edgeModulesClient[*ngrok.EdgeTrafficPolicyReplace, *ngrok.EndpointTrafficPolicy]
+)
 
 type defaultTCPEdgeModulesClientset struct {
 	backend       *tcp_edge_backend.Client
@@ -27,14 +33,14 @@ func newTCPEdgeModulesClientset(config *ngrok.ClientConfig) *defaultTCPEdgeModul
 	}
 }
 
-func (c *defaultTCPEdgeModulesClientset) Backend() *tcp_edge_backend.Client {
+func (c *defaultTCPEdgeModulesClientset) Backend() TCPEdgeModulesBackendClient {
 	return c.backend
 }
 
-func (c *defaultTCPEdgeModulesClientset) IPRestriction() *tcp_edge_ip_restriction.Client {
+func (c *defaultTCPEdgeModulesClientset) IPRestriction() TCPEdgeModulesIPRestrictionClient {
 	return c.ipRestriction
 }
 
-func (c *defaultTCPEdgeModulesClientset) TrafficPolicy() *tcp_edge_traffic_policy.Client {
+func (c *defaultTCPEdgeModulesClientset) TrafficPolicy() TCPEdgeModulesTrafficPolicyClient {
 	return c.trafficPolicy
 }

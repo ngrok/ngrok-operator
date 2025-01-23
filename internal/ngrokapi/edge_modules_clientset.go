@@ -1,11 +1,28 @@
 package ngrokapi
 
-import "github.com/ngrok/ngrok-api-go/v7"
+import (
+	"context"
+
+	"github.com/ngrok/ngrok-api-go/v7"
+)
 
 type EdgeModulesClientset interface {
 	TCP() TCPEdgeModulesClientset
 	HTTPS() HTTPSEdgeModulesClientset
 	TLS() TLSEdgeModulesClientset
+}
+
+type edgeModulesClient[R, T any] interface {
+	Deletor
+	Replace(context.Context, R) (T, error)
+}
+
+type EdgeRouteModulesDeletor interface {
+	Delete(context.Context, *ngrok.EdgeRouteItem) error
+}
+
+type EdgeRouteModulesReplacer[R, T any] interface {
+	Replace(context.Context, R) (T, error)
 }
 
 type defaultEdgeModulesClientset struct {

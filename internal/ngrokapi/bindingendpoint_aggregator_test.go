@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	v6 "github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v7"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 )
 
@@ -52,14 +52,14 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		endpoints []v6.Endpoint
+		endpoints []ngrok.Endpoint
 		want      AggregatedEndpoints
 		wantErr   bool
 	}{
-		{"empty", []v6.Endpoint{}, AggregatedEndpoints{}, false},
+		{"empty", []ngrok.Endpoint{}, AggregatedEndpoints{}, false},
 		{
 			name: "single",
-			endpoints: []v6.Endpoint{
+			endpoints: []ngrok.Endpoint{
 				{ID: "ep_123", PublicURL: "https://service1.namespace1"},
 			},
 			want: AggregatedEndpoints{
@@ -76,7 +76,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: v6.Ref{ID: "ep_123"}},
+							{Ref: ngrok.Ref{ID: "ep_123"}},
 						},
 					},
 				},
@@ -85,7 +85,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 		},
 		{
 			name: "full",
-			endpoints: []v6.Endpoint{
+			endpoints: []ngrok.Endpoint{
 				{ID: "ep_100", PublicURL: "https://service1.namespace1"},
 				{ID: "ep_101", PublicURL: "https://service1.namespace1"},
 				{ID: "ep_102", PublicURL: "https://service1.namespace1"},
@@ -108,9 +108,9 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: v6.Ref{ID: "ep_100"}},
-							{Ref: v6.Ref{ID: "ep_101"}},
-							{Ref: v6.Ref{ID: "ep_102"}},
+							{Ref: ngrok.Ref{ID: "ep_100"}},
+							{Ref: ngrok.Ref{ID: "ep_101"}},
+							{Ref: ngrok.Ref{ID: "ep_102"}},
 						},
 					},
 				},
@@ -127,8 +127,8 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: v6.Ref{ID: "ep_200"}},
-							{Ref: v6.Ref{ID: "ep_201"}},
+							{Ref: ngrok.Ref{ID: "ep_200"}},
+							{Ref: ngrok.Ref{ID: "ep_201"}},
 						},
 					},
 				},
@@ -145,7 +145,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: v6.Ref{ID: "ep_300"}},
+							{Ref: ngrok.Ref{ID: "ep_300"}},
 						},
 					},
 				},
@@ -162,7 +162,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: v6.Ref{ID: "ep_400"}},
+							{Ref: ngrok.Ref{ID: "ep_400"}},
 						},
 					},
 				},

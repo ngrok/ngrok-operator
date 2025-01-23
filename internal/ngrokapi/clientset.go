@@ -1,6 +1,8 @@
 package ngrokapi
 
 import (
+	"context"
+
 	"github.com/ngrok/ngrok-api-go/v7"
 	tunnel_group_backends "github.com/ngrok/ngrok-api-go/v7/backends/tunnel_group"
 	https_edges "github.com/ngrok/ngrok-api-go/v7/edges/https"
@@ -16,18 +18,18 @@ import (
 )
 
 type Clientset interface {
-	Domains() *reserved_domains.Client
+	Domains() DomainClient
 	EdgeModules() EdgeModulesClientset
-	Endpoints() *endpoints.Client
-	HTTPSEdges() *https_edges.Client
-	HTTPSEdgeRoutes() *https_edge_routes.Client
-	IPPolicies() *ip_policies.Client
-	IPPolicyRules() *ip_policy_rules.Client
-	KubernetesOperators() *kubernetes_operators.Client
-	TCPAddresses() *reserved_addrs.Client
-	TCPEdges() *tcp_edges.Client
-	TLSEdges() *tls_edges.Client
-	TunnelGroupBackends() *tunnel_group_backends.Client
+	Endpoints() EndpointsClient
+	HTTPSEdges() HTTPSEdgeClient
+	HTTPSEdgeRoutes() HTTPSEdgeRoutesClient
+	IPPolicies() IPPoliciesClient
+	IPPolicyRules() IPPolicyRulesClient
+	KubernetesOperators() KubernetesOperatorsClient
+	TCPAddresses() TCPAddressesClient
+	TCPEdges() TCPEdgesClient
+	TLSEdges() TLSEdgesClient
+	TunnelGroupBackends() TunnelGroupBackendsClient
 }
 
 type DefaultClientset struct {
@@ -63,7 +65,35 @@ func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
 	}
 }
 
-func (c *DefaultClientset) Domains() *reserved_domains.Client {
+type Creator[R, T any] interface {
+	Create(context.Context, R) (T, error)
+}
+
+type Reader[T any] interface {
+	Get(context.Context, string) (T, error)
+}
+
+type Updater[R, T any] interface {
+	Update(context.Context, R) (T, error)
+}
+
+type Deletor interface {
+	Delete(context.Context, string) error
+}
+
+type Lister[T any] interface {
+	List(*ngrok.Paging) ngrok.Iter[T]
+}
+
+type DomainClient interface {
+	Creator[*ngrok.ReservedDomainCreate, *ngrok.ReservedDomain]
+	Reader[*ngrok.ReservedDomain]
+	Updater[*ngrok.ReservedDomainUpdate, *ngrok.ReservedDomain]
+	Deletor
+	Lister[*ngrok.ReservedDomain]
+}
+
+func (c *DefaultClientset) Domains() DomainClient {
 	return c.domainsClient
 }
 
@@ -71,42 +101,117 @@ func (c *DefaultClientset) EdgeModules() EdgeModulesClientset {
 	return c.edgeModulesClientset
 }
 
-func (c *DefaultClientset) Endpoints() *endpoints.Client {
+type EndpointsClient interface {
+	Creator[*ngrok.EndpointCreate, *ngrok.Endpoint]
+	Reader[*ngrok.Endpoint]
+	Updater[*ngrok.EndpointUpdate, *ngrok.Endpoint]
+	Deletor
+	Lister[*ngrok.Endpoint]
+}
+
+func (c *DefaultClientset) Endpoints() EndpointsClient {
 	return c.endpointsClient
 }
 
-func (c *DefaultClientset) HTTPSEdges() *https_edges.Client {
+type HTTPSEdgeClient interface {
+	Creator[*ngrok.HTTPSEdgeCreate, *ngrok.HTTPSEdge]
+	Reader[*ngrok.HTTPSEdge]
+	Updater[*ngrok.HTTPSEdgeUpdate, *ngrok.HTTPSEdge]
+	Deletor
+	Lister[*ngrok.HTTPSEdge]
+}
+
+func (c *DefaultClientset) HTTPSEdges() HTTPSEdgeClient {
 	return c.httpsEdgesClient
 }
 
-func (c *DefaultClientset) HTTPSEdgeRoutes() *https_edge_routes.Client {
+type HTTPSEdgeRoutesClient interface {
+	Creator[*ngrok.HTTPSEdgeRouteCreate, *ngrok.HTTPSEdgeRoute]
+	Get(context.Context, *ngrok.EdgeRouteItem) (*ngrok.HTTPSEdgeRoute, error)
+	Updater[*ngrok.HTTPSEdgeRouteUpdate, *ngrok.HTTPSEdgeRoute]
+	Delete(context.Context, *ngrok.EdgeRouteItem) error
+}
+
+func (c *DefaultClientset) HTTPSEdgeRoutes() HTTPSEdgeRoutesClient {
 	return c.httpsEdgeRoutesClient
 }
 
-func (c *DefaultClientset) IPPolicies() *ip_policies.Client {
+type IPPoliciesClient interface {
+	Creator[*ngrok.IPPolicyCreate, *ngrok.IPPolicy]
+	Reader[*ngrok.IPPolicy]
+	Updater[*ngrok.IPPolicyUpdate, *ngrok.IPPolicy]
+	Deletor
+}
+
+func (c *DefaultClientset) IPPolicies() IPPoliciesClient {
 	return c.ipPoliciesClient
 }
 
-func (c *DefaultClientset) IPPolicyRules() *ip_policy_rules.Client {
+type IPPolicyRulesClient interface {
+	Creator[*ngrok.IPPolicyRuleCreate, *ngrok.IPPolicyRule]
+	Deletor
+	Updater[*ngrok.IPPolicyRuleUpdate, *ngrok.IPPolicyRule]
+	Lister[*ngrok.IPPolicyRule]
+}
+
+func (c *DefaultClientset) IPPolicyRules() IPPolicyRulesClient {
 	return c.ipPolicyRulesClient
 }
 
-func (c *DefaultClientset) KubernetesOperators() *kubernetes_operators.Client {
+type KubernetesOperatorsClient interface {
+	Creator[*ngrok.KubernetesOperatorCreate, *ngrok.KubernetesOperator]
+	Reader[*ngrok.KubernetesOperator]
+	Updater[*ngrok.KubernetesOperatorUpdate, *ngrok.KubernetesOperator]
+	Deletor
+	Lister[*ngrok.KubernetesOperator]
+	GetBoundEndpoints(string, *ngrok.Paging) ngrok.Iter[*ngrok.Endpoint]
+}
+
+func (c *DefaultClientset) KubernetesOperators() KubernetesOperatorsClient {
 	return c.kubernetesOperatorsClient
 }
 
-func (c *DefaultClientset) TCPAddresses() *reserved_addrs.Client {
+type TCPAddressesClient interface {
+	Creator[*ngrok.ReservedAddrCreate, *ngrok.ReservedAddr]
+	Updater[*ngrok.ReservedAddrUpdate, *ngrok.ReservedAddr]
+	Lister[*ngrok.ReservedAddr]
+}
+
+func (c *DefaultClientset) TCPAddresses() TCPAddressesClient {
 	return c.tcpAddrsClient
 }
 
-func (c *DefaultClientset) TLSEdges() *tls_edges.Client {
+type TLSEdgesClient interface {
+	Creator[*ngrok.TLSEdgeCreate, *ngrok.TLSEdge]
+	Reader[*ngrok.TLSEdge]
+	Updater[*ngrok.TLSEdgeUpdate, *ngrok.TLSEdge]
+	Deletor
+	Lister[*ngrok.TLSEdge]
+}
+
+func (c *DefaultClientset) TLSEdges() TLSEdgesClient {
 	return c.tlsEdgesClient
 }
 
-func (c *DefaultClientset) TCPEdges() *tcp_edges.Client {
+type TCPEdgesClient interface {
+	Creator[*ngrok.TCPEdgeCreate, *ngrok.TCPEdge]
+	Reader[*ngrok.TCPEdge]
+	Updater[*ngrok.TCPEdgeUpdate, *ngrok.TCPEdge]
+	Deletor
+	Lister[*ngrok.TCPEdge]
+}
+
+func (c *DefaultClientset) TCPEdges() TCPEdgesClient {
 	return c.tcpEdgesClient
 }
 
-func (c *DefaultClientset) TunnelGroupBackends() *tunnel_group_backends.Client {
+type TunnelGroupBackendsClient interface {
+	Creator[*ngrok.TunnelGroupBackendCreate, *ngrok.TunnelGroupBackend]
+	Reader[*ngrok.TunnelGroupBackend]
+	Updater[*ngrok.TunnelGroupBackendUpdate, *ngrok.TunnelGroupBackend]
+	Lister[*ngrok.TunnelGroupBackend]
+}
+
+func (c *DefaultClientset) TunnelGroupBackends() TunnelGroupBackendsClient {
 	return c.tunnelGroupBackendsClient
 }

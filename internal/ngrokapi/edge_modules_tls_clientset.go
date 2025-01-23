@@ -10,12 +10,20 @@ import (
 )
 
 type TLSEdgeModulesClientset interface {
-	Backend() *tls_edge_backend.Client
-	IPRestriction() *tls_edge_ip_restriction.Client
-	MutualTLS() *tls_edge_mutual_tls.Client
-	TLSTermination() *tls_edge_tls_termination.Client
-	TrafficPolicy() *tls_edge_traffic_policy.Client
+	Backend() TLSEdgeModulesBackendClient
+	IPRestriction() TLSEdgeModulesIPRestrictionClient
+	MutualTLS() TLSEdgeModulesMutualTLSClient
+	TLSTermination() TLSEdgeModulesTLSTerminationClient
+	TrafficPolicy() TLSEdgeModulesTrafficPolicyClient
 }
+
+type (
+	TLSEdgeModulesBackendClient        = edgeModulesClient[*ngrok.EdgeBackendReplace, *ngrok.EndpointBackend]
+	TLSEdgeModulesIPRestrictionClient  = edgeModulesClient[*ngrok.EdgeIPRestrictionReplace, *ngrok.EndpointIPPolicy]
+	TLSEdgeModulesMutualTLSClient      = edgeModulesClient[*ngrok.EdgeMutualTLSReplace, *ngrok.EndpointMutualTLS]
+	TLSEdgeModulesTLSTerminationClient = edgeModulesClient[*ngrok.EdgeTLSTerminationReplace, *ngrok.EndpointTLSTermination]
+	TLSEdgeModulesTrafficPolicyClient  = edgeModulesClient[*ngrok.EdgeTrafficPolicyReplace, *ngrok.EndpointTrafficPolicy]
+)
 
 type defaultTLSEdgeModulesClientset struct {
 	backend        *tls_edge_backend.Client
@@ -35,22 +43,22 @@ func newTLSEdgeModulesClientset(config *ngrok.ClientConfig) *defaultTLSEdgeModul
 	}
 }
 
-func (c *defaultTLSEdgeModulesClientset) Backend() *tls_edge_backend.Client {
+func (c *defaultTLSEdgeModulesClientset) Backend() TLSEdgeModulesBackendClient {
 	return c.backend
 }
 
-func (c *defaultTLSEdgeModulesClientset) IPRestriction() *tls_edge_ip_restriction.Client {
+func (c *defaultTLSEdgeModulesClientset) IPRestriction() TLSEdgeModulesIPRestrictionClient {
 	return c.ipRestriction
 }
 
-func (c *defaultTLSEdgeModulesClientset) MutualTLS() *tls_edge_mutual_tls.Client {
+func (c *defaultTLSEdgeModulesClientset) MutualTLS() TLSEdgeModulesMutualTLSClient {
 	return c.mutualTLS
 }
 
-func (c *defaultTLSEdgeModulesClientset) TLSTermination() *tls_edge_tls_termination.Client {
+func (c *defaultTLSEdgeModulesClientset) TLSTermination() TLSEdgeModulesTLSTerminationClient {
 	return c.tlsTermination
 }
 
-func (c *defaultTLSEdgeModulesClientset) TrafficPolicy() *tls_edge_traffic_policy.Client {
+func (c *defaultTLSEdgeModulesClientset) TrafficPolicy() TLSEdgeModulesTrafficPolicyClient {
 	return c.trafficPolicy
 }

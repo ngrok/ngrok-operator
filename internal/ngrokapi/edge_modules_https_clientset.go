@@ -19,10 +19,15 @@ import (
 )
 
 type HTTPSEdgeModulesClientset interface {
-	MutualTLS() *https_edge_mutual_tls.Client
+	MutualTLS() HTTPSEdgeModulesMutualTLSClient
 	Routes() HTTPSEdgeRouteModulesClientset
-	TLSTermination() *https_edge_tls_termination.Client
+	TLSTermination() HTTPSEdgeModulesTLSTerminationClient
 }
+
+type (
+	HTTPSEdgeModulesMutualTLSClient      = edgeModulesClient[*ngrok.EdgeMutualTLSReplace, *ngrok.EndpointMutualTLS]
+	HTTPSEdgeModulesTLSTerminationClient = edgeModulesClient[*ngrok.EdgeTLSTerminationAtEdgeReplace, *ngrok.EndpointTLSTermination]
+)
 
 type defaultHTTPSEdgeModulesClientset struct {
 	mutualTLS      *https_edge_mutual_tls.Client
@@ -38,7 +43,7 @@ func newHTTPSEdgeModulesClientset(config *ngrok.ClientConfig) *defaultHTTPSEdgeM
 	}
 }
 
-func (c *defaultHTTPSEdgeModulesClientset) MutualTLS() *https_edge_mutual_tls.Client {
+func (c *defaultHTTPSEdgeModulesClientset) MutualTLS() HTTPSEdgeModulesMutualTLSClient {
 	return c.mutualTLS
 }
 
@@ -46,23 +51,23 @@ func (c *defaultHTTPSEdgeModulesClientset) Routes() HTTPSEdgeRouteModulesClients
 	return c.routes
 }
 
-func (c *defaultHTTPSEdgeModulesClientset) TLSTermination() *https_edge_tls_termination.Client {
+func (c *defaultHTTPSEdgeModulesClientset) TLSTermination() HTTPSEdgeModulesTLSTerminationClient {
 	return c.tlsTermination
 }
 
 type HTTPSEdgeRouteModulesClientset interface {
-	Backend() *https_edge_route_backend.Client
-	CircuitBreaker() *https_edge_route_circuit_breaker.Client
-	Compression() *https_edge_route_compression.Client
-	IPRestriction() *https_edge_route_ip_restriction.Client
-	OAuth() *https_edge_route_oauth.Client
-	TrafficPolicy() *https_edge_route_traffic_policy.Client
-	OIDC() *https_edge_route_oidc.Client
-	RequestHeaders() *https_edge_route_request_headers.Client
-	ResponseHeaders() *https_edge_route_response_headers.Client
-	SAML() *https_edge_route_saml.Client
-	WebhookVerification() *https_edge_route_webhook_verification.Client
-	WebsocketTCPConverter() *https_edge_route_websocket_tcp_converter.Client
+	Backend() HTTPSEdgeRouteBackendClient
+	CircuitBreaker() HTTPSEdgeRouteCircuitBreakerClient
+	Compression() HTTPSEdgeRouteCompressionClient
+	IPRestriction() HTTPSEdgeRouteIPRestrictionClient
+	OAuth() HTTPSEdgeRouteOAuthClient
+	OIDC() HTTPSEdgeRouteOIDCClient
+	RequestHeaders() HTTPSEdgeRouteRequestHeadersClient
+	ResponseHeaders() HTTPSEdgeRouteResponseHeadersClient
+	SAML() HTTPSEdgeRouteSAMLClient
+	TrafficPolicy() HTTPSEdgeRouteTrafficPolicyClient
+	WebhookVerification() HTTPSEdgeRouteWebhookVerificationClient
+	WebsocketTCPConverter() HTTPSEdgeRouteWebsocketTCPConverterClient
 }
 
 type defaultHTTPSEdgeRouteModulesClientset struct {
@@ -97,50 +102,70 @@ func newHTTPSEdgeRouteModulesClient(config *ngrok.ClientConfig) *defaultHTTPSEdg
 	}
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) Backend() *https_edge_route_backend.Client {
+type httpsEdgeRouteModulesClient[R, T any] interface {
+	EdgeRouteModulesDeletor
+	EdgeRouteModulesReplacer[R, T]
+}
+
+type (
+	HTTPSEdgeRouteBackendClient               = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteBackendReplace, *ngrok.EndpointBackend]
+	HTTPSEdgeRouteCircuitBreakerClient        = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteCircuitBreakerReplace, *ngrok.EndpointCircuitBreaker]
+	HTTPSEdgeRouteCompressionClient           = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteCompressionReplace, *ngrok.EndpointCompression]
+	HTTPSEdgeRouteIPRestrictionClient         = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteIPRestrictionReplace, *ngrok.EndpointIPPolicy]
+	HTTPSEdgeRouteOAuthClient                 = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteOAuthReplace, *ngrok.EndpointOAuth]
+	HTTPSEdgeRouteOIDCClient                  = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteOIDCReplace, *ngrok.EndpointOIDC]
+	HTTPSEdgeRouteRequestHeadersClient        = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteRequestHeadersReplace, *ngrok.EndpointRequestHeaders]
+	HTTPSEdgeRouteResponseHeadersClient       = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteResponseHeadersReplace, *ngrok.EndpointResponseHeaders]
+	HTTPSEdgeRouteSAMLClient                  = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteSAMLReplace, *ngrok.EndpointSAML]
+	HTTPSEdgeRouteTrafficPolicyClient         = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteTrafficPolicyReplace, *ngrok.EndpointTrafficPolicy]
+	HTTPSEdgeRouteWebhookVerificationClient   = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteWebhookVerificationReplace, *ngrok.EndpointWebhookValidation]
+	HTTPSEdgeRouteWebsocketTCPConverterClient = httpsEdgeRouteModulesClient[*ngrok.EdgeRouteWebsocketTCPConverterReplace, *ngrok.EndpointWebsocketTCPConverter]
+)
+
+func (c *defaultHTTPSEdgeRouteModulesClientset) Backend() HTTPSEdgeRouteBackendClient {
 	return c.backend
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) CircuitBreaker() *https_edge_route_circuit_breaker.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) CircuitBreaker() HTTPSEdgeRouteCircuitBreakerClient {
 	return c.circuitBreaker
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) Compression() *https_edge_route_compression.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) Compression() HTTPSEdgeRouteCompressionClient {
 	return c.compression
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) IPRestriction() *https_edge_route_ip_restriction.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) IPRestriction() HTTPSEdgeRouteIPRestrictionClient {
 	return c.ipRestriction
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) OAuth() *https_edge_route_oauth.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) OAuth() HTTPSEdgeRouteOAuthClient {
 	return c.oauth
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) TrafficPolicy() *https_edge_route_traffic_policy.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) TrafficPolicy() HTTPSEdgeRouteTrafficPolicyClient {
 	return c.trafficPolicy
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) OIDC() *https_edge_route_oidc.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) OIDC() HTTPSEdgeRouteOIDCClient {
 	return c.oidc
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) RequestHeaders() *https_edge_route_request_headers.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) RequestHeaders() HTTPSEdgeRouteRequestHeadersClient {
 	return c.requestHeaders
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) ResponseHeaders() *https_edge_route_response_headers.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) ResponseHeaders() HTTPSEdgeRouteResponseHeadersClient {
 	return c.responseHeaders
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) SAML() *https_edge_route_saml.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) SAML() HTTPSEdgeRouteSAMLClient {
 	return c.saml
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) WebhookVerification() *https_edge_route_webhook_verification.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) WebhookVerification() HTTPSEdgeRouteWebhookVerificationClient {
 	return c.webhookVerification
 }
 
-func (c *defaultHTTPSEdgeRouteModulesClientset) WebsocketTCPConverter() *https_edge_route_websocket_tcp_converter.Client {
+func (c *defaultHTTPSEdgeRouteModulesClientset) WebsocketTCPConverter() HTTPSEdgeRouteWebsocketTCPConverterClient {
 	return c.websocketTCPConverter
 }
