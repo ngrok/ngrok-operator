@@ -5,6 +5,27 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.0-rc.3
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.17.0-rc.2...helm-chart-0.17.0-rc.3
+
+### Added
+
+- feat(helm): Add support for nodeSelectors, tolerations, and topologyS… by @jonstacks in [#559](https://github.com/ngrok/ngrok-operator/pull/559)
+- feat: Copy domain status to cloud endpoint status by @jonstacks in [#566](https://github.com/ngrok/ngrok-operator/pull/566)
+- feat: Opt-in to endpoints for Load balancer Services by @jonstacks in [#568](https://github.com/ngrok/ngrok-operator/pull/568)
+
+### Changed
+
+- Change allowed_urls to endpoint_selectors by @masonj5n in [#573](https://github.com/ngrok/ngrok-operator/pull/573)
+
+### Fixed
+
+- fix(helm): .Values.podLabels should not be included in the deployment selectors by @jonstacks in [#558](https://github.com/ngrok/ngrok-operator/pull/558)
+
+### Removed
+
+- Remove binding name by @masonj5n in [#567](https://github.com/ngrok/ngrok-operator/pull/567)
+
 ## 0.17.0-rc.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.17.0-rc.1...helm-chart-0.17.0-rc.2
 
