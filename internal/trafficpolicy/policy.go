@@ -21,6 +21,8 @@ const (
 	ActionType_ForwardInternal  ActionType = "forward-internal"
 	ActionType_JWTValidation    ActionType = "jwt-validation"
 	ActionType_Log              ActionType = "log"
+	ActionType_OAuth            ActionType = "oauth"
+	ActionType_OIDC             ActionType = "openid-connect"
 	ActionType_RateLimit        ActionType = "rate-limit"
 	ActionType_Redirect         ActionType = "redirect"
 	ActionType_RemoveHeaders    ActionType = "remove-headers"
@@ -29,6 +31,29 @@ const (
 	ActionType_URLRewrite       ActionType = "url-rewrite"
 	ActionType_VerifyWebhook    ActionType = "verify-webhook"
 )
+
+func ActionTypes() []ActionType {
+	return []ActionType{
+		ActionType_AddHeaders,
+		ActionType_BasicAuth,
+		ActionType_CircuitBreaker,
+		ActionType_CompressResponse,
+		ActionType_CustomResponse,
+		ActionType_Deny,
+		ActionType_ForwardInternal,
+		ActionType_JWTValidation,
+		ActionType_Log,
+		ActionType_OAuth,
+		ActionType_OIDC,
+		ActionType_RateLimit,
+		ActionType_Redirect,
+		ActionType_RemoveHeaders,
+		ActionType_RestrictIPs,
+		ActionType_TerminateTLS,
+		ActionType_URLRewrite,
+		ActionType_VerifyWebhook,
+	}
+}
 
 // TrafficPolicy is the configuration language for handling traffic received by ngrok
 // for Edges and Endpoints. Specifically, it allows you to define rules for each
@@ -224,6 +249,93 @@ func NewCircuitBreakerAction(errorThreshold float64, volumeThreshold *uint32, wi
 	}
 	return Action{
 		Type:   ActionType_CircuitBreaker,
+		Config: config,
+	}
+}
+
+// NewCustomResponseAction creates a new action that enables you to return a hard-coded response back to the client that made a request to your endpoint.
+func NewCustomResponseAction(statusCode int, content string, headers map[string]string) Action {
+	config := struct {
+		StatusCode int               `json:"status_code"`
+		Content    string            `json:"content,omitempty"`
+		Headers    map[string]string `json:"headers,omitempty"`
+	}{
+		StatusCode: statusCode,
+		Content:    content,
+		Headers:    headers,
+	}
+	return Action{
+		Type:   ActionType_CustomResponse,
+		Config: config,
+	}
+}
+
+// OAuthConfig is the configuration for protecting an endpoint with OAuth.
+type OAuthConfig struct {
+	// The name of the OAuth identity provider to be used for authentication.
+	Provider string `json:"provider,omitempty"`
+	// Allow CORS preflight requests to bypass authentication checks. Enable if the endpoint needs to be accessible via CORS.
+	AllowCORSPreflight *bool `json:"allow_cors_preflight,omitempty"`
+	// Sets the allowed domain for the auth cookie.
+	AuthCookieDomain *string `json:"auth_cookie_domain,omitempty"`
+	// Unique authentication identifier for this provider. This value will be used for the cookie, redirect, authentication and logout purposes.
+	AuthID *string `json:"auth_id,omitempty"`
+	// A map of additional URL parameters to apply to the authorization endpoint URL.
+	AuthzURLParams map[string]string `json:"authz_url_params,omitempty"`
+	// Your OAuth app's client ID. Set to nil if you want to use ngrok’s managed application.
+	ClientID *string `json:"client_id,omitempty"`
+	// Your OAuth app's client secret. Set to nil if you want to use a managed application.
+	ClientSecret *string `json:"client_secret,omitempty"`
+	// Defines the period of inactivity after which a user's session is automatically ended, requiring re-authentication.
+	IdleSessionTimeout *time.Duration `json:"idle_session_timeout,omitempty"`
+	// Defines the maximum lifetime of a session regardless of activity.
+	MaxSessionDuration *time.Duration `json:"max_session_duration,omitempty"`
+	// A list of additional scopes to request when users authenticate with the identity provider.
+	Scopes []string `json:"scopes,omitempty"`
+	// How often should ngrok refresh data about the authenticated user from the identity provider.
+	UserinfoRefreshInterval *time.Duration `json:"userinfo_refresh_interval,omitempty"`
+}
+
+// NewOAuthAction creates a new OAuth action that restricts access to only authorized users by enforcing OAuth
+// through an identity provider of your choice.
+func NewOAuthAction(config OAuthConfig) Action {
+	return Action{
+		Type:   ActionType_OAuth,
+		Config: config,
+	}
+}
+
+// OIDCConfig is the configuration for protecting an endpoint with OIDC.
+type OIDCConfig struct {
+	// The base URL of the Open ID provider that serves an OpenID Provider Configuration Document at /.well-known/openid-configuration.
+	IssuerURL string `json:"issuer_url,omitempty"`
+	// Allow CORS preflight requests to bypass authentication checks. Enable if the endpoint needs to be accessible via CORS.
+	AllowCORSPreflight *bool `json:"allow_cors_preflight,omitempty"`
+	// Sets the allowed domain for the auth cookie.
+	AuthCookieDomain *string `json:"auth_cookie_domain,omitempty"`
+	// Unique authentication identifier for this provider. This value will be used for the cookie, redirect, authentication and logout purposes.
+	AuthID *string `json:"auth_id,omitempty"`
+	// A map of additional URL parameters to apply to the authorization endpoint URL.
+	AuthzURLParams map[string]string `json:"authz_url_params,omitempty"`
+	// Your OAuth app's client ID. Set to nil if you want to use ngrok’s managed application.
+	ClientID *string `json:"client_id,omitempty"`
+	// Your OAuth app's client secret. Set to nil if you want to use a managed application.
+	ClientSecret *string `json:"client_secret,omitempty"`
+	// Defines the period of inactivity after which a user's session is automatically ended, requiring re-authentication.
+	IdleSessionTimeout *time.Duration `json:"idle_session_timeout,omitempty"`
+	// Defines the maximum lifetime of a session regardless of activity.
+	MaxSessionDuration *time.Duration `json:"max_session_duration,omitempty"`
+	// A list of additional scopes to request when users authenticate with the identity provider.
+	Scopes []string `json:"scopes,omitempty"`
+	// How often should ngrok refresh data about the authenticated user from the identity provider.
+	UserinfoRefreshInterval *time.Duration `json:"userinfo_refresh_interval,omitempty"`
+}
+
+// NewOIDCAction creates a new OIDC action that restricts access to only authorized users by enforcing OIDC
+// through an identity provider of your choice.
+func NewOIDCAction(config OIDCConfig) Action {
+	return Action{
+		Type:   ActionType_OIDC,
 		Config: config,
 	}
 }
