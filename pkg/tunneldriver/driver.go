@@ -430,6 +430,8 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 		config.WithForwardsTo(spec.Upstream.URL),
 		config.WithBindings(spec.Bindings...),
 		config.WithMetadata(spec.Metadata),
+		// TODO(stacks): this may end up being configurable on a per-endpoint basis in the future
+		config.WithPoolingEnabled(true),
 		config.WithDescription(spec.Description),
 	}
 
