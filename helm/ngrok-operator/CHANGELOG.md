@@ -5,7 +5,17 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.0-rc.4
+
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.17.0-rc.2...helm-chart-0.17.0-rc.4
+
+### Added
+
+- Endpoint pooling SDK support and auto pooling for `AgentEndpoint` resources by @jonstacks in [#581](https://github.com/ngrok/ngrok-operator/pull/581)
+- Endpoint pooling support for `CloudEndpoint` resources (default=false), also supported on `Ingress`/`Service` resources that create endpoints using the `"k8s.ngrok.com/mapping-strategy": "endpoints"` annotation when `"k8s.ngrok.com/pooling-enabled": "true"` annotation is supplied by @Alice-Lilith in [#582](https://github.com/ngrok/ngrok-operator/pull/582)
+
 ## 0.17.0-rc.3
+
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.17.0-rc.2...helm-chart-0.17.0-rc.3
 
 ### Added
