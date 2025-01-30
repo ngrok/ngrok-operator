@@ -23,16 +23,19 @@ type IRHostname string
 type IRVirtualHost struct {
 	// The names of any resources (such as Ingress) that were used in the construction of this IRVirtualHost
 	// Currently only used for debug/error logs, but can be added to generated resource statuses
-	OwningResources []OwningResource
-	Hostname        string
+	OwningResources        []OwningResource
+	Hostname               string
+	EndpointPoolingEnabled bool
 
 	// Keeps track of the namespace for this hostname. Since we do not allow multiple endpoints with the same hostname, we cannot support multiple ingresses
 	// using the same hostname in different namespaces.
 	Namespace string
 
 	// This traffic policy will apply to all routes under this hostname
-	TrafficPolicy *trafficpolicy.TrafficPolicy
-	Routes        []*IRRoute
+	TrafficPolicy    *trafficpolicy.TrafficPolicy
+	TrafficPolicyObj *OwningResource // Reference to the object that the above traffic policy config was loaded from
+
+	Routes []*IRRoute
 
 	// The following is used to support ingress default backends (currently only supported for endpoints and not edges)
 	DefaultDestination *IRDestination

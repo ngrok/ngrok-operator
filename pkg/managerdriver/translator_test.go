@@ -3,6 +3,9 @@ package managerdriver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -14,10 +17,13 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -87,6 +93,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 		namespace      string
 		hostname       string
 		labels         map[string]string
+		poolingEnabled bool
 		metadata       string
 		expectedName   string
 		expectedLabels map[string]string
@@ -112,12 +119,23 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			expectedLabels: map[string]string{"env": "prod"},
 			expectedMeta:   "prod-metadata",
 		},
+		{
+			name:           "Pooling enabled",
+			namespace:      "default",
+			hostname:       "cloud-host",
+			labels:         map[string]string{"app": "cloud"},
+			metadata:       "test-metadata",
+			expectedName:   "cloud-host",
+			expectedLabels: map[string]string{"app": "cloud"},
+			poolingEnabled: true,
+			expectedMeta:   "test-metadata",
+		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := buildCloudEndpoint(tc.namespace, tc.hostname, tc.labels, tc.metadata)
+			result := buildCloudEndpoint(tc.namespace, tc.hostname, tc.labels, tc.poolingEnabled, tc.metadata)
 			assert.Equal(t, tc.expectedName, result.Name, "unexpected name for test case: %s", tc.name)
 			assert.Equal(t, tc.namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedLabels, result.Labels, "unexpected labels for test case: %s", tc.name)
@@ -1179,4 +1197,201 @@ func TestTranslate(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedCLEP2Policy, clep2TP)
+}
+
+func TestTranslateIngresses(t *testing.T) {
+	testdataDir := "testdata/translator"
+
+	// RawTestCase facuilitates the initial loading of test input/expected objects, but k8s objects with embedded structs don't parse cleanly
+	// with regular yaml marshalling so we need to be a little creative about how we process them.
+	type RawTestCase struct {
+		Input struct {
+			IngressClasses  []map[string]interface{} `yaml:"ingressClasses"`
+			Ingresses       []map[string]interface{} `yaml:"ingresses"`
+			Services        []map[string]interface{} `yaml:"services"`
+			TrafficPolicies []map[string]interface{} `yaml:"trafficPolicies"`
+		} `yaml:"input"`
+
+		Expected struct {
+			CloudEndpoints []map[string]interface{} `yaml:"cloudEndpoints"`
+			AgentEndpoints []map[string]interface{} `yaml:"agentEndpoints"`
+		} `yaml:"expected"`
+	}
+
+	// TestCase stores our actual fully parsed inputs/outputs
+	type TestCase struct {
+		Input struct {
+			IngressClasses  []*netv1.IngressClass
+			Ingresses       []*netv1.Ingress
+			Services        []*corev1.Service
+			TrafficPolicies []*ngrokv1alpha1.NgrokTrafficPolicy
+		}
+
+		Expected struct {
+			CloudEndpoints []*ngrokv1alpha1.CloudEndpoint
+			AgentEndpoints []*ngrokv1alpha1.AgentEndpoint
+		}
+	}
+
+	// Create a scheme with all supported types
+	sch := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(sch))
+	utilruntime.Must(ingressv1alpha1.AddToScheme(sch))
+	utilruntime.Must(corev1.AddToScheme(sch))
+	utilruntime.Must(ngrokv1alpha1.AddToScheme(sch))
+
+	// Load test files from the testdata directory
+	files, err := filepath.Glob(filepath.Join(testdataDir, "*.yaml"))
+	require.NoError(t, err, "failed to read test files in %s", testdataDir)
+
+	for _, file := range files {
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			data, err := os.ReadFile(file)
+			require.NoError(t, err, "failed to read file: %s", file)
+
+			// Load into the RawTestCase
+			rawTC := new(RawTestCase)
+			require.NoError(t, yaml.UnmarshalStrict(data, rawTC), "failed to unmarshal raw testCase")
+
+			// Use scheme based decoding to properly parse everything into TestCase
+			tc := TestCase{}
+
+			// Decode input objects
+			for _, rawObj := range rawTC.Input.IngressClasses {
+				obj, err := decodeViaScheme(sch, rawObj)
+				require.NoError(t, err)
+				ingClass, ok := obj.(*netv1.IngressClass)
+				require.True(t, ok, "expected an IngressClass, got %T", obj)
+				tc.Input.IngressClasses = append(tc.Input.IngressClasses, ingClass)
+			}
+			for _, rawObj := range rawTC.Input.Ingresses {
+				obj, err := decodeViaScheme(sch, rawObj)
+				require.NoError(t, err)
+				ing, ok := obj.(*netv1.Ingress)
+				require.True(t, ok, "expected an Ingress, got %T", obj)
+				tc.Input.Ingresses = append(tc.Input.Ingresses, ing)
+			}
+			for _, rawObj := range rawTC.Input.Services {
+				obj, err := decodeViaScheme(sch, rawObj)
+				require.NoError(t, err)
+				svc, ok := obj.(*corev1.Service)
+				require.True(t, ok, "expected a Service, got %T", obj)
+				tc.Input.Services = append(tc.Input.Services, svc)
+			}
+			for _, rawObj := range rawTC.Input.TrafficPolicies {
+				obj, err := decodeViaScheme(sch, rawObj)
+				require.NoError(t, err)
+				pol, ok := obj.(*ngrokv1alpha1.NgrokTrafficPolicy)
+				require.True(t, ok, "expected a NgrokTrafficPolicy, got %T", obj)
+				tc.Input.TrafficPolicies = append(tc.Input.TrafficPolicies, pol)
+			}
+
+			// Decode expected objects
+			for _, rawObj := range rawTC.Expected.CloudEndpoints {
+				obj, err := decodeViaScheme(sch, rawObj)
+				require.NoError(t, err)
+				ce, ok := obj.(*ngrokv1alpha1.CloudEndpoint)
+				require.True(t, ok, "expected a CloudEndpoint, got %T", obj)
+				tc.Expected.CloudEndpoints = append(tc.Expected.CloudEndpoints, ce)
+			}
+			for _, rawObj := range rawTC.Expected.AgentEndpoints {
+				obj, err := decodeViaScheme(sch, rawObj)
+				require.NoError(t, err)
+				ae, ok := obj.(*ngrokv1alpha1.AgentEndpoint)
+				require.True(t, ok, "expected an AgentEndpoint, got %T", obj)
+				tc.Expected.AgentEndpoints = append(tc.Expected.AgentEndpoints, ae)
+			}
+
+			logger := logr.New(logr.Discard().GetSink())
+			// If you need to debug tests, uncomment this logger instead to actually see errors printed in the tests.
+			// Otherwise, keep the above logger so that we don't output stuff and make the test output harder to read.
+			// logger = testr.New(t)
+
+			driver := NewDriver(
+				logger,
+				sch,
+				testutils.DefaultControllerName,
+				types.NamespacedName{
+					Name:      "test-manager-name",
+					Namespace: "test-manager-namespace",
+				},
+				WithGatewayEnabled(false),
+				WithSyncAllowConcurrent(true),
+			)
+
+			// Load input objects into the driver store
+			inputObjects := []runtime.Object{}
+			for _, obj := range tc.Input.IngressClasses {
+				inputObjects = append(inputObjects, obj)
+			}
+			for _, obj := range tc.Input.Ingresses {
+				inputObjects = append(inputObjects, obj)
+			}
+			for _, obj := range tc.Input.Services {
+				inputObjects = append(inputObjects, obj)
+			}
+			for _, obj := range tc.Input.TrafficPolicies {
+				inputObjects = append(inputObjects, obj)
+			}
+
+			client := fake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(inputObjects...).Build()
+
+			require.NoError(t, driver.Seed(context.Background(), client))
+			translator := NewTranslator(
+				driver.log,
+				driver.store,
+				driver.defaultManagedResourceLabels(),
+				driver.ingressNgrokMetadata,
+				"svc.cluster.local",
+			)
+
+			// Finally, run translate and check the contents
+			result := translator.Translate()
+			require.Equal(t, len(tc.Expected.AgentEndpoints), len(result.AgentEndpoints))
+			require.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints))
+
+			for _, expectedCLEP := range tc.Expected.CloudEndpoints {
+				actualCE, exists := result.CloudEndpoints[types.NamespacedName{
+					Name:      expectedCLEP.Name,
+					Namespace: expectedCLEP.Namespace,
+				}]
+				require.True(t, exists, "expected CloudEndpoint %s.%s to exist", expectedCLEP.Name, expectedCLEP.Namespace)
+				assert.Equal(t, expectedCLEP.Name, actualCE.Name)
+				assert.Equal(t, expectedCLEP.Namespace, actualCE.Namespace)
+				assert.Equal(t, expectedCLEP.Labels, actualCE.Labels)
+				assert.Equal(t, expectedCLEP.Spec, expectedCLEP.Spec)
+			}
+
+			for _, expectedAE := range tc.Expected.AgentEndpoints {
+				actualAE, exists := result.AgentEndpoints[types.NamespacedName{
+					Name:      expectedAE.Name,
+					Namespace: expectedAE.Namespace,
+				}]
+				require.True(t, exists, "expected AgentEndpoint %s.%s to exist. actual agent endpoints: %v", expectedAE.Name, expectedAE.Namespace, result.AgentEndpoints)
+				require.Equal(t, expectedAE.Name, actualAE.Name)
+				require.Equal(t, expectedAE.Namespace, actualAE.Namespace)
+				require.Equal(t, expectedAE.Labels, actualAE.Labels)
+				require.Equal(t, expectedAE.Spec, actualAE.Spec)
+			}
+
+		})
+	}
+}
+
+// decodeViaScheme helps us decode raw objects loaded from test data yaml files into proper objects that can then be typecast
+func decodeViaScheme(s *runtime.Scheme, rawObj map[string]interface{}) (runtime.Object, error) {
+	// Convert map to YAML
+	y, err := yaml.Marshal(rawObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal raw map to YAML: %w", err)
+	}
+
+	// Decode
+	decoder := serializer.NewCodecFactory(s).UniversalDeserializer()
+	obj, _, err := decoder.Decode(y, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode via scheme: %w", err)
+	}
+
+	return obj, nil
 }

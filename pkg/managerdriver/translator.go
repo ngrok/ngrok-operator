@@ -79,6 +79,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (parents map[ty
 			irVHost.Namespace,
 			irVHost.Hostname,
 			t.managedResourceLabels,
+			irVHost.EndpointPoolingEnabled,
 			t.defaultIngressMetadata,
 		)
 
@@ -244,7 +245,7 @@ func (t *translator) injectEndpointDefaultDestinationTPConfig(parentPolicy *traf
 }
 
 // buildCloudEndpoint initializes a new CloudEndpoint
-func buildCloudEndpoint(namespace, hostname string, labels map[string]string, metadata string) *ngrokv1alpha1.CloudEndpoint {
+func buildCloudEndpoint(namespace, hostname string, labels map[string]string, endpointPoolingEnabled bool, metadata string) *ngrokv1alpha1.CloudEndpoint {
 	return &ngrokv1alpha1.CloudEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      sanitizeStringForK8sName(hostname),
@@ -252,8 +253,9 @@ func buildCloudEndpoint(namespace, hostname string, labels map[string]string, me
 			Labels:    labels,
 		},
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
-			URL:      "https://" + hostname,
-			Metadata: metadata,
+			URL:            "https://" + hostname,
+			PoolingEnabled: endpointPoolingEnabled,
+			Metadata:       metadata,
 		},
 	}
 }

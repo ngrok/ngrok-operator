@@ -6,8 +6,11 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
+	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	netv1 "k8s.io/api/networking/v1"
 )
@@ -16,11 +19,6 @@ import (
 func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 	hostCache := make(map[ir.IRHostname]*ir.IRVirtualHost) // Each unique hostname corresponds to one IRVirtualHost
 	upstreamCache := make(map[ir.IRService]*ir.IRUpstream) // Each unique service/port combo corresponds to one IRUpstream
-
-	// The following two maps keep track of traffic policy annotations and ingress backends for hostnames
-	// so that we can handle the case where two ingresses bringing different ones for the same hostname as an error
-	hostnameDefaultDestinations := make(map[ir.IRHostname]*ir.IRDestination)
-	hostnameAnnotationPolicies := make(map[ir.IRHostname]*trafficpolicy.TrafficPolicy)
 
 	ingresses := t.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
@@ -39,67 +37,30 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			continue
 		}
 
-		// We don't support modulesets on endpoints or currently support converting a moduleset to a traffic policy, but still try to allow
-		// a moduleset that supplies a traffic policy with an error log to let users know that any other moduleset fields will be ignored
-		ingressModuleSet, err := getNgrokModuleSetForIngress(ingress, t.store)
+		useEndpointPooling, err := annotations.ExtractUseEndpointPooling(ingress)
 		if err != nil {
-			t.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
-			continue
+			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.MappingStrategyAnnotation))
 		}
-
-		// We always get back a moduleset from the above function, check if it is empty or not
-		if modules := ingressModuleSet.Modules; modules.CircuitBreaker != nil ||
-			modules.Compression != nil ||
-			modules.Headers != nil ||
-			modules.IPRestriction != nil ||
-			modules.OAuth != nil ||
-			modules.Policy != nil ||
-			modules.OIDC != nil ||
-			modules.SAML != nil ||
-			modules.TLSTermination != nil ||
-			modules.MutualTLS != nil ||
-			modules.WebhookVerification != nil {
-			if useEndpoints {
-				t.log.Error(fmt.Errorf("ngrok moduleset supplied to ingress with annotation to use endpoints instead of edges"), "ngrok moduleset are not supported on endpoints. prefer using a traffic policy directly. any fields other than supplying a traffic policy using the module set will be ignored",
-					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
-				)
-			}
-		}
-
-		ingressTrafficPolicyCfg, err := getNgrokTrafficPolicyForIngress(ingress, t.store)
-		if err != nil {
-			t.log.Error(err, "error getting ngrok traffic policy for ingress",
+		if useEndpointPooling {
+			t.log.Info(fmt.Sprintf("the following ingress will create endpoint(s) with pooling enabled because of the %q annotation",
+				annotations.MappingStrategyAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
+		}
+
+		annotationTrafficPolicy, tpObjRef, err := trafficPolicyFromIngressAnnotation(t.store, ingress)
+		if err != nil {
+			t.log.Error(err, "error getting ngrok traffic policy for ingress",
+				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace))
 			continue
 		}
 
-		var ingressTrafficPolicy *trafficpolicy.TrafficPolicy
-		switch {
-		case ingressTrafficPolicyCfg != nil:
-			tmp := &trafficpolicy.TrafficPolicy{}
-			if err := json.Unmarshal(ingressTrafficPolicyCfg.Spec.Policy, tmp); err != nil {
-				t.log.Error(err, "failed to unmarshal traffic policy",
-					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
-					"policy", ingressTrafficPolicyCfg.Spec.Policy,
-				)
-				continue
-			}
-			ingressTrafficPolicy = tmp
-		case ingressModuleSet.Modules.Policy != nil:
-			tpJSON, err := json.Marshal(ingressModuleSet.Modules.Policy)
+		// If we don't have a native traffic policy from annotations, see if one was provided from a moduleset annotation
+		if annotationTrafficPolicy == nil {
+			annotationTrafficPolicy, tpObjRef, err = trafficPolicyFromIngressModSetAnnotation(t.log, t.store, ingress, useEndpoints)
 			if err != nil {
-				t.log.Error(err, "cannot convert module-set policy json",
-					"ingress", ingress,
-					"policy", ingressModuleSet.Modules.Policy,
-				)
-				continue
-			}
-			if err := json.Unmarshal(tpJSON, ingressTrafficPolicy); err != nil {
-				t.log.Error(err, "failed to unmarshal traffic policy from module set",
-					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
-					"policy", ingressModuleSet.Modules.Policy,
-				)
+				t.log.Error(err, "error getting ngrok traffic policy for ingress",
+					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace))
 				continue
 			}
 		}
@@ -117,12 +78,12 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 
 		t.ingressToIR(
 			ingress,
-			ingressTrafficPolicy,
 			defaultDestination,
 			hostCache,
 			upstreamCache,
-			hostnameDefaultDestinations,
-			hostnameAnnotationPolicies,
+			useEndpointPooling,
+			annotationTrafficPolicy,
+			tpObjRef,
 		)
 	}
 
@@ -137,12 +98,12 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 // ingressToIR translates a single ingress into IR and stores entries in the cache. Caches are used so that we do not generate duplicate IR for hostnames/services
 func (t *translator) ingressToIR(
 	ingress *netv1.Ingress,
-	ingressTP *trafficpolicy.TrafficPolicy,
 	defaultDestination *ir.IRDestination,
 	hostCache map[ir.IRHostname]*ir.IRVirtualHost,
 	upstreamCache map[ir.IRService]*ir.IRUpstream,
-	hostnameDefaultDestinations map[ir.IRHostname]*ir.IRDestination,
-	hostnameAnnotationPolicies map[ir.IRHostname]*trafficpolicy.TrafficPolicy,
+	endpointPoolingEnabled bool,
+	annotationTrafficPolicy *trafficpolicy.TrafficPolicy,
+	annotationTrafficPolicyRef *ir.OwningResource,
 ) {
 	for _, rule := range ingress.Spec.Rules {
 		ruleHostname := rule.Host
@@ -154,48 +115,6 @@ func (t *translator) ingressToIR(
 			continue
 		}
 
-		// Check for clashing default backends and annotation traffic policies for this hostname
-		if defaultDestination != nil {
-			if current, exists := hostnameDefaultDestinations[ir.IRHostname(ruleHostname)]; exists {
-				if !reflect.DeepEqual(current, defaultDestination) {
-					t.log.Error(fmt.Errorf("different ingress default backends provided for the same hostname"),
-						"when using the same hostname across multiple ingresses, ensure that they do not use different default backends. the existing default backend for the hostname will not be overwritten",
-						"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
-						"hostname", ruleHostname,
-					)
-					defaultDestination = current
-				}
-			}
-			hostnameDefaultDestinations[ir.IRHostname(ruleHostname)] = defaultDestination
-		}
-		if ingressTP != nil {
-			if current, exists := hostnameAnnotationPolicies[ir.IRHostname(ruleHostname)]; exists {
-				if !reflect.DeepEqual(current, ingressTP) {
-					t.log.Error(fmt.Errorf("different traffic policy annotations provided for the same hostname"),
-						"when using the same hostname across multiple ingresses, ensure that they do not use different traffic policies provided via annotations. the existing traffic policy for the hostname will not be overwitten",
-						"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
-						"hostname", ruleHostname,
-					)
-					ingressTP = current
-				}
-			} else {
-				hostnameAnnotationPolicies[ir.IRHostname(ruleHostname)] = ingressTP
-			}
-		}
-
-		// Make a deep copy of the traffic policy so that we don't taint it for subsequent rules
-		var ruleTrafficPolicy *trafficpolicy.TrafficPolicy
-		if ingressTP != nil {
-			var err error
-			ruleTrafficPolicy, err = ingressTP.DeepCopy()
-			if err != nil {
-				t.log.Error(err, "failed to copy traffic policy from ingress",
-					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
-				)
-				continue
-			}
-		}
-
 		// Make a new IRVirtualHost for this hostname unless we have one in the cache
 		owningResource := ir.OwningResource{
 			Kind:      "Ingress",
@@ -203,25 +122,73 @@ func (t *translator) ingressToIR(
 			Namespace: ingress.Namespace,
 		}
 		irVHost, exists := hostCache[ir.IRHostname(ruleHostname)]
-		if !exists {
-			irVHost = &ir.IRVirtualHost{
-				Namespace:          ingress.Namespace,
-				OwningResources:    []ir.OwningResource{owningResource},
-				Hostname:           ruleHostname,
-				TrafficPolicy:      ruleTrafficPolicy,
-				Routes:             []*ir.IRRoute{},
-				DefaultDestination: defaultDestination,
+		if exists {
+			// If we already have a virtual host for this hostname, the traffic policy config must be the same as the one we are currently processing
+			if !reflect.DeepEqual(irVHost.TrafficPolicyObj, annotationTrafficPolicyRef) {
+				t.log.Error(fmt.Errorf("different traffic policy annotations provided for the same hostname"),
+					"when using the same hostname across multiple ingresses, ensure that they do not use different traffic policies provided via annotations",
+					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+					"hostname", ruleHostname,
+				)
+				continue
 			}
-			hostCache[ir.IRHostname(ruleHostname)] = irVHost
-		} else {
+			// They must have the same configuration for whether or not to pool endpoints
+			if irVHost.EndpointPoolingEnabled != endpointPoolingEnabled {
+				t.log.Error(fmt.Errorf("different endpoint pooling annotations provided for the same hostname"),
+					"when using the same hostname across multiple ingresses, ensure that they all enable or all disable endpoint pooling",
+					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+					"hostname", ruleHostname,
+				)
+				continue
+			}
+
+			// They must share the same namespace
 			if irVHost.Namespace != ingress.Namespace {
 				t.log.Error(fmt.Errorf("unable to convert ingress rule into cloud and agent endpoints. the domain (%q) is already being used by another ingress in a different namespace. you will need to either consolidate them, ensure they are in the same namespace, or use a different domain for one of them", ruleHostname),
 					"ingress to endpoint conversion error",
 					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+					"namespace the hostname is already in-use in", irVHost.Namespace,
 				)
 				continue
 			}
+
+			// They must have the same default backend
+			if !reflect.DeepEqual(irVHost.DefaultDestination, defaultDestination) {
+				t.log.Error(fmt.Errorf("different ingress default backends provided for the same hostname"),
+					"when using the same hostname across multiple ingresses, ensure that they do not use different default backends. the existing default backend for the hostname will not be overwritten",
+					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+					"hostname", ruleHostname,
+				)
+				continue
+			}
+
+			// The current and existing configurations match, add the new owning ingress reference and keep going
 			irVHost.AddOwningResource(owningResource)
+		} else {
+			// Make a deep copy of the ingress traffic policy so that we don't taint it for subsequent rules
+			var ruleTrafficPolicy *trafficpolicy.TrafficPolicy
+			if annotationTrafficPolicy != nil {
+				var err error
+				ruleTrafficPolicy, err = annotationTrafficPolicy.DeepCopy()
+				if err != nil {
+					t.log.Error(err, "failed to copy traffic policy from ingress",
+						"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+					)
+					continue
+				}
+			}
+
+			irVHost = &ir.IRVirtualHost{
+				Namespace:              ingress.Namespace,
+				OwningResources:        []ir.OwningResource{owningResource},
+				Hostname:               ruleHostname,
+				TrafficPolicy:          ruleTrafficPolicy,
+				TrafficPolicyObj:       annotationTrafficPolicyRef,
+				Routes:                 []*ir.IRRoute{},
+				DefaultDestination:     defaultDestination,
+				EndpointPoolingEnabled: endpointPoolingEnabled,
+			}
+			hostCache[ir.IRHostname(ruleHostname)] = irVHost
 		}
 
 		if rule.HTTP == nil {
@@ -336,5 +303,96 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 
 	return &ir.IRDestination{
 		Upstream: upstream,
+	}, nil
+}
+
+func trafficPolicyFromIngressAnnotation(store store.Storer, ingress *netv1.Ingress) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
+	tpName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(ingress)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return nil, nil, nil
+		}
+		return nil, nil, fmt.Errorf("error getting ngrok traffic policy for ingress %q: %w",
+			fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			err,
+		)
+	}
+
+	tpObj, err := store.GetNgrokTrafficPolicyV1(tpName, ingress.Namespace)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to load traffic policy for ingress from annotations. name: %q, namespace: %q: %w",
+			tpName,
+			ingress.Namespace,
+			err,
+		)
+	}
+
+	trafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
+	if err := json.Unmarshal(tpObj.Spec.Policy, trafficPolicyCfg); err != nil {
+		return nil, nil, fmt.Errorf("%w, failed to unmarshal traffic policy for ingress %q, traffic policy config: %v",
+			err,
+			fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			tpObj.Spec.Policy,
+		)
+	}
+	return trafficPolicyCfg, &ir.OwningResource{
+		Kind:      "NgrokTrafficPolicy",
+		Name:      tpObj.Name,
+		Namespace: tpObj.Namespace,
+	}, nil
+}
+
+func trafficPolicyFromIngressModSetAnnotation(log logr.Logger, store store.Storer, ingress *netv1.Ingress, useEndpoints bool) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
+	// We don't support modulesets on endpoints or currently support converting a moduleset to a traffic policy, but still try to allow
+	// a moduleset that supplies a traffic policy with an error log to let users know that any other moduleset fields will be ignored
+	ingressModuleSet, err := getNgrokModuleSetForIngress(ingress, store)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// We always get back a moduleset from the above function, check if it is empty or not
+	if modules := ingressModuleSet.Modules; modules.CircuitBreaker != nil ||
+		modules.Compression != nil ||
+		modules.Headers != nil ||
+		modules.IPRestriction != nil ||
+		modules.OAuth != nil ||
+		modules.Policy != nil ||
+		modules.OIDC != nil ||
+		modules.SAML != nil ||
+		modules.TLSTermination != nil ||
+		modules.MutualTLS != nil ||
+		modules.WebhookVerification != nil {
+		if useEndpoints {
+			log.Error(fmt.Errorf("ngrok moduleset supplied to ingress with annotation to use endpoints instead of edges"), "ngrok moduleset are not supported on endpoints. prefer using a traffic policy directly. any fields other than supplying a traffic policy using the module set will be ignored",
+				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			)
+		}
+	}
+
+	if ingressModuleSet.Modules.Policy == nil {
+		return nil, nil, nil
+	}
+
+	tpJSON, err := json.Marshal(ingressModuleSet.Modules.Policy)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: cannot convert module-set policy json for ingress %q, moduleset policy: %v",
+			err,
+			fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			ingressModuleSet.Modules.Policy,
+		)
+	}
+	var ingressTrafficPolicy *trafficpolicy.TrafficPolicy
+	if err := json.Unmarshal(tpJSON, ingressTrafficPolicy); err != nil {
+		return nil, nil, fmt.Errorf("%w: failed to unmarshal traffic policy from module set for ingress %q, moduleset policy: %v",
+			err,
+			fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			ingressModuleSet.Modules.Policy,
+		)
+	}
+
+	return ingressTrafficPolicy, &ir.OwningResource{
+		Kind:      "NgrokModuleSet",
+		Name:      ingressModuleSet.Name,
+		Namespace: ingressModuleSet.Namespace,
 	}, nil
 }

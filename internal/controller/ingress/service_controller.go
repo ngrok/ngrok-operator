@@ -403,6 +403,15 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 
 	internalURL := fmt.Sprintf("tcp://%s.%s.%s.internal:%d", svc.UID, svc.Name, svc.Namespace, port)
 
+	// Get whether endpoint pooling should be enabled/disabled from annotations
+	useEndpointPooling, err := annotations.ExtractUseEndpointPooling(svc)
+	if err != nil {
+		log.Error(err, "failed to check endpoints-enabled annotation for service",
+			"service", fmt.Sprintf("%s.%s", svc.Name, svc.Namespace),
+		)
+		return objects, err
+	}
+
 	// The final traffic policy that will be applied to the CloudEndpoint
 	tp := trafficpolicy.NewTrafficPolicy()
 
@@ -476,7 +485,8 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 			},
 		},
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
-			URL: cloudEndpointURL,
+			URL:            cloudEndpointURL,
+			PoolingEnabled: useEndpointPooling,
 			TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
 				Policy: rawPolicy,
 			},

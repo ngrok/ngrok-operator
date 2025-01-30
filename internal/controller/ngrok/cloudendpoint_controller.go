@@ -154,12 +154,13 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 	}
 
 	createParams := &ngrok.EndpointCreate{
-		Type:          "cloud",
-		URL:           clep.Spec.URL,
-		Description:   &clep.Spec.Description,
-		Metadata:      &clep.Spec.Metadata,
-		TrafficPolicy: policy,
-		Bindings:      clep.Spec.Bindings,
+		Type:           "cloud",
+		URL:            clep.Spec.URL,
+		Description:    &clep.Spec.Description,
+		Metadata:       &clep.Spec.Metadata,
+		TrafficPolicy:  policy,
+		Bindings:       clep.Spec.Bindings,
+		PoolingEnabled: clep.Spec.PoolingEnabled,
 	}
 
 	ngrokClep, err := r.NgrokClientset.Endpoints().Create(ctx, createParams)
@@ -184,12 +185,13 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	}
 
 	updateParams := &ngrok.EndpointUpdate{
-		ID:            clep.Status.ID,
-		Url:           &clep.Spec.URL,
-		Description:   &clep.Spec.Description,
-		Metadata:      &clep.Spec.Metadata,
-		TrafficPolicy: &policy,
-		Bindings:      clep.Spec.Bindings,
+		ID:             clep.Status.ID,
+		Url:            &clep.Spec.URL,
+		Description:    &clep.Spec.Description,
+		Metadata:       &clep.Spec.Metadata,
+		TrafficPolicy:  &policy,
+		Bindings:       clep.Spec.Bindings,
+		PoolingEnabled: clep.Spec.PoolingEnabled,
 	}
 
 	ngrokClep, err := r.NgrokClientset.Endpoints().Update(ctx, updateParams)
