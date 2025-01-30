@@ -43,6 +43,9 @@ const (
 	MappingStrategyAnnotationKey = "mapping-strategy"
 	MappingStrategy_Endpoints    = "endpoints"
 	MappingStrategy_Edges        = "edges"
+
+	EndpointPoolingAnnotation    = "k8s.ngrok.com/pooling-enabled"
+	EndpointPoolingAnnotationKey = "pooling-enabled"
 )
 
 type RouteModules struct {
@@ -147,4 +150,18 @@ func ExtractUseEndpoints(obj client.Object) (bool, error) {
 		return false, err
 	}
 	return strings.EqualFold(val, MappingStrategy_Endpoints), nil
+}
+
+// Whether or not we should use endpoint pooling
+// from the annotation "k8s.ngrok.com/pooling-enabled" if it is present. Otherwise, it defaults to false
+func ExtractUseEndpointPooling(obj client.Object) (bool, error) {
+	val, err := parser.GetStringAnnotation(EndpointPoolingAnnotationKey, obj)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return strings.EqualFold(val, "true"), nil
 }
