@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.3
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.14.2...ngrok-operator-0.14.3
+
+### Added
+
+- Endpoint pooling SDK support and auto pooling for `AgentEndpoint` resources by @jonstacks in [#581](https://github.com/ngrok/ngrok-operator/pull/581)
+- Endpoint pooling support for `CloudEndpoint` resources (default=false), also supported on `Ingress`/`Service` resources that create endpoints using the `"k8s.ngrok.com/mapping-strategy": "endpoints"` annotation when `"k8s.ngrok.com/pooling-enabled": "true"` annotation is supplied by @Alice-Lilith in [#582](https://github.com/ngrok/ngrok-operator/pull/582)
+
 ## 0.14.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.14.1...ngrok-operator-0.14.2
 
