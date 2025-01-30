@@ -740,12 +740,32 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 				ObjectMeta: msObjectMeta,
 				Modules: ingressv1alpha1.NgrokModuleSetModules{
 					OIDC: &ingressv1alpha1.EndpointOIDC{
-						CookiePrefix: "something",
+						Issuer:   "https://acme.com/oauth/v2/oauth-anonymous",
+						ClientID: "12345",
+						ClientSecret: ingressv1alpha1.SecretKeyRef{
+							Name: secretName,
+							Key:  secretKey,
+						},
 					},
 				},
 			},
-			tp:  nil,
-			err: errors.NewErrModulesetNotConvertibleToTrafficPolicy("OIDC module is not supported at this time"),
+			tp: &trafficpolicy.TrafficPolicy{
+				OnHTTPRequest: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_OIDC,
+								Config: map[string]string{
+									"issuer_url":    "https://acme.com/oauth/v2/oauth-anonymous",
+									"client_id":     "12345",
+									"client_secret": secretValue,
+								},
+							},
+						},
+					},
+				},
+			},
+			err: nil,
 		},
 		{
 			name: "moduleset with webhook verification",

@@ -302,7 +302,7 @@ func NewTrafficPolicyFromModuleset(ctx context.Context, ms *ingressv1alpha1.Ngro
 		convertModuleSetTLS,
 		// On HTTP Request Rules
 		convertModuleSetOAuth(secretResolver),
-		convertModuleSetOIDC,
+		convertModuleSetOIDC(secretResolver),
 		convertModuleSetSAML,
 		convertModuleSetCompression,
 		convertModuleSetCircuitBreaker,
@@ -497,12 +497,51 @@ func convertModuleSetSAML(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, 
 	return errors.NewErrModulesetNotConvertibleToTrafficPolicy("SAML module is not supported at this time")
 }
 
-func convertModuleSetOIDC(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
-	if ms.Modules.OIDC == nil {
+func convertModuleSetOIDC(secretResolver resolvers.SecretResolver) modulesetConverterFunc {
+	return func(ctx context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+		if ms.Modules.OIDC == nil {
+			return nil
+		}
+
+		mod := ms.Modules.OIDC
+		var config trafficpolicy.OIDCConfig
+
+		config.IssuerURL = mod.Issuer
+		config.Scopes = mod.Scopes
+		if mod.OptionsPassthrough {
+			config.AllowCORSPreflight = &mod.OptionsPassthrough
+		}
+
+		if mod.ClientID != "" {
+			config.ClientID = &mod.ClientID
+		}
+
+		if mod.ClientSecret.Name != "" && mod.ClientSecret.Key != "" {
+			secret, err := secretResolver.GetSecret(ctx, ms.Namespace, mod.ClientSecret.Name, mod.ClientSecret.Key)
+			if err != nil {
+				return err
+			}
+			config.ClientSecret = &secret
+		}
+
+		if mod.MaximumDuration.Duration > 0 {
+			config.MaxSessionDuration = &mod.MaximumDuration.Duration
+		}
+
+		if mod.InactivityTimeout.Duration > 0 {
+			config.IdleSessionTimeout = &mod.InactivityTimeout.Duration
+		}
+
+		tp.AddRuleOnHTTPRequest(
+			trafficpolicy.Rule{
+				Actions: []trafficpolicy.Action{
+					trafficpolicy.NewOIDCAction(config),
+				},
+			},
+		)
+
 		return nil
 	}
-
-	return errors.NewErrModulesetNotConvertibleToTrafficPolicy("OIDC module is not supported at this time")
 }
 
 func convertModuleSetOAuth(secretRsolver resolvers.SecretResolver) modulesetConverterFunc {
@@ -556,9 +595,6 @@ func convertModuleSetOAuth(secretRsolver resolvers.SecretResolver) modulesetConv
 			config.AllowCORSPreflight = &common.OptionsPassthrough
 		}
 
-		if common.CookiePrefix != "" {
-			config.AuthCookieDomain = &common.CookiePrefix
-		}
 		config.Scopes = common.Scopes
 
 		if common.InactivityTimeout.Duration > 0 {
