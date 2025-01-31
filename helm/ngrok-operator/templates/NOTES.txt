@@ -40,15 +40,12 @@ Check out the docs for the Gateway API features at https://ngrok.com/docs/k8s/ge
 You have enabled the Kubernetes Bindings featureset of the ngrok-operator.
 This allows you to project `kind: Service` into your Namespaces from already existing Endpoints in the ngrok platform!
 
-Kubernetes Binding: `{{ .Values.bindings.name }}`
-> {{ .Values.bindings.description }}
+How to start a kubernetes-bound endpoint:
 
-How to bind an endpoint to this ngrok-operator:
+    $ ngrok http 80 --binding kubernetes --url http://example-service.example-namespace
 
-    $ ngrok http 80 --binding {{ .Values.bindings.name }} --url http://example-service.example-namespace
-
-You are allowing projection of the following Endpoint URLs:
-{{- range .Values.bindings.allowedURLs}}
+You are filtering which endpoints will be bound to this cluster with the following selectors:
+{{- range .Values.bindings.endpointSelectors}}
 - {{.}}
 {{- end}}
 
