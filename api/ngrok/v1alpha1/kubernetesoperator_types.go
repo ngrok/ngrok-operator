@@ -135,7 +135,7 @@ type KubernetesOperatorSpec struct {
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Kubernetes Operator ID"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.registrationStatus"
 // +kubebuilder:printcolumn:name="Enabled Features",type="string",JSONPath=".status.enabledFeatures"
-// +kubebuilder:printcolumn:name="Binding Name", type="string", JSONPath=".spec.binding.name",priority=2
+// +kubebuilder:printcolumn:name="Endpoint Selectors",type="string",JSONPath=".spec.binding.endpointSelectors"
 // +kubebuilder:printcolumn:name="Binding Ingress Endpoint", type="string", JSONPath=".spec.binding.ingressEndpoint",priority=2
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
