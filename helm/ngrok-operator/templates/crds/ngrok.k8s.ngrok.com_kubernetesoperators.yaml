@@ -25,9 +25,8 @@ spec:
     - jsonPath: .status.enabledFeatures
       name: Enabled Features
       type: string
-    - jsonPath: .spec.binding.name
-      name: Binding Name
-      priority: 2
+    - jsonPath: .spec.binding.endpointSelectors
+      name: Endpoint Selectors
       type: string
     - jsonPath: .spec.binding.ingressEndpoint
       name: Binding Ingress Endpoint
