@@ -55,11 +55,10 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
-// TODO: features need to be capitalized in the ngrok API currently, this is subject to change
 var featureMap = map[string]string{
-	ngrokv1alpha1.KubernetesOperatorFeatureBindings: "Bindings",
-	ngrokv1alpha1.KubernetesOperatorFeatureIngress:  "Ingress",
-	ngrokv1alpha1.KubernetesOperatorFeatureGateway:  "Gateway",
+	ngrokv1alpha1.KubernetesOperatorFeatureBindings: "bindings",
+	ngrokv1alpha1.KubernetesOperatorFeatureIngress:  "ingress",
+	ngrokv1alpha1.KubernetesOperatorFeatureGateway:  "gateway",
 }
 
 const (
