@@ -3,6 +3,8 @@ package util
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -299,13 +301,13 @@ func NewTrafficPolicyFromModuleset(ctx context.Context, ms *ingressv1alpha1.Ngro
 		convertModuleSetIPRestriction(ipPolicyResolver),
 		convertModuleSetTLS,
 		// On HTTP Request Rules
+		convertModuleSetOAuth(secretResolver),
+		convertModuleSetOIDC(secretResolver),
+		convertModuleSetSAML,
 		convertModuleSetCompression,
 		convertModuleSetCircuitBreaker,
 		convertModuleSetHeaders,
 		convertModuleSetWebhookVerification(secretResolver),
-		convertModuleSetSAML,
-		convertModuleSetOIDC,
-		convertModuleSetOAuth,
 	}
 
 	for _, converter := range converters {
@@ -495,18 +497,160 @@ func convertModuleSetSAML(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, 
 	return errors.NewErrModulesetNotConvertibleToTrafficPolicy("SAML module is not supported at this time")
 }
 
-func convertModuleSetOIDC(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
-	if ms.Modules.OIDC == nil {
+func convertModuleSetOIDC(secretResolver resolvers.SecretResolver) modulesetConverterFunc {
+	return func(ctx context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+		if ms.Modules.OIDC == nil {
+			return nil
+		}
+
+		mod := ms.Modules.OIDC
+		var config trafficpolicy.OIDCConfig
+
+		config.IssuerURL = mod.Issuer
+		config.Scopes = mod.Scopes
+		if mod.OptionsPassthrough {
+			config.AllowCORSPreflight = &mod.OptionsPassthrough
+		}
+
+		if mod.ClientID != "" {
+			config.ClientID = &mod.ClientID
+		}
+
+		if mod.ClientSecret.Name != "" && mod.ClientSecret.Key != "" {
+			secret, err := secretResolver.GetSecret(ctx, ms.Namespace, mod.ClientSecret.Name, mod.ClientSecret.Key)
+			if err != nil {
+				return err
+			}
+			config.ClientSecret = &secret
+		}
+
+		if mod.MaximumDuration.Duration > 0 {
+			config.MaxSessionDuration = &mod.MaximumDuration.Duration
+		}
+
+		if mod.InactivityTimeout.Duration > 0 {
+			config.IdleSessionTimeout = &mod.InactivityTimeout.Duration
+		}
+
+		tp.AddRuleOnHTTPRequest(
+			trafficpolicy.Rule{
+				Actions: []trafficpolicy.Action{
+					trafficpolicy.NewOIDCAction(config),
+				},
+			},
+		)
+
 		return nil
 	}
-
-	return errors.NewErrModulesetNotConvertibleToTrafficPolicy("OIDC module is not supported at this time")
 }
 
-func convertModuleSetOAuth(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
-	if ms.Modules.OAuth == nil {
+func convertModuleSetOAuth(secretRsolver resolvers.SecretResolver) modulesetConverterFunc {
+	return func(ctx context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+		if ms.Modules.OAuth == nil {
+			return nil
+		}
+
+		var config trafficpolicy.OAuthConfig
+		var common ingressv1alpha1.OAuthProviderCommon
+
+		switch {
+		case ms.Modules.OAuth.Amazon != nil:
+			config.Provider = "amazon"
+			common = ms.Modules.OAuth.Amazon.OAuthProviderCommon
+		case ms.Modules.OAuth.Facebook != nil:
+			config.Provider = "facebook"
+			common = ms.Modules.OAuth.Facebook.OAuthProviderCommon
+		case ms.Modules.OAuth.Github != nil:
+			config.Provider = "github"
+			common = ms.Modules.OAuth.Github.OAuthProviderCommon
+		case ms.Modules.OAuth.Gitlab != nil:
+			config.Provider = "gitlab"
+			common = ms.Modules.OAuth.Gitlab.OAuthProviderCommon
+		case ms.Modules.OAuth.Google != nil:
+			config.Provider = "google"
+			common = ms.Modules.OAuth.Google.OAuthProviderCommon
+		case ms.Modules.OAuth.Microsoft != nil:
+			config.Provider = "microsoft"
+			common = ms.Modules.OAuth.Microsoft.OAuthProviderCommon
+		case ms.Modules.OAuth.Linkedin != nil:
+			config.Provider = "linkedin"
+			common = ms.Modules.OAuth.Linkedin.OAuthProviderCommon
+		case ms.Modules.OAuth.Twitch != nil:
+			config.Provider = "twitch"
+			common = ms.Modules.OAuth.Twitch.OAuthProviderCommon
+		default:
+			return errors.NewErrModulesetNotConvertibleToTrafficPolicy("Unable to determine OAuth provider")
+		}
+
+		config.ClientID = common.ClientID
+		if common.ClientSecret != nil {
+			secret, err := secretRsolver.GetSecret(ctx, ms.Namespace, common.ClientSecret.Name, common.ClientSecret.Key)
+			if err != nil {
+				return err
+			}
+			config.ClientSecret = &secret
+		}
+
+		if common.OptionsPassthrough {
+			config.AllowCORSPreflight = &common.OptionsPassthrough
+		}
+
+		config.Scopes = common.Scopes
+
+		if common.InactivityTimeout.Duration > 0 {
+			config.IdleSessionTimeout = &common.InactivityTimeout.Duration
+		}
+
+		if common.MaximumDuration.Duration > 0 {
+			config.MaxSessionDuration = &common.MaximumDuration.Duration
+		}
+
+		if common.AuthCheckInterval.Duration > 0 {
+			config.UserinfoRefreshInterval = &common.AuthCheckInterval.Duration
+		}
+
+		tp.AddRuleOnHTTPRequest(
+			trafficpolicy.Rule{
+				Actions: []trafficpolicy.Action{
+					trafficpolicy.NewOAuthAction(config),
+				},
+			},
+		)
+
+		emailExpressions := []string{}
+		if len(common.EmailAddresses) > 0 {
+			emails := make([]string, len(common.EmailAddresses))
+			for i, email := range common.EmailAddresses {
+				emails[i] = fmt.Sprintf("'%s'", email)
+			}
+			cond := fmt.Sprintf("!actions.ngrok.oauth.identity.email in [%s]", strings.Join(emails, ","))
+			emailExpressions = append(emailExpressions, cond)
+		}
+
+		if len(common.EmailDomains) > 0 {
+			domains := make([]string, len(common.EmailDomains))
+			for i, domain := range common.EmailDomains {
+				domains[i] = fmt.Sprintf("'%s'", domain)
+			}
+			cond := fmt.Sprintf("![%s].exists(d, actions.ngrok.oauth.identity.email.endsWith(d))", strings.Join(domains, ","))
+			emailExpressions = append(emailExpressions, cond)
+		}
+
+		// If there are email expressions, filtering to only allow certain emails or domains, return a 403 Forbidden
+		// response for any requests that don't match
+		if len(emailExpressions) > 0 {
+			tp.AddRuleOnHTTPRequest(
+				trafficpolicy.Rule{
+					Expressions: []string{
+						strings.Join(emailExpressions, " || "),
+					},
+					Actions: []trafficpolicy.Action{
+						trafficpolicy.NewCustomResponseAction(403, "Forbidden", nil),
+					},
+				},
+			)
+		}
+
 		return nil
 	}
-
-	return errors.NewErrModulesetNotConvertibleToTrafficPolicy("OAuth module is not supported at this time")
 }

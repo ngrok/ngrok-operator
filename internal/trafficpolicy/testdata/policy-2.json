@@ -25,12 +25,38 @@
     ],
     "on_http_request": [
         {
+            "expressions": [
+                "req.url.path == '/example'"
+            ],
+            "actions": [
+                {
+                    "type": "custom-response",
+                    "config": {
+                        "status_code": 404,
+                        "content": "Not Found"
+                    }
+                }
+            ]
+        },
+        {
             "actions": [
                 {
                     "type": "circuit-breaker",
                     "config": {
                         "error_threshold": 0.1,
                         "tripped_duration": 120000000000
+                    }
+                },
+                {
+                    "type": "oauth",
+                    "config": {
+                        "provider": "google"
+                    }
+                },
+                {
+                    "type": "forward-internal",
+                    "config": {
+                        "url": "http://test.internal:8080"
                     }
                 }
             ]

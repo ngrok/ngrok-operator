@@ -59,8 +59,20 @@ func TestTrafficPolicy(t *testing.T) {
 	)
 	tp.AddRuleOnHTTPRequest(
 		Rule{
+			Expressions: []string{"req.url.path == '/example'"},
+			Actions: []Action{
+				NewCustomResponseAction(404, "Not Found", nil),
+			},
+		},
+	)
+	tp.AddRuleOnHTTPRequest(
+		Rule{
 			Actions: []Action{
 				NewCircuitBreakerAction(0.10, nil, nil, ptr.To(2*time.Minute)),
+				NewOAuthAction(OAuthConfig{
+					Provider: "google",
+				}),
+				NewForwardInternalAction("http://test.internal:8080"),
 			},
 		},
 	)
@@ -82,6 +94,49 @@ func TestTrafficPolicy(t *testing.T) {
 	)
 
 	assertTrafficPolicyContent(t, tp, loadTestData("policy-2.json"))
+}
+
+func TestContainsAction(t *testing.T) {
+	tp := NewTrafficPolicy()
+
+	for _, actionType := range ActionTypes() {
+		assert.False(t, tp.ContainsAction(actionType))
+	}
+
+	tp.AddRuleOnHTTPRequest(
+		Rule{
+			Actions: []Action{
+				NewWebhookVerificationAction("github", "secret"),
+			},
+		},
+	)
+
+	tp.AddRuleOnHTTPResponse(
+		Rule{
+			Actions: []Action{
+				NewAddHeadersAction(map[string]string{
+					"X-Header-1": "value1",
+				}),
+			},
+		},
+	)
+
+	tp.AddRuleOnTCPConnect(
+		Rule{
+			Actions: []Action{
+				NewRestricIPsActionFromIPPolicies([]string{"ipp_123", "ipp_456"}),
+			},
+		},
+	)
+
+	assert.True(t, tp.ContainsAction(ActionType_VerifyWebhook))
+	assert.True(t, tp.ContainsAction(ActionType_AddHeaders))
+	assert.True(t, tp.ContainsAction(ActionType_RestrictIPs))
+
+	assert.False(t, tp.ContainsAction(ActionType_TerminateTLS))
+	assert.False(t, tp.ContainsAction(ActionType_RemoveHeaders))
+	assert.False(t, tp.ContainsAction(ActionType_CompressResponse))
+	assert.False(t, tp.ContainsAction(ActionType_Log))
 }
 
 func TestTrafficPolicyDeepCopy(t *testing.T) {

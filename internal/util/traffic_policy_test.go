@@ -628,21 +628,98 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 			err:       nil,
 		},
 		{
-			name: "moduleset with oauth",
+			name: "moduleset with ngrok managed OAuth",
 			moduleset: &ingressv1alpha1.NgrokModuleSet{
 				ObjectMeta: msObjectMeta,
 				Modules: ingressv1alpha1.NgrokModuleSetModules{
 					OAuth: &ingressv1alpha1.EndpointOAuth{
 						Google: &ingressv1alpha1.EndpointOAuthGoogle{
 							OAuthProviderCommon: ingressv1alpha1.OAuthProviderCommon{
-								EmailDomains: []string{"ngrok.com"},
+								EmailAddresses: []string{"testuser@example.com"},
+								EmailDomains:   []string{"ngrok.com"},
 							},
 						},
 					},
 				},
 			},
-			tp:  nil,
-			err: errors.NewErrModulesetNotConvertibleToTrafficPolicy("OAuth module is not supported at this time"),
+			tp: &trafficpolicy.TrafficPolicy{
+				OnHTTPRequest: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_OAuth,
+								Config: map[string]string{
+									"provider": "google",
+								},
+							},
+						},
+					},
+					{
+						Expressions: []string{
+							"!actions.ngrok.oauth.identity.email in ['testuser@example.com'] || !['ngrok.com'].exists(d, actions.ngrok.oauth.identity.email.endsWith(d))",
+						},
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_CustomResponse,
+								Config: map[string]interface{}{
+									"status_code": 403,
+									"content":     "Forbidden",
+								},
+							},
+						},
+					},
+				},
+			},
+			err: nil,
+		},
+		{
+			name: "moduleset with custom OAuth",
+			moduleset: &ingressv1alpha1.NgrokModuleSet{
+				ObjectMeta: msObjectMeta,
+				Modules: ingressv1alpha1.NgrokModuleSetModules{
+					OAuth: &ingressv1alpha1.EndpointOAuth{
+						Google: &ingressv1alpha1.EndpointOAuthGoogle{
+							OAuthProviderCommon: ingressv1alpha1.OAuthProviderCommon{
+								ClientID:       ptr.To("my-client-id"),
+								ClientSecret:   &ingressv1alpha1.SecretKeyRef{Name: secretName, Key: secretKey},
+								EmailAddresses: []string{"testuser@example.com"},
+								EmailDomains:   []string{"ngrok.com"},
+							},
+						},
+					},
+				},
+			},
+			tp: &trafficpolicy.TrafficPolicy{
+				OnHTTPRequest: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_OAuth,
+								Config: map[string]string{
+									"provider":      "google",
+									"client_id":     "my-client-id",
+									"client_secret": secretValue,
+								},
+							},
+						},
+					},
+					{
+						Expressions: []string{
+							"!actions.ngrok.oauth.identity.email in ['testuser@example.com'] || !['ngrok.com'].exists(d, actions.ngrok.oauth.identity.email.endsWith(d))",
+						},
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_CustomResponse,
+								Config: map[string]interface{}{
+									"status_code": 403,
+									"content":     "Forbidden",
+								},
+							},
+						},
+					},
+				},
+			},
+			err: nil,
 		},
 		{
 			name: "moduleset with saml",
@@ -663,12 +740,32 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 				ObjectMeta: msObjectMeta,
 				Modules: ingressv1alpha1.NgrokModuleSetModules{
 					OIDC: &ingressv1alpha1.EndpointOIDC{
-						CookiePrefix: "something",
+						Issuer:   "https://acme.com/oauth/v2/oauth-anonymous",
+						ClientID: "12345",
+						ClientSecret: ingressv1alpha1.SecretKeyRef{
+							Name: secretName,
+							Key:  secretKey,
+						},
 					},
 				},
 			},
-			tp:  nil,
-			err: errors.NewErrModulesetNotConvertibleToTrafficPolicy("OIDC module is not supported at this time"),
+			tp: &trafficpolicy.TrafficPolicy{
+				OnHTTPRequest: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_OIDC,
+								Config: map[string]string{
+									"issuer_url":    "https://acme.com/oauth/v2/oauth-anonymous",
+									"client_id":     "12345",
+									"client_secret": secretValue,
+								},
+							},
+						},
+					},
+				},
+			},
+			err: nil,
 		},
 		{
 			name: "moduleset with webhook verification",
@@ -782,6 +879,13 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 					IPRestriction: &ingressv1alpha1.EndpointIPPolicy{
 						IPPolicies: []string{"my-ip-policy", "ipp_123456789012345678901234568"},
 					},
+					OAuth: &ingressv1alpha1.EndpointOAuth{
+						Google: &ingressv1alpha1.EndpointOAuthGoogle{
+							OAuthProviderCommon: ingressv1alpha1.OAuthProviderCommon{
+								EmailDomains: []string{"ngrok.com"},
+							},
+						},
+					},
 					TLSTermination: &ingressv1alpha1.EndpointTLSTermination{
 						TerminateAt: "edge",
 						MinVersion:  ptr.To("1.2"),
@@ -816,6 +920,30 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 					},
 				},
 				OnHTTPRequest: []trafficpolicy.Rule{
+					{
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_OAuth,
+								Config: map[string]interface{}{
+									"provider": "google",
+								},
+							},
+						},
+					},
+					{
+						Expressions: []string{
+							"!['ngrok.com'].exists(d, actions.ngrok.oauth.identity.email.endsWith(d))",
+						},
+						Actions: []trafficpolicy.Action{
+							{
+								Type: trafficpolicy.ActionType_CustomResponse,
+								Config: map[string]interface{}{
+									"status_code": 403,
+									"content":     "Forbidden",
+								},
+							},
+						},
+					},
 					{
 						Actions: []trafficpolicy.Action{
 							{
