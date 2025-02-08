@@ -172,6 +172,10 @@ The `ngrok-operator` helm chart now includes a `schema.json` file that can be us
 
 - Generate and commit schema.json file by @alex-bezek in [#472](https://github.com/ngrok/ngrok-operator/pull/472)
 
+### Added
+
+- Required `.Values.clusterName` for the ngrok-operator to register with the ngrok API
+
 ### Changed
 
 #### Traffic Policy
