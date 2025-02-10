@@ -85,14 +85,15 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := cont.Watch(
-		source.Kind(mgr.GetCache(), &ingressv1alpha1.Tunnel{}),
+	if err := cont.Watch(source.Kind[client.Object](
+		mgr.GetCache(),
+		&ingressv1alpha1.Tunnel{},
 		&handler.EnqueueRequestForObject{},
 		predicate.Or(
 			predicate.AnnotationChangedPredicate{},
 			predicate.GenerationChangedPredicate{},
 		),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
