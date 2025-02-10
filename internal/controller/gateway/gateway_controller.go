@@ -27,16 +27,19 @@ package gateway
 import (
 	"context"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 )
 
 const (
@@ -146,9 +149,9 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		//&ingressv1alpha1.NgrokModuleSet{},
 	}
 
-	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{})
+	bldr := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{})
 	for _, obj := range storedResources {
-		builder = builder.Watches(
+		bldr = bldr.Watches(
 			obj,
 			managerdriver.NewControllerEventHandler(
 				obj.GetObjectKind().GroupVersionKind().Kind,
@@ -158,5 +161,98 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 	}
 
-	return builder.Complete(r)
+	// Add watch for Secrets—but filter events so that only Secrets
+	// referenced by Gateway TLS certificateRefs trigger reconciliation.
+	bldr = bldr.Watches(
+		&v1.Secret{},
+		managerdriver.NewControllerEventHandler("Secret", r.Driver, r.Client),
+		builder.WithPredicates(&referencedResourcePredicate{client: r.Client}),
+	)
+
+	// Add watch for ConfigMaps—but filter events so that only ConfigMaps
+	// referenced by Gateway TLS frontendValidation.certificateRefs trigger reconciliation.
+	bldr = bldr.Watches(
+		&v1.ConfigMap{},
+		managerdriver.NewControllerEventHandler("ConfigMap", r.Driver, r.Client),
+		builder.WithPredicates(&referencedResourcePredicate{client: r.Client}),
+	)
+
+	return bldr.Complete(r)
+}
+
+// referencedResourcePredicate only allows Secrets or ConfigMaps
+// that are referenced in a Gateway's TLS certificateRefs
+type referencedResourcePredicate struct {
+	client client.Client
+}
+
+func (p referencedResourcePredicate) Create(e event.CreateEvent) bool {
+	return p.isReferenced(e.Object)
+}
+
+func (p referencedResourcePredicate) Update(e event.UpdateEvent) bool {
+	return p.isReferenced(e.ObjectNew)
+}
+
+func (p referencedResourcePredicate) Delete(e event.DeleteEvent) bool {
+	return p.isReferenced(e.Object)
+}
+
+func (p referencedResourcePredicate) Generic(e event.GenericEvent) bool {
+	return p.isReferenced(e.Object)
+}
+
+func (p referencedResourcePredicate) isReferenced(obj client.Object) bool {
+	switch o := obj.(type) {
+	case *v1.Secret:
+		return secretReferencedByGateway(o, p.client)
+	case *v1.ConfigMap:
+		return configMapReferencedByGateway(o, p.client)
+	default:
+		return false
+	}
+}
+
+// secretReferencedByGateway returns true if the provided secret is referenced
+// by any Gateway in the same namespace via a TLS certificateRefs entry
+func secretReferencedByGateway(secret *v1.Secret, c client.Client) bool {
+	var gwList gatewayv1.GatewayList
+	if err := c.List(context.TODO(), &gwList, client.InNamespace(secret.Namespace)); err != nil {
+		return false
+	}
+	for _, gw := range gwList.Items {
+		for _, listener := range gw.Spec.Listeners {
+			if listener.TLS == nil {
+				continue
+			}
+			for _, certRef := range listener.TLS.CertificateRefs {
+				if string(certRef.Name) == string(secret.Name) && secret.Type == v1.SecretTypeTLS {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// configMapReferencedByGateway returns true if the provided ConfigMap is referenced
+// by any Gateway in the same namespace via a TLS frontendValidation certificateRefs entry
+func configMapReferencedByGateway(cm *v1.ConfigMap, c client.Client) bool {
+	var gwList gatewayv1.GatewayList
+	if err := c.List(context.TODO(), &gwList, client.InNamespace(cm.Namespace)); err != nil {
+		return false
+	}
+	for _, gw := range gwList.Items {
+		for _, listener := range gw.Spec.Listeners {
+			if listener.TLS == nil || listener.TLS.FrontendValidation == nil {
+				continue
+			}
+			for _, certRef := range listener.TLS.FrontendValidation.CACertificateRefs {
+				if string(certRef.Name) == string(cm.Name) && string(certRef.Kind) == "ConfigMap" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
