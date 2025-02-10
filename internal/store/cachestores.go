@@ -35,6 +35,8 @@ type CacheStores struct {
 	IngressV1      cache.Store
 	IngressClassV1 cache.Store
 	ServiceV1      cache.Store
+	SecretV1       cache.Store
+	ConfigMapV1    cache.Store
 
 	// Gateway API Stores
 	Gateway      cache.Store
@@ -61,6 +63,8 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		IngressV1:      cache.NewStore(keyFunc),
 		IngressClassV1: cache.NewStore(clusterResourceKeyFunc),
 		ServiceV1:      cache.NewStore(keyFunc),
+		SecretV1:       cache.NewStore(keyFunc),
+		ConfigMapV1:    cache.NewStore(keyFunc),
 		// Gateway API Stores
 		Gateway:      cache.NewStore(keyFunc),
 		GatewayClass: cache.NewStore(keyFunc),
@@ -110,6 +114,10 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 		return c.IngressClassV1.Get(obj)
 	case *corev1.Service:
 		return c.ServiceV1.Get(obj)
+	case *corev1.Secret:
+		return c.SecretV1.Get(obj)
+	case *corev1.ConfigMap:
+		return c.ConfigMapV1.Get(obj)
 
 	// ----------------------------------------------------------------------------
 	// Kubernetes Gateway API Support
@@ -159,6 +167,10 @@ func (c CacheStores) Add(obj runtime.Object) error {
 		return c.IngressClassV1.Add(obj)
 	case *corev1.Service:
 		return c.ServiceV1.Add(obj)
+	case *corev1.Secret:
+		return c.SecretV1.Add(obj)
+	case *corev1.ConfigMap:
+		return c.ConfigMapV1.Add(obj)
 
 	// ----------------------------------------------------------------------------
 	// Kubernetes Gateway API Support
@@ -209,6 +221,10 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.IngressClassV1.Delete(obj)
 	case *corev1.Service:
 		return c.ServiceV1.Delete(obj)
+	case *corev1.Secret:
+		return c.SecretV1.Delete(obj)
+	case *corev1.ConfigMap:
+		return c.ConfigMapV1.Delete(obj)
 
 	// ----------------------------------------------------------------------------
 	// Kubernetes Gateway API Support
