@@ -1,0 +1,170 @@
+# Tests that gateway.spec.infrastructure adds the labels/annotations to generated resources
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: test-gateway
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints"
+    spec:
+      gatewayClassName: ngrok
+      listeners:
+        - name: test-invalid-1
+          hostname: "certref-not-a-secret.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            certificateRefs:
+            - kind: ConfigMap
+              name: ca-configmap
+        - name: test-invalid-2
+          hostname: "certref-type-not-tls.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            certificateRefs:
+            - kind: Secret
+              name: opaque-secret
+        - name: test-invalid-3
+          hostname: "certref-missing.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            certificateRefs:
+            - kind: Secret
+              name: missing-secret
+        - name: test-invalid-4
+          hostname: "certref-missing-tlskey.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            certificateRefs:
+            - kind: Secret
+              name: tls-no-tlskey
+        - name: test-invalid-5
+          hostname: "certref-missing-tlscrt.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            certificateRefs:
+            - kind: Secret
+              name: tls-no-tlscrt
+        - name: test-invalid-6
+          hostname: "frontend-tls-not-configmap.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            frontendValidation:
+              caCertificateRefs:
+              - kind: Secret
+                name: tls-secret
+        - name: test-invalid-7
+          hostname: "frontend-configmap-missing.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            frontendValidation:
+              caCertificateRefs:
+              - kind: ConfigMap
+                name: missing-configmap
+        - name: test-invalid-8
+          hostname: "frontend-configmap-missing-cacrt.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            frontendValidation:
+              caCertificateRefs:
+              - kind: ConfigMap
+                name: configmap-no-cacrt
+  httpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: test-route
+      namespace: default
+    spec:
+      hostnames:
+      - "*.ngrok.io"
+      parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: test-gateway
+        namespace: default
+      rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /test-service-1
+        backendRefs:
+          - group: ""
+            kind: Service
+            name: test-service-1
+            port: 8080
+            weight: 1
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  secrets:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: opaque-secret
+      namespace: default
+    type: Opaque
+    data:
+      tls.key: U2VjcmV0
+      tls.crt: U2VjcmV0
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: tls-no-tlskey
+      namespace: default
+    type: kubernetes.io/tls
+    data:
+      tls.crt: U2VjcmV0
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: tls-no-tlscrt
+      namespace: default
+    type: kubernetes.io/tls
+    data:
+      tls.key: U2VjcmV0
+  configMaps:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: configmap-no-cacrt
+      namespace: default
+    data:
+      somekey: somevalue
+expected:
+  cloudEndpoints: []
+  agentEndpoints: []

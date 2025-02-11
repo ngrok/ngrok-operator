@@ -1,0 +1,137 @@
+# Test URL Rewrite filters
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: test-gateway
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints"
+    spec:
+      gatewayClassName: ngrok
+      listeners:
+        - name: test-hostname
+          hostname: "test-hostname.ngrok.io"
+          port: 443
+          protocol: HTTPS
+  httpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: test-route
+      namespace: default
+    spec:
+      hostnames:
+      - test-hostname.ngrok.io
+      parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: test-gateway
+        namespace: default
+      rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /rewrite-prefix
+        filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: 
+              type: ReplacePrefixMatch
+              replacePrefixMatch: "/rewrite"
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /rewrite-fullpath
+        filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: 
+              type: ReplaceFullPath
+              replaceFullPath: "/rewrite"
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /rewrite-hostname
+        filters:
+        - type: URLRewrite
+          urlRewrite:
+            hostname: rewrite-hostname.com
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+expected:
+  cloudEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: test-gateway.default-test-hostname.ngrok.io
+      namespace: default
+    spec:
+      trafficPolicy:
+        policy:
+          on_http_request:
+            - name: Log-Request-Data
+              actions:
+              - type: log
+                config:
+                  metadata:
+                    "endpoint_id": "${endpoint.id}"
+                    "message": "Capturing original request data with logs before it is modified"
+                    "original_headers": "${req.headers.encodeJson()}"
+                    "original_path": "${req.url.path}"
+                    "original_query_params": "${req.url.query_params.encodeJson()}"
+            - name: GatewayAPI-URL-Rewrite-Filter
+              expressions:
+                - actions.ngrok.log.metadata['original_path'].startsWith('/rewrite-fullpath')
+              actions:
+                - type: url-rewrite
+                  config:
+                    from: "^(?P<scheme>[a-zA-Z][a-zA-Z0-9+\\-.]*):\\/\\/(?P<hostname>[^\\/:]+)(?P<port>:\\d+)?(?P<prefix>\\/rewrite-fullpath)(?P<remaining>.*)$"
+                    to: "$1://$2$3/rewrite"
+            - name: GatewayAPI-URL-Rewrite-Filter
+              expressions:
+                - actions.ngrok.log.metadata['original_path'].startsWith('/rewrite-hostname')
+              actions:
+                - type: url-rewrite
+                  config:
+                    from: "^(?P<scheme>[a-zA-Z][a-zA-Z0-9+\\-.]*):\\/\\/(?P<hostname>[^\\/:]+)(?P<port>:\\d+)?(?P<prefix>\\/rewrite-hostname)(?P<remaining>.*)$"
+                    to: "$1://rewrite-hostname.com$3$4$5"
+            - name: GatewayAPI-URL-Rewrite-Filter
+              expressions:
+                - actions.ngrok.log.metadata['original_path'].startsWith('/rewrite-prefix')
+              actions:
+                - type: url-rewrite
+                  config:
+                    from: "^(?P<scheme>[a-zA-Z][a-zA-Z0-9+\\-.]*):\\/\\/(?P<hostname>[^\\/:]+)(?P<port>:\\d+)?(?P<prefix>\\/rewrite-prefix)(?P<remaining>.*)$"
+                    to: "$1://$2$3/rewrite$5"
+            - name: Fallback-404
+              actions:
+              - type: custom-response
+                config:
+                  status_code: 404
+                  content: "No route was found for this ngrok Cloud Endpoint"
+                  headers:
+                    content-type: text/plain
+      url: https://test-hostname.ngrok.io
