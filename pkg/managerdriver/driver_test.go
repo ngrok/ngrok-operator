@@ -37,7 +37,7 @@ var _ = Describe("Driver", func() {
 	cname := "cnametarget.com"
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(gatewayv1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
