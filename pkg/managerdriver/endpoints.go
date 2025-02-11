@@ -25,6 +25,7 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 		d.store,
 		d.defaultManagedResourceLabels(),
 		d.ingressNgrokMetadata,
+		d.gatewayNgrokMetadata,
 		d.clusterDomain,
 	)
 	translationResult := translator.Translate()
@@ -81,6 +82,15 @@ func (d *Driver) applyAgentEndpoints(ctx context.Context, c client.Client, desir
 				needsUpdate = true
 			}
 
+			if !reflect.DeepEqual(desiredAEP.Labels, currAEP.Labels) {
+				currAEP.Labels = desiredAEP.Labels
+				needsUpdate = true
+			}
+			if !reflect.DeepEqual(desiredAEP.Annotations, currAEP.Annotations) {
+				currAEP.Annotations = desiredAEP.Annotations
+				needsUpdate = true
+			}
+
 			if needsUpdate {
 				if err := c.Update(ctx, &currAEP); err != nil {
 					d.log.Error(err, "error updating agent endpoint", "desired", desiredAEP, "current", currAEP)
@@ -131,6 +141,15 @@ func (d *Driver) applyCloudEndpoints(ctx context.Context, c client.Client, desir
 			desiredCLEP.Status.ID = currCLEP.Status.ID
 			if !reflect.DeepEqual(desiredCLEP.Spec, currCLEP.Spec) {
 				currCLEP.Spec = desiredCLEP.Spec
+				needsUpdate = true
+			}
+
+			if !reflect.DeepEqual(desiredCLEP.Labels, currCLEP.Labels) {
+				currCLEP.Labels = desiredCLEP.Labels
+				needsUpdate = true
+			}
+			if !reflect.DeepEqual(desiredCLEP.Annotations, currCLEP.Annotations) {
+				currCLEP.Annotations = desiredCLEP.Annotations
 				needsUpdate = true
 			}
 

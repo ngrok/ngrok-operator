@@ -13,7 +13,10 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	netv1 "k8s.io/api/networking/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// #region Ingresses to IR
 
 // ingressesToIR fetches all stored ingresses and translates them into IR for futher processing and translation
 func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
@@ -48,7 +51,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			)
 		}
 
-		annotationTrafficPolicy, tpObjRef, err := trafficPolicyFromIngressAnnotation(t.store, ingress)
+		annotationTrafficPolicy, tpObjRef, err := trafficPolicyFromAnnotation(t.store, ingress)
 		if err != nil {
 			t.log.Error(err, "error getting ngrok traffic policy for ingress",
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace))
@@ -57,7 +60,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 
 		// If we don't have a native traffic policy from annotations, see if one was provided from a moduleset annotation
 		if annotationTrafficPolicy == nil {
-			annotationTrafficPolicy, tpObjRef, err = trafficPolicyFromIngressModSetAnnotation(t.log, t.store, ingress, useEndpoints)
+			annotationTrafficPolicy, tpObjRef, err = trafficPolicyFromModSetAnnotation(t.log, t.store, ingress, useEndpoints)
 			if err != nil {
 				t.log.Error(err, "error getting ngrok traffic policy for ingress",
 					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace))
@@ -87,13 +90,15 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 		)
 	}
 
-	// Convert the cache of all the hosts we've built into a list
-	ret := []*ir.IRVirtualHost{}
+	vHostSlice := []*ir.IRVirtualHost{}
 	for _, irVHost := range hostCache {
-		ret = append(ret, irVHost)
+		vHostSlice = append(vHostSlice, irVHost)
 	}
-	return ret
+
+	return vHostSlice
 }
+
+// #region Single Ingress IR
 
 // ingressToIR translates a single ingress into IR and stores entries in the cache. Caches are used so that we do not generate duplicate IR for hostnames/services
 func (t *translator) ingressToIR(
@@ -179,14 +184,20 @@ func (t *translator) ingressToIR(
 			}
 
 			irVHost = &ir.IRVirtualHost{
-				Namespace:              ingress.Namespace,
-				OwningResources:        []ir.OwningResource{owningResource},
-				Hostname:               ruleHostname,
+				Namespace:       ingress.Namespace,
+				OwningResources: []ir.OwningResource{owningResource},
+				Listener: ir.IRListener{
+					Hostname: ir.IRHostname(ruleHostname),
+					Port:     443,
+					Protocol: ir.IRProtocol_HTTPS,
+				},
 				TrafficPolicy:          ruleTrafficPolicy,
 				TrafficPolicyObj:       annotationTrafficPolicyRef,
+				LabelsToAdd:            t.managedResourceLabels,
 				Routes:                 []*ir.IRRoute{},
 				DefaultDestination:     defaultDestination,
 				EndpointPoolingEnabled: endpointPoolingEnabled,
+				Metadata:               t.defaultIngressMetadata,
 			}
 			hostCache[ir.IRHostname(ruleHostname)] = irVHost
 		}
@@ -203,6 +214,8 @@ func (t *translator) ingressToIR(
 	}
 }
 
+// #region Ingress Paths IR
+
 // ingressPathsToIR constructs IRRoutes for the path matches under a given ingress rule
 func (t *translator) ingressPathsToIR(ingress *netv1.Ingress, ruleHostname string, ingressPaths []netv1.HTTPIngressPath, upstreamCache map[ir.IRService]*ir.IRUpstream) []*ir.IRRoute {
 	irRoutes := []*ir.IRRoute{}
@@ -217,14 +230,19 @@ func (t *translator) ingressPathsToIR(ingress *netv1.Ingress, ruleHostname strin
 			continue
 		}
 
+		pathType := netv1PathTypeToIR(t.log, pathMatch.PathType)
 		irRoutes = append(irRoutes, &ir.IRRoute{
-			Path:        pathMatch.Path,
-			PathType:    getPathMatchType(t.log, pathMatch.PathType),
-			Destination: destination,
+			MatchCriteria: ir.IRHTTPMatch{
+				Path:     &pathMatch.Path,
+				PathType: &pathType,
+			},
+			Destinations: []*ir.IRDestination{destination},
 		})
 	}
 	return irRoutes
 }
+
+// #region Ingress Backend IR
 
 // ingressBackendToIR constructs an IRDestination from an ingress backend. Currently only service and traffic policies are supported
 func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.IngressBackend, upstreamCache map[ir.IRService]*ir.IRUpstream) (*ir.IRDestination, error) {
@@ -250,8 +268,12 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 			}
 		}
 
+		if len(routeTrafficPolicy.OnTCPConnect) != 0 {
+			return nil, fmt.Errorf("traffic policies supplied as ingress backends may not contain any on_tcp_connect rules as there is no way to only run them for certain routes")
+		}
+
 		return &ir.IRDestination{
-			TrafficPolicy: &routeTrafficPolicy,
+			TrafficPolicies: []*trafficpolicy.TrafficPolicy{&routeTrafficPolicy},
 		}, nil
 	}
 
@@ -306,32 +328,36 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 	}, nil
 }
 
-func trafficPolicyFromIngressAnnotation(store store.Storer, ingress *netv1.Ingress) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
-	tpName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(ingress)
+// #region Helpers
+
+func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
+	tpName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(obj)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return nil, nil, nil
 		}
-		return nil, nil, fmt.Errorf("error getting ngrok traffic policy for ingress %q: %w",
-			fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+		return nil, nil, fmt.Errorf("error getting ngrok traffic policy for %s %q: %w",
+			obj.GetObjectKind().GroupVersionKind().Kind,
+			fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
 			err,
 		)
 	}
 
-	tpObj, err := store.GetNgrokTrafficPolicyV1(tpName, ingress.Namespace)
+	tpObj, err := store.GetNgrokTrafficPolicyV1(tpName, obj.GetNamespace())
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to load traffic policy for ingress from annotations. name: %q, namespace: %q: %w",
-			tpName,
-			ingress.Namespace,
+		return nil, nil, fmt.Errorf("unable to load traffic policy for %s %q from annotations: %w",
+			obj.GetObjectKind().GroupVersionKind().Kind,
+			fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
 			err,
 		)
 	}
 
 	trafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
 	if err := json.Unmarshal(tpObj.Spec.Policy, trafficPolicyCfg); err != nil {
-		return nil, nil, fmt.Errorf("%w, failed to unmarshal traffic policy for ingress %q, traffic policy config: %v",
+		return nil, nil, fmt.Errorf("%w, failed to unmarshal traffic policy for %s %q , traffic policy config: %v",
 			err,
-			fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			obj.GetObjectKind().GroupVersionKind().Kind,
+			fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
 			tpObj.Spec.Policy,
 		)
 	}
@@ -342,10 +368,10 @@ func trafficPolicyFromIngressAnnotation(store store.Storer, ingress *netv1.Ingre
 	}, nil
 }
 
-func trafficPolicyFromIngressModSetAnnotation(log logr.Logger, store store.Storer, ingress *netv1.Ingress, useEndpoints bool) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
+func trafficPolicyFromModSetAnnotation(log logr.Logger, store store.Storer, obj client.Object, useEndpoints bool) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
 	// We don't support modulesets on endpoints or currently support converting a moduleset to a traffic policy, but still try to allow
 	// a moduleset that supplies a traffic policy with an error log to let users know that any other moduleset fields will be ignored
-	ingressModuleSet, err := getNgrokModuleSetForIngress(ingress, store)
+	ingressModuleSet, err := getNgrokModuleSetForObject(obj, store)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -363,8 +389,8 @@ func trafficPolicyFromIngressModSetAnnotation(log logr.Logger, store store.Store
 		modules.MutualTLS != nil ||
 		modules.WebhookVerification != nil {
 		if useEndpoints {
-			log.Error(fmt.Errorf("ngrok moduleset supplied to ingress with annotation to use endpoints instead of edges"), "ngrok moduleset are not supported on endpoints. prefer using a traffic policy directly. any fields other than supplying a traffic policy using the module set will be ignored",
-				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			log.Error(fmt.Errorf("ngrok moduleset supplied to %s with annotation to use endpoints instead of edges", obj.GetObjectKind().GroupVersionKind().Kind), "ngrok moduleset are not supported on endpoints. prefer using a traffic policy directly. any fields other than supplying a traffic policy using the module set will be ignored",
+				"ingress", fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
 			)
 		}
 	}
@@ -375,17 +401,19 @@ func trafficPolicyFromIngressModSetAnnotation(log logr.Logger, store store.Store
 
 	tpJSON, err := json.Marshal(ingressModuleSet.Modules.Policy)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: cannot convert module-set policy json for ingress %q, moduleset policy: %v",
+		return nil, nil, fmt.Errorf("%w: cannot convert module-set policy json for %s %q, moduleset policy: %v",
 			err,
-			fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			obj.GetObjectKind().GroupVersionKind().Kind,
+			fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
 			ingressModuleSet.Modules.Policy,
 		)
 	}
 	var ingressTrafficPolicy *trafficpolicy.TrafficPolicy
 	if err := json.Unmarshal(tpJSON, ingressTrafficPolicy); err != nil {
-		return nil, nil, fmt.Errorf("%w: failed to unmarshal traffic policy from module set for ingress %q, moduleset policy: %v",
+		return nil, nil, fmt.Errorf("%w: failed to unmarshal traffic policy from module set for %s %q, moduleset policy: %v",
 			err,
-			fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			obj.GetObjectKind().GroupVersionKind().Kind,
+			fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
 			ingressModuleSet.Modules.Policy,
 		)
 	}
