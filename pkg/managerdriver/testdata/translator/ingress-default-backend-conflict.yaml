@@ -1,0 +1,142 @@
+# Ingresses with conflicting default backends
+input:
+  ingressClasses:
+  - apiVersion: networking.k8s.io/v1
+    kind: IngressClass
+    metadata:
+      labels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: ngrok-operator
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+      name: ngrok
+    spec:
+      controller: k8s.ngrok.com/ingress-controller
+  ingresses:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints"
+      name: test-ingress-1
+      namespace: default
+    spec:
+      ingressClassName: ngrok
+      defaultBackend:
+        service:
+          name: test-service-1
+          port:
+            number: 8080
+      rules:
+        - host: test-ingresses.ngrok.io
+          http:
+            paths:
+              - path: /test-1
+                pathType: Prefix
+                backend:
+                  service:
+                    name: test-service-1
+                    port:
+                      number: 8080
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints"
+      name: test-ingress-2
+      namespace: default
+    spec:
+      ingressClassName: ngrok
+      defaultBackend:
+        service:
+          name: test-service-2
+          port:
+            number: 8080
+      rules:
+        - host: test-ingresses.ngrok.io
+          http:
+            paths:
+              - path: /test-2
+                pathType: Prefix
+                backend:
+                  service:
+                    name: test-service-2
+                    port:
+                      number: 8080
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-2
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  trafficPolicies: []
+expected:
+  # Generated cloud endpoint should have the routes and default backend from the first ingress, but 
+  # the second ingress will not be processed due to the conflicting default destination
+  cloudEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: test-ingresses.ngrok.io
+      namespace: default
+    spec:
+      url: https://test-ingresses.ngrok.io
+      trafficPolicy:
+        policy:
+          on_http_request:
+          - name: Generated-Route
+            expressions:
+            - req.url.path.startsWith('/test-1')
+            actions:
+            - type: forward-internal
+              config:
+                url: https://e3b0c-test-service-1-default-8080.internal
+          - name: Generated-Route-Default-Backend
+            actions:
+            - type: forward-internal
+              config:
+                url: https://e3b0c-test-service-1-default-8080.internal
+          - name: Fallback-404
+            actions:
+            - type: custom-response
+              config:
+                status_code: 404
+                content: "No route was found for this ngrok Cloud Endpoint"
+                headers:
+                  content-type: text/plain
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-8080
+      namespace: default
+    spec:
+      url: "https://e3b0c-test-service-1-default-8080.internal"
+      upstream:
+        url: "http://test-service-1.default:8080"
+
