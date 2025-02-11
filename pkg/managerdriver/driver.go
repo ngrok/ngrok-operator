@@ -448,6 +448,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		d.store,
 		d.defaultManagedResourceLabels(),
 		d.ingressNgrokMetadata,
+		d.gatewayNgrokMetadata,
 		d.clusterDomain,
 	)
 	translationResult := translator.Translate()
