@@ -426,7 +426,7 @@ var _ = Describe("Driver", func() {
 			ing := testutils.NewTestIngressV1("test-ingress", "test")
 			Expect(driver.store.Add(&ing)).To(BeNil())
 
-			ms, err := getNgrokModuleSetForIngress(&ing, driver.store)
+			ms, err := getNgrokModuleSetForObject(&ing, driver.store)
 			Expect(err).To(BeNil())
 			Expect(ms.Modules.Compression).To(BeNil())
 			Expect(ms.Modules.Headers).To(BeNil())
@@ -440,7 +440,7 @@ var _ = Describe("Driver", func() {
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1"})
 			Expect(driver.store.Add(&ing)).To(BeNil())
 
-			ms, err := getNgrokModuleSetForIngress(&ing, driver.store)
+			ms, err := getNgrokModuleSetForObject(&ing, driver.store)
 			Expect(err).To(BeNil())
 			Expect(ms.Modules).To(Equal(ms1.Modules))
 		})
@@ -450,7 +450,7 @@ var _ = Describe("Driver", func() {
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1,ms2,ms3"})
 			Expect(driver.store.Add(&ing)).To(BeNil())
 
-			ms, err := getNgrokModuleSetForIngress(&ing, driver.store)
+			ms, err := getNgrokModuleSetForObject(&ing, driver.store)
 			Expect(err).To(BeNil())
 			Expect(ms.Modules).To(Equal(
 				ingressv1alpha1.NgrokModuleSetModules{
