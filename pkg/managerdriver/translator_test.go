@@ -265,7 +265,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 			expectedPolicy: &trafficpolicy.TrafficPolicy{
 				OnHTTPRequest: []trafficpolicy.Rule{
 					{
-						Name: "Generated-Default-Backend",
+						Name: "Generated-Route-Default-Backend",
 						Actions: []trafficpolicy.Action{
 							{
 								Type: "forward-internal",
