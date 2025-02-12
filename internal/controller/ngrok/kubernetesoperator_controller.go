@@ -206,6 +206,9 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 		if ngrokKo.EnabledFeatures != nil {
 			ko.Status.EnabledFeatures = strings.Join(ngrokKo.EnabledFeatures, ",")
 		}
+		if ngrokKo.Binding != nil {
+			ko.Status.BindingsIngressEndpoint = ngrokKo.Binding.IngressEndpoint
+		}
 
 		ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess
 	} else {
