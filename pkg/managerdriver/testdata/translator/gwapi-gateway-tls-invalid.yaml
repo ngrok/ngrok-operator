@@ -93,6 +93,16 @@ input:
               caCertificateRefs:
               - kind: ConfigMap
                 name: configmap-no-cacrt
+        - name: test-invalid-9
+          hostname: "banned-tls-options.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            options:
+              "k8s.ngrok.com/terminate-tls.server_private_key": "foo"
+              "k8s.ngrok.com/terminate-tls.server_certificate": "bar"
+              "k8s.ngrok.com/terminate-tls.mutual_tls_verification_strategy": "baz"
   httpRoutes:
   - apiVersion: gateway.networking.k8s.io/v1
     kind: HTTPRoute

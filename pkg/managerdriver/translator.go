@@ -102,12 +102,31 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (parents map[ty
 			parentTrafficPolicy = trafficpolicy.NewTrafficPolicy()
 		}
 
-		if irVHost.TLSTermination != nil {
+		if irTLSCfg := irVHost.TLSTermination; irTLSCfg != nil {
+			tlsCfg := map[string]interface{}{}
+
+			if len(irTLSCfg.MutualTLSCertificateAuthorities) > 0 {
+				tlsCfg["mutual_tls_certificate_authorities"] = irTLSCfg.MutualTLSCertificateAuthorities
+			}
+
+			if irTLSCfg.ServerCertificate != nil {
+				tlsCfg["server_certificate"] = *irTLSCfg.ServerCertificate
+			}
+
+			if irTLSCfg.ServerPrivateKey != nil {
+				tlsCfg["server_private_key"] = *irTLSCfg.ServerPrivateKey
+			}
+
+			for key, val := range irTLSCfg.ExtendedOptions {
+				tlsCfg[key] = val
+			}
+
 			tlsRule := trafficpolicy.Rule{
 				Name: "Gateway-TLS-Termination",
-				Actions: []trafficpolicy.Action{
-					trafficpolicy.NewTerminateTLSAction(*irVHost.TLSTermination),
-				},
+				Actions: []trafficpolicy.Action{{
+					Type:   trafficpolicy.ActionType_TerminateTLS,
+					Config: tlsCfg,
+				}},
 			}
 			// Prepend to the on_tcp_connect phase
 			parentTrafficPolicy.OnTCPConnect = append([]trafficpolicy.Rule{tlsRule}, parentTrafficPolicy.OnTCPConnect...)

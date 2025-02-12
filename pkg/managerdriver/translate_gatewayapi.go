@@ -19,9 +19,17 @@ import (
 )
 
 const (
-	GatewayTLSOption_MinVersion   = "k8s.ngrok.com/min_version"
-	GatewayTLSOption_MaxVersion   = "k8s.ngrok.com/max_version"
-	GatewayTLSOption_MTLSStrategy = "k8s.ngrok.com/mutual_tls_verification_strategy"
+	// Within the gateway, any keys in the tls.options field with this prefix get added to the terminate-tls action
+	TLSOptionKeyPrefix = "k8s.ngrok.com/terminate-tls."
+)
+
+var (
+	// These keys may not be supplied to the gateway listener's tls.options field since they are supported elsewhere and we don't want conflicts
+	TLSOptionKeyReservedKeys = []string{
+		"k8s.ngrok.com/terminate-tls.server_private_key",
+		"k8s.ngrok.com/terminate-tls.server_certificate",
+		"k8s.ngrok.com/terminate-tls.mutual_tls_certificate_authorities",
+	}
 )
 
 // #region GWAPI to IR
@@ -869,21 +877,22 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 // #region GatewayTLS IR
 
 // gwapiRequestHeaderFilterToTrafficPolicy translates a GatewayAPI tls configuration into IR
-func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, tlsCfg *gatewayv1.GatewayTLSConfig, gateway *gatewayv1.Gateway) (*trafficpolicy.TLSTerminationConfig, error) {
-	if tlsCfg == nil {
+func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, listenerTLS *gatewayv1.GatewayTLSConfig, gateway *gatewayv1.Gateway) (*ir.IRTLSTermination, error) {
+	if listenerTLS == nil {
 		return nil, nil
 	}
 
-	tlsTermCfg := &trafficpolicy.TLSTerminationConfig{
+	tlsTermCfg := &ir.IRTLSTermination{
 		MutualTLSCertificateAuthorities: []string{},
+		ExtendedOptions:                 map[string]string{},
 	}
 
-	if len(tlsCfg.CertificateRefs) > 0 {
-		if len(tlsCfg.CertificateRefs) > 1 {
+	if len(listenerTLS.CertificateRefs) > 0 {
+		if len(listenerTLS.CertificateRefs) > 1 {
 			log.Error(fmt.Errorf("multiple Gateway TLS certificateRefs provided"), "Only the first will be used, multiple are not currently supported")
 		}
 
-		certRef := tlsCfg.CertificateRefs[0]
+		certRef := listenerTLS.CertificateRefs[0]
 		if certRef.Kind != nil && !strings.EqualFold(string(*certRef.Kind), "Secret") {
 			return nil, fmt.Errorf("unsupported kind %q for Gateway TLS config. only core api group secret references are supported", string(*certRef.Kind))
 		}
@@ -932,8 +941,8 @@ func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, tlsCfg *gatewayv1
 	}
 
 	// Next, check if there is mTLS config
-	if tlsCfg.FrontendValidation != nil {
-		for _, certRef := range tlsCfg.FrontendValidation.CACertificateRefs {
+	if listenerTLS.FrontendValidation != nil {
+		for _, certRef := range listenerTLS.FrontendValidation.CACertificateRefs {
 			refNamespace := gateway.Namespace
 			if certRef.Namespace != nil {
 				refNamespace = string(*certRef.Namespace)
@@ -966,17 +975,16 @@ func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, tlsCfg *gatewayv1
 		}
 	}
 
-	if minTLSVersion, exists := tlsCfg.Options[GatewayTLSOption_MinVersion]; exists {
-		minTLSVersionString := string(minTLSVersion)
-		tlsTermCfg.MinVersion = &minTLSVersionString
-	}
-	if maxTLSVersion, exists := tlsCfg.Options[GatewayTLSOption_MaxVersion]; exists {
-		maxTLSVersionString := string(maxTLSVersion)
-		tlsTermCfg.MaxVersion = &maxTLSVersionString
-	}
-	if mtlsStrat, exists := tlsCfg.Options[GatewayTLSOption_MTLSStrategy]; exists {
-		mtlsStratString := string(mtlsStrat)
-		tlsTermCfg.MutualTLSVerificationStrategy = &mtlsStratString
+	for key, val := range listenerTLS.Options {
+		if strings.HasPrefix(string(key), TLSOptionKeyPrefix) {
+			for _, reservedKey := range TLSOptionKeyReservedKeys {
+				if string(key) == reservedKey {
+					return nil, fmt.Errorf("invalid option supplied to listener tls options. %q is a reserved field and may not be provided here", reservedKey)
+				}
+			}
+			keySuffix := strings.TrimPrefix(string(key), TLSOptionKeyPrefix)
+			tlsTermCfg.ExtendedOptions[keySuffix] = string(val)
+		}
 	}
 
 	return tlsTermCfg, nil
