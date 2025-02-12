@@ -68,7 +68,7 @@ type IRVirtualHost struct {
 	DefaultDestination *IRDestination
 
 	// Optional configuration for TLS termination, when nil, the default ngrok endpoint behaviour is used
-	TLSTermination *trafficpolicy.TLSTerminationConfig
+	TLSTermination *IRTLSTermination
 
 	// Any key/value pairs in this map will be added to any resources created from this IRVirtualHost as labels
 	LabelsToAdd map[string]string
@@ -84,6 +84,13 @@ type IRVirtualHost struct {
 
 	// Bindings to set on generated Endpoints
 	Bindings []string
+}
+
+type IRTLSTermination struct {
+	ExtendedOptions                 map[string]string
+	ServerPrivateKey                *string
+	ServerCertificate               *string
+	MutualTLSCertificateAuthorities []string
 }
 
 type IRPathMatchType string
