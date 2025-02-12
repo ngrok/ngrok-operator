@@ -122,6 +122,11 @@ spec:
           status:
             description: KubernetesOperatorStatus defines the observed state of KubernetesOperator
             properties:
+              bindingsIngressEndpoint:
+                description: |-
+                  BindingsIngressEndpoint is the URL that the operator will use to talk
+                  to the ngrok edge when forwarding traffic for k8s-bound endpoints
+                type: string
               enabledFeatures:
                 description: EnabledFeatures is the string representation of the features
                   enabled for this Kubernetes Operator
