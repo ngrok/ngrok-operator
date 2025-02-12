@@ -44,6 +44,8 @@ type Storer interface {
 	GetIngressClassV1(name string) (*netv1.IngressClass, error)
 	GetIngressV1(name, namespace string) (*netv1.Ingress, error)
 	GetServiceV1(name, namespace string) (*corev1.Service, error)
+	GetSecretV1(name, namespace string) (*corev1.Secret, error)
+	GetConfigMapV1(name, namespace string) (*corev1.ConfigMap, error)
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error)
 	GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error)
@@ -140,6 +142,30 @@ func (s Store) GetServiceV1(name, namespace string) (*corev1.Service, error) {
 		return nil, errors.NewErrorNotFound(fmt.Sprintf("Service %v not found", name))
 	}
 	return p.(*corev1.Service), nil
+}
+
+// GetIngressV1 returns the named Secret
+func (s Store) GetSecretV1(name, namespace string) (*corev1.Secret, error) {
+	p, exists, err := s.stores.SecretV1.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("Secret %v not found", name))
+	}
+	return p.(*corev1.Secret), nil
+}
+
+// GetConfigMapV1 returns the named ConfigMap
+func (s Store) GetConfigMapV1(name, namespace string) (*corev1.ConfigMap, error) {
+	p, exists, err := s.stores.ConfigMapV1.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("ConfigMap %v not found", name))
+	}
+	return p.(*corev1.ConfigMap), nil
 }
 
 // GetNgrokIngressV1 looks up the Ingress resource by name and namespace and returns it if it's found

@@ -142,6 +142,14 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 		services := &corev1.ServiceList{}
 		err := client.List(ctx, services)
 		return util.ToClientObjects(services.Items), err
+	case *corev1.Secret:
+		secrets := &corev1.SecretList{}
+		err := client.List(ctx, secrets)
+		return util.ToClientObjects(secrets.Items), err
+	case *corev1.ConfigMap:
+		configmaps := &corev1.ConfigMapList{}
+		err := client.List(ctx, configmaps)
+		return util.ToClientObjects(configmaps.Items), err
 	case *netv1.Ingress:
 		ingresses := &netv1.IngressList{}
 		err := client.List(ctx, ingresses)
@@ -210,6 +218,8 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 // - Gateways
 // - HTTPRoutes
 // - Services
+// - Secrets
+// - ConfigMaps
 // - Domains
 // - Edges
 // - Tunnels
@@ -223,6 +233,8 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		&netv1.Ingress{},
 		&netv1.IngressClass{},
 		&corev1.Service{},
+		&corev1.Secret{},
+		&corev1.ConfigMap{},
 		// CRDs
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
@@ -436,6 +448,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		d.store,
 		d.defaultManagedResourceLabels(),
 		d.ingressNgrokMetadata,
+		d.gatewayNgrokMetadata,
 		d.clusterDomain,
 	)
 	translationResult := translator.Translate()

@@ -113,6 +113,11 @@ func (d *Driver) calculateHTTPSEdges(domains *domainSet) map[string]ingressv1alp
 	}
 	d.calculateHTTPSEdgesFromIngress(edgeMap)
 
+	// No gateway domains, return early
+	if len(domains.edgeGatewayDomains) == 0 {
+		return edgeMap
+	}
+
 	if d.gatewayEnabled {
 		gatewayEdgeMap := make(map[string]ingressv1alpha1.HTTPSEdge)
 		httproutes := d.store.ListHTTPRoutes()
@@ -204,7 +209,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 			continue
 		}
 
-		modSet, err := getNgrokModuleSetForIngress(ingress, d.store)
+		modSet, err := getNgrokModuleSetForObject(ingress, d.store)
 		if err != nil {
 			d.log.Error(err, "error getting ngrok moduleset for ingress", "ingress", ingress)
 			continue
@@ -305,6 +310,10 @@ func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alph
 			d.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
 		}
 		if useEndpoints {
+			d.log.Info(fmt.Sprintf("the following gateway will be provided by ngrok endpoints instead of edges because of the %q annotation",
+				annotations.MappingStrategyAnnotation),
+				"gateway", fmt.Sprintf("%s.%s", gtw.Name, gtw.Namespace),
+			)
 			continue
 		}
 

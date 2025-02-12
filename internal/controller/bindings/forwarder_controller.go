@@ -96,15 +96,15 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 		return
 	}
 
-	err = cont.Watch(
-		source.Kind(mgr.GetCache(), &bindingsv1alpha1.BoundEndpoint{}),
+	if err = cont.Watch(source.Kind[client.Object](
+		mgr.GetCache(),
+		&bindingsv1alpha1.BoundEndpoint{},
 		&handler.EnqueueRequestForObject{},
 		predicate.Or(
 			predicate.AnnotationChangedPredicate{},
 			predicate.GenerationChangedPredicate{},
 		),
-	)
-	if err != nil {
+	)); err != nil {
 		return
 	}
 

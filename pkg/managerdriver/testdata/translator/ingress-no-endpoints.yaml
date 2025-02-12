@@ -1,0 +1,112 @@
+# Ingresses with traffic policy defaultBackends
+input:
+  ingressClasses:
+  - apiVersion: networking.k8s.io/v1
+    kind: IngressClass
+    metadata:
+      labels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: ngrok-operator
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+      name: ngrok
+    spec:
+      controller: k8s.ngrok.com/ingress-controller
+  ingresses:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      annotations:
+        k8s.ngrok.com/traffic-policy: response-503
+      name: test-ingress-1
+      namespace: default
+    spec:
+      ingressClassName: ngrok
+      defaultBackend:
+        service:
+          name: test-service-1
+          port:
+            number: 8080
+      rules:
+        - host: test-ingresses.ngrok.io
+          http:
+            paths:
+              - path: /test-1
+                pathType: Prefix
+                backend:
+                  service:
+                    name: test-service-1
+                    port:
+                      number: 8080
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      annotations:
+        k8s.ngrok.com/traffic-policy: response-503
+      name: test-ingress-2
+      namespace: default
+    spec:
+      ingressClassName: ngrok
+      defaultBackend:
+        service:
+          name: test-service-1
+          port:
+            number: 8080
+      rules:
+        - host: test-ingresses.ngrok.io
+          http:
+            paths:
+              - path: /test-2
+                pathType: Prefix
+                backend:
+                  service:
+                    name: test-service-2
+                    port:
+                      number: 8080
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-2
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  trafficPolicies: 
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: NgrokTrafficPolicy
+    metadata:
+      name: response-503
+      namespace: default
+    spec:
+      policy:
+        on_http_request:
+          - name: response-503
+            expressions:
+              - req.url.path.startsWith('/foo')
+            actions:
+              - type: custom-response
+                config:
+                  status_code: 503
+                  content: "Service is temporarily unavailable"
+                  headers:
+                    content-type: text/plain
+expected:
+  cloudEndpoints: []
+  agentEndpoints: []
