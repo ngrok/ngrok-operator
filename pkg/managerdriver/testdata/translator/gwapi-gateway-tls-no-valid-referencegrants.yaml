@@ -1,0 +1,115 @@
+# Tests that Secrets/ConfigMaps within Gateway.TLS require reference grants for cross namespace
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: test-gateway
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints"
+    spec:
+      gatewayClassName: ngrok
+      infrastructure:
+        annotations:
+          annotation-key: annotation-val
+        labels:
+          label-key: label-val
+      listeners:
+        - name: test-hostname
+          hostname: "test-hostname.ngrok.io"
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            certificateRefs:
+            - kind: Secret
+              name: other-namespace-secret
+              namespace: other
+            frontendValidation:
+              caCertificateRefs:
+              - kind: ConfigMap
+                name: other-namespace-configmap
+                namespace: other
+  httpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: test-route
+      namespace: default
+    spec:
+      hostnames:
+      - test-hostname.ngrok.io
+      parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: test-gateway
+        namespace: default
+      rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /same-namespace-svc
+        backendRefs:
+          - group: ""
+            kind: Service
+            name: same-namespace-svc
+            port: 8080
+            weight: 1
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: same-namespace-svc
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  trafficPolicies:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: NgrokTrafficPolicy
+    metadata:
+      name: other-namespace-tp
+      namespace: other
+    spec:
+      policy:
+        on_http_request:
+        - name: Add-Headers
+          actions:
+            - type: add-headers
+              config:
+                headers:
+                  X-Route-Added-Headder: "add"
+  secrets:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: other-namespace-secret
+      namespace: other
+    type: kubernetes.io/tls
+    data:
+      tls.key: U2VydmVyUHJpdmF0ZUtleQ==
+      tls.crt: U2VydmVyQ2VydA==
+  configMaps:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: other-namespace-configmap
+      namespace: other
+    data:
+      ca.crt: CACert
+expected:
+  cloudEndpoints: []
+  agentEndpoints: []
+
