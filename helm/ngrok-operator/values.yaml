@@ -279,6 +279,7 @@ agent:
 ##
 ## @extra useExperimentalGatewayApi DEPRECATED: Use gateway.enabled instead
 ## @param gateway.enabled When true, enable the Gateway controller
+## @param gateway.disableReferenceGrants When true, disables required ReferenceGrants for cross-namespace references. Does nothing when gateway.enabled is false
 ##
 gateway:
   enabled: false
