@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/store"
@@ -154,7 +153,7 @@ func (t *translator) HTTPRouteToIR(
 			}
 		}
 
-		matchingListeners := matchingGatewayListenersForHTTPRoute(t.log, gateway, httpRoute)
+		matchingListeners := t.matchingGatewayListenersForHTTPRoute(gateway, httpRoute)
 		for _, matchingListener := range matchingListeners {
 			tlsTermCfg := matchingListener.TLS
 			if tlsTermCfg != nil {
@@ -296,7 +295,7 @@ func (t *translator) HTTPRouteToIR(
 // #region Find Gateway listners for HTTPRoute
 
 // matchingGatewayListenersForHTTPRoute takes a Gateway and an HTTPRoute and figures out which (if any) listeners from the Gateway the HTTPRoute matches
-func matchingGatewayListenersForHTTPRoute(log logr.Logger, gateway *gatewayv1.Gateway, httpRoute *gatewayv1.HTTPRoute) []gatewayv1.Listener {
+func (t *translator) matchingGatewayListenersForHTTPRoute(gateway *gatewayv1.Gateway, httpRoute *gatewayv1.HTTPRoute) []gatewayv1.Listener {
 	matchingListeners := []gatewayv1.Listener{}
 
 	for _, listener := range gateway.Spec.Listeners {
@@ -317,35 +316,49 @@ func matchingGatewayListenersForHTTPRoute(log logr.Logger, gateway *gatewayv1.Ga
 				}
 			}
 			if !allowedKind {
-				return matchingListeners
+				continue
 			}
 
 			// Validate namespaces
+			allowedNamespace := gateway.Namespace == httpRoute.Namespace // By default, only allow those in the same namespace
 			if listener.AllowedRoutes.Namespaces != nil {
 				nsPolicy := listener.AllowedRoutes.Namespaces.From
 				if nsPolicy != nil {
 					switch *nsPolicy {
 					case gatewayv1.NamespacesFromSame:
-						if httpRoute.Namespace != gateway.Namespace {
-							continue
-						}
+						// Default behaviour, do nothing
+					case gatewayv1.NamespacesFromAll:
+						allowedNamespace = true
 					case gatewayv1.NamespacesFromSelector:
-						if listener.AllowedRoutes.Namespaces.Selector == nil {
-							continue
-						}
-						// Check if the namespace matches the selector
-						selector, err := metav1.LabelSelectorAsSelector(listener.AllowedRoutes.Namespaces.Selector)
-						if err != nil || !selector.Matches(labels.Set(httpRoute.Labels)) {
-							continue
+						if listener.AllowedRoutes.Namespaces.Selector != nil {
+							// Check if the namespace matches the selector
+							selector, err := metav1.LabelSelectorAsSelector(listener.AllowedRoutes.Namespaces.Selector)
+							if err != nil {
+								t.log.Error(err, "unable to parse AllowedRoutes.Namespaces.Selector")
+								continue
+							}
+							// Get the namespace for the current HTTPRoute
+							namespace, err := t.store.GetNamespaceV1(httpRoute.Namespace)
+							if err != nil {
+								t.log.Error(err, "unable to validate whether current HTTPRoute labels match Gateway AllowedRoutes.Namespaces.Selector")
+								continue
+							}
+							if !selector.Matches(labels.Set(namespace.Labels)) {
+								continue
+							}
+							allowedNamespace = true
 						}
 					}
 				}
+			}
+			if !allowedNamespace {
+				continue
 			}
 		}
 
 		// Handle listener hostnames
 		if listener.Hostname == nil {
-			log.Error(fmt.Errorf("gateway has a listener with a nil hostname"), "Gateway listeners with nil hostnames are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
+			t.log.Error(fmt.Errorf("gateway has a listener with a nil hostname"), "Gateway listeners with nil hostnames are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 			continue
@@ -353,13 +366,13 @@ func matchingGatewayListenersForHTTPRoute(log logr.Logger, gateway *gatewayv1.Ga
 
 		listenerHostname := string(*listener.Hostname)
 		if listenerHostname == "*" {
-			log.Error(fmt.Errorf("gateway has a listener with hostname \"*\""), "Gateway listeners with hostname \"*\" are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
+			t.log.Error(fmt.Errorf("gateway has a listener with hostname \"*\""), "Gateway listeners with hostname \"*\" are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 			continue
 		}
 		if listenerHostname == "" {
-			log.Error(fmt.Errorf("gateway has a listener with an empty hostname"), "Gateway listeners with empty hostnames are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
+			t.log.Error(fmt.Errorf("gateway has a listener with an empty hostname"), "Gateway listeners with empty hostnames are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 			continue
@@ -379,7 +392,7 @@ func matchingGatewayListenersForHTTPRoute(log logr.Logger, gateway *gatewayv1.Ga
 			}
 			match, err := doHostGlobsMatch(listenerHostname, string(routeHostname))
 			if err != nil {
-				log.Error(err, "unable to compile hostname glob for Gateway listener hostname, this listener will be skipped",
+				t.log.Error(err, "unable to compile hostname glob for Gateway listener hostname, this listener will be skipped",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 					"listener hostname", listenerHostname,
 				)

@@ -406,6 +406,7 @@ type TranslatorRawTestCase struct {
 		Services        []map[string]interface{} `yaml:"services"`
 		Secrets         []map[string]interface{} `yaml:"secrets"`
 		Configmaps      []map[string]interface{} `yaml:"configMaps"`
+		Namespaces      []map[string]interface{} `yaml:"namespaces"`
 		ReferenceGrants []map[string]interface{} `yaml:"referenceGrants"`
 	} `yaml:"input"`
 
@@ -427,6 +428,7 @@ type TranslatorTestCase struct {
 		Secrets         []*corev1.Secret
 		ConfigMaps      []*corev1.ConfigMap
 		Services        []*corev1.Service
+		Namespaces      []*corev1.Namespace
 		ReferenceGrants []*gatewayv1beta1.ReferenceGrant
 	}
 
@@ -655,6 +657,9 @@ func loadTranslatorInputObjs(t *testing.T, tc TranslatorTestCase) []runtime.Obje
 	for _, obj := range tc.Input.ConfigMaps {
 		inputObjects = append(inputObjects, obj)
 	}
+	for _, obj := range tc.Input.Namespaces {
+		inputObjects = append(inputObjects, obj)
+	}
 	return inputObjects
 }
 
@@ -734,6 +739,13 @@ func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) Tran
 		configMap, ok := obj.(*corev1.ConfigMap)
 		require.True(t, ok, "expected a ConfigMap, got %T", obj)
 		tc.Input.ConfigMaps = append(tc.Input.ConfigMaps, configMap)
+	}
+	for _, rawObj := range rawTC.Input.Namespaces {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		namespace, ok := obj.(*corev1.Namespace)
+		require.True(t, ok, "expected a Namespace, got %T", obj)
+		tc.Input.Namespaces = append(tc.Input.Namespaces, namespace)
 	}
 	for _, rawObj := range rawTC.Input.TrafficPolicies {
 		obj, err := decodeViaScheme(sch, rawObj)
