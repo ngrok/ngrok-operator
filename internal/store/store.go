@@ -20,6 +20,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
@@ -45,6 +46,8 @@ type Storer interface {
 	GetIngressV1(name, namespace string) (*netv1.Ingress, error)
 	GetServiceV1(name, namespace string) (*corev1.Service, error)
 	GetSecretV1(name, namespace string) (*corev1.Secret, error)
+	GetReferenceGrant(name, namespace string) (*gatewayv1beta1.ReferenceGrant, error)
+	GetNamespaceV1(name string) (*corev1.Namespace, error)
 	GetConfigMapV1(name, namespace string) (*corev1.ConfigMap, error)
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error)
@@ -60,6 +63,7 @@ type Storer interface {
 
 	ListGateways() []*gatewayv1.Gateway
 	ListHTTPRoutes() []*gatewayv1.HTTPRoute
+	ListReferenceGrants() []*gatewayv1beta1.ReferenceGrant
 
 	ListDomainsV1() []*ingressv1alpha1.Domain
 	ListTunnelsV1() []*ingressv1alpha1.Tunnel
@@ -226,6 +230,30 @@ func (s Store) GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute
 	return obj.(*gatewayv1.HTTPRoute), nil
 }
 
+// GetReferenceGrant returns the named ReferenceGrant
+func (s Store) GetReferenceGrant(name, namespace string) (*gatewayv1beta1.ReferenceGrant, error) {
+	p, exists, err := s.stores.ReferenceGrant.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("ReferenceGrant %v not found", name))
+	}
+	return p.(*gatewayv1beta1.ReferenceGrant), nil
+}
+
+// GetNamespaceV1 returns the named Namespace
+func (s Store) GetNamespaceV1(name string) (*corev1.Namespace, error) {
+	p, exists, err := s.stores.NamespaceV1.GetByKey(name)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("Namespace %v not found", name))
+	}
+	return p.(*corev1.Namespace), nil
+}
+
 // ListIngressClassesV1 returns the list of Ingresses in the Ingress v1 store.
 func (s Store) ListIngressClassesV1() []*netv1.IngressClass {
 	// filter ingress rules
@@ -315,6 +343,48 @@ func (s Store) ListHTTPRoutes() []*gatewayv1.HTTPRoute {
 	}
 
 	return httproutes
+}
+
+// ListReferenceGrants returns the stored ReferenceGrants
+func (s Store) ListReferenceGrants() []*gatewayv1beta1.ReferenceGrant {
+	var referenceGrants []*gatewayv1beta1.ReferenceGrant
+
+	for _, item := range s.stores.ReferenceGrant.List() {
+		referenceGrant, ok := item.(*gatewayv1beta1.ReferenceGrant)
+		if !ok {
+			s.log.Error(nil, "ReferenceGrant: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
+			continue
+		}
+		referenceGrants = append(referenceGrants, referenceGrant)
+	}
+
+	sort.SliceStable(referenceGrants, func(i, j int) bool {
+		return strings.Compare(fmt.Sprintf("%s/%s", referenceGrants[i].Namespace, referenceGrants[i].Name),
+			fmt.Sprintf("%s/%s", referenceGrants[j].Namespace, referenceGrants[j].Name)) < 0
+	})
+
+	return referenceGrants
+}
+
+// ListNamespaces returns the stored Namespaces
+func (s Store) ListNamespaces() []*corev1.Namespace {
+	var namespaces []*corev1.Namespace
+
+	for _, item := range s.stores.NamespaceV1.List() {
+		namespace, ok := item.(*corev1.Namespace)
+		if !ok {
+			s.log.Error(nil, "Namespace: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
+			continue
+		}
+		namespaces = append(namespaces, namespace)
+	}
+
+	sort.SliceStable(namespaces, func(i, j int) bool {
+		return strings.Compare(fmt.Sprintf("%s/%s", namespaces[i].Namespace, namespaces[i].Name),
+			fmt.Sprintf("%s/%s", namespaces[j].Namespace, namespaces[j].Name)) < 0
+	})
+
+	return namespaces
 }
 
 func (s Store) ListNgrokIngressesV1() []*netv1.Ingress {
