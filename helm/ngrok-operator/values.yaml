@@ -282,6 +282,7 @@ agent:
 ##
 gateway:
   enabled: false
+  disableReferenceGrants: false
 
 ##
 ## @section Kubernetes Bindings feature configuration
