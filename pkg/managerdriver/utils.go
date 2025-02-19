@@ -11,11 +11,13 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	"github.com/gobwas/glob"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
@@ -300,12 +302,12 @@ func getNgrokTrafficPolicyForIngress(ing *netv1.Ingress, resources store.Storer)
 	return resources.GetNgrokTrafficPolicyV1(policy, ing.Namespace)
 }
 
-// Given an ingress, it will resolve any ngrok modulesets defined on the ingress to the
+// Given an object, it will resolve any ngrok modulesets defined on the object's annotations to the
 // CRDs and then will merge them in to a single moduleset
-func getNgrokModuleSetForIngress(ing *netv1.Ingress, resources store.Storer) (*ingressv1alpha1.NgrokModuleSet, error) {
+func getNgrokModuleSetForObject(obj client.Object, resources store.Storer) (*ingressv1alpha1.NgrokModuleSet, error) {
 	computedModSet := &ingressv1alpha1.NgrokModuleSet{}
 
-	modules, err := annotations.ExtractNgrokModuleSetsFromAnnotations(ing)
+	modules, err := annotations.ExtractNgrokModuleSetsFromAnnotations(obj)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return computedModSet, nil
@@ -314,7 +316,7 @@ func getNgrokModuleSetForIngress(ing *netv1.Ingress, resources store.Storer) (*i
 	}
 
 	for _, module := range modules {
-		resolvedMod, err := resources.GetNgrokModuleSetV1(module, ing.Namespace)
+		resolvedMod, err := resources.GetNgrokModuleSetV1(module, obj.GetNamespace())
 		if err != nil {
 			return computedModSet, err
 		}
@@ -324,33 +326,61 @@ func getNgrokModuleSetForIngress(ing *netv1.Ingress, resources store.Storer) (*i
 	return computedModSet, nil
 }
 
-// getPathMatchType validates an ingress
-func getPathMatchType(log logr.Logger, pathType *netv1.PathType) netv1.PathType {
+// netv1PathTypeToIR validates an ingress
+func netv1PathTypeToIR(log logr.Logger, pathType *netv1.PathType) ir.IRPathMatchType {
 	if pathType == nil {
-		return netv1.PathTypePrefix
+		return ir.IRPathType_Prefix
 	}
 
 	switch *pathType {
 	case netv1.PathTypePrefix, netv1.PathTypeImplementationSpecific:
-		return netv1.PathTypePrefix
+		return ir.IRPathType_Prefix
 	case netv1.PathTypeExact:
-		return netv1.PathTypeExact
+		return ir.IRPathType_Exact
 	default:
 		log.Error(fmt.Errorf("unknown path type, defaulting to prefix match"), "unknown path type", "pathType", *pathType)
-		return netv1.PathTypePrefix
+		return ir.IRPathType_Prefix
 	}
 }
 
 // appendStringUnique will append a string to the string slice if it does not already exist
-func appendStringUnique(existing []string, newItem string) []string {
+func appendStringUnique(existing []string, newItems ...string) []string {
 	uniqueMap := make(map[string]struct{})
 
 	for _, item := range existing {
 		uniqueMap[item] = struct{}{}
 	}
-	if _, exists := uniqueMap[newItem]; !exists {
-		existing = append(existing, newItem)
+
+	for _, newItem := range newItems {
+		if _, exists := uniqueMap[newItem]; !exists {
+			existing = append(existing, newItem)
+		}
 	}
 
 	return existing
+}
+
+func doHostGlobsMatch(hostname1 string, hostname2 string) (bool, error) {
+	hostname1IsGlob := strings.Contains(hostname1, "*")
+	hostname2IsGlob := strings.Contains(hostname2, "*")
+
+	switch {
+	// If they are both globs, hostname1 wins and hostname2 must match it
+	case hostname1IsGlob && hostname2IsGlob:
+		fallthrough
+	case hostname1IsGlob:
+		host1Glob, err := glob.Compile(hostname1)
+		if err != nil {
+			return false, err
+		}
+		return host1Glob.Match(hostname2), nil
+	case hostname2IsGlob:
+		host2Glob, err := glob.Compile(hostname2)
+		if err != nil {
+			return false, err
+		}
+		return host2Glob.Match(hostname1), nil
+	default:
+		return hostname1 == hostname2, nil
+	}
 }

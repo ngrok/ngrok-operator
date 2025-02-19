@@ -1,0 +1,158 @@
+# Test response header filters
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: test-gateway
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints"
+    spec:
+      gatewayClassName: ngrok
+      listeners:
+        - name: test-hostname
+          hostname: "test-hostname.ngrok.io"
+          port: 443
+          protocol: HTTPS
+  httpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: test-route
+      namespace: default
+    spec:
+      hostnames:
+      - test-hostname.ngrok.io
+      parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: test-gateway
+        namespace: default
+      rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /test-service-1
+        backendRefs:
+          - group: ""
+            kind: Service
+            name: test-service-1
+            port: 8080
+            weight: 1
+            filters:
+            - type: ResponseHeaderModifier
+              responseHeaderModifier:
+                add:
+                - name: X-BackendRef-Added-Headder
+                  value: "set"
+                set:
+                  - name: X-BackendRef-Set-Header
+                    value: "add"
+                remove:
+                - X-BackendRef-Removed-Header
+        filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            add:
+            - name: X-Route-Added-Headder
+              value: "set"
+            set:
+              - name: X-Route-Set-Header
+                value: "add"
+            remove:
+            - X-Route-Removed-Header
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+expected:
+  cloudEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: test-gateway.default-test-hostname.ngrok.io
+      namespace: default
+    spec:
+      trafficPolicy:
+        policy:
+            on_http_request:
+              - name: Generated-Route
+                expressions:
+                  - "req.url.path.startsWith('/test-service-1')"
+                actions:
+                  - type: forward-internal
+                    config:
+                      url: "https://e3b0c-test-service-1-default-8080.internal"
+              - name: Fallback-404
+                actions:
+                - type: custom-response
+                  config:
+                    status_code: 404
+                    content: "No route was found for this ngrok Cloud Endpoint"
+                    headers:
+                      content-type: text/plain
+            on_http_response:
+              - name: GatewayAPI-Response-Header-Filter
+                expressions:
+                  - "req.url.path.startsWith('/test-service-1')"
+                actions:
+                  - type: remove-headers
+                    config:
+                      headers:
+                        - "X-Route-Removed-Header"
+                        - "X-Route-Set-Header"
+                  - type: add-headers
+                    config:
+                      headers:
+                        X-Route-Added-Headder: "set"
+                        X-Route-Set-Header: "add"
+              - name: GatewayAPI-Response-Header-Filter
+                expressions:
+                  - "req.url.path.startsWith('/test-service-1')"
+                actions:
+                  - type: remove-headers
+                    config:
+                      headers:
+                        - "X-BackendRef-Removed-Header"
+                        - "X-BackendRef-Set-Header"
+                  - type: add-headers
+                    config:
+                      headers:
+                        X-BackendRef-Added-Headder: "set"
+                        X-BackendRef-Set-Header: "add"
+      url: https://test-hostname.ngrok.io
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-8080
+      namespace: default
+    spec:
+      url: "https://e3b0c-test-service-1-default-8080.internal"
+      upstream:
+        url: "http://test-service-1.default:8080"
+      bindings:
+      - "internal"

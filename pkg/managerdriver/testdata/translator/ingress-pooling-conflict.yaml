@@ -17,7 +17,7 @@ input:
     kind: Ingress
     metadata:
       annotations:
-        k8s.ngrok.com/traffic-policy: response-503
+        k8s.ngrok.com/pooling-enabled: "true"
         k8s.ngrok.com/mapping-strategy: "endpoints"
       name: test-ingress-1
       namespace: default
@@ -38,7 +38,7 @@ input:
     kind: Ingress
     metadata:
       annotations:
-        k8s.ngrok.com/traffic-policy: response-404
+        k8s.ngrok.com/pooling-enabled: "false"
         k8s.ngrok.com/mapping-strategy: "endpoints"
       name: test-ingress-2
       namespace: default
@@ -80,46 +80,10 @@ input:
         protocol: TCP
         targetPort: http
       type: ClusterIP
-  trafficPolicies: 
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
-    kind: NgrokTrafficPolicy
-    metadata:
-      name: response-503
-      namespace: default
-    spec:
-      policy:
-        on_http_request:
-          - name: response-503
-            expressions:
-              - req.url.path.startsWith("/foo")
-            actions:
-              - type: custom-response
-                config:
-                  status_code: 503
-                  content: "Service is temporarily unavailable"
-                  headers:
-                    content-type: text/plain
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
-    kind: NgrokTrafficPolicy
-    metadata:
-      name: response-404
-      namespace: default
-    spec:
-      policy:
-        on_http_request:
-          - name: response-404
-            expressions:
-              - req.url.path.startsWith("/foo")
-            actions:
-              - type: custom-response
-                config:
-                  status_code: 404
-                  content: "Not found"
-                  headers:
-                    content-type: text/plain
+  trafficPolicies: []
 expected:
   # Generated cloud endpoint should have the first traffic policy, but the second ingress will not be processed due to the
-  # traffic policy conflict
+  # pooling support conflict
   cloudEndpoints:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: CloudEndpoint
@@ -130,29 +94,26 @@ expected:
       name: test-ingresses.ngrok.io
       namespace: default
     spec:
-      bindings:
-        - public
       url: https://test-ingresses.ngrok.io
+      poolingEnabled: true
       trafficPolicy:
         policy:
           on_http_request:
-          - name: response-503
+          - name: Generated-Route
             expressions:
-              - req.url.path.startsWith("/foo")
-            actions:
-              - type: custom-response
-                config:
-                  status_code: 503
-                  content: "Service is temporarily unavailable"
-                  headers:
-                    content-type: text/plain
-          - name: Generated-Route-/test-1
-            expressions:
-            - req.url.path.startsWith("/test-1")
+            - req.url.path.startsWith('/test-1')
             actions:
             - type: forward-internal
               config:
                 url: https://e3b0c-test-service-1-default-8080.internal
+          - name: Fallback-404
+            actions:
+            - type: custom-response
+              config:
+                status_code: 404
+                content: "No route was found for this ngrok Cloud Endpoint"
+                headers:
+                  content-type: text/plain
   agentEndpoints:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
@@ -167,5 +128,4 @@ expected:
       upstream:
         url: "http://test-service-1.default:8080"
       bindings:
-        - internal
-
+      - "internal"

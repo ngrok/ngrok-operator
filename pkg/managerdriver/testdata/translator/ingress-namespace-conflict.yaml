@@ -92,19 +92,25 @@ expected:
       name: test-ingresses.ngrok.io
       namespace: aaa
     spec:
-      bindings:
-        - public
       url: https://test-ingresses.ngrok.io
       trafficPolicy:
         policy:
           on_http_request:
-          - name: Generated-Route-/test-1
+          - name: Generated-Route
             expressions:
-            - req.url.path.startsWith("/test-1")
+            - req.url.path.startsWith('/test-1')
             actions:
             - type: forward-internal
               config:
                 url: https://e3b0c-test-service-1-aaa-8080.internal
+          - name: Fallback-404
+            actions:
+            - type: custom-response
+              config:
+                status_code: 404
+                content: "No route was found for this ngrok Cloud Endpoint"
+                headers:
+                  content-type: text/plain
   agentEndpoints:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
@@ -119,5 +125,4 @@ expected:
       upstream:
         url: "http://test-service-1.aaa:8080"
       bindings:
-        - internal
-
+      - "internal"

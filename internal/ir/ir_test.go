@@ -4,74 +4,287 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	netv1 "k8s.io/api/networking/v1"
 )
 
+// --- Helper functions to create pointers ---
+func stringPtr(s string) *string {
+	return &s
+}
+
+func pathTypePtr(pt IRPathMatchType) *IRPathMatchType {
+	return &pt
+}
+
+func methodPtr(m IRMethodMatch) *IRMethodMatch {
+	return &m
+}
 func TestSortRoutes(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name          string
 		routes        []*IRRoute
 		expectedOrder []*IRRoute
 	}{
 		{
-			name: "Exact matches before prefix matches",
+			name: "Path and PathType sorting: Exact vs Prefix",
 			routes: []*IRRoute{
-				{Path: "/foo", PathType: netv1.PathTypePrefix},
-				{Path: "/bar", PathType: netv1.PathTypeExact},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/foo"),
+						PathType: pathTypePtr(IRPathType_Prefix),
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/bar"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
 			},
 			expectedOrder: []*IRRoute{
-				{Path: "/bar", PathType: netv1.PathTypeExact},
-				{Path: "/foo", PathType: netv1.PathTypePrefix},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/bar"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/foo"),
+						PathType: pathTypePtr(IRPathType_Prefix),
+					},
+				},
 			},
 		},
 		{
 			name: "Longer paths before shorter paths",
 			routes: []*IRRoute{
-				{Path: "/longer", PathType: netv1.PathTypeExact},
-				{Path: "/short", PathType: netv1.PathTypeExact},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/longer"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/short"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
 			},
 			expectedOrder: []*IRRoute{
-				{Path: "/longer", PathType: netv1.PathTypeExact},
-				{Path: "/short", PathType: netv1.PathTypeExact},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/longer"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/short"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
 			},
 		},
 		{
 			name: "Lexicographical order for same path length and type",
 			routes: []*IRRoute{
-				{Path: "/b", PathType: netv1.PathTypeExact},
-				{Path: "/a", PathType: netv1.PathTypeExact},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/b"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/a"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
 			},
 			expectedOrder: []*IRRoute{
-				{Path: "/a", PathType: netv1.PathTypeExact},
-				{Path: "/b", PathType: netv1.PathTypeExact},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/a"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/b"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
 			},
 		},
 		{
-			name: "Mixed criteria",
+			name: "Header specificity: routes with headers come before those without",
 			routes: []*IRRoute{
-				{Path: "/foo", PathType: netv1.PathTypeExact},
-				{Path: "/foooo", PathType: netv1.PathTypePrefix},
-				{Path: "/bar", PathType: netv1.PathTypePrefix},
-				{Path: "/baz", PathType: netv1.PathTypeExact},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Headers: []IRHeaderMatch{
+							{Name: "X-Test", Value: "foo", ValueType: IRStringValueType_Exact},
+						},
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{},
+				},
 			},
 			expectedOrder: []*IRRoute{
-				{Path: "/baz", PathType: netv1.PathTypeExact},
-				{Path: "/foo", PathType: netv1.PathTypeExact},
-				{Path: "/foooo", PathType: netv1.PathTypePrefix},
-				{Path: "/bar", PathType: netv1.PathTypePrefix},
+				{
+					MatchCriteria: IRHTTPMatch{
+						Headers: []IRHeaderMatch{
+							{Name: "X-Test", Value: "foo", ValueType: IRStringValueType_Exact},
+						},
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{},
+				},
+			},
+		},
+		{
+			name: "Query param specificity: routes with query params come before those without",
+			routes: []*IRRoute{
+				{
+					MatchCriteria: IRHTTPMatch{
+						QueryParams: []IRQueryParamMatch{
+							{Name: "id", Value: "123", ValueType: IRStringValueType_Exact},
+						},
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{},
+				},
+			},
+			expectedOrder: []*IRRoute{
+				{
+					MatchCriteria: IRHTTPMatch{
+						QueryParams: []IRQueryParamMatch{
+							{Name: "id", Value: "123", ValueType: IRStringValueType_Exact},
+						},
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{},
+				},
+			},
+		},
+		{
+			name: "Method specificity: routes with method come before those without",
+			routes: []*IRRoute{
+				{
+					MatchCriteria: IRHTTPMatch{
+						Method: methodPtr(IRMethodMatch_Get),
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{},
+				},
+			},
+			expectedOrder: []*IRRoute{
+				{
+					MatchCriteria: IRHTTPMatch{
+						Method: methodPtr(IRMethodMatch_Get),
+					},
+				},
+				{
+					MatchCriteria: IRHTTPMatch{},
+				},
+			},
+		},
+		{
+			name: "Combined criteria ordering",
+			routes: []*IRRoute{
+				// Route A: has path "/a", exact, no headers, no query, no method.
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/a"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
+				// Route B: has path "/a", exact, with headers.
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/a"),
+						PathType: pathTypePtr(IRPathType_Exact),
+						Headers: []IRHeaderMatch{
+							{Name: "X", Value: "1", ValueType: IRStringValueType_Exact},
+						},
+					},
+				},
+				// Route C: no path, with headers.
+				{
+					MatchCriteria: IRHTTPMatch{
+						Headers: []IRHeaderMatch{
+							{Name: "Y", Value: "2", ValueType: IRStringValueType_Exact},
+						},
+					},
+				},
+				// Route D: no path, no headers, with method.
+				{
+					MatchCriteria: IRHTTPMatch{
+						Method: methodPtr(IRMethodMatch_Get),
+					},
+				},
+				// Route E: no path, no headers, no method.
+				{
+					MatchCriteria: IRHTTPMatch{},
+				},
+			},
+			// Expected order:
+			// - Routes with a path come before those without
+			//   Among those with a path, the one with headers is more specific
+			// - Among routes with no path, the one with headers comes first
+			//   then the one with a method, then the one with nothing
+			expectedOrder: []*IRRoute{
+				// Route B: has path "/a", exact, with headers.
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/a"),
+						PathType: pathTypePtr(IRPathType_Exact),
+						Headers: []IRHeaderMatch{
+							{Name: "X", Value: "1", ValueType: IRStringValueType_Exact},
+						},
+					},
+				},
+				// Route A: has path "/a", exact, no headers.
+				{
+					MatchCriteria: IRHTTPMatch{
+						Path:     stringPtr("/a"),
+						PathType: pathTypePtr(IRPathType_Exact),
+					},
+				},
+				// Then, among routes with no path, route with headers (C)
+				{
+					MatchCriteria: IRHTTPMatch{
+						Headers: []IRHeaderMatch{
+							{Name: "Y", Value: "2", ValueType: IRStringValueType_Exact},
+						},
+					},
+				},
+				// Then, route with method (D)
+				{
+					MatchCriteria: IRHTTPMatch{
+						Method: methodPtr(IRMethodMatch_Get),
+					},
+				},
+				// Then, route with nothing (E)
+				{
+					MatchCriteria: IRHTTPMatch{},
+				},
 			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			vhost := &IRVirtualHost{
-				Routes: tt.routes,
+				Routes: tc.routes,
 			}
-
 			vhost.SortRoutes()
-
-			assert.Equal(t, tt.expectedOrder, vhost.Routes, "routes should be sorted correctly")
+			assert.Equal(t, tc.expectedOrder, vhost.Routes, "routes should be sorted correctly")
 		})
 	}
 }

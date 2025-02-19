@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/stretchr/testify/assert"
 	netv1 "k8s.io/api/networking/v1"
 )
@@ -241,56 +242,55 @@ func TestSanitizeStringForK8sName(t *testing.T) {
 	}
 }
 
-func TestGetPathMatchType(t *testing.T) {
-	driver := &Driver{log: logr.New(logr.Discard().GetSink())}
+func TestNetv1PathTypeToIR(t *testing.T) {
+	// We'll use an "unknown" value for testing the default branch
+	unknown := netv1.PathType("Unknown")
 
-	// Define a custom unknown path type
-	customPathType := netv1.PathType("custom")
+	newPathType := func(v netv1.PathType) *netv1.PathType {
+		return &v
+	}
 
 	testCases := []struct {
-		name     string
-		input    *netv1.PathType
-		expected netv1.PathType
+		name           string
+		pathType       *netv1.PathType
+		expected       ir.IRPathMatchType
+		expectLogError bool
 	}{
 		{
-			name:     "nil pathType defaults to prefix",
-			input:    nil,
-			expected: netv1.PathTypePrefix,
+			name:     "nil pathType returns Prefix",
+			pathType: nil,
+			expected: ir.IRPathType_Prefix,
 		},
 		{
-			name:     "PathTypePrefix returns prefix",
-			input:    ptrToPathType(netv1.PathTypePrefix),
-			expected: netv1.PathTypePrefix,
+			name:     "PathTypePrefix returns Prefix",
+			pathType: newPathType(netv1.PathTypePrefix),
+			expected: ir.IRPathType_Prefix,
 		},
 		{
-			name:     "PathTypeImplementationSpecific returns prefix",
-			input:    ptrToPathType(netv1.PathTypeImplementationSpecific),
-			expected: netv1.PathTypePrefix,
+			name:     "PathTypeImplementationSpecific returns Prefix",
+			pathType: newPathType(netv1.PathTypeImplementationSpecific),
+			expected: ir.IRPathType_Prefix,
 		},
 		{
-			name:     "PathTypeExact returns exact",
-			input:    ptrToPathType(netv1.PathTypeExact),
-			expected: netv1.PathTypeExact,
+			name:     "PathTypeExact returns Exact",
+			pathType: newPathType(netv1.PathTypeExact),
+			expected: ir.IRPathType_Exact,
 		},
 		{
-			name:     "Unknown pathType logs error and defaults to prefix",
-			input:    &customPathType,
-			expected: netv1.PathTypePrefix,
+			name:     "Unknown path type logs error and returns Prefix",
+			pathType: newPathType(unknown),
+			expected: ir.IRPathType_Prefix,
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
-			actual := getPathMatchType(driver.log, tc.input)
-			assert.Equal(t, tc.expected, actual)
+			logger := logr.New(logr.Discard().GetSink())
+			result := netv1PathTypeToIR(logger, tc.pathType)
+			assert.Equal(t, tc.expected, result, "unexpected IR path match type for test case: %s", tc.name)
 		})
 	}
-}
-
-// ptrToPathType is a helper to get a pointer to a PathType.
-func ptrToPathType(pt netv1.PathType) *netv1.PathType {
-	return &pt
 }
 
 func TestAppendStringUnique(t *testing.T) {
@@ -342,6 +342,95 @@ func TestAppendStringUnique(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := appendStringUnique(tt.existing, tt.newItem)
 			assert.Equal(t, tt.expectedResult, result, "unexpected result for test case: %s", tt.name)
+		})
+	}
+}
+
+func TestDoHostGlobsMatch(t *testing.T) {
+	testCases := []struct {
+		name        string
+		hostname1   string
+		hostname2   string
+		expected    bool
+		expectedErr string
+	}{
+		{
+			name:      "Both non-glob equal",
+			hostname1: "example.com",
+			hostname2: "example.com",
+			expected:  true,
+		},
+		{
+			name:      "Both non-glob not equal",
+			hostname1: "example.com",
+			hostname2: "example.org",
+			expected:  false,
+		},
+		{
+			name:      "Hostname1 is glob, match",
+			hostname1: "*.example.com",
+			hostname2: "foo.example.com",
+			expected:  true,
+		},
+		{
+			name:      "Hostname1 is glob, no match",
+			hostname1: "*.example.com",
+			hostname2: "example.com",
+			expected:  false,
+		},
+		{
+			name:      "Hostname2 is glob, match",
+			hostname1: "foo.example.com",
+			hostname2: "*.example.com",
+			expected:  true,
+		},
+		{
+			name:      "Hostname2 is glob, no match",
+			hostname1: "example.com",
+			hostname2: "*.example.com",
+			expected:  false,
+		},
+		{
+			name:        "Both globs, match (hostname1 wins)",
+			hostname1:   "*.example.com",
+			hostname2:   "bar.example.com",
+			expected:    true,
+			expectedErr: "",
+		},
+		{
+			name:      "Both globs, no match (hostname1 wins)",
+			hostname1: "*.example.com",
+			hostname2: "example.com",
+			expected:  false,
+		},
+		{
+			name:        "Invalid glob in hostname1",
+			hostname1:   "foo[bar*",
+			hostname2:   "foobar",
+			expected:    false,
+			expectedErr: "unexpected end of input",
+		},
+		{
+			name:        "Invalid glob in hostname2",
+			hostname1:   "foobar",
+			hostname2:   "foo[bar*",
+			expected:    false,
+			expectedErr: "unexpected end of input",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := doHostGlobsMatch(tc.hostname1, tc.hostname2)
+			if tc.expectedErr != "" {
+				assert.Error(t, err, "expected an error for test case: %s", tc.name)
+				if err != nil {
+					assert.Contains(t, err.Error(), tc.expectedErr, "error message mismatch for test case: %s", tc.name)
+				}
+			} else {
+				assert.NoError(t, err, "did not expect an error for test case: %s", tc.name)
+				assert.Equal(t, tc.expected, result, "unexpected result for test case: %s", tc.name)
+			}
 		})
 	}
 }
