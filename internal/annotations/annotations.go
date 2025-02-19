@@ -165,3 +165,25 @@ func ExtractUseEndpointPooling(obj client.Object) (bool, error) {
 
 	return strings.EqualFold(val, "true"), nil
 }
+
+// Determines which traffic is allowed to reach an endpoint
+// from the annotation "k8s.ngrok.com/bindings" if it is present. Otherwise, it defaults to public
+func ExtractUseBindings(obj client.Object) ([]string, error) {
+	bindings, err := parser.GetStringSliceAnnotation("bindings", obj)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return []string{"public"}, nil
+		}
+		return nil, err
+	}
+
+	n := len(bindings)
+	switch {
+	case n > 1:
+		return nil, fmt.Errorf("multiple bindings are not supported: %v", bindings)
+	case n == 1:
+		return bindings, nil
+	default:
+		return []string{"public"}, nil
+	}
+}

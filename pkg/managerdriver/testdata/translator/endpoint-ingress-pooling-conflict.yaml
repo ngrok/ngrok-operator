@@ -94,6 +94,8 @@ expected:
       name: test-ingresses.ngrok.io
       namespace: default
     spec:
+      bindings:
+        - public
       url: https://test-ingresses.ngrok.io
       poolingEnabled: true
       trafficPolicy:
@@ -119,4 +121,6 @@ expected:
       url: "https://e3b0c-test-service-1-default-8080.internal"
       upstream:
         url: "http://test-service-1.default:8080"
+      bindings:
+        - internal
 

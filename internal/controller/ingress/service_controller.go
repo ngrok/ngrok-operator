@@ -412,6 +412,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		return objects, err
 	}
 
+	useBindings, err := annotations.ExtractUseBindings(svc)
+	if err != nil {
+		log.Error(err, "failed to get bindings annotation for service")
+		return objects, err
+	}
+
 	// The final traffic policy that will be applied to the CloudEndpoint
 	tp := trafficpolicy.NewTrafficPolicy()
 
@@ -486,6 +492,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		},
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL:            cloudEndpointURL,
+			Bindings:       useBindings,
 			PoolingEnabled: useEndpointPooling,
 			TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
 				Policy: rawPolicy,

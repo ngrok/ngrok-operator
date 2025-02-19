@@ -81,6 +81,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (parents map[ty
 			t.managedResourceLabels,
 			irVHost.EndpointPoolingEnabled,
 			t.defaultIngressMetadata,
+			irVHost.Bindings,
 		)
 
 		// If the resource does not have a user-supplied traffic policy, then create a new one as the base
@@ -245,7 +246,7 @@ func (t *translator) injectEndpointDefaultDestinationTPConfig(parentPolicy *traf
 }
 
 // buildCloudEndpoint initializes a new CloudEndpoint
-func buildCloudEndpoint(namespace, hostname string, labels map[string]string, endpointPoolingEnabled bool, metadata string) *ngrokv1alpha1.CloudEndpoint {
+func buildCloudEndpoint(namespace, hostname string, labels map[string]string, endpointPoolingEnabled bool, metadata string, bindings []string) *ngrokv1alpha1.CloudEndpoint {
 	return &ngrokv1alpha1.CloudEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      sanitizeStringForK8sName(hostname),
@@ -256,6 +257,7 @@ func buildCloudEndpoint(namespace, hostname string, labels map[string]string, en
 			URL:            "https://" + hostname,
 			PoolingEnabled: endpointPoolingEnabled,
 			Metadata:       metadata,
+			Bindings:       bindings,
 		},
 	}
 }
@@ -274,6 +276,7 @@ func buildInternalAgentEndpoint(serviceUID, serviceName, namespace, clusterDomai
 			Upstream: ngrokv1alpha1.EndpointUpstream{
 				URL: internalAgentEndpointUpstreamURL(serviceName, namespace, clusterDomain, port),
 			},
+			Bindings: []string{"internal"},
 		},
 	}
 }
