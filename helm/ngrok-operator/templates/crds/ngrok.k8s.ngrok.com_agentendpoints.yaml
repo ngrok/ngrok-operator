@@ -60,7 +60,7 @@ spec:
               bindings:
                 description: |-
                   List of Binding IDs to associate with the endpoint
-                  Accepted values are "public", "internal", or strings matching the pattern "k8s/*"
+                  Accepted values are "public", "internal", or "kubernetes"
                 items:
                   type: string
                 type: array
