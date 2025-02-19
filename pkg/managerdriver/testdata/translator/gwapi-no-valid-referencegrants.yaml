@@ -137,4 +137,6 @@ expected:
       url: "https://e3b0c-same-namespace-svc-default-8080.internal"
       upstream:
         url: "http://same-namespace-svc.default:8080"
+      bindings:
+      - internal
 

@@ -106,3 +106,5 @@ expected:
       url: "https://e3b0c-test-service-1-foo-8080.internal"
       upstream:
         url: "http://test-service-1.foo:8080"
+      bindings:
+      - internal
