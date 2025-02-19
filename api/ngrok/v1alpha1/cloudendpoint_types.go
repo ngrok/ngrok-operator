@@ -76,10 +76,10 @@ type CloudEndpointSpec struct {
 	Metadata string `json:"metadata,omitempty"`
 
 	// Bindings is the list of Binding IDs to associate with the endpoint
-	// Accepted values are "public", "internal", or strings matching the pattern "k8s/*"
+	// Accepted values are "public", "internal", or "kubernetes"
 	//
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Items=pattern=`^(public|internal|k8s/.*)$`
+	// +kubebuilder:validation:Items=pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 }
 

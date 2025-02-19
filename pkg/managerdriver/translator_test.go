@@ -83,6 +83,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			assert.Equal(t, tc.metadata, result.Spec.Metadata, "unexpected metadata for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedURL, result.Spec.URL, "unexpected URL for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedUpstream, result.Spec.Upstream.URL, "unexpected upstream URL for test case: %s", tc.name)
+			assert.Equal(t, []string{"internal"}, result.Spec.Bindings, "unexpected bindings for test case: %s", tc.name)
 		})
 	}
 }
@@ -94,6 +95,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 		hostname       string
 		labels         map[string]string
 		poolingEnabled bool
+		bindings       []string
 		metadata       string
 		expectedName   string
 		expectedLabels map[string]string
@@ -105,6 +107,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			hostname:       "cloud-host",
 			labels:         map[string]string{"app": "cloud"},
 			metadata:       "test-metadata",
+			bindings:       []string{"public"},
 			expectedName:   "cloud-host",
 			expectedLabels: map[string]string{"app": "cloud"},
 			expectedMeta:   "test-metadata",
@@ -115,6 +118,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			hostname:       "custom-host",
 			labels:         map[string]string{"env": "prod"},
 			metadata:       "prod-metadata",
+			bindings:       []string{"public"},
 			expectedName:   "custom-host",
 			expectedLabels: map[string]string{"env": "prod"},
 			expectedMeta:   "prod-metadata",
@@ -128,6 +132,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			expectedName:   "cloud-host",
 			expectedLabels: map[string]string{"app": "cloud"},
 			poolingEnabled: true,
+			bindings:       []string{"public"},
 			expectedMeta:   "test-metadata",
 		},
 	}
@@ -135,11 +140,12 @@ func TestBuildCloudEndpoint(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := buildCloudEndpoint(tc.namespace, tc.hostname, tc.labels, tc.poolingEnabled, tc.metadata)
+			result := buildCloudEndpoint(tc.namespace, tc.hostname, tc.labels, tc.poolingEnabled, tc.metadata, tc.bindings)
 			assert.Equal(t, tc.expectedName, result.Name, "unexpected name for test case: %s", tc.name)
 			assert.Equal(t, tc.namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedLabels, result.Labels, "unexpected labels for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedMeta, result.Spec.Metadata, "unexpected metadata for test case: %s", tc.name)
+			assert.Equal(t, tc.bindings, result.Spec.Bindings, "unexpected bindings for test case: %s", tc.name)
 		})
 	}
 }
@@ -1072,12 +1078,14 @@ func TestTranslate(t *testing.T) {
 		Upstream: ngrokv1alpha1.EndpointUpstream{
 			URL: "http://test-service-1.default:8080",
 		},
+		Bindings: []string{"internal"},
 	}, aepService1.Spec)
 	assert.Equal(t, ngrokv1alpha1.AgentEndpointSpec{
 		URL: "https://f8638-test-service-2-default-9090.internal",
 		Upstream: ngrokv1alpha1.EndpointUpstream{
 			URL: "http://test-service-2.default:9090",
 		},
+		Bindings: []string{"internal"},
 	}, aepService2.Spec)
 
 	clep1, exists := result.CloudEndpoints[types.NamespacedName{

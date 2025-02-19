@@ -17,6 +17,7 @@ limitations under the License.
 package annotations_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ngrok/ngrok-operator/internal/annotations"
@@ -190,6 +191,73 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tc.expected, useEndpoints)
+			}
+		})
+	}
+}
+
+func TestExtractUseBindings(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    []string
+		expectedErr error
+	}{
+		{
+			name: "Valid Bindings: Public",
+			annotations: map[string]string{
+				"k8s.ngrok.com/bindings": "public",
+			},
+			expected:    []string{"public"},
+			expectedErr: nil,
+		},
+		{
+			name: "Invalid Binding Annotation",
+			annotations: map[string]string{
+				"k8s.ngrok.com/bindings": "foo",
+			},
+			expected:    []string{"foo"},
+			expectedErr: nil,
+		},
+		{
+			name: "Invalid Binding Errs When n > 1",
+			annotations: map[string]string{
+				"k8s.ngrok.com/bindings": "public,internal",
+			},
+			expectedErr: fmt.Errorf("multiple bindings are not supported: [public internal]"),
+		},
+		{
+			name: "Missing Bindings Value",
+			annotations: map[string]string{
+				"k8s.ngrok.com/bindings": "",
+			},
+			expectedErr: errors.NewInvalidAnnotationContent("k8s.ngrok.com/bindings", ""),
+		},
+		{
+			name:        "Annotation Not present",
+			annotations: nil,
+			expected:    []string{"public"},
+			expectedErr: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tc.annotations,
+				},
+			}
+
+			binding, err := annotations.ExtractUseBindings(obj)
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				assert.Equal(t, tc.expectedErr, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, binding)
 			}
 		})
 	}

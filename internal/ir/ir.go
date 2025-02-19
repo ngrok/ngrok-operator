@@ -25,6 +25,7 @@ type IRVirtualHost struct {
 	// Currently only used for debug/error logs, but can be added to generated resource statuses
 	OwningResources        []OwningResource
 	Hostname               string
+	Bindings               []string
 	EndpointPoolingEnabled bool
 
 	// Keeps track of the namespace for this hostname. Since we do not allow multiple endpoints with the same hostname, we cannot support multiple ingresses
