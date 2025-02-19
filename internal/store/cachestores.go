@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 // CacheStores stores cache.Store for all Kinds of k8s objects that
@@ -37,11 +38,13 @@ type CacheStores struct {
 	ServiceV1      cache.Store
 	SecretV1       cache.Store
 	ConfigMapV1    cache.Store
+	NamespaceV1    cache.Store
 
 	// Gateway API Stores
-	Gateway      cache.Store
-	GatewayClass cache.Store
-	HTTPRoute    cache.Store
+	Gateway        cache.Store
+	GatewayClass   cache.Store
+	HTTPRoute      cache.Store
+	ReferenceGrant cache.Store
 
 	// Ngrok Stores
 	DomainV1             cache.Store
@@ -64,11 +67,13 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		IngressClassV1: cache.NewStore(clusterResourceKeyFunc),
 		ServiceV1:      cache.NewStore(keyFunc),
 		SecretV1:       cache.NewStore(keyFunc),
+		NamespaceV1:    cache.NewStore(clusterResourceKeyFunc),
 		ConfigMapV1:    cache.NewStore(keyFunc),
 		// Gateway API Stores
-		Gateway:      cache.NewStore(keyFunc),
-		GatewayClass: cache.NewStore(keyFunc),
-		HTTPRoute:    cache.NewStore(keyFunc),
+		Gateway:        cache.NewStore(keyFunc),
+		GatewayClass:   cache.NewStore(keyFunc),
+		HTTPRoute:      cache.NewStore(keyFunc),
+		ReferenceGrant: cache.NewStore(keyFunc),
 		// Ngrok Stores
 		DomainV1:             cache.NewStore(keyFunc),
 		TunnelV1:             cache.NewStore(keyFunc),
@@ -116,6 +121,8 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 		return c.ServiceV1.Get(obj)
 	case *corev1.Secret:
 		return c.SecretV1.Get(obj)
+	case *corev1.Namespace:
+		return c.NamespaceV1.Get(obj)
 	case *corev1.ConfigMap:
 		return c.ConfigMapV1.Get(obj)
 
@@ -128,6 +135,8 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 		return c.Gateway.Get(obj)
 	case *gatewayv1.GatewayClass:
 		return c.GatewayClass.Get(obj)
+	case *gatewayv1beta1.ReferenceGrant:
+		return c.ReferenceGrant.Get(obj)
 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
@@ -169,6 +178,8 @@ func (c CacheStores) Add(obj runtime.Object) error {
 		return c.ServiceV1.Add(obj)
 	case *corev1.Secret:
 		return c.SecretV1.Add(obj)
+	case *corev1.Namespace:
+		return c.NamespaceV1.Add(obj)
 	case *corev1.ConfigMap:
 		return c.ConfigMapV1.Add(obj)
 
@@ -181,6 +192,8 @@ func (c CacheStores) Add(obj runtime.Object) error {
 		return c.Gateway.Add(obj)
 	case *gatewayv1.GatewayClass:
 		return c.GatewayClass.Add(obj)
+	case *gatewayv1beta1.ReferenceGrant:
+		return c.ReferenceGrant.Add(obj)
 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
@@ -223,6 +236,8 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.ServiceV1.Delete(obj)
 	case *corev1.Secret:
 		return c.SecretV1.Delete(obj)
+	case *corev1.Namespace:
+		return c.NamespaceV1.Delete(obj)
 	case *corev1.ConfigMap:
 		return c.ConfigMapV1.Delete(obj)
 
@@ -235,6 +250,8 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.Gateway.Delete(obj)
 	case *gatewayv1.GatewayClass:
 		return c.GatewayClass.Delete(obj)
+	case *gatewayv1beta1.ReferenceGrant:
+		return c.ReferenceGrant.Delete(obj)
 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support

@@ -38,6 +38,19 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --enable-feature-gateway=true
+- it: Disables ReferenceGrants with GatewayAPI
+  set:
+    gateway.enabled: true
+    gateway.disableReferenceGrants: true
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --enable-feature-gateway=true
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --disable-reference-grants=true
 - it: Uses the new gateway.enabled value when the old one is disabled
   set:
     useExperimentalGatewayApi: false

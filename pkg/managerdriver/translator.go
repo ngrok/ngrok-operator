@@ -29,6 +29,10 @@ type translator struct {
 	defaultIngressMetadata string
 	defaultGatewayMetadata string
 	clusterDomain          string
+
+	// We give users the ability to opt-out of requiring ReferenceGrants for cross namespace
+	// references when using Gateway API
+	disableGatewayReferenceGrants bool
 }
 
 // TranslationResult is the final set of translation output resources
@@ -45,14 +49,16 @@ func NewTranslator(
 	defaultIngressMetadata string,
 	defaultGatewayMetadata string,
 	clusterDomain string,
+	disableGatewayReferenceGrants bool,
 ) Translator {
 	return &translator{
-		log:                    log,
-		store:                  store,
-		managedResourceLabels:  managedResourceLabels,
-		defaultIngressMetadata: defaultIngressMetadata,
-		defaultGatewayMetadata: defaultGatewayMetadata,
-		clusterDomain:          clusterDomain,
+		log:                           log,
+		store:                         store,
+		managedResourceLabels:         managedResourceLabels,
+		defaultIngressMetadata:        defaultIngressMetadata,
+		defaultGatewayMetadata:        defaultGatewayMetadata,
+		clusterDomain:                 clusterDomain,
+		disableGatewayReferenceGrants: disableGatewayReferenceGrants,
 	}
 }
 

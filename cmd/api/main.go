@@ -47,6 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ngrok/ngrok-api-go/v7"
 	"github.com/ngrok/ngrok-api-go/v7/api_keys"
@@ -75,6 +76,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1beta1.Install(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
@@ -115,9 +117,10 @@ type managerOpts struct {
 	oneClickDemoMode bool
 
 	// feature flags
-	enableFeatureIngress  bool
-	enableFeatureGateway  bool
-	enableFeatureBindings bool
+	enableFeatureIngress          bool
+	enableFeatureGateway          bool
+	enableFeatureBindings         bool
+	disableGatewayReferenceGrants bool
 
 	bindings struct {
 		endpointSelectors  []string
@@ -162,6 +165,7 @@ func cmd() *cobra.Command {
 	// feature flags
 	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
 	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
+	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 	c.Flags().StringSliceVar(&opts.bindings.endpointSelectors, "bindings-endpoint-selectors", []string{"true"}, "Endpoint Selectors for Endpoint Bindings")
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
@@ -292,6 +296,12 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 		if err := enableGatewayFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset); err != nil {
 			return fmt.Errorf("unable to enable Gateway feature set: %w", err)
 		}
+
+		if opts.disableGatewayReferenceGrants {
+			setupLog.Info("Opting out of requiring ReferenceGrants in Gateway API config for cross namespace references")
+		} else {
+			setupLog.Info("ReferenceGrants will be required for cross namespace references in GatewayAPI Config")
+		}
 	} else {
 		setupLog.Info("Gateway feature set disabled")
 	}
@@ -416,6 +426,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options mana
 		},
 		managerdriver.WithGatewayEnabled(options.enableFeatureGateway),
 		managerdriver.WithClusterDomain(options.clusterDomain),
+		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
 	)
 	if options.ngrokMetadata != "" {
 		customMetadata, err := util.ParseHelmDictionary(options.ngrokMetadata)
@@ -553,7 +564,7 @@ func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 }
 
 // enableGatewayFeatureSet enables the Gateway feature set for the operator
-func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, _ ngrokapi.Clientset) error {
+func enableGatewayFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, _ ngrokapi.Clientset) error {
 	if err := (&gatewaycontroller.GatewayClassReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("GatewayClass"),
@@ -584,6 +595,32 @@ func enableGatewayFeatureSet(_ context.Context, _ managerOpts, mgr ctrl.Manager,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
 		os.Exit(1)
+	}
+
+	// Even if we aren't using ReferenceGrants, watch namespaces for Gateway.Listeners.AllowedRoutes.Namespaces
+	if err := (&gatewaycontroller.NamespaceReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("gateway-controller"),
+		Driver:   driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Namespace")
+		os.Exit(1)
+	}
+
+	// Start a controller for ReferenceGrants unless they are disabled
+	if !opts.disableGatewayReferenceGrants {
+		if err := (&gatewaycontroller.ReferenceGrantReconciler{
+			Client:   mgr.GetClient(),
+			Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor("gateway-controller"),
+			Driver:   driver,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "ReferenceGrant")
+			os.Exit(1)
+		}
 	}
 
 	return nil

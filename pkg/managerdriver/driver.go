@@ -18,6 +18,7 @@ import (
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/store"
@@ -52,7 +53,8 @@ type Driver struct {
 	syncPartialCh       chan error
 	syncAllowConcurrent bool
 
-	gatewayEnabled bool
+	gatewayEnabled                bool
+	disableGatewayReferenceGrants bool
 }
 
 type DriverOpt func(*Driver)
@@ -60,6 +62,12 @@ type DriverOpt func(*Driver)
 func WithGatewayEnabled(enabled bool) DriverOpt {
 	return func(d *Driver) {
 		d.gatewayEnabled = enabled
+	}
+}
+
+func WithDisableGatewayReferenceGrants(disable bool) DriverOpt {
+	return func(d *Driver) {
+		d.disableGatewayReferenceGrants = disable
 	}
 }
 
@@ -150,6 +158,10 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 		configmaps := &corev1.ConfigMapList{}
 		err := client.List(ctx, configmaps)
 		return util.ToClientObjects(configmaps.Items), err
+	case *corev1.Namespace:
+		namespaces := &corev1.NamespaceList{}
+		err := client.List(ctx, namespaces)
+		return util.ToClientObjects(namespaces.Items), err
 	case *netv1.Ingress:
 		ingresses := &netv1.IngressList{}
 		err := client.List(ctx, ingresses)
@@ -174,6 +186,10 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 		httproutes := &gatewayv1.HTTPRouteList{}
 		err := client.List(ctx, httproutes)
 		return util.ToClientObjects(httproutes.Items), err
+	case *gatewayv1beta1.ReferenceGrant:
+		referenceGrants := &gatewayv1beta1.ReferenceGrantList{}
+		err := client.List(ctx, referenceGrants)
+		return util.ToClientObjects(referenceGrants.Items), err
 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
@@ -217,8 +233,10 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 // - IngressClasses
 // - Gateways
 // - HTTPRoutes
+// - ReferenceGrants
 // - Services
 // - Secrets
+// - Namespaces
 // - ConfigMaps
 // - Domains
 // - Edges
@@ -234,6 +252,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		&netv1.IngressClass{},
 		&corev1.Service{},
 		&corev1.Secret{},
+		&corev1.Namespace{},
 		&corev1.ConfigMap{},
 		// CRDs
 		&ingressv1alpha1.Domain{},
@@ -250,6 +269,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 			&gatewayv1.Gateway{},
 			&gatewayv1.GatewayClass{},
 			&gatewayv1.HTTPRoute{},
+			&gatewayv1beta1.ReferenceGrant{},
 		)
 	}
 
@@ -310,6 +330,20 @@ func (d *Driver) UpdateHTTPRoute(httproute *gatewayv1.HTTPRoute) (*gatewayv1.HTT
 	return d.store.GetHTTPRoute(httproute.Name, httproute.Namespace)
 }
 
+func (d *Driver) UpdateReferenceGrant(referenceGrant *gatewayv1beta1.ReferenceGrant) (*gatewayv1beta1.ReferenceGrant, error) {
+	if err := d.store.Update(referenceGrant); err != nil {
+		return nil, err
+	}
+	return d.store.GetReferenceGrant(referenceGrant.Name, referenceGrant.Namespace)
+}
+
+func (d *Driver) UpdateNamespace(namespace *corev1.Namespace) (*corev1.Namespace, error) {
+	if err := d.store.Update(namespace); err != nil {
+		return nil, err
+	}
+	return d.store.GetNamespaceV1(namespace.Name)
+}
+
 func (d *Driver) DeleteIngress(ingress *netv1.Ingress) error {
 	return d.store.Delete(ingress)
 }
@@ -347,6 +381,19 @@ func (d *Driver) DeleteNamedHTTPRoute(n types.NamespacedName) error {
 	httproute.SetNamespace(n.Namespace)
 	httproute.SetName(n.Name)
 	return d.cacheStores.Delete(httproute)
+}
+
+func (d *Driver) DeleteReferenceGrant(n types.NamespacedName) error {
+	referenceGrant := &gatewayv1beta1.ReferenceGrant{}
+	referenceGrant.SetNamespace(n.Namespace)
+	referenceGrant.SetName(n.Name)
+	return d.cacheStores.Delete(referenceGrant)
+}
+
+func (d *Driver) DeleteNamespace(name string) error {
+	namespace := &corev1.Namespace{}
+	namespace.SetName(name)
+	return d.cacheStores.Delete(namespace)
 }
 
 // syncStart will:
@@ -450,6 +497,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		d.ingressNgrokMetadata,
 		d.gatewayNgrokMetadata,
 		d.clusterDomain,
+		d.disableGatewayReferenceGrants,
 	)
 	translationResult := translator.Translate()
 

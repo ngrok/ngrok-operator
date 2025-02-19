@@ -27,6 +27,7 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 		d.ingressNgrokMetadata,
 		d.gatewayNgrokMetadata,
 		d.clusterDomain,
+		d.disableGatewayReferenceGrants,
 	)
 	translationResult := translator.Translate()
 

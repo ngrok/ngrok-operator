@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/store"
@@ -154,7 +153,7 @@ func (t *translator) HTTPRouteToIR(
 			}
 		}
 
-		matchingListeners := matchingGatewayListenersForHTTPRoute(t.log, gateway, httpRoute)
+		matchingListeners := t.matchingGatewayListenersForHTTPRoute(gateway, httpRoute)
 		for _, matchingListener := range matchingListeners {
 			tlsTermCfg := matchingListener.TLS
 			if tlsTermCfg != nil {
@@ -165,7 +164,7 @@ func (t *translator) HTTPRouteToIR(
 					continue
 				}
 			}
-			irTLSTermination, err := gatewayTLSConfigToIR(t.log, t.store, tlsTermCfg, gateway)
+			irTLSTermination, err := t.gatewayTLSConfigToIR(tlsTermCfg, gateway)
 			if err != nil {
 				t.log.Error(err, "skipping gateway listener with invalid TLS configuration",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
@@ -252,7 +251,7 @@ func (t *translator) HTTPRouteToIR(
 
 			for _, filter := range rule.Filters {
 				// For each GatewayAPI filter for the route, we will inject additional config into the route's traffic policy
-				filterTrafficPolicy, err := gatewayAPIFilterToTrafficPolicy(filter, httpRoute.Namespace, t.store, irRoute.MatchCriteria)
+				filterTrafficPolicy, err := t.gatewayAPIFilterToTrafficPolicy(httpRoute.Namespace, filter, httpRoute.Namespace, t.store, irRoute.MatchCriteria)
 				if err != nil {
 					t.log.Error(err, "skipping filter with error")
 					continue
@@ -296,7 +295,7 @@ func (t *translator) HTTPRouteToIR(
 // #region Find Gateway listners for HTTPRoute
 
 // matchingGatewayListenersForHTTPRoute takes a Gateway and an HTTPRoute and figures out which (if any) listeners from the Gateway the HTTPRoute matches
-func matchingGatewayListenersForHTTPRoute(log logr.Logger, gateway *gatewayv1.Gateway, httpRoute *gatewayv1.HTTPRoute) []gatewayv1.Listener {
+func (t *translator) matchingGatewayListenersForHTTPRoute(gateway *gatewayv1.Gateway, httpRoute *gatewayv1.HTTPRoute) []gatewayv1.Listener {
 	matchingListeners := []gatewayv1.Listener{}
 
 	for _, listener := range gateway.Spec.Listeners {
@@ -317,35 +316,49 @@ func matchingGatewayListenersForHTTPRoute(log logr.Logger, gateway *gatewayv1.Ga
 				}
 			}
 			if !allowedKind {
-				return matchingListeners
+				continue
 			}
 
 			// Validate namespaces
+			allowedNamespace := gateway.Namespace == httpRoute.Namespace // By default, only allow those in the same namespace
 			if listener.AllowedRoutes.Namespaces != nil {
 				nsPolicy := listener.AllowedRoutes.Namespaces.From
 				if nsPolicy != nil {
 					switch *nsPolicy {
 					case gatewayv1.NamespacesFromSame:
-						if httpRoute.Namespace != gateway.Namespace {
-							continue
-						}
+						// Default behaviour, do nothing
+					case gatewayv1.NamespacesFromAll:
+						allowedNamespace = true
 					case gatewayv1.NamespacesFromSelector:
-						if listener.AllowedRoutes.Namespaces.Selector == nil {
-							continue
-						}
-						// Check if the namespace matches the selector
-						selector, err := metav1.LabelSelectorAsSelector(listener.AllowedRoutes.Namespaces.Selector)
-						if err != nil || !selector.Matches(labels.Set(httpRoute.Labels)) {
-							continue
+						if listener.AllowedRoutes.Namespaces.Selector != nil {
+							// Check if the namespace matches the selector
+							selector, err := metav1.LabelSelectorAsSelector(listener.AllowedRoutes.Namespaces.Selector)
+							if err != nil {
+								t.log.Error(err, "unable to parse AllowedRoutes.Namespaces.Selector")
+								continue
+							}
+							// Get the namespace for the current HTTPRoute
+							namespace, err := t.store.GetNamespaceV1(httpRoute.Namespace)
+							if err != nil {
+								t.log.Error(err, "unable to validate whether current HTTPRoute labels match Gateway AllowedRoutes.Namespaces.Selector")
+								continue
+							}
+							if !selector.Matches(labels.Set(namespace.Labels)) {
+								continue
+							}
+							allowedNamespace = true
 						}
 					}
 				}
+			}
+			if !allowedNamespace {
+				continue
 			}
 		}
 
 		// Handle listener hostnames
 		if listener.Hostname == nil {
-			log.Error(fmt.Errorf("gateway has a listener with a nil hostname"), "Gateway listeners with nil hostnames are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
+			t.log.Error(fmt.Errorf("gateway has a listener with a nil hostname"), "Gateway listeners with nil hostnames are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 			continue
@@ -353,13 +366,13 @@ func matchingGatewayListenersForHTTPRoute(log logr.Logger, gateway *gatewayv1.Ga
 
 		listenerHostname := string(*listener.Hostname)
 		if listenerHostname == "*" {
-			log.Error(fmt.Errorf("gateway has a listener with hostname \"*\""), "Gateway listeners with hostname \"*\" are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
+			t.log.Error(fmt.Errorf("gateway has a listener with hostname \"*\""), "Gateway listeners with hostname \"*\" are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 			continue
 		}
 		if listenerHostname == "" {
-			log.Error(fmt.Errorf("gateway has a listener with an empty hostname"), "Gateway listeners with empty hostnames are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
+			t.log.Error(fmt.Errorf("gateway has a listener with an empty hostname"), "Gateway listeners with empty hostnames are not supported, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 			continue
@@ -379,7 +392,7 @@ func matchingGatewayListenersForHTTPRoute(log logr.Logger, gateway *gatewayv1.Ga
 			}
 			match, err := doHostGlobsMatch(listenerHostname, string(routeHostname))
 			if err != nil {
-				log.Error(err, "unable to compile hostname glob for Gateway listener hostname, this listener will be skipped",
+				t.log.Error(err, "unable to compile hostname glob for Gateway listener hostname, this listener will be skipped",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 					"listener hostname", listenerHostname,
 				)
@@ -490,7 +503,7 @@ func gatewayMethodToIR(method *gatewayv1.HTTPMethod) *ir.IRMethodMatch {
 // #region GWAPI Filters translation
 
 // gatewayAPIFilterToTrafficPolicy translates Gateway API filters into traffic policy config
-func gatewayAPIFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, namespace string, store store.Storer, matchCriteria ir.IRHTTPMatch) (*trafficpolicy.TrafficPolicy, error) {
+func (t *translator) gatewayAPIFilterToTrafficPolicy(currentNamespace string, filter gatewayv1.HTTPRouteFilter, namespace string, store store.Storer, matchCriteria ir.IRHTTPMatch) (*trafficpolicy.TrafficPolicy, error) {
 	sharedErr := fmt.Errorf("unable to convert gateway API filter to traffic policy config")
 
 	switch filter.Type {
@@ -808,7 +821,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 	}
 
 	for _, filter := range backendRef.Filters {
-		filterPolicy, err := gatewayAPIFilterToTrafficPolicy(filter, httpRoute.Namespace, t.store, matchCriteria)
+		filterPolicy, err := t.gatewayAPIFilterToTrafficPolicy(httpRoute.Namespace, filter, httpRoute.Namespace, t.store, matchCriteria)
 		if err != nil {
 			t.log.Error(err, "unable to process HTTPRoute backendRef filter",
 				"httpRoute", fmt.Sprintf("%s.%s", httpRoute.Name, httpRoute.Namespace),
@@ -829,20 +842,28 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 		return destination, nil
 	}
 
+	serviceNamespace := httpRoute.Namespace
+	if backendRef.Namespace != nil && *backendRef.Namespace != "" {
+		serviceNamespace = string(*backendRef.Namespace)
+		if !t.isRefToNamespaceAllowed(httpRoute.Namespace, "gateway.networking.k8s.io", "HTTPRoute", serviceName, serviceNamespace, "", "Service") {
+			return nil, fmt.Errorf("reference to Service %q is not allowed without a valid ReferenceGrant",
+				fmt.Sprintf("%s.%s", serviceName, serviceNamespace),
+			)
+		}
+	}
+
 	if backendRef.Port == nil {
 		return nil, fmt.Errorf("backendRef supplied to HTTPRoute is missing the required port. name: %q, namespace: %q",
 			serviceName,
-			httpRoute.Namespace,
+			serviceNamespace,
 		)
 	}
 
-	// TODO: (Alice) add support for referenceGrants on the namespace in a follow-up
-
-	service, err := t.store.GetServiceV1(serviceName, httpRoute.Namespace)
+	service, err := t.store.GetServiceV1(serviceName, serviceNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve Service for backendRef name: %q in namespace %q: %w",
 			serviceName,
-			httpRoute.Namespace,
+			serviceNamespace,
 			err,
 		)
 	}
@@ -851,7 +872,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 	if err != nil || servicePort == nil {
 		return nil, fmt.Errorf("failed to resolve backendRef Service's port. name: %q, namespace: %q: %w",
 			serviceName,
-			httpRoute.Namespace,
+			serviceNamespace,
 			err,
 		)
 	}
@@ -859,7 +880,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 	irService := ir.IRService{
 		UID:       string(service.UID),
 		Name:      serviceName,
-		Namespace: httpRoute.Namespace,
+		Namespace: serviceNamespace,
 		Port:      servicePort.Port,
 	}
 	upstream, exists := upstreamCache[irService]
@@ -877,7 +898,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 // #region GatewayTLS IR
 
 // gwapiRequestHeaderFilterToTrafficPolicy translates a GatewayAPI tls configuration into IR
-func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, listenerTLS *gatewayv1.GatewayTLSConfig, gateway *gatewayv1.Gateway) (*ir.IRTLSTermination, error) {
+func (t *translator) gatewayTLSConfigToIR(listenerTLS *gatewayv1.GatewayTLSConfig, gateway *gatewayv1.Gateway) (*ir.IRTLSTermination, error) {
 	if listenerTLS == nil {
 		return nil, nil
 	}
@@ -889,7 +910,7 @@ func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, listenerTLS *gate
 
 	if len(listenerTLS.CertificateRefs) > 0 {
 		if len(listenerTLS.CertificateRefs) > 1 {
-			log.Error(fmt.Errorf("multiple Gateway TLS certificateRefs provided"), "Only the first will be used, multiple are not currently supported")
+			t.log.Error(fmt.Errorf("multiple Gateway TLS certificateRefs provided"), "Only the first will be used, multiple are not currently supported")
 		}
 
 		certRef := listenerTLS.CertificateRefs[0]
@@ -900,10 +921,14 @@ func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, listenerTLS *gate
 		refNamespace := gateway.Namespace
 		if certRef.Namespace != nil {
 			refNamespace = string(*certRef.Namespace)
-			// TODO: (Alice) add support for referenceGrants on the namespace in a follow-up
+			if !t.isRefToNamespaceAllowed(gateway.Namespace, "gateway.networking.k8s.io", "Gateway", string(certRef.Name), refNamespace, "", "Secret") {
+				return nil, fmt.Errorf("reference to Secret %q is not allowed without a valid ReferenceGrant",
+					fmt.Sprintf("%s.%s", certRef.Name, refNamespace),
+				)
+			}
 		}
 
-		secret, err := store.GetSecretV1(string(certRef.Name), refNamespace)
+		secret, err := t.store.GetSecretV1(string(certRef.Name), refNamespace)
 		if err != nil {
 			return nil, fmt.Errorf("%w: unable to resolve secret reference %q in Gateway TLS config",
 				err,
@@ -946,7 +971,11 @@ func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, listenerTLS *gate
 			refNamespace := gateway.Namespace
 			if certRef.Namespace != nil {
 				refNamespace = string(*certRef.Namespace)
-				// TODO: (Alice) add support for referenceGrants on the namespace in a follow-up
+				if !t.isRefToNamespaceAllowed(gateway.Namespace, "gateway.networking.k8s.io", "Gateway", string(certRef.Name), refNamespace, "", "ConfigMap") {
+					return nil, fmt.Errorf("reference to ConfigMap %q is not allowed without a valid ReferenceGrant",
+						fmt.Sprintf("%s.%s", certRef.Name, refNamespace),
+					)
+				}
 			}
 
 			if !strings.EqualFold(string(certRef.Kind), "ConfigMap") {
@@ -956,7 +985,7 @@ func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, listenerTLS *gate
 				)
 			}
 
-			configMap, err := store.GetConfigMapV1(string(certRef.Name), refNamespace)
+			configMap, err := t.store.GetConfigMapV1(string(certRef.Name), refNamespace)
 			if err != nil {
 				return nil, fmt.Errorf("%w: unable to resolve ConfigMap reference %q in Gateway frontend TLS config",
 					err,
@@ -988,4 +1017,50 @@ func gatewayTLSConfigToIR(log logr.Logger, store store.Storer, listenerTLS *gate
 	}
 
 	return tlsTermCfg, nil
+}
+
+// isRefToNamespaceAllowed checks if a reference to a target namespace is allowed or not. This is for backendRefs and externalRef filters,
+// the Gateway.Listeners.AllowedRoutes has its own logic
+func (t *translator) isRefToNamespaceAllowed(fromNamespace, fromGroup, fromKind, toName, toNamespace, toGroup, toKind string) bool {
+	if fromNamespace == toNamespace || t.disableGatewayReferenceGrants {
+		return true
+	}
+
+	grants := t.store.ListReferenceGrants()
+	if len(grants) == 0 {
+		return false
+	}
+	for _, grant := range grants {
+		if grant.Namespace != toNamespace {
+			continue
+		}
+
+		allowedTo := false
+		for _, grantTo := range grant.Spec.To {
+			if !strings.EqualFold(string(grantTo.Group), toGroup) || !strings.EqualFold(string(grantTo.Kind), toKind) {
+				continue
+			}
+
+			if grantTo.Name != nil && !strings.EqualFold(string(*grantTo.Name), toName) {
+				continue
+			}
+			allowedTo = true
+			break
+		}
+		if !allowedTo {
+			continue
+		}
+
+		for _, grantFrom := range grant.Spec.From {
+			if !strings.EqualFold(string(grantFrom.Group), fromGroup) ||
+				!strings.EqualFold(string(grantFrom.Kind), fromKind) ||
+				!strings.EqualFold(string(grantFrom.Namespace), fromNamespace) {
+				continue
+			}
+			if allowedTo {
+				return true
+			}
+		}
+	}
+	return false
 }

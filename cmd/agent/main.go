@@ -79,9 +79,10 @@ type managerOpts struct {
 	zapOpts     *zap.Options
 
 	// feature flags
-	enableFeatureIngress  bool
-	enableFeatureGateway  bool
-	enableFeatureBindings bool
+	enableFeatureIngress          bool
+	enableFeatureGateway          bool
+	enableFeatureBindings         bool
+	disableGatewayReferenceGrants bool
 
 	// agent(tunnel driver) flags
 	region  string
@@ -111,6 +112,7 @@ func cmd() *cobra.Command {
 	// feature flags
 	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
 	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
+	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 
 	opts.zapOpts = &zap.Options{}

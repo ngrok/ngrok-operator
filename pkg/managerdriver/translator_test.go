@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/go-logr/logr/testr"
+	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ir"
@@ -26,6 +26,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 func stringPtr(input string) *string {
@@ -392,206 +393,93 @@ func TestGatewayMethodToIR(t *testing.T) {
 	}
 }
 
+// TranslatorRawTestCase facuilitates the initial loading of test input/expected objects, but k8s objects with embedded structs don't parse cleanly
+// with regular yaml marshalling so we need to be a little creative about how we process them.
+type TranslatorRawTestCase struct {
+	Input struct {
+		GatewayClasses  []map[string]interface{} `yaml:"gatewayClasses"`
+		Gateways        []map[string]interface{} `yaml:"gateways"`
+		HTTPRoutes      []map[string]interface{} `yaml:"httpRoutes"`
+		IngressClasses  []map[string]interface{} `yaml:"ingressClasses"`
+		Ingresses       []map[string]interface{} `yaml:"ingresses"`
+		TrafficPolicies []map[string]interface{} `yaml:"trafficPolicies"`
+		Services        []map[string]interface{} `yaml:"services"`
+		Secrets         []map[string]interface{} `yaml:"secrets"`
+		Configmaps      []map[string]interface{} `yaml:"configMaps"`
+		Namespaces      []map[string]interface{} `yaml:"namespaces"`
+		ReferenceGrants []map[string]interface{} `yaml:"referenceGrants"`
+	} `yaml:"input"`
+
+	Expected struct {
+		CloudEndpoints []map[string]interface{} `yaml:"cloudEndpoints"`
+		AgentEndpoints []map[string]interface{} `yaml:"agentEndpoints"`
+	} `yaml:"expected"`
+}
+
+// TranslatorTestCase stores our actual fully parsed inputs/outputs
+type TranslatorTestCase struct {
+	Input struct {
+		GatewayClasses  []*gatewayv1.GatewayClass
+		Gateways        []*gatewayv1.Gateway
+		HTTPRoutes      []*gatewayv1.HTTPRoute
+		IngressClasses  []*netv1.IngressClass
+		Ingresses       []*netv1.Ingress
+		TrafficPolicies []*ngrokv1alpha1.NgrokTrafficPolicy
+		Secrets         []*corev1.Secret
+		ConfigMaps      []*corev1.ConfigMap
+		Services        []*corev1.Service
+		Namespaces      []*corev1.Namespace
+		ReferenceGrants []*gatewayv1beta1.ReferenceGrant
+	}
+
+	Expected struct {
+		CloudEndpoints []*ngrokv1alpha1.CloudEndpoint
+		AgentEndpoints []*ngrokv1alpha1.AgentEndpoint
+	}
+}
+
 func TestTranslate(t *testing.T) {
 	testdataDir := "testdata/translator"
-
-	logger := testr.New(t)
-
-	// RawTestCase facuilitates the initial loading of test input/expected objects, but k8s objects with embedded structs don't parse cleanly
-	// with regular yaml marshalling so we need to be a little creative about how we process them.
-	type RawTestCase struct {
-		Input struct {
-			GatewayClasses  []map[string]interface{} `yaml:"gatewayClasses"`
-			Gateways        []map[string]interface{} `yaml:"gateways"`
-			HTTPRoutes      []map[string]interface{} `yaml:"httpRoutes"`
-			IngressClasses  []map[string]interface{} `yaml:"ingressClasses"`
-			Ingresses       []map[string]interface{} `yaml:"ingresses"`
-			TrafficPolicies []map[string]interface{} `yaml:"trafficPolicies"`
-			Services        []map[string]interface{} `yaml:"services"`
-			Secrets         []map[string]interface{} `yaml:"secrets"`
-			Configmaps      []map[string]interface{} `yaml:"configMaps"`
-		} `yaml:"input"`
-
-		Expected struct {
-			CloudEndpoints []map[string]interface{} `yaml:"cloudEndpoints"`
-			AgentEndpoints []map[string]interface{} `yaml:"agentEndpoints"`
-		} `yaml:"expected"`
-	}
-
-	// TestCase stores our actual fully parsed inputs/outputs
-	type TestCase struct {
-		Input struct {
-			GatewayClasses  []*gatewayv1.GatewayClass
-			Gateways        []*gatewayv1.Gateway
-			HTTPRoutes      []*gatewayv1.HTTPRoute
-			IngressClasses  []*netv1.IngressClass
-			Ingresses       []*netv1.Ingress
-			TrafficPolicies []*ngrokv1alpha1.NgrokTrafficPolicy
-			Secrets         []*corev1.Secret
-			ConfigMaps      []*corev1.ConfigMap
-			Services        []*corev1.Service
-		}
-
-		Expected struct {
-			CloudEndpoints []*ngrokv1alpha1.CloudEndpoint
-			AgentEndpoints []*ngrokv1alpha1.AgentEndpoint
-		}
-	}
+	disableRefGrantsDir := "testdata/translator-disable-refgrants"
 
 	// Create a scheme with all supported types
 	sch := runtime.NewScheme()
 
 	utilruntime.Must(gatewayv1.Install(sch))
+	utilruntime.Must(gatewayv1beta1.Install(sch))
 	utilruntime.Must(clientgoscheme.AddToScheme(sch))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(sch))
 	utilruntime.Must(corev1.AddToScheme(sch))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(sch))
 
 	// Load test files from the testdata directory
-	files, err := filepath.Glob(filepath.Join(testdataDir, "*.yaml"))
+	defaultTranslatorFiles, err := filepath.Glob(filepath.Join(testdataDir, "*.yaml"))
 	require.NoError(t, err, "failed to read test files in %s", testdataDir)
+	disableRefGrantsFiles, err := filepath.Glob(filepath.Join(disableRefGrantsDir, "*.yaml"))
+	require.NoError(t, err, "failed to read test files in %s", disableRefGrantsDir)
 
-	for _, file := range files {
+	for _, file := range defaultTranslatorFiles {
+		logger := logr.New(logr.Discard().GetSink())
+		// If you need to debug tests, uncomment this logger instead to actually see errors printed in the tests.
+		// Otherwise, keep the above logger so that we don't output stuff and make the test output harder to read.
+		// logger = testr.New(t)
+
+		driver := NewDriver(
+			logger,
+			sch,
+			testutils.DefaultControllerName,
+			types.NamespacedName{
+				Name:      "test-manager-name",
+				Namespace: "test-manager-namespace",
+			},
+			WithGatewayEnabled(true),
+			WithSyncAllowConcurrent(true),
+		)
 		t.Run(filepath.Base(file), func(t *testing.T) {
-			data, err := os.ReadFile(file)
-			require.NoError(t, err, "failed to read file: %s", file)
-
-			// Load into the RawTestCase
-			rawTC := new(RawTestCase)
-			require.NoError(t, yaml.UnmarshalStrict(data, rawTC), "failed to unmarshal raw testCase")
-
-			// Use scheme based decoding to properly parse everything into TestCase
-			tc := TestCase{}
-
-			// Decode input objects
-			for _, rawObj := range rawTC.Input.GatewayClasses {
-
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				gatewayClass, ok := obj.(*gatewayv1.GatewayClass)
-				require.True(t, ok, "expected a GatewayClass, got %T", obj)
-				tc.Input.GatewayClasses = append(tc.Input.GatewayClasses, gatewayClass)
-			}
-			for _, rawObj := range rawTC.Input.Gateways {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				gateway, ok := obj.(*gatewayv1.Gateway)
-				require.True(t, ok, "expected a Gateway, got %T", obj)
-				tc.Input.Gateways = append(tc.Input.Gateways, gateway)
-			}
-			for _, rawObj := range rawTC.Input.HTTPRoutes {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				httpRoute, ok := obj.(*gatewayv1.HTTPRoute)
-				require.True(t, ok, "expected an HTTPRoute, got %T", obj)
-				tc.Input.HTTPRoutes = append(tc.Input.HTTPRoutes, httpRoute)
-			}
-			for _, rawObj := range rawTC.Input.IngressClasses {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				ingClass, ok := obj.(*netv1.IngressClass)
-				require.True(t, ok, "expected an IngressClass, got %T", obj)
-				tc.Input.IngressClasses = append(tc.Input.IngressClasses, ingClass)
-			}
-			for _, rawObj := range rawTC.Input.Ingresses {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				ing, ok := obj.(*netv1.Ingress)
-				require.True(t, ok, "expected an Ingress, got %T", obj)
-				tc.Input.Ingresses = append(tc.Input.Ingresses, ing)
-			}
-			for _, rawObj := range rawTC.Input.Services {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				svc, ok := obj.(*corev1.Service)
-				require.True(t, ok, "expected a Service, got %T", obj)
-				tc.Input.Services = append(tc.Input.Services, svc)
-			}
-			for _, rawObj := range rawTC.Input.Secrets {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				secret, ok := obj.(*corev1.Secret)
-				require.True(t, ok, "expected a Secret, got %T", obj)
-				tc.Input.Secrets = append(tc.Input.Secrets, secret)
-			}
-			for _, rawObj := range rawTC.Input.Configmaps {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				configMap, ok := obj.(*corev1.ConfigMap)
-				require.True(t, ok, "expected a ConfigMap, got %T", obj)
-				tc.Input.ConfigMaps = append(tc.Input.ConfigMaps, configMap)
-			}
-			for _, rawObj := range rawTC.Input.TrafficPolicies {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				pol, ok := obj.(*ngrokv1alpha1.NgrokTrafficPolicy)
-				require.True(t, ok, "expected an NgrokTrafficPolicy, got %T", obj)
-				tc.Input.TrafficPolicies = append(tc.Input.TrafficPolicies, pol)
-			}
-
-			// Decode expected objects
-			for _, rawObj := range rawTC.Expected.CloudEndpoints {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				ce, ok := obj.(*ngrokv1alpha1.CloudEndpoint)
-				require.True(t, ok, "expected a CloudEndpoint, got %T", obj)
-				tc.Expected.CloudEndpoints = append(tc.Expected.CloudEndpoints, ce)
-			}
-			for _, rawObj := range rawTC.Expected.AgentEndpoints {
-				obj, err := decodeViaScheme(sch, rawObj)
-				require.NoError(t, err)
-				ae, ok := obj.(*ngrokv1alpha1.AgentEndpoint)
-				require.True(t, ok, "expected an AgentEndpoint, got %T", obj)
-				tc.Expected.AgentEndpoints = append(tc.Expected.AgentEndpoints, ae)
-			}
-
-			// logger := logr.New(logr.Discard().GetSink())
-			// If you need to debug tests, uncomment this logger instead to actually see errors printed in the tests.
-			// Otherwise, keep the above logger so that we don't output stuff and make the test output harder to read.
-			// logger = testr.New(t)
-
-			driver := NewDriver(
-				logger,
-				sch,
-				testutils.DefaultControllerName,
-				types.NamespacedName{
-					Name:      "test-manager-name",
-					Namespace: "test-manager-namespace",
-				},
-				WithGatewayEnabled(true),
-				WithSyncAllowConcurrent(true),
-			)
+			tc := loadTranslatorTestCase(t, file, sch)
 
 			// Load input objects into the driver store
-			inputObjects := []runtime.Object{}
-			for _, obj := range tc.Input.GatewayClasses {
-				inputObjects = append(inputObjects, obj)
-			}
-			for _, obj := range tc.Input.Gateways {
-				inputObjects = append(inputObjects, obj)
-			}
-			for _, obj := range tc.Input.HTTPRoutes {
-				inputObjects = append(inputObjects, obj)
-			}
-			for _, obj := range tc.Input.IngressClasses {
-				inputObjects = append(inputObjects, obj)
-			}
-			for _, obj := range tc.Input.Ingresses {
-				inputObjects = append(inputObjects, obj)
-			}
-			for _, obj := range tc.Input.TrafficPolicies {
-				inputObjects = append(inputObjects, obj)
-			}
-			for _, obj := range tc.Input.Services {
-				inputObjects = append(inputObjects, obj)
-			}
-			for _, obj := range tc.Input.Secrets {
-				inputObjects = append(inputObjects, obj)
-			}
-			for _, obj := range tc.Input.ConfigMaps {
-				inputObjects = append(inputObjects, obj)
-			}
-
+			inputObjects := loadTranslatorInputObjs(t, tc)
 			client := fake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(inputObjects...).Build()
 
 			require.NoError(t, driver.Seed(context.Background(), client))
@@ -602,6 +490,7 @@ func TestTranslate(t *testing.T) {
 				driver.ingressNgrokMetadata,
 				driver.gatewayNgrokMetadata,
 				"svc.cluster.local",
+				false, // Require reference grants (default)
 			)
 
 			// Finally, run translate and check the contents
@@ -651,6 +540,237 @@ func TestTranslate(t *testing.T) {
 
 		})
 	}
+	for _, file := range disableRefGrantsFiles {
+		logger := logr.New(logr.Discard().GetSink())
+		// If you need to debug tests, uncomment this logger instead to actually see errors printed in the tests.
+		// Otherwise, keep the above logger so that we don't output stuff and make the test output harder to read.
+		// logger = testr.New(t)
+
+		driver := NewDriver(
+			logger,
+			sch,
+			testutils.DefaultControllerName,
+			types.NamespacedName{
+				Name:      "test-manager-name",
+				Namespace: "test-manager-namespace",
+			},
+			WithGatewayEnabled(true),
+			WithSyncAllowConcurrent(true),
+		)
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			tc := loadTranslatorTestCase(t, file, sch)
+
+			// Load input objects into the driver store
+			inputObjects := loadTranslatorInputObjs(t, tc)
+			client := fake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(inputObjects...).Build()
+
+			require.NoError(t, driver.Seed(context.Background(), client))
+			translator := NewTranslator(
+				driver.log,
+				driver.store,
+				driver.defaultManagedResourceLabels(),
+				driver.ingressNgrokMetadata,
+				driver.gatewayNgrokMetadata,
+				"svc.cluster.local",
+				true, // Disable reference grants
+			)
+
+			// Finally, run translate and check the contents
+			result := translator.Translate()
+			require.Equal(t, len(tc.Expected.AgentEndpoints), len(result.AgentEndpoints))
+			require.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints))
+
+			for _, expectedCLEP := range tc.Expected.CloudEndpoints {
+				actualCLEP, exists := result.CloudEndpoints[types.NamespacedName{
+					Name:      expectedCLEP.Name,
+					Namespace: expectedCLEP.Namespace,
+				}]
+				require.True(t, exists, "expected CloudEndpoint %s.%s to exist, content: %v", expectedCLEP.Name, expectedCLEP.Namespace, result.CloudEndpoints)
+				assert.Equal(t, expectedCLEP.Name, actualCLEP.Name)
+				assert.Equal(t, expectedCLEP.Namespace, actualCLEP.Namespace)
+				assert.Equal(t, expectedCLEP.Labels, actualCLEP.Labels)
+				assert.Equal(t, expectedCLEP.Annotations, actualCLEP.Annotations)
+				assert.Equal(t, expectedCLEP.Spec.URL, actualCLEP.Spec.URL)
+				assert.Equal(t, expectedCLEP.Spec.TrafficPolicyName, actualCLEP.Spec.TrafficPolicyName)
+				assert.Equal(t, expectedCLEP.Spec.PoolingEnabled, actualCLEP.Spec.PoolingEnabled)
+				if expectedCLEP.Spec.TrafficPolicy != nil {
+
+					expectedTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
+					require.NoError(t, json.Unmarshal(expectedCLEP.Spec.TrafficPolicy.Policy, expectedTrafficPolicyCfg))
+
+					actualTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
+					require.NoError(t, json.Unmarshal(actualCLEP.Spec.TrafficPolicy.Policy, actualTrafficPolicyCfg))
+					assert.Equal(t, expectedTrafficPolicyCfg, actualTrafficPolicyCfg)
+				}
+				assert.Equal(t, expectedCLEP.Spec.Description, actualCLEP.Spec.Description)
+				assert.Equal(t, expectedCLEP.Spec.Metadata, actualCLEP.Spec.Metadata)
+				assert.Equal(t, expectedCLEP.Spec.Bindings, actualCLEP.Spec.Bindings)
+			}
+
+			for _, expectedAE := range tc.Expected.AgentEndpoints {
+				actualAE, exists := result.AgentEndpoints[types.NamespacedName{
+					Name:      expectedAE.Name,
+					Namespace: expectedAE.Namespace,
+				}]
+				require.True(t, exists, "expected AgentEndpoint %s.%s to exist. actual agent endpoints: %v", expectedAE.Name, expectedAE.Namespace, result.AgentEndpoints)
+				require.Equal(t, expectedAE.Name, actualAE.Name)
+				require.Equal(t, expectedAE.Namespace, actualAE.Namespace)
+				require.Equal(t, expectedAE.Labels, actualAE.Labels)
+				require.Equal(t, expectedAE.Annotations, actualAE.Annotations)
+				require.Equal(t, expectedAE.Spec, actualAE.Spec)
+			}
+
+		})
+	}
+}
+
+func loadTranslatorInputObjs(t *testing.T, tc TranslatorTestCase) []runtime.Object {
+	t.Helper()
+	inputObjects := []runtime.Object{}
+	for _, obj := range tc.Input.GatewayClasses {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.Gateways {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.HTTPRoutes {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.ReferenceGrants {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.IngressClasses {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.Ingresses {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.TrafficPolicies {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.Services {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.Secrets {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.ConfigMaps {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.Namespaces {
+		inputObjects = append(inputObjects, obj)
+	}
+	return inputObjects
+}
+
+func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) TranslatorTestCase {
+	t.Helper()
+	data, err := os.ReadFile(file)
+	require.NoError(t, err, "failed to read file: %s", file)
+
+	// Load into the RawTestCase
+	rawTC := new(TranslatorRawTestCase)
+	require.NoError(t, yaml.UnmarshalStrict(data, rawTC), "failed to unmarshal raw testCase")
+
+	// Use scheme based decoding to properly parse everything into TestCase
+	tc := TranslatorTestCase{}
+
+	// Decode input objects
+	for _, rawObj := range rawTC.Input.GatewayClasses {
+
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		gatewayClass, ok := obj.(*gatewayv1.GatewayClass)
+		require.True(t, ok, "expected a GatewayClass, got %T", obj)
+		tc.Input.GatewayClasses = append(tc.Input.GatewayClasses, gatewayClass)
+	}
+	for _, rawObj := range rawTC.Input.Gateways {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		gateway, ok := obj.(*gatewayv1.Gateway)
+		require.True(t, ok, "expected a Gateway, got %T", obj)
+		tc.Input.Gateways = append(tc.Input.Gateways, gateway)
+	}
+	for _, rawObj := range rawTC.Input.HTTPRoutes {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		httpRoute, ok := obj.(*gatewayv1.HTTPRoute)
+		require.True(t, ok, "expected an HTTPRoute, got %T", obj)
+		tc.Input.HTTPRoutes = append(tc.Input.HTTPRoutes, httpRoute)
+	}
+	for _, rawObj := range rawTC.Input.ReferenceGrants {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		referenceGrant, ok := obj.(*gatewayv1beta1.ReferenceGrant)
+		require.True(t, ok, "expected a ReferenceGrant, got %T", obj)
+		tc.Input.ReferenceGrants = append(tc.Input.ReferenceGrants, referenceGrant)
+	}
+	for _, rawObj := range rawTC.Input.IngressClasses {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		ingClass, ok := obj.(*netv1.IngressClass)
+		require.True(t, ok, "expected an IngressClass, got %T", obj)
+		tc.Input.IngressClasses = append(tc.Input.IngressClasses, ingClass)
+	}
+	for _, rawObj := range rawTC.Input.Ingresses {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		ing, ok := obj.(*netv1.Ingress)
+		require.True(t, ok, "expected an Ingress, got %T", obj)
+		tc.Input.Ingresses = append(tc.Input.Ingresses, ing)
+	}
+	for _, rawObj := range rawTC.Input.Services {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		svc, ok := obj.(*corev1.Service)
+		require.True(t, ok, "expected a Service, got %T", obj)
+		tc.Input.Services = append(tc.Input.Services, svc)
+	}
+	for _, rawObj := range rawTC.Input.Secrets {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		secret, ok := obj.(*corev1.Secret)
+		require.True(t, ok, "expected a Secret, got %T", obj)
+		tc.Input.Secrets = append(tc.Input.Secrets, secret)
+	}
+	for _, rawObj := range rawTC.Input.Configmaps {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		configMap, ok := obj.(*corev1.ConfigMap)
+		require.True(t, ok, "expected a ConfigMap, got %T", obj)
+		tc.Input.ConfigMaps = append(tc.Input.ConfigMaps, configMap)
+	}
+	for _, rawObj := range rawTC.Input.Namespaces {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		namespace, ok := obj.(*corev1.Namespace)
+		require.True(t, ok, "expected a Namespace, got %T", obj)
+		tc.Input.Namespaces = append(tc.Input.Namespaces, namespace)
+	}
+	for _, rawObj := range rawTC.Input.TrafficPolicies {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		pol, ok := obj.(*ngrokv1alpha1.NgrokTrafficPolicy)
+		require.True(t, ok, "expected an NgrokTrafficPolicy, got %T", obj)
+		tc.Input.TrafficPolicies = append(tc.Input.TrafficPolicies, pol)
+	}
+
+	// Decode expected objects
+	for _, rawObj := range rawTC.Expected.CloudEndpoints {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		ce, ok := obj.(*ngrokv1alpha1.CloudEndpoint)
+		require.True(t, ok, "expected a CloudEndpoint, got %T", obj)
+		tc.Expected.CloudEndpoints = append(tc.Expected.CloudEndpoints, ce)
+	}
+	for _, rawObj := range rawTC.Expected.AgentEndpoints {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		ae, ok := obj.(*ngrokv1alpha1.AgentEndpoint)
+		require.True(t, ok, "expected an AgentEndpoint, got %T", obj)
+		tc.Expected.AgentEndpoints = append(tc.Expected.AgentEndpoints, ae)
+	}
+	return tc
 }
 
 // decodeViaScheme helps us decode raw objects loaded from test data yaml files into proper objects that can then be typecast
