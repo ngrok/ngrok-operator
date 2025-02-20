@@ -364,6 +364,7 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingr
 		port,
 		upstreamTLS,
 		spec.AppProtocol,
+		nil,
 	)
 	return nil
 }
@@ -388,7 +389,7 @@ func (td *TunnelDriver) DeleteTunnel(ctx context.Context, name string) error {
 }
 
 // CreateAgentEndpoint will create or update an agent endpoint by name using the provided desired configuration state
-func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string) error {
+func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) error {
 	log := log.FromContext(ctx).WithValues(
 		"url", spec.Upstream.URL,
 		"upstream.url", spec.Upstream.URL,
@@ -504,6 +505,7 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 		upstreamPort,
 		upstreamTLS,
 		spec.Upstream.Protocol,
+		clientCerts,
 	)
 	return nil
 }
@@ -543,7 +545,7 @@ func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination,
 	return config.LabeledTunnel(opts...)
 }
 
-func handleTCPConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, upstreamHostname string, upstreamPort int, upstreamTLS bool, upstreamAppProto *commonv1alpha1.ApplicationProtocol) {
+func handleTCPConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, upstreamHostname string, upstreamPort int, upstreamTLS bool, upstreamAppProto *commonv1alpha1.ApplicationProtocol, clientCerts []tls.Certificate) {
 	logger := log.FromContext(ctx).WithValues("id", tun.ID(), "upstreamHostname", upstreamHostname, "upstreamPort", upstreamPort, "upstreamTLS", upstreamTLS)
 	for {
 		ngrokConnection, err := tun.Accept()
@@ -562,7 +564,7 @@ func handleTCPConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, 
 
 		go func() {
 			ctx := log.IntoContext(ctx, connLogger)
-			err := handleTCPConn(ctx, dialer, ngrokConnection, upstreamHostname, upstreamPort, upstreamTLS, upstreamAppProto)
+			err := handleTCPConn(ctx, dialer, ngrokConnection, upstreamHostname, upstreamPort, upstreamTLS, upstreamAppProto, clientCerts)
 			if err == nil || errors.Is(err, net.ErrClosed) {
 				connLogger.Info("Connection closed")
 				return
@@ -573,7 +575,7 @@ func handleTCPConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, 
 	}
 }
 
-func handleTCPConn(ctx context.Context, dialer Dialer, ngrokConnection net.Conn, upstreamHostname string, upstreamPort int, upstreamTLS bool, upstreamAppProto *commonv1alpha1.ApplicationProtocol) error {
+func handleTCPConn(ctx context.Context, dialer Dialer, ngrokConnection net.Conn, upstreamHostname string, upstreamPort int, upstreamTLS bool, upstreamAppProto *commonv1alpha1.ApplicationProtocol, clientCerts []tls.Certificate) error {
 	log := log.FromContext(ctx)
 	contextDialStr := fmt.Sprintf("%s:%d", upstreamHostname, upstreamPort)
 	upstreamConnection, err := dialer.DialContext(ctx, "tcp", contextDialStr)
@@ -592,12 +594,17 @@ func handleTCPConn(ctx context.Context, dialer Dialer, ngrokConnection net.Conn,
 			}
 		}
 
-		upstreamConnection = tls.Client(upstreamConnection, &tls.Config{
+		tlsCfg := &tls.Config{
 			ServerName:         upstreamHostname,
 			InsecureSkipVerify: true,
 			Renegotiation:      tls.RenegotiateFreelyAsClient,
 			NextProtos:         nextProtos,
-		})
+		}
+		if len(clientCerts) > 0 {
+			tlsCfg.Certificates = clientCerts
+		}
+
+		upstreamConnection = tls.Client(upstreamConnection, tlsCfg)
 	}
 
 	var g errgroup.Group
