@@ -20,8 +20,8 @@ import (
 
 // ingressesToIR fetches all stored ingresses and translates them into IR for futher processing and translation
 func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
-	hostCache := make(map[ir.IRHostname]*ir.IRVirtualHost) // Each unique hostname corresponds to one IRVirtualHost
-	upstreamCache := make(map[ir.IRService]*ir.IRUpstream) // Each unique service/port combo corresponds to one IRUpstream
+	hostCache := make(map[ir.IRHostname]*ir.IRVirtualHost)    // Each unique hostname corresponds to one IRVirtualHost
+	upstreamCache := make(map[ir.IRServiceKey]*ir.IRUpstream) // Each unique service/port combo corresponds to one IRUpstream
 
 	ingresses := t.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
@@ -114,7 +114,7 @@ func (t *translator) ingressToIR(
 	ingress *netv1.Ingress,
 	defaultDestination *ir.IRDestination,
 	hostCache map[ir.IRHostname]*ir.IRVirtualHost,
-	upstreamCache map[ir.IRService]*ir.IRUpstream,
+	upstreamCache map[ir.IRServiceKey]*ir.IRUpstream,
 	endpointPoolingEnabled bool,
 	annotationTrafficPolicy *trafficpolicy.TrafficPolicy,
 	annotationTrafficPolicyRef *ir.OwningResource,
@@ -228,7 +228,7 @@ func (t *translator) ingressToIR(
 // #region Ingress Paths IR
 
 // ingressPathsToIR constructs IRRoutes for the path matches under a given ingress rule
-func (t *translator) ingressPathsToIR(ingress *netv1.Ingress, ruleHostname string, ingressPaths []netv1.HTTPIngressPath, upstreamCache map[ir.IRService]*ir.IRUpstream) []*ir.IRRoute {
+func (t *translator) ingressPathsToIR(ingress *netv1.Ingress, ruleHostname string, ingressPaths []netv1.HTTPIngressPath, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream) []*ir.IRRoute {
 	irRoutes := []*ir.IRRoute{}
 	for _, pathMatch := range ingressPaths {
 		destination, err := t.ingressBackendToIR(ingress, &pathMatch.Backend, upstreamCache)
@@ -256,7 +256,7 @@ func (t *translator) ingressPathsToIR(ingress *netv1.Ingress, ruleHostname strin
 // #region Ingress Backend IR
 
 // ingressBackendToIR constructs an IRDestination from an ingress backend. Currently only service and traffic policies are supported
-func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.IngressBackend, upstreamCache map[ir.IRService]*ir.IRUpstream) (*ir.IRDestination, error) {
+func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.IngressBackend, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream) (*ir.IRDestination, error) {
 	// First check if we are supplying a traffic policy as the backend
 	if resourceRef := backend.Resource; resourceRef != nil {
 		if strings.ToLower(resourceRef.Kind) != "ngroktrafficpolicy" {
@@ -312,7 +312,7 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 		)
 	}
 
-	destination := ir.IRService{
+	irService := ir.IRService{
 		UID:       string(service.UID),
 		Name:      serviceName,
 		Namespace: ingress.Namespace,
@@ -323,13 +323,13 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 		Name:      ingress.Name,
 		Namespace: ingress.Namespace,
 	}
-	upstream, exists := upstreamCache[destination]
+	upstream, exists := upstreamCache[irService.Key()]
 	if !exists {
 		upstream = &ir.IRUpstream{
-			Service:         destination,
+			Service:         irService,
 			OwningResources: []ir.OwningResource{owningResource},
 		}
-		upstreamCache[destination] = upstream
+		upstreamCache[irService.Key()] = upstream
 	} else {
 		upstream.AddOwningResource(owningResource)
 	}

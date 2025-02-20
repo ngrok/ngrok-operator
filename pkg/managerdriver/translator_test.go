@@ -81,7 +81,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := buildInternalAgentEndpoint(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.labels, tc.annotations, tc.metadata)
+			result := buildInternalAgentEndpoint(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.labels, tc.annotations, tc.metadata, nil)
 			assert.Equal(t, tc.expectedName, result.Name, "unexpected name for test case: %s", tc.name)
 			assert.Equal(t, tc.namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
 			assert.Equal(t, tc.labels, result.Labels, "unexpected labels for test case: %s", tc.name)
@@ -184,18 +184,18 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 	testCases := []struct {
 		name               string
 		irVHost            *ir.IRVirtualHost
-		childEndpointCache map[ir.IRService]*ngrokv1alpha1.AgentEndpoint
+		childEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint
 		expectedPolicy     *trafficpolicy.TrafficPolicy
-		expectedCacheKeys  []ir.IRService
+		expectedCacheKeys  []ir.IRServiceKey
 	}{
 		{
 			name: "No default destination",
 			irVHost: &ir.IRVirtualHost{
 				DefaultDestination: nil,
 			},
-			childEndpointCache: map[ir.IRService]*ngrokv1alpha1.AgentEndpoint{},
+			childEndpointCache: map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint{},
 			expectedPolicy:     trafficpolicy.NewTrafficPolicy(),
-			expectedCacheKeys:  []ir.IRService{},
+			expectedCacheKeys:  []ir.IRServiceKey{},
 		},
 		{
 			name: "Default destination has a traffic policy",
@@ -223,7 +223,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 					},
 				},
 			},
-			childEndpointCache: map[ir.IRService]*ngrokv1alpha1.AgentEndpoint{},
+			childEndpointCache: map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint{},
 			expectedPolicy: &trafficpolicy.TrafficPolicy{
 				OnHTTPRequest: []trafficpolicy.Rule{
 					{
@@ -244,7 +244,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 				OnHTTPResponse: []trafficpolicy.Rule{},
 				OnTCPConnect:   []trafficpolicy.Rule{},
 			},
-			expectedCacheKeys: []ir.IRService{},
+			expectedCacheKeys: []ir.IRServiceKey{},
 		},
 		{
 			name: "Default destination has an upstream service",
@@ -262,7 +262,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 				LabelsToAdd:      map[string]string{"label": "value"},
 				AnnotationsToAdd: map[string]string{"anno": "val"},
 			},
-			childEndpointCache: map[ir.IRService]*ngrokv1alpha1.AgentEndpoint{},
+			childEndpointCache: map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint{},
 			expectedPolicy: &trafficpolicy.TrafficPolicy{
 				OnHTTPRequest: []trafficpolicy.Rule{
 					{
@@ -280,13 +280,8 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 				OnHTTPResponse: []trafficpolicy.Rule{},
 				OnTCPConnect:   []trafficpolicy.Rule{},
 			},
-			expectedCacheKeys: []ir.IRService{
-				{
-					UID:       "service-uid",
-					Namespace: "default",
-					Name:      "test-service",
-					Port:      8080,
-				},
+			expectedCacheKeys: []ir.IRServiceKey{
+				ir.IRServiceKey("service-uid/default/test-service/8080"),
 			},
 		},
 	}
@@ -304,7 +299,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 
 			assert.Equal(t, tc.expectedPolicy, resultPolicy, "unexpected policy for test case: %s", tc.name)
 
-			var cacheKeys []ir.IRService
+			var cacheKeys []ir.IRServiceKey
 			for key := range tc.childEndpointCache {
 				cacheKeys = append(cacheKeys, key)
 			}

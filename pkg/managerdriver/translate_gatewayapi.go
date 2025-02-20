@@ -47,7 +47,7 @@ func (t *translator) gatewayAPIToIR() []*ir.IRVirtualHost {
 	// TODO: (Alice) add support for gateway.BackendTLS in a follow-up. It requires changes in the AgentEndpoint fields and handling
 
 	virtualHostsPerGateway := make(map[types.NamespacedName]map[ir.IRListener]*ir.IRVirtualHost) // We key the list of virtual hosts by the gateway they are for
-	upstreamCache := make(map[ir.IRService]*ir.IRUpstream)                                       // Each unique service/port combo corresponds to one IRUpstream
+	upstreamCache := make(map[ir.IRServiceKey]*ir.IRUpstream)                                    // Each unique service/port combo corresponds to one IRUpstream
 	gateways := t.store.ListGateways()
 	httpRoutes := t.store.ListHTTPRoutes()
 
@@ -80,7 +80,7 @@ func (t *translator) gatewayAPIToIR() []*ir.IRVirtualHost {
 // as routes on the VirtualHost(s)
 func (t *translator) HTTPRouteToIR(
 	httpRoute *gatewayv1.HTTPRoute,
-	upstreamCache map[ir.IRService]*ir.IRUpstream,
+	upstreamCache map[ir.IRServiceKey]*ir.IRUpstream,
 	gatewayMap map[types.NamespacedName]*gatewayv1.Gateway,
 	virtualHostsPerGateway map[types.NamespacedName]map[ir.IRListener]*ir.IRVirtualHost,
 ) {
@@ -160,6 +160,26 @@ func (t *translator) HTTPRouteToIR(
 			)
 			continue
 		}
+		upstreamClientCertRefs := []ir.IRObjectRef{}
+		if gateway.Spec.BackendTLS != nil && gateway.Spec.BackendTLS.ClientCertificateRef != nil {
+			certRef := gateway.Spec.BackendTLS.ClientCertificateRef
+			if certRef.Namespace == nil {
+				certNs := gatewayv1.Namespace(gateway.Namespace)
+				certRef.Namespace = &certNs
+			}
+
+			if !t.isRefToNamespaceAllowed(gateway.Namespace, "gateway.networking.k8s.io", "Gateway", string(certRef.Name), string(*certRef.Namespace), "", "Secret") {
+				t.log.Error(fmt.Errorf("reference to Secret %q is not allowed without a valid ReferenceGrant", fmt.Sprintf("%s.%s", certRef.Name, refNamespace)),
+					"Gateway backendTLS.clientCertificateRef is invalid without a ReferenceGrant",
+				)
+				continue
+			}
+
+			upstreamClientCertRefs = append(upstreamClientCertRefs, ir.IRObjectRef{
+				Name:      string(certRef.Name),
+				Namespace: string(*certRef.Namespace),
+			})
+		}
 
 		matchingListeners := t.matchingGatewayListenersForHTTPRoute(gateway, httpRoute)
 		for _, matchingListener := range matchingListeners {
@@ -172,7 +192,7 @@ func (t *translator) HTTPRouteToIR(
 					continue
 				}
 			}
-			irTLSTermination, err := t.gatewayTLSConfigToIR(tlsTermCfg, gateway)
+			irTLSTermination, err := t.gatewayTLSTermConfigToIR(tlsTermCfg, gateway)
 			if err != nil {
 				t.log.Error(err, "skipping gateway listener with invalid TLS configuration",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
@@ -222,6 +242,7 @@ func (t *translator) HTTPRouteToIR(
 					TrafficPolicyObj:       tpObjRef,
 					Metadata:               t.defaultGatewayMetadata,
 					Bindings:               bindings,
+					ClientCertRefs:         upstreamClientCertRefs,
 				}
 			}
 			irVHost.AddOwningResource(ir.OwningResource{
@@ -249,6 +270,27 @@ func (t *translator) HTTPRouteToIR(
 
 	// Now that we have a set of the virtual hosts that are applicable to this HTTPRoute, go through and build new routes
 	// for all the HTTPRoute rules and add them to the matching virtual hosts
+
+	// Add all the routes we just processed to all matching virtual hosts
+	for irVHost := range vHostsMatchingRoute {
+		// Note: it would be more efficient to build the routes for the HTTPRoute once, then apply them to all matching virtualHosts, but
+		// each Gateway can specify upstream client certificates, so the routes we build are dependent on the current Gateway
+		routesToAdd := t.httpRouteRulesToIR(irVHost, httpRoute, upstreamCache)
+		for _, routeToAdd := range routesToAdd {
+			for _, destination := range routeToAdd.Destinations {
+				// Inherit all the virtual host's owning resources
+				if destination.Upstream != nil {
+					for _, owningResource := range irVHost.OwningResources {
+						destination.Upstream.AddOwningResource(owningResource)
+					}
+				}
+			}
+			irVHost.Routes = append(irVHost.Routes, routeToAdd)
+		}
+	}
+}
+
+func (t *translator) httpRouteRulesToIR(irVHost *ir.IRVirtualHost, httpRoute *gatewayv1.HTTPRoute, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream) []*ir.IRRoute {
 	routesToAdd := []*ir.IRRoute{}
 	for _, rule := range httpRoute.Spec.Rules {
 		// For each rule.Match create a route
@@ -269,7 +311,7 @@ func (t *translator) HTTPRouteToIR(
 			}
 
 			for _, backendRef := range rule.BackendRefs {
-				irDestination, err := t.httpRouteBackendToIR(httpRoute, backendRef, upstreamCache, irRoute.MatchCriteria)
+				irDestination, err := t.httpRouteBackendToIR(httpRoute, backendRef, upstreamCache, irRoute.MatchCriteria, irVHost.ClientCertRefs)
 				if err != nil {
 					t.log.Error(err, "unable to translate HTTPRoute backend ref",
 						"HTTPRoute", fmt.Sprintf("%s.%s", httpRoute.Name, httpRoute.Namespace),
@@ -284,21 +326,7 @@ func (t *translator) HTTPRouteToIR(
 			}
 		}
 	}
-
-	// Add all the routes we just processed to all matching virtual hosts
-	for irVHost := range vHostsMatchingRoute {
-		for _, routeToAdd := range routesToAdd {
-			for _, destination := range routeToAdd.Destinations {
-				// Inherit all the virtual host's owning resources
-				if destination.Upstream != nil {
-					for _, owningResource := range irVHost.OwningResources {
-						destination.Upstream.AddOwningResource(owningResource)
-					}
-				}
-			}
-			irVHost.Routes = append(irVHost.Routes, routeToAdd)
-		}
-	}
+	return routesToAdd
 }
 
 // #region Find Gateway listners for HTTPRoute
@@ -819,7 +847,7 @@ func gwapiURLRewriteFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, matc
 // #region HTTPRoute BackendRef IR
 
 // gwapiRequestHeaderFilterToTrafficPolicy translates a GatewayAPI backendRef into IR
-func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backendRef gatewayv1.HTTPBackendRef, upstreamCache map[ir.IRService]*ir.IRUpstream, matchCriteria ir.IRHTTPMatch) (*ir.IRDestination, error) {
+func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backendRef gatewayv1.HTTPBackendRef, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream, matchCriteria ir.IRHTTPMatch, upstreamClientCertRefs []ir.IRObjectRef) (*ir.IRDestination, error) {
 	destination := &ir.IRDestination{
 		TrafficPolicies: []*trafficpolicy.TrafficPolicy{},
 	}
@@ -887,17 +915,18 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 	}
 
 	irService := ir.IRService{
-		UID:       string(service.UID),
-		Name:      serviceName,
-		Namespace: serviceNamespace,
-		Port:      servicePort.Port,
+		UID:            string(service.UID),
+		Name:           serviceName,
+		Namespace:      serviceNamespace,
+		Port:           servicePort.Port,
+		ClientCertRefs: upstreamClientCertRefs,
 	}
-	upstream, exists := upstreamCache[irService]
+	upstream, exists := upstreamCache[irService.Key()]
 	if !exists {
 		upstream = &ir.IRUpstream{
 			Service: irService,
 		}
-		upstreamCache[irService] = upstream
+		upstreamCache[irService.Key()] = upstream
 	}
 	destination.Upstream = upstream
 
@@ -907,7 +936,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 // #region GatewayTLS IR
 
 // gwapiRequestHeaderFilterToTrafficPolicy translates a GatewayAPI tls configuration into IR
-func (t *translator) gatewayTLSConfigToIR(listenerTLS *gatewayv1.GatewayTLSConfig, gateway *gatewayv1.Gateway) (*ir.IRTLSTermination, error) {
+func (t *translator) gatewayTLSTermConfigToIR(listenerTLS *gatewayv1.GatewayTLSConfig, gateway *gatewayv1.Gateway) (*ir.IRTLSTermination, error) {
 	if listenerTLS == nil {
 		return nil, nil
 	}

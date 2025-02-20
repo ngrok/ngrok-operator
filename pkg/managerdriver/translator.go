@@ -88,7 +88,7 @@ func (t *translator) Translate() *TranslationResult {
 // IRToEndpoints converts a set of IRVirtualHosts into CloudEndpoints and AgentEndpoints
 func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (parents map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint, children map[types.NamespacedName]*ngrokv1alpha1.AgentEndpoint) {
 	// Setup a cache for the child endpoints as any given backend may be used across several ingresses, etc.
-	childEndpointCache := make(map[ir.IRService]*ngrokv1alpha1.AgentEndpoint)
+	childEndpointCache := make(map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint)
 	parentEndpoints := map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint{}
 
 	for _, irVHost := range irVHosts {
@@ -180,7 +180,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (parents map[ty
 	return parentEndpoints, childEndpoints
 }
 
-func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.IRRoute, childEndpointCache map[ir.IRService]*ngrokv1alpha1.AgentEndpoint) *trafficpolicy.TrafficPolicy {
+func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.IRRoute, childEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint) *trafficpolicy.TrafficPolicy {
 	routingTrafficPolicy := trafficpolicy.NewTrafficPolicy()
 
 	// First, see if any of the traffic policies modify the request. If they do, we need to log and capture the original request data
@@ -360,7 +360,7 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 			// Finally, if we have an upstream service to route to, build the rule for that
 			if irDestination.Upstream != nil {
 				service := irDestination.Upstream.Service
-				childEndpoint, exists := childEndpointCache[service]
+				childEndpoint, exists := childEndpointCache[service.Key()]
 				if !exists {
 					childEndpoint = buildInternalAgentEndpoint(
 						service.UID,
@@ -371,8 +371,9 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 						irVHost.LabelsToAdd,
 						irVHost.AnnotationsToAdd,
 						irVHost.Metadata,
+						service.ClientCertRefs,
 					)
-					childEndpointCache[service] = childEndpoint
+					childEndpointCache[service.Key()] = childEndpoint
 				}
 				// Inject a rule into the traffic policy that will route to the desired upstream on path match for the route
 				tpRouteRule := buildEndpointServiceRouteRule("Generated-Route", childEndpoint.Spec.URL)
@@ -508,7 +509,7 @@ func buildEndpointServiceRouteRule(name string, url string) trafficpolicy.Rule {
 	}
 }
 
-func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, childEndpointCache map[ir.IRService]*ngrokv1alpha1.AgentEndpoint) *trafficpolicy.TrafficPolicy {
+func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, childEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint) *trafficpolicy.TrafficPolicy {
 	defaultDestination := irVHost.DefaultDestination
 	defaultDestTrafficPolicy := trafficpolicy.NewTrafficPolicy()
 	if defaultDestination == nil {
@@ -524,7 +525,7 @@ func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, ch
 	// expressions so it matches anything that did not match any prior traffic policy rules
 	if upstream := defaultDestination.Upstream; upstream != nil {
 		service := upstream.Service
-		childEndpoint, exists := childEndpointCache[service]
+		childEndpoint, exists := childEndpointCache[service.Key()]
 		if !exists {
 			childEndpoint = buildInternalAgentEndpoint(
 				service.UID,
@@ -535,8 +536,9 @@ func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, ch
 				irVHost.LabelsToAdd,
 				irVHost.AnnotationsToAdd,
 				t.defaultIngressMetadata,
+				service.ClientCertRefs,
 			)
-			childEndpointCache[service] = childEndpoint
+			childEndpointCache[service.Key()] = childEndpoint
 		}
 		routeRule := buildEndpointServiceRouteRule("Generated-Route-Default-Backend", childEndpoint.Spec.URL)
 		defaultDestTrafficPolicy.AddRuleOnHTTPRequest(routeRule)
@@ -604,8 +606,9 @@ func buildInternalAgentEndpoint(
 	labels map[string]string,
 	annotations map[string]string,
 	metadata string,
+	upstreamClientCertRefs []ir.IRObjectRef,
 ) *ngrokv1alpha1.AgentEndpoint {
-	return &ngrokv1alpha1.AgentEndpoint{
+	ret := &ngrokv1alpha1.AgentEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain, port),
 			Namespace:   namespace,
@@ -621,6 +624,15 @@ func buildInternalAgentEndpoint(
 			Bindings: []string{"internal"},
 		},
 	}
+
+	for _, certRef := range upstreamClientCertRefs {
+		ret.Spec.ClientCertificateRefs = append(ret.Spec.ClientCertificateRefs, ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+			Name:      certRef.Name,
+			Namespace: &certRef.Namespace,
+		})
+	}
+
+	return ret
 }
 
 // buildDefault404TPRule builds the default rule that will fire if no other rules are matched to return a 404 response
