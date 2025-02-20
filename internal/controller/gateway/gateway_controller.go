@@ -217,16 +217,38 @@ func (p referencedResourcePredicate) isReferenced(obj client.Object) bool {
 // by any Gateway in the same namespace via a TLS certificateRefs entry
 func secretReferencedByGateway(secret *v1.Secret, c client.Client) bool {
 	var gwList gatewayv1.GatewayList
-	if err := c.List(context.TODO(), &gwList, client.InNamespace(secret.Namespace)); err != nil {
+	if err := c.List(context.TODO(), &gwList); err != nil {
 		return false
 	}
 	for _, gw := range gwList.Items {
+		// For the backend CertificateRefs, we don't strictly need to watch them here (in the manager pods) since the Gateway API config gets translated
+		// into similar references set on the generated AgentEndpoints and which get processed by the agent pods, but having the validation for whether or not the referenced secrets exist
+		// in the same layer as the rest of the translation offers a better user experience with understanding errors with their resources and why they happened.
+		if gw.Spec.BackendTLS != nil && gw.Spec.BackendTLS.ClientCertificateRef != nil {
+			certRef := gw.Spec.BackendTLS.ClientCertificateRef
+			if certRef.Namespace == nil {
+				certNs := gatewayv1.Namespace(gw.Namespace)
+				certRef.Namespace = &certNs
+			}
+
+			if string(certRef.Name) == secret.Name &&
+				string(*certRef.Namespace) == secret.Namespace &&
+				secret.Type == v1.SecretTypeTLS {
+				return true
+			}
+		}
 		for _, listener := range gw.Spec.Listeners {
 			if listener.TLS == nil {
 				continue
 			}
 			for _, certRef := range listener.TLS.CertificateRefs {
-				if string(certRef.Name) == string(secret.Name) && secret.Type == v1.SecretTypeTLS {
+				if certRef.Namespace == nil {
+					certNs := gatewayv1.Namespace(gw.Namespace)
+					certRef.Namespace = &certNs
+				}
+				if string(certRef.Name) == secret.Name &&
+					string(*certRef.Namespace) == secret.Name &&
+					secret.Type == v1.SecretTypeTLS {
 					return true
 				}
 			}
@@ -239,7 +261,7 @@ func secretReferencedByGateway(secret *v1.Secret, c client.Client) bool {
 // by any Gateway in the same namespace via a TLS frontendValidation certificateRefs entry
 func configMapReferencedByGateway(cm *v1.ConfigMap, c client.Client) bool {
 	var gwList gatewayv1.GatewayList
-	if err := c.List(context.TODO(), &gwList, client.InNamespace(cm.Namespace)); err != nil {
+	if err := c.List(context.TODO(), &gwList); err != nil {
 		return false
 	}
 	for _, gw := range gwList.Items {
@@ -248,7 +270,13 @@ func configMapReferencedByGateway(cm *v1.ConfigMap, c client.Client) bool {
 				continue
 			}
 			for _, certRef := range listener.TLS.FrontendValidation.CACertificateRefs {
-				if string(certRef.Name) == string(cm.Name) && string(certRef.Kind) == "ConfigMap" {
+				if certRef.Namespace == nil {
+					certNs := gatewayv1.Namespace(gw.Namespace)
+					certRef.Namespace = &certNs
+				}
+				if string(certRef.Name) == cm.Name &&
+					string(*certRef.Namespace) == cm.Namespace &&
+					string(certRef.Kind) == "ConfigMap" {
 					return true
 				}
 			}
