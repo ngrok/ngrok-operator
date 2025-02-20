@@ -79,6 +79,14 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			}
 		}
 
+		bindings, err := annotations.ExtractUseBindings(ingress)
+		if err != nil {
+			t.log.Error(err, "failed to check bindings annotation for ingress",
+				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			)
+			continue
+		}
+
 		t.ingressToIR(
 			ingress,
 			defaultDestination,
@@ -87,6 +95,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			useEndpointPooling,
 			annotationTrafficPolicy,
 			tpObjRef,
+			bindings,
 		)
 	}
 
@@ -109,6 +118,7 @@ func (t *translator) ingressToIR(
 	endpointPoolingEnabled bool,
 	annotationTrafficPolicy *trafficpolicy.TrafficPolicy,
 	annotationTrafficPolicyRef *ir.OwningResource,
+	bindings []string,
 ) {
 	for _, rule := range ingress.Spec.Rules {
 		ruleHostname := rule.Host
@@ -198,6 +208,7 @@ func (t *translator) ingressToIR(
 				DefaultDestination:     defaultDestination,
 				EndpointPoolingEnabled: endpointPoolingEnabled,
 				Metadata:               t.defaultIngressMetadata,
+				Bindings:               bindings,
 			}
 			hostCache[ir.IRHostname(ruleHostname)] = irVHost
 		}
