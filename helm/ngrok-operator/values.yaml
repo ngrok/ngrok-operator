@@ -278,11 +278,11 @@ agent:
 ## @section Kubernetes Gateway feature configuration
 ##
 ## @extra useExperimentalGatewayApi DEPRECATED: Use gateway.enabled instead
-## @param gateway.enabled When true, enable the Gateway controller
+## @param gateway.enabled When true, Gateway API support will be enabled if the CRDs are detected. When false, Gateway API support will never be enabled
 ## @param gateway.disableReferenceGrants When true, disables required ReferenceGrants for cross-namespace references. Does nothing when gateway.enabled is false
 ##
 gateway:
-  enabled: false
+  enabled: true # Enabled by default if the Gateway API CRDs are detected
   disableReferenceGrants: false
 
 ##

@@ -111,7 +111,7 @@ func cmd() *cobra.Command {
 
 	// feature flags
 	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
+	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
 	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 
@@ -147,56 +147,55 @@ func runController(ctx context.Context, opts managerOpts) error {
 	}
 
 	// shared features between Ingress and Gateway (tunnels)
-	if opts.enableFeatureIngress || opts.enableFeatureGateway {
-		var comments tunneldriver.TunnelDriverComments
-		if opts.enableFeatureGateway {
-			comments = tunneldriver.TunnelDriverComments{
-				Gateway: "gateway-api",
-			}
+
+	var comments tunneldriver.TunnelDriverComments
+	if opts.enableFeatureGateway {
+		comments = tunneldriver.TunnelDriverComments{
+			Gateway: "gateway-api",
 		}
+	}
 
-		rootCAs := "trusted"
-		if opts.rootCAs != "" {
-			rootCAs = opts.rootCAs
-		}
+	rootCAs := "trusted"
+	if opts.rootCAs != "" {
+		rootCAs = opts.rootCAs
+	}
 
-		td, err := tunneldriver.New(ctx, ctrl.Log.WithName("drivers").WithName("tunnel"),
-			tunneldriver.TunnelDriverOpts{
-				ServerAddr: opts.serverAddr,
-				Region:     opts.region,
-				RootCAs:    rootCAs,
-				Comments:   &comments,
-			},
-		)
+	td, err := tunneldriver.New(ctx, ctrl.Log.WithName("drivers").WithName("tunnel"),
+		tunneldriver.TunnelDriverOpts{
+			ServerAddr: opts.serverAddr,
+			Region:     opts.region,
+			RootCAs:    rootCAs,
+			Comments:   &comments,
+		},
+	)
 
-		if err != nil {
-			return fmt.Errorf("unable to create tunnel driver: %w", err)
-		}
+	if err != nil {
+		return fmt.Errorf("unable to create tunnel driver: %w", err)
+	}
 
-		// register healthcheck for tunnel driver
-		healthcheck.RegisterHealthChecker(td)
+	// register healthcheck for tunnel driver
+	healthcheck.RegisterHealthChecker(td)
 
-		if err = (&agentcontroller.TunnelReconciler{
-			Client:       mgr.GetClient(),
-			Log:          ctrl.Log.WithName("controllers").WithName("tunnel"),
-			Scheme:       mgr.GetScheme(),
-			Recorder:     mgr.GetEventRecorderFor("tunnel-controller"),
-			TunnelDriver: td,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
-			os.Exit(1)
-		}
+	if err = (&agentcontroller.TunnelReconciler{
+		Client:       mgr.GetClient(),
+		Log:          ctrl.Log.WithName("controllers").WithName("tunnel"),
+		Scheme:       mgr.GetScheme(),
+		Recorder:     mgr.GetEventRecorderFor("tunnel-controller"),
+		TunnelDriver: td,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
+		os.Exit(1)
+	}
 
-		if err = (&agentcontroller.AgentEndpointReconciler{
-			Client:       mgr.GetClient(),
-			Log:          ctrl.Log.WithName("controllers").WithName("agentendpoint"),
-			Scheme:       mgr.GetScheme(),
-			Recorder:     mgr.GetEventRecorderFor("agentendpoint-controller"),
-			TunnelDriver: td,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")
-			os.Exit(1)
-		}
+	if err = (&agentcontroller.AgentEndpointReconciler{
+		Client:       mgr.GetClient(),
+		Log:          ctrl.Log.WithName("controllers").WithName("agentendpoint"),
+		Scheme:       mgr.GetScheme(),
+		Recorder:     mgr.GetEventRecorderFor("agentendpoint-controller"),
+		TunnelDriver: td,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")
+		os.Exit(1)
 	}
 
 	// register healthchecks

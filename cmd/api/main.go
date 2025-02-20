@@ -28,6 +28,7 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 
+	"k8s.io/client-go/discovery"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
@@ -76,8 +77,8 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(gatewayv1beta1.Install(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
+	utilruntime.Must(gatewayv1beta1.Install(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
@@ -164,7 +165,7 @@ func cmd() *cobra.Command {
 
 	// feature flags
 	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
+	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
 	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 	c.Flags().StringSliceVar(&opts.bindings.endpointSelectors, "bindings-endpoint-selectors", []string{"true"}, "Endpoint Selectors for Endpoint Bindings")
@@ -192,6 +193,31 @@ func startOperator(ctx context.Context, opts managerOpts) error {
 	k8sClient, err := client.New(k8sConfig, client.Options{Scheme: scheme})
 	if err != nil {
 		return fmt.Errorf("unable to create k8s client: %w", err)
+	}
+
+	// Unless we are fully opting-out of GWAPI support, check if the CRDs are installed. If not, disable GWAPI support
+	if opts.enableFeatureGateway {
+		discoveryClient, err := discovery.NewDiscoveryClientForConfig(k8sConfig)
+		if err != nil {
+			return fmt.Errorf("unable to create discovery client: %w", err)
+		}
+
+		apiGroupList, err := discoveryClient.ServerGroups()
+		if err != nil {
+			return fmt.Errorf("unable to list server groups: %w", err)
+		}
+
+		gatewayAPIGroupInstalled := false
+		for _, group := range apiGroupList.Groups {
+			if group.Name == "gateway.networking.k8s.io" {
+				gatewayAPIGroupInstalled = true
+				break
+			}
+		}
+		if !gatewayAPIGroupInstalled {
+			setupLog.Info("Gateway API CRDs not detected, Gateway feature set will be disabled")
+			opts.enableFeatureGateway = false
+		}
 	}
 
 	var ok bool
