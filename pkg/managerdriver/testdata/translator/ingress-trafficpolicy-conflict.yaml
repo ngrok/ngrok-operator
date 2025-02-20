@@ -130,6 +130,8 @@ expected:
       name: test-ingresses.ngrok.io
       namespace: default
     spec:
+      bindings:
+      - public
       url: https://test-ingresses.ngrok.io
       trafficPolicy:
         policy:
