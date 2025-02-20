@@ -153,6 +153,14 @@ func (t *translator) HTTPRouteToIR(
 			}
 		}
 
+		bindings, err := annotations.ExtractUseBindings(gateway)
+		if err != nil {
+			t.log.Error(err, "failed to check bindings annotation for gateway",
+				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
+			)
+			continue
+		}
+
 		matchingListeners := t.matchingGatewayListenersForHTTPRoute(gateway, httpRoute)
 		for _, matchingListener := range matchingListeners {
 			tlsTermCfg := matchingListener.TLS
@@ -213,6 +221,7 @@ func (t *translator) HTTPRouteToIR(
 					TrafficPolicy:          annotationTrafficPolicy,
 					TrafficPolicyObj:       tpObjRef,
 					Metadata:               t.defaultGatewayMetadata,
+					Bindings:               bindings,
 				}
 			}
 			irVHost.AddOwningResource(ir.OwningResource{

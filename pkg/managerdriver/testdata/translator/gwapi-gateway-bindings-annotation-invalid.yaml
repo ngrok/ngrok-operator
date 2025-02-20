@@ -1,4 +1,4 @@
-# Request mirror filters are not currently supported and should be ignored
+# Tests that the bindings annotation set on a Gateway will be configured on generated CloudEndpoint resources
 input:
   gatewayClasses:
   - apiVersion: gateway.networking.k8s.io/v1
@@ -15,6 +15,7 @@ input:
       namespace: default
       annotations:
         k8s.ngrok.com/mapping-strategy: "endpoints"
+        k8s.ngrok.com/bindings: "foo-binding"
     spec:
       gatewayClassName: ngrok
       listeners:
@@ -47,17 +48,6 @@ input:
             name: test-service-1
             port: 8080
             weight: 1
-        filters:
-        - type: ExtensionRef # Bad Group
-          group: "foo.com"
-          kind: NgrokTrafficPolicy
-        - type: ExtensionRef # Bad Kind
-          group: "ngrok.k8s.ngrok.com"
-          kind: SomeResource
-        - type: ExtensionRef # Missing traffic policy
-          group: ""
-          kind: "NgrokTrafficPolicy"
-          name: missing-trafficpolicy
   services:
   - apiVersion: v1
     kind: Service
@@ -83,7 +73,7 @@ expected:
       namespace: default
     spec:
       bindings:
-      - public
+      - foo-binding
       trafficPolicy:
         policy:
             on_http_request:
