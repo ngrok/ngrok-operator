@@ -385,8 +385,8 @@
             "properties": {
                 "enabled": {
                     "type": "boolean",
-                    "description": "When true, enable the Gateway controller",
-                    "default": false
+                    "description": "When true, Gateway API support will be enabled if the CRDs are detected. When false, Gateway API support will never be enabled",
+                    "default": true
                 },
                 "disableReferenceGrants": {
                     "type": "boolean",
