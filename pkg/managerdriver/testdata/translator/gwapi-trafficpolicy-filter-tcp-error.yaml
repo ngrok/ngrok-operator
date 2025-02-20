@@ -90,6 +90,8 @@ expected:
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
     spec:
+      bindings:
+      - public
       trafficPolicy:
         policy:
             on_http_request:
