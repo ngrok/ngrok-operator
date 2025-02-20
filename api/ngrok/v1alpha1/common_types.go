@@ -31,10 +31,12 @@ type K8sObjectRef struct {
 	Name string `json:"name"`
 }
 
-type K8sNamespacedObjectRef struct {
-	K8sObjectRef
+type K8sObjectRefOptionalNamespace struct {
+	// The name of the Kubernetes resource being referenced
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
 
 	// The namespace of the Kubernetes resource being referenced
-	// +kubebuilder:validation:Required
-	Namespace string `json:"namespace"`
+	// +kubebuilder:validation:Optional
+	Namespace *string `json:"namespace,omitempty"`
 }

@@ -64,6 +64,22 @@ spec:
                 items:
                   type: string
                 type: array
+              clientCertificateRefs:
+                description: List of client certificates to present to the upstream
+                  when performing a TLS handshake
+                items:
+                  properties:
+                    name:
+                      description: The name of the Kubernetes resource being referenced
+                      type: string
+                    namespace:
+                      description: The namespace of the Kubernetes resource being
+                        referenced
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
               description:
                 default: Created by the ngrok-operator
                 description: Human-readable description of this agent endpoint
