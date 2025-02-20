@@ -278,10 +278,10 @@ agent:
 ## @section Kubernetes Gateway feature configuration
 ##
 ## @extra useExperimentalGatewayApi DEPRECATED: Use gateway.enabled instead
-## @param gateway.enabled When true, enable the Gateway controller
+## @param gateway.enabled When true, Gateway API support will be enabled if the CRDs are detected. When false, Gateway API support will never be enabled
 ##
 gateway:
-  enabled: false
+  enabled: true # Enabled by default if the Gateway API CRDs are detected
 
 ##
 ## @section Kubernetes Bindings feature configuration

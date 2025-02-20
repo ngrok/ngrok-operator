@@ -28,6 +28,7 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 
+	"k8s.io/client-go/discovery"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
@@ -161,7 +162,7 @@ func cmd() *cobra.Command {
 
 	// feature flags
 	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", false, "Enables the Gateway controller")
+	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 	c.Flags().StringSliceVar(&opts.bindings.endpointSelectors, "bindings-endpoint-selectors", []string{"true"}, "Endpoint Selectors for Endpoint Bindings")
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
@@ -287,7 +288,35 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 		setupLog.Info("Ingress feature set disabled")
 	}
 
+	// Enable the Gateway API feature set if the opt-out flag is not supplied and the CRDs are installed
+	gatewayAPIGroupInstalled := false
 	if opts.enableFeatureGateway {
+		k8sConfig, err := ctrl.GetConfig()
+		if err != nil {
+			return fmt.Errorf("unable to get k8s config from runtime client: %w", err)
+		}
+
+		discoveryClient, err := discovery.NewDiscoveryClientForConfig(k8sConfig)
+		if err != nil {
+			return fmt.Errorf("unable to create discovery client: %w", err)
+		}
+
+		apiGroupList, err := discoveryClient.ServerGroups()
+		if err != nil {
+			return fmt.Errorf("unable to list server groups: %w", err)
+		}
+
+		for _, group := range apiGroupList.Groups {
+			if group.Name == "gateway.networking.k8s.io" {
+				gatewayAPIGroupInstalled = true
+				break
+			}
+		}
+		if !gatewayAPIGroupInstalled {
+			setupLog.Info("Gateway API CRDs not detected, Gateway feature set will be disabled")
+		}
+	}
+	if gatewayAPIGroupInstalled {
 		setupLog.Info("Gateway feature set enabled")
 		if err := enableGatewayFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset); err != nil {
 			return fmt.Errorf("unable to enable Gateway feature set: %w", err)

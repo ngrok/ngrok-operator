@@ -50,7 +50,7 @@ Should match snapshot:
           containers:
             - args:
                 - --enable-feature-ingress=true
-                - --enable-feature-gateway=false
+                - --enable-feature-gateway=true
                 - --description="The official ngrok Kubernetes Operator."
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error

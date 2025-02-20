@@ -143,10 +143,10 @@ To uninstall the chart:
 
 ### Kubernetes Gateway feature configuration
 
-| Name                        | Description                              | Value   |
-| --------------------------- | ---------------------------------------- | ------- |
-| `useExperimentalGatewayApi` | DEPRECATED: Use gateway.enabled instead  |         |
-| `gateway.enabled`           | When true, enable the Gateway controller | `false` |
+| Name                        | Description                                                                                                                    | Value  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| `useExperimentalGatewayApi` | DEPRECATED: Use gateway.enabled instead                                                                                        |        |
+| `gateway.enabled`           | When true, Gateway API support will be enabled if the CRDs are detected. When false, Gateway API support will never be enabled | `true` |
 
 ### Kubernetes Bindings feature configuration
 
