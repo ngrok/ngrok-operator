@@ -387,6 +387,11 @@
                     "type": "boolean",
                     "description": "When true, enable the Gateway controller",
                     "default": false
+                },
+                "disableReferenceGrants": {
+                    "type": "boolean",
+                    "description": "When true, disables required ReferenceGrants for cross-namespace references. Does nothing when gateway.enabled is false",
+                    "default": false
                 }
             }
         },

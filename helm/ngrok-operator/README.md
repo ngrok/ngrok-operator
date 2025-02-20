@@ -143,10 +143,11 @@ To uninstall the chart:
 
 ### Kubernetes Gateway feature configuration
 
-| Name                        | Description                              | Value   |
-| --------------------------- | ---------------------------------------- | ------- |
-| `useExperimentalGatewayApi` | DEPRECATED: Use gateway.enabled instead  |         |
-| `gateway.enabled`           | When true, enable the Gateway controller | `false` |
+| Name                             | Description                                                                                                             | Value   |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------- |
+| `useExperimentalGatewayApi`      | DEPRECATED: Use gateway.enabled instead                                                                                 |         |
+| `gateway.enabled`                | When true, enable the Gateway controller                                                                                | `false` |
+| `gateway.disableReferenceGrants` | When true, disables required ReferenceGrants for cross-namespace references. Does nothing when gateway.enabled is false | `false` |
 
 ### Kubernetes Bindings feature configuration
 

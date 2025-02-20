@@ -77,6 +77,11 @@ Ngrok Operator manager cli feature flags
 {{- else }}
 - --enable-feature-gateway=false
 {{- end }}
+{{- if .Values.gateway.disableReferenceGrants }}
+- --disable-reference-grants=true
+{{- else }}
+- --disable-reference-grants=false
+{{- end }}
 {{- if .Values.bindings.enabled }}
 - --enable-feature-bindings={{ .Values.bindings.enabled }}
 {{- end }}
