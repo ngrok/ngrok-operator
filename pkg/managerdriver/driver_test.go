@@ -125,10 +125,19 @@ var _ = Describe("Driver", func() {
 				Expect(tunnels.Items).To(HaveLen(0))
 			})
 		})
-		Context("When there are just ingresses and CRDs need to be created", func() {
+		Context("When there are just edge ingresses and edges need to be created", func() {
 			It("Should create the CRDs", func() {
 				i1 := testutils.NewTestIngressV1("test-ingress", "test-namespace")
+				if i1.Annotations == nil {
+					i1.Annotations = map[string]string{}
+				}
+				i1.Annotations["k8s.ngrok.com/mapping-strategy"] = "edges"
 				i2 := testutils.NewTestIngressV1("test-ingress-2", "test-namespace")
+				if i2.Annotations == nil {
+					i2.Annotations = map[string]string{}
+				}
+				i2.Annotations["k8s.ngrok.com/mapping-strategy"] = "edges"
+
 				ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
 				ic2 := testutils.NewTestIngressClass("test-ingress-class-2", true, true)
 				s := testutils.NewTestServiceV1("example", "test-namespace")
@@ -664,11 +673,15 @@ var _ = Describe("Driver", func() {
 		})
 	})
 
-	Describe("When no ingresses are opted in to use endpoints", func() {
+	Describe("When ingresses are opted in to use edges", func() {
 		It("Should create edges and not endpoints", func() {
 			ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
 
 			i1 := testutils.NewTestIngressV1WithClass("ingress-1", "test-namespace", ic1.Name)
+			if i1.Annotations == nil {
+				i1.Annotations = map[string]string{}
+			}
+			i1.Annotations["k8s.ngrok.com/mapping-strategy"] = "edges"
 			i1.Spec.Rules = []netv1.IngressRule{
 				{
 					Host: "a.customdomain.com",
@@ -723,6 +736,10 @@ var _ = Describe("Driver", func() {
 				},
 			}
 			i2 := testutils.NewTestIngressV1WithClass("ingress-2", "other-namespace", ic1.Name)
+			if i2.Annotations == nil {
+				i2.Annotations = map[string]string{}
+			}
+			i2.Annotations["k8s.ngrok.com/mapping-strategy"] = "edges"
 			i2.Spec.Rules = []netv1.IngressRule{
 				{
 					Host: "c.customdomain.com",
