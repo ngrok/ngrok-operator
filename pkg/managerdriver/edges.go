@@ -197,13 +197,12 @@ func (d *Driver) calculateHTTPSEdges(domains *domainSet) map[string]ingressv1alp
 func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
-		useEndpoints, err := annotations.ExtractUseEndpoints(ingress)
+		useEdges, err := annotations.ExtractUseEdges(ingress)
 		if err != nil {
-			d.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+			d.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
-		if useEndpoints {
-			d.log.Info(fmt.Sprintf("the following ingress will be provided by ngrok endpoints instead of edges because of the %q annotation",
-				annotations.MappingStrategyAnnotation),
+		if !useEdges {
+			d.log.Info("the following ingress will be provided by ngrok endpoints instead of edges",
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
 			continue
@@ -305,13 +304,12 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 func (d *Driver) calculateHTTPSEdgesFromGateway(edgeMap map[string]ingressv1alpha1.HTTPSEdge) {
 	gateways := d.store.ListGateways()
 	for _, gtw := range gateways {
-		useEndpoints, err := annotations.ExtractUseEndpoints(gtw)
+		useEdges, err := annotations.ExtractUseEdges(gtw)
 		if err != nil {
-			d.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+			d.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
-		if useEndpoints {
-			d.log.Info(fmt.Sprintf("the following gateway will be provided by ngrok endpoints instead of edges because of the %q annotation",
-				annotations.MappingStrategyAnnotation),
+		if !useEdges {
+			d.log.Info("the following gateway will be provided by ngrok endpoints",
 				"gateway", fmt.Sprintf("%s.%s", gtw.Name, gtw.Namespace),
 			)
 			continue

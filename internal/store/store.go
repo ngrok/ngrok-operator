@@ -528,9 +528,9 @@ func (s Store) shouldHandleIngressCheckClass(ing *netv1.Ingress) (bool, error) {
 // shouldHandleIngressIsValid checks if the ingress spec meets controller requirements.
 func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 	errs := errors.NewErrInvalidIngressSpec()
-	useEndpoints, err := annotations.ExtractUseEndpoints(ing)
+	useEdges, err := annotations.ExtractUseEdges(ing)
 	if err != nil {
-		errs.AddError(fmt.Sprintf("failed to check %q annotation. defaulting to using edges: %s",
+		errs.AddError(fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints: %s",
 			annotations.MappingStrategyAnnotation,
 			err.Error(),
 		))
@@ -546,16 +546,16 @@ func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 				for _, path := range rule.HTTP.Paths {
 					switch {
 					case path.Backend.Resource != nil:
-						if !useEndpoints {
-							errs.AddError(fmt.Sprintf("Resource backends are not supported for ingresses without the %q: %q annotation. Ingresses provided by endpoints instead of edges do support default backends",
+						if useEdges {
+							errs.AddError(fmt.Sprintf("Resource backends are not supported for ingresses with the %q: %q annotation. Ingresses provided by endpoints instead of edges do support default backends",
 								annotations.MappingStrategyAnnotation,
-								annotations.MappingStrategy_Endpoints,
+								annotations.MappingStrategy_Edges,
 							))
 						}
 					case path.Backend.Service == nil:
-						errs.AddError(fmt.Sprintf("A valid service backend is required for this ingress since a resource backend was not provided (resource backends are only supported for ingresses with the %q: %q annotation.)",
+						errs.AddError(fmt.Sprintf("A valid service backend is required for this ingress since a resource backend was not provided (resource backends are only supported for ingresses without the %q: %q annotation.)",
 							annotations.MappingStrategyAnnotation,
-							annotations.MappingStrategy_Endpoints,
+							annotations.MappingStrategy_Edges,
 						))
 					}
 				}
@@ -566,10 +566,10 @@ func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 	}
 
 	if ing.Spec.DefaultBackend != nil {
-		if !useEndpoints {
-			errs.AddError(fmt.Sprintf("Default backends are not supported for ingresses without the %q: %q annotation. Ingresses provided by endpoints instead of edges do support default backends",
+		if useEdges {
+			errs.AddError(fmt.Sprintf("Default backends are not supported for ingresses with the %q: %q annotation. Ingresses provided by endpoints instead of edges do support default backends",
 				annotations.MappingStrategyAnnotation,
-				annotations.MappingStrategy_Endpoints,
+				annotations.MappingStrategy_Edges,
 			))
 		}
 	}

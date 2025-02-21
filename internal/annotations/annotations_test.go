@@ -82,7 +82,7 @@ func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
 	}
 }
 
-func TestExtractUseEndpoints(t *testing.T) {
+func TestExtractUseEdges(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
@@ -90,11 +90,19 @@ func TestExtractUseEndpoints(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name: "Valid mapping strategy",
+			name: "Valid mapping strategy: edges",
+			annotations: map[string]string{
+				"k8s.ngrok.com/mapping-strategy": "edges",
+			},
+			expected:    true,
+			expectedErr: nil,
+		},
+		{
+			name: "Valid mapping strategy: endpoints",
 			annotations: map[string]string{
 				"k8s.ngrok.com/mapping-strategy": "endpoints",
 			},
-			expected:    true,
+			expected:    false,
 			expectedErr: nil,
 		},
 		{
@@ -123,13 +131,13 @@ func TestExtractUseEndpoints(t *testing.T) {
 				},
 			}
 
-			useEndpoints, err := annotations.ExtractUseEndpoints(obj)
+			useEdges, err := annotations.ExtractUseEdges(obj)
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, tc.expectedErr, err)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tc.expected, useEndpoints)
+				assert.Equal(t, tc.expected, useEdges)
 			}
 		})
 	}

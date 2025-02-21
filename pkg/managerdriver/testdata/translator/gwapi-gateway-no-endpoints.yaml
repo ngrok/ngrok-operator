@@ -1,4 +1,4 @@
-# Gateways that do not have the mapping-strategy: endpoints should not create any endpoint resources
+# Gateways that have the mapping-strategy: edges should not create any endpoint resources
 input:
   gatewayClasses:
   - apiVersion: gateway.networking.k8s.io/v1
@@ -13,6 +13,8 @@ input:
     metadata:
       name: test-gateway
       namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: edges
     spec:
       gatewayClassName: ngrok
       infrastructure:

@@ -278,7 +278,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	var desired []client.Object
-	useEndpoints, err := annotations.ExtractUseEndpoints(svc)
+	useEdges, err := annotations.ExtractUseEdges(svc)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("Failed to get %q annotation", annotations.MappingStrategyAnnotation))
 		// TODO: Add an event to the service
@@ -289,7 +289,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// If the conversion of modulesets -> trafficpolicy fails or there is some other error such that we can't
 	// build the desired endpoints correctly, we will fall back to using tunnels and edges
 	// and just bubble up the error as an event on the service
-	if useEndpoints {
+	if !useEdges {
 		desired, err = r.buildEndpoints(ctx, svc)
 		if err != nil {
 			log.Error(err, "Failed to build desired endpoints")
