@@ -1,4 +1,4 @@
-# Tests that gateway.spec.infrastructure adds the labels/annotations to generated resources
+# Tests that Gateways with backend TLS client certs in another namespace and a valid reference grant are processed
 input:
   gatewayClasses:
   - apiVersion: gateway.networking.k8s.io/v1
@@ -22,7 +22,7 @@ input:
           namespace: foo
       gatewayClassName: ngrok
       listeners:
-        - name: test-invalid-1
+        - name: test-1
           hostname: "test-hostname.ngrok.io"
           port: 443
           protocol: HTTPS
@@ -100,6 +100,8 @@ expected:
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
     spec:
+      bindings:
+      - public
       trafficPolicy:
         policy:
             on_http_request:
@@ -109,7 +111,7 @@ expected:
                 actions:
                   - type: forward-internal
                     config:
-                      url: "https://e3b0c-test-service-1-default-8080.internal"
+                      url: "https://e3b0c-test-service-1-default-tls-f2538-8080.internal"
               - name: Fallback-404
                 actions:
                 - type: custom-response
@@ -126,13 +128,13 @@ expected:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
-      name: e3b0c-test-service-1-default-8080
+      name: e3b0c-test-service-1-default-tls-f2538-8080
       namespace: default
     spec:
       clientCertificateRefs:
       - name: client-cert-secret
         namespace: foo
-      url: "https://e3b0c-test-service-1-default-8080.internal"
+      url: "https://e3b0c-test-service-1-default-tls-f2538-8080.internal"
       upstream:
         url: "http://test-service-1.default:8080"
       bindings:

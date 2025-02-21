@@ -147,13 +147,14 @@ func TestSanitizeStringForURL(t *testing.T) {
 
 func TestInternalAgentEndpointURL(t *testing.T) {
 	testCases := []struct {
-		name           string
-		serviceName    string
-		namespace      string
-		clusterDomain  string
-		port           int32
-		serviceUID     string
-		expectedResult string
+		name                   string
+		serviceName            string
+		namespace              string
+		clusterDomain          string
+		port                   int32
+		serviceUID             string
+		expectedResult         string
+		upstreamClientCertRefs []ir.IRObjectRef
 	}{
 		{
 			name:           "Normal case",
@@ -191,12 +192,25 @@ func TestInternalAgentEndpointURL(t *testing.T) {
 			serviceUID:     "123456",
 			expectedResult: "https://8d969-svc-ns-8081.internal",
 		},
+		{
+			name:           "Client cert refs",
+			serviceName:    "svc",
+			namespace:      "ns",
+			clusterDomain:  "",
+			port:           8081,
+			serviceUID:     "123456",
+			expectedResult: "https://8d969-svc-ns-tls-d025c-8081.internal",
+			upstreamClientCertRefs: []ir.IRObjectRef{{
+				Name:      "client-cert-secret",
+				Namespace: "secrets",
+			}},
+		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := internalAgentEndpointURL(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port)
+			result := internalAgentEndpointURL(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.upstreamClientCertRefs)
 			if result != tc.expectedResult {
 				t.Errorf("expected %s, got %s", tc.expectedResult, result)
 			}

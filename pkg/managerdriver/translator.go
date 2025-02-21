@@ -610,13 +610,13 @@ func buildInternalAgentEndpoint(
 ) *ngrokv1alpha1.AgentEndpoint {
 	ret := &ngrokv1alpha1.AgentEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain, port),
+			Name:        internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain, port, upstreamClientCertRefs),
 			Namespace:   namespace,
 			Labels:      labels,
 			Annotations: annotations,
 		},
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
-			URL:      internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain, port),
+			URL:      internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain, port, upstreamClientCertRefs),
 			Metadata: metadata,
 			Upstream: ngrokv1alpha1.EndpointUpstream{
 				URL: internalAgentEndpointUpstreamURL(serviceName, namespace, clusterDomain, port),

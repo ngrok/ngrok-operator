@@ -43,15 +43,35 @@ func hasDefaultManagedResourceLabels(labels map[string]string, managerName, mana
 }
 
 // internalAgentEndpointName builds a string for the name of an internal AgentEndpoint
-func internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain string, upstreamPort int32) string {
+func internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain string, upstreamPort int32, clientCertRefs []ir.IRObjectRef) string {
 	uidHash := sha256.Sum256([]byte(serviceUID))
 	hashHex := hex.EncodeToString(uidHash[:])
+
+	// When using upstream certs, add a tls hash to the name so that the name for the upstream service is unique.
+	// You may have something like two different gateways that have different client certs for the same upstream service.
+	// This is an unlikely but valid use-case
+	tlsSuffix := ""
+	if len(clientCertRefs) > 0 {
+		tlsStr := ""
+		for _, certRef := range clientCertRefs {
+			tlsStr += fmt.Sprintf("%s.%s", certRef.Name, certRef.Namespace)
+		}
+
+		tlsHash := sha256.Sum256([]byte(tlsStr))
+		tlsHashHex := hex.EncodeToString(tlsHash[:])
+		tlsSuffix = fmt.Sprintf("tls-%s", tlsHashHex[:5])
+	}
 
 	ret := fmt.Sprintf("%s-%s-%s",
 		hashHex[:5],
 		serviceName,
 		namespace,
 	)
+	if tlsSuffix != "" {
+		ret += fmt.Sprintf("-%s",
+			tlsSuffix,
+		)
+	}
 
 	// Unless we are using a custom cluster domain, leave it out of any generated stuff to keep names more readable
 	if clusterDomain != common.DefaultClusterDomain && clusterDomain != "" {
@@ -63,7 +83,7 @@ func internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain
 }
 
 // internalAgentEndpointURL builds a URL string for an internal endpoint
-func internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain string, port int32) string {
+func internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain string, port int32, clientCertRefs []ir.IRObjectRef) string {
 	uidHash := sha256.Sum256([]byte(serviceUID))
 	hashHex := hex.EncodeToString(uidHash[:])
 
@@ -72,6 +92,24 @@ func internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain 
 		sanitizeStringForURL(serviceName),
 		sanitizeStringForURL(namespace),
 	)
+
+	tlsSuffix := ""
+	if len(clientCertRefs) > 0 {
+		tlsStr := ""
+		for _, certRef := range clientCertRefs {
+			tlsStr += fmt.Sprintf("%s.%s", certRef.Name, certRef.Namespace)
+		}
+
+		tlsHash := sha256.Sum256([]byte(tlsStr))
+		tlsHashHex := hex.EncodeToString(tlsHash[:])
+		tlsSuffix = fmt.Sprintf("tls-%s", tlsHashHex[:5])
+	}
+
+	if tlsSuffix != "" {
+		ret += fmt.Sprintf("-%s",
+			tlsSuffix,
+		)
+	}
 
 	// Unless we are using a custom cluster domain, leave it out of any generated stuff to keep names more readable
 	if clusterDomain != common.DefaultClusterDomain && clusterDomain != "" {

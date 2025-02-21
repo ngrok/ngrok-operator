@@ -1,4 +1,4 @@
-# Tests that gateway.spec.infrastructure adds the labels/annotations to generated resources
+# Tests that Gateways with backend TLS client certs in another namespace without a reference grant are invalid
 input:
   gatewayClasses:
   - apiVersion: gateway.networking.k8s.io/v1
@@ -22,7 +22,7 @@ input:
           namespace: foo
       gatewayClassName: ngrok
       listeners:
-        - name: test-invalid-1
+        - name: test-1
           hostname: "test-hostname.ngrok.io"
           port: 443
           protocol: HTTPS
