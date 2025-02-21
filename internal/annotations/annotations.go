@@ -139,9 +139,9 @@ func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error)
 	return "", nil
 }
 
-// Whether or not we should use endpoints in building the ngrok model for resources. Extracts the value
+// Whether or not we should use edges in building the ngrok model for resources. Extracts the value
 // from the annotation "k8s.ngrok.com/mapping-strategy" if it is present. Otherwise, it defaults to false
-func ExtractUseEndpoints(obj client.Object) (bool, error) {
+func ExtractUseEdges(obj client.Object) (bool, error) {
 	val, err := parser.GetStringAnnotation(MappingStrategyAnnotationKey, obj)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
@@ -149,7 +149,7 @@ func ExtractUseEndpoints(obj client.Object) (bool, error) {
 		}
 		return false, err
 	}
-	return strings.EqualFold(val, MappingStrategy_Endpoints), nil
+	return strings.EqualFold(val, MappingStrategy_Edges), nil
 }
 
 // Whether or not we should use endpoint pooling

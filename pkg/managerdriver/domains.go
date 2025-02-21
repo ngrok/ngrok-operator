@@ -42,11 +42,11 @@ func ingressToDomains(log logr.Logger, in *netv1.Ingress, newDomainMetadata stri
 		domain.Spec.Metadata = newDomainMetadata
 
 		// Check the annotation to see if an edge or endpoint is desired from this ingress resource
-		useEndpoints, err := annotations.ExtractUseEndpoints(in)
+		useEdges, err := annotations.ExtractUseEdges(in)
 		if err != nil {
-			log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+			log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
-		if useEndpoints {
+		if !useEdges {
 			endpointDomains[domainName] = domain
 		} else {
 			edgeDomains[domainName] = domain
@@ -86,11 +86,11 @@ func gatewayToDomains(log logr.Logger, in *gatewayv1.Gateway, newDomainMetadata 
 		domain.Spec.Metadata = newDomainMetadata
 
 		// Check the annotation to see if an edge or endpoint is desired from this ingress resource
-		useEndpoints, err := annotations.ExtractUseEndpoints(in)
+		useEdges, err := annotations.ExtractUseEdges(in)
 		if err != nil {
-			log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+			log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
-		if useEndpoints {
+		if !useEdges {
 			endpointDomains[domainName] = domain
 		} else {
 			edgeDomains[domainName] = domain

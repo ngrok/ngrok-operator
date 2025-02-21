@@ -370,8 +370,12 @@ var _ = Describe("Store", func() {
 		})
 
 		Context("when ingress has unsupported default backend", func() {
-			It("ignores the ingress with default backend and returns an error", func() {
+			It("ignores the ingress with default backend and returns an error with mapping-strategy: edges", func() {
 				ing := testutils.NewTestIngressV1("ingress-default-backend", "test-namespace")
+				if ing.Annotations == nil {
+					ing.Annotations = map[string]string{}
+				}
+				ing.Annotations["k8s.ngrok.com/mapping-strategy"] = "edges"
 				ing.Spec.DefaultBackend = &netv1.IngressBackend{
 					Service: &netv1.IngressServiceBackend{
 						Name: "default-service",

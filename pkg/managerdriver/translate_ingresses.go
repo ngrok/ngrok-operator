@@ -28,11 +28,11 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 		// We currently require this annotation to be present for an Ingress to be translated into CloudEndpoints/AgentEndpoints, otherwise the default behaviour is to
 		// translate it into HTTPSEdges (legacy). A future version will remove support for HTTPSEdges and translation into CloudEndpoints/AgentEndpoints will become the new
 		// default behaviour.
-		useEndpoints, err := annotations.ExtractUseEndpoints(ingress)
+		useEdges, err := annotations.ExtractUseEdges(ingress)
 		if err != nil {
-			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using edges", annotations.MappingStrategyAnnotation))
+			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
-		if !useEndpoints {
+		if useEdges {
 			t.log.Info(fmt.Sprintf("the following ingress will be provided by ngrok edges instead of endpoints because of the %q annotation",
 				annotations.MappingStrategyAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
@@ -60,7 +60,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 
 		// If we don't have a native traffic policy from annotations, see if one was provided from a moduleset annotation
 		if annotationTrafficPolicy == nil {
-			annotationTrafficPolicy, tpObjRef, err = trafficPolicyFromModSetAnnotation(t.log, t.store, ingress, useEndpoints)
+			annotationTrafficPolicy, tpObjRef, err = trafficPolicyFromModSetAnnotation(t.log, t.store, ingress, true)
 			if err != nil {
 				t.log.Error(err, "error getting ngrok traffic policy for ingress",
 					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace))
