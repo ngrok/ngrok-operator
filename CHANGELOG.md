@@ -6,25 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## 0.15.0
+
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.14.3...ngrok-operator-0.15.0
 
 ### Added
 
-- Updated notes.txt to reflect bindings API changes by @masonj5n in [#585](https://github.com/ngrok/ngrok-operator/pull/585)
-
-- Replaced binding name printcolumn with endpoint selectors for KubernetesOperator resources by @masonj5n in [#586](https://github.com/ngrok/ngrok-operator/pull/586)
-
-- Gateway API to Endpoints conversion by @Alice-Lilith in [#588](https://github.com/ngrok/ngrok-operator/pull/588). Similar to the existing Ingress to endpoints conversion, using the annotation `k8s.ngrok.com/mapping-strategy: "endpoints"` on Gateway resoruces will result in Endpoints instead of Edges.
+- Gateway API to Endpoints conversion by @Alice-Lilith in [#588](https://github.com/ngrok/ngrok-operator/pull/588)
 
 - Gateway API ReferenceGrant support (endpoints only) by @Alice-Lilith in [#589](https://github.com/ngrok/ngrok-operator/pull/589). When using the Gateway API configuration and translating to endpoints, ReferenceGrants will be required for cross-namespace references as dictated by Gateway API. You may opt-out of support for ReferenceGrants and always allow cross namespace references using the `--disable-reference-grants` in the pod arguments or using the helm value `gateway.disableReferenceGrants`.
-
-- Support for latest bindings configuration (endpoints only) with the `k8s.ngrok.com/bindings` annotation to set bindings on endpoints generated from LoadBalancer Service resoruces by @Megalonia in [#590](https://github.com/ngrok/ngrok-operator/pull/590)
-
-- Auto enable Gateway API support by @Alice-Lilith in [#592](https://github.com/ngrok/ngrok-operator/pull/592). Instead of needing to opt-in to Gateway API support, we now enable it by default if the Gateway API CRDs are detected. You may still opt-out using the `enable-feature-gateway` flag on the pod arguments or using the helm value `gateway.enabled`.
 
 - Support for the `k8s.ngrok.com/bindings` annotation (endpoints only) to set bindings on endpoints generated from Ingresses and Gateway API config by @Alice-Lilith in [#593](https://github.com/ngrok/ngrok-operator/pull/593).
 
 - Implemented support for configuring upstream client certificates in the `AgentEndpoint` respirces and Gateway API Gateway Backend TLS config to configure client certificates to be sent to upstream services (endpoints only) bby @Alice-Lilith in [#594](https://github.com/ngrok/ngrok-operator/pull/594)
+
+### Changed
+
+- Endpoints are now the default for translations from `Ingress`, LoadBalancer Service, and Gateway API config by @Alice-Lilith in [#596](https://github.com/ngrok/ngrok-operator/pull/596) The `k8s.ngrok.com/mapping-strategy: endpoints` annotation is no longer required for endpoints conversion. Similarly, you may still use Edges instead with the `k8s.ngrok.com/mapping-strategy: edges` annotation, but Edges will be removed in a future release.
+
+- Auto enable Gateway API support by @Alice-Lilith in [#592](https://github.com/ngrok/ngrok-operator/pull/592). Instead of needing to opt-in to Gateway API support, we now enable it by default if the Gateway API CRDs are detected. You may still opt-out using the `enable-feature-gateway` flag on the pod arguments or using the helm value `gateway.enabled`.
+
+- Replaced binding name printcolumn with endpoint selectors for KubernetesOperator resources by @masonj5n in [#586](https://github.com/ngrok/ngrok-operator/pull/586)
+
+- Updated notes.txt to reflect bindings API changes by @masonj5n in [#585](https://github.com/ngrok/ngrok-operator/pull/585)
+
+- Support for latest bindings configuration (endpoints only) with the `k8s.ngrok.com/bindings` annotation to set bindings on endpoints generated from LoadBalancer Service resoruces by @Megalonia in [#590](https://github.com/ngrok/ngrok-operator/pull/590)
 
 ## 0.14.3
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.14.2...ngrok-operator-0.14.3
