@@ -26,6 +26,7 @@ package agent
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"strings"
@@ -47,7 +48,8 @@ import (
 )
 
 const (
-	trafficPolicyNameIndex = "spec.trafficPolicy.targetRef.name"
+	trafficPolicyNameIndex     = "spec.trafficPolicy.targetRef.name"
+	clientCertificateRefsIndex = "spec.clientCertificateRefs"
 )
 
 var (
@@ -60,6 +62,7 @@ var (
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints/finalizers,verbs=update
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;patch;create;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 // AgentEndpointReconciler reconciles an AgentEndpoint object
 type AgentEndpointReconciler struct {
@@ -74,6 +77,8 @@ type AgentEndpointReconciler struct {
 }
 
 // SetupWithManager sets up the controller with the Manager
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+
 func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.TunnelDriver == nil {
 		return fmt.Errorf("TunnelDriver is nil")
@@ -109,6 +114,30 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&ngrokv1alpha1.AgentEndpoint{},
+		clientCertificateRefsIndex,
+		func(o client.Object) []string {
+			aep, ok := o.(*ngrokv1alpha1.AgentEndpoint)
+			if !ok {
+				return nil
+			}
+			var keys []string
+			for _, ref := range aep.Spec.ClientCertificateRefs {
+				effectiveNamespace := aep.Namespace
+				if ref.Namespace != nil && *ref.Namespace != "" {
+					effectiveNamespace = *ref.Namespace
+				}
+				key := effectiveNamespace + "/" + ref.Name
+				keys = append(keys, key)
+			}
+			return keys
+		},
+	); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ngrokv1alpha1.AgentEndpoint{}).
 		Watches(
@@ -116,6 +145,15 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForTrafficPolicy),
 			// Don't process delete events as it will just fail to look it up.
 			// Instead rely on the user to either delete the AgentEndpoint CR or update it with a new TrafficPolicy name
+			builder.WithPredicates(&predicate.Funcs{
+				DeleteFunc: func(e event.DeleteEvent) bool {
+					return false
+				},
+			}),
+		).
+		Watches(
+			&v1.Secret{},
+			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForSecret),
 			builder.WithPredicates(&predicate.Funcs{
 				DeleteFunc: func(e event.DeleteEvent) bool {
 					return false
@@ -150,8 +188,13 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	if err != nil {
 		return err
 	}
+	clientCerts, err := r.getClientCerts(ctx, endpoint)
+	if err != nil {
+		return err
+	}
+
 	tunnelName := r.statusID(endpoint)
-	return r.TunnelDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy)
+	return r.TunnelDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts)
 }
 
 func (r *AgentEndpointReconciler) delete(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
@@ -176,6 +219,39 @@ func (r *AgentEndpointReconciler) findAgentEndpointForTrafficPolicy(ctx context.
 	if err := r.Client.List(ctx, &agentEndpointList,
 		client.InNamespace(tp.Namespace),
 		client.MatchingFields{trafficPolicyNameIndex: tp.Name}); err != nil {
+		r.Log.Error(err, "failed to list AgentEndpoints using index")
+		return nil
+	}
+
+	// Collect the requests for matching AgentEndpoints
+	var requests []ctrl.Request
+	for _, aep := range agentEndpointList.Items {
+		requests = append(requests, ctrl.Request{
+			NamespacedName: client.ObjectKey{
+				Name:      aep.Name,
+				Namespace: aep.Namespace,
+			},
+		})
+	}
+
+	return requests
+}
+
+func (r *AgentEndpointReconciler) findAgentEndpointForSecret(ctx context.Context, o client.Object) []ctrl.Request {
+	secret, ok := o.(*v1.Secret)
+	if !ok {
+		return nil
+	}
+
+	secretKey := fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
+
+	// Use the index to find AgentEndpoints that reference this Secret
+	var agentEndpointList ngrokv1alpha1.AgentEndpointList
+	if err := r.Client.List(ctx, &agentEndpointList,
+		client.MatchingFields{
+			trafficPolicyNameIndex: secretKey,
+		},
+	); err != nil {
 		r.Log.Error(err, "failed to list AgentEndpoints using index")
 		return nil
 	}
@@ -224,6 +300,44 @@ func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngr
 	}
 
 	return policy, nil
+}
+
+func (r *AgentEndpointReconciler) getClientCerts(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) ([]tls.Certificate, error) {
+	if aep.Spec.ClientCertificateRefs == nil {
+		return nil, nil // Nothing to fetch
+	}
+
+	ret := []tls.Certificate{}
+	for _, clientCertRef := range aep.Spec.ClientCertificateRefs {
+		key := client.ObjectKey{Name: clientCertRef.Name, Namespace: aep.Namespace}
+		if clientCertRef.Namespace != nil {
+			key.Namespace = *clientCertRef.Namespace
+		}
+
+		// Attempt to get the Secret from the API server
+		certSecret := &v1.Secret{}
+		if err := r.Client.Get(ctx, key, certSecret); err != nil {
+			r.Recorder.Event(certSecret, v1.EventTypeWarning, "SecretNotFound", fmt.Sprintf("Failed to find Secret %s", clientCertRef.Name))
+			return nil, err
+		}
+
+		certData, exists := certSecret.Data["tls.crt"]
+		if !exists {
+			return nil, fmt.Errorf("tls.crt data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+		}
+		keyData, exists := certSecret.Data["tls.key"]
+		if !exists {
+			return nil, fmt.Errorf("tls.key data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+		}
+
+		cert, err := tls.X509KeyPair(certData, keyData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse TLS certificate AgentEndpoint clientCertRef %q: %w", fmt.Sprintf("%s.%s", key.Name, key.Namespace), err)
+		}
+
+		ret = append(ret, cert)
+	}
+	return ret, nil
 }
 
 // findTrafficPolicyByName fetches the TrafficPolicy CRD from the API server and returns the JSON policy as a string

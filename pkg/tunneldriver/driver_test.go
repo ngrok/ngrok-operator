@@ -53,6 +53,7 @@ func TestConnectionIsClosed(t *testing.T) {
 		80,
 		false,
 		nil,
+		nil,
 	)
 
 	bothClosed.Wait()

@@ -1,6 +1,7 @@
 package ir
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
@@ -69,6 +70,9 @@ type IRVirtualHost struct {
 
 	// Optional configuration for TLS termination, when nil, the default ngrok endpoint behaviour is used
 	TLSTermination *IRTLSTermination
+
+	// Optional list of references to secrets for client certificates to use when communicating with upstream services for this virtual host
+	ClientCertRefs []IRObjectRef
 
 	// Any key/value pairs in this map will be added to any resources created from this IRVirtualHost as labels
 	LabelsToAdd map[string]string
@@ -178,10 +182,26 @@ type IRUpstream struct {
 
 // IRService is an upstream service that we can route requests to
 type IRService struct {
-	UID       string // UID of the service so that we don't generate the exact same endpoints for the same service running in two different clusters
-	Namespace string
+	UID            string // UID of the service so that we don't generate the exact same endpoints for the same service running in two different clusters
+	Namespace      string
+	Name           string
+	Port           int32
+	ClientCertRefs []IRObjectRef
+}
+
+type IRServiceKey string
+
+func (s IRService) Key() IRServiceKey {
+	key := fmt.Sprintf("%s/%s/%s/%d", s.UID, s.Namespace, s.Name, s.Port)
+	for _, clientCertRef := range s.ClientCertRefs {
+		key += fmt.Sprintf("/%s.%s", clientCertRef.Name, clientCertRef.Namespace)
+	}
+	return IRServiceKey(key)
+}
+
+type IRObjectRef struct {
 	Name      string
-	Port      int32
+	Namespace string
 }
 
 // SortRoutes sorts the routes for an IRVirtualHost.

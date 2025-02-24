@@ -138,6 +138,11 @@ type AgentEndpointSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Items=pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
+
+	// List of client certificates to present to the upstream when performing a TLS handshake
+	//
+	// +kubebuilder:validation:Optional
+	ClientCertificateRefs []K8sObjectRefOptionalNamespace `json:"clientCertificateRefs,omitempty"`
 }
 
 type TrafficPolicyCfgType string

@@ -1,0 +1,141 @@
+# Tests that Gateways with backend TLS client certs in another namespace and a valid reference grant are processed
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: test-gateway
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints"
+    spec:
+      backendTLS:
+        clientCertificateRef:
+          name: client-cert-secret
+          namespace: foo
+      gatewayClassName: ngrok
+      listeners:
+        - name: test-1
+          hostname: "test-hostname.ngrok.io"
+          port: 443
+          protocol: HTTPS
+  httpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: test-route
+      namespace: default
+    spec:
+      hostnames:
+      - test-hostname.ngrok.io
+      parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: test-gateway
+        namespace: default
+      rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /test-service-1
+        backendRefs:
+          - group: ""
+            kind: Service
+            name: test-service-1
+            port: 8080
+            weight: 1
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  secrets:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: client-cert-secret
+      namespace: foo
+    type: kubernetes.io/tls
+    data:
+      tls.key: U2VydmVyUHJpdmF0ZUtleQ==
+      tls.crt: U2VydmVyQ2VydA==
+  referenceGrants:
+  - apiVersion: gateway.networking.k8s.io/v1beta1
+    kind: ReferenceGrant
+    metadata:
+      name: foo-namespace-grant
+      namespace: foo
+    spec:
+      from:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          namespace: default
+      to:
+        - group: ""
+          kind: Secret
+          name: "client-cert-secret"
+expected:
+  cloudEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: test-gateway.default-test-hostname.ngrok.io
+      namespace: default
+    spec:
+      bindings:
+      - public
+      trafficPolicy:
+        policy:
+            on_http_request:
+              - name: Generated-Route
+                expressions:
+                  - "req.url.path.startsWith('/test-service-1')"
+                actions:
+                  - type: forward-internal
+                    config:
+                      url: "https://e3b0c-test-service-1-default-tls-f2538-8080.internal"
+              - name: Fallback-404
+                actions:
+                - type: custom-response
+                  config:
+                    status_code: 404
+                    content: "No route was found for this ngrok Cloud Endpoint"
+                    headers:
+                      content-type: text/plain
+      url: https://test-hostname.ngrok.io
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-tls-f2538-8080
+      namespace: default
+    spec:
+      clientCertificateRefs:
+      - name: client-cert-secret
+        namespace: foo
+      url: "https://e3b0c-test-service-1-default-tls-f2538-8080.internal"
+      upstream:
+        url: "http://test-service-1.default:8080"
+      bindings:
+      - "internal"
