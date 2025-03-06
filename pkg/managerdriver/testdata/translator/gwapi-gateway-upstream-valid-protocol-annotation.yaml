@@ -1,4 +1,5 @@
 # Tests that Gateways with backend TLS client cert applies the AgentEndpoint config for the client cert
+# the k8s.ngrok.com/app-protocols annotation is used to specify http versus https for the service ports
 input:
   gatewayClasses:
   - apiVersion: gateway.networking.k8s.io/v1
@@ -48,7 +49,7 @@ input:
         - group: ""
           kind: Service
           name: test-service-https
-          port: 443
+          port: 1000
           weight: 1
       - matches:
         - path:
@@ -58,7 +59,7 @@ input:
         - group: ""
           kind: Service
           name: test-service-http
-          port: 80
+          port: 1000
           weight: 1
   services:
   - apiVersion: v1
@@ -66,10 +67,12 @@ input:
     metadata:
       name: test-service-https
       namespace: default
+      annotations:
+        k8s.ngrok.com/app-protocols: '{"secure":"HtTpS"}'
     spec:
       ports:
-      - name: https # https:// is infered for the upstream based on port number
-        port: 443
+      - name: secure # https:// is infered based on the above annotation
+        port: 1000
         protocol: TCP
         targetPort: https
       type: ClusterIP
@@ -78,10 +81,12 @@ input:
     metadata:
       name: test-service-http
       namespace: default
+      annotations:
+        k8s.ngrok.com/app-protocols: '{"insecure":"HtTp"}'
     spec:
       ports:
-      - name: http
-        port: 80
+      - name: insecure # http:// is infered based on the above annotation
+        port: 1000
         protocol: TCP
         targetPort: http
       type: ClusterIP
@@ -117,14 +122,14 @@ expected:
                 actions:
                   - type: forward-internal
                     config:
-                      url: "https://e3b0c-test-service-https-default-mtls-baff5-443.internal"
+                      url: "https://e3b0c-test-service-https-default-mtls-baff5-1000.internal"
               - name: Generated-Route
                 expressions:
                   - "req.url.path.startsWith('/test-service-http')"
                 actions:
                   - type: forward-internal
                     config:
-                      url: "https://e3b0c-test-service-http-default-80.internal"
+                      url: "https://e3b0c-test-service-http-default-1000.internal"
               - name: Fallback-404
                 actions:
                 - type: custom-response
@@ -141,15 +146,15 @@ expected:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
-      name: e3b0c-test-service-https-default-mtls-baff5-443
+      name: e3b0c-test-service-https-default-mtls-baff5-1000
       namespace: default
     spec:
       clientCertificateRefs:
       - name: client-cert-secret
         namespace: default
-      url: "https://e3b0c-test-service-https-default-mtls-baff5-443.internal"
+      url: "https://e3b0c-test-service-https-default-mtls-baff5-1000.internal"
       upstream:
-        url: "https://test-service-https.default:443"
+        url: "https://test-service-https.default:1000"
       bindings:
       - "internal"
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
@@ -158,11 +163,11 @@ expected:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
-      name: e3b0c-test-service-http-default-80
+      name: e3b0c-test-service-http-default-1000
       namespace: default
     spec:
-      url: "https://e3b0c-test-service-http-default-80.internal"
+      url: "https://e3b0c-test-service-http-default-1000.internal"
       upstream:
-        url: "http://test-service-http.default:80"
+        url: "http://test-service-http.default:1000"
       bindings:
       - "internal"
