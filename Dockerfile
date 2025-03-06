@@ -5,6 +5,11 @@ WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
+## Copy the ngrok intermediate CA certificate used for verifyng self-signed TLS certs from ngrok
+## Note: This is temporarily vendored and will be removed in a future release.
+COPY ngrok_ca_root.crt cmd/bindings-forwarder/
+RUN echo ngrok_ca_root.crt >> /etc/ca-certificates.conf
+RUN update-ca-certificates
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN --mount=type=cache,target=/go \
