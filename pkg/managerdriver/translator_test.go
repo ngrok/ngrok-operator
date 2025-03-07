@@ -41,6 +41,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 		namespace              string
 		clusterDomain          string
 		port                   int32
+		scheme                 ir.IRScheme
 		labels                 map[string]string
 		annotations            map[string]string
 		metadata               string
@@ -56,6 +57,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			namespace:        "default",
 			clusterDomain:    "cluster.local",
 			port:             8080,
+			scheme:           ir.IRScheme_HTTP,
 			labels:           map[string]string{"label-app": "label-test"},
 			annotations:      map[string]string{"annotation-app": "annotation-test"},
 			metadata:         "metadata-test",
@@ -70,6 +72,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			namespace:        "custom-namespace",
 			clusterDomain:    "custom.domain",
 			port:             9090,
+			scheme:           ir.IRScheme_HTTP,
 			labels:           map[string]string{"label-app": "label-test"},
 			annotations:      map[string]string{"annotation-app": "annotation-test"},
 			metadata:         "prod-metadata",
@@ -83,7 +86,8 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			serviceName:   "another-service",
 			namespace:     "custom-namespace",
 			clusterDomain: "custom.domain",
-			port:          9090,
+			port:          443,
+			scheme:        ir.IRScheme_HTTPS,
 			labels:        map[string]string{"label-app": "label-test"},
 			annotations:   map[string]string{"annotation-app": "annotation-test"},
 			metadata:      "prod-metadata",
@@ -91,16 +95,16 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 				Name:      "client-cert-secret",
 				Namespace: "secrets",
 			}},
-			expectedName:     "5a464-another-service-custom-namespace-tls-d025c-custo-5193eada",
-			expectedURL:      "https://5a464-another-service-custom-namespace-tls-d025c-custom-domain-9090.internal",
-			expectedUpstream: "http://another-service.custom-namespace-custom.domain:9090",
+			expectedName:     "5a464-another-service-custom-namespace-mtls-d025c-cust-5fd9effa",
+			expectedURL:      "https://5a464-another-service-custom-namespace-mtls-d025c-custom-domain-443.internal",
+			expectedUpstream: "https://another-service.custom-namespace-custom.domain:443",
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := buildInternalAgentEndpoint(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.labels, tc.annotations, tc.metadata, tc.upstreamClientCertRefs)
+			result := buildInternalAgentEndpoint(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.scheme, tc.labels, tc.annotations, tc.metadata, tc.upstreamClientCertRefs)
 			assert.Equal(t, tc.expectedName, result.Name, "unexpected name for test case: %s", tc.name)
 			assert.Equal(t, tc.namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
 			assert.Equal(t, tc.labels, result.Labels, "unexpected labels for test case: %s", tc.name)

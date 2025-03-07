@@ -1,0 +1,162 @@
+# Tests an ingress with rules to point at an http and https port for a service
+# The protocol/scheme is defined using the k8s.ngrok.com/app-protocols annotation
+input:
+  ingressClasses:
+  - apiVersion: networking.k8s.io/v1
+    kind: IngressClass
+    metadata:
+      labels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: ngrok-operator
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+      name: ngrok
+    spec:
+      controller: k8s.ngrok.com/ingress-controller
+  ingresses:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      annotations:
+        k8s.ngrok.com/traffic-policy: response-503
+        k8s.ngrok.com/mapping-strategy: "endpoints"
+      name: test-ingress-1
+      namespace: default
+    spec:
+      ingressClassName: ngrok
+      defaultBackend:
+        service:
+          name: test-service
+          port:
+            name: insecure
+      rules:
+        - host: test-ingresses.ngrok.io
+          http:
+            paths:
+              - path: /test-https
+                pathType: Prefix
+                backend:
+                  service:
+                    name: test-service
+                    port:
+                      name: secure
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service
+      namespace: default
+      annotations:
+        k8s.ngrok.com/app-protocols: '{"secure":"HtTpS", "insecure":"HtTp"}'
+    spec:
+      ports:
+      - name: insecure # scheme: http:// is defined by the above annotation
+        port: 8080
+        protocol: TCP
+        targetPort: insecure
+      - name: secure # scheme: https:// is defined by the above annotation
+        port: 8443
+        protocol: TCP
+        targetPort: secure
+      type: ClusterIP
+  trafficPolicies: 
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: NgrokTrafficPolicy
+    metadata:
+      name: response-503
+      namespace: default
+    spec:
+      policy:
+        on_http_request:
+          - name: response-503
+            expressions:
+              - req.url.path.startsWith('/foo')
+            actions:
+              - type: custom-response
+                config:
+                  status_code: 503
+                  content: "Service is temporarily unavailable"
+                  headers:
+                    content-type: text/plain
+expected:
+  # Generated cloud endpoint should have the first traffic policy, but the second ingress will not be processed due to the
+  # traffic policy conflict
+  cloudEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: test-ingresses.ngrok.io
+      namespace: default
+    spec:
+      bindings:
+      - public
+      url: https://test-ingresses.ngrok.io
+      trafficPolicy:
+        policy:
+          on_http_request:
+          - name: response-503
+            expressions:
+              - req.url.path.startsWith('/foo')
+            actions:
+              - type: custom-response
+                config:
+                  status_code: 503
+                  content: "Service is temporarily unavailable"
+                  headers:
+                    content-type: text/plain
+
+          - name: Generated-Route
+            expressions:
+              - "req.url.path.startsWith('/test-https')"
+            actions:
+              - type: forward-internal
+                config:
+                  url: "https://e3b0c-test-service-default-8443.internal"
+
+          - name: Generated-Route-Default-Backend
+            actions:
+              - type: forward-internal
+                config:
+                  url: "https://e3b0c-test-service-default-8080.internal"
+
+
+          - name: Fallback-404
+            actions:
+            - type: custom-response
+              config:
+                status_code: 404
+                content: "No route was found for this ngrok Cloud Endpoint"
+                headers:
+                  content-type: text/plain
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-default-8080
+      namespace: default
+    spec:
+      url: "https://e3b0c-test-service-default-8080.internal"
+      upstream:
+        url: "http://test-service.default:8080"
+      bindings:
+      - "internal"
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-default-8443
+      namespace: default
+    spec:
+      url: "https://e3b0c-test-service-default-8443.internal"
+      upstream:
+        url: "https://test-service.default:8443"
+      bindings:
+      - "internal"

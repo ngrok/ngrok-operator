@@ -199,7 +199,7 @@ func TestInternalAgentEndpointURL(t *testing.T) {
 			clusterDomain:  "",
 			port:           8081,
 			serviceUID:     "123456",
-			expectedResult: "https://8d969-svc-ns-tls-d025c-8081.internal",
+			expectedResult: "https://8d969-svc-ns-mtls-d025c-8081.internal",
 			upstreamClientCertRefs: []ir.IRObjectRef{{
 				Name:      "client-cert-secret",
 				Namespace: "secrets",
