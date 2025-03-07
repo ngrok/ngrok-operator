@@ -75,3 +75,18 @@ tests:
   - contains:
       path: spec.template.spec.topologySpreadConstraints
       content: *tsc
+- it: Supports setting resources on the agent pods
+  set:
+    agent:
+      resources: &resources
+        requests:
+          memory: "128Mi"
+          cpu: "500m"
+        limits:
+          memory: "256Mi"
+          cpu: "1000m"
+  template: agent/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].resources
+      value: *resources
