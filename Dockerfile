@@ -19,7 +19,6 @@ ARG TARGETOS TARGETARCH
 RUN --mount=type=cache,target=/go \
 	CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" make _build
 
-# Extract Let's Encrypt ISRG Root X1 Certificate
 FROM golang:1.23 AS certs
 WORKDIR /certs
 
