@@ -24,7 +24,7 @@ FROM golang:1.23 AS certs
 WORKDIR /certs
 
 ## Copy the Intermediate CA Certificate Copy the Intermediate CA Certificate directly into the image
-COPY ngrok-ca.crt /certs/ngrok-ca.crt
+COPY certs/ngrok-ca.crt /certs/ngrok-ca.crt
 # Append it to the system CA bundle
 RUN cat /etc/ssl/certs/ca-certificates.crt /certs/ngrok-ca.crt > /certs/ca-certificates.crt
 
