@@ -88,3 +88,19 @@ tests:
   - contains:
       path: spec.template.spec.topologySpreadConstraints
       content: *tsc
+- it: Supports setting resources on the bindings forwarder pods
+  set:
+    bindings:
+      forwarder:
+        resources: &resources
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+  template: bindings-forwarder/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].resources
+      value: *resources

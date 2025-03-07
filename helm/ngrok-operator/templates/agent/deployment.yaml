@@ -129,7 +129,7 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
-        {{- toYaml .Values.resources | nindent 10 }}
+        {{- toYaml $agent.resources | nindent 10 }}
       {{- if .Values.extraVolumes }}
       volumes:
         {{ toYaml .Values.extraVolumes | nindent 6 }}

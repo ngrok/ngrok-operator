@@ -260,6 +260,29 @@ agent:
 
   replicaCount: 1
 
+  ## Agent container resource requests and limits
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ## We usually recommend not to specify default resources and to leave this as a conscious
+  ## choice for the user. This also increases chances charts run on environments with little
+  ## resources, such as Minikube. If you do want to specify resources, uncomment the following
+  ## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  ## @param agent.resources.limits The resources limits for the container
+  ## @param agent.resources.requests The requested resources for the container
+  ##
+  resources:
+    ## Example:
+    ## limits:
+    ##    cpu: 100m
+    ##    memory: 128Mi
+    ##
+    limits: {}
+    ## Examples:
+    ## requests:
+    ##    cpu: 100m
+    ##    memory: 128Mi
+    ##
+    requests: {}
+
   serviceAccount:
     create: true
     name: ""
@@ -308,6 +331,29 @@ bindings:
     ## @param bindings.forwarder.replicaCount The number of bindings forwarders to run.
     ##
     replicaCount: 1
+
+    ## Bindings Forwarder container resource requests and limits
+    ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+    ## We usually recommend not to specify default resources and to leave this as a conscious
+    ## choice for the user. This also increases chances charts run on environments with little
+    ## resources, such as Minikube. If you do want to specify resources, uncomment the following
+    ## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    ## @param bindings.forwarder.resources.limits The resources limits for the container
+    ## @param bindings.forwarder.resources.requests The requested resources for the container
+    resources:
+      ## Example:
+      ## limits:
+      ##    cpu: 100m
+      ##    memory: 128Mi
+      ##
+      limits: {}
+      ## Examples:
+      ## requests:
+      ##    cpu: 100m
+      ##    memory: 128Mi
+      ##
+      requests: {}
+
 
     ## @param bindings.forwarder.serviceAccount.create Specifies whether a ServiceAccount should be created for the bindings forwarder pod(s).
     ## @param bindings.forwarder.serviceAccount.name The name of the ServiceAccount to use for the bindings forwarder pod(s).
