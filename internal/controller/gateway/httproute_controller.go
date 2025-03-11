@@ -123,7 +123,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
 		&ingressv1alpha1.Tunnel{},
-		//&ingressv1alpha1.NgrokModuleSet{},
+		// &ingressv1alpha1.NgrokModuleSet{},
 	}
 
 	builder := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.HTTPRoute{})

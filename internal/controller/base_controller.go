@@ -93,24 +93,22 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 			}
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s", objName))
 		}
-	} else {
-		if HasFinalizer(obj) {
-			if self.StatusID != nil && self.StatusID(obj) != "" {
-				sid := self.StatusID(obj)
-				self.Recorder.Event(obj, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s", objName))
-				if err := self.Delete(ctx, obj); err != nil {
-					if !ngrok.IsNotFound(err) {
-						self.Recorder.Event(obj, v1.EventTypeWarning, "DeleteError", fmt.Sprintf("Failed to delete %s: %s", objName, err.Error()))
-						return self.handleErr(DeleteOp, obj, err)
-					}
-					log.Info(fmt.Sprintf("%s not found, assuming it was already deleted", objFullName), "ID", sid)
+	} else if HasFinalizer(obj) {
+		if self.StatusID != nil && self.StatusID(obj) != "" {
+			sid := self.StatusID(obj)
+			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s", objName))
+			if err := self.Delete(ctx, obj); err != nil {
+				if !ngrok.IsNotFound(err) {
+					self.Recorder.Event(obj, v1.EventTypeWarning, "DeleteError", fmt.Sprintf("Failed to delete %s: %s", objName, err.Error()))
+					return self.handleErr(DeleteOp, obj, err)
 				}
-				self.Recorder.Event(obj, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted %s", objName))
+				log.Info(fmt.Sprintf("%s not found, assuming it was already deleted", objFullName), "ID", sid)
 			}
+			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted %s", objName))
+		}
 
-			if err := RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
-				return ctrl.Result{}, err
-			}
+		if err := RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
+			return ctrl.Result{}, err
 		}
 	}
 

@@ -21,8 +21,7 @@ func (wv webhookVerification) Parse(obj client.Object) (interface{}, error) {
 		return nil, err
 	}
 
-	switch provider {
-	case "sns":
+	if provider == "sns" {
 		return &EndpointWebhookVerification{Provider: provider}, nil
 	}
 

@@ -120,10 +120,8 @@ func parseHostport(proto string, publicURL string) (*parsedHostport, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse with given proto: %s", fullUrl)
 		}
-	} else {
-		if proto != "" && parsedURL.Scheme != proto {
-			return nil, fmt.Errorf("mismatched scheme, expected %s: %s", proto, publicURL)
-		}
+	} else if proto != "" && parsedURL.Scheme != proto {
+		return nil, fmt.Errorf("mismatched scheme, expected %s: %s", proto, publicURL)
 	}
 
 	// set the scheme

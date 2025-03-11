@@ -167,9 +167,9 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 				// We only support service backends right now.
 				// TODO: support resource backends
 
-				//if path.Backend.Service == nil {
-				//	continue
-				//}
+				// if path.Backend.Service == nil {
+				//   continue
+				// }
 
 				serviceName := string(backendRef.Name)
 				serviceUID, servicePort, protocol, appProtocol, err := d.getTunnelBackendFromGateway(backendRef.BackendRef, httproute.Namespace)

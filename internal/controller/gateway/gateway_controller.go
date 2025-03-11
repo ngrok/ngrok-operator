@@ -142,11 +142,11 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	storedResources := []client.Object{
 		&gatewayv1.GatewayClass{},
 		&gatewayv1.HTTPRoute{},
-		//&corev1.Service{},
+		// &corev1.Service{},
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
-		//&ingressv1alpha1.Tunnel{},
-		//&ingressv1alpha1.NgrokModuleSet{},
+		// &ingressv1alpha1.Tunnel{},
+		// &ingressv1alpha1.NgrokModuleSet{},
 	}
 
 	bldr := ctrl.NewControllerManagedBy(mgr).For(&gatewayv1.Gateway{})
