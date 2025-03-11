@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 )
 
@@ -188,6 +189,7 @@ type IRService struct {
 	Port           int32
 	ClientCertRefs []IRObjectRef
 	Scheme         IRScheme
+	Protocol       *common.ApplicationProtocol
 }
 
 type IRScheme string
@@ -201,6 +203,9 @@ type IRServiceKey string
 
 func (s IRService) Key() IRServiceKey {
 	key := fmt.Sprintf("%s/%s/%s/%d", s.UID, s.Namespace, s.Name, s.Port)
+	if s.Protocol != nil {
+		key += fmt.Sprintf("/%s", *s.Protocol)
+	}
 	for _, clientCertRef := range s.ClientCertRefs {
 		key += fmt.Sprintf("/%s.%s", clientCertRef.Name, clientCertRef.Namespace)
 	}

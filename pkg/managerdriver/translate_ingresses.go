@@ -326,12 +326,15 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 		)
 	}
 
+	appProtocol := getPortAppProtocol(t.log, service, servicePort)
+
 	irService := ir.IRService{
 		UID:       string(service.UID),
 		Name:      serviceName,
 		Namespace: ingress.Namespace,
 		Port:      servicePort.Port,
 		Scheme:    irScheme,
+		Protocol:  appProtocol,
 	}
 	owningResource := ir.OwningResource{
 		Kind:      "Ingress",

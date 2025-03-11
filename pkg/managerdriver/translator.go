@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/store"
@@ -373,6 +374,7 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 						irVHost.AnnotationsToAdd,
 						irVHost.Metadata,
 						service.ClientCertRefs,
+						service.Protocol,
 					)
 					childEndpointCache[service.Key()] = childEndpoint
 				}
@@ -539,6 +541,7 @@ func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, ch
 				irVHost.AnnotationsToAdd,
 				t.defaultIngressMetadata,
 				service.ClientCertRefs,
+				service.Protocol,
 			)
 			childEndpointCache[service.Key()] = childEndpoint
 		}
@@ -610,6 +613,7 @@ func buildInternalAgentEndpoint(
 	annotations map[string]string,
 	metadata string,
 	upstreamClientCertRefs []ir.IRObjectRef,
+	upstreamProtocol *common.ApplicationProtocol,
 ) *ngrokv1alpha1.AgentEndpoint {
 	ret := &ngrokv1alpha1.AgentEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
@@ -622,7 +626,8 @@ func buildInternalAgentEndpoint(
 			URL:      internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain, port, upstreamClientCertRefs),
 			Metadata: metadata,
 			Upstream: ngrokv1alpha1.EndpointUpstream{
-				URL: internalAgentEndpointUpstreamURL(serviceName, namespace, clusterDomain, port, scheme),
+				URL:      internalAgentEndpointUpstreamURL(serviceName, namespace, clusterDomain, port, scheme),
+				Protocol: upstreamProtocol,
 			},
 			Bindings: []string{"internal"},
 		},
