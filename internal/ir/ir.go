@@ -187,7 +187,15 @@ type IRService struct {
 	Name           string
 	Port           int32
 	ClientCertRefs []IRObjectRef
+	Scheme         IRScheme
 }
+
+type IRScheme string
+
+const (
+	IRScheme_HTTP  IRScheme = "http://"
+	IRScheme_HTTPS IRScheme = "https://"
+)
 
 type IRServiceKey string
 
