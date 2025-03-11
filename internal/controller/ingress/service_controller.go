@@ -779,11 +779,12 @@ func (r *baseSubresourceReconciler[T, PT]) Reconcile(ctx context.Context, c clie
 }
 
 func (r *baseSubresourceReconciler[T, PT]) UpdateServiceStatus(ctx context.Context, c client.Client, svc *corev1.Service, o client.Object) error {
-	switch v := o.(type) {
-	case PT:
-		return r.updateStatus(ctx, c, svc, v)
+	v, ok := o.(PT)
+	if !ok {
+		return nil
 	}
-	return nil
+
+	return r.updateStatus(ctx, c, svc, v)
 }
 
 func newServiceTCPEdgeReconciler() serviceSubresourceReconciler {
