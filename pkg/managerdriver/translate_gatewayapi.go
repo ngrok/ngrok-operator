@@ -914,13 +914,44 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 		)
 	}
 
-	irService := ir.IRService{
-		UID:            string(service.UID),
-		Name:           serviceName,
-		Namespace:      serviceNamespace,
-		Port:           servicePort.Port,
-		ClientCertRefs: upstreamClientCertRefs,
+	portProto, err := getProtoForServicePort(t.log, service, servicePort.Name)
+	if err != nil {
+		// When this function errors we still get a valid default, so no need to return
+		t.log.Error(err, "error getting protocol for HTTPRoute backendRef service port",
+			"httpRoute", fmt.Sprintf("%s.%s", httpRoute.Name, httpRoute.Namespace),
+			"backendRef", backendRef,
+		)
 	}
+
+	irScheme, err := protocolStringToIRScheme(portProto)
+	if err != nil {
+		t.log.Error(err, "error getting scheme from port protocol for HTTPRoute backendRef service port",
+			"httpRoute", fmt.Sprintf("%s.%s", httpRoute.Name, httpRoute.Namespace),
+			"backendRef", backendRef,
+			"service", fmt.Sprintf("%s.%s", service.Name, service.Namespace),
+			"port name", servicePort.Name,
+			"port number", servicePort.Port,
+		)
+	}
+
+	irService := ir.IRService{
+		UID:       string(service.UID),
+		Name:      serviceName,
+		Namespace: serviceNamespace,
+		Port:      servicePort.Port,
+		Scheme:    irScheme,
+	}
+
+	// The following is the wording from the Gateway API about supplied client certificate refs
+	//  BackendTLS configures TLS settings for when this Gateway is connecting to
+	//  backends with TLS
+	//
+	// _when_ implies to me that it is valid to have upstreams for a gateway with client certs that are not HTTPS and so we should not set these
+	// in those cases
+	if irScheme == ir.IRScheme_HTTPS {
+		irService.ClientCertRefs = upstreamClientCertRefs
+	}
+
 	upstream, exists := upstreamCache[irService.Key()]
 	if !exists {
 		upstream = &ir.IRUpstream{

@@ -237,7 +237,7 @@ func (d *Driver) getTunnelBackend(backendSvc netv1.IngressServiceBackend, namesp
 		return "", 0, "", "", err
 	}
 
-	protocol, err := getPortAnnotatedProtocol(d.log, service, servicePort.Name)
+	protocol, err := getProtoForServicePort(d.log, service, servicePort.Name)
 	if err != nil {
 		return "", 0, "", "", err
 	}
@@ -256,7 +256,7 @@ func (d *Driver) getTunnelBackendFromGateway(backendRef gatewayv1.BackendRef, na
 		return "", 0, "", "", err
 	}
 
-	protocol, err := getPortAnnotatedProtocol(d.log, service, servicePort.Name)
+	protocol, err := getProtoForServicePort(d.log, service, servicePort.Name)
 	if err != nil {
 		return "", 0, "", "", err
 	}

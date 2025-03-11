@@ -42,20 +42,44 @@ input:
         namespace: default
       rules:
       - matches:
-          - path:
-              type: PathPrefix
-              value: /test-service-1
+        - path:
+            type: PathPrefix
+            value: /test-service-https
         backendRefs:
-          - group: ""
-            kind: Service
-            name: test-service-1
-            port: 8080
-            weight: 1
+        - group: ""
+          kind: Service
+          name: test-service-https
+          port: 8443
+          weight: 1
+      - matches:
+        - path:
+            type: PathPrefix
+            value: /test-service-http
+        backendRefs:
+        - group: ""
+          kind: Service
+          name: test-service-http
+          port: 8080
+          weight: 1
   services:
   - apiVersion: v1
     kind: Service
     metadata:
-      name: test-service-1
+      name: test-service-https
+      namespace: default
+      annotations:
+        k8s.ngrok.com/app-protocols: '{"https":"HtTpS"}'
+    spec:
+      ports:
+      - name: https # https:// scheme from the above annotation
+        port: 8443
+        protocol: TCP
+        targetPort: https
+      type: ClusterIP
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-http
       namespace: default
     spec:
       ports:
@@ -107,11 +131,18 @@ expected:
             on_http_request:
               - name: Generated-Route
                 expressions:
-                  - "req.url.path.startsWith('/test-service-1')"
+                  - "req.url.path.startsWith('/test-service-https')"
                 actions:
                   - type: forward-internal
                     config:
-                      url: "https://e3b0c-test-service-1-default-tls-f2538-8080.internal"
+                      url: "https://e3b0c-test-service-https-default-mtls-f2538-8443.internal"
+              - name: Generated-Route
+                expressions:
+                  - "req.url.path.startsWith('/test-service-http')"
+                actions:
+                  - type: forward-internal
+                    config:
+                      url: "https://e3b0c-test-service-http-default-8080.internal"
               - name: Fallback-404
                 actions:
                 - type: custom-response
@@ -128,14 +159,28 @@ expected:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
-      name: e3b0c-test-service-1-default-tls-f2538-8080
+      name: e3b0c-test-service-https-default-mtls-f2538-8443
       namespace: default
     spec:
       clientCertificateRefs:
       - name: client-cert-secret
         namespace: foo
-      url: "https://e3b0c-test-service-1-default-tls-f2538-8080.internal"
+      url: "https://e3b0c-test-service-https-default-mtls-f2538-8443.internal"
       upstream:
-        url: "http://test-service-1.default:8080"
+        url: "https://test-service-https.default:8443"
+      bindings:
+      - "internal"
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-http-default-8080
+      namespace: default
+    spec:
+      url: "https://e3b0c-test-service-http-default-8080.internal"
+      upstream:
+        url: "http://test-service-http.default:8080"
       bindings:
       - "internal"
