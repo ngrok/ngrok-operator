@@ -189,9 +189,6 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
 		--set bindings.enabled=true \
-		--set bindings.name=k8s/dev-testing \
-		--set bindings.description="Example binding for dev testing" \
-		--set bindings.allowedURLs="{*}" \
 		&&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
@@ -213,9 +210,6 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
 		--set bindings.enabled=false \
-		--set bindings.name=$(E2E_BINDING_NAME) \
-		--set bindings.description="Example binding for CI e2e tests" \
-		--set bindings.allowedURLs='{*.e2e}' \
 		--set bindings.serviceAnnotations.annotation1="val1" \
 		--set bindings.serviceAnnotations.annotation2="val2" \
 		--set bindings.serviceLabels.label1="val1"
