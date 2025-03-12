@@ -138,7 +138,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		return fmt.Errorf("operator does not have binding configuration")
 	}
 
-	if op.Spec.Binding.IngressEndpoint == nil {
+	if op.Status.BindingsIngressEndpoint == "" {
 		return fmt.Errorf("operator binding configuration does not have an ingress endpoint")
 	}
 
@@ -196,7 +196,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 		log.Info("Handling connnection")
 
-		ngrokConn, err := tlsDialer.Dial("tcp", *op.Spec.Binding.IngressEndpoint)
+		ngrokConn, err := tlsDialer.Dial("tcp", op.Status.BindingsIngressEndpoint)
 		if err != nil {
 			log.Error(err, "failed to dial ingress endpoint")
 			return err
