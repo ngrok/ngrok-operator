@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -94,6 +95,7 @@ func main() {
 
 type managerOpts struct {
 	// flags
+	clusterName           string
 	releaseName           string
 	metricsAddr           string
 	electionID            string
@@ -146,6 +148,7 @@ func cmd() *cobra.Command {
 		},
 	}
 
+	c.Flags().StringVar(&opts.clusterName, "cluster-name", "", "Cluster Name where the ngrok-operator is installed")
 	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -172,6 +175,9 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
+
+	_ = c.MarkFlagRequired("cluster-name")
+	_ = c.MarkFlagRequired("release-name")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -282,11 +288,9 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
 	}
 
-	if opts.enableFeatureBindings {
-		// register the k8sop in the ngrok API
-		if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
-			return fmt.Errorf("unable to create KubernetesOperator: %w", err)
-		}
+	// register the k8sop in the ngrok API
+	if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
+		return fmt.Errorf("unable to create KubernetesOperator: %w", err)
 	}
 
 	// k8sResourceDriver is the driver that will be used to interact with the k8s resources for all controllers
@@ -713,9 +717,10 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
 			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Name:      opts.releaseName,
-				Namespace: opts.namespace,
-				Version:   version.GetVersion(),
+				ClusterName: opts.clusterName,
+				Name:        opts.releaseName,
+				Namespace:   opts.namespace,
+				Version:     version.GetVersion(),
 			},
 			Region: opts.region,
 		}
@@ -741,7 +746,12 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 		}
 		k8sOperator.Spec.EnabledFeatures = features
 
-		setupLog.Info("created KubernetesOperator", "name", k8sOperator.Name, "namespace", k8sOperator.Namespace, "op", fmt.Sprintf("%+v", k8sOperator.Spec.Binding))
+		if data, err := json.Marshal(k8sOperator); err == nil {
+			setupLog.Info("created KubernetesOperator", "name", k8sOperator.Name, "namespace", k8sOperator.Namespace, "op", string(data))
+		} else {
+			setupLog.Info("created KubernetesOperator", "name", k8sOperator.Name, "namespace", k8sOperator.Namespace, "op", fmt.Sprintf("%+v", k8sOperator))
+		}
+
 		return nil
 	})
 	return err
