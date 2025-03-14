@@ -11,17 +11,21 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -181,6 +185,191 @@ var _ = Describe("Driver", func() {
 				Expect(foundTunnel.Namespace).To(Equal("test-namespace"))
 				Expect(foundTunnel.Name).To(HavePrefix("example-80-"))
 				Expect(foundTunnel.Labels["k8s.ngrok.com/controller-name"]).To(Equal(defaultManagerName))
+			})
+		})
+
+		When("A service specifies an appProtocol", func() {
+			var (
+				httpService             *v1.Service
+				httpsService            *v1.Service
+				ingress                 *netv1.Ingress
+				c                       client.WithWatch
+				namespace               = "app-proto-namespace"
+				foundTunnels            *ingressv1alpha1.TunnelList
+				ic                      = testutils.NewTestIngressClass("app-proto-ingress-class", true, true)
+				setIngressTargetService = func(i *netv1.Ingress, s *v1.Service) {
+					// Modify the ingress to include the service
+					i.Spec.Rules = []netv1.IngressRule{
+						{
+							Host: "foo.ngrok.io",
+							IngressRuleValue: netv1.IngressRuleValue{
+								HTTP: &netv1.HTTPIngressRuleValue{
+									Paths: []netv1.HTTPIngressPath{
+										{
+											Path:     "/",
+											PathType: ptr.To(netv1.PathTypePrefix),
+											Backend: netv1.IngressBackend{
+												Service: &netv1.IngressServiceBackend{
+													Name: s.Name,
+													Port: netv1.ServiceBackendPort{
+														Name: s.Spec.Ports[0].Name,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					}
+				}
+			)
+
+			BeforeEach(func() {
+				httpService = &v1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "http-service",
+						Namespace: namespace,
+					},
+					Spec: v1.ServiceSpec{
+						Ports: []v1.ServicePort{
+							{
+								Port:       80,
+								Name:       "http",
+								TargetPort: intstr.FromInt(80),
+							},
+						},
+					},
+				}
+				httpsService = &v1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "https-service",
+						Namespace: namespace,
+						Annotations: map[string]string{
+							"k8s.ngrok.com/app-protocols": `{"https": "https"}`,
+						},
+					},
+					Spec: v1.ServiceSpec{
+						Ports: []v1.ServicePort{
+							{
+								Port:       443,
+								Name:       "https",
+								TargetPort: intstr.FromInt(443),
+							},
+						},
+					},
+				}
+				ingress = &netv1.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-ingress",
+						Namespace: namespace,
+					},
+					Spec: netv1.IngressSpec{
+						IngressClassName: &ic.Name,
+						Rules:            []netv1.IngressRule{},
+					},
+				}
+			})
+
+			JustBeforeEach(func() {
+				// Add the services and ingress to the fake client and the store
+				objs := []runtime.Object{&ic, httpService, httpsService, ingress}
+				c = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+
+				for _, obj := range objs {
+					Expect(driver.store.Update(obj)).To(BeNil())
+				}
+
+				// Seed & Sync
+				Expect(driver.Seed(context.Background(), c)).To(BeNil())
+				Expect(driver.Sync(context.Background(), c)).To(BeNil())
+
+				// Find the tunnels in this namespace
+				foundTunnels = &ingressv1alpha1.TunnelList{}
+				err := c.List(context.Background(), foundTunnels, client.InNamespace(namespace))
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			When("The appProtocol is unknown", func() {
+				BeforeEach(func() {
+					// Set an unknown appProtocol on the httpService
+					httpService.Spec.Ports[0].AppProtocol = ptr.To("unknown")
+					// Modify the ingress to include the httpService
+					setIngressTargetService(ingress, httpService)
+				})
+
+				It("Should ignore the unknown appProtocol", func() {
+					// We expect one tunnel to be created
+					Expect(len(foundTunnels.Items)).To(Equal(1))
+
+					By("Creating a tunnel with no appProtocol and the correct upstream")
+					foundTunnel := foundTunnels.Items[0]
+					Expect(foundTunnel.Spec.AppProtocol).To(BeNil())
+					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("http-service.app-proto-namespace.svc.cluster.local:80"))
+					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTP"))
+				})
+			})
+
+			When("The appProtocol is http", func() {
+				BeforeEach(func() {
+					// Set the appProtocol on the httpService
+					httpService.Spec.Ports[0].AppProtocol = ptr.To("http")
+					// Modify the ingress to include the httpService
+					setIngressTargetService(ingress, httpService)
+				})
+
+				It("Should create a tunnel with appProtocol http1", func() {
+					// We expect one tunnel to be created
+					Expect(len(foundTunnels.Items)).To(Equal(1))
+
+					By("Creating a tunnel with appProtocol http1")
+					foundTunnel := foundTunnels.Items[0]
+					Expect(foundTunnel.Spec.AppProtocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP1)))
+					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("http-service.app-proto-namespace.svc.cluster.local:80"))
+					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTP"))
+				})
+			})
+
+			When("The appProtocol is k8s.ngrok.com/http2", func() {
+				BeforeEach(func() {
+					// Set the appProtocol on the httpService
+					httpsService.Spec.Ports[0].AppProtocol = ptr.To("k8s.ngrok.com/http2")
+
+					// Modify the ingress to include the httpsService
+					setIngressTargetService(ingress, httpsService)
+				})
+
+				It("Should create a tunnel with appProtocol http2", func() {
+					// We expect one tunnel to be created
+					Expect(len(foundTunnels.Items)).To(Equal(1))
+
+					By("Creating a tunnel with appProtocol http2")
+					foundTunnel := foundTunnels.Items[0]
+					Expect(foundTunnel.Spec.AppProtocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
+					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("https-service.app-proto-namespace.svc.cluster.local:443"))
+					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTPS"))
+				})
+			})
+
+			When("The appProtocol is kubernetes.io/h2c", func() {
+				BeforeEach(func() {
+					// Set the appProtocol on the httpService
+					httpsService.Spec.Ports[0].AppProtocol = ptr.To("kubernetes.io/h2c")
+
+					// Modify the ingress to include the httpsService
+					setIngressTargetService(ingress, httpsService)
+				})
+
+				It("Should create a tunnel with appProtocol http2", func() {
+					// We expect one tunnel to be created
+					Expect(len(foundTunnels.Items)).To(Equal(1))
+
+					By("Creating a tunnel with appProtocol http2")
+					foundTunnel := foundTunnels.Items[0]
+					Expect(foundTunnel.Spec.AppProtocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
+					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("https-service.app-proto-namespace.svc.cluster.local:443"))
+					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTPS"))
+				})
 			})
 		})
 	})

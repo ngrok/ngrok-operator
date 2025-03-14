@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/go-logr/logr"
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ir"
@@ -20,10 +23,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -49,6 +54,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 		expectedURL            string
 		expectedUpstream       string
 		upstreamClientCertRefs []ir.IRObjectRef
+		upstreamProtocol       *common.ApplicationProtocol
 	}{
 		{
 			name:             "Default cluster domain",
@@ -98,13 +104,14 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			expectedName:     "5a464-another-service-custom-namespace-mtls-d025c-cust-5fd9effa",
 			expectedURL:      "https://5a464-another-service-custom-namespace-mtls-d025c-custom-domain-443.internal",
 			expectedUpstream: "https://another-service.custom-namespace-custom.domain:443",
+			upstreamProtocol: ptr.To(common.ApplicationProtocol_HTTP2),
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := buildInternalAgentEndpoint(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.scheme, tc.labels, tc.annotations, tc.metadata, tc.upstreamClientCertRefs)
+			result := buildInternalAgentEndpoint(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.scheme, tc.labels, tc.annotations, tc.metadata, tc.upstreamClientCertRefs, tc.upstreamProtocol)
 			assert.Equal(t, tc.expectedName, result.Name, "unexpected name for test case: %s", tc.name)
 			assert.Equal(t, tc.namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
 			assert.Equal(t, tc.labels, result.Labels, "unexpected labels for test case: %s", tc.name)
@@ -113,6 +120,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			assert.Equal(t, tc.expectedURL, result.Spec.URL, "unexpected URL for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedUpstream, result.Spec.Upstream.URL, "unexpected upstream URL for test case: %s", tc.name)
 			assert.Equal(t, []string{"internal"}, result.Spec.Bindings, "unexpected bindings for test case: %s", tc.name)
+			assert.Equal(t, tc.upstreamProtocol, result.Spec.Upstream.Protocol, "unexpected upstream protocol for test case: %s", tc.name)
 		})
 	}
 }
@@ -513,7 +521,6 @@ func TestTranslate(t *testing.T) {
 
 			// Finally, run translate and check the contents
 			result := translator.Translate()
-			require.Equal(t, len(tc.Expected.AgentEndpoints), len(result.AgentEndpoints))
 			require.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints))
 
 			for _, expectedCLEP := range tc.Expected.CloudEndpoints {
@@ -543,18 +550,7 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedCLEP.Spec.Bindings, actualCLEP.Spec.Bindings)
 			}
 
-			for _, expectedAE := range tc.Expected.AgentEndpoints {
-				actualAE, exists := result.AgentEndpoints[types.NamespacedName{
-					Name:      expectedAE.Name,
-					Namespace: expectedAE.Namespace,
-				}]
-				require.True(t, exists, "expected AgentEndpoint %s.%s to exist. actual agent endpoints: %v", expectedAE.Name, expectedAE.Namespace, result.AgentEndpoints)
-				require.Equal(t, expectedAE.Name, actualAE.Name)
-				require.Equal(t, expectedAE.Namespace, actualAE.Namespace)
-				require.Equal(t, expectedAE.Labels, actualAE.Labels)
-				require.Equal(t, expectedAE.Annotations, actualAE.Annotations)
-				require.Equal(t, expectedAE.Spec, actualAE.Spec)
-			}
+			assert.ElementsMatch(t, tc.Expected.AgentEndpoints, slices.Collect(maps.Values(result.AgentEndpoints)))
 
 		})
 	}
@@ -804,6 +800,12 @@ func decodeViaScheme(s *runtime.Scheme, rawObj map[string]interface{}) (runtime.
 	obj, _, err := decoder.Decode(y, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode via scheme: %w", err)
+	}
+
+	if obj != nil {
+		// Clear kind for testing
+		kind := obj.GetObjectKind()
+		kind.SetGroupVersionKind(schema.GroupVersionKind{})
 	}
 
 	return obj, nil

@@ -22,6 +22,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -195,19 +196,29 @@ func sanitizeStringForURL(s string) string {
 	return s
 }
 
-func getPortAppProtocol(service *corev1.Service, port *corev1.ServicePort) (string, error) {
+var knownApplicationProtocols = map[string]common.ApplicationProtocol{
+	"k8s.ngrok.com/http2": common.ApplicationProtocol_HTTP2,
+	"kubernetes.io/h2c":   common.ApplicationProtocol_HTTP2,
+	"http":                common.ApplicationProtocol_HTTP1,
+}
+
+func getPortAppProtocol(log logr.Logger, service *corev1.Service, port *corev1.ServicePort) *common.ApplicationProtocol {
 	if port.AppProtocol == nil {
-		return "", nil
+		return nil
 	}
 
-	switch proto := *port.AppProtocol; proto {
-	case "k8s.ngrok.com/http2", "kubernetes.io/h2c":
-		return "http2", nil
-	case "":
-		return "", nil
-	default:
-		return "", fmt.Errorf("unsupported appProtocol: '%s', must be 'k8s.ngrok.com/http2', 'kubernetes.io/h2c' or ''. From: %s service: %s", proto, service.Namespace, service.Name)
+	proto := *port.AppProtocol
+	if knownProto, ok := knownApplicationProtocols[proto]; ok {
+		return ptr.To(knownProto)
 	}
+
+	log.WithValues(
+		"namespace", service.Namespace,
+		"service", service.Name,
+		"service.appProtocol", proto,
+	).V(3).Info("Ignoring unknown appProtocol")
+
+	return nil
 }
 
 // Generates a labels map for matching ngrok Routes to Agent Tunnels
