@@ -5,6 +5,20 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.17.0...helm-chart-0.17.1
+
+- Update ngrok-operator image to `0.15.1`
+
+### Added
+- Add IngressEndpoint to KubernetesOperatorStatus by @masonj5n in [#591](https://github.com/ngrok/ngrok-operator/pull/591)
+
+### Fixed
+- fix(helm-chart): Resource requests for agent & bindings forwarder by @jonstacks in [#602](https://github.com/ngrok/ngrok-operator/pull/602). Fixes [#598](https://github.com/ngrok/ngrok-operator/issues/598)
+
+### Removed
+- remove bindings.description by @masonj5n in [#603](https://github.com/ngrok/ngrok-operator/pull/603)
+
 ## 0.17.0
 
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.17.0-rc.4...helm-chart-0.17.0
