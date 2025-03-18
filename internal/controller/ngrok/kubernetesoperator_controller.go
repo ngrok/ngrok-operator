@@ -270,6 +270,10 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		}
 	}
 
+	updateParams.Deployment = &ngrok.KubernetesOperatorDeploymentUpdate{
+		Name: &ko.Spec.Deployment.Name,
+	}
+
 	log.V(1).Info("updating KubernetesOperator in ngrok API", "id", ngrokKo.ID)
 	ngrokKo, err = r.NgrokClientset.KubernetesOperators().Update(ctx, updateParams)
 	if err != nil {
