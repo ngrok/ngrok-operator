@@ -209,7 +209,8 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=false \
+		--set bindings.enabled=true \
+		--set-json bindings.endpointSelectors='["endpoint.host.endsWith(\"e2e\")"]' \
 		--set bindings.serviceAnnotations.annotation1="val1" \
 		--set bindings.serviceAnnotations.annotation2="val2" \
 		--set bindings.serviceLabels.label1="val1"
