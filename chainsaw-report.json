@@ -1,0 +1,219 @@
+{
+  "name": "chainsaw-report",
+  "startTime": "2025-03-21T11:17:54.011115-05:00",
+  "endTime": "2025-03-21T11:19:07.877234-05:00",
+  "tests": [
+    {
+      "basePath": "tests/chainsaw/finalizers",
+      "name": "finalizers",
+      "startTime": "2025-03-21T11:17:54.011703-05:00",
+      "endTime": "2025-03-21T11:18:05.268882-05:00",
+      "namespace": "chainsaw-promoted-griffon",
+      "steps": [
+        {
+          "name": "create an ingress",
+          "startTime": "2025-03-21T11:17:54.031429-05:00",
+          "endTime": "2025-03-21T11:17:54.09128-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "create",
+              "startTime": "2025-03-21T11:17:54.031854-05:00",
+              "endTime": "2025-03-21T11:17:54.091251-05:00"
+            }
+          ]
+        },
+        {
+          "name": "verify finalizers",
+          "startTime": "2025-03-21T11:17:54.091285-05:00",
+          "endTime": "2025-03-21T11:17:54.14713-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "assert",
+              "startTime": "2025-03-21T11:17:54.091302-05:00",
+              "endTime": "2025-03-21T11:17:54.147089-05:00"
+            }
+          ]
+        },
+        {
+          "name": "cleanup (create an ingress)",
+          "startTime": "2025-03-21T11:17:54.147135-05:00",
+          "endTime": "2025-03-21T11:17:54.155668-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "delete",
+              "startTime": "2025-03-21T11:17:54.147145-05:00",
+              "endTime": "2025-03-21T11:17:54.155635-05:00"
+            }
+          ]
+        },
+        {
+          "name": "cleanup (main)",
+          "startTime": "2025-03-21T11:17:54.155679-05:00",
+          "endTime": "2025-03-21T11:18:05.268305-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "delete",
+              "startTime": "2025-03-21T11:17:54.155679-05:00",
+              "endTime": "2025-03-21T11:18:05.268291-05:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basePath": "tests/chainsaw/sanity-checks",
+      "name": "sanity-checks",
+      "startTime": "2025-03-21T11:18:05.268985-05:00",
+      "endTime": "2025-03-21T11:18:10.771696-05:00",
+      "namespace": "chainsaw-unique-wren",
+      "steps": [
+        {
+          "name": "check ingress class exists",
+          "startTime": "2025-03-21T11:18:05.307908-05:00",
+          "endTime": "2025-03-21T11:18:05.367667-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "assert",
+              "startTime": "2025-03-21T11:18:05.309673-05:00",
+              "endTime": "2025-03-21T11:18:05.367634-05:00"
+            }
+          ]
+        },
+        {
+          "name": "check credentials exist",
+          "startTime": "2025-03-21T11:18:05.367692-05:00",
+          "endTime": "2025-03-21T11:18:05.428939-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "assert",
+              "startTime": "2025-03-21T11:18:05.36831-05:00",
+              "endTime": "2025-03-21T11:18:05.428906-05:00"
+            }
+          ]
+        },
+        {
+          "name": "check operator manager config",
+          "startTime": "2025-03-21T11:18:05.428952-05:00",
+          "endTime": "2025-03-21T11:18:05.487533-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "assert",
+              "startTime": "2025-03-21T11:18:05.429702-05:00",
+              "endTime": "2025-03-21T11:18:05.487507-05:00"
+            }
+          ]
+        },
+        {
+          "name": "check operator pods are running",
+          "startTime": "2025-03-21T11:18:05.487553-05:00",
+          "endTime": "2025-03-21T11:18:05.550218-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "assert",
+              "startTime": "2025-03-21T11:18:05.488173-05:00",
+              "endTime": "2025-03-21T11:18:05.550205-05:00"
+            }
+          ]
+        },
+        {
+          "name": "check agent pods are running",
+          "startTime": "2025-03-21T11:18:05.550224-05:00",
+          "endTime": "2025-03-21T11:18:05.610991-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "assert",
+              "startTime": "2025-03-21T11:18:05.550679-05:00",
+              "endTime": "2025-03-21T11:18:05.610966-05:00"
+            }
+          ]
+        },
+        {
+          "name": "cleanup (main)",
+          "startTime": "2025-03-21T11:18:05.611032-05:00",
+          "endTime": "2025-03-21T11:18:10.771607-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "delete",
+              "startTime": "2025-03-21T11:18:05.611033-05:00",
+              "endTime": "2025-03-21T11:18:10.771605-05:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basePath": "tests/chainsaw/operator-registration",
+      "name": "operator-registration",
+      "startTime": "2025-03-21T11:18:10.771776-05:00",
+      "endTime": "2025-03-21T11:19:07.877004-05:00",
+      "namespace": "chainsaw-model-fawn",
+      "steps": [
+        {
+          "name": "assert KubernetesOperator/ngrok-operator is registered",
+          "startTime": "2025-03-21T11:18:10.798582-05:00",
+          "endTime": "2025-03-21T11:18:10.860889-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "assert",
+              "startTime": "2025-03-21T11:18:10.798695-05:00",
+              "endTime": "2025-03-21T11:18:10.860822-05:00"
+            }
+          ]
+        },
+        {
+          "name": "assert Secret/ngrok-operator-default-tls exists (CSR is signed)",
+          "startTime": "2025-03-21T11:18:10.860906-05:00",
+          "endTime": "2025-03-21T11:18:10.918752-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "assert",
+              "startTime": "2025-03-21T11:18:10.860941-05:00",
+              "endTime": "2025-03-21T11:18:10.918699-05:00"
+            }
+          ]
+        },
+        {
+          "name": "assert Configmap/ngrok-intermediate-ca exists (tunnels/forwarders will work)",
+          "startTime": "2025-03-21T11:18:10.918782-05:00",
+          "endTime": "2025-03-21T11:19:02.710929-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "assert",
+              "startTime": "2025-03-21T11:18:10.918867-05:00",
+              "endTime": "2025-03-21T11:18:40.921635-05:00",
+              "failure": {
+                "error": "actual resource not found"
+              }
+            }
+          ]
+        },
+        {
+          "name": "cleanup (main)",
+          "startTime": "2025-03-21T11:19:02.71108-05:00",
+          "endTime": "2025-03-21T11:19:07.87684-05:00",
+          "operations": [
+            {
+              "name": "operation 1",
+              "type": "delete",
+              "startTime": "2025-03-21T11:19:02.711094-05:00",
+              "endTime": "2025-03-21T11:19:07.876827-05:00"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
