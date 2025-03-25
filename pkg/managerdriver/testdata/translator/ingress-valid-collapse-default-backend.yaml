@@ -1,0 +1,124 @@
+# Ingresses without the mapping-strategy annotation should create endpoints instead of edges
+# The default mapping-strategy when not specified should collapse them into an AgentEndpoint, but the unique service is on the default backend
+input:
+  ingressClasses:
+  - apiVersion: networking.k8s.io/v1
+    kind: IngressClass
+    metadata:
+      labels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: ngrok-operator
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+      name: ngrok
+    spec:
+      controller: k8s.ngrok.com/ingress-controller
+  ingresses:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: test-ingress
+      namespace: default
+    spec:
+      ingressClassName: ngrok
+      defaultBackend:
+        service:
+          name: test-service-1
+          port:
+            number: 8080
+      rules:
+        - host: test-ingresses.ngrok.io
+          http:
+            paths:
+              - path: /test
+                pathType: Prefix
+                backend:
+                  resource:
+                    name: response-503
+                    apiGroup: "ngrok.k8s.ngrok.com"
+                    kind: "NgrokTrafficPolicy"
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  trafficPolicies: 
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: NgrokTrafficPolicy
+    metadata:
+      name: response-503
+      namespace: default
+    spec:
+      policy:
+        on_http_request:
+          - name: response-503
+            actions:
+              - type: custom-response
+                config:
+                  status_code: 503
+                  content: "Service is temporarily unavailable"
+                  headers:
+                    content-type: text/plain
+expected:
+  cloudEndpoints: []
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-8080
+      namespace: default
+    spec:
+      url: "https://test-ingresses.ngrok.io"
+      upstream:
+        url: "http://test-service-1.default:8080"
+      bindings:
+      - "public"
+      trafficPolicy:
+        inline:
+          on_http_request:
+          - name: Initialize-Local-Service-Match
+            actions:
+            - type: set-vars
+              config:
+                vars:
+                - request_matched_local_svc: false
+          - name: response-503
+            expressions:
+            - req.url.path.startsWith('/test')
+            - vars.request_matched_local_svc == false
+            actions:
+            - type: custom-response
+              config:
+                status_code: 503
+                content: "Service is temporarily unavailable"
+                headers:
+                  content-type: text/plain
+          - name: Generated-Route-Default-Backend
+            expressions:
+            - vars.request_matched_local_svc == false
+            actions:
+            - type: set-vars
+              config:
+                vars: 
+                - request_matched_local_svc: true
+          - name: Fallback-404
+            expressions:
+            - vars.request_matched_local_svc == false
+            actions:
+            - type: custom-response
+              config:
+                status_code: 404
+                content: "No route was found for this ngrok Endpoint"
+                headers:
+                  content-type: text/plain

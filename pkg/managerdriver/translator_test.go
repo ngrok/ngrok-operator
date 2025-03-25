@@ -527,8 +527,8 @@ func TestTranslate(t *testing.T) {
 
 			// Finally, run translate and check the contents
 			result := translator.Translate()
-			assert.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints), "mismatch in actual vs expected number of cloud endpoints from translation")
-			assert.Equal(t, len(tc.Expected.AgentEndpoints), len(result.AgentEndpoints), "mismatch in actual vs expected number of agent endpoints from translation")
+			assert.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints), fmt.Sprintf("mismatch in actual vs expected number of cloud endpoints from translation, expected: %v, actual: %v", tc.Expected.CloudEndpoints, result.CloudEndpoints))
+			assert.Equal(t, len(tc.Expected.AgentEndpoints), len(result.AgentEndpoints), fmt.Sprintf("mismatch in actual vs expected number of agent endpoints from translation, expected: %v, actual: %v", tc.Expected.AgentEndpoints, result.AgentEndpoints))
 
 			for _, expectedCLEP := range tc.Expected.CloudEndpoints {
 				actualCLEP, exists := result.CloudEndpoints[types.NamespacedName{
