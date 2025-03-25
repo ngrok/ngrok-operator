@@ -14,7 +14,7 @@ input:
       name: test-gateway
       namespace: default
       annotations:
-        k8s.ngrok.com/mapping-strategy: "endpoints"
+        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
         k8s.ngrok.com/bindings: "foo-binding,bar-binding" # multiple bindings are not currently supported
     spec:
       gatewayClassName: ngrok

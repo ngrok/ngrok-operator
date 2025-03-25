@@ -557,8 +557,6 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedCLEP.Spec.Bindings, actualCLEP.Spec.Bindings)
 			}
 
-			//assert.ElementsMatch(t, tc.Expected.AgentEndpoints, slices.Collect(maps.Values(result.AgentEndpoints)))
-
 			for _, expectedAE := range tc.Expected.AgentEndpoints {
 				actualAE, exists := result.AgentEndpoints[types.NamespacedName{
 					Name:      expectedAE.Name,
