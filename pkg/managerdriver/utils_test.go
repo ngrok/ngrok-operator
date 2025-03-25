@@ -145,7 +145,7 @@ func TestSanitizeStringForURL(t *testing.T) {
 	}
 }
 
-func TestInternalAgentEndpointURL(t *testing.T) {
+func TestBuildInternalEndpointURL(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		serviceName            string
@@ -210,7 +210,7 @@ func TestInternalAgentEndpointURL(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := internalAgentEndpointURL(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.upstreamClientCertRefs)
+			result := buildInternalEndpointURL(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.upstreamClientCertRefs)
 			if result != tc.expectedResult {
 				t.Errorf("expected %s, got %s", tc.expectedResult, result)
 			}

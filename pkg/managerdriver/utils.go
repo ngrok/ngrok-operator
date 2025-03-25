@@ -83,8 +83,8 @@ func internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain
 	return sanitizeStringForK8sName(ret)
 }
 
-// internalAgentEndpointURL builds a URL string for an internal endpoint
-func internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain string, port int32, clientCertRefs []ir.IRObjectRef) string {
+// buildInternalEndpointURL builds a URL string for an internal endpoint
+func buildInternalEndpointURL(serviceUID, serviceName, namespace, clusterDomain string, port int32, clientCertRefs []ir.IRObjectRef) string {
 	uidHash := sha256.Sum256([]byte(serviceUID))
 	hashHex := hex.EncodeToString(uidHash[:])
 
@@ -127,8 +127,8 @@ func internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain 
 	return ret
 }
 
-// internalAgentEndpointUpstreamURL builds a URL string for an internal AgentEndpoint's upstream url
-func internalAgentEndpointUpstreamURL(serviceName, namespace, clusterDomain string, port int32, scheme ir.IRScheme) string {
+// agentEndpointUpstreamURL builds a URL string for an AgentEndpoint's upstream url
+func agentEndpointUpstreamURL(serviceName, namespace, clusterDomain string, port int32, scheme ir.IRScheme) string {
 	ret := fmt.Sprintf("%s%s.%s",
 		string(scheme),
 		sanitizeStringForURL(serviceName),

@@ -41,11 +41,21 @@ const (
 	// This annotation can be used on ingress/gateway resources to control which ngrok resources (endpoints/edges) get created from it
 	MappingStrategyAnnotation    = "k8s.ngrok.com/mapping-strategy"
 	MappingStrategyAnnotationKey = "mapping-strategy"
-	MappingStrategy_Endpoints    = "endpoints"
-	MappingStrategy_Edges        = "edges"
 
 	EndpointPoolingAnnotation    = "k8s.ngrok.com/pooling-enabled"
 	EndpointPoolingAnnotationKey = "pooling-enabled"
+)
+
+type MappingStrategy string
+
+const (
+	MappingStrategy_Edges MappingStrategy = "edges"
+
+	// The default strategy when translating resources into AgentEndpoint / CloudEndpoint that prioritizes collapsing into a single public AgentEndpoint when possible
+	MappingStrategy_EndpointsDefault MappingStrategy = "endpoints"
+
+	// Alternative strategy when translating resources into AgentEndpoint / CloudEndpoint that always creates CloudEndpoints for hostnames and only internal AgentEndpoints for each unique upstream
+	MappingStrategy_EndpointsVerbose MappingStrategy = "endpoints-verbose"
 )
 
 type RouteModules struct {
@@ -149,7 +159,7 @@ func ExtractUseEdges(obj client.Object) (bool, error) {
 		}
 		return false, err
 	}
-	return strings.EqualFold(val, MappingStrategy_Edges), nil
+	return strings.EqualFold(val, string(MappingStrategy_Edges)), nil
 }
 
 // Whether or not we should use endpoint pooling

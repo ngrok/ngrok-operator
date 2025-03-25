@@ -28,11 +28,11 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 		// We currently require this annotation to be present for an Ingress to be translated into CloudEndpoints/AgentEndpoints, otherwise the default behaviour is to
 		// translate it into HTTPSEdges (legacy). A future version will remove support for HTTPSEdges and translation into CloudEndpoints/AgentEndpoints will become the new
 		// default behaviour.
-		useEdges, err := annotations.ExtractUseEdges(ingress)
+		mappingStrategy, err := MappingStrategyAnnotationToIR(ingress)
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
-		if useEdges {
+		if mappingStrategy == ir.IRMappingStrategy_Edges {
 			t.log.Info(fmt.Sprintf("the following ingress will be provided by ngrok edges instead of endpoints because of the %q annotation",
 				annotations.MappingStrategyAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
@@ -96,6 +96,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			annotationTrafficPolicy,
 			tpObjRef,
 			bindings,
+			mappingStrategy,
 		)
 	}
 
@@ -119,6 +120,7 @@ func (t *translator) ingressToIR(
 	annotationTrafficPolicy *trafficpolicy.TrafficPolicy,
 	annotationTrafficPolicyRef *ir.OwningResource,
 	bindings []string,
+	mappingStrategy ir.IRMappingStrategy,
 ) {
 	for _, rule := range ingress.Spec.Rules {
 		ruleHostname := rule.Host
@@ -209,6 +211,7 @@ func (t *translator) ingressToIR(
 				EndpointPoolingEnabled: endpointPoolingEnabled,
 				Metadata:               t.defaultIngressMetadata,
 				Bindings:               bindings,
+				MappingStrategy:        mappingStrategy,
 			}
 			hostCache[ir.IRHostname(ruleHostname)] = irVHost
 		}

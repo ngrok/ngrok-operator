@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -41,86 +39,94 @@ func stringPtr(input string) *string {
 func TestBuildInternalAgentEndpoint(t *testing.T) {
 	testCases := []struct {
 		name                   string
-		serviceUID             string
-		serviceName            string
-		namespace              string
+		irVirtualHost          *ir.IRVirtualHost
+		irService              ir.IRService
 		clusterDomain          string
-		port                   int32
-		scheme                 ir.IRScheme
-		labels                 map[string]string
-		annotations            map[string]string
 		metadata               string
 		expectedName           string
 		expectedURL            string
 		expectedUpstream       string
 		upstreamClientCertRefs []ir.IRObjectRef
-		upstreamProtocol       *common.ApplicationProtocol
 	}{
 		{
-			name:             "Default cluster domain",
-			serviceUID:       "abc123",
-			serviceName:      "test-service",
-			namespace:        "default",
-			clusterDomain:    "cluster.local",
-			port:             8080,
-			scheme:           ir.IRScheme_HTTP,
-			labels:           map[string]string{"label-app": "label-test"},
-			annotations:      map[string]string{"annotation-app": "annotation-test"},
+			name: "Default cluster domain",
+			irService: ir.IRService{
+				UID:       "abc123",
+				Name:      "test-service",
+				Namespace: "default",
+				Port:      8080,
+				Scheme:    ir.IRScheme_HTTP,
+			},
+			clusterDomain: "cluster.local",
+
+			irVirtualHost: &ir.IRVirtualHost{
+				LabelsToAdd:      map[string]string{"label-app": "label-test"},
+				AnnotationsToAdd: map[string]string{"annotation-app": "annotation-test"},
+			},
 			metadata:         "metadata-test",
 			expectedName:     "6ca13-test-service-default-cluster.local-8080",
 			expectedURL:      "https://6ca13-test-service-default-cluster-local-8080.internal",
 			expectedUpstream: "http://test-service.default-cluster.local:8080",
 		},
 		{
-			name:             "Custom cluster domain",
-			serviceUID:       "xyz789",
-			serviceName:      "another-service",
-			namespace:        "custom-namespace",
+			name: "Custom cluster domain",
+			irService: ir.IRService{
+				UID:       "xyz789",
+				Name:      "another-service",
+				Namespace: "custom-namespace",
+				Port:      9090,
+				Scheme:    ir.IRScheme_HTTP,
+			},
+			irVirtualHost: &ir.IRVirtualHost{
+				LabelsToAdd:      map[string]string{"label-app": "label-test"},
+				AnnotationsToAdd: map[string]string{"annotation-app": "annotation-test"},
+			},
 			clusterDomain:    "custom.domain",
-			port:             9090,
-			scheme:           ir.IRScheme_HTTP,
-			labels:           map[string]string{"label-app": "label-test"},
-			annotations:      map[string]string{"annotation-app": "annotation-test"},
 			metadata:         "prod-metadata",
 			expectedName:     "5a464-another-service-custom-namespace-custom.domain-9090",
 			expectedURL:      "https://5a464-another-service-custom-namespace-custom-domain-9090.internal",
 			expectedUpstream: "http://another-service.custom-namespace-custom.domain:9090",
 		},
+
 		{
-			name:          "Client cert refs",
-			serviceUID:    "xyz789",
-			serviceName:   "another-service",
-			namespace:     "custom-namespace",
-			clusterDomain: "custom.domain",
-			port:          443,
-			scheme:        ir.IRScheme_HTTPS,
-			labels:        map[string]string{"label-app": "label-test"},
-			annotations:   map[string]string{"annotation-app": "annotation-test"},
-			metadata:      "prod-metadata",
-			upstreamClientCertRefs: []ir.IRObjectRef{{
-				Name:      "client-cert-secret",
-				Namespace: "secrets",
-			}},
+			name: "Client cert refs",
+			irService: ir.IRService{
+				UID:       "xyz789",
+				Name:      "another-service",
+				Namespace: "custom-namespace",
+				Port:      443,
+				Scheme:    ir.IRScheme_HTTPS,
+				ClientCertRefs: []ir.IRObjectRef{{
+					Name:      "client-cert-secret",
+					Namespace: "secrets",
+				}},
+				Protocol: ptr.To(common.ApplicationProtocol_HTTP2),
+			},
+			irVirtualHost: &ir.IRVirtualHost{
+				LabelsToAdd:      map[string]string{"label-app": "label-test"},
+				AnnotationsToAdd: map[string]string{"annotation-app": "annotation-test"},
+			},
+			clusterDomain:    "custom.domain",
+			metadata:         "prod-metadata",
 			expectedName:     "5a464-another-service-custom-namespace-mtls-d025c-cust-5fd9effa",
 			expectedURL:      "https://5a464-another-service-custom-namespace-mtls-d025c-custom-domain-443.internal",
 			expectedUpstream: "https://another-service.custom-namespace-custom.domain:443",
-			upstreamProtocol: ptr.To(common.ApplicationProtocol_HTTP2),
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := buildInternalAgentEndpoint(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.scheme, tc.labels, tc.annotations, tc.metadata, tc.upstreamClientCertRefs, tc.upstreamProtocol)
+			result := buildAgentEndpoint(tc.irVirtualHost, tc.irService, tc.clusterDomain, tc.metadata)
 			assert.Equal(t, tc.expectedName, result.Name, "unexpected name for test case: %s", tc.name)
-			assert.Equal(t, tc.namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
-			assert.Equal(t, tc.labels, result.Labels, "unexpected labels for test case: %s", tc.name)
-			assert.Equal(t, tc.annotations, result.Annotations, "unexpected annotations for test case: %s", tc.name)
+			assert.Equal(t, tc.irService.Namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
+			assert.Equal(t, tc.irVirtualHost.LabelsToAdd, result.Labels, "unexpected labels for test case: %s", tc.name)
+			assert.Equal(t, tc.irVirtualHost.AnnotationsToAdd, result.Annotations, "unexpected annotations for test case: %s", tc.name)
 			assert.Equal(t, tc.metadata, result.Spec.Metadata, "unexpected metadata for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedURL, result.Spec.URL, "unexpected URL for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedUpstream, result.Spec.Upstream.URL, "unexpected upstream URL for test case: %s", tc.name)
-			assert.Equal(t, []string{"internal"}, result.Spec.Bindings, "unexpected bindings for test case: %s", tc.name)
-			assert.Equal(t, tc.upstreamProtocol, result.Spec.Upstream.Protocol, "unexpected upstream protocol for test case: %s", tc.name)
+			assert.Equal(t, []string{"internal"}, result.Spec.Bindings, "unexpected bindings for test case: %s", tc.name) // TODO: Alice, fix
+			assert.Equal(t, tc.irService.Protocol, result.Spec.Upstream.Protocol, "unexpected upstream protocol for test case: %s", tc.name)
 		})
 	}
 }
@@ -521,7 +527,8 @@ func TestTranslate(t *testing.T) {
 
 			// Finally, run translate and check the contents
 			result := translator.Translate()
-			require.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints))
+			assert.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints), "mismatch in actual vs expected number of cloud endpoints from translation")
+			assert.Equal(t, len(tc.Expected.AgentEndpoints), len(result.AgentEndpoints), "mismatch in actual vs expected number of agent endpoints from translation")
 
 			for _, expectedCLEP := range tc.Expected.CloudEndpoints {
 				actualCLEP, exists := result.CloudEndpoints[types.NamespacedName{
@@ -550,7 +557,35 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedCLEP.Spec.Bindings, actualCLEP.Spec.Bindings)
 			}
 
-			assert.ElementsMatch(t, tc.Expected.AgentEndpoints, slices.Collect(maps.Values(result.AgentEndpoints)))
+			//assert.ElementsMatch(t, tc.Expected.AgentEndpoints, slices.Collect(maps.Values(result.AgentEndpoints)))
+
+			for _, expectedAE := range tc.Expected.AgentEndpoints {
+				actualAE, exists := result.AgentEndpoints[types.NamespacedName{
+					Name:      expectedAE.Name,
+					Namespace: expectedAE.Namespace,
+				}]
+				require.True(t, exists, "expected AgentEndpoint %s.%s to exist. actual agent endpoints: %v", expectedAE.Name, expectedAE.Namespace, result.AgentEndpoints)
+				assert.Equal(t, expectedAE.Name, actualAE.Name)
+				assert.Equal(t, expectedAE.Namespace, actualAE.Namespace)
+				assert.Equal(t, expectedAE.Labels, actualAE.Labels)
+				assert.Equal(t, expectedAE.Annotations, actualAE.Annotations)
+				assert.Equal(t, expectedAE.Spec.URL, actualAE.Spec.URL)
+				if expectedAE.Spec.TrafficPolicy != nil {
+					assert.Equal(t, expectedAE.Spec.TrafficPolicy.Reference, actualAE.Spec.TrafficPolicy.Reference)
+
+					expectedTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
+					require.NoError(t, json.Unmarshal(expectedAE.Spec.TrafficPolicy.Inline, expectedTrafficPolicyCfg))
+
+					actualTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
+					require.NoError(t, json.Unmarshal(actualAE.Spec.TrafficPolicy.Inline, actualTrafficPolicyCfg))
+					assert.Equal(t, expectedTrafficPolicyCfg, actualTrafficPolicyCfg)
+				} else {
+					assert.Nil(t, actualAE.Spec.TrafficPolicy)
+				}
+				assert.Equal(t, expectedAE.Spec.Description, actualAE.Spec.Description)
+				assert.Equal(t, expectedAE.Spec.Metadata, actualAE.Spec.Metadata)
+				assert.Equal(t, expectedAE.Spec.Bindings, actualAE.Spec.Bindings)
+			}
 
 		})
 	}
