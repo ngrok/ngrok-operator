@@ -133,17 +133,21 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		return r._update(ctx, ko, k8sOp)
 	}
 
+	// In our spec, this is possibly nil, so we need to guard against it.
+	deployment := ngrok.KubernetesOperatorDeployment{}
+	if ko.Spec.Deployment != nil {
+		deployment.Name = ko.Spec.Deployment.Name
+		deployment.Namespace = ko.Spec.Deployment.Namespace
+		deployment.Version = ko.Spec.Deployment.Version
+	}
+
 	// Not found, so we'll create the KubernetesOperator
 	createParams := &ngrok.KubernetesOperatorCreate{
 		Metadata:        r.tryMergeMetadata(ctx, ko),
 		Description:     ko.Spec.Description,
 		EnabledFeatures: calculateFeaturesEnabled(ko),
 		Region:          ko.Spec.Region,
-		Deployment: ngrok.KubernetesOperatorDeployment{
-			Name:      ko.Spec.Deployment.Name,
-			Namespace: ko.Spec.Deployment.Namespace,
-			Version:   ko.Spec.Deployment.Version,
-		},
+		Deployment:      deployment,
 	}
 
 	bindingsEnabled := slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
@@ -249,6 +253,15 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator) (err error) {
 	log := ctrl.LoggerFrom(ctx)
 
+	// In our spec, this is possibly nil, so we need to guard against it.
+	var deployment *ngrok.KubernetesOperatorDeploymentUpdate
+	if ko.Spec.Deployment != nil {
+		deployment = &ngrok.KubernetesOperatorDeploymentUpdate{
+			Name:    &ko.Spec.Deployment.Name,
+			Version: &ko.Spec.Deployment.Version,
+		}
+	}
+
 	// Update the KubernetesOperator in the ngrok API
 	updateParams := &ngrok.KubernetesOperatorUpdate{
 		ID:              ngrokKo.ID,
@@ -256,6 +269,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		Metadata:        ptr.To(r.tryMergeMetadata(ctx, ko)),
 		EnabledFeatures: calculateFeaturesEnabled(ko),
 		Region:          ptr.To(ko.Spec.Region),
+		Deployment:      deployment,
 	}
 
 	bindingsEnabled := slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
