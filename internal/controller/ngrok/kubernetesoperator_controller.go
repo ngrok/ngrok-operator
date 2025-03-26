@@ -253,6 +253,10 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		Metadata:        ptr.To(r.tryMergeMetadata(ctx, ko)),
 		EnabledFeatures: calculateFeaturesEnabled(ko),
 		Region:          ptr.To(ko.Spec.Region),
+		Deployment: &ngrok.KubernetesOperatorDeploymentUpdate{
+			Name:    &ko.Spec.Deployment.Name,
+			Version: &ko.Spec.Deployment.Version,
+		},
 	}
 
 	bindingsEnabled := slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
@@ -268,10 +272,6 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
 			CSR:               ptr.To(string(tlsSecret.Data["tls.csr"])),
 		}
-	}
-
-	updateParams.Deployment = &ngrok.KubernetesOperatorDeploymentUpdate{
-		Name: &ko.Spec.Deployment.Name,
 	}
 
 	log.V(1).Info("updating KubernetesOperator in ngrok API", "id", ngrokKo.ID)
