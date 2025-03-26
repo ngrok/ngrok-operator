@@ -150,12 +150,10 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
-		foundSecret, err := r.findOrCreateTLSSecret(ctx, ko)
+		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateCSR, "failed to create TLS secret for CSR")
 		}
-		// remember to set the outer secret
-		tlsSecret = foundSecret
 
 		createParams.Binding = &ngrok.KubernetesOperatorBindingCreate{
 			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
@@ -264,13 +262,10 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
-		foundSecret, err := r.findOrCreateTLSSecret(ctx, ko)
+		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return r.updateStatus(ctx, ko, nil, err)
 		}
-
-		// remember to set the outer secret
-		tlsSecret = foundSecret
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
 			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
