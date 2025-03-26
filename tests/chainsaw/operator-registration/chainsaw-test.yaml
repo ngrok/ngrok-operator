@@ -39,9 +39,9 @@ spec:
             namespace: ngrok-operator
           type: kubernetes.io/tls
           data:
-            ("tls.crt" != null): true
-            ("tls.csr" != null): true
-            ("tls.key" != null): true
+            ("tls.crt" != null && "tls.crt" != ""): true
+            ("tls.csr" != null && "tls.csr" != ""): true
+            ("tls.key" != null && "tls.key" != ""): true
 
   - name: assert Configmap/ngrok-intermediate-ca exists (tunnels/forwarders will work)
     try:
