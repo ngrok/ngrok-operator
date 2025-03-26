@@ -181,6 +181,11 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		return err
 	}
 
+	ingressEndpoint, err := getIngressEndpointWithFallback(op.Status.BindingsIngressEndpoint, log)
+	if err != nil {
+		log.Error(err, "failed to determine bindings ingress endpoint")
+	}
+
 	cnxnHandler := func(conn net.Conn) error {
 		defer conn.Close()
 
@@ -196,11 +201,6 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		)
 
 		log.Info("Handling connnection")
-
-		ingressEndpoint, err := getIngressEndpointWithFallback(op.Status.BindingsIngressEndpoint, log)
-		if err != nil {
-			log.Error(err, "failed to determine bindings ingress endpoint")
-		}
 
 		ngrokConn, err := tlsDialer.Dial("tcp", ingressEndpoint)
 		if err != nil {
