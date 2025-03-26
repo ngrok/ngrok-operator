@@ -154,7 +154,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
-		tlsSecret, err := r.findOrCreateTLSSecret(ctx, ko)
+		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateCSR, "failed to create TLS secret for CSR")
 		}
