@@ -89,7 +89,71 @@ type IRVirtualHost struct {
 
 	// Bindings to set on generated Endpoints
 	Bindings []string
+
+	// Defines how this VirtualHost will be translated
+	MappingStrategy IRMappingStrategy
+
+	// When using the collapse mapping strategy, this virtual host can be collapsed with this service key into a single public AgentEndpoint.
+	// When this is nil, we will not collapse the VirtualHost into a public AgentEndpoint.
+	CollapseIntoServiceKey *IRServiceKey
 }
+
+// Get the total number of unique services that this upstream routes to
+func (v *IRVirtualHost) UniqueServiceCount() int {
+	uniqueServices := map[IRServiceKey]bool{}
+
+	for _, route := range v.Routes {
+		for _, dest := range route.Destinations {
+			if dest.Upstream != nil {
+				uniqueServices[dest.Upstream.Service.Key()] = true
+			}
+		}
+	}
+
+	if v.DefaultDestination != nil && v.DefaultDestination.Upstream != nil {
+		uniqueServices[v.DefaultDestination.Upstream.Service.Key()] = true
+	}
+
+	return len(uniqueServices)
+}
+
+type IRMappingStrategy string
+
+const (
+	IRMappingStrategy_EndpointsDefault = IRMappingStrategy_EndpointsCollapsed
+
+	// The default translation strategy. We will attempt to collapse endpoints wherever possible.
+	// This occurs when a given hostname from an Ingress rule or Gateway API Gateway's Listener only routes to one upstream service.
+	// In this scenario, we can provide the infrastructure using only one AgentEndpoint for the hostname and the upstream, saving the user on billing costs
+	// instead of creating a CloudEndpoint for the hostname that routes to an AgentEndpoint for the upstream (one endpoint versus two endpoints for this example).
+	//
+	// When more than one upstream is used for a hostname, then we must create a CloudEndpoint for the hostname, and internal AgentEndpoints for each unique upstream, then the
+	// CloudEndpoint gets generated traffic policy configuration to route to the appropriate upstreams for that hostname (because an AgentEndpoint can only specify one upstream).
+	//
+	// This mapping strategy is more cost effective when running the operator at a low replicacount. This is because each AgentEndpoint resource
+	// creates n agent endpoints in the ngrok API where n is equal to the replicacount of the ngrok-operator-agent deployment. Each instance of the ngrok-operator-agent pod must establish a separate
+	// agent endpoint with the API in order to allow for balancing between the pods. At a high replicacount of the ngrok-operator-agent deployment, the endpoints-verbose strategy becomes more cost efficient.
+	//
+	// TL;DR this strategy attempts to create fewer total AgentEndpoint and CloudEndpoint resources than the below strategy, but more of the created endpoints will be AgentEndpoint resources which scale in cost as the
+	// replica count of the ngrok-operator-agent deployment increases. The efficiency of course also depends on the configuration that is supplied by the user.
+	//
+	// If you plan to run the agent deployment at a replicacount of 1 and have several hostnames with which you only have a single upstream, this will save you more money than the below strategy.
+	IRMappingStrategy_EndpointsCollapsed IRMappingStrategy = "endpoints-collapsed"
+
+	// An alternative mapping strategy that becomes more cost effective when running the ngrok-operator-agent deployment at a replica count higher than one.
+	// With this mapping strategy, each hostname always gets a CloudEndpoint and each unique upstream gets an AgentEndpoint, even if the hostname only routes to a single upstream.
+	// With this strategy, AgentEndpoint resources are only created for each unique upstream, but they are able to be re-used across hostnames.
+	//
+	// TL;DR this strategy may create more total AgentEndpoint and CloudEndpoint resources than the above strategy, but more of the created endpoints will be CloudEndpoint resources
+	// which have a static cost.
+	//
+	// If you plan on running the ngrok-operator-agent deployment at a replica count greater than 1 for high availability/resiliency, this will save you more money than the above strategy.
+	IRMappingStrategy_EndpointsVerbose IRMappingStrategy = "endpoints-verbose"
+
+	// Translation into edges is deprecated and will be removed soon. The IR translation layer does not handle this process, but
+	// adding support for it in the enum makes it easier to track how resources are being translated.
+	IRMappingStrategy_Edges IRMappingStrategy = "edges"
+)
 
 type IRTLSTermination struct {
 	ExtendedOptions                 map[string]string

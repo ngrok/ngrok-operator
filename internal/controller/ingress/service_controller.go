@@ -39,9 +39,11 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
+	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -278,7 +280,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	var desired []client.Object
-	useEdges, err := annotations.ExtractUseEdges(svc)
+	mappingStrategy, err := managerdriver.MappingStrategyAnnotationToIR(svc)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("Failed to get %q annotation", annotations.MappingStrategyAnnotation))
 		// TODO: Add an event to the service
@@ -289,8 +291,8 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// If the conversion of modulesets -> trafficpolicy fails or there is some other error such that we can't
 	// build the desired endpoints correctly, we will fall back to using tunnels and edges
 	// and just bubble up the error as an event on the service
-	if !useEdges {
-		desired, err = r.buildEndpoints(ctx, svc)
+	if mappingStrategy != ir.IRMappingStrategy_Edges {
+		desired, err = r.buildEndpoints(ctx, svc, mappingStrategy)
 		if err != nil {
 			log.Error(err, "Failed to build desired endpoints")
 			r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToBuildEndpoints", err.Error())
@@ -395,13 +397,11 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 // buildEndpoints creates a CloudEndpoint and an AgentEndpoint for the given LoadBalancer service. The CloudEndpoint
 // will serve as the public endpoint for the service where we attach the traffic policy if one exists, the AgentEndpoint will
 // serve as the internal endpoint.
-func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Service) ([]client.Object, error) {
+func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Service, mappingStrategy ir.IRMappingStrategy) ([]client.Object, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	port := svc.Spec.Ports[0].Port
 	objects := make([]client.Object, 0)
-
-	internalURL := fmt.Sprintf("tcp://%s.%s.%s.internal:%d", svc.UID, svc.Name, svc.Namespace, port)
 
 	// Get whether endpoint pooling should be enabled/disabled from annotations
 	useEndpointPooling, err := annotations.ExtractUseEndpointPooling(svc)
@@ -418,7 +418,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		return objects, err
 	}
 
-	// The final traffic policy that will be applied to the CloudEndpoint
+	// The final traffic policy that will be applied to the listener endpoint
 	tp := trafficpolicy.NewTrafficPolicy()
 
 	// Get the modules from the service annotations
@@ -454,13 +454,6 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		tp.Merge(explicitTP)
 	}
 
-	// Finally, add the forward-internal action to the traffic policy
-	tp.AddRuleOnTCPConnect(trafficpolicy.Rule{
-		Actions: []trafficpolicy.Action{
-			trafficpolicy.NewForwardInternalAction(internalURL),
-		},
-	})
-
 	rawPolicy, err := json.Marshal(tp)
 	if err != nil {
 		return objects, err
@@ -477,47 +470,80 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 
 	// If there is no domain annotation, use a TCP CloudEndpoint. ngrok will randomly assign a TCP address for us.
 	// However, if there is a domain annotation, use a TLS CloudEndpoint and specify the domain.
-	cloudEndpointURL := "tcp://"
+	listenerEndpointURL := "tcp://"
 	if domain != "" {
-		cloudEndpointURL = fmt.Sprintf("tls://%s:443", domain)
+		listenerEndpointURL = fmt.Sprintf("tls://%s:443", domain)
 	}
 
-	cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: svc.Name + "-",
-			Namespace:    svc.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
+	switch mappingStrategy {
+	// For the default/collapse strategy, make a single AgentEndpoint
+	case ir.IRMappingStrategy_EndpointsCollapsed:
+		agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: svc.Name + "-",
+				Namespace:    svc.Namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
+				},
 			},
-		},
-		Spec: ngrokv1alpha1.CloudEndpointSpec{
-			URL:            cloudEndpointURL,
-			Bindings:       useBindings,
-			PoolingEnabled: useEndpointPooling,
-			TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
-				Policy: rawPolicy,
+			Spec: ngrokv1alpha1.AgentEndpointSpec{
+				URL:      listenerEndpointURL,
+				Bindings: useBindings,
+				Upstream: ngrokv1alpha1.EndpointUpstream{
+					URL: fmt.Sprintf("tcp://%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
+				},
+				TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
+					Inline: rawPolicy,
+				},
 			},
-		},
-	}
-	objects = append(objects, cloudEndpoint)
+		}
+		objects = append(objects, agentEndpoint)
+	// For the verbose strategy, make a CloudEndpoint that routes to an AgentEndpoint
+	case ir.IRMappingStrategy_EndpointsVerbose:
+		internalURL := fmt.Sprintf("tcp://%s.%s.%s.internal:%d", svc.UID, svc.Name, svc.Namespace, port)
+		tp.AddRuleOnTCPConnect(trafficpolicy.Rule{
+			Actions: []trafficpolicy.Action{
+				trafficpolicy.NewForwardInternalAction(internalURL),
+			},
+		})
 
-	agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: svc.Name + "-internal-",
-			Namespace:    svc.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
+		cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: svc.Name + "-",
+				Namespace:    svc.Namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
+				},
 			},
-		},
-		Spec: ngrokv1alpha1.AgentEndpointSpec{
-			URL: internalURL,
-			Upstream: ngrokv1alpha1.EndpointUpstream{
-				URL: fmt.Sprintf("tcp://%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
+			Spec: ngrokv1alpha1.CloudEndpointSpec{
+				URL:            listenerEndpointURL,
+				Bindings:       useBindings,
+				PoolingEnabled: useEndpointPooling,
+				TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
+					Policy: rawPolicy,
+				},
 			},
-		},
+		}
+		objects = append(objects, cloudEndpoint)
+
+		agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: svc.Name + "-internal-",
+				Namespace:    svc.Namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
+				},
+			},
+			Spec: ngrokv1alpha1.AgentEndpointSpec{
+				URL: internalURL,
+				Upstream: ngrokv1alpha1.EndpointUpstream{
+					URL: fmt.Sprintf("tcp://%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
+				},
+			},
+		}
+		objects = append(objects, agentEndpoint)
 	}
 
-	objects = append(objects, agentEndpoint)
 	return objects, nil
 }
 

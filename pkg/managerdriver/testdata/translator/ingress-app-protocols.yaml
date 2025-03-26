@@ -1,4 +1,4 @@
-# Ingresses without the mapping-strategy annotation should create endpoints instead of edges
+# Ingresses with service that has app protocols
 input:
   ingressClasses:
   - apiVersion: networking.k8s.io/v1
@@ -18,6 +18,8 @@ input:
     metadata:
       name: test-ingress-1
       namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
     spec:
       ingressClassName: ngrok
       rules:
@@ -150,7 +152,7 @@ expected:
             - type: custom-response
               config:
                 status_code: 404
-                content: "No route was found for this ngrok Cloud Endpoint"
+                content: "No route was found for this ngrok Endpoint"
                 headers:
                   content-type: text/plain
   agentEndpoints:

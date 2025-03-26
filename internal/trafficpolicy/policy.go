@@ -21,6 +21,7 @@ const (
 	ActionType_ForwardInternal  ActionType = "forward-internal"
 	ActionType_JWTValidation    ActionType = "jwt-validation"
 	ActionType_Log              ActionType = "log"
+	ActionType_SetVars          ActionType = "set-vars"
 	ActionType_OAuth            ActionType = "oauth"
 	ActionType_OIDC             ActionType = "openid-connect"
 	ActionType_RateLimit        ActionType = "rate-limit"
@@ -43,6 +44,7 @@ func ActionTypes() []ActionType {
 		ActionType_ForwardInternal,
 		ActionType_JWTValidation,
 		ActionType_Log,
+		ActionType_SetVars,
 		ActionType_OAuth,
 		ActionType_OIDC,
 		ActionType_RateLimit,

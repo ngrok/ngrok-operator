@@ -113,11 +113,11 @@ func (t *translator) HTTPRouteToIR(
 		// We currently require this annotation to be present for an Ingress to be translated into CloudEndpoints/AgentEndpoints, otherwise the default behaviour is to
 		// translate it into HTTPSEdges (legacy). A future version will remove support for HTTPSEdges and translation into CloudEndpoints/AgentEndpoints will become the new
 		// default behaviour.
-		useEdges, err := annotations.ExtractUseEdges(gateway)
+		mappingStrategy, err := MappingStrategyAnnotationToIR(gateway)
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
-		if useEdges {
+		if mappingStrategy == ir.IRMappingStrategy_Edges {
 			t.log.Info(fmt.Sprintf("the Gateway and its HTTPRoutes will be provided by ngrok edges instead of endpoints because of the %q annotation",
 				annotations.MappingStrategyAnnotation),
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
@@ -243,6 +243,7 @@ func (t *translator) HTTPRouteToIR(
 					Metadata:               t.defaultGatewayMetadata,
 					Bindings:               bindings,
 					ClientCertRefs:         upstreamClientCertRefs,
+					MappingStrategy:        mappingStrategy,
 				}
 			}
 			irVHost.AddOwningResource(ir.OwningResource{

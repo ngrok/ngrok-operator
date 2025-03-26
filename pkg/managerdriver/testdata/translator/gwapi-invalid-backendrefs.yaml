@@ -14,7 +14,7 @@ input:
       name: test-gateway
       namespace: default
       annotations:
-        k8s.ngrok.com/mapping-strategy: "endpoints"
+        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
     spec:
       gatewayClassName: ngrok
       listeners:
@@ -127,7 +127,7 @@ expected:
                 - type: custom-response
                   config:
                     status_code: 404
-                    content: "No route was found for this ngrok Cloud Endpoint"
+                    content: "No route was found for this ngrok Endpoint"
                     headers:
                       content-type: text/plain
       url: https://test-hostname.ngrok.io
