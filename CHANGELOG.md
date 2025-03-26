@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.15.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.15.0...ngrok-operator-0.15.1
+
+### Changed
+- chore(deps): Upgrade go to 1.24.1 by @jonstacks in [#601](https://github.com/ngrok/ngrok-operator/pull/601)
+- chore(lint): Enable go-critic by @jonstacks in [#604](https://github.com/ngrok/ngrok-operator/pull/604)
+
+### Fixed
+- fix: HTTP/2 upstreams for edges & endpoints by @jonstacks in [#606](https://github.com/ngrok/ngrok-operator/pull/606). Fixes [#572](https://github.com/ngrok/ngrok-operator/issues/572).
+- fix: add support for https agent endpoints from ingress/gwapi by @Alice-Lilith in [#599](https://github.com/ngrok/ngrok-operator/pull/599)
+
 ## 0.15.0
 
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.14.3...ngrok-operator-0.15.0

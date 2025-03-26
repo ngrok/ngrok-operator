@@ -22,6 +22,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -59,7 +60,7 @@ func internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain
 
 		tlsHash := sha256.Sum256([]byte(tlsStr))
 		tlsHashHex := hex.EncodeToString(tlsHash[:])
-		tlsSuffix = fmt.Sprintf("tls-%s", tlsHashHex[:5])
+		tlsSuffix = fmt.Sprintf("mtls-%s", tlsHashHex[:5])
 	}
 
 	ret := fmt.Sprintf("%s-%s-%s",
@@ -102,7 +103,7 @@ func internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain 
 
 		tlsHash := sha256.Sum256([]byte(tlsStr))
 		tlsHashHex := hex.EncodeToString(tlsHash[:])
-		tlsSuffix = fmt.Sprintf("tls-%s", tlsHashHex[:5])
+		tlsSuffix = fmt.Sprintf("mtls-%s", tlsHashHex[:5])
 	}
 
 	if tlsSuffix != "" {
@@ -127,8 +128,9 @@ func internalAgentEndpointURL(serviceUID, serviceName, namespace, clusterDomain 
 }
 
 // internalAgentEndpointUpstreamURL builds a URL string for an internal AgentEndpoint's upstream url
-func internalAgentEndpointUpstreamURL(serviceName, namespace, clusterDomain string, port int32) string {
-	ret := fmt.Sprintf("http://%s.%s",
+func internalAgentEndpointUpstreamURL(serviceName, namespace, clusterDomain string, port int32, scheme ir.IRScheme) string {
+	ret := fmt.Sprintf("%s%s.%s",
+		string(scheme),
 		sanitizeStringForURL(serviceName),
 		sanitizeStringForURL(namespace),
 	)
@@ -194,19 +196,29 @@ func sanitizeStringForURL(s string) string {
 	return s
 }
 
-func getPortAppProtocol(service *corev1.Service, port *corev1.ServicePort) (string, error) {
+var knownApplicationProtocols = map[string]common.ApplicationProtocol{
+	"k8s.ngrok.com/http2": common.ApplicationProtocol_HTTP2,
+	"kubernetes.io/h2c":   common.ApplicationProtocol_HTTP2,
+	"http":                common.ApplicationProtocol_HTTP1,
+}
+
+func getPortAppProtocol(log logr.Logger, service *corev1.Service, port *corev1.ServicePort) *common.ApplicationProtocol {
 	if port.AppProtocol == nil {
-		return "", nil
+		return nil
 	}
 
-	switch proto := *port.AppProtocol; proto {
-	case "k8s.ngrok.com/http2", "kubernetes.io/h2c":
-		return "http2", nil
-	case "":
-		return "", nil
-	default:
-		return "", fmt.Errorf("unsupported appProtocol: '%s', must be 'k8s.ngrok.com/http2', 'kubernetes.io/h2c' or ''. From: %s service: %s", proto, service.Namespace, service.Name)
+	proto := *port.AppProtocol
+	if knownProto, ok := knownApplicationProtocols[proto]; ok {
+		return ptr.To(knownProto)
 	}
+
+	log.WithValues(
+		"namespace", service.Namespace,
+		"service", service.Name,
+		"service.appProtocol", proto,
+	).V(3).Info("Ignoring unknown appProtocol")
+
+	return nil
 }
 
 // Generates a labels map for matching ngrok Routes to Agent Tunnels
@@ -217,32 +229,6 @@ func ngrokLabels(namespace, serviceUID, serviceName string, port int32) map[stri
 		labelService:    serviceName,
 		labelPort:       strconv.Itoa(int(port)),
 	}
-}
-
-func getPortAnnotatedProtocol(log logr.Logger, service *corev1.Service, portName string) (string, error) {
-	if service.Annotations != nil {
-		annotation := service.Annotations["k8s.ngrok.com/app-protocols"]
-		if annotation != "" {
-			log.V(3).Info("Annotated app-protocols found", "annotation", annotation, "namespace", service.Namespace, "service", service.Name, "portName", portName)
-			m := map[string]string{}
-			err := json.Unmarshal([]byte(annotation), &m)
-			if err != nil {
-				return "", fmt.Errorf("could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
-			}
-
-			if protocol, ok := m[portName]; ok {
-				log.V(3).Info("Found protocol for port name", "protocol", protocol, "namespace", service.Namespace, "service", service.Name)
-				// only allow cases through where we are sure of intent
-				switch upperProto := strings.ToUpper(protocol); upperProto {
-				case "HTTP", "HTTPS":
-					return upperProto, nil
-				default:
-					return "", fmt.Errorf("unhandled protocol annotation: '%s', must be 'HTTP' or 'HTTPS'. From: %s service: %s", upperProto, service.Namespace, service.Name)
-				}
-			}
-		}
-	}
-	return "HTTP", nil
 }
 
 func findServicesPort(log logr.Logger, service *corev1.Service, backendSvcPort netv1.ServiceBackendPort) (*corev1.ServicePort, error) {
@@ -421,4 +407,44 @@ func doHostGlobsMatch(hostname1 string, hostname2 string) (bool, error) {
 	default:
 		return hostname1 == hostname2, nil
 	}
+}
+
+func protocolStringToIRScheme(proto string) (ir.IRScheme, error) {
+	switch strings.ToUpper(proto) {
+	case "HTTP":
+		return ir.IRScheme_HTTP, nil
+	case "HTTPS":
+		return ir.IRScheme_HTTPS, nil
+	default:
+		return ir.IRScheme_HTTP, fmt.Errorf("unable to get scheme for protocol %q, expected HTTP/HTTPS", proto)
+	}
+}
+
+func getProtoForServicePort(log logr.Logger, service *corev1.Service, portName string) (string, error) {
+	if service.Annotations != nil {
+		annotation := service.Annotations["k8s.ngrok.com/app-protocols"]
+		if annotation != "" {
+			log.Info("annotated app-protocols found", "annotation", annotation, "namespace", service.Namespace, "service", service.Name, "port name", portName)
+			protocolMap := map[string]string{}
+			err := json.Unmarshal([]byte(annotation), &protocolMap)
+			if err != nil {
+				return "", fmt.Errorf("could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
+			}
+
+			if protocol, ok := protocolMap[portName]; ok {
+				log.V(3).Info("found protocol for port name", "protocol", protocol, "namespace", service.Namespace, "service", service.Name)
+				// only allow cases through where we are sure of intent
+				switch upperProto := strings.ToUpper(protocol); upperProto {
+				case "HTTP", "HTTPS":
+					return upperProto, nil
+				default:
+					log.Error(fmt.Errorf("service uses \"k8s.ngrok.com/app-protocols\" annotation to configure protocols, but a valid entry is missing for portName :%q. Port protocol will be inferred from the port name/number", portName), "missing protocol annotation entry for service",
+						"service", fmt.Sprintf("%s.%s", service.Name, service.Namespace),
+					)
+				}
+			}
+		}
+	}
+
+	return "HTTP", nil
 }

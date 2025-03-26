@@ -10,6 +10,7 @@ import (
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"golang.org/x/exp/slices"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -116,20 +117,13 @@ func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alph
 							Labels:          d.tunnelLabels(serviceName, servicePort),
 						},
 						Spec: ingressv1alpha1.TunnelSpec{
-							ForwardsTo: targetAddr,
-							Labels:     ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
+							AppProtocol: appProtocol,
+							ForwardsTo:  targetAddr,
+							Labels:      ngrokLabels(ingress.Namespace, serviceUID, serviceName, servicePort),
 							BackendConfig: &ingressv1alpha1.BackendConfig{
 								Protocol: protocol,
 							},
 						},
-					}
-					switch appProtocol {
-					case "http2":
-						proto := common.ApplicationProtocol_HTTP2
-						tunnel.Spec.AppProtocol = &proto
-					case "http1":
-						proto := common.ApplicationProtocol_HTTP1
-						tunnel.Spec.AppProtocol = &proto
 					}
 				}
 
@@ -167,9 +161,9 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 				// We only support service backends right now.
 				// TODO: support resource backends
 
-				//if path.Backend.Service == nil {
-				//	continue
-				//}
+				// if path.Backend.Service == nil {
+				//   continue
+				// }
 
 				serviceName := string(backendRef.Name)
 				serviceUID, servicePort, protocol, appProtocol, err := d.getTunnelBackendFromGateway(backendRef.BackendRef, httproute.Namespace)
@@ -189,20 +183,13 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 							Labels:          d.tunnelLabels(serviceName, servicePort),
 						},
 						Spec: ingressv1alpha1.TunnelSpec{
-							ForwardsTo: targetAddr,
-							Labels:     ngrokLabels(httproute.Namespace, serviceUID, serviceName, servicePort),
+							AppProtocol: appProtocol,
+							ForwardsTo:  targetAddr,
+							Labels:      ngrokLabels(httproute.Namespace, serviceUID, serviceName, servicePort),
 							BackendConfig: &ingressv1alpha1.BackendConfig{
 								Protocol: protocol,
 							},
 						},
-					}
-					switch appProtocol {
-					case "http2":
-						proto := common.ApplicationProtocol_HTTP2
-						tunnel.Spec.AppProtocol = &proto
-					case "http1":
-						proto := common.ApplicationProtocol_HTTP1
-						tunnel.Spec.AppProtocol = &proto
 					}
 				}
 
@@ -231,42 +218,31 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 	}
 }
 
-func (d *Driver) getTunnelBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, string, string, error) {
+func (d *Driver) getTunnelBackend(backendSvc netv1.IngressServiceBackend, namespace string) (string, int32, string, *common.ApplicationProtocol, error) {
 	service, servicePort, err := d.findBackendServicePort(backendSvc, namespace)
 	if err != nil {
-		return "", 0, "", "", err
+		return "", 0, "", nil, err
 	}
-
-	protocol, err := getPortAnnotatedProtocol(d.log, service, servicePort.Name)
-	if err != nil {
-		return "", 0, "", "", err
-	}
-
-	appProtocol, err := getPortAppProtocol(service, servicePort)
-	if err != nil {
-		return "", 0, "", "", err
-	}
-
-	return string(service.UID), servicePort.Port, protocol, appProtocol, nil
+	return d.getTunnelBackendCommon(service, servicePort)
 }
 
-func (d *Driver) getTunnelBackendFromGateway(backendRef gatewayv1.BackendRef, namespace string) (string, int32, string, string, error) {
+func (d *Driver) getTunnelBackendFromGateway(backendRef gatewayv1.BackendRef, namespace string) (string, int32, string, *common.ApplicationProtocol, error) {
 	service, servicePort, err := d.findBackendRefServicePort(backendRef, namespace)
 	if err != nil {
-		return "", 0, "", "", err
+		return "", 0, "", nil, err
 	}
 
-	protocol, err := getPortAnnotatedProtocol(d.log, service, servicePort.Name)
+	return d.getTunnelBackendCommon(service, servicePort)
+}
+
+func (d *Driver) getTunnelBackendCommon(svc *corev1.Service, port *corev1.ServicePort) (string, int32, string, *common.ApplicationProtocol, error) {
+	protocol, err := getProtoForServicePort(d.log, svc, port.Name)
 	if err != nil {
-		return "", 0, "", "", err
+		return "", 0, "", nil, err
 	}
 
-	appProtocol, err := getPortAppProtocol(service, servicePort)
-	if err != nil {
-		return "", 0, "", "", err
-	}
-
-	return string(service.UID), servicePort.Port, protocol, appProtocol, nil
+	appProtocol := getPortAppProtocol(d.log, svc, port)
+	return string(svc.UID), port.Port, protocol, appProtocol, nil
 }
 
 func (d *Driver) tunnelLabels(serviceName string, port int32) map[string]string {

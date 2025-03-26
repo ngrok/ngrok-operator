@@ -1,0 +1,215 @@
+# Ingresses without the mapping-strategy annotation should create endpoints instead of edges
+input:
+  ingressClasses:
+  - apiVersion: networking.k8s.io/v1
+    kind: IngressClass
+    metadata:
+      labels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: ngrok-operator
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+      name: ngrok
+    spec:
+      controller: k8s.ngrok.com/ingress-controller
+  ingresses:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: test-ingress-1
+      namespace: default
+    spec:
+      ingressClassName: ngrok
+      rules:
+        - host: test-ingresses.ngrok.io
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: test-service-1
+                    port:
+                      number: 80
+              - path: /unknown
+                pathType: Prefix
+                backend:
+                  service:
+                    name: test-service-1
+                    port:
+                      number: 8080
+              - path: /http2-1
+                pathType: Exact
+                backend:
+                  service:
+                    name: test-service-2
+                    port:
+                      number: 443
+              - path: /http2-2
+                pathType: Exact
+                backend:
+                  service:
+                    name: test-service-3
+                    port:
+                      number: 443
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: web
+        port: 80
+        protocol: TCP
+        appProtocol: http
+        targetPort: http
+      - name: http
+        port: 8080
+        protocol: TCP
+        appProtocol: unknown
+        targetPort: http
+      type: ClusterIP
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-2
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 443
+        protocol: TCP
+        appProtocol: kubernetes.io/h2c
+        targetPort: http
+      type: ClusterIP
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-3
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 443
+        protocol: TCP
+        appProtocol: k8s.ngrok.com/http2
+        targetPort: http
+      type: ClusterIP
+
+expected:
+  # Generated cloud endpoint should have the first traffic policy, but the second ingress will not be processed due to the
+  # traffic policy conflict
+  cloudEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: test-ingresses.ngrok.io
+      namespace: default
+    spec:
+      bindings:
+      - public
+      url: https://test-ingresses.ngrok.io
+      trafficPolicy:
+        policy:
+          on_http_request:
+          - name: Generated-Route
+            expressions:
+            - "req.url.path == '/http2-1'"
+            actions:
+            - type: forward-internal
+              config:
+                url: https://e3b0c-test-service-2-default-443.internal
+          - name: Generated-Route
+            expressions:
+            - "req.url.path == '/http2-2'"
+            actions:
+            - type: forward-internal
+              config:
+                url: https://e3b0c-test-service-3-default-443.internal
+          - name: Generated-Route
+            expressions:
+            - "req.url.path.startsWith('/unknown')"
+            actions:
+            - type: forward-internal
+              config:
+                url: https://e3b0c-test-service-1-default-8080.internal
+          - name: Generated-Route
+            expressions:
+            - "req.url.path.startsWith('/')"
+            actions:
+            - type: forward-internal
+              config:
+                url: https://e3b0c-test-service-1-default-80.internal
+          - name: Fallback-404
+            actions:
+            - type: custom-response
+              config:
+                status_code: 404
+                content: "No route was found for this ngrok Cloud Endpoint"
+                headers:
+                  content-type: text/plain
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-80
+      namespace: default
+    spec:
+      url: "https://e3b0c-test-service-1-default-80.internal"
+      upstream:
+        url: "http://test-service-1.default:80"
+        protocol: http1
+      bindings:
+      - "internal"
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-8080
+      namespace: default
+    spec:
+      url: "https://e3b0c-test-service-1-default-8080.internal"
+      upstream:
+        url: "http://test-service-1.default:8080"
+      bindings:
+      - "internal"
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-2-default-443
+      namespace: default
+    spec:
+      url: "https://e3b0c-test-service-2-default-443.internal"
+      upstream:
+        url: "http://test-service-2.default:443"
+        protocol: http2
+      bindings:
+      - "internal"
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-3-default-443
+      namespace: default
+    spec:
+      url: "https://e3b0c-test-service-3-default-443.internal"
+      upstream:
+        url: "http://test-service-3.default:443"
+        protocol: http2
+      bindings:
+      - "internal"

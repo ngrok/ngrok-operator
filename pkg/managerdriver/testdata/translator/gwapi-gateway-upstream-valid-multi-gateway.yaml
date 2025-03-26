@@ -77,9 +77,11 @@ input:
     metadata:
       name: test-service-1
       namespace: default
+      annotations:
+        k8s.ngrok.com/app-protocols: '{"https":"HtTpS"}'
     spec:
       ports:
-      - name: http
+      - name: https # https:// scheme from the above annotation
         port: 8080
         protocol: TCP
         targetPort: http
@@ -125,7 +127,7 @@ expected:
                 actions:
                   - type: forward-internal
                     config:
-                      url: "https://e3b0c-test-service-1-default-tls-96179-8080.internal"
+                      url: "https://e3b0c-test-service-1-default-mtls-96179-8080.internal"
               - name: Fallback-404
                 actions:
                 - type: custom-response
@@ -155,7 +157,7 @@ expected:
                 actions:
                   - type: forward-internal
                     config:
-                      url: "https://e3b0c-test-service-1-default-tls-3039d-8080.internal"
+                      url: "https://e3b0c-test-service-1-default-mtls-3039d-8080.internal"
               - name: Fallback-404
                 actions:
                 - type: custom-response
@@ -172,15 +174,15 @@ expected:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
-      name: e3b0c-test-service-1-default-tls-3039d-8080
+      name: e3b0c-test-service-1-default-mtls-3039d-8080
       namespace: default
     spec:
       clientCertificateRefs:
       - name: client-cert-secret-2
         namespace: default
-      url: "https://e3b0c-test-service-1-default-tls-3039d-8080.internal"
+      url: "https://e3b0c-test-service-1-default-mtls-3039d-8080.internal"
       upstream:
-        url: "http://test-service-1.default:8080"
+        url: "https://test-service-1.default:8080"
       bindings:
       - "internal"
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
@@ -189,14 +191,14 @@ expected:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
-      name: e3b0c-test-service-1-default-tls-96179-8080
+      name: e3b0c-test-service-1-default-mtls-96179-8080
       namespace: default
     spec:
       clientCertificateRefs:
       - name: client-cert-secret-1
         namespace: default
-      url: "https://e3b0c-test-service-1-default-tls-96179-8080.internal"
+      url: "https://e3b0c-test-service-1-default-mtls-96179-8080.internal"
       upstream:
-        url: "http://test-service-1.default:8080"
+        url: "https://test-service-1.default:8080"
       bindings:
       - "internal"

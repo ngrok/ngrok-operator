@@ -92,6 +92,10 @@ type KubernetesOperatorStatus struct {
 	// EnabledFeatures is the string representation of the features enabled for this Kubernetes Operator
 	// +kubebuilder:validation:Optional
 	EnabledFeatures string `json:"enabledFeatures,omitempty"`
+
+	// BindingsIngressEndpoint is the URL that the operator will use to talk
+	// to the ngrok edge when forwarding traffic for k8s-bound endpoints
+	BindingsIngressEndpoint string `json:"bindingsIngressEndpoint,omitempty"`
 }
 
 const (

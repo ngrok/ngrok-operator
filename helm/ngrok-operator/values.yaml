@@ -312,7 +312,6 @@ gateway:
 ## @section Kubernetes Bindings feature configuration
 ##
 ## @param bindings.enabled Whether to enable the Endpoint Bindings feature
-## @param bindings.description Description of this kubernetes binding in your ngrok account
 ## @param bindings.endpointSelectors List of cel expressions used to filter which kubernetes-bound endpoints should be projected into this cluster
 ## @param bindings.serviceAnnotations Annotations to add to projected services bound to an endpoint
 ## @param bindings.serviceLabels Labels to add to projected services bound to an endpoint
@@ -320,7 +319,6 @@ gateway:
 ##
 bindings:
   enabled: false # in-development
-  description: "Created by ngrok-operator"
   endpointSelectors:
   - "true"
   serviceAnnotations: {}

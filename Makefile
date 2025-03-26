@@ -189,9 +189,6 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
 		--set bindings.enabled=true \
-		--set bindings.name=k8s/dev-testing \
-		--set bindings.description="Example binding for dev testing" \
-		--set bindings.allowedURLs="{*}" \
 		&&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
@@ -212,10 +209,7 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=false \
-		--set bindings.name=$(E2E_BINDING_NAME) \
-		--set bindings.description="Example binding for CI e2e tests" \
-		--set bindings.allowedURLs='{*.e2e}' \
+		--set bindings.enabled=true \
 		--set bindings.serviceAnnotations.annotation1="val1" \
 		--set bindings.serviceAnnotations.annotation2="val2" \
 		--set bindings.serviceLabels.label1="val1"
@@ -251,7 +245,7 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 KUSTOMIZE_VERSION ?= v5.4.1
 CONTROLLER_TOOLS_VERSION ?= v0.14.0
 ENVTEST_VERSION ?= release-0.17
-GOLANGCI_LINT_VERSION ?= v1.60.3
+GOLANGCI_LINT_VERSION ?= v1.64.6
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.

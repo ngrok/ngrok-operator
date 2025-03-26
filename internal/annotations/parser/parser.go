@@ -241,11 +241,12 @@ func StringToURL(input string) (*url.URL, error) {
 		return nil, fmt.Errorf("%v is not a valid URL: %v", input, err)
 	}
 
-	if parsedURL.Scheme == "" {
+	switch {
+	case parsedURL.Scheme == "":
 		return nil, fmt.Errorf("url scheme is empty")
-	} else if parsedURL.Host == "" {
+	case parsedURL.Host == "":
 		return nil, fmt.Errorf("url host is empty")
-	} else if strings.Contains(parsedURL.Host, "..") {
+	case strings.Contains(parsedURL.Host, ".."):
 		return nil, fmt.Errorf("invalid url host")
 	}
 

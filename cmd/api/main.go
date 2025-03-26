@@ -282,11 +282,9 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
 	}
 
-	if opts.enableFeatureBindings {
-		// register the k8sop in the ngrok API
-		if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
-			return fmt.Errorf("unable to create KubernetesOperator: %w", err)
-		}
+	// register the k8sop in the ngrok API
+	if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
+		return fmt.Errorf("unable to create KubernetesOperator: %w", err)
 	}
 
 	// k8sResourceDriver is the driver that will be used to interact with the k8s resources for all controllers

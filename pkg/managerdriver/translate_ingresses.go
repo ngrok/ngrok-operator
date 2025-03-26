@@ -311,12 +311,30 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 			err,
 		)
 	}
+	portProto, err := getProtoForServicePort(t.log, service, servicePort.Name)
+	if err != nil {
+		// When this function errors we still get a valid default, so no need to return
+		t.log.Error(err, "error getting protocol for ingress backend service port")
+	}
+
+	irScheme, err := protocolStringToIRScheme(portProto)
+	if err != nil {
+		t.log.Error(err, "error getting scheme from port protocol for ingress backend service port",
+			"service", fmt.Sprintf("%s.%s", service.Name, service.Namespace),
+			"port name", servicePort.Name,
+			"port number", servicePort.Port,
+		)
+	}
+
+	appProtocol := getPortAppProtocol(t.log, service, servicePort)
 
 	irService := ir.IRService{
 		UID:       string(service.UID),
 		Name:      serviceName,
 		Namespace: ingress.Namespace,
 		Port:      servicePort.Port,
+		Scheme:    irScheme,
+		Protocol:  appProtocol,
 	}
 	owningResource := ir.OwningResource{
 		Kind:      "Ingress",

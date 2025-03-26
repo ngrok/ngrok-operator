@@ -384,9 +384,14 @@ func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *n
 
 	// Check if the Domain CRD already exists
 	domainObj := &ingressv1alpha1.Domain{}
-	if err := r.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: aep.Namespace}, domainObj); err != nil {
+
+	err = r.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: aep.Namespace}, domainObj)
+	if err == nil {
 		// Domain already exists
-		// TODO: might be out of date and need to be updated
+		if domainObj.Status.ID == "" {
+			// Domain is not ready yet
+			return ErrDomainCreating
+		}
 		return nil
 	}
 	if client.IgnoreNotFound(err) != nil {
@@ -395,7 +400,7 @@ func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *n
 		return err
 	}
 
-	// Create the Domain CRD
+	// Create the Domain CRD since it doesn't exist
 	newDomain := &ingressv1alpha1.Domain{
 		ObjectMeta: ctrl.ObjectMeta{
 			Name:      hyphenatedDomain,

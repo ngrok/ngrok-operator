@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 )
 
@@ -187,12 +188,24 @@ type IRService struct {
 	Name           string
 	Port           int32
 	ClientCertRefs []IRObjectRef
+	Scheme         IRScheme
+	Protocol       *common.ApplicationProtocol
 }
+
+type IRScheme string
+
+const (
+	IRScheme_HTTP  IRScheme = "http://"
+	IRScheme_HTTPS IRScheme = "https://"
+)
 
 type IRServiceKey string
 
 func (s IRService) Key() IRServiceKey {
 	key := fmt.Sprintf("%s/%s/%s/%d", s.UID, s.Namespace, s.Name, s.Port)
+	if s.Protocol != nil {
+		key += fmt.Sprintf("/%s", *s.Protocol)
+	}
 	for _, clientCertRef := range s.ClientCertRefs {
 		key += fmt.Sprintf("/%s.%s", clientCertRef.Name, clientCertRef.Namespace)
 	}
@@ -221,11 +234,12 @@ func (h *IRVirtualHost) SortRoutes() {
 
 		// 1. Compare Path.
 		// If only one route specifies a path, that route is more specific.
-		if mi.Path != nil && mj.Path == nil {
+		switch {
+		case mi.Path != nil && mj.Path == nil:
 			return true
-		} else if mi.Path == nil && mj.Path != nil {
+		case mi.Path == nil && mj.Path != nil:
 			return false
-		} else if mi.Path != nil && mj.Path != nil {
+		case mi.Path != nil && mj.Path != nil:
 			// Compare path type.
 			orderI := pathTypeOrder(*mi.PathType)
 			orderJ := pathTypeOrder(*mj.PathType)
@@ -244,11 +258,12 @@ func (h *IRVirtualHost) SortRoutes() {
 
 		// 2. Compare Headers.
 		// Routes with header matchers are more specific than those without.
-		if len(mi.Headers) > 0 && len(mj.Headers) == 0 {
+		switch {
+		case len(mi.Headers) > 0 && len(mj.Headers) == 0:
 			return true
-		} else if len(mi.Headers) == 0 && len(mj.Headers) > 0 {
+		case len(mi.Headers) == 0 && len(mj.Headers) > 0:
 			return false
-		} else if len(mi.Headers) > 0 && len(mj.Headers) > 0 {
+		case len(mi.Headers) > 0 && len(mj.Headers) > 0:
 			// Compare a normalized string representation.
 			hStrI := headersToString(mi.Headers)
 			hStrJ := headersToString(mj.Headers)
@@ -259,11 +274,12 @@ func (h *IRVirtualHost) SortRoutes() {
 
 		// 3. Compare Query Params.
 		// Routes with query param matchers are more specific than those without.
-		if len(mi.QueryParams) > 0 && len(mj.QueryParams) == 0 {
+		switch {
+		case len(mi.QueryParams) > 0 && len(mj.QueryParams) == 0:
 			return true
-		} else if len(mi.QueryParams) == 0 && len(mj.QueryParams) > 0 {
+		case len(mi.QueryParams) == 0 && len(mj.QueryParams) > 0:
 			return false
-		} else if len(mi.QueryParams) > 0 && len(mj.QueryParams) > 0 {
+		case len(mi.QueryParams) > 0 && len(mj.QueryParams) > 0:
 			qpStrI := queryParamsToString(mi.QueryParams)
 			qpStrJ := queryParamsToString(mj.QueryParams)
 			if qpStrI != qpStrJ {
@@ -273,11 +289,12 @@ func (h *IRVirtualHost) SortRoutes() {
 
 		// 4. Compare Method.
 		// Routes that specify an HTTP method are more specific than those that do not.
-		if mi.Method != nil && mj.Method == nil {
+		switch {
+		case mi.Method != nil && mj.Method == nil:
 			return true
-		} else if mi.Method == nil && mj.Method != nil {
+		case mi.Method == nil && mj.Method != nil:
 			return false
-		} else if mi.Method != nil && mj.Method != nil {
+		case mi.Method != nil && mj.Method != nil:
 			if *mi.Method != *mj.Method {
 				return *mi.Method < *mj.Method
 			}
