@@ -28,7 +28,9 @@ import (
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
+	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -369,6 +371,184 @@ var _ = Describe("Driver", func() {
 					Expect(foundTunnel.Spec.AppProtocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
 					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("https-service.app-proto-namespace.svc.cluster.local:443"))
 					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTPS"))
+				})
+			})
+		})
+
+		When("An ingress specifices a traffic policy", func() {
+			var (
+				c                   client.WithWatch
+				namespace           = "edge-tp-test-namespace"
+				httpService         *v1.Service
+				ingress             *netv1.Ingress
+				trafficPolicy       *ngrokv1alpha1.NgrokTrafficPolicy
+				foundHTTPEdges      *ingressv1alpha1.HTTPSEdgeList
+				foundAgentEndpoints *ngrokv1alpha1.AgentEndpointList
+				foundCloudEndpoints *ngrokv1alpha1.CloudEndpointList
+				ic                  = testutils.NewTestIngressClass("edge-tp-ingress-class", true, true)
+			)
+
+			BeforeEach(func() {
+				pol := trafficpolicy.NewTrafficPolicy()
+				pol.AddRuleOnHTTPRequest(trafficpolicy.Rule{
+					Name: "test-name",
+					Actions: []trafficpolicy.Action{
+						trafficpolicy.NewCompressResponseAction(nil),
+					},
+				})
+				rawPolicy, err := json.Marshal(pol)
+				Expect(err).ToNot(HaveOccurred())
+
+				trafficPolicy = &ngrokv1alpha1.NgrokTrafficPolicy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-policy",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+
+						Policy: rawPolicy,
+					},
+				}
+				httpService = &v1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "http-service",
+						Namespace: namespace,
+					},
+					Spec: v1.ServiceSpec{
+						Ports: []v1.ServicePort{
+							{
+								Port:       80,
+								Name:       "http",
+								TargetPort: intstr.FromInt(80),
+							},
+						},
+					},
+				}
+				ingress = &netv1.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-ingress",
+						Namespace: namespace,
+					},
+					Spec: netv1.IngressSpec{
+						IngressClassName: &ic.Name,
+						Rules: []netv1.IngressRule{
+							{
+								Host: "foo.ngrok.io",
+								IngressRuleValue: netv1.IngressRuleValue{
+									HTTP: &netv1.HTTPIngressRuleValue{
+										Paths: []netv1.HTTPIngressPath{
+											{
+												Path:     "/",
+												PathType: ptr.To(netv1.PathTypePrefix),
+												Backend: netv1.IngressBackend{
+													Service: &netv1.IngressServiceBackend{
+														Name: httpService.Name,
+														Port: netv1.ServiceBackendPort{
+															Name: httpService.Spec.Ports[0].Name,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+			})
+
+			JustBeforeEach(func() {
+				// Add the services and ingress to the fake client and the store
+				objs := []runtime.Object{&ic, trafficPolicy, httpService, ingress}
+				c = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+
+				for _, obj := range objs {
+					Expect(driver.store.Update(obj)).To(BeNil())
+				}
+
+				// Seed & Sync
+				Expect(driver.Seed(context.Background(), c)).To(Succeed())
+				Expect(driver.Sync(context.Background(), c)).To(Succeed())
+
+				// Find the HTTPSEdges in this namespace
+				foundHTTPEdges = &ingressv1alpha1.HTTPSEdgeList{}
+				Expect(c.List(context.Background(), foundHTTPEdges, client.InNamespace(namespace))).To(Succeed())
+
+				// Find the AgentEndpoints in this namespace
+				foundAgentEndpoints = &ngrokv1alpha1.AgentEndpointList{}
+				Expect(c.List(context.Background(), foundAgentEndpoints, client.InNamespace(namespace))).To(Succeed())
+
+				// Find the CloudEndpoints in this namespace
+				foundCloudEndpoints = &ngrokv1alpha1.CloudEndpointList{}
+				Expect(c.List(context.Background(), foundCloudEndpoints, client.InNamespace(namespace))).To(Succeed())
+			})
+
+			When("The the ingress is using the edges mapping strategy", func() {
+				BeforeEach(func() {
+					controller.AddAnnotations(ingress, map[string]string{
+						"k8s.ngrok.com/mapping-strategy": "edges",
+					})
+				})
+
+				It("Should only create an HTTPSEdge", func() {
+					Expect(len(foundHTTPEdges.Items)).To(Equal(1))
+					Expect(len(foundAgentEndpoints.Items)).To(Equal(0))
+					Expect(len(foundCloudEndpoints.Items)).To(Equal(0))
+				})
+
+				When("The traffic policy exists", func() {
+					BeforeEach(func() {
+						controller.AddAnnotations(ingress, map[string]string{
+							"k8s.ngrok.com/traffic-policy": trafficPolicy.Name,
+						})
+					})
+
+					It("Should use the traffic policy", func() {
+						edge := foundHTTPEdges.Items[0]
+						Expect(edge.Spec.Routes).To(HaveLen(1))
+
+						By("Having the traffic policy on all routes on the edge")
+						for _, route := range edge.Spec.Routes {
+							Expect(route.Policy).To(Equal(trafficPolicy.Spec.Policy))
+						}
+					})
+				})
+			})
+
+			When("The ingress is using the default mapping strategy", func() {
+
+				It("Should only create an AgentEndpoint", func() {
+					Expect(len(foundAgentEndpoints.Items)).To(Equal(1))
+					Expect(len(foundCloudEndpoints.Items)).To(Equal(0))
+					Expect(len(foundHTTPEdges.Items)).To(Equal(0))
+				})
+
+				When("The traffic policy exists", func() {
+					BeforeEach(func() {
+						controller.AddAnnotations(ingress, map[string]string{
+							"k8s.ngrok.com/traffic-policy": trafficPolicy.Name,
+						})
+					})
+
+					It("Should include the traffic policy", func() {
+						agentEndpoint := foundAgentEndpoints.Items[0]
+
+						pol, err := trafficpolicy.NewTrafficPolicyFromJSON(agentEndpoint.Spec.TrafficPolicy.Inline)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(pol.OnHTTPRequest).To(ContainElement(
+							trafficpolicy.Rule{
+								Name: "test-name",
+								Actions: []trafficpolicy.Action{
+									{
+										Type:   "compress-response",
+										Config: map[string]interface{}{},
+									},
+								},
+							},
+						))
+					})
 				})
 			})
 		})

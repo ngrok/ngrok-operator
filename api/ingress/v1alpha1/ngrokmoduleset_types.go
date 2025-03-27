@@ -64,8 +64,27 @@ type NgrokModuleSet struct {
 	Modules NgrokModuleSetModules `json:"modules,omitempty"`
 }
 
+func (ms *NgrokModuleSet) IsEmpty() bool {
+	if ms == nil {
+		return true
+	}
+
+	modules := ms.Modules
+	return modules.CircuitBreaker == nil &&
+		modules.Compression == nil &&
+		modules.Headers == nil &&
+		modules.IPRestriction == nil &&
+		modules.OAuth == nil &&
+		modules.Policy == nil &&
+		modules.OIDC == nil &&
+		modules.SAML == nil &&
+		modules.TLSTermination == nil &&
+		modules.MutualTLS == nil &&
+		modules.WebhookVerification == nil
+}
+
 func (ms *NgrokModuleSet) Merge(o *NgrokModuleSet) {
-	if o == nil {
+	if o.IsEmpty() { // Empty, nothing to merge
 		return
 	}
 

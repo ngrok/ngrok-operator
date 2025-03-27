@@ -21,6 +21,7 @@
           yq
           kyverno-chainsaw
         ];
+        CGO_ENABLED = "0";
       };
     }));
 }
