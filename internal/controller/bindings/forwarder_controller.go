@@ -32,6 +32,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -138,7 +139,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		return fmt.Errorf("operator does not have binding configuration")
 	}
 
-	if op.Spec.Binding.IngressEndpoint == nil {
+	if op.Status.BindingsIngressEndpoint == "" {
 		return fmt.Errorf("operator binding configuration does not have an ingress endpoint")
 	}
 
@@ -180,6 +181,11 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		return err
 	}
 
+	ingressEndpoint, err := getIngressEndpointWithFallback(op.Status.BindingsIngressEndpoint, log)
+	if err != nil {
+		log.Error(err, "failed to determine bindings ingress endpoint")
+	}
+
 	cnxnHandler := func(conn net.Conn) error {
 		defer conn.Close()
 
@@ -196,7 +202,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 		log.Info("Handling connnection")
 
-		ngrokConn, err := tlsDialer.Dial("tcp", *op.Spec.Binding.IngressEndpoint)
+		ngrokConn, err := tlsDialer.Dial("tcp", ingressEndpoint)
 		if err != nil {
 			log.Error(err, "failed to dial ingress endpoint")
 			return err
@@ -223,6 +229,29 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 	log.Info("Listening on port")
 
 	return r.BindingsDriver.Listen(int32(epb.Spec.Port), cnxnHandler)
+}
+
+func getIngressEndpointWithFallback(rawIngressEndpoint string, log logr.Logger) (string, error) {
+	if rawIngressEndpoint == "" {
+		err := fmt.Errorf("operator binding configuration does not have an ingress endpoint")
+		log.Error(err, "bindings ingress endpoint from status was empty")
+		return "", err
+	}
+
+	addrParts := strings.Split(rawIngressEndpoint, ":")
+	switch len(addrParts) {
+	case 1:
+		// didn't appear to have a port, assume 443
+		log.Info("ingress endpoint didn't seem to have a port, adding :443", "endpoint", rawIngressEndpoint)
+		return rawIngressEndpoint + ":443", nil
+	case 2:
+		// what we expect, do nothing
+		return rawIngressEndpoint, nil
+	default:
+		err := fmt.Errorf("couldn't parse binding ingress endpoint")
+		log.Error(err, "too many colons in ingress bindings endpoint", "endpoint", rawIngressEndpoint)
+		return "", err
+	}
 }
 
 func (r *ForwarderReconciler) delete(ctx context.Context, epb *bindingsv1alpha1.BoundEndpoint) error {
