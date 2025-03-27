@@ -43,3 +43,20 @@ func RemoveAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Objec
 	RemoveFinalizer(o)
 	return c.Update(ctx, o)
 }
+
+func AddAnnotations(o client.Object, annotations map[string]string) {
+	if o == nil || annotations == nil {
+		return
+	}
+
+	existing := o.GetAnnotations()
+	if existing == nil {
+		existing = make(map[string]string)
+	}
+
+	for k, v := range annotations {
+		existing[k] = v
+	}
+
+	o.SetAnnotations(existing)
+}
