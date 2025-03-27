@@ -606,7 +606,7 @@ func (d *Driver) getTrafficPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1a
 		return nil, err
 	}
 
-	if modSet == nil {
+	if modSet.IsEmpty() {
 		if trafficPolicy != nil {
 			return trafficPolicy.Spec.Policy, nil
 		}
