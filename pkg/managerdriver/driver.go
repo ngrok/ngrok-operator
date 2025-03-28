@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -186,6 +187,14 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 		httproutes := &gatewayv1.HTTPRouteList{}
 		err := client.List(ctx, httproutes)
 		return util.ToClientObjects(httproutes.Items), err
+	case *gatewayv1alpha2.TCPRoute:
+		tcpRoutes := &gatewayv1alpha2.TCPRouteList{}
+		err := client.List(ctx, tcpRoutes)
+		return util.ToClientObjects(tcpRoutes.Items), err
+	case *gatewayv1alpha2.TLSRoute:
+		tlsRoutes := &gatewayv1alpha2.TLSRouteList{}
+		err := client.List(ctx, tlsRoutes)
+		return util.ToClientObjects(tlsRoutes.Items), err
 	case *gatewayv1beta1.ReferenceGrant:
 		referenceGrants := &gatewayv1beta1.ReferenceGrantList{}
 		err := client.List(ctx, referenceGrants)
@@ -233,6 +242,8 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 // - IngressClasses
 // - Gateways
 // - HTTPRoutes
+// - TCPRoutes
+// - TLSRoutes
 // - ReferenceGrants
 // - Services
 // - Secrets
@@ -269,6 +280,8 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 			&gatewayv1.Gateway{},
 			&gatewayv1.GatewayClass{},
 			&gatewayv1.HTTPRoute{},
+			&gatewayv1alpha2.TCPRoute{},
+			&gatewayv1alpha2.TLSRoute{},
 			&gatewayv1beta1.ReferenceGrant{},
 		)
 	}
@@ -330,6 +343,20 @@ func (d *Driver) UpdateHTTPRoute(httproute *gatewayv1.HTTPRoute) (*gatewayv1.HTT
 	return d.store.GetHTTPRoute(httproute.Name, httproute.Namespace)
 }
 
+func (d *Driver) UpdateTCPRoute(tcpRoute *gatewayv1alpha2.TCPRoute) (*gatewayv1alpha2.TCPRoute, error) {
+	if err := d.store.Update(tcpRoute); err != nil {
+		return nil, err
+	}
+	return d.store.GetTCPRoute(tcpRoute.Name, tcpRoute.Namespace)
+}
+
+func (d *Driver) UpdateTLSRoute(tlsRoute *gatewayv1alpha2.TLSRoute) (*gatewayv1alpha2.TLSRoute, error) {
+	if err := d.store.Update(tlsRoute); err != nil {
+		return nil, err
+	}
+	return d.store.GetTLSRoute(tlsRoute.Name, tlsRoute.Namespace)
+}
+
 func (d *Driver) UpdateReferenceGrant(referenceGrant *gatewayv1beta1.ReferenceGrant) (*gatewayv1beta1.ReferenceGrant, error) {
 	if err := d.store.Update(referenceGrant); err != nil {
 		return nil, err
@@ -354,6 +381,14 @@ func (d *Driver) DeleteGateway(gateway *gatewayv1.Gateway) error {
 
 func (d *Driver) DeleteHTTPRoute(httproute *gatewayv1.HTTPRoute) error {
 	return d.store.Delete(httproute)
+}
+
+func (d *Driver) DeleteTCPRoute(tcpRoute *gatewayv1alpha2.TCPRoute) error {
+	return d.store.Delete(tcpRoute)
+}
+
+func (d *Driver) DeleteTLSRoute(tlsRoute *gatewayv1alpha2.TLSRoute) error {
+	return d.store.Delete(tlsRoute)
 }
 
 // Delete an ingress object given the NamespacedName
@@ -381,6 +416,22 @@ func (d *Driver) DeleteNamedHTTPRoute(n types.NamespacedName) error {
 	httproute.SetNamespace(n.Namespace)
 	httproute.SetName(n.Name)
 	return d.cacheStores.Delete(httproute)
+}
+
+func (d *Driver) DeleteNamedTCPRoute(n types.NamespacedName) error {
+	tcpRoute := &gatewayv1alpha2.TCPRoute{}
+	// set NamespacedName on the tcproute object
+	tcpRoute.SetNamespace(n.Namespace)
+	tcpRoute.SetName(n.Name)
+	return d.cacheStores.Delete(tcpRoute)
+}
+
+func (d *Driver) DeleteNamedTLSRoute(n types.NamespacedName) error {
+	tlsRoute := &gatewayv1alpha2.TLSRoute{}
+	// set NamespacedName on the tlsroute object
+	tlsRoute.SetNamespace(n.Namespace)
+	tlsRoute.SetName(n.Name)
+	return d.cacheStores.Delete(tlsRoute)
 }
 
 func (d *Driver) DeleteReferenceGrant(n types.NamespacedName) error {
@@ -1005,7 +1056,7 @@ func (d *Driver) handleURLRewriteFilter(filter *gatewayv1.HTTPURLRewriteFilter, 
 			return err
 		}
 	default:
-		d.log.Error(fmt.Errorf("Unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
+		d.log.Error(fmt.Errorf("unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
 		return nil
 	}
 	return nil

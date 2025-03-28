@@ -30,6 +30,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/internal/util"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 const defaultManagerName = "ngrok-ingress-controller"
@@ -42,6 +43,7 @@ var _ = Describe("Driver", func() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
+	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	BeforeEach(func() {
 		// create a fake logger to pass into the cachestore
