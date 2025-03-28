@@ -507,6 +507,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 			},
 		})
 
+		// We've added a new rule to the traffic policy, so we need to re-marshall it
+		rawPolicy, err = json.Marshal(tp)
+		if err != nil {
+			return objects, err
+		}
+
 		cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: svc.Name + "-",
