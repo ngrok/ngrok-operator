@@ -29,9 +29,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/go-logr/logr"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
+	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -52,6 +56,7 @@ var (
 	cfg       *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
+	driver    *managerdriver.Driver
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -94,6 +99,18 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	driver = managerdriver.NewDriver(
+		logr.New(logr.Discard().GetSink()),
+		scheme.Scheme,
+		testutils.DefaultControllerName,
+		types.NamespacedName{
+			Name:      "test-manager-name",
+			Namespace: "test-manager-namespace",
+		},
+		managerdriver.WithGatewayEnabled(true),
+		managerdriver.WithSyncAllowConcurrent(true),
+	)
+
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
 		Metrics: server.Options{
@@ -115,6 +132,8 @@ var _ = BeforeSuite(func() {
 		Client:   k8sManager.GetClient(),
 		Log:      logf.Log.WithName("controllers").WithName("TCPRoute"),
 		Recorder: k8sManager.GetEventRecorderFor("tcproute-controller"),
+		Scheme:   k8sManager.GetScheme(),
+		Driver:   driver,
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -122,6 +141,8 @@ var _ = BeforeSuite(func() {
 		Client:   k8sManager.GetClient(),
 		Log:      logf.Log.WithName("controllers").WithName("TLSRoute"),
 		Recorder: k8sManager.GetEventRecorderFor("tlsroute-controller"),
+		Scheme:   k8sManager.GetScheme(),
+		Driver:   driver,
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 

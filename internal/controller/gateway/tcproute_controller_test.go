@@ -26,6 +26,7 @@ package gateway
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -71,6 +72,18 @@ var _ = Describe("TCPRoute controller", func() {
 
 	AfterEach(func() {
 		ctx := context.Background()
+		hasTCPRoute := false
+		tcpRoutes := driver.GetStore().ListTCPRoutes()
+		for _, tcpRoute := range tcpRoutes {
+			if tcpRoute.Name == "test-tcproute" {
+				hasTCPRoute = true
+			}
+		}
+		Expect(len(tcpRoutes)).To(Equal(1))
+		Expect(hasTCPRoute).To(Equal(true))
 		Expect(k8sClient.Delete(ctx, testTCProute)).To(Succeed())
+		time.Sleep(time.Second * 3)
+		tcpRoutes = driver.GetStore().ListTCPRoutes()
+		Expect(len(tcpRoutes)).To(Equal(0))
 	})
 })
