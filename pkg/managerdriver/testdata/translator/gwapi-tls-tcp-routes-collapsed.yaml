@@ -1,0 +1,127 @@
+# Tests translation for a TLSRoute and TCPRoute that both get collapsed into an AgentEndpoint with no traffic policy
+# Since we aren't providing a mapping-strategy annotation, the default mapping-strategy should collapse them
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: tcp.ngrok.io-3
+      namespace: default
+    spec:
+      gatewayClassName: ngrok
+      addresses:
+      - type: Hostname
+        value: 3.tcp.ngrok.io
+      listeners:
+      - allowedRoutes:
+          namespaces:
+            from: Same
+        name: test-tls
+        port: 20183
+        protocol: TLS
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: tcp.ngrok.io-5
+      namespace: default
+    spec:
+      gatewayClassName: ngrok
+      addresses:
+      - type: Hostname
+        value: 5.tcp.ngrok.io
+      listeners:
+      - allowedRoutes:
+          namespaces:
+            from: Same
+        name: test-tcp
+        port: 24429
+        protocol: TCP
+  tcpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1alpha2
+    kind: TCPRoute
+    metadata:
+      name: example
+      namespace: default
+    spec:
+      parentRefs:
+        - name: tcp.ngrok.io-5
+      rules:
+        - backendRefs:
+            - name: test-service-tcp
+              port: 7000
+  tlsRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1alpha2
+    kind: TLSRoute
+    metadata:
+      name: example
+      namespace: default
+    spec:
+      parentRefs:
+        - name: tcp.ngrok.io-3
+      rules:
+        - backendRefs:
+            - name: test-service-tls
+              port: 9000
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-tcp
+      namespace: default
+    spec:
+      ports:
+      - name: tls
+        port: 7000
+        protocol: TCP
+        targetPort: tls
+      type: ClusterIP
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-tls
+      namespace: default
+    spec:
+      ports:
+      - name: tls
+        port: 9000
+        protocol: TCP
+        targetPort: tls
+      type: ClusterIP
+expected:
+  cloudEndpoints: []
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-tcp-default-7000
+      namespace: default
+    spec:
+      url: "tcp://5.tcp.ngrok.io:24429"
+      upstream:
+        url: "tcp://test-service-tcp.default:7000"
+      bindings:
+      - "public"
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-tls-default-9000
+      namespace: default
+    spec:
+      url: "tls://3.tcp.ngrok.io:20183"
+      upstream:
+        url: "tls://test-service-tls.default:9000"
+      bindings:
+      - "public"

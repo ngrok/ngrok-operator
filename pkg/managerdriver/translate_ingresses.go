@@ -141,7 +141,7 @@ func (t *translator) ingressToIR(
 		irVHost, exists := hostCache[ir.IRHostname(ruleHostname)]
 		if exists {
 			// If we already have a virtual host for this hostname, the traffic policy config must be the same as the one we are currently processing
-			if !reflect.DeepEqual(irVHost.TrafficPolicyObj, annotationTrafficPolicyRef) {
+			if !reflect.DeepEqual(irVHost.TrafficPolicyObjRef, annotationTrafficPolicyRef) {
 				t.log.Error(fmt.Errorf("different traffic policy annotations provided for the same hostname"),
 					"when using the same hostname across multiple ingresses, ensure that they do not use different traffic policies provided via annotations",
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
@@ -204,7 +204,7 @@ func (t *translator) ingressToIR(
 					Protocol: ir.IRProtocol_HTTPS,
 				},
 				TrafficPolicy:          ruleTrafficPolicy,
-				TrafficPolicyObj:       annotationTrafficPolicyRef,
+				TrafficPolicyObjRef:    annotationTrafficPolicyRef,
 				LabelsToAdd:            t.managedResourceLabels,
 				Routes:                 []*ir.IRRoute{},
 				DefaultDestination:     defaultDestination,
@@ -246,7 +246,7 @@ func (t *translator) ingressPathsToIR(ingress *netv1.Ingress, ruleHostname strin
 
 		pathType := netv1PathTypeToIR(t.log, pathMatch.PathType)
 		irRoutes = append(irRoutes, &ir.IRRoute{
-			MatchCriteria: ir.IRHTTPMatch{
+			HTTPMatchCriteria: &ir.IRHTTPMatch{
 				Path:     &pathMatch.Path,
 				PathType: &pathType,
 			},
@@ -314,7 +314,7 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 			err,
 		)
 	}
-	portProto, err := getProtoForServicePort(t.log, service, servicePort.Name)
+	portProto, err := getProtoForServicePort(t.log, service, servicePort.Name, ir.IRProtocol_HTTP)
 	if err != nil {
 		// When this function errors we still get a valid default, so no need to return
 		t.log.Error(err, "error getting protocol for ingress backend service port")
