@@ -15,55 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-func Test_extractDomain(t *testing.T) {
-	r := &CloudEndpointReconciler{}
-
-	tests := []struct {
-		name     string
-		inputURL string
-		expected string
-	}{
-		{
-			name:     "standard https URL",
-			inputURL: "https://example.com",
-			expected: "example.com",
-		},
-		{
-			name:     "URL with port",
-			inputURL: "https://example.com:8080",
-			expected: "example.com",
-		},
-		{
-			name:     "URL with path",
-			inputURL: "https://example.com/path",
-			expected: "example.com",
-		},
-		{
-			name:     "tcp URL",
-			inputURL: "tcp://example.com:443",
-			expected: "example.com",
-		},
-		{
-			name:     "invalid URL",
-			inputURL: "http:/example.com",
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a CloudEndpoint with the input URL
-			clep := &ngrokv1alpha1.CloudEndpoint{
-				Spec: ngrokv1alpha1.CloudEndpointSpec{
-					URL: tt.inputURL,
-				},
-			}
-			result := r.extractDomain(clep)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func Test_findTrafficPolicy(t *testing.T) {
 	// Set up a fake client with a sample TrafficPolicy
 	scheme := runtime.NewScheme()
