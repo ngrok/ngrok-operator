@@ -82,7 +82,7 @@ expected:
                 actions:
                   - type: forward-internal
                     config:
-                      url: "https://e3b0c-test-service-1-default-8080.internal"
+                      url: "http://e3b0c-test-service-1-default-8080.internal"
               - name: Fallback-404
                 actions:
                 - type: custom-response
@@ -102,7 +102,7 @@ expected:
       name: e3b0c-test-service-1-default-8080
       namespace: default
     spec:
-      url: "https://e3b0c-test-service-1-default-8080.internal"
+      url: "http://e3b0c-test-service-1-default-8080.internal"
       upstream:
         url: "http://test-service-1.default:8080"
       bindings:

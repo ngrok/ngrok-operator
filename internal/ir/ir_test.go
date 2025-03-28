@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"k8s.io/utils/ptr"
 )
 
 // --- Helper functions to create pointers ---
@@ -28,13 +29,13 @@ func TestSortRoutes(t *testing.T) {
 			name: "Path and PathType sorting: Exact vs Prefix",
 			routes: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/foo"),
 						PathType: pathTypePtr(IRPathType_Prefix),
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/bar"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
@@ -42,13 +43,13 @@ func TestSortRoutes(t *testing.T) {
 			},
 			expectedOrder: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/bar"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/foo"),
 						PathType: pathTypePtr(IRPathType_Prefix),
 					},
@@ -59,13 +60,13 @@ func TestSortRoutes(t *testing.T) {
 			name: "Longer paths before shorter paths",
 			routes: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/longer"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/short"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
@@ -73,13 +74,13 @@ func TestSortRoutes(t *testing.T) {
 			},
 			expectedOrder: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/longer"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/short"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
@@ -90,13 +91,13 @@ func TestSortRoutes(t *testing.T) {
 			name: "Lexicographical order for same path length and type",
 			routes: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/b"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/a"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
@@ -104,13 +105,13 @@ func TestSortRoutes(t *testing.T) {
 			},
 			expectedOrder: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/a"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/b"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
@@ -121,26 +122,26 @@ func TestSortRoutes(t *testing.T) {
 			name: "Header specificity: routes with headers come before those without",
 			routes: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Headers: []IRHeaderMatch{
 							{Name: "X-Test", Value: "foo", ValueType: IRStringValueType_Exact},
 						},
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{},
+					HTTPMatchCriteria: &IRHTTPMatch{},
 				},
 			},
 			expectedOrder: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Headers: []IRHeaderMatch{
 							{Name: "X-Test", Value: "foo", ValueType: IRStringValueType_Exact},
 						},
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{},
+					HTTPMatchCriteria: &IRHTTPMatch{},
 				},
 			},
 		},
@@ -148,26 +149,26 @@ func TestSortRoutes(t *testing.T) {
 			name: "Query param specificity: routes with query params come before those without",
 			routes: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						QueryParams: []IRQueryParamMatch{
 							{Name: "id", Value: "123", ValueType: IRStringValueType_Exact},
 						},
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{},
+					HTTPMatchCriteria: &IRHTTPMatch{},
 				},
 			},
 			expectedOrder: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						QueryParams: []IRQueryParamMatch{
 							{Name: "id", Value: "123", ValueType: IRStringValueType_Exact},
 						},
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{},
+					HTTPMatchCriteria: &IRHTTPMatch{},
 				},
 			},
 		},
@@ -175,22 +176,22 @@ func TestSortRoutes(t *testing.T) {
 			name: "Method specificity: routes with method come before those without",
 			routes: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Method: methodPtr(IRMethodMatch_Get),
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{},
+					HTTPMatchCriteria: &IRHTTPMatch{},
 				},
 			},
 			expectedOrder: []*IRRoute{
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Method: methodPtr(IRMethodMatch_Get),
 					},
 				},
 				{
-					MatchCriteria: IRHTTPMatch{},
+					HTTPMatchCriteria: &IRHTTPMatch{},
 				},
 			},
 		},
@@ -199,14 +200,14 @@ func TestSortRoutes(t *testing.T) {
 			routes: []*IRRoute{
 				// Route A: has path "/a", exact, no headers, no query, no method.
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/a"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
 				},
 				// Route B: has path "/a", exact, with headers.
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/a"),
 						PathType: pathTypePtr(IRPathType_Exact),
 						Headers: []IRHeaderMatch{
@@ -216,7 +217,7 @@ func TestSortRoutes(t *testing.T) {
 				},
 				// Route C: no path, with headers.
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Headers: []IRHeaderMatch{
 							{Name: "Y", Value: "2", ValueType: IRStringValueType_Exact},
 						},
@@ -224,13 +225,13 @@ func TestSortRoutes(t *testing.T) {
 				},
 				// Route D: no path, no headers, with method.
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Method: methodPtr(IRMethodMatch_Get),
 					},
 				},
 				// Route E: no path, no headers, no method.
 				{
-					MatchCriteria: IRHTTPMatch{},
+					HTTPMatchCriteria: &IRHTTPMatch{},
 				},
 			},
 			// Expected order:
@@ -241,7 +242,7 @@ func TestSortRoutes(t *testing.T) {
 			expectedOrder: []*IRRoute{
 				// Route B: has path "/a", exact, with headers.
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/a"),
 						PathType: pathTypePtr(IRPathType_Exact),
 						Headers: []IRHeaderMatch{
@@ -251,14 +252,14 @@ func TestSortRoutes(t *testing.T) {
 				},
 				// Route A: has path "/a", exact, no headers.
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Path:     stringPtr("/a"),
 						PathType: pathTypePtr(IRPathType_Exact),
 					},
 				},
 				// Then, among routes with no path, route with headers (C)
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Headers: []IRHeaderMatch{
 							{Name: "Y", Value: "2", ValueType: IRStringValueType_Exact},
 						},
@@ -266,13 +267,39 @@ func TestSortRoutes(t *testing.T) {
 				},
 				// Then, route with method (D)
 				{
-					MatchCriteria: IRHTTPMatch{
+					HTTPMatchCriteria: &IRHTTPMatch{
 						Method: methodPtr(IRMethodMatch_Get),
 					},
 				},
 				// Then, route with nothing (E)
 				{
-					MatchCriteria: IRHTTPMatch{},
+					HTTPMatchCriteria: &IRHTTPMatch{},
+				},
+			},
+		},
+		{
+			name: "Routes with no match criteria come last",
+			routes: []*IRRoute{
+
+				{
+					HTTPMatchCriteria: nil,
+				},
+				{
+					HTTPMatchCriteria: &IRHTTPMatch{
+						Path:     ptr.To("/test"),
+						PathType: ptr.To(IRPathType_Exact),
+					},
+				},
+			},
+			expectedOrder: []*IRRoute{
+				{
+					HTTPMatchCriteria: &IRHTTPMatch{
+						Path:     ptr.To("/test"),
+						PathType: ptr.To(IRPathType_Exact),
+					},
+				},
+				{
+					HTTPMatchCriteria: nil,
 				},
 			},
 		},

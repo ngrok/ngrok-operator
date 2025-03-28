@@ -25,8 +25,10 @@ type IRProtocol string
 const (
 	IRProtocol_HTTPS IRProtocol = "HTTPS"
 	IRProtocol_HTTP  IRProtocol = "HTTP"
+	IRProtocol_TCP   IRProtocol = "TCP"
+	IRProtocol_TLS   IRProtocol = "TLS"
 
-	// Note: TCP/TLS/UDP not currently supported
+	// Note: UDP not currently supported
 )
 
 type IRListener struct {
@@ -61,7 +63,7 @@ type IRVirtualHost struct {
 	// This traffic policy will apply to all routes under this hostname
 	TrafficPolicy *trafficpolicy.TrafficPolicy
 	// Reference to the object that the above traffic policy config was loaded from
-	TrafficPolicyObj *OwningResource
+	TrafficPolicyObjRef *OwningResource
 
 	// Routes define the various acceptance criteria for incoming traffic and what to do with it
 	Routes []*IRRoute
@@ -205,7 +207,7 @@ type IRQueryParamMatch struct {
 
 // IRRoute is a path match paired with a destination for requests with a matching path
 type IRRoute struct {
-	MatchCriteria IRHTTPMatch
+	HTTPMatchCriteria *IRHTTPMatch
 	// These traffic policies will apply to the route regardless of which destination is chosen.
 	// They are not intended to be terminating.
 	// This supports the per-route use-case such as adding/removing headers, etc. before routing
@@ -261,6 +263,8 @@ type IRScheme string
 const (
 	IRScheme_HTTP  IRScheme = "http://"
 	IRScheme_HTTPS IRScheme = "https://"
+	IRScheme_TCP   IRScheme = "tcp://"
+	IRScheme_TLS   IRScheme = "tls://"
 )
 
 type IRServiceKey string
@@ -293,8 +297,20 @@ type IRObjectRef struct {
 //  4. Method: Routes specifying a method come before those that don’t; otherwise, lex order.
 func (h *IRVirtualHost) SortRoutes() {
 	sort.SliceStable(h.Routes, func(i, j int) bool {
-		mi := h.Routes[i].MatchCriteria
-		mj := h.Routes[j].MatchCriteria
+		mi := h.Routes[i].HTTPMatchCriteria
+		mj := h.Routes[j].HTTPMatchCriteria
+
+		// Routes with no match critera should come last
+		// If both routes have no match criteria, leave them in the order they were in
+		if mi == nil && mj == nil {
+			return false // preserve original order
+		}
+		if mi == nil {
+			return false // i has no match criteria, j does => j should come first
+		}
+		if mj == nil {
+			return true // i has match criteria, j doesn't => i should come first
+		}
 
 		// 1. Compare Path.
 		// If only one route specifies a path, that route is more specific.

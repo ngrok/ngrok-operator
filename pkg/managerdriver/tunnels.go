@@ -296,13 +296,13 @@ func (d *Driver) getTunnelBackendFromGateway(backendRef gatewayv1.BackendRef, na
 }
 
 func (d *Driver) getTunnelBackendCommon(svc *corev1.Service, port *corev1.ServicePort) (string, int32, string, *common.ApplicationProtocol, error) {
-	protocol, err := getProtoForServicePort(d.log, svc, port.Name)
+	protocol, err := getProtoForServicePort(d.log, svc, port.Name, ir.IRProtocol_HTTP)
 	if err != nil {
 		return "", 0, "", nil, err
 	}
 
 	appProtocol := getPortAppProtocol(d.log, svc, port)
-	return string(svc.UID), port.Port, protocol, appProtocol, nil
+	return string(svc.UID), port.Port, string(protocol), appProtocol, nil
 }
 
 func (d *Driver) tunnelLabels(serviceName string, port int32) map[string]string {
