@@ -93,6 +93,90 @@ var _ = Describe("Store", func() {
 		})
 	})
 
+	var _ = Describe("GetGateway", func() {
+		Context("when the Gateway exists", func() {
+			BeforeEach(func() {
+				gw := testutils.NewGateway("test-gateway", "test-namespace")
+				Expect(store.Add(&gw)).To(BeNil())
+			})
+			It("returns the Gateway", func() {
+				gw, err := store.GetGateway("test-gateway", "test-namespace")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(gw.Name).To(Equal("test-gateway"))
+			})
+		})
+		Context("when the Gateway does not exist", func() {
+			It("returns an error", func() {
+				gw, err := store.GetGateway("does-not-exist", "does-not-exist")
+				Expect(err).To(HaveOccurred())
+				Expect(gw).To(BeNil())
+			})
+		})
+	})
+
+	var _ = Describe("GetHTTPRoute", func() {
+		Context("when the HTTPRoute exists", func() {
+			BeforeEach(func() {
+				r := testutils.NewHTTPRoute("test-httproute", "test-namespace")
+				Expect(store.Add(&r)).To(BeNil())
+			})
+			It("returns the HTTPRoute", func() {
+				r, err := store.GetHTTPRoute("test-httproute", "test-namespace")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(r.Name).To(Equal("test-httproute"))
+			})
+		})
+		Context("when the HTTPRoute does not exist", func() {
+			It("returns an error", func() {
+				r, err := store.GetHTTPRoute("does-not-exist", "does-not-exist")
+				Expect(err).To(HaveOccurred())
+				Expect(r).To(BeNil())
+			})
+		})
+	})
+
+	var _ = Describe("GetTLSRoute", func() {
+		Context("when the TLSRoute exists", func() {
+			BeforeEach(func() {
+				r := testutils.NewTLSRoute("test-tlsroute", "test-namespace")
+				Expect(store.Add(&r)).To(BeNil())
+			})
+			It("returns the TLSRoute", func() {
+				r, err := store.GetTLSRoute("test-tlsroute", "test-namespace")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(r.Name).To(Equal("test-tlsroute"))
+			})
+		})
+		Context("when the TLSRoute does not exist", func() {
+			It("returns an error", func() {
+				r, err := store.GetTLSRoute("does-not-exist", "does-not-exist")
+				Expect(err).To(HaveOccurred())
+				Expect(r).To(BeNil())
+			})
+		})
+	})
+
+	var _ = Describe("GetTCPRoute", func() {
+		Context("when the TCPRoute exists", func() {
+			BeforeEach(func() {
+				r := testutils.NewTCPRoute("test-tcproute", "test-namespace")
+				Expect(store.Add(&r)).To(BeNil())
+			})
+			It("returns the TCPRoute", func() {
+				r, err := store.GetTCPRoute("test-tcproute", "test-namespace")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(r.Name).To(Equal("test-tcproute"))
+			})
+		})
+		Context("when the TCPRoute does not exist", func() {
+			It("returns an error", func() {
+				r, err := store.GetTCPRoute("does-not-exist", "does-not-exist")
+				Expect(err).To(HaveOccurred())
+				Expect(r).To(BeNil())
+			})
+		})
+	})
+
 	var _ = Describe("GetNgrokIngressV1", func() {
 		Context("when the ngrok ingress exists", func() {
 			BeforeEach(func() {
@@ -151,6 +235,201 @@ var _ = Describe("Store", func() {
 			It("doesn't error", func() {
 				ics := store.ListNgrokIngressClassesV1()
 				Expect(len(ics)).To(Equal(0))
+			})
+		})
+	})
+
+	var _ = Describe("ListGateways", func() {
+		Context("when there are Gateways", func() {
+			BeforeEach(func() {
+				gw1 := testutils.NewGateway("gateway-1", "test-namespace")
+				Expect(store.Add(&gw1)).To(BeNil())
+				gw2 := testutils.NewGateway("gateway-2", "test-namespace")
+				Expect(store.Add(&gw2)).To(BeNil())
+				gw3 := testutils.NewGateway("gateway-3", "test-namespace")
+				Expect(store.Add(&gw3)).To(BeNil())
+			})
+			It("returns the Gateways", func() {
+				expectedNames := []string{
+					"gateway-1",
+					"gateway-2",
+					"gateway-3",
+				}
+				gws := store.ListGateways()
+				Expect(len(gws)).To(Equal(3))
+
+				for _, expectedName := range expectedNames {
+					found := false
+					for _, gw := range gws {
+						if gw.Name == expectedName {
+							found = true
+							break
+						}
+					}
+					Expect(found, true)
+				}
+			})
+		})
+		Context("when there are no Gateways", func() {
+			It("doesn't error", func() {
+				gws := store.ListGateways()
+				Expect(len(gws)).To(Equal(0))
+			})
+		})
+	})
+
+	var _ = Describe("ListHTTPRoutes", func() {
+		Context("when there are HTTPRoutes", func() {
+			BeforeEach(func() {
+				r1 := testutils.NewHTTPRoute("httproute-1", "test-namespace")
+				Expect(store.Add(&r1)).To(BeNil())
+				r2 := testutils.NewHTTPRoute("httproute-2", "test-namespace")
+				Expect(store.Add(&r2)).To(BeNil())
+				r3 := testutils.NewHTTPRoute("httproute-3", "test-namespace")
+				Expect(store.Add(&r3)).To(BeNil())
+			})
+			It("returns the HTTPRoutes", func() {
+				expectedNames := []string{
+					"httproute-1",
+					"httproute-2",
+					"httproute-3",
+				}
+				rs := store.ListHTTPRoutes()
+				Expect(len(rs)).To(Equal(3))
+
+				for _, expectedName := range expectedNames {
+					found := false
+					for _, r := range rs {
+						if r.Name == expectedName {
+							found = true
+							break
+						}
+					}
+					Expect(found, true)
+				}
+			})
+		})
+		Context("when there are no HTTPRoutes", func() {
+			It("doesn't error", func() {
+				rs := store.ListHTTPRoutes()
+				Expect(len(rs)).To(Equal(0))
+			})
+		})
+	})
+
+	var _ = Describe("ListTCPRoutes", func() {
+		Context("when there are TCPRoutes", func() {
+			BeforeEach(func() {
+				r1 := testutils.NewTCPRoute("tcproute-1", "test-namespace")
+				Expect(store.Add(&r1)).To(BeNil())
+				r2 := testutils.NewTCPRoute("tcproute-2", "test-namespace")
+				Expect(store.Add(&r2)).To(BeNil())
+				r3 := testutils.NewTCPRoute("tcproute-3", "test-namespace")
+				Expect(store.Add(&r3)).To(BeNil())
+			})
+			It("returns the TCPRoutes", func() {
+				expectedNames := []string{
+					"tcproute-1",
+					"tcproute-2",
+					"tcproute-3",
+				}
+				rs := store.ListTCPRoutes()
+				Expect(len(rs)).To(Equal(3))
+
+				for _, expectedName := range expectedNames {
+					found := false
+					for _, r := range rs {
+						if r.Name == expectedName {
+							found = true
+							break
+						}
+					}
+					Expect(found, true)
+				}
+			})
+		})
+		Context("when there are no TCPRoutes", func() {
+			It("doesn't error", func() {
+				rs := store.ListTCPRoutes()
+				Expect(len(rs)).To(Equal(0))
+			})
+		})
+	})
+
+	var _ = Describe("ListTLSRoutes", func() {
+		Context("when there are TLSRoutes", func() {
+			BeforeEach(func() {
+				r1 := testutils.NewTLSRoute("tlsroute-1", "test-namespace")
+				Expect(store.Add(&r1)).To(BeNil())
+				r2 := testutils.NewTLSRoute("tlsroute-2", "test-namespace")
+				Expect(store.Add(&r2)).To(BeNil())
+				r3 := testutils.NewTLSRoute("tlsroute-3", "test-namespace")
+				Expect(store.Add(&r3)).To(BeNil())
+			})
+			It("returns the TLSRoutes", func() {
+				expectedNames := []string{
+					"tlsroute-1",
+					"tlsroute-2",
+					"tlsroute-3",
+				}
+				rs := store.ListTLSRoutes()
+				Expect(len(rs)).To(Equal(3))
+
+				for _, expectedName := range expectedNames {
+					found := false
+					for _, r := range rs {
+						if r.Name == expectedName {
+							found = true
+							break
+						}
+					}
+					Expect(found, true)
+				}
+			})
+		})
+		Context("when there are no TLSRoutes", func() {
+			It("doesn't error", func() {
+				rs := store.ListTLSRoutes()
+				Expect(len(rs)).To(Equal(0))
+			})
+		})
+	})
+
+	var _ = Describe("ListReferenceGrants", func() {
+		Context("when there are ReferenceGrants", func() {
+			BeforeEach(func() {
+				r1 := testutils.NewReferenceGrant("grant-1", "test-namespace")
+				Expect(store.Add(&r1)).To(BeNil())
+				r2 := testutils.NewReferenceGrant("grant-2", "test-namespace")
+				Expect(store.Add(&r2)).To(BeNil())
+				r3 := testutils.NewReferenceGrant("grant-3", "test-namespace")
+				Expect(store.Add(&r3)).To(BeNil())
+			})
+			It("returns the ReferenceGrants", func() {
+				expectedNames := []string{
+					"grant-1",
+					"grant-2",
+					"grant-3",
+				}
+				rs := store.ListReferenceGrants()
+				Expect(len(rs)).To(Equal(3))
+
+				for _, expectedName := range expectedNames {
+					found := false
+					for _, r := range rs {
+						if r.Name == expectedName {
+							found = true
+							break
+						}
+					}
+					Expect(found, true)
+				}
+			})
+		})
+		Context("when there are no ReferenceGrants", func() {
+			It("doesn't error", func() {
+				rs := store.ListReferenceGrants()
+				Expect(len(rs)).To(Equal(0))
 			})
 		})
 	})

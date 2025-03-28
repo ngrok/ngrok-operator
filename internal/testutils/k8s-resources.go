@@ -9,6 +9,11 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
+
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 func NewTestIngressClass(name string, isDefault bool, isNgrok bool) netv1.IngressClass {
@@ -102,6 +107,118 @@ func NewDomainV1(name string, namespace string) ingressv1alpha1.Domain {
 		},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: name,
+		},
+	}
+}
+
+func NewGateway(name string, namespace string) gatewayv1.Gateway {
+	return gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "test-gatewayclass",
+			Listeners: []gatewayv1.Listener{
+				{
+					Name:     "http",
+					Port:     80,
+					Protocol: gatewayv1.HTTPProtocolType,
+				},
+			},
+		},
+	}
+}
+
+func NewHTTPRoute(name string, namespace string) gatewayv1.HTTPRoute {
+	return gatewayv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: gatewayv1.HTTPRouteSpec{
+			Rules: []gatewayv1.HTTPRouteRule{
+				{
+					Matches: []gatewayv1.HTTPRouteMatch{
+						{
+							Path: &gatewayv1.HTTPPathMatch{
+								Type:  ptr.To(gatewayv1.PathMatchPathPrefix),
+								Value: ptr.To("/"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func NewTLSRoute(name string, namespace string) gatewayv1alpha2.TLSRoute {
+	return gatewayv1alpha2.TLSRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: gatewayv1alpha2.TLSRouteSpec{
+			Rules: []gatewayv1alpha2.TLSRouteRule{
+				{
+					BackendRefs: []gatewayv1alpha2.BackendRef{
+						{
+							BackendObjectReference: gatewayv1alpha2.BackendObjectReference{
+								Name: "test-service",
+								Port: ptr.To(gatewayv1.PortNumber(8000)),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func NewTCPRoute(name string, namespace string) gatewayv1alpha2.TCPRoute {
+	return gatewayv1alpha2.TCPRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: gatewayv1alpha2.TCPRouteSpec{
+			Rules: []gatewayv1alpha2.TCPRouteRule{
+				{
+					BackendRefs: []gatewayv1alpha2.BackendRef{
+						{
+							BackendObjectReference: gatewayv1alpha2.BackendObjectReference{
+								Name: "tcp-service",
+								Port: ptr.To(gatewayv1.PortNumber(8000)),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func NewReferenceGrant(name string, namespace string) gatewayv1beta1.ReferenceGrant {
+	return gatewayv1beta1.ReferenceGrant{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: gatewayv1beta1.ReferenceGrantSpec{
+			From: []gatewayv1beta1.ReferenceGrantFrom{
+				{
+					Group:     "gateway.networking.k8s.io",
+					Kind:      "HTTPRoute",
+					Namespace: gatewayv1beta1.Namespace("other-namespace"),
+				},
+			},
+			To: []gatewayv1beta1.ReferenceGrantTo{
+				{
+					Group: "core",
+					Kind:  "Service",
+				},
+			},
 		},
 	}
 }
