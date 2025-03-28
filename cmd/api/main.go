@@ -718,6 +718,10 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ma
 			Region: opts.region,
 		}
 
+		// Set the description to whatever the user input
+		// in values.yaml
+		k8sOperator.Spec.Description = opts.description
+
 		features := []string{}
 		if opts.enableFeatureIngress {
 			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureIngress)
