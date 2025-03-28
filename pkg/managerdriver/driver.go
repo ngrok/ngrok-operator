@@ -125,6 +125,11 @@ func (d *Driver) WithNgrokMetadata(customNgrokMetadata map[string]string) *Drive
 	return d
 }
 
+// Useful for tests
+func (d *Driver) GetStore() store.Storer {
+	return d.store
+}
+
 func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[string]string) (string, error) {
 	metaData := make(map[string]string)
 	for k, v := range customNgrokMetadata {

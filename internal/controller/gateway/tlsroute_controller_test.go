@@ -26,6 +26,7 @@ package gateway
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -71,6 +72,18 @@ var _ = Describe("TLSRoute controller", func() {
 
 	AfterEach(func() {
 		ctx := context.Background()
+		hasTLSRoute := false
+		tlsRoutes := driver.GetStore().ListTLSRoutes()
+		for _, tlsRoute := range tlsRoutes {
+			if tlsRoute.Name == "test-tlsroute" {
+				hasTLSRoute = true
+			}
+		}
+		Expect(len(tlsRoutes)).To(Equal(1))
+		Expect(hasTLSRoute).To(Equal(true))
 		Expect(k8sClient.Delete(ctx, testTLSroute)).To(Succeed())
+		time.Sleep(time.Second * 3)
+		tlsRoutes = driver.GetStore().ListTLSRoutes()
+		Expect(len(tlsRoutes)).To(Equal(0))
 	})
 })
