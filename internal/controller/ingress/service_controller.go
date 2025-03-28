@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/ngrok-api-go/v7"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -41,6 +42,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
+	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -83,6 +85,7 @@ type ServiceReconciler struct {
 
 	IPPolicyResolver resolvers.IPPolicyResolver
 	SecretResolver   resolvers.SecretResolver
+	TCPAddresses     ngrokapi.TCPAddressesClient
 }
 
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -96,6 +99,10 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if r.SecretResolver == nil {
 		r.SecretResolver = resolvers.NewDefaultSecretResovler(mgr.GetClient())
+	}
+
+	if r.TCPAddresses == nil {
+		return errors.New("TCPAddresses client is required")
 	}
 
 	owns := []client.Object{
@@ -395,6 +402,24 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 	return requests
 }
 
+func (r *ServiceReconciler) clearComputedURLAnnotation(ctx context.Context, svc *corev1.Service) error {
+	a := svc.GetAnnotations()
+	delete(a, annotations.ComputedURLAnnotation)
+	svc.SetAnnotations(a)
+	return r.Client.Update(ctx, svc)
+}
+
+func (r *ServiceReconciler) tcpAddressIsReserved(ctx context.Context, hostport string) (bool, error) {
+	iter := r.TCPAddresses.List(&ngrok.Paging{})
+	for iter.Next(ctx) {
+		addr := iter.Item()
+		if addr.Addr == hostport {
+			return true, nil
+		}
+	}
+	return false, iter.Err()
+}
+
 // buildEndpoints creates a CloudEndpoint and an AgentEndpoint for the given LoadBalancer service. The CloudEndpoint
 // will serve as the public endpoint for the service where we attach the traffic policy if one exists, the AgentEndpoint will
 // serve as the internal endpoint.
@@ -466,6 +491,81 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		return objects, err
 	}
 
+	// Default to the listener endpoint URL, we'll compute this but only for tcp:// endpoints
+	// currently.
+	computedEndpointURL := listenerEndpointURL
+
+	if listenerEndpointURL == "tcp://" {
+		// The user has either not set a 'url' or 'domain' annotation, and desires a TCP endpoint.
+
+		// First, try to get the computed URL annotation. See the comment in the annotations package
+		// for more information on why we are temporarily doing this.
+		computedEndpointURL, err = annotations.ExtractComputedURL(svc)
+		if err != nil {
+			if !errors.IsMissingAnnotations(err) {
+				return objects, err
+			}
+			// We need to reserve a TCP address & update the service with the computed URL
+			addr, err := r.TCPAddresses.Create(ctx, &ngrok.ReservedAddrCreate{
+				Description: fmt.Sprintf("Reserved for %s/%s", svc.Namespace, svc.Name),
+				Metadata:    fmt.Sprintf(`{"namespace":"%s","name":"%s"}`, svc.Namespace, svc.Name),
+			})
+			if err != nil {
+				r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToReserveTCPAddr", err.Error())
+				return objects, err
+			}
+
+			// Update the service with the computed URL
+			computedEndpointURL = fmt.Sprintf("tcp://%s", addr.Addr)
+			a := svc.GetAnnotations()
+			if a == nil {
+				a = make(map[string]string)
+			}
+			a[annotations.ComputedURLAnnotation] = computedEndpointURL
+			svc.SetAnnotations(a)
+			if err := r.Client.Update(ctx, svc); err != nil {
+				return objects, err
+			}
+		} else {
+			// We have a computed URL, most likely from the url or domain not being set,
+			// implying the user wants a TCP address to be reserved. Let's use that, after
+			// verifying that it exists.
+			parsedURL, parseErr := url.Parse(computedEndpointURL)
+			if parseErr != nil {
+				r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToParseComputedURL", parseErr.Error())
+				// If we can't parse the URL, we need to clear the computed URL annotation
+				if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+					return objects, err
+				}
+				return objects, parseErr
+			}
+
+			if parsedURL.Scheme == "tcp" {
+				// Check that the Address is still reserved
+				reserved, err := r.tcpAddressIsReserved(ctx, parsedURL.Host)
+				if err != nil {
+					return objects, err
+				}
+				if !reserved {
+					r.Recorder.Event(svc, corev1.EventTypeWarning, "TCPAddrNotReserved", "The computed TCP address is not reserved, recomputing")
+					if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+						return objects, err
+					}
+				}
+			} else {
+				// The computed URL is not a TCP URL, so we also need to clear it
+				if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+					return objects, err
+				}
+			}
+		}
+	} else {
+		// We only store computed URLs for TCP endpoints right now, so we should clear it if it exists
+		if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+			return objects, err
+		}
+	}
+
 	switch mappingStrategy {
 	// For the default/collapse strategy, make a single AgentEndpoint
 	case ir.IRMappingStrategy_EndpointsCollapsed:
@@ -478,7 +578,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				},
 			},
 			Spec: ngrokv1alpha1.AgentEndpointSpec{
-				URL:      listenerEndpointURL,
+				URL:      computedEndpointURL,
 				Bindings: useBindings,
 				Upstream: ngrokv1alpha1.EndpointUpstream{
 					URL: fmt.Sprintf("tcp://%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
@@ -513,7 +613,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				},
 			},
 			Spec: ngrokv1alpha1.CloudEndpointSpec{
-				URL:            listenerEndpointURL,
+				URL:            computedEndpointURL,
 				Bindings:       useBindings,
 				PoolingEnabled: useEndpointPooling,
 				TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{

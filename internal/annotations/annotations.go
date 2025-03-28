@@ -35,6 +35,13 @@ import (
 )
 
 const (
+	// ComputedURLAnnotation is the annotation key for the computed URL of an endpoint.
+	// This is temporarily used by the Service controller to store reserved TCP addresses,
+	// while we work to add support for assigning TCP addresses to Cloud/Agent Endpoints
+	// when their URL is specified as 'tcp://', for example.
+	ComputedURLAnnotation = "k8s.ngrok.com/computed-url"
+	ComputedURLKey        = "computed-url"
+
 	// DeniedKeyName name of the key that contains the reason to deny a location
 	DeniedKeyName = "Denied"
 
@@ -221,4 +228,10 @@ func ExtractURL(obj client.Object) (string, error) {
 // an error.
 func ExtractDomain(obj client.Object) (string, error) {
 	return parser.GetStringAnnotation(DomainKey, obj)
+}
+
+// ExtractComputedURL extracts the computed URL from the annotation "k8s.ngrok.com/computed-url" if it is present. Otherwise, it returns
+// an error.
+func ExtractComputedURL(obj client.Object) (string, error) {
+	return parser.GetStringAnnotation(ComputedURLKey, obj)
 }
