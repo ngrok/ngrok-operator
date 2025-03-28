@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -84,6 +85,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	err = gatewayv1.Install(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+	err = gatewayv1alpha2.Install(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
 
@@ -105,6 +108,20 @@ var _ = BeforeSuite(func() {
 		Client:   k8sManager.GetClient(),
 		Log:      logf.Log.WithName("controllers").WithName("GatewayClass"),
 		Recorder: k8sManager.GetEventRecorderFor("gatewayclass-controller"),
+	}).SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = (&TCPRouteReconciler{
+		Client:   k8sManager.GetClient(),
+		Log:      logf.Log.WithName("controllers").WithName("TCPRoute"),
+		Recorder: k8sManager.GetEventRecorderFor("tcproute-controller"),
+	}).SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = (&TLSRouteReconciler{
+		Client:   k8sManager.GetClient(),
+		Log:      logf.Log.WithName("controllers").WithName("TLSRoute"),
+		Recorder: k8sManager.GetEventRecorderFor("tlsroute-controller"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
