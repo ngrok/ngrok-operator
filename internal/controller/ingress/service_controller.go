@@ -27,6 +27,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strconv"
 	"time"
@@ -459,20 +460,10 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		return objects, err
 	}
 
-	domain, err := parser.GetStringAnnotation("domain", svc)
+	listenerEndpointURL, err := r.getListenerURL(svc)
 	if err != nil {
-		if errors.IsMissingAnnotations(err) {
-			domain = ""
-		} else {
-			return objects, err
-		}
-	}
-
-	// If there is no domain annotation, use a TCP CloudEndpoint. ngrok will randomly assign a TCP address for us.
-	// However, if there is a domain annotation, use a TLS CloudEndpoint and specify the domain.
-	listenerEndpointURL := "tcp://"
-	if domain != "" {
-		listenerEndpointURL = fmt.Sprintf("tls://%s:443", domain)
+		r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToGetListenerURL", err.Error())
+		return objects, err
 	}
 
 	switch mappingStrategy {
@@ -553,6 +544,41 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 	return objects, nil
 }
 
+func (r *ServiceReconciler) getListenerURL(svc *corev1.Service) (string, error) {
+	urlAnnotation, err := annotations.ExtractURL(svc)
+	if err == nil {
+		return urlAnnotation, nil
+	}
+
+	if !errors.IsMissingAnnotations(err) {
+		return "", err
+	}
+
+	// Fallback to the using the deprecated domain annotation if the URL annotation is not present
+	domain, err := annotations.ExtractDomain(svc)
+	if err == nil {
+		msg := fmt.Sprintf(
+			"The '%s' annotation is deprecated and will be removed in a future release. Use the '%s' annotation instead",
+			annotations.DomainAnnotation,
+			annotations.URLAnnotation,
+		)
+		r.Recorder.Event(
+			svc,
+			corev1.EventTypeWarning,
+			"DeprecatedDomainAnnotation",
+			msg,
+		)
+		return fmt.Sprintf("tls://%s:443", domain), nil
+	}
+
+	if !errors.IsMissingAnnotations(err) {
+		return "", err
+	}
+
+	// No URL or domain annotation, assume TCP as the default
+	return "tcp://", nil
+}
+
 func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.Service) ([]client.Object, error) {
 	log := ctrl.LoggerFrom(ctx)
 
@@ -594,16 +620,18 @@ func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.
 		return objects, err
 	}
 
-	domain, err := parser.GetStringAnnotation("domain", svc)
+	listenerURL, err := r.getListenerURL(svc)
 	if err != nil {
-		if errors.IsMissingAnnotations(err) {
-			domain = ""
-		} else {
-			return objects, err
-		}
+		r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToGetListenerURL", err.Error())
+		return objects, err
 	}
 
-	if domain == "" { // No domain annotation, use TCP edge
+	parsedURL, err := url.Parse(listenerURL)
+	if err != nil {
+		return objects, err
+	}
+
+	if parsedURL.Scheme == "tcp" {
 		edge := &ingressv1alpha1.TCPEdge{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: svc.Name + "-",
@@ -642,7 +670,7 @@ func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.
 					Labels: backendLabels,
 				},
 				Hostports: []string{
-					fmt.Sprintf("%s:443", domain),
+					fmt.Sprintf("%s:443", parsedURL.Hostname()),
 				},
 			},
 		}
