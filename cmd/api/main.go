@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -67,6 +68,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -79,6 +81,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(gatewayv1beta1.Install(scheme))
+	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
@@ -195,6 +198,8 @@ func startOperator(ctx context.Context, opts managerOpts) error {
 		return fmt.Errorf("unable to create k8s client: %w", err)
 	}
 
+	tlsRouteCRDInstalled := false
+	tcpRouteCRDInstalled := false
 	// Unless we are fully opting-out of GWAPI support, check if the CRDs are installed. If not, disable GWAPI support
 	if opts.enableFeatureGateway {
 		discoveryClient, err := discovery.NewDiscoveryClientForConfig(k8sConfig)
@@ -217,6 +222,41 @@ func startOperator(ctx context.Context, opts managerOpts) error {
 		if !gatewayAPIGroupInstalled {
 			setupLog.Info("Gateway API CRDs not detected, Gateway feature set will be disabled")
 			opts.enableFeatureGateway = false
+		} else {
+			// Check for optional TLSRoute/TCPRoute CRDs. They are in the experimental channel but not the standard channel, so depending on
+			// which set of the Gateway API CRDs the user installed, we may or may not need to enable support for them.
+			resourceList, err := discoveryClient.ServerResourcesForGroupVersion("gateway.networking.k8s.io/v1alpha2")
+			if err != nil {
+				setupLog.Error(err, "unable to check if TLSRoute/TCPRoute CRDs are installed, support for them will not be enabled")
+			}
+
+			for _, r := range resourceList.APIResources {
+				if strings.EqualFold(r.Name, "TLSRoutes") {
+					tlsRouteCRDInstalled = true
+					continue
+				}
+				if strings.EqualFold(r.Name, "TCPRoutes") {
+					tcpRouteCRDInstalled = true
+					continue
+				}
+				// If we found both, no need to check other resources
+				if tcpRouteCRDInstalled && tlsRouteCRDInstalled {
+					break
+				}
+			}
+
+			if tcpRouteCRDInstalled {
+				setupLog.Info("TCPRoute CRD detected, enabling TCPRoute support")
+			} else {
+				setupLog.Info("TCPRoute CRD not detected, disabling TCPRoute support. If you would like to use TCPRoute, make sure they are installed using the experimental CRD channel when installing the Gateway API CRDs")
+			}
+
+			if tlsRouteCRDInstalled {
+				setupLog.Info("TLSRoute CRD detected, enabling TLSRoute support")
+			} else {
+				setupLog.Info("TLSRoute CRD not detected, disabling TLSRoute support. If you would like to use TLSRoutes, make sure they are installed using the experimental CRD channel when installing the Gateway API CRDs")
+			}
+
 		}
 	}
 
@@ -235,7 +275,7 @@ func startOperator(ctx context.Context, opts managerOpts) error {
 		return runOneClickDemoMode(ctx, opts, k8sClient, mgr)
 	}
 
-	return runNormalMode(ctx, opts, k8sClient, mgr)
+	return runNormalMode(ctx, opts, k8sClient, mgr, tcpRouteCRDInstalled, tlsRouteCRDInstalled)
 }
 
 // runOneClickDemoMode runs the operator in a one-click demo mode, meaning:
@@ -276,7 +316,7 @@ func runOneClickDemoMode(ctx context.Context, opts managerOpts, k8sClient client
 }
 
 // runNormalMode runs the operator in normal operation mode
-func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Client, mgr ctrl.Manager) error {
+func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Client, mgr ctrl.Manager, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) error {
 	ngrokClientset, err := loadNgrokClientset(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
@@ -317,7 +357,7 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 
 	if opts.enableFeatureGateway {
 		setupLog.Info("Gateway feature set enabled")
-		if err := enableGatewayFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset); err != nil {
+		if err := enableGatewayFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, tcpRouteCRDInstalled, tlsRouteCRDInstalled); err != nil {
 			return fmt.Errorf("unable to enable Gateway feature set: %w", err)
 		}
 
@@ -588,7 +628,7 @@ func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 }
 
 // enableGatewayFeatureSet enables the Gateway feature set for the operator
-func enableGatewayFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, _ ngrokapi.Clientset) error {
+func enableGatewayFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, _ ngrokapi.Clientset, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) error {
 	if err := (&gatewaycontroller.GatewayClassReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("GatewayClass"),
@@ -619,6 +659,32 @@ func enableGatewayFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
 		os.Exit(1)
+	}
+
+	if tcpRouteCRDInstalled {
+		if err := (&gatewaycontroller.TCPRouteReconciler{
+			Client:   mgr.GetClient(),
+			Log:      ctrl.Log.WithName("controllers").WithName("TCPRoute"),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor("tcp-route"),
+			Driver:   driver,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "TCPRoute")
+			os.Exit(1)
+		}
+	}
+
+	if tlsRouteCRDInstalled {
+		if err := (&gatewaycontroller.TLSRouteReconciler{
+			Client:   mgr.GetClient(),
+			Log:      ctrl.Log.WithName("controllers").WithName("TLSRoute"),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor("tls-route"),
+			Driver:   driver,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "TLSRoute")
+			os.Exit(1)
+		}
 	}
 
 	// Even if we aren't using ReferenceGrants, watch namespaces for Gateway.Listeners.AllowedRoutes.Namespaces
