@@ -396,16 +396,17 @@ func (t *translator) TCPRouteToIR(
 	for irVHost := range vHostsMatchingRoute {
 		// Note: it would be more efficient to build the routes for the TCPRoute once, then apply them to all matching virtualHosts, but
 		// each Gateway can specify upstream client certificates, so the routes we build are dependent on the current Gateway
-		routeToAdd := t.tcpRouteRulesToIR(irVHost, tcpRoute, upstreamCache)
-		for _, destination := range routeToAdd.Destinations {
-			// Inherit all the virtual host's owning resources
-			if destination.Upstream != nil {
-				for _, owningResource := range irVHost.OwningResources {
-					destination.Upstream.AddOwningResource(owningResource)
+		if routeToAdd := t.tcpRouteRulesToIR(irVHost, tcpRoute, upstreamCache); routeToAdd != nil {
+			for _, destination := range routeToAdd.Destinations {
+				// Inherit all the virtual host's owning resources
+				if destination.Upstream != nil {
+					for _, owningResource := range irVHost.OwningResources {
+						destination.Upstream.AddOwningResource(owningResource)
+					}
 				}
 			}
+			irVHost.Routes = append(irVHost.Routes, routeToAdd)
 		}
-		irVHost.Routes = append(irVHost.Routes, routeToAdd)
 	}
 }
 
@@ -432,16 +433,18 @@ func (t *translator) TLSRouteToIR(
 	for irVHost := range vHostsMatchingRoute {
 		// Note: it would be more efficient to build the routes for the TLSRoute once, then apply them to all matching virtualHosts, but
 		// each Gateway can specify upstream client certificates, so the routes we build are dependent on the current Gateway
-		routeToAdd := t.tlsRouteRulesToIR(irVHost, tlsRoute, upstreamCache)
-		for _, destination := range routeToAdd.Destinations {
-			// Inherit all the virtual host's owning resources
-			if destination.Upstream != nil {
-				for _, owningResource := range irVHost.OwningResources {
-					destination.Upstream.AddOwningResource(owningResource)
+		// TODO: Alice, check nil
+		if routeToAdd := t.tlsRouteRulesToIR(irVHost, tlsRoute, upstreamCache); routeToAdd != nil {
+			for _, destination := range routeToAdd.Destinations {
+				// Inherit all the virtual host's owning resources
+				if destination.Upstream != nil {
+					for _, owningResource := range irVHost.OwningResources {
+						destination.Upstream.AddOwningResource(owningResource)
+					}
 				}
 			}
+			irVHost.Routes = append(irVHost.Routes, routeToAdd)
 		}
-		irVHost.Routes = append(irVHost.Routes, routeToAdd)
 	}
 }
 
@@ -462,7 +465,10 @@ func (t *translator) tcpRouteRulesToIR(irVHost *ir.IRVirtualHost, tcpRoute *gate
 			irRoute.Destinations = append(irRoute.Destinations, irDestination)
 		}
 	}
-	return irRoute
+	if len(irRoute.Destinations) > 0 {
+		return irRoute
+	}
+	return nil
 }
 
 func (t *translator) tlsRouteRulesToIR(irVHost *ir.IRVirtualHost, tlsRoute *gatewayv1alpha2.TLSRoute, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream) *ir.IRRoute {
@@ -481,7 +487,10 @@ func (t *translator) tlsRouteRulesToIR(irVHost *ir.IRVirtualHost, tlsRoute *gate
 			irRoute.Destinations = append(irRoute.Destinations, irDestination)
 		}
 	}
-	return irRoute
+	if len(irRoute.Destinations) > 0 {
+		return irRoute
+	}
+	return nil
 }
 
 func (t *translator) httpRouteRulesToIR(irVHost *ir.IRVirtualHost, httpRoute *gatewayv1.HTTPRoute, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream) []*ir.IRRoute {

@@ -303,6 +303,62 @@ func TestSortRoutes(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Routes with no match criteria come last (different initial order)",
+			routes: []*IRRoute{
+				{
+					HTTPMatchCriteria: &IRHTTPMatch{
+						Path:     ptr.To("/test"),
+						PathType: ptr.To(IRPathType_Exact),
+					},
+				},
+				{
+					HTTPMatchCriteria: nil,
+				},
+			},
+			expectedOrder: []*IRRoute{
+				{
+					HTTPMatchCriteria: &IRHTTPMatch{
+						Path:     ptr.To("/test"),
+						PathType: ptr.To(IRPathType_Exact),
+					},
+				},
+				{
+					HTTPMatchCriteria: nil,
+				},
+			},
+		},
+		{
+			name: "Routes with no match criteria come last (multiple with no match criteria)",
+			routes: []*IRRoute{
+				{
+					HTTPMatchCriteria: nil,
+				},
+				{
+					HTTPMatchCriteria: nil,
+				},
+				{
+					HTTPMatchCriteria: &IRHTTPMatch{
+						Path:     ptr.To("/test"),
+						PathType: ptr.To(IRPathType_Exact),
+					},
+				},
+			},
+			expectedOrder: []*IRRoute{
+				{
+					HTTPMatchCriteria: &IRHTTPMatch{
+						Path:     ptr.To("/test"),
+						PathType: ptr.To(IRPathType_Exact),
+					},
+				},
+				{
+					HTTPMatchCriteria: nil,
+				},
+				{
+					HTTPMatchCriteria: nil,
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {

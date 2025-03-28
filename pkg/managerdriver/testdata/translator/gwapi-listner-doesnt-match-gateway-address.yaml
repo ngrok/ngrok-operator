@@ -1,0 +1,68 @@
+# Tests that the following Gateway is discarded because one of the listeners does not match the address in the Gateway
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: test-gateway
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
+    spec:
+      gatewayClassName: ngrok
+      addresses:
+      - type: Hostname
+        value: foo.ngrok.io
+      listeners:
+        - name: test-hostname
+          hostname: "*.example.com" # Does not match Gateway address
+          port: 80
+          protocol: HTTPS
+  httpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: test-route
+      namespace: default
+    spec:
+      hostnames:
+      - foo.example.com
+      parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: test-gateway
+        namespace: default
+      rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /test-service-1
+        backendRefs:
+          - group: ""
+            kind: Service
+            name: test-service-1
+            port: 8080
+            weight: 1
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+expected:
+  cloudEndpoints: []
+  agentEndpoints: []
