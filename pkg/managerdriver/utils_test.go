@@ -6,7 +6,9 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/utils/ptr"
 )
 
 func TestHasDefaultManagedResourceLabels(t *testing.T) {
@@ -155,6 +157,8 @@ func TestBuildInternalEndpointURL(t *testing.T) {
 		serviceUID             string
 		expectedResult         string
 		upstreamClientCertRefs []ir.IRObjectRef
+		protocol               ir.IRProtocol
+		expectedErr            *string
 	}{
 		{
 			name:           "Normal case",
@@ -163,6 +167,7 @@ func TestBuildInternalEndpointURL(t *testing.T) {
 			clusterDomain:  "cluster.local",
 			port:           443,
 			serviceUID:     "1234",
+			protocol:       ir.IRProtocol_HTTPS,
 			expectedResult: "https://03ac6-service-default-cluster-local-443.internal",
 		},
 		{
@@ -172,6 +177,7 @@ func TestBuildInternalEndpointURL(t *testing.T) {
 			clusterDomain:  "domain-*",
 			port:           8080,
 			serviceUID:     "5678",
+			protocol:       ir.IRProtocol_HTTPS,
 			expectedResult: "https://f8638-service-wildcard-namespace-wildcard-domain-wildcard-8080.internal",
 		},
 		{
@@ -181,6 +187,7 @@ func TestBuildInternalEndpointURL(t *testing.T) {
 			clusterDomain:  "example.com",
 			port:           8081,
 			serviceUID:     "12X3D5U07876F12J3",
+			protocol:       ir.IRProtocol_HTTPS,
 			expectedResult: "https://08ad9-svc-ns-example-com-8081.internal",
 		},
 		{
@@ -190,6 +197,7 @@ func TestBuildInternalEndpointURL(t *testing.T) {
 			clusterDomain:  "",
 			port:           8081,
 			serviceUID:     "123456",
+			protocol:       ir.IRProtocol_HTTPS,
 			expectedResult: "https://8d969-svc-ns-8081.internal",
 		},
 		{
@@ -199,20 +207,65 @@ func TestBuildInternalEndpointURL(t *testing.T) {
 			clusterDomain:  "",
 			port:           8081,
 			serviceUID:     "123456",
+			protocol:       ir.IRProtocol_HTTPS,
 			expectedResult: "https://8d969-svc-ns-mtls-d025c-8081.internal",
 			upstreamClientCertRefs: []ir.IRObjectRef{{
 				Name:      "client-cert-secret",
 				Namespace: "secrets",
 			}},
 		},
+		{
+			name:           "TLS scheme",
+			serviceName:    "service",
+			namespace:      "default",
+			clusterDomain:  "cluster.local",
+			port:           9000,
+			serviceUID:     "1234",
+			protocol:       ir.IRProtocol_TLS,
+			expectedResult: "tls://03ac6-service-default-cluster-local.internal:9000",
+		},
+		{
+			name:           "TCP scheme",
+			serviceName:    "service",
+			namespace:      "default",
+			clusterDomain:  "cluster.local",
+			port:           8000,
+			serviceUID:     "1234",
+			protocol:       ir.IRProtocol_TCP,
+			expectedResult: "tcp://03ac6-service-default-cluster-local.internal:8000",
+		},
+		{
+			name:           "HTTP scheme",
+			serviceName:    "service",
+			namespace:      "default",
+			clusterDomain:  "cluster.local",
+			port:           8080,
+			serviceUID:     "1234",
+			protocol:       ir.IRProtocol_HTTP,
+			expectedResult: "http://03ac6-service-default-cluster-local-8080.internal",
+		},
+		{
+			name:          "Invalid scheme",
+			serviceName:   "service",
+			namespace:     "default",
+			clusterDomain: "cluster.local",
+			port:          8080,
+			serviceUID:    "1234",
+			protocol:      "invalid",
+			expectedErr:   ptr.To("unable to get scheme for protocol \"invalid\", expected HTTP/HTTPS/TCP/TLS"),
+		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := buildInternalEndpointURL(tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.upstreamClientCertRefs)
-			if result != tc.expectedResult {
-				t.Errorf("expected %s, got %s", tc.expectedResult, result)
+			result, err := buildInternalEndpointURL(tc.protocol, tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.upstreamClientCertRefs)
+			if tc.expectedErr != nil {
+				require.NotNil(t, err)
+				assert.Equal(t, *tc.expectedErr, err.Error())
+			} else {
+				require.Nil(t, err)
+				assert.Equal(t, tc.expectedResult, result)
 			}
 		})
 	}

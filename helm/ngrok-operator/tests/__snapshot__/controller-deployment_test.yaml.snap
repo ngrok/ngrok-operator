@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: bf32d6fa0abada9bb5046ee53c7c6ee7f6e79694115d2377dff6c002c0f6f06e
+        checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
         checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
       labels:
         app.kubernetes.io/component: controller
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: bf32d6fa0abada9bb5046ee53c7c6ee7f6e79694115d2377dff6c002c0f6f06e
+            checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
             checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -379,6 +379,42 @@ Should match all-options snapshot:
           - list
           - watch
       - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tcproutes
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tcproutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tlsroutes
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tlsroutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
           - domains
@@ -678,7 +714,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: bf32d6fa0abada9bb5046ee53c7c6ee7f6e79694115d2377dff6c002c0f6f06e
+        checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
         checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
       labels:
         app.kubernetes.io/component: controller
@@ -700,7 +736,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: bf32d6fa0abada9bb5046ee53c7c6ee7f6e79694115d2377dff6c002c0f6f06e
+            checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
             checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -1038,6 +1074,42 @@ Should match default snapshot:
         verbs:
           - get
           - list
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tcproutes
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tcproutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tlsroutes
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tlsroutes/status
+        verbs:
+          - get
+          - list
+          - update
           - watch
       - apiGroups:
           - ingress.k8s.ngrok.com

@@ -1,0 +1,189 @@
+# Tests translation for a TCPRoute and two Gateways. Each Gateway specifies a hostname and a TCP listener with a port.
+# This means we should get 2 cloud endpoints (2 hostnames * 1 ports for each hostname) and 2 agent endpoints for the upstream services
+# since we are providing a mapping-strategy annotation to perform the endpoints-verbose translation
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: test-gateway
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
+    spec:
+      gatewayClassName: ngrok
+      addresses:
+      - type: Hostname
+        value: test-hostname.ngrok.io
+      listeners:
+        - name: p9000
+          port: 9000
+          protocol: TCP
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: test-gateway-2
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
+    spec:
+      gatewayClassName: ngrok
+      addresses:
+      - type: Hostname
+        value: test-hostname-2.ngrok.io
+      listeners:
+        - name: p7000
+          port: 7000
+          protocol: TCP
+  tcpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1alpha2
+    kind: TCPRoute
+    metadata:
+      name: example-tcproute
+      namespace: default
+    spec:
+      hostnames:
+      - "*.ngrok.io"
+      parentRefs:
+        - name: test-gateway
+        - name: test-gateway-2
+      rules:
+        - backendRefs:
+            - name: test-service-1
+              port: 11000
+        - backendRefs:
+            - name: test-service-2
+              port: 12000
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: tcp
+        port: 11000
+        protocol: TCP
+        targetPort: tcp
+      type: ClusterIP
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-2
+      namespace: default
+    spec:
+      ports:
+      - name: tcp
+        port: 12000
+        protocol: TCP
+        targetPort: tcp
+      type: ClusterIP
+expected:
+  cloudEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: test-gateway.default.9000-test-hostname.ngrok.io
+      namespace: default
+    spec:
+      bindings:
+      - public
+      trafficPolicy:
+        policy:
+          on_tcp_connect:
+          - name: Gen-Random-Number
+            actions:
+            - type: set-vars
+              config:
+                vars:
+                - "weighted_route_random_num": "${rand.int(0,1)}"
+          - name: Generated-Route
+            expressions:
+            - "int(vars.weighted_route_random_num) <= 0"
+            actions:
+              - type: forward-internal
+                config:
+                  url: "tcp://e3b0c-test-service-1-default.internal:11000"
+          - name: Generated-Route
+            expressions:
+            - "int(vars.weighted_route_random_num) >= 1 && int(vars.weighted_route_random_num) <= 1"
+            actions:
+              - type: forward-internal
+                config:
+                  url: "tcp://e3b0c-test-service-2-default.internal:12000"
+      url: tcp://test-hostname.ngrok.io:9000
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: test-gateway-2.default.7000-test-hostname-2.ngrok.io
+      namespace: default
+    spec:
+      bindings:
+      - public
+      trafficPolicy:
+        policy:
+          on_tcp_connect:
+          - name: Gen-Random-Number
+            actions:
+            - type: set-vars
+              config:
+                vars:
+                - "weighted_route_random_num": "${rand.int(0,1)}"
+          - name: Generated-Route
+            expressions:
+            - "int(vars.weighted_route_random_num) <= 0"
+            actions:
+              - type: forward-internal
+                config:
+                  url: "tcp://e3b0c-test-service-1-default.internal:11000"
+          - name: Generated-Route
+            expressions:
+            - "int(vars.weighted_route_random_num) >= 1 && int(vars.weighted_route_random_num) <= 1"
+            actions:
+              - type: forward-internal
+                config:
+                  url: "tcp://e3b0c-test-service-2-default.internal:12000"
+      url: tcp://test-hostname-2.ngrok.io:7000
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-11000
+      namespace: default
+    spec:
+      url: "tcp://e3b0c-test-service-1-default.internal:11000"
+      upstream:
+        url: "tcp://test-service-1.default:11000"
+      bindings:
+      - "internal"
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-2-default-12000
+      namespace: default
+    spec:
+      url: "tcp://e3b0c-test-service-2-default.internal:12000"
+      upstream:
+        url: "tcp://test-service-2.default:12000"
+      bindings:
+      - "internal"

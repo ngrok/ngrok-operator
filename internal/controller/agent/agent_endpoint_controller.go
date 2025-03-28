@@ -366,6 +366,11 @@ func (r *AgentEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 
 // ensureDomainExists checks if the Domain CRD exists, and if not, creates it.
 func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) error {
+	// Don't try to register a domain for TLS and TCP endpoints
+	if strings.HasPrefix(aep.Spec.URL, "tls://") || strings.HasPrefix(aep.Spec.URL, "tcp://") {
+		return nil
+	}
+
 	parsedURL, err := tunneldriver.ParseAndSanitizeEndpointURL(aep.Spec.URL, true)
 	if err != nil {
 		r.Recorder.Event(aep, v1.EventTypeWarning, "InvalidURL", fmt.Sprintf("Failed to parse URL: %s", aep.Spec.URL))

@@ -310,6 +310,11 @@ func (r *CloudEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 
 // ensureDomainExists checks if the Domain CRD exists, and if not, creates it.
 func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) (*ingressv1alpha1.Domain, error) {
+	// Don't try to register a domain for TLS and TCP endpoints
+	if strings.HasPrefix(clep.Spec.URL, "tls://") || strings.HasPrefix(clep.Spec.URL, "tcp://") {
+		return nil, nil
+	}
+
 	domain := r.extractDomain(clep)
 	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domain)
 	if domainEndsInReservedTLD(domain) {
