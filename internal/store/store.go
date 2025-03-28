@@ -20,6 +20,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ngrok/ngrok-operator/internal/annotations"
@@ -54,6 +55,8 @@ type Storer interface {
 	GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error)
 	GetGateway(name string, namespace string) (*gatewayv1.Gateway, error)
 	GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error)
+	GetTCPRoute(name string, namespace string) (*gatewayv1alpha2.TCPRoute, error)
+	GetTLSRoute(name string, namespace string) (*gatewayv1alpha2.TLSRoute, error)
 
 	ListIngressClassesV1() []*netv1.IngressClass
 	ListNgrokIngressClassesV1() []*netv1.IngressClass
@@ -63,6 +66,8 @@ type Storer interface {
 
 	ListGateways() []*gatewayv1.Gateway
 	ListHTTPRoutes() []*gatewayv1.HTTPRoute
+	ListTCPRoutes() []*gatewayv1alpha2.TCPRoute
+	ListTLSRoutes() []*gatewayv1alpha2.TLSRoute
 	ListReferenceGrants() []*gatewayv1beta1.ReferenceGrant
 
 	ListDomainsV1() []*ingressv1alpha1.Domain
@@ -230,6 +235,28 @@ func (s Store) GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute
 	return obj.(*gatewayv1.HTTPRoute), nil
 }
 
+func (s Store) GetTCPRoute(name string, namespace string) (*gatewayv1alpha2.TCPRoute, error) {
+	obj, exists, err := s.stores.TCPRoute.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("TCPRoute %v not found", name))
+	}
+	return obj.(*gatewayv1alpha2.TCPRoute), nil
+}
+
+func (s Store) GetTLSRoute(name string, namespace string) (*gatewayv1alpha2.TLSRoute, error) {
+	obj, exists, err := s.stores.TLSRoute.GetByKey(getKey(name, namespace))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("TLSRoute %v not found", name))
+	}
+	return obj.(*gatewayv1alpha2.TLSRoute), nil
+}
+
 // GetReferenceGrant returns the named ReferenceGrant
 func (s Store) GetReferenceGrant(name, namespace string) (*gatewayv1beta1.ReferenceGrant, error) {
 	p, exists, err := s.stores.ReferenceGrant.GetByKey(getKey(name, namespace))
@@ -343,6 +370,36 @@ func (s Store) ListHTTPRoutes() []*gatewayv1.HTTPRoute {
 	}
 
 	return httproutes
+}
+
+func (s Store) ListTCPRoutes() []*gatewayv1alpha2.TCPRoute {
+	var tcpRoutes []*gatewayv1alpha2.TCPRoute
+
+	for _, item := range s.stores.TCPRoute.List() {
+		tcpRoute, ok := item.(*gatewayv1alpha2.TCPRoute)
+		if !ok {
+			s.log.Error(nil, "TCPRoute: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
+			continue
+		}
+		tcpRoutes = append(tcpRoutes, tcpRoute)
+	}
+
+	return tcpRoutes
+}
+
+func (s Store) ListTLSRoutes() []*gatewayv1alpha2.TLSRoute {
+	var tlsRoutes []*gatewayv1alpha2.TLSRoute
+
+	for _, item := range s.stores.TLSRoute.List() {
+		tlsRoute, ok := item.(*gatewayv1alpha2.TLSRoute)
+		if !ok {
+			s.log.Error(nil, "TLSRoute: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
+			continue
+		}
+		tlsRoutes = append(tlsRoutes, tlsRoute)
+	}
+
+	return tlsRoutes
 }
 
 // ListReferenceGrants returns the stored ReferenceGrants
