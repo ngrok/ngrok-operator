@@ -150,7 +150,7 @@ func validateMappingStrategies(irVHosts []*ir.IRVirtualHost) {
 				if collapsable, exists := collapsableServices[svcKey]; exists && collapsable {
 					// Keep track of the service that we are collapsing into so that we can adjust routing rules later for the "local" service and the others
 					irVHost.CollapseIntoServiceKey = &svcKey
-					return
+					continue
 				}
 			}
 		}
@@ -245,9 +245,12 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 
 		// Determine whether we are using a CloudEndpoint or AgentEndpoint to listen for requests
 		if irVHost.CollapseIntoServiceKey != nil {
-			if agentEndpoint, exists := agentEndpointCache[*irVHost.CollapseIntoServiceKey]; exists {
-				agentEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.TrafficPolicyCfg{
-					Inline: json.RawMessage(listenerPolicyJSON),
+			// If this is a collapsed AgentEndpoint, we might not need a traffic policy
+			if listenerTrafficPolicy != nil && !listenerTrafficPolicy.IsEmpty() {
+				if agentEndpoint, exists := agentEndpointCache[*irVHost.CollapseIntoServiceKey]; exists {
+					agentEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.TrafficPolicyCfg{
+						Inline: json.RawMessage(listenerPolicyJSON),
+					}
 				}
 			}
 		} else {
