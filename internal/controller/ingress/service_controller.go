@@ -1085,17 +1085,41 @@ func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
 				return c.Status().Update(ctx, svc)
 			}
 
-			domain, err := parser.GetStringAnnotation("domain", svc)
-			if err != nil {
-				if errors.IsMissingAnnotations(err) {
-					return clearIngressStatus(svc)
-				}
-				return err
-			}
+			hostname := ""
+			port := int32(443)
 
-			hostname := domain
-			if endpoint.Status.Domain != nil && endpoint.Status.Domain.CNAMETarget != nil {
-				hostname = *endpoint.Status.Domain.CNAMETarget
+			// Check if the computed URL is set, if so, let's parse and use it
+			computedURL, err := annotations.ExtractComputedURL(svc)
+			switch {
+			case err == nil:
+				// Let's parse out the host and port
+				targetURL, err := url.Parse(computedURL)
+				if err != nil {
+					return err
+				}
+				hostname = targetURL.Hostname()
+				if p := targetURL.Port(); p != "" {
+					x, err := strconv.ParseInt(p, 10, 32)
+					if err != nil {
+						return err
+					}
+					port = int32(x)
+				}
+			case !errors.IsMissingAnnotations(err): // Some other error
+				return err
+			default: // computedURL not present, fallback to the domain annotation
+				domain, err := parser.GetStringAnnotation("domain", svc)
+				if err != nil {
+					if errors.IsMissingAnnotations(err) {
+						return clearIngressStatus(svc)
+					}
+					return err
+				}
+
+				hostname = domain
+				if endpoint.Status.Domain != nil && endpoint.Status.Domain.CNAMETarget != nil {
+					hostname = *endpoint.Status.Domain.CNAMETarget
+				}
 			}
 
 			svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
@@ -1103,7 +1127,7 @@ func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
 					Hostname: hostname,
 					Ports: []corev1.PortStatus{
 						{
-							Port:     443,
+							Port:     port,
 							Protocol: corev1.ProtocolTCP,
 						},
 					},
