@@ -87,6 +87,21 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Update:   r.update,
 		Delete:   r.delete,
 		ErrResult: func(op controller.BaseControllerOp, cr *ngrokv1alpha1.CloudEndpoint, err error) (ctrl.Result, error) {
+			retryableErrors := []int{
+				// 18016 and 18017 are state based errors that can happen when endpoint pooling for a given URL
+				// disagrees with an already active endpoint with the same URL. Since this state can change in ngrok when moving
+				// between agent and cloud endpoints, we need to retry on this 400, instead of assuming its terminal like we
+				// do for other 400s.
+				//
+				// Ref:
+				//  * https://ngrok.com/docs/errors/err_ngrok_18016/
+				//  * https://ngrok.com/docs/errors/err_ngrok_18017/
+				18016,
+				18017,
+			}
+			if ngrok.IsErrorCode(err, retryableErrors...) {
+				return ctrl.Result{}, err
+			}
 			if errors.Is(err, ErrDomainCreating) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
