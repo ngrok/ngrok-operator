@@ -263,8 +263,9 @@ var _ = Describe("Driver", func() {
 				}
 				ingress = &netv1.Ingress{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-ingress",
-						Namespace: namespace,
+						Name:        "test-ingress",
+						Namespace:   namespace,
+						Annotations: map[string]string{"k8s.ngrok.com/mapping-strategy": "edges"},
 					},
 					Spec: netv1.IngressSpec{
 						IngressClassName: &ic.Name,
@@ -371,6 +372,16 @@ var _ = Describe("Driver", func() {
 					Expect(foundTunnel.Spec.AppProtocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
 					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("https-service.app-proto-namespace.svc.cluster.local:443"))
 					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTPS"))
+				})
+			})
+
+			When("The Ingress does not specify mapping-strategy: edges", func() {
+				BeforeEach(func() {
+					ingress.Annotations = map[string]string{} // Removing the edges annotation should cause the translation to be endpoints instead.
+				})
+
+				It("Should not have any tunnels", func() {
+					Expect(len(foundTunnels.Items)).To(Equal(0))
 				})
 			})
 		})

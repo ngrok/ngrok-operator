@@ -9,10 +9,13 @@ import (
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/annotations"
+	"github.com/ngrok/ngrok-operator/internal/ir"
 	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -91,6 +94,16 @@ func (d *Driver) calculateTunnels() map[tunnelKey]ingressv1alpha1.Tunnel {
 
 func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alpha1.Tunnel) {
 	for _, ingress := range d.store.ListNgrokIngressesV1() {
+
+		mappingStrategy, err := MappingStrategyAnnotationToIR(ingress)
+		if err != nil {
+			d.log.Error(err, fmt.Sprintf("failed to check %q annotation on ingress. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
+		}
+		if mappingStrategy != ir.IRMappingStrategy_Edges {
+			// No tunnels for anything other than edges
+			continue
+		}
+
 		for _, rule := range ingress.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
 				// We only support service backends right now.
@@ -154,8 +167,55 @@ func (d *Driver) calculateTunnelsFromIngress(tunnels map[tunnelKey]ingressv1alph
 
 func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alpha1.Tunnel) {
 	httproutes := d.store.ListHTTPRoutes()
+	gateways := d.store.ListGateways()
+	// Add all of the gateways to a map for efficient lookup
+	gatewayMap := make(map[types.NamespacedName]*gatewayv1.Gateway)
+	for _, gateway := range gateways {
+		gatewayMap[types.NamespacedName{
+			Name:      gateway.Name,
+			Namespace: gateway.Namespace,
+		}] = gateway
+	}
 
 	for _, httproute := range httproutes {
+		buildEdgesForHTTPRoute := false
+		for _, parentRef := range httproute.Spec.ParentRefs {
+
+			// Check matching Gateways for this HTTPRoute
+			// The controller already filters the resources based on our gateway class, so no need to check that here
+			refNamespace := string(httproute.Namespace)
+			if parentRef.Namespace != nil {
+				refNamespace = string(*parentRef.Namespace)
+			}
+
+			gatewayKey := types.NamespacedName{
+				Name:      string(parentRef.Name),
+				Namespace: refNamespace,
+			}
+			gateway, exists := gatewayMap[gatewayKey]
+			if !exists {
+				d.log.Error(fmt.Errorf("HTTPRoute parent ref not found"), "the HTTPRoute lists a Gateway parent ref that does not exist",
+					"httproute", fmt.Sprintf("%s.%s", httproute.Name, httproute.Namespace),
+					"parentRef", fmt.Sprintf("%s.%s", string(parentRef.Name), refNamespace),
+				)
+				continue
+			}
+
+			mappingStrategy, err := MappingStrategyAnnotationToIR(gateway)
+			if err != nil {
+				d.log.Error(err, fmt.Sprintf("failed to check %q annotation on ingress. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
+			}
+
+			if mappingStrategy == ir.IRMappingStrategy_Edges {
+				buildEdgesForHTTPRoute = true
+				break
+			}
+		}
+
+		// If there are no gateways for this HTTPRoute that have an edges mapping-strategy, then we can skip building tunnels for it
+		if !buildEdgesForHTTPRoute {
+			continue
+		}
 		for _, rule := range httproute.Spec.Rules {
 			for _, backendRef := range rule.BackendRefs {
 				// We only support service backends right now.
