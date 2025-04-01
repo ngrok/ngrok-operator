@@ -293,7 +293,6 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			// TODO: Alice, fix broken
 			When("The appProtocol is unknown", func() {
 				BeforeEach(func() {
 					// Set an unknown appProtocol on the httpService
@@ -322,7 +321,6 @@ var _ = Describe("Driver", func() {
 					setIngressTargetService(ingress, httpService)
 				})
 
-				// TODO: Alice, fix
 				It("Should create a tunnel with appProtocol http1", func() {
 					// We expect one tunnel to be created
 					Expect(len(foundTunnels.Items)).To(Equal(1))
@@ -344,7 +342,6 @@ var _ = Describe("Driver", func() {
 					setIngressTargetService(ingress, httpsService)
 				})
 
-				// TODO: Alice, fix
 				It("Should create a tunnel with appProtocol http2", func() {
 					// We expect one tunnel to be created
 					Expect(len(foundTunnels.Items)).To(Equal(1))
@@ -366,7 +363,6 @@ var _ = Describe("Driver", func() {
 					setIngressTargetService(ingress, httpsService)
 				})
 
-				// TODO: Alice fix
 				It("Should create a tunnel with appProtocol http2", func() {
 					// We expect one tunnel to be created
 					Expect(len(foundTunnels.Items)).To(Equal(1))
