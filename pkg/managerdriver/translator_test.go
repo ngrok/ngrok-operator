@@ -29,6 +29,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
@@ -62,6 +63,11 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			irVirtualHost: &ir.IRVirtualHost{
 				LabelsToAdd:      map[string]string{"label-app": "label-test"},
 				AnnotationsToAdd: map[string]string{"annotation-app": "annotation-test"},
+				Listener: ir.IRListener{
+					Hostname: "test-hostname.ngrok.io",
+					Port:     int32(443),
+					Protocol: ir.IRProtocol_HTTPS,
+				},
 			},
 			metadata:         "metadata-test",
 			expectedName:     "6ca13-test-service-default-cluster.local-8080",
@@ -80,6 +86,11 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			irVirtualHost: &ir.IRVirtualHost{
 				LabelsToAdd:      map[string]string{"label-app": "label-test"},
 				AnnotationsToAdd: map[string]string{"annotation-app": "annotation-test"},
+				Listener: ir.IRListener{
+					Hostname: "test-hostname.ngrok.io",
+					Port:     int32(443),
+					Protocol: ir.IRProtocol_HTTPS,
+				},
 			},
 			clusterDomain:    "custom.domain",
 			metadata:         "prod-metadata",
@@ -105,6 +116,11 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			irVirtualHost: &ir.IRVirtualHost{
 				LabelsToAdd:      map[string]string{"label-app": "label-test"},
 				AnnotationsToAdd: map[string]string{"annotation-app": "annotation-test"},
+				Listener: ir.IRListener{
+					Hostname: "test-hostname.ngrok.io",
+					Port:     int32(443),
+					Protocol: ir.IRProtocol_HTTPS,
+				},
 			},
 			clusterDomain:    "custom.domain",
 			metadata:         "prod-metadata",
@@ -117,7 +133,8 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			result := buildAgentEndpoint(tc.irVirtualHost, tc.irService, tc.clusterDomain, tc.metadata)
+			result, err := buildAgentEndpoint(tc.irVirtualHost, tc.irService, tc.clusterDomain, tc.metadata)
+			require.NoError(t, err)
 			assert.Equal(t, tc.expectedName, result.Name, "unexpected name for test case: %s", tc.name)
 			assert.Equal(t, tc.irService.Namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
 			assert.Equal(t, tc.irVirtualHost.LabelsToAdd, result.Labels, "unexpected labels for test case: %s", tc.name)
@@ -207,7 +224,8 @@ func TestBuildCloudEndpoint(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
-			result := buildCloudEndpoint(tc.irVHost)
+			result, err := buildCloudEndpoint(tc.irVHost)
+			require.NoError(t, err)
 			assert.Equal(t, tc.expectedName, result.Name, "unexpected name for test case")
 			assert.Equal(t, tc.irVHost.Namespace, result.Namespace, "unexpected namespace for test case")
 			assert.Equal(t, tc.irVHost.LabelsToAdd, result.Labels, "unexpected labels for test case")
@@ -286,6 +304,11 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 		{
 			name: "Default destination has an upstream service",
 			irVHost: &ir.IRVirtualHost{
+				Listener: ir.IRListener{
+					Hostname: "cloud-host",
+					Port:     443,
+					Protocol: ir.IRProtocol_HTTPS,
+				},
 				DefaultDestination: &ir.IRDestination{
 					Upstream: &ir.IRUpstream{
 						Service: ir.IRService{
@@ -293,6 +316,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 							Namespace: "default",
 							Name:      "test-service",
 							Port:      8080,
+							Scheme:    ir.IRScheme_HTTP,
 						},
 					},
 				},
@@ -332,8 +356,8 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 				defaultIngressMetadata: "test-metadata",
 			}
 
-			resultPolicy := translator.buildDefaultDestinationPolicy(tc.irVHost, tc.childEndpointCache)
-
+			resultPolicy, err := translator.buildDefaultDestinationPolicy(tc.irVHost, tc.childEndpointCache)
+			require.NoError(t, err)
 			assert.Equal(t, tc.expectedPolicy, resultPolicy, "unexpected policy for test case: %s", tc.name)
 
 			var cacheKeys []ir.IRServiceKey
@@ -432,6 +456,8 @@ type TranslatorRawTestCase struct {
 		GatewayClasses  []map[string]interface{} `yaml:"gatewayClasses"`
 		Gateways        []map[string]interface{} `yaml:"gateways"`
 		HTTPRoutes      []map[string]interface{} `yaml:"httpRoutes"`
+		TCPRoutes       []map[string]interface{} `yaml:"tcpRoutes"`
+		TLSRoutes       []map[string]interface{} `yaml:"tlsRoutes"`
 		IngressClasses  []map[string]interface{} `yaml:"ingressClasses"`
 		Ingresses       []map[string]interface{} `yaml:"ingresses"`
 		TrafficPolicies []map[string]interface{} `yaml:"trafficPolicies"`
@@ -454,6 +480,8 @@ type TranslatorTestCase struct {
 		GatewayClasses  []*gatewayv1.GatewayClass
 		Gateways        []*gatewayv1.Gateway
 		HTTPRoutes      []*gatewayv1.HTTPRoute
+		TCPRoutes       []*gatewayv1alpha2.TCPRoute
+		TLSRoutes       []*gatewayv1alpha2.TLSRoute
 		IngressClasses  []*netv1.IngressClass
 		Ingresses       []*netv1.Ingress
 		TrafficPolicies []*ngrokv1alpha1.NgrokTrafficPolicy
@@ -479,6 +507,7 @@ func TestTranslate(t *testing.T) {
 
 	utilruntime.Must(gatewayv1.Install(sch))
 	utilruntime.Must(gatewayv1beta1.Install(sch))
+	utilruntime.Must(gatewayv1alpha2.Install(sch))
 	utilruntime.Must(clientgoscheme.AddToScheme(sch))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(sch))
 	utilruntime.Must(corev1.AddToScheme(sch))
@@ -544,13 +573,15 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedCLEP.Spec.TrafficPolicyName, actualCLEP.Spec.TrafficPolicyName)
 				assert.Equal(t, expectedCLEP.Spec.PoolingEnabled, actualCLEP.Spec.PoolingEnabled)
 				if expectedCLEP.Spec.TrafficPolicy != nil {
-
+					require.NotNil(t, actualCLEP.Spec.TrafficPolicy)
 					expectedTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
 					require.NoError(t, json.Unmarshal(expectedCLEP.Spec.TrafficPolicy.Policy, expectedTrafficPolicyCfg))
 
 					actualTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
 					require.NoError(t, json.Unmarshal(actualCLEP.Spec.TrafficPolicy.Policy, actualTrafficPolicyCfg))
 					assert.Equal(t, expectedTrafficPolicyCfg, actualTrafficPolicyCfg)
+				} else {
+					assert.Nil(t, actualCLEP.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedCLEP.Spec.Description, actualCLEP.Spec.Description)
 				assert.Equal(t, expectedCLEP.Spec.Metadata, actualCLEP.Spec.Metadata)
@@ -569,6 +600,7 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedAE.Annotations, actualAE.Annotations)
 				assert.Equal(t, expectedAE.Spec.URL, actualAE.Spec.URL)
 				if expectedAE.Spec.TrafficPolicy != nil {
+					require.NotNil(t, actualAE.Spec.TrafficPolicy)
 					assert.Equal(t, expectedAE.Spec.TrafficPolicy.Reference, actualAE.Spec.TrafficPolicy.Reference)
 
 					expectedTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
@@ -583,6 +615,9 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedAE.Spec.Description, actualAE.Spec.Description)
 				assert.Equal(t, expectedAE.Spec.Metadata, actualAE.Spec.Metadata)
 				assert.Equal(t, expectedAE.Spec.Bindings, actualAE.Spec.Bindings)
+				assert.Equal(t, expectedAE.Spec.Upstream.Protocol, actualAE.Spec.Upstream.Protocol)
+				assert.Equal(t, expectedAE.Spec.Upstream.URL, actualAE.Spec.Upstream.URL)
+				assert.Equal(t, expectedAE.Spec.Upstream.ProxyProtocolVersion, actualAE.Spec.Upstream.ProxyProtocolVersion)
 			}
 
 		})
@@ -641,13 +676,15 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedCLEP.Spec.TrafficPolicyName, actualCLEP.Spec.TrafficPolicyName)
 				assert.Equal(t, expectedCLEP.Spec.PoolingEnabled, actualCLEP.Spec.PoolingEnabled)
 				if expectedCLEP.Spec.TrafficPolicy != nil {
-
+					require.NotNil(t, actualCLEP.Spec.TrafficPolicy)
 					expectedTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
 					require.NoError(t, json.Unmarshal(expectedCLEP.Spec.TrafficPolicy.Policy, expectedTrafficPolicyCfg))
 
 					actualTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
 					require.NoError(t, json.Unmarshal(actualCLEP.Spec.TrafficPolicy.Policy, actualTrafficPolicyCfg))
 					assert.Equal(t, expectedTrafficPolicyCfg, actualTrafficPolicyCfg)
+				} else {
+					assert.Nil(t, actualCLEP.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedCLEP.Spec.Description, actualCLEP.Spec.Description)
 				assert.Equal(t, expectedCLEP.Spec.Metadata, actualCLEP.Spec.Metadata)
@@ -660,11 +697,30 @@ func TestTranslate(t *testing.T) {
 					Namespace: expectedAE.Namespace,
 				}]
 				require.True(t, exists, "expected AgentEndpoint %s.%s to exist. actual agent endpoints: %v", expectedAE.Name, expectedAE.Namespace, result.AgentEndpoints)
-				require.Equal(t, expectedAE.Name, actualAE.Name)
-				require.Equal(t, expectedAE.Namespace, actualAE.Namespace)
-				require.Equal(t, expectedAE.Labels, actualAE.Labels)
-				require.Equal(t, expectedAE.Annotations, actualAE.Annotations)
-				require.Equal(t, expectedAE.Spec, actualAE.Spec)
+				assert.Equal(t, expectedAE.Name, actualAE.Name)
+				assert.Equal(t, expectedAE.Namespace, actualAE.Namespace)
+				assert.Equal(t, expectedAE.Labels, actualAE.Labels)
+				assert.Equal(t, expectedAE.Annotations, actualAE.Annotations)
+				assert.Equal(t, expectedAE.Spec.URL, actualAE.Spec.URL)
+				if expectedAE.Spec.TrafficPolicy != nil {
+					require.NotNil(t, actualAE.Spec.TrafficPolicy)
+					assert.Equal(t, expectedAE.Spec.TrafficPolicy.Reference, actualAE.Spec.TrafficPolicy.Reference)
+
+					expectedTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
+					require.NoError(t, json.Unmarshal(expectedAE.Spec.TrafficPolicy.Inline, expectedTrafficPolicyCfg))
+
+					actualTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
+					require.NoError(t, json.Unmarshal(actualAE.Spec.TrafficPolicy.Inline, actualTrafficPolicyCfg))
+					assert.Equal(t, expectedTrafficPolicyCfg, actualTrafficPolicyCfg)
+				} else {
+					assert.Nil(t, actualAE.Spec.TrafficPolicy)
+				}
+				assert.Equal(t, expectedAE.Spec.Description, actualAE.Spec.Description)
+				assert.Equal(t, expectedAE.Spec.Metadata, actualAE.Spec.Metadata)
+				assert.Equal(t, expectedAE.Spec.Bindings, actualAE.Spec.Bindings)
+				assert.Equal(t, expectedAE.Spec.Upstream.Protocol, actualAE.Spec.Upstream.Protocol)
+				assert.Equal(t, expectedAE.Spec.Upstream.URL, actualAE.Spec.Upstream.URL)
+				assert.Equal(t, expectedAE.Spec.Upstream.ProxyProtocolVersion, actualAE.Spec.Upstream.ProxyProtocolVersion)
 			}
 
 		})
@@ -681,6 +737,12 @@ func loadTranslatorInputObjs(t *testing.T, tc TranslatorTestCase) []runtime.Obje
 		inputObjects = append(inputObjects, obj)
 	}
 	for _, obj := range tc.Input.HTTPRoutes {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.TLSRoutes {
+		inputObjects = append(inputObjects, obj)
+	}
+	for _, obj := range tc.Input.TCPRoutes {
 		inputObjects = append(inputObjects, obj)
 	}
 	for _, obj := range tc.Input.ReferenceGrants {
@@ -744,6 +806,20 @@ func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) Tran
 		httpRoute, ok := obj.(*gatewayv1.HTTPRoute)
 		require.True(t, ok, "expected an HTTPRoute, got %T", obj)
 		tc.Input.HTTPRoutes = append(tc.Input.HTTPRoutes, httpRoute)
+	}
+	for _, rawObj := range rawTC.Input.TCPRoutes {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		tcpRoute, ok := obj.(*gatewayv1alpha2.TCPRoute)
+		require.True(t, ok, "expected a TCPRoute, got %T", obj)
+		tc.Input.TCPRoutes = append(tc.Input.TCPRoutes, tcpRoute)
+	}
+	for _, rawObj := range rawTC.Input.TLSRoutes {
+		obj, err := decodeViaScheme(sch, rawObj)
+		require.NoError(t, err)
+		tlsRoute, ok := obj.(*gatewayv1alpha2.TLSRoute)
+		require.True(t, ok, "expected a TLSRoute, got %T", obj)
+		tc.Input.TLSRoutes = append(tc.Input.TLSRoutes, tlsRoute)
 	}
 	for _, rawObj := range rawTC.Input.ReferenceGrants {
 		obj, err := decodeViaScheme(sch, rawObj)

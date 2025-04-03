@@ -1,0 +1,135 @@
+# Tests translation for a TLSRoute and Gateway where the TLSRoute has multiple backends.
+# Since we aren't providing a mapping-strategy annotation, the default behaviour should translate this into AgentEndpoints
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: test-gateway
+      namespace: default
+    spec:
+      gatewayClassName: ngrok
+      addresses:
+      - type: Hostname
+        value: test-hostname.ngrok.io
+      listeners:
+        - name: p9000
+          port: 9000
+          protocol: TLS
+        - name: p7000 # Nothing matches this, so it should not result in any endpoints
+          port: 7000
+          protocol: TLS
+  tlsRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1alpha2
+    kind: TLSRoute
+    metadata:
+      name: example-tlsroute
+      namespace: default
+    spec:
+      parentRefs:
+        - name: test-gateway
+          port: 9000 # Match a specific listener on the gateway and ignore the other
+      rules:
+        - backendRefs:
+            - name: test-service-1
+              port: 11000
+        - backendRefs:
+            - name: test-service-2
+              port: 12000
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: tls
+        port: 11000
+        protocol: TCP
+        targetPort: tls
+      type: ClusterIP
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-2
+      namespace: default
+    spec:
+      ports:
+      - name: tls
+        port: 12000
+        protocol: TCP
+        targetPort: tls
+      type: ClusterIP
+expected:
+  cloudEndpoints: []
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-2-default-12000
+      namespace: default
+    spec:
+      url: "tls://test-hostname.ngrok.io:9000"
+      upstream:
+        url: "tls://test-service-2.default:12000"
+      bindings:
+      - "public"
+      trafficPolicy:
+        inline:
+          on_tcp_connect:
+          - name: Initialize-Local-Service-Match
+            actions:
+            - type: set-vars
+              config:
+                vars:
+                - request_matched_local_svc: false
+          - name: Gen-Random-Number
+            expressions:
+            - "vars.request_matched_local_svc == false"
+            actions:
+            - type: set-vars
+              config:
+                vars:
+                - "weighted_route_random_num": "${rand.int(0,1)}"
+          - name: Generated-Route
+            expressions:
+            - vars.request_matched_local_svc == false
+            - "int(vars.weighted_route_random_num) <= 0"
+            actions:
+              - type: forward-internal
+                config:
+                  url: "tls://e3b0c-test-service-1-default.internal:11000"
+          - name: Generated-Local-Service-Route
+            expressions:
+            - vars.request_matched_local_svc == false
+            - "int(vars.weighted_route_random_num) >= 1 && int(vars.weighted_route_random_num) <= 1"
+            actions:
+              - type: set-vars
+                config:
+                  vars: 
+                  - request_matched_local_svc: true
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-11000
+      namespace: default
+    spec:
+      url: "tls://e3b0c-test-service-1-default.internal:11000"
+      upstream:
+        url: "tls://test-service-1.default:11000"
+      bindings:
+      - "internal"

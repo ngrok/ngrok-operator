@@ -150,7 +150,7 @@ func validateMappingStrategies(irVHosts []*ir.IRVirtualHost) {
 				if collapsable, exists := collapsableServices[svcKey]; exists && collapsable {
 					// Keep track of the service that we are collapsing into so that we can adjust routing rules later for the "local" service and the others
 					irVHost.CollapseIntoServiceKey = &svcKey
-					return
+					continue
 				}
 			}
 		}
@@ -219,25 +219,41 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 		}
 
 		// Generate a traffic policy that has all the rules/actions for our routes and merge it into the existing one
-		routingPolicy := t.buildRoutingPolicy(irVHost, irVHost.Routes, agentEndpointCache)
+		routingPolicy := t.buildRoutingPolicy(irVHost, agentEndpointCache)
 		listenerTrafficPolicy.Merge(routingPolicy)
 
-		defaultDestinationPolicy := t.buildDefaultDestinationPolicy(irVHost, agentEndpointCache)
+		defaultDestinationPolicy, err := t.buildDefaultDestinationPolicy(irVHost, agentEndpointCache)
+		if err != nil {
+			t.log.Error(err, "failed to default destination traffic policy",
+				"hostname", irVHost.Listener.Hostname,
+				"port", irVHost.Listener.Port,
+				"protocol", irVHost.Listener.Protocol,
+				"generated from resources", irVHost.OwningResources,
+			)
+			continue
+		}
 		listenerTrafficPolicy.Merge(defaultDestinationPolicy)
 
-		// Add a default 404 response when no routes are found
-		default404Rule := buildDefault404TPRule()
-		// If we're collapsing into an AgentEndpoint, make sure this action only runs when we didn't match the local service
-		if irVHost.CollapseIntoServiceKey != nil {
-			default404Rule.Expressions = appendStringUnique(default404Rule.Expressions, "vars.request_matched_local_svc == false")
+		switch irVHost.Listener.Protocol {
+		case ir.IRProtocol_HTTP, ir.IRProtocol_HTTPS:
+			// Add a default 404 response when no routes are found
+			default404Rule := buildDefault404TPRule()
+			// If we're collapsing into an AgentEndpoint, make sure this action only runs when we didn't match the local service
+			if irVHost.CollapseIntoServiceKey != nil {
+				default404Rule.Expressions = appendStringUnique(default404Rule.Expressions, "vars.request_matched_local_svc == false")
+			}
+			listenerTrafficPolicy.AddRuleOnHTTPRequest(default404Rule)
+		case ir.IRProtocol_TCP, ir.IRProtocol_TLS:
+			// Not needed for TLS/TCP endpoints
 		}
-		listenerTrafficPolicy.AddRuleOnHTTPRequest(default404Rule)
 
 		// Marshal the updated TrafficPolicySpec back to JSON
 		listenerPolicyJSON, err := json.Marshal(listenerTrafficPolicy)
 		if err != nil {
 			t.log.Error(err, "failed to marshal traffic policy for generated CloudEndpoint",
 				"hostname", string(irVHost.Listener.Hostname),
+				"port", irVHost.Listener.Port,
+				"protocol", irVHost.Listener.Protocol,
 				"generated from resources", irVHost.OwningResources,
 			)
 			continue
@@ -245,13 +261,25 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 
 		// Determine whether we are using a CloudEndpoint or AgentEndpoint to listen for requests
 		if irVHost.CollapseIntoServiceKey != nil {
-			if agentEndpoint, exists := agentEndpointCache[*irVHost.CollapseIntoServiceKey]; exists {
-				agentEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.TrafficPolicyCfg{
-					Inline: json.RawMessage(listenerPolicyJSON),
+			// If this is a collapsed AgentEndpoint, we might not need a traffic policy
+			if listenerTrafficPolicy != nil && !listenerTrafficPolicy.IsEmpty() {
+				if agentEndpoint, exists := agentEndpointCache[*irVHost.CollapseIntoServiceKey]; exists {
+					agentEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.TrafficPolicyCfg{
+						Inline: json.RawMessage(listenerPolicyJSON),
+					}
 				}
 			}
 		} else {
-			cloudEndpoint := buildCloudEndpoint(irVHost)
+			cloudEndpoint, err := buildCloudEndpoint(irVHost)
+			if err != nil {
+				t.log.Error(err, "failed to build CloudEndpoint",
+					"hostname", irVHost.Listener.Hostname,
+					"port", irVHost.Listener.Port,
+					"protocol", irVHost.Listener.Protocol,
+					"generated from resources", irVHost.OwningResources,
+				)
+				continue
+			}
 			cloudEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.NgrokTrafficPolicySpec{
 				Policy: json.RawMessage(listenerPolicyJSON),
 			}
@@ -274,17 +302,29 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 	return cloudEndpoints, agentEndpoints
 }
 
-func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.IRRoute, agentEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint) *trafficpolicy.TrafficPolicy {
+func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, agentEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint) *trafficpolicy.TrafficPolicy {
 	routingTrafficPolicy := trafficpolicy.NewTrafficPolicy()
 	// If we're collapsing this into an AgentEndpoint, set a variable so we know if routes match the local service or not since there could be other routes
 	if irVHost.CollapseIntoServiceKey != nil {
-		routingTrafficPolicy.AddRuleOnHTTPRequest(buildRouteLocallyVarRule("Initialize-Local-Service-Match", false))
+		switch irVHost.Listener.Protocol {
+		case ir.IRProtocol_HTTP, ir.IRProtocol_HTTPS:
+			routingTrafficPolicy.AddRuleOnHTTPRequest(buildRouteLocallyVarRule("Initialize-Local-Service-Match", false))
+		case ir.IRProtocol_TCP, ir.IRProtocol_TLS:
+			// This is only necessary for tcp:// and tls:// endpoints if we're balancing between multiple upstreams since othherwise they don't have match criteria
+			// TCP and TLS endpoints only ever have one route since there are no match criteria, but we might have more than one backend (weighted)
+			if len(irVHost.Routes) == 1 && len(irVHost.Routes[0].Destinations) > 1 {
+				routingTrafficPolicy.AddRuleOnTCPConnect(buildRouteLocallyVarRule("Initialize-Local-Service-Match", false))
+			}
+		}
 	}
 
 	// First, see if any of the traffic policies modify the request. If they do, we need to capture the original request data
 	captureOriginalParams := false
-	for _, irRoute := range routes {
-		actionModifiesRequest := func(action trafficpolicy.Action, matchCriteria ir.IRHTTPMatch) bool {
+	for _, irRoute := range irVHost.Routes {
+		actionModifiesRequest := func(action trafficpolicy.Action, matchCriteria *ir.IRHTTPMatch) bool {
+			if matchCriteria == nil {
+				return false
+			}
 			switch action.Type {
 			case trafficpolicy.ActionType_AddHeaders, trafficpolicy.ActionType_RemoveHeaders:
 				if len(matchCriteria.Headers) > 0 {
@@ -303,7 +343,7 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 		for _, routeTrafficPolicy := range irRoute.TrafficPolicies {
 			for _, tpRule := range routeTrafficPolicy.OnHTTPRequest {
 				for _, ruleAction := range tpRule.Actions {
-					if actionModifiesRequest(ruleAction, irRoute.MatchCriteria) {
+					if actionModifiesRequest(ruleAction, irRoute.HTTPMatchCriteria) {
 						captureOriginalParams = true
 						break
 					}
@@ -316,7 +356,7 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 				for _, destTrafficPolicy := range irDestination.TrafficPolicies {
 					for _, tpRule := range destTrafficPolicy.OnHTTPRequest {
 						for _, ruleAction := range tpRule.Actions {
-							if actionModifiesRequest(ruleAction, irRoute.MatchCriteria) {
+							if actionModifiesRequest(ruleAction, irRoute.HTTPMatchCriteria) {
 								captureOriginalParams = true
 								break
 							}
@@ -345,17 +385,17 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 		})
 	}
 
-	for _, irRoute := range routes {
+	for _, irRoute := range irVHost.Routes {
 		if len(irRoute.Destinations) == 0 && len(irRoute.TrafficPolicies) == 0 {
 			t.log.Error(fmt.Errorf("generated route does not have a destination"), "skipping endpoint configuration generation for invalid route, other routes will continue to be processed",
 				"generated from resources", irVHost.OwningResources,
 				"hostname", string(irVHost.Listener.Hostname),
-				"match criteria", irRoute.MatchCriteria,
+				"match criteria", irRoute.HTTPMatchCriteria,
 			)
 			continue
 		}
 
-		matchExpressions := irMatchCriteriaToTPExpressions(irRoute.MatchCriteria, captureOriginalParams)
+		matchExpressions := irMatchCriteriaToTPExpressions(irRoute.HTTPMatchCriteria, captureOriginalParams)
 		if irVHost.CollapseIntoServiceKey != nil {
 			// If we're collapsing this into an AgentEndpoint, add an expression to make sure that none of the prior rules have matched the local service.
 			// For example, an Ingress with a rule /paththatislonger that routes to the local service and a rule /path that matches something else, we don't want to bother
@@ -400,14 +440,23 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 					"weighted_route_random_num": fmt.Sprintf("${rand.int(0,%d)}", routeTotalWeight-1),
 				}},
 			}
-			routingTrafficPolicy.AddRuleOnHTTPRequest(trafficpolicy.Rule{
+
+			randomNumRule := trafficpolicy.Rule{
 				Name:        "Gen-Random-Number",
 				Expressions: matchExpressions,
 				Actions: []trafficpolicy.Action{{
 					Type:   trafficpolicy.ActionType_SetVars,
 					Config: setvarWeightCfg,
 				}},
-			})
+			}
+
+			switch irVHost.Listener.Protocol {
+			case ir.IRProtocol_HTTP, ir.IRProtocol_HTTPS:
+				routingTrafficPolicy.AddRuleOnHTTPRequest(randomNumRule)
+			case ir.IRProtocol_TCP, ir.IRProtocol_TLS:
+				routingTrafficPolicy.AddRuleOnTCPConnect(randomNumRule)
+			}
+
 		}
 
 		currentLowerBound := 0 // starting value for the random number range
@@ -451,11 +500,21 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 				irService := irDestination.Upstream.Service
 				agentEndpoint, exists := agentEndpointCache[irService.Key()]
 				if !exists {
-					agentEndpoint = buildAgentEndpoint(
+					var err error
+					agentEndpoint, err = buildAgentEndpoint(
 						irVHost,
 						irService,
 						t.clusterDomain,
 						irVHost.Metadata)
+					if err != nil {
+						t.log.Error(err, "failed to build AgentEndpoint",
+							"hostname", irVHost.Listener.Hostname,
+							"port", irVHost.Listener.Port,
+							"protocol", irVHost.Listener.Protocol,
+							"generated from resources", irDestination.Upstream.OwningResources,
+						)
+						continue
+					}
 					agentEndpointCache[irService.Key()] = agentEndpoint
 				}
 
@@ -474,7 +533,16 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 				if weightedRouteExpression != nil {
 					tpRouteRule.Expressions = appendStringUnique(tpRouteRule.Expressions, *weightedRouteExpression)
 				}
-				routingTrafficPolicy.AddRuleOnHTTPRequest(tpRouteRule)
+
+				switch irVHost.Listener.Protocol {
+				case ir.IRProtocol_HTTP, ir.IRProtocol_HTTPS:
+					routingTrafficPolicy.AddRuleOnHTTPRequest(tpRouteRule)
+				case ir.IRProtocol_TCP, ir.IRProtocol_TLS:
+					// This is only necessary for tcp:// and tls:// endpoints if we're balancing between multiple upstreams since othherwise they don't have match criteria
+					if len(irVHost.Routes) == 1 && len(irVHost.Routes[0].Destinations) > 1 {
+						routingTrafficPolicy.AddRuleOnTCPConnect(tpRouteRule)
+					}
+				}
 			}
 		}
 	}
@@ -484,8 +552,12 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, routes []*ir.
 // buildPathMatchExpressionExpressionToTPRule creates an expression for a traffic policy rule to control path matching.
 // Normally it will check the request data from the req. variable, but when we have actions such as a url-rewrite that
 // modify the request, then we instead need to check the request data from a set-vars action that will store it before it is transformed
-func irMatchCriteriaToTPExpressions(matchCriteria ir.IRHTTPMatch, getRequestDataFromVar bool) []string {
+func irMatchCriteriaToTPExpressions(matchCriteria *ir.IRHTTPMatch, getRequestDataFromVar bool) []string {
 	expressions := []string{}
+
+	if matchCriteria == nil {
+		return expressions
+	}
 
 	// 1. Path matching
 	if matchCriteria.Path != nil {
@@ -622,11 +694,11 @@ func buildRouteLocallyVarRule(name string, value bool) trafficpolicy.Rule {
 	}
 }
 
-func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, agentEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint) *trafficpolicy.TrafficPolicy {
+func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, agentEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint) (*trafficpolicy.TrafficPolicy, error) {
 	defaultDestination := irVHost.DefaultDestination
 	defaultDestTrafficPolicy := trafficpolicy.NewTrafficPolicy()
 	if defaultDestination == nil {
-		return defaultDestTrafficPolicy
+		return defaultDestTrafficPolicy, nil
 	}
 
 	// If the default backend has a set of traffic policies, then just append all of their rules
@@ -647,12 +719,16 @@ func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, ag
 		irService := upstream.Service
 		agentEndpoint, exists := agentEndpointCache[irService.Key()]
 		if !exists {
-			agentEndpoint = buildAgentEndpoint(
+			var err error
+			agentEndpoint, err = buildAgentEndpoint(
 				irVHost,
 				irService,
 				t.clusterDomain,
 				t.defaultIngressMetadata,
 			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build AgentEndpoint. upstream generated from resources: %v, err: %w", upstream.OwningResources, err)
+			}
 			agentEndpointCache[irService.Key()] = agentEndpoint
 		}
 		// If we're collapsing this into an AgentEndpoint, we only want to run this when a request did not match the local service
@@ -667,33 +743,42 @@ func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, ag
 		}
 		defaultDestTrafficPolicy.AddRuleOnHTTPRequest(routeRule)
 	}
-	return defaultDestTrafficPolicy
+	return defaultDestTrafficPolicy, nil
 }
 
-func buildPublicURL(irVHost *ir.IRVirtualHost) string {
+func buildPublicURL(irVHost *ir.IRVirtualHost) (string, error) {
 	url := ""
+
+	scheme, err := protocolStringToIRScheme(irVHost.Listener.Protocol)
+	if err != nil {
+		return "", err
+	}
+
+	url += string(scheme)
+
 	var port *int32
 	switch irVHost.Listener.Protocol {
 	case ir.IRProtocol_HTTPS:
-		url += "https://"
 		if irVHost.Listener.Port != 443 {
 			port = &irVHost.Listener.Port
 		}
 	case ir.IRProtocol_HTTP:
-		url += "http://"
 		if irVHost.Listener.Port != 80 {
 			port = &irVHost.Listener.Port
 		}
+	case ir.IRProtocol_TCP, ir.IRProtocol_TLS:
+		// for tls:// and tcp:// we always add the port
+		port = &irVHost.Listener.Port
 	}
 	url += string(irVHost.Listener.Hostname)
 	if port != nil {
 		url = fmt.Sprintf("%s:%d", url, *port)
 	}
-	return url
+	return url, nil
 }
 
 // buildCloudEndpoint initializes a new CloudEndpoint
-func buildCloudEndpoint(irVHost *ir.IRVirtualHost) *ngrokv1alpha1.CloudEndpoint {
+func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1alpha1.CloudEndpoint, error) {
 	name := ""
 	if irVHost.NamePrefix != nil {
 		name = fmt.Sprintf("%s-", *irVHost.NamePrefix)
@@ -707,6 +792,11 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) *ngrokv1alpha1.CloudEndpoint 
 		irVHost.LabelsToAdd = nil
 	}
 
+	publicURL, err := buildPublicURL(irVHost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build public URL for CloudEndpoint, err: %w", err)
+	}
+
 	return &ngrokv1alpha1.CloudEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        sanitizeStringForK8sName(name),
@@ -715,12 +805,12 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) *ngrokv1alpha1.CloudEndpoint 
 			Annotations: irVHost.AnnotationsToAdd,
 		},
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
-			URL:            buildPublicURL(irVHost),
+			URL:            publicURL,
 			PoolingEnabled: irVHost.EndpointPoolingEnabled,
 			Metadata:       irVHost.Metadata,
 			Bindings:       irVHost.Bindings,
 		},
-	}
+	}, nil
 }
 
 // buildAgentEndpoint initializes a new AgentEndpoint
@@ -729,14 +819,22 @@ func buildAgentEndpoint(
 	irService ir.IRService,
 	clusterDomain string,
 	metadata string,
-) *ngrokv1alpha1.AgentEndpoint {
+) (*ngrokv1alpha1.AgentEndpoint, error) {
 	bindings := []string{"internal"}
 	var url string
 	if irVHost.CollapseIntoServiceKey != nil && irService.Key() == *irVHost.CollapseIntoServiceKey {
-		url = buildPublicURL(irVHost)
+		publicURL, err := buildPublicURL(irVHost)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build public URL for AgentEndpoint, err: %w", err)
+		}
+		url = publicURL
 		bindings = irVHost.Bindings
 	} else {
-		url = buildInternalEndpointURL(irService.UID, irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.ClientCertRefs)
+		internalURL, err := buildInternalEndpointURL(irVHost.Listener.Protocol, irService.UID, irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.ClientCertRefs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build internal URL for AgentEndpoint, err: %w", err)
+		}
+		url = internalURL
 	}
 
 	if len(irVHost.AnnotationsToAdd) == 0 {
@@ -771,7 +869,7 @@ func buildAgentEndpoint(
 		})
 	}
 
-	return ret
+	return ret, nil
 }
 
 // buildDefault404TPRule builds the default rule that will fire if no other rules are matched to return a 404 response

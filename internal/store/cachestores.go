@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
@@ -44,6 +45,8 @@ type CacheStores struct {
 	Gateway        cache.Store
 	GatewayClass   cache.Store
 	HTTPRoute      cache.Store
+	TCPRoute       cache.Store
+	TLSRoute       cache.Store
 	ReferenceGrant cache.Store
 
 	// Ngrok Stores
@@ -73,6 +76,8 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		Gateway:        cache.NewStore(keyFunc),
 		GatewayClass:   cache.NewStore(keyFunc),
 		HTTPRoute:      cache.NewStore(keyFunc),
+		TCPRoute:       cache.NewStore(keyFunc),
+		TLSRoute:       cache.NewStore(keyFunc),
 		ReferenceGrant: cache.NewStore(keyFunc),
 		// Ngrok Stores
 		DomainV1:             cache.NewStore(keyFunc),
@@ -131,6 +136,10 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 	// ----------------------------------------------------------------------------
 	case *gatewayv1.HTTPRoute:
 		return c.HTTPRoute.Get(obj)
+	case *gatewayv1alpha2.TCPRoute:
+		return c.TCPRoute.Get(obj)
+	case *gatewayv1alpha2.TLSRoute:
+		return c.TLSRoute.Get(obj)
 	case *gatewayv1.Gateway:
 		return c.Gateway.Get(obj)
 	case *gatewayv1.GatewayClass:
@@ -188,6 +197,10 @@ func (c CacheStores) Add(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	case *gatewayv1.HTTPRoute:
 		return c.HTTPRoute.Add(obj)
+	case *gatewayv1alpha2.TCPRoute:
+		return c.TCPRoute.Add(obj)
+	case *gatewayv1alpha2.TLSRoute:
+		return c.TLSRoute.Add(obj)
 	case *gatewayv1.Gateway:
 		return c.Gateway.Add(obj)
 	case *gatewayv1.GatewayClass:
@@ -246,6 +259,10 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	case *gatewayv1.HTTPRoute:
 		return c.HTTPRoute.Delete(obj)
+	case *gatewayv1alpha2.TCPRoute:
+		return c.TCPRoute.Delete(obj)
+	case *gatewayv1alpha2.TLSRoute:
+		return c.TLSRoute.Delete(obj)
 	case *gatewayv1.Gateway:
 		return c.Gateway.Delete(obj)
 	case *gatewayv1.GatewayClass:
