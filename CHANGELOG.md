@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.15.1...ngrok-operator-0.16.0
+
+### Added
+- Consume IngressEndpoint from status by @masonj5n in [#607](https://github.com/ngrok/ngrok-operator/pull/607)
+- add new mapping strategy by @Alice-Lilith in [#612](https://github.com/ngrok/ngrok-operator/pull/612)
+- add support for TCPRoute & TLSRoute by @Alice-Lilith in [#621](https://github.com/ngrok/ngrok-operator/pull/621)
+- Lb services reserve tcp addr for endpoints by @jonstacks in [#622](https://github.com/ngrok/ngrok-operator/pull/622)
+
+### Changed
+- unconditionally create operator with ngrok api by @masonj5n in [#614](https://github.com/ngrok/ngrok-operator/pull/614)
+- only make tunnels for edges strategy by @Alice-Lilith in [#623](https://github.com/ngrok/ngrok-operator/pull/623)
+
+### Fixed
+- add deployment name and version to _update calls by @Megalonia in [#610](https://github.com/ngrok/ngrok-operator/pull/610)
+- fix: Agent endpoint domain strategy by @jonstacks in [#613](https://github.com/ngrok/ngrok-operator/pull/613)
+- fix: Empty TLS cert on creation when bindings are enabled by @jonstacks in [#615](https://github.com/ngrok/ngrok-operator/pull/615)
+- fix: traffic-policy annotation not working when using mapping-strategy of edges by @jonstacks in [#616](https://github.com/ngrok/ngrok-operator/pull/616)
+- set operator description from values.yaml description by @masonj5n in [#605](https://github.com/ngrok/ngrok-operator/pull/605)
+- fix: Retry cloud endpoint creation on pooling state errors by @jonstacks in [#624](https://github.com/ngrok/ngrok-operator/pull/624)
+
+
 ## 0.15.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.15.0...ngrok-operator-0.15.1
 
