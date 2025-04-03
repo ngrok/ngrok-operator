@@ -530,6 +530,10 @@ func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 		Recorder:      mgr.GetEventRecorderFor("service-controller"),
 		Namespace:     opts.namespace,
 		ClusterDomain: opts.clusterDomain,
+		// TODO(stacks): Once we have a way to support unqualified tcp addresses(i.e. 'tcp://') in the Cloud & Agent Endpoint CRs,
+		// we can remove this. It feels weird to have this here since the ServiceReconciler should only be performing translations
+		// and not dependent on the ngrok API.
+		TCPAddresses: ngrokClientset.TCPAddresses(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Service")
 		os.Exit(1)

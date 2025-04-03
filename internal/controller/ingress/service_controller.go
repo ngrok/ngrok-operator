@@ -27,11 +27,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/ngrok-api-go/v7"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -40,6 +42,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
+	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -82,6 +85,7 @@ type ServiceReconciler struct {
 
 	IPPolicyResolver resolvers.IPPolicyResolver
 	SecretResolver   resolvers.SecretResolver
+	TCPAddresses     ngrokapi.TCPAddressesClient
 }
 
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -95,6 +99,10 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if r.SecretResolver == nil {
 		r.SecretResolver = resolvers.NewDefaultSecretResovler(mgr.GetClient())
+	}
+
+	if r.TCPAddresses == nil {
+		return errors.New("TCPAddresses client is required")
 	}
 
 	owns := []client.Object{
@@ -394,6 +402,24 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 	return requests
 }
 
+func (r *ServiceReconciler) clearComputedURLAnnotation(ctx context.Context, svc *corev1.Service) error {
+	a := svc.GetAnnotations()
+	delete(a, annotations.ComputedURLAnnotation)
+	svc.SetAnnotations(a)
+	return r.Client.Update(ctx, svc)
+}
+
+func (r *ServiceReconciler) tcpAddressIsReserved(ctx context.Context, hostport string) (bool, error) {
+	iter := r.TCPAddresses.List(&ngrok.Paging{})
+	for iter.Next(ctx) {
+		addr := iter.Item()
+		if addr.Addr == hostport {
+			return true, nil
+		}
+	}
+	return false, iter.Err()
+}
+
 // buildEndpoints creates a CloudEndpoint and an AgentEndpoint for the given LoadBalancer service. The CloudEndpoint
 // will serve as the public endpoint for the service where we attach the traffic policy if one exists, the AgentEndpoint will
 // serve as the internal endpoint.
@@ -459,20 +485,85 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		return objects, err
 	}
 
-	domain, err := parser.GetStringAnnotation("domain", svc)
+	listenerEndpointURL, err := r.getListenerURL(svc)
 	if err != nil {
-		if errors.IsMissingAnnotations(err) {
-			domain = ""
-		} else {
-			return objects, err
-		}
+		r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToGetListenerURL", err.Error())
+		return objects, err
 	}
 
-	// If there is no domain annotation, use a TCP CloudEndpoint. ngrok will randomly assign a TCP address for us.
-	// However, if there is a domain annotation, use a TLS CloudEndpoint and specify the domain.
-	listenerEndpointURL := "tcp://"
-	if domain != "" {
-		listenerEndpointURL = fmt.Sprintf("tls://%s:443", domain)
+	// Default to the listener endpoint URL, we'll compute this but only for tcp:// endpoints
+	// currently.
+	computedEndpointURL := listenerEndpointURL
+
+	if listenerEndpointURL == "tcp://" {
+		// The user has either not set a 'url' or 'domain' annotation, and desires a TCP endpoint.
+
+		// First, try to get the computed URL annotation. See the comment in the annotations package
+		// for more information on why we are temporarily doing this.
+		computedEndpointURL, err = annotations.ExtractComputedURL(svc)
+		if err != nil {
+			if !errors.IsMissingAnnotations(err) {
+				return objects, err
+			}
+			// We need to reserve a TCP address & update the service with the computed URL
+			addr, err := r.TCPAddresses.Create(ctx, &ngrok.ReservedAddrCreate{
+				Description: fmt.Sprintf("Reserved for %s/%s", svc.Namespace, svc.Name),
+				Metadata:    fmt.Sprintf(`{"namespace":"%s","name":"%s"}`, svc.Namespace, svc.Name),
+			})
+			if err != nil {
+				r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToReserveTCPAddr", err.Error())
+				return objects, err
+			}
+
+			// Update the service with the computed URL
+			computedEndpointURL = fmt.Sprintf("tcp://%s", addr.Addr)
+			a := svc.GetAnnotations()
+			if a == nil {
+				a = make(map[string]string)
+			}
+			a[annotations.ComputedURLAnnotation] = computedEndpointURL
+			svc.SetAnnotations(a)
+			if err := r.Client.Update(ctx, svc); err != nil {
+				return objects, err
+			}
+		} else {
+			// We have a computed URL, most likely from the url or domain not being set,
+			// implying the user wants a TCP address to be reserved. Let's use that, after
+			// verifying that it exists.
+			parsedURL, parseErr := url.Parse(computedEndpointURL)
+			if parseErr != nil {
+				r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToParseComputedURL", parseErr.Error())
+				// If we can't parse the URL, we need to clear the computed URL annotation
+				if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+					return objects, err
+				}
+				return objects, parseErr
+			}
+
+			if parsedURL.Scheme == "tcp" {
+				// Check that the Address is still reserved
+				reserved, err := r.tcpAddressIsReserved(ctx, parsedURL.Host)
+				if err != nil {
+					return objects, err
+				}
+				if !reserved {
+					r.Recorder.Event(svc, corev1.EventTypeWarning, "TCPAddrNotReserved", "The computed TCP address is not reserved, recomputing")
+					if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+						return objects, err
+					}
+				}
+			} else {
+				// The computed URL is not a TCP URL, so we also need to clear it
+				if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+					return objects, err
+				}
+			}
+		}
+	} else {
+		// We only store computed URLs for TCP endpoints right now, so we should clear it if it exists
+		if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+			return objects, err
+		}
 	}
 
 	switch mappingStrategy {
@@ -487,7 +578,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				},
 			},
 			Spec: ngrokv1alpha1.AgentEndpointSpec{
-				URL:      listenerEndpointURL,
+				URL:      computedEndpointURL,
 				Bindings: useBindings,
 				Upstream: ngrokv1alpha1.EndpointUpstream{
 					URL: fmt.Sprintf("tcp://%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
@@ -507,6 +598,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 			},
 		})
 
+		// We've added a new rule to the traffic policy, so we need to re-marshall it
+		rawPolicy, err = json.Marshal(tp)
+		if err != nil {
+			return objects, err
+		}
+
 		cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: svc.Name + "-",
@@ -516,7 +613,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				},
 			},
 			Spec: ngrokv1alpha1.CloudEndpointSpec{
-				URL:            listenerEndpointURL,
+				URL:            computedEndpointURL,
 				Bindings:       useBindings,
 				PoolingEnabled: useEndpointPooling,
 				TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
@@ -545,6 +642,41 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 	}
 
 	return objects, nil
+}
+
+func (r *ServiceReconciler) getListenerURL(svc *corev1.Service) (string, error) {
+	urlAnnotation, err := annotations.ExtractURL(svc)
+	if err == nil {
+		return urlAnnotation, nil
+	}
+
+	if !errors.IsMissingAnnotations(err) {
+		return "", err
+	}
+
+	// Fallback to the using the deprecated domain annotation if the URL annotation is not present
+	domain, err := annotations.ExtractDomain(svc)
+	if err == nil {
+		msg := fmt.Sprintf(
+			"The '%s' annotation is deprecated and will be removed in a future release. Use the '%s' annotation instead",
+			annotations.DomainAnnotation,
+			annotations.URLAnnotation,
+		)
+		r.Recorder.Event(
+			svc,
+			corev1.EventTypeWarning,
+			"DeprecatedDomainAnnotation",
+			msg,
+		)
+		return fmt.Sprintf("tls://%s:443", domain), nil
+	}
+
+	if !errors.IsMissingAnnotations(err) {
+		return "", err
+	}
+
+	// No URL or domain annotation, assume TCP as the default
+	return "tcp://", nil
 }
 
 func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.Service) ([]client.Object, error) {
@@ -588,16 +720,18 @@ func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.
 		return objects, err
 	}
 
-	domain, err := parser.GetStringAnnotation("domain", svc)
+	listenerURL, err := r.getListenerURL(svc)
 	if err != nil {
-		if errors.IsMissingAnnotations(err) {
-			domain = ""
-		} else {
-			return objects, err
-		}
+		r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToGetListenerURL", err.Error())
+		return objects, err
 	}
 
-	if domain == "" { // No domain annotation, use TCP edge
+	parsedURL, err := url.Parse(listenerURL)
+	if err != nil {
+		return objects, err
+	}
+
+	if parsedURL.Scheme == "tcp" {
 		edge := &ingressv1alpha1.TCPEdge{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: svc.Name + "-",
@@ -636,7 +770,7 @@ func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.
 					Labels: backendLabels,
 				},
 				Hostports: []string{
-					fmt.Sprintf("%s:443", domain),
+					fmt.Sprintf("%s:443", parsedURL.Hostname()),
 				},
 			},
 		}
@@ -951,17 +1085,41 @@ func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
 				return c.Status().Update(ctx, svc)
 			}
 
-			domain, err := parser.GetStringAnnotation("domain", svc)
-			if err != nil {
-				if errors.IsMissingAnnotations(err) {
-					return clearIngressStatus(svc)
-				}
-				return err
-			}
+			hostname := ""
+			port := int32(443)
 
-			hostname := domain
-			if endpoint.Status.Domain != nil && endpoint.Status.Domain.CNAMETarget != nil {
-				hostname = *endpoint.Status.Domain.CNAMETarget
+			// Check if the computed URL is set, if so, let's parse and use it
+			computedURL, err := annotations.ExtractComputedURL(svc)
+			switch {
+			case err == nil:
+				// Let's parse out the host and port
+				targetURL, err := url.Parse(computedURL)
+				if err != nil {
+					return err
+				}
+				hostname = targetURL.Hostname()
+				if p := targetURL.Port(); p != "" {
+					x, err := strconv.ParseInt(p, 10, 32)
+					if err != nil {
+						return err
+					}
+					port = int32(x)
+				}
+			case !errors.IsMissingAnnotations(err): // Some other error
+				return err
+			default: // computedURL not present, fallback to the domain annotation
+				domain, err := parser.GetStringAnnotation("domain", svc)
+				if err != nil {
+					if errors.IsMissingAnnotations(err) {
+						return clearIngressStatus(svc)
+					}
+					return err
+				}
+
+				hostname = domain
+				if endpoint.Status.Domain != nil && endpoint.Status.Domain.CNAMETarget != nil {
+					hostname = *endpoint.Status.Domain.CNAMETarget
+				}
 			}
 
 			svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
@@ -969,7 +1127,7 @@ func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
 					Hostname: hostname,
 					Ports: []corev1.PortStatus{
 						{
-							Port:     443,
+							Port:     port,
 							Protocol: corev1.ProtocolTCP,
 						},
 					},

@@ -325,7 +325,18 @@ func (r *CloudEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 
 // ensureDomainExists checks if the Domain CRD exists, and if not, creates it.
 func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) (*ingressv1alpha1.Domain, error) {
-	domain := r.extractDomain(clep)
+	parsedURL, err := url.Parse(clep.Spec.URL)
+	if err != nil {
+		r.Recorder.Event(clep, v1.EventTypeWarning, "InvalidURL", fmt.Sprintf("Failed to parse URL: %s", clep.Spec.URL))
+		return nil, err
+	}
+
+	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
+		// Skip creating the Domain CR for ngrok TCP URLs
+		return nil, nil
+	}
+	domain := parsedURL.Hostname()
+
 	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domain)
 	if domainEndsInReservedTLD(domain) {
 		// Skip creating the Domain CRD for reserved TLDs
@@ -336,7 +347,7 @@ func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *
 
 	// Check if the Domain CRD already exists
 	domainObj := &ingressv1alpha1.Domain{}
-	err := r.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: clep.Namespace}, domainObj)
+	err = r.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: clep.Namespace}, domainObj)
 	if err == nil {
 		// Domain already exists
 		if domainObj.Status.ID == "" {
@@ -375,15 +386,4 @@ func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *
 func domainEndsInReservedTLD(domain string) bool {
 	// Check if the domain ends in the "internal" tld
 	return strings.HasSuffix(domain, ".internal")
-}
-
-// extractDomain parses the URL using Go's net/url package and extracts the host part.
-func (r *CloudEndpointReconciler) extractDomain(clep *ngrokv1alpha1.CloudEndpoint) string {
-	parsedURL, err := url.Parse(clep.Spec.URL)
-	if err != nil {
-		r.Recorder.Event(clep, v1.EventTypeWarning, "InvalidURL", fmt.Sprintf("Failed to parse URL: %s", clep.Spec.URL))
-		return ""
-	}
-
-	return parsedURL.Hostname()
 }

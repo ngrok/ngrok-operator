@@ -35,8 +35,20 @@ import (
 )
 
 const (
+	// ComputedURLAnnotation is the annotation key for the computed URL of an endpoint.
+	// This is temporarily used by the Service controller to store reserved TCP addresses,
+	// while we work to add support for assigning TCP addresses to Cloud/Agent Endpoints
+	// when their URL is specified as 'tcp://', for example.
+	ComputedURLAnnotation = "k8s.ngrok.com/computed-url"
+	ComputedURLKey        = "computed-url"
+
 	// DeniedKeyName name of the key that contains the reason to deny a location
 	DeniedKeyName = "Denied"
+
+	// This annotation can be used on services to listen on a specific domain(i.e. a TLS endpoint)
+	// Deprecated: Use the URL annotation instead
+	DomainAnnotation = "k8s.ngrok.com/domain"
+	DomainKey        = "domain"
 
 	// This annotation can be used on ingress/gateway resources to control which ngrok resources (endpoints/edges) get created from it
 	MappingStrategyAnnotation    = "k8s.ngrok.com/mapping-strategy"
@@ -44,6 +56,14 @@ const (
 
 	EndpointPoolingAnnotation    = "k8s.ngrok.com/pooling-enabled"
 	EndpointPoolingAnnotationKey = "pooling-enabled"
+
+	// This annotation can be used on a service to control whether the endpoint is a TCP or TLS endpoint.
+	// Examples:
+	//   * tcp://1.tcp.ngrok.io:12345
+	//   * tls://my-domain.com
+	//
+	URLAnnotation = "k8s.ngrok.com/url"
+	URLKey        = "url"
 )
 
 type MappingStrategy string
@@ -196,4 +216,22 @@ func ExtractUseBindings(obj client.Object) ([]string, error) {
 	default:
 		return []string{"public"}, nil
 	}
+}
+
+// Retrieves the value of the annotation "k8s.ngrok.com/url" if it is present. Otherwise, it returns
+// an error.
+func ExtractURL(obj client.Object) (string, error) {
+	return parser.GetStringAnnotation(URLKey, obj)
+}
+
+// ExtractDomain extracts the domain from the annotation "k8s.ngrok.com/domain" if it is present. Otherwise, it returns
+// an error.
+func ExtractDomain(obj client.Object) (string, error) {
+	return parser.GetStringAnnotation(DomainKey, obj)
+}
+
+// ExtractComputedURL extracts the computed URL from the annotation "k8s.ngrok.com/computed-url" if it is present. Otherwise, it returns
+// an error.
+func ExtractComputedURL(obj client.Object) (string, error) {
+	return parser.GetStringAnnotation(ComputedURLKey, obj)
 }
