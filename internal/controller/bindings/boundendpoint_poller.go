@@ -14,7 +14,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,7 +32,6 @@ type PortRangeConfig struct {
 // BoundEndpointPoller is a process to poll the ngrok API for binding_endpoints and reconcile the desired state with the cluster state of BoundEndpoints
 type BoundEndpointPoller struct {
 	client.Client
-	Scheme   *runtime.Scheme
 	Log      logr.Logger
 	Recorder record.EventRecorder
 
@@ -45,9 +43,6 @@ type BoundEndpointPoller struct {
 
 	// NgrokClientset is the ngrok API clientset
 	NgrokClientset ngrokapi.Clientset
-
-	// EndpointSelectors is a list of cel expressions for filtering endpoints that will be projected into the cluster
-	EndpointSelectors []string
 
 	// PollingInterval is how often to poll the ngrok API for reconciling the BindingEndpoints
 	PollingInterval time.Duration
