@@ -174,7 +174,9 @@ func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// success
-	return ctrl.Result{}, nil
+	return ctrl.Result{
+		RequeueAfter: time.Minute * 10,
+	}, nil
 }
 
 func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
