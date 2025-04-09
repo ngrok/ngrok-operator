@@ -1,12 +1,12 @@
-{{- if .Values.bindings.enabled }}
+{{- if and .Values.bindings.enabled .Values.bindings.ngrokCA }}
 ---
-kind: ConfigMap
 apiVersion: v1
+kind: ConfigMap
 metadata:
-  labels:
-    {{- include "ngrok-operator.labels" . | nindent 4 }}
   name: ngrok-intermediate-ca
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
 data:
   root.crt: |
     {{- .Values.bindings.ngrokCA | nindent 4 }}
