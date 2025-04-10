@@ -18,12 +18,14 @@ ARG TARGETOS TARGETARCH
 # Build
 RUN --mount=type=cache,target=/go \
 	CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" make _build
-
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
+# Copy the intermediate CA into the system certificates directory
+COPY certs/ngrok-ca.crt /etc/ssl/certs/ca-certificates.crt
 WORKDIR /
 COPY --from=builder /workspace/bin/api-manager /workspace/bin/agent-manager /workspace/bin/bindings-forwarder-manager ./
 USER 65532:65532
+
 
 ENTRYPOINT ["/api-manager"]
