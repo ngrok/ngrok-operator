@@ -46,6 +46,7 @@ func (l k8sLogger) Log(ctx context.Context, level logrok.LogLevel, msg string, k
 const (
 	// TODO: Make this configurable via helm and document it so users can
 	// use it for things like proxies
+	// TODO(certs): Remove this once we pull from util.LoadCerts
 	customCertsPath = "/etc/ssl/certs/ngrok/"
 )
 
@@ -164,6 +165,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 	}
 
 	// Configure certs if the custom cert directory exists or host if set
+	// TODO: use LoadCerts from util
 	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) || isHostCA {
 		caCerts, err := caCerts(isHostCA)
 		if err != nil {
@@ -263,6 +265,7 @@ func (td *TunnelDriver) getSession() (ngrok.Session, error) {
 }
 
 // caCerts combines the system ca certs with a directory of custom ca certs
+// TODO(certs): We can probably remove this once we migrate to util.LoadCerts
 func caCerts(hostCA bool) (*x509.CertPool, error) {
 	systemCertPool, err := x509.SystemCertPool()
 	if err != nil {
