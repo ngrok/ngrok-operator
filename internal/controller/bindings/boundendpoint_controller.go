@@ -168,13 +168,6 @@ func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return res, err
 	}
 
-	// update ngrok api resource status on upsert
-	if controller.IsUpsert(cr) {
-		if err := postBoundEndpointUpdateToNgrokAPI(ctx, cr); err != nil {
-			return controller.CtrlResultForErr(r.controller.ReconcileStatus(ctx, cr, err))
-		}
-	}
-
 	// success
 	return ctrl.Result{
 		RequeueAfter: r.RefreshDuration,
@@ -200,11 +193,6 @@ func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alph
 	return r.controller.ReconcileStatus(ctx, cr, err)
 }
 
-// postBoundEndpointUpdateToNgrokAPI sends an update to the ngrok API to update the endpoint binding and status fields
-func postBoundEndpointUpdateToNgrokAPI(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
-	// TODO(hkatz) Implement me
-	return nil
-}
 func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner *bindingsv1alpha1.BoundEndpoint, service *v1.Service) error {
 	log := ctrl.LoggerFrom(ctx)
 
