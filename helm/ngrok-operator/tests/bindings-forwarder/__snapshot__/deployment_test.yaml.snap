@@ -71,8 +71,6 @@ Should match snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
-                - name: SSL_CERT_DIR
-                  value: /etc/ssl/certs/ngrok
               image: docker.io/ngrok/ngrok-operator:0.15.1
               imagePullPolicy: IfNotPresent
               livenessProbe:
@@ -93,12 +91,4 @@ Should match snapshot:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
-              volumeMounts:
-                - mountPath: /etc/ssl/certs/ngrok
-                  name: ngrok-ca
-                  readOnly: true
           serviceAccountName: RELEASE-NAME-ngrok-operator-bindings-forwarder
-          volumes:
-            - configMap:
-                name: ngrok-intermediate-ca
-              name: ngrok-ca
