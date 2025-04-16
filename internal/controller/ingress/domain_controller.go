@@ -70,7 +70,7 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Create:   r.create,
 		Update:   r.update,
 		Delete:   r.delete,
-		ErrResult: func(op controller.BaseControllerOp, cr *ingressv1alpha1.Domain, err error) (reconcile.Result, error) {
+		ErrResult: func(_ controller.BaseControllerOp, _ *ingressv1alpha1.Domain, err error) (reconcile.Result, error) {
 			retryableErrors := []int{
 				// Domain still attached to an edge, probably a race condition.
 				// Schedule for retry, and hopefully the edge will be gone

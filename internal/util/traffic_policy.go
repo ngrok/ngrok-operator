@@ -489,7 +489,7 @@ func convertModuleSetWebhookVerification(secretResolver resolvers.SecretResolver
 	}
 }
 
-func convertModuleSetSAML(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, tp *trafficpolicy.TrafficPolicy) error {
+func convertModuleSetSAML(_ context.Context, ms ingressv1alpha1.NgrokModuleSet, _ *trafficpolicy.TrafficPolicy) error {
 	if ms.Modules.SAML == nil {
 		return nil
 	}

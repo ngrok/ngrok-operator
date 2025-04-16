@@ -505,7 +505,7 @@ func (t *translator) httpRouteRulesToIR(irVHost *ir.IRVirtualHost, httpRoute *ga
 
 			for _, filter := range rule.Filters {
 				// For each GatewayAPI filter for the route, we will inject additional config into the route's traffic policy
-				filterTrafficPolicy, err := t.gatewayAPIFilterToTrafficPolicy(httpRoute.Namespace, filter, httpRoute.Namespace, t.store, irRoute.HTTPMatchCriteria)
+				filterTrafficPolicy, err := t.gatewayAPIFilterToTrafficPolicy(filter, httpRoute.Namespace, t.store, irRoute.HTTPMatchCriteria)
 				if err != nil {
 					t.log.Error(err, "skipping filter with error")
 					continue
@@ -811,7 +811,7 @@ func gatewayMethodToIR(method *gatewayv1.HTTPMethod) *ir.IRMethodMatch {
 // #region GWAPI Filters translation
 
 // gatewayAPIFilterToTrafficPolicy translates Gateway API filters into traffic policy config
-func (t *translator) gatewayAPIFilterToTrafficPolicy(currentNamespace string, filter gatewayv1.HTTPRouteFilter, namespace string, store store.Storer, matchCriteria *ir.IRHTTPMatch) (*trafficpolicy.TrafficPolicy, error) {
+func (t *translator) gatewayAPIFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, namespace string, store store.Storer, matchCriteria *ir.IRHTTPMatch) (*trafficpolicy.TrafficPolicy, error) {
 	sharedErr := fmt.Errorf("unable to convert gateway API filter to traffic policy config")
 
 	switch filter.Type {
@@ -1129,7 +1129,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 	}
 
 	for _, filter := range backendRef.Filters {
-		filterPolicy, err := t.gatewayAPIFilterToTrafficPolicy(httpRoute.Namespace, filter, httpRoute.Namespace, t.store, matchCriteria)
+		filterPolicy, err := t.gatewayAPIFilterToTrafficPolicy(filter, httpRoute.Namespace, t.store, matchCriteria)
 		if err != nil {
 			t.log.Error(err, "unable to process HTTPRoute backendRef filter",
 				"httpRoute", fmt.Sprintf("%s.%s", httpRoute.Name, httpRoute.Namespace),

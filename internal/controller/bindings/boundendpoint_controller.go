@@ -166,12 +166,8 @@ func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return res, err
 	}
 
-	// update ngrok api resource status on upsert
-	if controller.IsUpsert(cr) {
-		if err := postBoundEndpointUpdateToNgrokAPI(ctx, cr); err != nil {
-			return controller.CtrlResultForErr(r.controller.ReconcileStatus(ctx, cr, err))
-		}
-	}
+	// TODO: if controller.IsUpsert(cr) ->
+	// send an update to the ngrok API to update the endpoint binding and status fields
 
 	// success
 	return ctrl.Result{}, nil
@@ -204,12 +200,6 @@ func setEndpointsStatus(boundEndpoint *bindingsv1alpha1.BoundEndpoint, desired *
 		endpoint.ErrorCode = desired.ErrorCode
 		endpoint.ErrorMessage = desired.ErrorMessage
 	}
-}
-
-// postBoundEndpointUpdateToNgrokAPI sends an update to the ngrok API to update the endpoint binding and status fields
-func postBoundEndpointUpdateToNgrokAPI(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
-	// TODO(hkatz) Implement me
-	return nil
 }
 
 func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner *bindingsv1alpha1.BoundEndpoint, service *v1.Service) error {
@@ -382,7 +372,7 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 	return nil
 }
 
-func (r *BoundEndpointReconciler) errResult(op controller.BaseControllerOp, cr *bindingsv1alpha1.BoundEndpoint, err error) (ctrl.Result, error) {
+func (r *BoundEndpointReconciler) errResult(_ controller.BaseControllerOp, _ *bindingsv1alpha1.BoundEndpoint, err error) (ctrl.Result, error) {
 	return ctrl.Result{}, err
 }
 

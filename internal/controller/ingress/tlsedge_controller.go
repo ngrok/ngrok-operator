@@ -84,7 +84,7 @@ func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Create:   r.create,
 		Update:   r.update,
 		Delete:   r.delete,
-		ErrResult: func(op controller.BaseControllerOp, cr *ingressv1alpha1.TLSEdge, err error) (ctrl.Result, error) {
+		ErrResult: func(_ controller.BaseControllerOp, _ *ingressv1alpha1.TLSEdge, err error) (ctrl.Result, error) {
 			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
 				return ctrl.Result{}, nil
 			}

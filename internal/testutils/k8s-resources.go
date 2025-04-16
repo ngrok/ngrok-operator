@@ -223,7 +223,7 @@ func NewReferenceGrant(name string, namespace string) gatewayv1beta1.ReferenceGr
 	}
 }
 
-func NewHTTPSEdge(name string, namespace string, domain string) ingressv1alpha1.HTTPSEdge {
+func NewHTTPSEdge(name string, namespace string) ingressv1alpha1.HTTPSEdge {
 	return ingressv1alpha1.HTTPSEdge{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

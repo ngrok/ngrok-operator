@@ -73,7 +73,7 @@ func (r *StaticSecretResolver) AddSecret(namespace, name, key, value string) {
 	secret[key] = value
 }
 
-func (r *StaticSecretResolver) GetSecret(ctx context.Context, namespace, name, key string) (string, error) {
+func (r *StaticSecretResolver) GetSecret(_ context.Context, namespace, name, key string) (string, error) {
 	nsSecrets, ok := r.secrets[namespace]
 	if !ok {
 		return "", fmt.Errorf("namespace '%s' not found", namespace)

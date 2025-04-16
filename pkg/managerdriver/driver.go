@@ -472,7 +472,7 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 	if d.syncFullCh != nil {
 		if partial {
 			// a full sync is already waiting, ignore non-full ones
-			return false, func(ctx context.Context) error {
+			return false, func(_ context.Context) error {
 				return nil
 			}
 		}

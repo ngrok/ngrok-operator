@@ -86,7 +86,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Create:   r.create,
 		Update:   r.update,
 		Delete:   r.delete,
-		ErrResult: func(op controller.BaseControllerOp, cr *ngrokv1alpha1.CloudEndpoint, err error) (ctrl.Result, error) {
+		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.CloudEndpoint, err error) (ctrl.Result, error) {
 			retryableErrors := []int{
 				// 18016 and 18017 are state based errors that can happen when endpoint pooling for a given URL
 				// disagrees with an already active endpoint with the same URL. Since this state can change in ngrok when moving
@@ -132,7 +132,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// Don't process delete events as it will just fail to look it up.
 			// Instead rely on the user to either delete the CloudEndpoint CR or update it with a new TrafficPolicy name
 			builder.WithPredicates(&predicate.Funcs{
-				DeleteFunc: func(e event.DeleteEvent) bool {
+				DeleteFunc: func(_ event.DeleteEvent) bool {
 					return false
 				},
 			}),
