@@ -100,16 +100,16 @@ type EndpointWebhookVerification struct {
 
 type EndpointCircuitBreaker struct {
 	// Duration after which the circuit is tripped to wait before re-evaluating upstream health
-	//+kubebuilder:validation:Format=duration
+	// +kubebuilder:validation:Format=duration
 	TrippedDuration v1.Duration `json:"trippedDuration,omitempty"`
 
 	// Statistical rolling window duration that metrics are retained for.
-	//+kubebuilder:validation:Format=duration
+	// +kubebuilder:validation:Format=duration
 	RollingWindow v1.Duration `json:"rollingWindow,omitempty"`
 
 	// Integer number of buckets into which metrics are retained. Max 128.
-	//+kubebuilder:validation:Minimum=1
-	//+kubebuilder:validation:Maximum=128
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=128
 	NumBuckets uint32 `json:"numBuckets,omitempty"`
 
 	// Integer number of requests in a rolling window that will trip the circuit.
@@ -130,11 +130,11 @@ type EndpointOIDC struct {
 	// Duration of inactivity after which if the user has not accessed
 	// the endpoint, their session will time out and they will be forced to
 	// reauthenticate.
-	//+kubebuilder:validation:Format=duration
+	// +kubebuilder:validation:Format=duration
 	InactivityTimeout v1.Duration `json:"inactivityTimeout,omitempty"`
 	// The maximum duration of an authenticated session.
 	// After this period is exceeded, a user must reauthenticate.
-	//+kubebuilder:validation:Format=duration
+	// +kubebuilder:validation:Format=duration
 	MaximumDuration v1.Duration `json:"maximumDuration,omitempty"`
 	// URL of the OIDC "OpenID provider". This is the base URL used for discovery.
 	Issuer string `json:"issuer,omitempty"`
@@ -156,11 +156,11 @@ type EndpointSAML struct {
 	// Duration of inactivity after which if the user has not accessed
 	// the endpoint, their session will time out and they will be forced to
 	// reauthenticate.
-	//+kubebuilder:validation:Format=duration
+	// +kubebuilder:validation:Format=duration
 	InactivityTimeout v1.Duration `json:"inactivityTimeout,omitempty"`
 	// The maximum duration of an authenticated session.
 	// After this period is exceeded, a user must reauthenticate.
-	//+kubebuilder:validation:Format=duration
+	// +kubebuilder:validation:Format=duration
 	MaximumDuration v1.Duration `json:"maximumDuration,omitempty"`
 	// The full XML IdP EntityDescriptor. Your IdP may provide this to you as a a file
 	// to download or as a URL.
@@ -194,18 +194,18 @@ type OAuthProviderCommon struct {
 	// Duration of inactivity after which if the user has not accessed
 	// the endpoint, their session will time out and they will be forced to
 	// reauthenticate.
-	//+kubebuilder:validation:Format=duration
+	// +kubebuilder:validation:Format=duration
 	InactivityTimeout v1.Duration `json:"inactivityTimeout,omitempty"`
 	// Integer number of seconds of the maximum duration of an authenticated session.
 	// After this period is exceeded, a user must reauthenticate.
-	//+kubebuilder:validation:Format=duration
+	// +kubebuilder:validation:Format=duration
 	MaximumDuration v1.Duration `json:"maximumDuration,omitempty"`
 	// Duration after which ngrok guarantees it will refresh user
 	// state from the identity provider and recheck whether the user is still
 	// authorized to access the endpoint. This is the preferred tunable to use to
 	// enforce a minimum amount of time after which a revoked user will no longer be
 	// able to access the resource.
-	//+kubebuilder:validation:Format=duration
+	// +kubebuilder:validation:Format=duration
 	AuthCheckInterval v1.Duration `json:"authCheckInterval,omitempty"`
 	// the OAuth app client ID. retrieve it from the identity provider's dashboard
 	// where you created your own OAuth app. optional. if unspecified, ngrok will use

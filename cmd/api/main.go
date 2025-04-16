@@ -69,7 +69,7 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	//+kubebuilder:scaffold:imports
+	// +kubebuilder:scaffold:imports
 )
 
 var (
@@ -85,7 +85,7 @@ func init() {
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
-	//+kubebuilder:scaffold:scheme
+	// +kubebuilder:scaffold:scheme
 }
 
 func main() {
@@ -381,7 +381,7 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 
 	// new kubebuilder controllers will be generated here
 	// please attach these to a feature set
-	//+kubebuilder:scaffold:builder
+	// +kubebuilder:scaffold:builder
 
 	// Always register the ngrok KubernetesOperator controller. It is independent of the feature set.
 	if err := (&ngrokcontroller.KubernetesOperatorReconciler{
