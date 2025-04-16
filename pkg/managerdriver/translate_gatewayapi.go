@@ -96,7 +96,7 @@ func (t *translator) findMatchingVHostsForXRoute(
 
 		// Check matching Gateways for this route
 		// The controller already filters the resources based on our gateway class, so no need to check that here
-		refNamespace := string(routeNamespace)
+		refNamespace := routeNamespace
 		if parentRef.Namespace != nil {
 			refNamespace = string(*parentRef.Namespace)
 		}
@@ -698,7 +698,7 @@ func (t *translator) matchGatewayListenersToXRoute(
 				matchingListeners = append(matchingListeners, listener)
 				break
 			}
-			match, err := doHostGlobsMatch(listenerHostname, string(routeHostname))
+			match, err := doHostGlobsMatch(listenerHostname, routeHostname)
 			if err != nil {
 				t.log.Error(err, "unable to compile hostname glob for Gateway listener hostname, this listener will be skipped",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
@@ -725,7 +725,7 @@ func GatewayAPIHTTPMatchToIR(match gatewayv1.HTTPRouteMatch) *ir.IRHTTPMatch {
 
 	if match.Path != nil {
 		if match.Path.Value != nil {
-			path = string(*match.Path.Value)
+			path = *match.Path.Value
 		}
 		if match.Path.Type != nil {
 			switch *match.Path.Type {

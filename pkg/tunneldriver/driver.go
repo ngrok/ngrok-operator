@@ -129,7 +129,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		if commentString != "{}" {
 			comments = append(
 				comments,
-				string(commentString),
+				commentString,
 			)
 		}
 	}
