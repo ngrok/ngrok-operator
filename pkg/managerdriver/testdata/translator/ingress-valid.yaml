@@ -90,7 +90,7 @@ input:
         protocol: TCP
         targetPort: http
       type: ClusterIP
-  trafficPolicies: 
+  trafficPolicies:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: NgrokTrafficPolicy
     metadata:
@@ -122,8 +122,6 @@ expected:
       name: test-ingresses.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       url: https://test-ingresses.ngrok.io
       trafficPolicy:
         policy:
@@ -178,8 +176,6 @@ expected:
       url: "https://e3b0c-test-service-1-default-8080.internal"
       upstream:
         url: "http://test-service-1.default:8080"
-      bindings:
-      - "internal"
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
     metadata:
@@ -192,5 +188,3 @@ expected:
       url: "https://e3b0c-test-service-2-default-8080.internal"
       upstream:
         url: "http://test-service-2.default:8080"
-      bindings:
-      - "internal"
