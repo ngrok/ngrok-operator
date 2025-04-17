@@ -35,18 +35,20 @@ jobs:
         platforms: linux/amd64
         push: false
         load: true # Loads the image to the local docker daemon so trivy can scan it without us needing to push anything
-        tags: ngrok/ngrok-operator:latest
+        tags: ngrok/ngrok-operator:${{ github.sha }}
 
     - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@v0.30.0
+      uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
       with:
-        image-ref: ngrok/ngrok-operator:latest
+        image-ref: ngrok/ngrok-operator:${{ github.sha }}
         severity: 'CRITICAL,HIGH'
         exit-code: '1' # fail job on HIGH/CRITICAL vulns
         format: 'sarif'
         output: 'trivy-results.sarif'
+        limit-severities-for-sarif: true # Makes the sarif report limited to the above CRITICAL/HIGH severity issues only
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
+      if: always() # Run even when previous step failed
       with:
         sarif_file: 'trivy-results.sarif'
