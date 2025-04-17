@@ -374,7 +374,7 @@ func (r *BoundEndpointReconciler) errResult(_ controller.BaseControllerOp, _ *bi
 }
 
 // convertBoundEndpointToServices converts an BoundEndpoint into 2 Services: Target(ExternalName) and Upstream(Pod Forwarders)
-func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *bindingsv1alpha1.BoundEndpoint) (*v1.Service, *v1.Service) {
+func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *bindingsv1alpha1.BoundEndpoint) (target *v1.Service, upstream *v1.Service) {
 	// Send traffic to any Node in the cluster
 	internalTrafficPolicy := v1.ServiceInternalTrafficPolicyCluster
 
