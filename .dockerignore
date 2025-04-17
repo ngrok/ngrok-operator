@@ -3,6 +3,7 @@
 *
 # Copy in the Makefile to re-use build command
 !Makefile
+!tools/make/*.mk
 # Used to inject version build info
 !VERSION
 # Used to inject git commit build info
