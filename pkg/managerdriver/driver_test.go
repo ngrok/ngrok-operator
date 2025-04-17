@@ -388,7 +388,7 @@ var _ = Describe("Driver", func() {
 			})
 		})
 
-		When("An ingress specifices a traffic policy", func() {
+		When("An ingress specifies a traffic policy", func() {
 			var (
 				c                   client.WithWatch
 				namespace           = "edge-tp-test-namespace"

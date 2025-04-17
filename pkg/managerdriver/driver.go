@@ -684,8 +684,8 @@ func (d *Driver) getTrafficPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1a
 func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (json.RawMessage, error) {
 	pathPrefixMatches := []string{}
 
-	// NOTE: matches are only defined on requests, and fitlers are only triggered by matches,
-	// but some fitlers define transformations on responses, so we need to define matches on both
+	// NOTE: matches are only defined on requests, and filters are only triggered by matches,
+	// but some filters define transformations on responses, so we need to define matches on both
 	// Policy.Inbound and Policy.Outbound when possible to work with ngrok's system
 	for _, match := range rule.Matches {
 		if match.Path != nil {

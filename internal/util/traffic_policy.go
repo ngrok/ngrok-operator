@@ -135,7 +135,7 @@ func (t *trafficPolicyImpl) Merge(addedTP TrafficPolicy) {
 }
 
 // ToCRDJson creates a json from the traffic policy, but embeds the "enabled" field at the top level. This is necessary
-// for backwards compatability where we let users set this.
+// for backwards compatibility where we let users set this.
 func (t *trafficPolicyImpl) ToCRDJson() (json.RawMessage, error) {
 	// no special processing needed if enabled wasn't set.
 	if t.enabled == nil {

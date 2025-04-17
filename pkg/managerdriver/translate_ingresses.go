@@ -18,7 +18,7 @@ import (
 
 // #region Ingresses to IR
 
-// ingressesToIR fetches all stored ingresses and translates them into IR for futher processing and translation
+// ingressesToIR fetches all stored ingresses and translates them into IR for further processing and translation
 func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 	hostCache := make(map[ir.IRHostname]*ir.IRVirtualHost)    // Each unique hostname corresponds to one IRVirtualHost
 	upstreamCache := make(map[ir.IRServiceKey]*ir.IRUpstream) // Each unique service/port combo corresponds to one IRUpstream

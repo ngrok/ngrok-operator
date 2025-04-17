@@ -232,7 +232,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		match := r.getMatchingRouteFromEdgeStatus(edge, routeSpec)
 		var route *ngrok.HTTPSEdgeRoute
 		// Now we go ahead and create the route if it doesn't exist.
-		// It's important to note here that we are intentionally ommiting the `route.Backend` for new routes.
+		// It's important to note here that we are intentionally omitting the `route.Backend` for new routes.
 		//  The success or failure of applying a route's modules is then strongly linked the state of its backend.
 		//  Thus, any route with a backend is considered properly configured.
 		//  See https://github.com/ngrok/ngrok-operator/issues/208 for additional context.

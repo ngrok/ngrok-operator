@@ -300,7 +300,7 @@ func (h *IRVirtualHost) SortRoutes() {
 		mi := h.Routes[i].HTTPMatchCriteria
 		mj := h.Routes[j].HTTPMatchCriteria
 
-		// Routes with no match critera should come last
+		// Routes with no match criteria should come last
 		// If both routes have no match criteria, leave them in the order they were in
 		if mi == nil && mj == nil {
 			return false // preserve original order

@@ -532,7 +532,7 @@ func (t *translator) httpRouteRulesToIR(irVHost *ir.IRVirtualHost, httpRoute *ga
 	return routesToAdd
 }
 
-// #region Find Gateway listners for HTTPRoute
+// #region Find Gateway listeners for HTTPRoute
 
 // xRouteKind identifies a type of Gateway API Route that we support translation for
 type xRouteKind string
