@@ -86,7 +86,7 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Create:   r.create,
 		Update:   r.update,
 		Delete:   r.delete,
-		ErrResult: func(op controller.BaseControllerOp, cr *ingressv1alpha1.HTTPSEdge, err error) (ctrl.Result, error) {
+		ErrResult: func(_ controller.BaseControllerOp, _ *ingressv1alpha1.HTTPSEdge, err error) (ctrl.Result, error) {
 			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
 				return ctrl.Result{}, nil
 			}
@@ -109,9 +109,9 @@ func (r *HTTPSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=httpsedges,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=httpsedges/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=httpsedges/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=httpsedges,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=httpsedges/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=httpsedges/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -183,11 +183,7 @@ func (r *HTTPSEdgeReconciler) upsert(ctx context.Context, edge *ingressv1alpha1.
 		return err
 	}
 
-	if err := r.setEdgeMutualTLS(ctx, remoteEdge, edge.Spec.MutualTLS); err != nil {
-		return err
-	}
-
-	return nil
+	return r.setEdgeMutualTLS(ctx, remoteEdge, edge.Spec.MutualTLS)
 }
 
 func (r *HTTPSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {
@@ -236,7 +232,7 @@ func (r *HTTPSEdgeReconciler) reconcileRoutes(ctx context.Context, edge *ingress
 		match := r.getMatchingRouteFromEdgeStatus(edge, routeSpec)
 		var route *ngrok.HTTPSEdgeRoute
 		// Now we go ahead and create the route if it doesn't exist.
-		// It's important to note here that we are intentionally ommiting the `route.Backend` for new routes.
+		// It's important to note here that we are intentionally omitting the `route.Backend` for new routes.
 		//  The success or failure of applying a route's modules is then strongly linked the state of its backend.
 		//  Thus, any route with a backend is considered properly configured.
 		//  See https://github.com/ngrok/ngrok-operator/issues/208 for additional context.

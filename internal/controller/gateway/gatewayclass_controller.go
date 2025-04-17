@@ -176,7 +176,7 @@ func (r *GatewayClassReconciler) reconcileGatewayExistsFinalizer(ctx context.Con
 
 // findGatewayClassForGateway returns a reconcile.Request for the GatewayClass of the given gateway. It is used by
 // the watch on Gateway objects to trigger a reconciliation of the GatewayClass.
-func (r *GatewayClassReconciler) findGatewayClassForGateway(ctx context.Context, o client.Object) []reconcile.Request {
+func (r *GatewayClassReconciler) findGatewayClassForGateway(_ context.Context, o client.Object) []reconcile.Request {
 	log := r.Log
 
 	gw, ok := o.(*gatewayv1.Gateway)

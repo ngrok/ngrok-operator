@@ -72,8 +72,8 @@ var _ = Describe("Driver", func() {
 			ic2 := testutils.NewTestIngressClass("test-ingress-class-2", true, true)
 			d1 := testutils.NewDomainV1("test-domain.com", "test-namespace")
 			d2 := testutils.NewDomainV1("test-domain-2.com", "test-namespace")
-			e1 := testutils.NewHTTPSEdge("test-edge", "test-namespace", "test-domain.com")
-			e2 := testutils.NewHTTPSEdge("test-edge-2", "test-namespace", "test-domain-2.com")
+			e1 := testutils.NewHTTPSEdge("test-edge", "test-namespace")
+			e2 := testutils.NewHTTPSEdge("test-edge-2", "test-namespace")
 			obs := []runtime.Object{&ic1, &ic2, &i1, &i2, &d1, &d2, &e1, &e2}
 
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
@@ -388,7 +388,7 @@ var _ = Describe("Driver", func() {
 			})
 		})
 
-		When("An ingress specifices a traffic policy", func() {
+		When("An ingress specifies a traffic policy", func() {
 			var (
 				c                   client.WithWatch
 				namespace           = "edge-tp-test-namespace"

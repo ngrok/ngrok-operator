@@ -39,7 +39,7 @@ func NewControllerEventHandler(resourceName string, d *Driver, client client.Cli
 }
 
 // Create is called in response to an create event - e.g. Edge Creation.
-func (e *ControllerEventHandler) Create(ctx context.Context, evt event.CreateEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (e *ControllerEventHandler) Create(_ context.Context, evt event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	if err := e.store.Update(evt.Object); err != nil {
 		e.log.Error(err, "error updating object in create", "object", evt.Object)
 		return
@@ -47,7 +47,7 @@ func (e *ControllerEventHandler) Create(ctx context.Context, evt event.CreateEve
 }
 
 // Update is called in response to an update event -  e.g. Edge Updated.
-func (e *ControllerEventHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (e *ControllerEventHandler) Update(ctx context.Context, evt event.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	if err := e.store.Update(evt.ObjectNew); err != nil {
 		e.log.Error(err, "error updating object in update", "object", evt.ObjectNew)
 		return
@@ -59,7 +59,7 @@ func (e *ControllerEventHandler) Update(ctx context.Context, evt event.UpdateEve
 }
 
 // Delete is called in response to a delete event - e.g. Edge Deleted.
-func (e *ControllerEventHandler) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (e *ControllerEventHandler) Delete(_ context.Context, evt event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	if err := e.store.Delete(evt.Object); err != nil {
 		e.log.Error(err, "error deleting object", "object", evt.Object)
 		return
@@ -68,7 +68,7 @@ func (e *ControllerEventHandler) Delete(ctx context.Context, evt event.DeleteEve
 
 // Generic is called in response to an event of an unknown type or a synthetic event triggered as a cron or
 // external trigger request
-func (e *ControllerEventHandler) Generic(ctx context.Context, evt event.GenericEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (e *ControllerEventHandler) Generic(_ context.Context, evt event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	if err := e.store.Update(evt.Object); err != nil {
 		e.log.Error(err, "error updating object in generic", "object", evt.Object)
 		return

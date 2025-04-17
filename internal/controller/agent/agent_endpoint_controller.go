@@ -91,7 +91,7 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Update:   r.update,
 		Delete:   r.delete,
 		StatusID: r.statusID,
-		ErrResult: func(op controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
+		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
 			if errors.Is(err, ErrDomainCreating) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
@@ -146,7 +146,7 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// Don't process delete events as it will just fail to look it up.
 			// Instead rely on the user to either delete the AgentEndpoint CR or update it with a new TrafficPolicy name
 			builder.WithPredicates(&predicate.Funcs{
-				DeleteFunc: func(e event.DeleteEvent) bool {
+				DeleteFunc: func(_ event.DeleteEvent) bool {
 					return false
 				},
 			}),
@@ -155,7 +155,7 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&v1.Secret{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForSecret),
 			builder.WithPredicates(&predicate.Funcs{
-				DeleteFunc: func(e event.DeleteEvent) bool {
+				DeleteFunc: func(_ event.DeleteEvent) bool {
 					return false
 				},
 			}),

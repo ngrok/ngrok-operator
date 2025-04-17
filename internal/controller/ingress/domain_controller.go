@@ -70,7 +70,7 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Create:   r.create,
 		Update:   r.update,
 		Delete:   r.delete,
-		ErrResult: func(op controller.BaseControllerOp, cr *ingressv1alpha1.Domain, err error) (reconcile.Result, error) {
+		ErrResult: func(_ controller.BaseControllerOp, _ *ingressv1alpha1.Domain, err error) (reconcile.Result, error) {
 			retryableErrors := []int{
 				// Domain still attached to an edge, probably a race condition.
 				// Schedule for retry, and hopefully the edge will be gone
@@ -96,9 +96,9 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

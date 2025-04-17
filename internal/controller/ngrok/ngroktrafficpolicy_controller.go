@@ -50,9 +50,9 @@ type NgrokTrafficPolicyReconciler struct {
 	Driver   *managerdriver.Driver
 }
 
-//+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

@@ -84,7 +84,7 @@ func (r *StaticIPPolicyResolver) AddIPPolicy(namespace, name, id string) {
 }
 
 // ResolveIPPolicyNamesorIds resolves IP policy names or IDs to IDs. If the input is not found, it is assumed to be an ID
-func (r *StaticIPPolicyResolver) ResolveIPPolicyNamesorIds(ctx context.Context, namespace string, namesOrIds []string) ([]string, error) {
+func (r *StaticIPPolicyResolver) ResolveIPPolicyNamesorIds(_ context.Context, namespace string, namesOrIds []string) ([]string, error) {
 	nsPolicies, ok := r.ipPolicies[namespace]
 	if !ok {
 		return nil, fmt.Errorf("namespace %s not found", namespace)
@@ -106,7 +106,7 @@ func (r *StaticIPPolicyResolver) ResolveIPPolicyNamesorIds(ctx context.Context, 
 }
 
 // ValidateIPPolicyNames validates that the IP policy names or IDs exist in the static map.
-func (r *StaticIPPolicyResolver) ValidateIPPolicyNames(ctx context.Context, namespace string, namesOrIds []string) error {
+func (r *StaticIPPolicyResolver) ValidateIPPolicyNames(_ context.Context, namespace string, namesOrIds []string) error {
 	nsPolicies, ok := r.ipPolicies[namespace]
 	if !ok {
 		return fmt.Errorf("namespace %s not found", namespace)

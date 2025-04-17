@@ -69,7 +69,7 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	//+kubebuilder:scaffold:imports
+	// +kubebuilder:scaffold:imports
 )
 
 var (
@@ -85,7 +85,7 @@ func init() {
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
-	//+kubebuilder:scaffold:scheme
+	// +kubebuilder:scaffold:scheme
 }
 
 func main() {
@@ -144,7 +144,7 @@ func cmd() *cobra.Command {
 	var opts managerOpts
 	c := &cobra.Command{
 		Use: "api-manager",
-		RunE: func(c *cobra.Command, args []string) error {
+		RunE: func(c *cobra.Command, _ []string) error {
 			return startOperator(c.Context(), opts)
 		},
 	}
@@ -266,13 +266,13 @@ func startOperator(ctx context.Context, opts managerOpts) error {
 		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
 	}
 
-	mgr, err := loadManager(ctx, k8sConfig, opts)
+	mgr, err := loadManager(k8sConfig, opts)
 	if err != nil {
 		return fmt.Errorf("unable to load manager: %w", err)
 	}
 
 	if opts.oneClickDemoMode {
-		return runOneClickDemoMode(ctx, opts, k8sClient, mgr)
+		return runOneClickDemoMode(ctx, mgr)
 	}
 
 	return runNormalMode(ctx, opts, k8sClient, mgr, tcpRouteCRDInstalled, tlsRouteCRDInstalled)
@@ -282,7 +282,7 @@ func startOperator(ctx context.Context, opts managerOpts) error {
 // - the operator will start even if required fields are missing
 // - the operator will log errors about missing required fields
 // - the operator will go Ready and log errors about registration state due to missing required fields
-func runOneClickDemoMode(ctx context.Context, opts managerOpts, k8sClient client.Client, mgr ctrl.Manager) error {
+func runOneClickDemoMode(ctx context.Context, mgr ctrl.Manager) error {
 	// register healthchecks
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		return fmt.Errorf("error setting up readyz check: %w", err)
@@ -381,7 +381,7 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 
 	// new kubebuilder controllers will be generated here
 	// please attach these to a feature set
-	//+kubebuilder:scaffold:builder
+	// +kubebuilder:scaffold:builder
 
 	// Always register the ngrok KubernetesOperator controller. It is independent of the feature set.
 	if err := (&ngrokcontroller.KubernetesOperatorReconciler{
@@ -413,7 +413,7 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 }
 
 // loadManager loads the controller-runtime manager with the provided options
-func loadManager(ctx context.Context, k8sConfig *rest.Config, opts managerOpts) (manager.Manager, error) {
+func loadManager(k8sConfig *rest.Config, opts managerOpts) (manager.Manager, error) {
 	options := ctrl.Options{
 		Scheme: scheme,
 		Metrics: server.Options{

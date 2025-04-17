@@ -152,7 +152,7 @@ type KubernetesOperator struct {
 	Status KubernetesOperatorStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // KubernetesOperatorList contains a list of KubernetesOperator
 type KubernetesOperatorList struct {

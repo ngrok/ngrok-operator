@@ -132,10 +132,9 @@ func parseHostport(proto string, publicURL string) (*parsedHostport, error) {
 	parts := strings.Split(parsedURL.Hostname(), ".")
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid hostname, expected <service-name>.<namespace-name>: %s", parsedURL.Hostname())
-	} else {
-		serviceName = parts[0]
-		namespace = parts[1]
 	}
+	serviceName = parts[0]
+	namespace = parts[1]
 
 	// Parse the port if available
 	// default based on the scheme.

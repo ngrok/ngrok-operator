@@ -17,11 +17,11 @@ import (
 
 func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
 	if !d.syncAllowConcurrent {
-		if proceed, wait := d.syncStart(true); proceed {
-			defer d.syncDone()
-		} else {
+		proceed, wait := d.syncStart(true)
+		if !proceed {
 			return wait(ctx)
 		}
+		defer d.syncDone()
 	}
 
 	d.log.Info("syncing edges state!!")
@@ -36,11 +36,7 @@ func (d *Driver) SyncEdges(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	if err := d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items); err != nil {
-		return err
-	}
-
-	return nil
+	return d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items)
 }
 
 func (d *Driver) applyHTTPSEdges(ctx context.Context, c client.Client, desiredEdges map[string]ingressv1alpha1.HTTPSEdge, currentEdges []ingressv1alpha1.HTTPSEdge) error {

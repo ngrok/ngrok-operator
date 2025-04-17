@@ -44,7 +44,7 @@ import (
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
-	//+kubebuilder:scaffold:imports
+	// +kubebuilder:scaffold:imports
 )
 
 var (
@@ -82,7 +82,7 @@ func cmd() *cobra.Command {
 	var opts managerOpts
 	c := &cobra.Command{
 		Use: "bindings-forwarder-manager",
-		RunE: func(c *cobra.Command, args []string) error {
+		RunE: func(c *cobra.Command, _ []string) error {
 			return runController(c.Context(), opts)
 		},
 	}

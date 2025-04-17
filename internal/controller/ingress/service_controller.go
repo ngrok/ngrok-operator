@@ -1057,7 +1057,7 @@ func newServiceTunnelReconciler() serviceSubresourceReconciler {
 		mergeExisting: func(desired ingressv1alpha1.Tunnel, existing *ingressv1alpha1.Tunnel) {
 			existing.Spec = desired.Spec
 		},
-		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, tunnel *ingressv1alpha1.Tunnel) error {
+		updateStatus: func(_ context.Context, _ client.Client, _ *corev1.Service, _ *ingressv1alpha1.Tunnel) error {
 			// Tunnels don't interact with the service status
 			return nil
 		},
@@ -1153,7 +1153,7 @@ func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
 		mergeExisting: func(desired ngrokv1alpha1.AgentEndpoint, existing *ngrokv1alpha1.AgentEndpoint) {
 			existing.Spec = desired.Spec
 		},
-		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1alpha1.AgentEndpoint) error {
+		updateStatus: func(_ context.Context, _ client.Client, _ *corev1.Service, _ *ngrokv1alpha1.AgentEndpoint) error {
 			// AgentEndpoints don't interact with the service status
 			return nil
 		},
