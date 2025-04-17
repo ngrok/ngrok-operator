@@ -532,11 +532,11 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	// a periodic sync instead of a sync on every reconcile event, but for now this debouncer
 	// keeps it in check and syncs in batches
 	if !d.syncAllowConcurrent {
-		if proceed, wait := d.syncStart(false); proceed {
-			defer d.syncDone()
-		} else {
+		proceed, wait := d.syncStart(false)
+		if !proceed {
 			return wait(ctx)
 		}
+		defer d.syncDone()
 	}
 
 	d.log.Info("syncing driver state!!")

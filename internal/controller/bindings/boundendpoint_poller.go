@@ -383,26 +383,25 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 
 	log.Info("Creating new BoundEndpoint", "name", name, "uri", toCreate.Spec.EndpointURI)
 	if err := r.Create(ctx, toCreate); err != nil {
-		if client.IgnoreAlreadyExists(err) == nil {
-			log.Info("BoundEndpoint already exists, skipping create...", "name", name, "uri", toCreate.Spec.EndpointURI)
-
-			if toCreate.Status.HashedName != "" && len(toCreate.Status.Endpoints) > 0 {
-				// Status is filled, no need to update
-				return nil
-			}
-			// intentionally blonk
-			// we want to fall through and fill in the status
-			log.Info("BoundEndpoint already exists, but status is empty, filling in status...", "name", name, "uri", toCreate.Spec.EndpointURI, "toCreate", toCreate)
-
-			// refresh the toCreate object with existing data
-			if err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: name}, toCreate); err != nil {
-				log.Error(err, "Failed to get existing BoundEndpoint, skipping status update...", "name", name, "uri", toCreate.Spec.EndpointURI)
-				return nil
-			}
-		} else {
+		if client.IgnoreAlreadyExists(err) != nil {
 			log.Error(err, "Failed to create BoundEndpoint", "name", name, "uri", toCreate.Spec.EndpointURI)
 			r.Recorder.Event(toCreate, v1.EventTypeWarning, "Created", fmt.Sprintf("Failed to create BoundEndpoint: %v", err))
 			return err
+		}
+
+		log.Info("BoundEndpoint already exists, skipping create...", "name", name, "uri", toCreate.Spec.EndpointURI)
+
+		if toCreate.Status.HashedName != "" && len(toCreate.Status.Endpoints) > 0 {
+			// Status is filled, no need to update
+			return nil
+		}
+
+		// intentionally fall through and fill in status
+		log.Info("BoundEndpoint already exists, but status is empty, filling in status...", "name", name, "uri", toCreate.Spec.EndpointURI, "toCreate", toCreate)
+
+		if err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: name}, toCreate); err != nil {
+			log.Error(err, "Failed to get existing BoundEndpoint, skipping status update...", "name", name, "uri", toCreate.Spec.EndpointURI)
+			return nil
 		}
 	}
 

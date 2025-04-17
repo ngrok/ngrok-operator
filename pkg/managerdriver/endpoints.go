@@ -12,11 +12,11 @@ import (
 
 func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 	if !d.syncAllowConcurrent {
-		if proceed, wait := d.syncStart(true); proceed {
-			defer d.syncDone()
-		} else {
+		proceed, wait := d.syncStart(true)
+		if !proceed {
 			return wait(ctx)
 		}
+		defer d.syncDone()
 	}
 
 	d.log.Info("syncing cloud and agent endpoints state!!")

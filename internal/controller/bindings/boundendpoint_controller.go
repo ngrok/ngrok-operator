@@ -262,15 +262,15 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	// upstream service
 	err := r.Get(ctx, client.ObjectKey{Namespace: desiredUpstreamService.Namespace, Name: desiredUpstreamService.Name}, &existingUpstreamService)
 	if err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			// Upstream Service doesn't exist, create it
-			log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
-			if err := r.createUpstreamService(ctx, cr, desiredUpstreamService); err != nil {
-				return r.controller.ReconcileStatus(ctx, cr, err)
-			}
-		} else {
+		if client.IgnoreNotFound(err) != nil {
 			// real error
 			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			return r.controller.ReconcileStatus(ctx, cr, err)
+		}
+
+		// Upstream Service doesn't exist, create it
+		log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
+		if err := r.createUpstreamService(ctx, cr, desiredUpstreamService); err != nil {
 			return r.controller.ReconcileStatus(ctx, cr, err)
 		}
 	} else {
@@ -292,15 +292,15 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	// target service
 	err = r.Get(ctx, client.ObjectKey{Namespace: desiredTargetService.Namespace, Name: desiredTargetService.Name}, &existingTargetService)
 	if err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			// Target Service doesn't exist, create it
-			log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
-			if err := r.createTargetService(ctx, cr, desiredTargetService); err != nil {
-				return r.controller.ReconcileStatus(ctx, cr, err)
-			}
-		} else {
+		if client.IgnoreNotFound(err) != nil {
 			// real error
 			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			return r.controller.ReconcileStatus(ctx, cr, err)
+		}
+
+		// Target Service doesn't exist, create it
+		log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
+		if err := r.createTargetService(ctx, cr, desiredTargetService); err != nil {
 			return r.controller.ReconcileStatus(ctx, cr, err)
 		}
 	} else {
@@ -339,12 +339,11 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 
 	targetNamespace := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: targetService.Namespace}}
 	if err := r.Client.Get(ctx, types.NamespacedName{Name: targetNamespace.Name}, targetNamespace); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			// fallthrough, no Target Service to delete
-		} else {
+		if client.IgnoreNotFound(err) != nil {
 			log.Error(err, "Failed to get Target Namespace")
 			return err
 		}
+		// fallthrough, no Target Service to delete
 	} else {
 		// Target Namespace exists, try to delete the Target Service
 
@@ -359,13 +358,12 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 	}
 
 	if err := r.Client.Delete(ctx, upstreamService); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			// fallthrough, nothing to do
-		} else {
+		if client.IgnoreNotFound(err) != nil {
 			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
 			log.Error(err, "Failed to delete Upstream Service")
 			return err
 		}
+		// fallthrough, nothing to do
 	}
 
 	return nil
@@ -545,35 +543,36 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 	var bindErr error
 	for attempt < retries {
 		attempt++
+		time.Sleep(waitDuration) // wait for attempt to be ready
 
-		// wait for attempt to be ready
-		time.Sleep(waitDuration)
-
-		// rely on kube-dns to resolve the targetService's ExternalName
+		// 1. Parse URI: rely on kube-dns to resolve the targetService's ExternalName
 		uri, err := url.Parse(boundEndpoint.Spec.EndpointURI)
 		if err != nil {
 			bindErr = fmt.Errorf("failed to parse BoundEndpoint URI %s: %w", boundEndpoint.Spec.EndpointURI, err)
+			waitDuration += backoffDuration
 			continue
 		}
 
+		// 2. Dial target
 		conn, err := net.DialTimeout("tcp", uri.Host, dialTimeout)
 		if err != nil {
 			log.Error(err, "Failed to bind BoundEndpoint", "attempt", attempt, "retries", retries)
 			bindErr = err
-		} else {
-			// conn exists, close it
-			if err := conn.Close(); err != nil {
-				log.Error(err, "Failed to close connection", "attempt", attempt, "retries", retries)
-				bindErr = err
-			} else {
-				// success case: we dialed and closed the connection
-				bindErr = nil
-				break
-			}
+			waitDuration += backoffDuration
+			continue
 		}
 
-		// increase backoff duration for next attempt
-		waitDuration += backoffDuration
+		// 3. Connection exists, close it
+		if err := conn.Close(); err != nil {
+			log.Error(err, "Failed to close connection", "attempt", attempt, "retries", retries)
+			bindErr = err
+			waitDuration += backoffDuration
+			continue
+		}
+
+		// Success: dialled and closed cleanly
+		bindErr = nil
+		break
 	}
 
 	// update statuses
