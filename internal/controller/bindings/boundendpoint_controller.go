@@ -351,11 +351,10 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 		if err := r.Client.Delete(ctx, targetService); err != nil {
 			if client.IgnoreNotFound(err) == nil {
 				return nil
-			} else {
-				r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
-				log.Error(err, "Failed to delete Target Service")
-				return err
 			}
+			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
+			log.Error(err, "Failed to delete Target Service")
+			return err
 		}
 	}
 

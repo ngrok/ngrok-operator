@@ -389,16 +389,15 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 			if toCreate.Status.HashedName != "" && len(toCreate.Status.Endpoints) > 0 {
 				// Status is filled, no need to update
 				return nil
-			} else {
-				// intentionally blonk
-				// we want to fall through and fill in the status
-				log.Info("BoundEndpoint already exists, but status is empty, filling in status...", "name", name, "uri", toCreate.Spec.EndpointURI, "toCreate", toCreate)
+			}
+			// intentionally blonk
+			// we want to fall through and fill in the status
+			log.Info("BoundEndpoint already exists, but status is empty, filling in status...", "name", name, "uri", toCreate.Spec.EndpointURI, "toCreate", toCreate)
 
-				// refresh the toCreate object with existing data
-				if err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: name}, toCreate); err != nil {
-					log.Error(err, "Failed to get existing BoundEndpoint, skipping status update...", "name", name, "uri", toCreate.Spec.EndpointURI)
-					return nil
-				}
+			// refresh the toCreate object with existing data
+			if err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: name}, toCreate); err != nil {
+				log.Error(err, "Failed to get existing BoundEndpoint, skipping status update...", "name", name, "uri", toCreate.Spec.EndpointURI)
+				return nil
 			}
 		} else {
 			log.Error(err, "Failed to create BoundEndpoint", "name", name, "uri", toCreate.Spec.EndpointURI)
@@ -450,11 +449,10 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 			// BoundEndpoint doesn't exist, create it on the next polling loop
 			log.Info("Unable to find existing BoundEndpoint, skipping update...", "name", desiredName, "uri", desired.Spec.EndpointURI)
 			return nil // not an error
-		} else {
-			// real error
-			log.Error(err, "Failed to find existing BoundEndpoint", "name", desiredName, "uri", desired.Spec.EndpointURI)
-			return err
 		}
+		// real error
+		log.Error(err, "Failed to find existing BoundEndpoint", "name", desiredName, "uri", desired.Spec.EndpointURI)
+		return err
 	}
 
 	if !boundEndpointNeedsUpdate(ctx, *existing, desired) {
@@ -510,12 +508,11 @@ func (r *BoundEndpointPoller) deleteBinding(ctx context.Context, boundEndpoint b
 	if err := r.Delete(ctx, &boundEndpoint); err != nil {
 		log.Error(err, "Failed to delete BoundEndpoint", "name", boundEndpoint.Name, "uri", boundEndpoint.Spec.EndpointURI)
 		return err
-	} else {
-		log.Info("Deleted BoundEndpoint", "name", boundEndpoint.Name, "uri", boundEndpoint.Spec.EndpointURI)
-
-		// unset the port allocation
-		r.portAllocator.Unset(boundEndpoint.Spec.Port)
 	}
+	log.Info("Deleted BoundEndpoint", "name", boundEndpoint.Name, "uri", boundEndpoint.Spec.EndpointURI)
+
+	// unset the port allocation
+	r.portAllocator.Unset(boundEndpoint.Spec.Port)
 
 	return nil
 }
