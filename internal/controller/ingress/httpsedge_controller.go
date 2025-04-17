@@ -183,11 +183,7 @@ func (r *HTTPSEdgeReconciler) upsert(ctx context.Context, edge *ingressv1alpha1.
 		return err
 	}
 
-	if err := r.setEdgeMutualTLS(ctx, remoteEdge, edge.Spec.MutualTLS); err != nil {
-		return err
-	}
-
-	return nil
+	return r.setEdgeMutualTLS(ctx, remoteEdge, edge.Spec.MutualTLS)
 }
 
 func (r *HTTPSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.HTTPSEdge) error {

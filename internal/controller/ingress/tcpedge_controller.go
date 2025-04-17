@@ -293,11 +293,7 @@ func (r *TCPEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha
 		return err
 	}
 
-	if err := r.updatePolicyModule(ctx, edge, remoteEdge); err != nil {
-		return err
-	}
-
-	return nil
+	return r.updatePolicyModule(ctx, edge, remoteEdge)
 }
 
 func (r *TCPEdgeReconciler) updateEdgeStatus(ctx context.Context, edge *ingressv1alpha1.TCPEdge, remoteEdge *ngrok.TCPEdge) error {

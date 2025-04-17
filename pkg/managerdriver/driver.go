@@ -865,11 +865,7 @@ func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, acti
 		return err
 	}
 
-	if err := d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders); err != nil {
-		return err
-	}
-
-	return nil
+	return d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders)
 }
 
 func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions *util.Actions) error {
@@ -948,11 +944,7 @@ func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, a
 		return err
 	}
 
-	if err := d.handleHTTPHeaderFilterAdd(filter.Set, actions, requestRedirectHeaders); err != nil {
-		return err
-	}
-
-	return nil
+	return d.handleHTTPHeaderFilterAdd(filter.Set, actions, requestRedirectHeaders)
 }
 
 type URLRedirectConfig struct {

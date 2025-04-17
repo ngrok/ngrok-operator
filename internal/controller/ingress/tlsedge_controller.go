@@ -235,11 +235,7 @@ func (r *TLSEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha
 		return err
 	}
 
-	if err := r.updatePolicyModule(ctx, edge, resp); err != nil {
-		return err
-	}
-
-	return nil
+	return r.updatePolicyModule(ctx, edge, resp)
 }
 
 func (r *TLSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {
