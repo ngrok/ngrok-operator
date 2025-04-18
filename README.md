@@ -31,6 +31,9 @@
   <a href="https://artifacthub.io/packages/search?repo=ngrok&operators=true&sort=relevance&page=1">
     <img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/ngrok" alt="Artifacthub"/>
   </a>
+    <a href="https://github.com/ngrok/ngrok-operator/actions/workflows/trivy-image-scan.yaml">
+    <img src="https://github.com/ngrok/ngrok-operator/actions/workflows/trivy-image-scan.yaml/badge.svg" alt="Trivy"/>
+  </a>
 </p>
 
 # ngrok Kubernetes Operator
