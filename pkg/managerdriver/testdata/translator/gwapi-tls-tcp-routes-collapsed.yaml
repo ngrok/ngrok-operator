@@ -109,8 +109,6 @@ expected:
       url: "tcp://5.tcp.ngrok.io:24429"
       upstream:
         url: "tcp://test-service-tcp.default:7000"
-      bindings:
-      - "public"
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
     metadata:
@@ -123,5 +121,3 @@ expected:
       url: "tls://3.tcp.ngrok.io:20183"
       upstream:
         url: "tls://test-service-tls.default:9000"
-      bindings:
-      - "public"

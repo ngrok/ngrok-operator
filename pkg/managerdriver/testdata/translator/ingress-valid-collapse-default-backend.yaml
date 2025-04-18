@@ -50,7 +50,7 @@ input:
         protocol: TCP
         targetPort: http
       type: ClusterIP
-  trafficPolicies: 
+  trafficPolicies:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: NgrokTrafficPolicy
     metadata:
@@ -82,8 +82,6 @@ expected:
       url: "https://test-ingresses.ngrok.io"
       upstream:
         url: "http://test-service-1.default:8080"
-      bindings:
-      - "public"
       trafficPolicy:
         inline:
           on_http_request:
@@ -110,7 +108,7 @@ expected:
             actions:
             - type: set-vars
               config:
-                vars: 
+                vars:
                 - request_matched_local_svc: true
           - name: Fallback-404
             expressions:

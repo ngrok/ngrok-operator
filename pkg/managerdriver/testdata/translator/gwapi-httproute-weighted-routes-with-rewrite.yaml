@@ -50,7 +50,7 @@ input:
             filters:
             - type: URLRewrite
               urlRewrite:
-                path: 
+                path:
                   type: ReplacePrefixMatch
                   replacePrefixMatch: "/rewrite-svc-1"
           - group: ""
@@ -61,7 +61,7 @@ input:
             filters:
             - type: URLRewrite
               urlRewrite:
-                path: 
+                path:
                   type: ReplacePrefixMatch
                   replacePrefixMatch: "/rewrite-svc-2"
   services:
@@ -100,8 +100,6 @@ expected:
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
             on_http_request:
@@ -177,8 +175,6 @@ expected:
       url: "https://e3b0c-test-service-1-default-8080.internal"
       upstream:
         url: "http://test-service-1.default:8080"
-      bindings:
-      - "internal"
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
     metadata:
@@ -191,5 +187,3 @@ expected:
       url: "https://e3b0c-test-service-2-default-8080.internal"
       upstream:
         url: "http://test-service-2.default:8080"
-      bindings:
-      - "internal"

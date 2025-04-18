@@ -44,7 +44,7 @@ input:
         filters:
         - type: URLRewrite
           urlRewrite:
-            path: 
+            path:
               type: ReplacePrefixMatch
               replacePrefixMatch: "/rewrite"
       - matches:
@@ -54,7 +54,7 @@ input:
         filters:
         - type: URLRewrite
           urlRewrite:
-            path: 
+            path:
               type: ReplaceFullPath
               replaceFullPath: "/rewrite"
       - matches:
@@ -89,8 +89,6 @@ expected:
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
           on_http_request:

@@ -92,8 +92,6 @@ expected:
       name: test-ingresses.ngrok.io
       namespace: aaa
     spec:
-      bindings:
-      - public
       url: https://test-ingresses.ngrok.io
       trafficPolicy:
         policy:
@@ -126,5 +124,3 @@ expected:
       url: "https://e3b0c-test-service-1-aaa-8080.internal"
       upstream:
         url: "http://test-service-1.aaa:8080"
-      bindings:
-      - "internal"

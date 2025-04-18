@@ -820,7 +820,7 @@ func buildAgentEndpoint(
 	clusterDomain string,
 	metadata string,
 ) (*ngrokv1alpha1.AgentEndpoint, error) {
-	bindings := []string{"internal"}
+	bindings := []string{}
 	var url string
 	if irVHost.CollapseIntoServiceKey != nil && irService.Key() == *irVHost.CollapseIntoServiceKey {
 		publicURL, err := buildPublicURL(irVHost)
@@ -858,8 +858,11 @@ func buildAgentEndpoint(
 				URL:      agentEndpointUpstreamURL(irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.Scheme),
 				Protocol: irService.Protocol,
 			},
-			Bindings: bindings,
 		},
+	}
+
+	if len(bindings) > 0 {
+		ret.Spec.Bindings = bindings
 	}
 
 	for _, certRef := range irService.ClientCertRefs {

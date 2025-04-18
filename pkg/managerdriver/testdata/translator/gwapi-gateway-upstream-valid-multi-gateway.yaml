@@ -116,8 +116,6 @@ expected:
       name: test-gateway-1.default-test-hostname-1.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
             on_http_request:
@@ -146,8 +144,6 @@ expected:
       name: test-gateway-2.default-test-hostname-2.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
             on_http_request:
@@ -183,8 +179,6 @@ expected:
       url: "https://e3b0c-test-service-1-default-mtls-3039d-8080.internal"
       upstream:
         url: "https://test-service-1.default:8080"
-      bindings:
-      - "internal"
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
     metadata:
@@ -200,5 +194,3 @@ expected:
       url: "https://e3b0c-test-service-1-default-mtls-96179-8080.internal"
       upstream:
         url: "https://test-service-1.default:8080"
-      bindings:
-      - "internal"

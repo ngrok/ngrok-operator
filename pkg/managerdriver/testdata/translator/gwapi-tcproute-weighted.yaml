@@ -83,8 +83,6 @@ expected:
       url: "tcp://test-hostname.ngrok.io:9000"
       upstream:
         url: "tcp://test-service-2.default:12000"
-      bindings:
-      - "public"
       trafficPolicy:
         inline:
           on_tcp_connect:
@@ -117,7 +115,7 @@ expected:
             actions:
               - type: set-vars
                 config:
-                  vars: 
+                  vars:
                   - request_matched_local_svc: true
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
@@ -131,5 +129,3 @@ expected:
       url: "tcp://e3b0c-test-service-1-default.internal:11000"
       upstream:
         url: "tcp://test-service-1.default:11000"
-      bindings:
-      - "internal"

@@ -202,7 +202,7 @@ func ExtractUseBindings(obj client.Object) ([]string, error) {
 	bindings, err := parser.GetStringSliceAnnotation("bindings", obj)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
-			return []string{"public"}, nil
+			return nil, nil
 		}
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func ExtractUseBindings(obj client.Object) ([]string, error) {
 	case n == 1:
 		return bindings, nil
 	default:
-		return []string{"public"}, nil
+		return nil, nil
 	}
 }
 

@@ -120,8 +120,6 @@ expected:
       url: "https://test-hostname.ngrok.io"
       upstream:
         url: "http://test-service-2.default:8080"
-      bindings:
-      - "public"
       trafficPolicy:
         inline:
           on_http_request:
@@ -154,7 +152,7 @@ expected:
               actions:
                 - type: set-vars
                   config:
-                    vars: 
+                    vars:
                     - request_matched_local_svc: true
             - name: Fallback-404
               expressions:
@@ -178,5 +176,3 @@ expected:
       url: "https://e3b0c-test-service-1-default-8080.internal"
       upstream:
         url: "http://test-service-1.default:8080"
-      bindings:
-      - "internal"
