@@ -68,5 +68,3 @@ expected:
       url: "tls://test-hostname.ngrok.io:9000"
       upstream:
         url: "tls://test-service-1.default:11000"
-      bindings:
-      - "public"
