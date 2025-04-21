@@ -535,6 +535,8 @@ func TestTranslate(t *testing.T) {
 			},
 			WithGatewayEnabled(true),
 			WithSyncAllowConcurrent(true),
+			WithGatewayTCPRouteEnabled(true),
+			WithGatewayTLSRouteEnabled(true),
 		)
 		t.Run(filepath.Base(file), func(t *testing.T) {
 			tc := loadTranslatorTestCase(t, file, sch)

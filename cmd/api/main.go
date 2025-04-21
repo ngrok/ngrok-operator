@@ -332,7 +332,7 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 	var k8sResourceDriver *managerdriver.Driver
 	if opts.enableFeatureIngress || opts.enableFeatureGateway {
 		// we only need a driver if these features are enabled
-		k8sResourceDriver, err = getK8sResourceDriver(ctx, mgr, opts)
+		k8sResourceDriver, err = getK8sResourceDriver(ctx, mgr, opts, tcpRouteCRDInstalled, tlsRouteCRDInstalled)
 		if err != nil {
 			return fmt.Errorf("unable to create Driver: %w", err)
 		}
@@ -478,8 +478,23 @@ func loadNgrokClientset(ctx context.Context, opts managerOpts) (ngrokapi.Clients
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options managerOpts) (*managerdriver.Driver, error) {
+func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options managerOpts, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) (*managerdriver.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
+
+	driverOpts := []managerdriver.DriverOpt{
+		managerdriver.WithGatewayEnabled(options.enableFeatureGateway),
+		managerdriver.WithClusterDomain(options.clusterDomain),
+		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
+	}
+
+	if tcpRouteCRDInstalled {
+		driverOpts = append(driverOpts, managerdriver.WithGatewayTCPRouteEnabled(true))
+	}
+
+	if tlsRouteCRDInstalled {
+		driverOpts = append(driverOpts, managerdriver.WithGatewayTLSRouteEnabled(true))
+	}
+
 	d := managerdriver.NewDriver(
 		logger,
 		mgr.GetScheme(),
@@ -488,9 +503,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options mana
 			Namespace: options.namespace,
 			Name:      options.managerName,
 		},
-		managerdriver.WithGatewayEnabled(options.enableFeatureGateway),
-		managerdriver.WithClusterDomain(options.clusterDomain),
-		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
+		driverOpts...,
 	)
 	if options.ngrokMetadata != "" {
 		customMetadata, err := util.ParseHelmDictionary(options.ngrokMetadata)

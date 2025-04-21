@@ -55,6 +55,8 @@ type Driver struct {
 	syncAllowConcurrent bool
 
 	gatewayEnabled                bool
+	gatewayTCPRouteEnabled        bool
+	gatewayTLSRouteEnabled        bool
 	disableGatewayReferenceGrants bool
 }
 
@@ -81,6 +83,18 @@ func WithSyncAllowConcurrent(allowed bool) DriverOpt {
 func WithClusterDomain(domain string) DriverOpt {
 	return func(d *Driver) {
 		d.clusterDomain = domain
+	}
+}
+
+func WithGatewayTCPRouteEnabled(enabled bool) DriverOpt {
+	return func(d *Driver) {
+		d.gatewayTCPRouteEnabled = enabled
+	}
+}
+
+func WithGatewayTLSRouteEnabled(enabled bool) DriverOpt {
+	return func(d *Driver) {
+		d.gatewayTLSRouteEnabled = enabled
 	}
 }
 
@@ -285,10 +299,16 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 			&gatewayv1.Gateway{},
 			&gatewayv1.GatewayClass{},
 			&gatewayv1.HTTPRoute{},
-			&gatewayv1alpha2.TCPRoute{},
-			&gatewayv1alpha2.TLSRoute{},
 			&gatewayv1beta1.ReferenceGrant{},
 		)
+
+		if d.gatewayTCPRouteEnabled {
+			typesToSeed = append(typesToSeed, &gatewayv1alpha2.TCPRoute{})
+		}
+
+		if d.gatewayTLSRouteEnabled {
+			typesToSeed = append(typesToSeed, &gatewayv1alpha2.TLSRoute{})
+		}
 	}
 
 	for _, v := range typesToSeed {
