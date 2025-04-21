@@ -228,20 +228,20 @@ func startOperator(ctx context.Context, opts managerOpts) error {
 			resourceList, err := discoveryClient.ServerResourcesForGroupVersion("gateway.networking.k8s.io/v1alpha2")
 			if err != nil {
 				setupLog.Error(err, "unable to check if TLSRoute/TCPRoute CRDs are installed, support for them will not be enabled")
-			}
-
-			for _, r := range resourceList.APIResources {
-				if strings.EqualFold(r.Name, "TLSRoutes") {
-					tlsRouteCRDInstalled = true
-					continue
-				}
-				if strings.EqualFold(r.Name, "TCPRoutes") {
-					tcpRouteCRDInstalled = true
-					continue
-				}
-				// If we found both, no need to check other resources
-				if tcpRouteCRDInstalled && tlsRouteCRDInstalled {
-					break
+			} else {
+				for _, r := range resourceList.APIResources {
+					if strings.EqualFold(r.Name, "TLSRoutes") {
+						tlsRouteCRDInstalled = true
+						continue
+					}
+					if strings.EqualFold(r.Name, "TCPRoutes") {
+						tcpRouteCRDInstalled = true
+						continue
+					}
+					// If we found both, no need to check other resources
+					if tcpRouteCRDInstalled && tlsRouteCRDInstalled {
+						break
+					}
 				}
 			}
 
