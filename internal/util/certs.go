@@ -9,10 +9,13 @@ import (
 	"sync"
 )
 
-var (
+const (
 	// TODO: Make this configurable via helm and document it so users can
 	// use it for things like proxies
-	customCertsPath  = "/etc/ssl/certs/ngrok/"
+	customCertsPath = "/etc/ssl/certs/ngrok/"
+)
+
+var (
 	ngrokCertPool    *x509.CertPool
 	loadCertsOnce    sync.Once
 	loadCertsOnceErr error

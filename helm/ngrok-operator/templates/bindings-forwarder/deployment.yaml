@@ -99,6 +99,8 @@ spec:
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}
         {{- end }}
+        {{- if .Values.extraVolumeMounts }}
+        {{- end }}
         {{- if .Values.lifecycle }}
         lifecycle:
         {{- toYaml .Values.lifecycle | nindent 10 }}
