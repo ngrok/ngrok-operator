@@ -757,6 +757,7 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 		UpstreamServiceLabelSelector: map[string]string{
 			"app.kubernetes.io/component": "bindings-forwarder",
 		},
+		RefreshDuration: time.Minute * 10,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BoundEndpoint")
 		os.Exit(1)
@@ -765,12 +766,10 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 	// Create a new Runnable that implements Start that the manager can manage running
 	if err := mgr.Add(&bindingscontroller.BoundEndpointPoller{
 		Client:                       mgr.GetClient(),
-		Scheme:                       mgr.GetScheme(),
 		Log:                          ctrl.Log.WithName("controllers").WithName("BoundEndpointPoller"),
 		Recorder:                     mgr.GetEventRecorderFor("endpoint-binding-poller"),
 		Namespace:                    opts.namespace,
 		KubernetesOperatorConfigName: opts.releaseName,
-		EndpointSelectors:            opts.bindings.endpointSelectors,
 		TargetServiceAnnotations:     targetServiceAnnotations,
 		TargetServiceLabels:          targetServiceLabels,
 		PollingInterval:              10 * time.Second,

@@ -85,6 +85,8 @@ type BoundEndpointReconciler struct {
 
 	// UpstreamServiceLabelSelectors are the set of labels for the Pod Forwarders
 	UpstreamServiceLabelSelector map[string]string
+
+	RefreshDuration time.Duration
 }
 
 // +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints,verbs=get;list;watch;create;update;patch;delete
@@ -166,11 +168,10 @@ func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return res, err
 	}
 
-	// TODO: if controller.IsUpsert(cr) ->
-	// send an update to the ngrok API to update the endpoint binding and status fields
-
 	// success
-	return ctrl.Result{}, nil
+	return ctrl.Result{
+		RequeueAfter: r.RefreshDuration,
+	}, nil
 }
 
 func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
@@ -184,22 +185,12 @@ func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alph
 		return r.controller.ReconcileStatus(ctx, cr, err)
 	}
 
-	if err := r.tryToBindEndpoint(ctx, cr); err != nil {
-		return r.controller.ReconcileStatus(ctx, cr, err)
-	}
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
 
-	return r.controller.ReconcileStatus(ctx, cr, nil)
-}
-
-// setEndpointsStatus sets the status of every endpoint on boundEndpoint to the desired status
-// Note: All endpoints share the same status since they are represented by the same resources (Target/Upstream Services)
-func setEndpointsStatus(boundEndpoint *bindingsv1alpha1.BoundEndpoint, desired *bindingsv1alpha1.BindingEndpoint) {
-	for i := range boundEndpoint.Status.Endpoints {
-		endpoint := &boundEndpoint.Status.Endpoints[i]
-		endpoint.Status = desired.Status
-		endpoint.ErrorCode = desired.ErrorCode
-		endpoint.ErrorMessage = desired.ErrorMessage
-	}
+	err := r.testBoundEndpointConnectivity(timeoutCtx, cr)
+	determineAndSetBindingEndpointStatus(cr, err)
+	return r.controller.ReconcileStatus(ctx, cr, err)
 }
 
 func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner *bindingsv1alpha1.BoundEndpoint, service *v1.Service) error {
@@ -319,12 +310,13 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 		r.Recorder.Event(&existingTargetService, v1.EventTypeNormal, "Updated", "Updated Target Service")
 	}
 
-	if err := r.tryToBindEndpoint(ctx, cr); err != nil {
-		return r.controller.ReconcileStatus(ctx, cr, err)
-	}
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
 
+	err = r.testBoundEndpointConnectivity(timeoutCtx, cr)
+	determineAndSetBindingEndpointStatus(cr, err)
 	r.Recorder.Event(cr, v1.EventTypeNormal, "Updated", "Updated Services")
-	return r.controller.ReconcileStatus(ctx, cr, nil)
+	return r.controller.ReconcileStatus(ctx, cr, err)
 }
 
 func (r *BoundEndpointReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
@@ -530,58 +522,71 @@ func (r *BoundEndpointReconciler) findBoundEndpointsForService(ctx context.Conte
 }
 
 // tryToBindEndpoint attempts a TCP connection through the provisioned services for the BoundEndpoint
-func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
+func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("uri", boundEndpoint.Spec.EndpointURI)
 
-	retries := 5
-	attempt := 0
-	waitDuration := 0 * time.Second    // start immediately
-	backoffDuration := 3 * time.Second // increasing duration to wait between retries
-	dialTimeout := 1 * time.Second     // timeout for dialing the targetService
+	bindErrMsg := fmt.Sprintf("connectivity check failed for BoundEndpoint %s", boundEndpoint.Name)
 
-	// to be filled in
-	var bindErr error
-	for attempt < retries {
-		attempt++
-		time.Sleep(waitDuration) // wait for attempt to be ready
+	// start at 0, then 1, then backoff *= 2
+	backoff := time.Second * 0
 
-		// 1. Parse URI: rely on kube-dns to resolve the targetService's ExternalName
-		uri, err := url.Parse(boundEndpoint.Spec.EndpointURI)
-		if err != nil {
-			bindErr = fmt.Errorf("failed to parse BoundEndpoint URI %s: %w", boundEndpoint.Spec.EndpointURI, err)
-			waitDuration += backoffDuration
-			continue
-		}
+	// we should cancel long before we hit 8 retries, but just in case
+	// we forget to set a deadline or cancel the context let's make sure we don't run forever
+	retries := 8
 
-		// 2. Dial target
-		conn, err := net.DialTimeout("tcp", uri.Host, dialTimeout)
-		if err != nil {
-			log.Error(err, "Failed to bind BoundEndpoint", "attempt", attempt, "retries", retries)
-			bindErr = err
-			waitDuration += backoffDuration
-			continue
-		}
-
-		// 3. Connection exists, close it
-		if err := conn.Close(); err != nil {
-			log.Error(err, "Failed to close connection", "attempt", attempt, "retries", retries)
-			bindErr = err
-			waitDuration += backoffDuration
-			continue
-		}
-
-		// Success: dialled and closed cleanly
-		bindErr = nil
-		break
+	// rely on kube-dns to resolve the targetService's ExternalName
+	uri, err := url.Parse(boundEndpoint.Spec.EndpointURI)
+	if err != nil {
+		wrappedErr := fmt.Errorf("failed to parse BoundEndpoint URI %s: %w", boundEndpoint.Spec.EndpointURI, err)
+		log.Error(wrappedErr, bindErrMsg, "uri", boundEndpoint.Spec.EndpointURI)
+		return wrappedErr
 	}
 
-	// update statuses
+	for i := range retries {
+		select {
+		case <-ctx.Done():
+			err = fmt.Errorf("attempting to connect to BoundEndpoint URI timed out")
+			log.Error(err, bindErrMsg)
+			return err
+
+		case <-time.After(backoff):
+			if backoff == 0 {
+				backoff = time.Second * 1
+			} else {
+				backoff *= 2
+			}
+
+			conn, err := net.DialTimeout("tcp", uri.Host, time.Second*2)
+			if err != nil {
+				log.Error(err, "failed to dial endpoint uri", "attempt", i+1)
+				continue
+			}
+			// conn exists, close it
+			if err := conn.Close(); err != nil {
+				log.Error(err, "failed to close connection to endpoint uri", "attempt", i+1)
+				continue
+			}
+
+			// connection was good
+			return nil
+		}
+
+	}
+
+	err = fmt.Errorf("exceeded max retries")
+	log.Error(err, bindErrMsg)
+	return err
+
+}
+
+// determineAndSetBindingEndpointStatus determines what the status of an endpoint should be
+// based on the passed-in error and then calls setEndpointsStatus
+func determineAndSetBindingEndpointStatus(boundEndpoint *bindingsv1alpha1.BoundEndpoint, err error) {
 	var desired *bindingsv1alpha1.BindingEndpoint
 	var ngrokErr *ngrok.Error
-	if bindErr != nil {
+	if err != nil {
 		// error
-		log.Error(bindErr, "Failed to bind BoundEndpoint, moving to error")
-		ngrokErr = ngrokapi.NewNgrokError(bindErr, ngrokapi.NgrokOpErrFailedToConnectServices, "Failed to bind BoundEndpoint")
+		ngrokErr = ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToConnectServices, "failed to bind BoundEndpoint")
 		desired = &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusError,
 			ErrorCode:    ngrokErr.ErrorCode,
@@ -589,27 +594,24 @@ func (r *BoundEndpointReconciler) tryToBindEndpoint(ctx context.Context, boundEn
 		}
 	} else {
 		// success
-		log.Info("Bound BoundEndpoint successfully, moving to bound")
 		desired = &bindingsv1alpha1.BindingEndpoint{
 			Status:       bindingsv1alpha1.StatusBound,
 			ErrorCode:    "",
 			ErrorMessage: "",
 		}
-
 	}
 
 	// set status
 	setEndpointsStatus(boundEndpoint, desired)
+}
 
-	// Why do we check for nil here and return nil explicitly instead of just `return ngrokErr`?
-	// Because *ngrok.Error meets the interface of error means that error is actually (T=*ngrok.Error, V=nil)
-	// so outer function signature is (error) and not (*ngrok.Error)
-	// and an interface _pointing_ to nil is != to nil itself
-	// therefore *ngrok.Error.(error) is _always_ != nil
-	//
-	// See: https://go.dev/doc/faq#nil_error
-	if ngrokErr != nil {
-		return ngrokErr
+// setEndpointsStatus sets the status of every endpoint on boundEndpoint to the desired status
+// Note: All endpoints share the same status since they are represented by the same resources (Target/Upstream Services)
+func setEndpointsStatus(boundEndpoint *bindingsv1alpha1.BoundEndpoint, desired *bindingsv1alpha1.BindingEndpoint) {
+	for i := range boundEndpoint.Status.Endpoints {
+		endpoint := &boundEndpoint.Status.Endpoints[i]
+		endpoint.Status = desired.Status
+		endpoint.ErrorCode = desired.ErrorCode
+		endpoint.ErrorMessage = desired.ErrorMessage
 	}
-	return nil
 }
