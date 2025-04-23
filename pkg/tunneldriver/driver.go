@@ -33,7 +33,7 @@ type k8sLogger struct {
 	logger logr.Logger
 }
 
-func (l k8sLogger) Log(ctx context.Context, level logrok.LogLevel, msg string, kvs map[string]interface{}) {
+func (l k8sLogger) Log(_ context.Context, level logrok.LogLevel, msg string, kvs map[string]interface{}) {
 	keysAndValues := []any{}
 	for k, v := range kvs {
 		keysAndValues = append(keysAndValues, k, v)
@@ -121,7 +121,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		if commentString != "{}" {
 			comments = append(
 				comments,
-				string(commentString),
+				commentString,
 			)
 		}
 	}
@@ -129,7 +129,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		ngrok.WithClientInfo("ngrok-operator", version.GetVersion(), comments...),
 		ngrok.WithAuthtokenFromEnv(),
 		ngrok.WithLogger(k8sLogger{logger}),
-		ngrok.WithRestartHandler(func(ctx context.Context, sess ngrok.Session) error {
+		ngrok.WithRestartHandler(func(_ context.Context, _ ngrok.Session) error {
 			sessionState := td.session.Load()
 			if sessionState != nil && sessionState.session != nil {
 				sessionState.healthErr = fmt.Errorf("ngrok session restarting")
@@ -171,12 +171,12 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		readyErr: fmt.Errorf("attempting to connect"),
 	})
 	connOpts = append(connOpts,
-		ngrok.WithConnectHandler(func(ctx context.Context, sess ngrok.Session) {
+		ngrok.WithConnectHandler(func(_ context.Context, sess ngrok.Session) {
 			td.session.Store(&sessionState{
 				session: sess,
 			})
 		}),
-		ngrok.WithDisconnectHandler(func(ctx context.Context, sess ngrok.Session, err error) {
+		ngrok.WithDisconnectHandler(func(_ context.Context, sess ngrok.Session, err error) {
 			state := td.session.Load()
 
 			if state.session != nil {

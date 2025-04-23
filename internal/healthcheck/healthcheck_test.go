@@ -15,11 +15,11 @@ type mockChecker struct {
 	readyError error
 }
 
-func (m *mockChecker) Alive(ctx context.Context, r *http.Request) error {
+func (m *mockChecker) Alive(_ context.Context, _ *http.Request) error {
 	return m.aliveError
 }
 
-func (m *mockChecker) Ready(ctx context.Context, r *http.Request) error {
+func (m *mockChecker) Ready(_ context.Context, _ *http.Request) error {
 	return m.readyError
 }
 func Test_HealthChecker(t *testing.T) {

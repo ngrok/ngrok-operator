@@ -55,8 +55,8 @@ type NgrokTrafficPolicyStatus struct {
 	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API
 type NgrokTrafficPolicy struct {
@@ -67,7 +67,7 @@ type NgrokTrafficPolicy struct {
 	Status NgrokTrafficPolicyStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // NgrokTrafficPolicyList contains a list of NgrokTrafficPolicy
 type NgrokTrafficPolicyList struct {

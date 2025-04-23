@@ -44,7 +44,7 @@ input:
         filters:
         - type: RequestRedirect
           requestRedirect:
-            path: 
+            path:
               type: ReplacePrefixMatch
               replacePrefixMatch: "/redirect"
       - matches:
@@ -54,7 +54,7 @@ input:
         filters:
         - type: RequestRedirect
           requestRedirect:
-            path: 
+            path:
               type: ReplaceFullPath
               replaceFullPath: "/redirect"
       - matches:
@@ -105,8 +105,6 @@ expected:
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
           on_http_request:

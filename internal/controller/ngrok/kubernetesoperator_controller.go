@@ -341,7 +341,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 			if err != nil || uid == "" {
 				continue
 			}
-			if uid != string(namespaceUID) {
+			if uid != namespaceUID {
 				continue
 			}
 		}

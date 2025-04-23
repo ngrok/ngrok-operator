@@ -55,6 +55,8 @@ type Driver struct {
 	syncAllowConcurrent bool
 
 	gatewayEnabled                bool
+	gatewayTCPRouteEnabled        bool
+	gatewayTLSRouteEnabled        bool
 	disableGatewayReferenceGrants bool
 }
 
@@ -81,6 +83,18 @@ func WithSyncAllowConcurrent(allowed bool) DriverOpt {
 func WithClusterDomain(domain string) DriverOpt {
 	return func(d *Driver) {
 		d.clusterDomain = domain
+	}
+}
+
+func WithGatewayTCPRouteEnabled(enabled bool) DriverOpt {
+	return func(d *Driver) {
+		d.gatewayTCPRouteEnabled = enabled
+	}
+}
+
+func WithGatewayTLSRouteEnabled(enabled bool) DriverOpt {
+	return func(d *Driver) {
+		d.gatewayTLSRouteEnabled = enabled
 	}
 }
 
@@ -285,10 +299,16 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 			&gatewayv1.Gateway{},
 			&gatewayv1.GatewayClass{},
 			&gatewayv1.HTTPRoute{},
-			&gatewayv1alpha2.TCPRoute{},
-			&gatewayv1alpha2.TLSRoute{},
 			&gatewayv1beta1.ReferenceGrant{},
 		)
+
+		if d.gatewayTCPRouteEnabled {
+			typesToSeed = append(typesToSeed, &gatewayv1alpha2.TCPRoute{})
+		}
+
+		if d.gatewayTLSRouteEnabled {
+			typesToSeed = append(typesToSeed, &gatewayv1alpha2.TLSRoute{})
+		}
 	}
 
 	for _, v := range typesToSeed {
@@ -472,7 +492,7 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 	if d.syncFullCh != nil {
 		if partial {
 			// a full sync is already waiting, ignore non-full ones
-			return false, func(ctx context.Context) error {
+			return false, func(_ context.Context) error {
 				return nil
 			}
 		}
@@ -532,11 +552,11 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	// a periodic sync instead of a sync on every reconcile event, but for now this debouncer
 	// keeps it in check and syncs in batches
 	if !d.syncAllowConcurrent {
-		if proceed, wait := d.syncStart(false); proceed {
-			defer d.syncDone()
-		} else {
+		proceed, wait := d.syncStart(false)
+		if !proceed {
 			return wait(ctx)
 		}
+		defer d.syncDone()
 	}
 
 	d.log.Info("syncing driver state!!")
@@ -684,8 +704,8 @@ func (d *Driver) getTrafficPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1a
 func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (json.RawMessage, error) {
 	pathPrefixMatches := []string{}
 
-	// NOTE: matches are only defined on requests, and fitlers are only triggered by matches,
-	// but some fitlers define transformations on responses, so we need to define matches on both
+	// NOTE: matches are only defined on requests, and filters are only triggered by matches,
+	// but some filters define transformations on responses, so we need to define matches on both
 	// Policy.Inbound and Policy.Outbound when possible to work with ngrok's system
 	for _, match := range rule.Matches {
 		if match.Path != nil {
@@ -865,11 +885,7 @@ func (d *Driver) handleHTTPHeaderFilter(filter *gatewayv1.HTTPHeaderFilter, acti
 		return err
 	}
 
-	if err := d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders); err != nil {
-		return err
-	}
-
-	return nil
+	return d.handleHTTPHeaderFilterSet(filter, actions, requestRedirectHeaders)
 }
 
 func (d *Driver) handleHTTPHeaderFilterRemove(headersToRemove []string, actions *util.Actions) error {
@@ -948,11 +964,7 @@ func (d *Driver) handleHTTPHeaderFilterSet(filter *gatewayv1.HTTPHeaderFilter, a
 		return err
 	}
 
-	if err := d.handleHTTPHeaderFilterAdd(filter.Set, actions, requestRedirectHeaders); err != nil {
-		return err
-	}
-
-	return nil
+	return d.handleHTTPHeaderFilterAdd(filter.Set, actions, requestRedirectHeaders)
 }
 
 type URLRedirectConfig struct {

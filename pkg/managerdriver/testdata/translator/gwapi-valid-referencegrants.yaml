@@ -109,8 +109,6 @@ expected:
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
             on_http_request:
@@ -150,8 +148,6 @@ expected:
       url: "https://e3b0c-same-namespace-svc-default-8080.internal"
       upstream:
         url: "http://same-namespace-svc.default:8080"
-      bindings:
-      - internal
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
     metadata:
@@ -164,5 +160,3 @@ expected:
       url: "https://e3b0c-cross-namespace-svc-other-8080.internal"
       upstream:
         url: "http://cross-namespace-svc.other:8080"
-      bindings:
-      - internal

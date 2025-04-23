@@ -260,7 +260,7 @@ func getIngressEndpointWithFallback(rawIngressEndpoint string, log logr.Logger) 
 	}
 }
 
-func (r *ForwarderReconciler) delete(ctx context.Context, epb *bindingsv1alpha1.BoundEndpoint) error {
+func (r *ForwarderReconciler) delete(_ context.Context, epb *bindingsv1alpha1.BoundEndpoint) error {
 	port := int32(epb.Spec.Port)
 	r.BindingsDriver.Close(port)
 	return nil

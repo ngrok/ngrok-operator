@@ -86,7 +86,9 @@ func newBindingsListener(address string, cnxnHandler ConnectionHandler) (*bindin
 // Stop stops the listener. It is safe to call stop multiple times.
 func (b *bindingsListener) Stop() {
 	b.stopOnce.Do(func() {
-		b.listener.Close()
+		if err := b.listener.Close(); err != nil {
+			b.log.Error(err, "encountered error while closing bindings listener")
+		}
 		b.stop <- struct{}{}
 	})
 }

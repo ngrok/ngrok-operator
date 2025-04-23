@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.16.0...ngrok-operator-0.16.1
+
+### Added
+
+- enable more golangci linters by @Alice-Lilith in [#630](https://github.com/ngrok/ngrok-operator/pull/630)
+
+### Removed
+
+- remove generated bindings from ingress/gateway resources by @Alice-Lilith in [#635](https://github.com/ngrok/ngrok-operator/pull/635)
+
+### Fixed
+
+- fix(api-manager): panic when TCP/TLS Route CRDs are not installed. by @jonstacks in [#636](https://github.com/ngrok/ngrok-operator/pull/636)
+
+
 ## 0.16.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.15.1...ngrok-operator-0.16.0
 

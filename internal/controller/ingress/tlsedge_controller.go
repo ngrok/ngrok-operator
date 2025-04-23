@@ -84,7 +84,7 @@ func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Create:   r.create,
 		Update:   r.update,
 		Delete:   r.delete,
-		ErrResult: func(op controller.BaseControllerOp, cr *ingressv1alpha1.TLSEdge, err error) (ctrl.Result, error) {
+		ErrResult: func(_ controller.BaseControllerOp, _ *ingressv1alpha1.TLSEdge, err error) (ctrl.Result, error) {
 			if errors.As(err, &ierr.ErrInvalidConfiguration{}) {
 				return ctrl.Result{}, nil
 			}
@@ -112,10 +112,10 @@ func (r *TLSEdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return controller.Complete(r)
 }
 
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges/finalizers,verbs=update
-//+kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;create;update
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;create;update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -235,11 +235,7 @@ func (r *TLSEdgeReconciler) updateEdge(ctx context.Context, edge *ingressv1alpha
 		return err
 	}
 
-	if err := r.updatePolicyModule(ctx, edge, resp); err != nil {
-		return err
-	}
-
-	return nil
+	return r.updatePolicyModule(ctx, edge, resp)
 }
 
 func (r *TLSEdgeReconciler) delete(ctx context.Context, edge *ingressv1alpha1.TLSEdge) error {

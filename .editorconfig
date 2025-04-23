@@ -1,0 +1,45 @@
+; VSCode, Vim, etc have plugins to respect the conventions defined in this file.
+; It's useful for stuff like enforcing newlines, indentation, and tab style automatically for you
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+; JSON ======================================
+
+[*.json]
+insert_final_newline = false
+indent_style = space
+indent_size = 4
+
+
+; YAML ======================================
+
+[{*.yaml,*.yml}]
+indent_style = space
+indent_size = 2
+
+
+; Go ======================================
+
+[*.go]
+indent_style = tab
+tab_width = 4
+
+[{go.mod,go.sum}]
+indent_style = tab
+
+; Misc ======================================
+
+[{Makefile,*.mk}]
+indent_style = tab
+
+[*.sh]
+indent_style = space
+indent_size = 4
+
+[*.md]
+indent_style = space

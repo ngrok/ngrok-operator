@@ -108,8 +108,6 @@ expected:
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
             on_http_request:
@@ -152,8 +150,6 @@ expected:
       url: "https://e3b0c-test-service-https-default-mtls-baff5-443.internal"
       upstream:
         url: "https://test-service-https.default:443"
-      bindings:
-      - "internal"
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
     metadata:
@@ -166,5 +162,3 @@ expected:
       url: "https://e3b0c-test-service-http-default-80.internal"
       upstream:
         url: "http://test-service-http.default:80"
-      bindings:
-      - "internal"

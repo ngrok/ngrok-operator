@@ -65,10 +65,10 @@ type IPPolicyStatus struct {
 	Rules []IPPolicyRuleStatus `json:"rules,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="IPPolicy ID"
-//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="IPPolicy ID"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
 // IPPolicy is the Schema for the ippolicies API
 type IPPolicy struct {
@@ -79,7 +79,7 @@ type IPPolicy struct {
 	Status IPPolicyStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // IPPolicyList contains a list of IPPolicy
 type IPPolicyList struct {

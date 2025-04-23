@@ -90,7 +90,7 @@ input:
       type: ClusterIP
   trafficPolicies: []
 expected:
-  # Generated cloud endpoint should have the routes and default backend from the first ingress, but 
+  # Generated cloud endpoint should have the routes and default backend from the first ingress, but
   # the second ingress will not be processed due to the conflicting default destination
   cloudEndpoints:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
@@ -102,8 +102,6 @@ expected:
       name: test-ingresses.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       url: https://test-ingresses.ngrok.io
       trafficPolicy:
         policy:
@@ -141,5 +139,3 @@ expected:
       url: "https://e3b0c-test-service-1-default-8080.internal"
       upstream:
         url: "http://test-service-1.default:8080"
-      bindings:
-      - "internal"

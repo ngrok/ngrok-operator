@@ -52,7 +52,7 @@ type CloudEndpointSpec struct {
 	// +kubebuilder:validation:Optional
 	TrafficPolicyName string `json:"trafficPolicyName,omitempty"`
 
-	// Controlls whether or not the Cloud Endpoint should allow pooling with other
+	// Controls whether or not the Cloud Endpoint should allow pooling with other
 	// Cloud Endpoints sharing the same URL. When Cloud Endpoints are pooled, any requests
 	// going to the URL for the pooled endpoint will be distributed among all Cloud Endpoints
 	// in the pool. A URL can only be shared across multiple Cloud Endpoints if they all have pooling enabled.
