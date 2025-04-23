@@ -19,3 +19,7 @@ helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
 
 helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuilding dependencies
 	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
+
+.PHONY: gen-protos
+gen-protos: buf ## Generate protobuf and gRPC code using buf.
+	$(BUF) generate --template buf.gen.yaml

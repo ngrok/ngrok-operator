@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package clientcomm.v1;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/ngrok/ngrok-operator/pkg/clientcommpb";
+
+// Bidirectional stream between client and server.
+service ClientCommService {
+  rpc Stream(stream SignedClientMessage) returns (stream SignedServerMessage);
+}
+
+
+// =======================================================
+// Client Messages
+// =======================================================
+
+// Signed message from the client
+//
+// next-free-field: 3
+message SignedClientMessage {
+  bytes payload = 1;      // Deterministic serialization of ClientMessage
+  bytes signature = 2;    // Signature using client's private key
+}
+
+// Canonical payload (to be signed) from the client.
+//
+// next-free-field: 2
+message ClientMessage {
+  oneof kind {
+    K8sOperatorTelemetry k8s_operator_telemetry = 1;
+  }
+}
+
+// Telemetry report from the k8s operator
+//
+// next-free-field: 2
+message K8sOperatorTelemetry {
+  string placeholder = 1;
+}
+
+// =======================================================
+// Server Messages
+// =======================================================
+
+// Signed message from the server
+//
+// next-free-field: 3
+message SignedServerMessage {
+  bytes payload = 1;      // Deterministic serialization of ServerMessage
+  bytes signature = 2;    // Signature using server's private key
+}
+
+// Canonical payload (to be signed) from the server.
+//
+// next-free-field: 2
+message ServerMessage {
+  oneof kind {
+    SetReportingInterval set_reporting_interval = 1;
+  }
+}
+
+// Specifies how often the client should send telemetry data.
+// If zero, telemetry reporting should be disabled.
+//
+// next-free-field: 3
+message SetReportingInterval {
+  google.protobuf.Duration new_interval = 1;
+  ClientMessageKind message_kind = 2;
+}
+
+
+// Enum for identifying a client message kind
+//
+// next-free-field: 2
+enum ClientMessageKind {
+  TARGET_KIND_UNSPECIFIED = 0; // Default for backward compatibility
+  K8S_OPERATOR_TELEMETRY = 1;
+}

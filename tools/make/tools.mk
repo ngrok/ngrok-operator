@@ -47,3 +47,8 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 .PHONY: _helm_setup
 _helm_setup: ## Setup helm dependencies
 	$(MAKE) -C $(HELM_CHART_DIR) setup
+
+.PHONY: buf
+buf: $(BUF) ## Download buf locally if necessary.
+$(BUF): $(LOCALBIN)
+	$(call go-install-tool,$(BUF),github.com/bufbuild/buf/cmd/buf,$(BUF_VERSION))
