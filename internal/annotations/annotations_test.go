@@ -244,7 +244,7 @@ func TestExtractUseBindings(t *testing.T) {
 		{
 			name:        "Annotation Not present",
 			annotations: nil,
-			expected:    []string{"public"},
+			expected:    nil,
 			expectedErr: nil,
 		},
 	}

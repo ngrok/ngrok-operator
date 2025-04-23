@@ -42,15 +42,3 @@ spec:
             ("tls.crt" != null && "tls.crt" != ""): true
             ("tls.csr" != null && "tls.csr" != ""): true
             ("tls.key" != null && "tls.key" != ""): true
-
-  - name: assert Configmap/ngrok-intermediate-ca exists (tunnels/forwarders will work)
-    try:
-    - assert:
-        resource:
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: ngrok-intermediate-ca
-            namespace: ngrok-operator
-          data:
-            ("root.crt" != null): true

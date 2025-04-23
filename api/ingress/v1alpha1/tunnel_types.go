@@ -67,10 +67,10 @@ type TunnelStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="ForwardsTo",type=string,JSONPath=`.spec.forwardsTo`,description="Service/port to forward to"
-//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ForwardsTo",type=string,JSONPath=`.spec.forwardsTo`,description="Service/port to forward to"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
 // Tunnel is the Schema for the tunnels API
 type Tunnel struct {
@@ -81,7 +81,7 @@ type Tunnel struct {
 	Status TunnelStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // TunnelList contains a list of Tunnel
 type TunnelList struct {

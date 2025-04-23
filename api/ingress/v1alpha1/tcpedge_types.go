@@ -68,12 +68,12 @@ type TCPEdgeStatus struct {
 	Backend TunnelGroupBackendStatus `json:"backend,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
-//+kubebuilder:printcolumn:name="Hostports",type=string,JSONPath=`.status.hostports`,description="Hostports"
-//+kubebuilder:printcolumn:name="Backend ID",type=string,JSONPath=`.status.backend.id`,description="Tunnel Group Backend ID"
-//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
+// +kubebuilder:printcolumn:name="Hostports",type=string,JSONPath=`.status.hostports`,description="Hostports"
+// +kubebuilder:printcolumn:name="Backend ID",type=string,JSONPath=`.status.backend.id`,description="Tunnel Group Backend ID"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
 // TCPEdge is the Schema for the tcpedges API
 type TCPEdge struct {
@@ -84,7 +84,7 @@ type TCPEdge struct {
 	Status TCPEdgeStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // TCPEdgeList contains a list of TCPEdge
 type TCPEdgeList struct {

@@ -85,8 +85,6 @@ expected:
       name: test-gateway.default.9000-test-hostname.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
           on_tcp_connect:
@@ -120,8 +118,6 @@ expected:
       name: test-gateway.default.7000-test-hostname.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
           on_tcp_connect:
@@ -155,8 +151,6 @@ expected:
       name: test-gateway.default.9000-test-hostname-2.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
           on_tcp_connect:
@@ -190,8 +184,6 @@ expected:
       name: test-gateway.default.7000-test-hostname-2.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - public
       trafficPolicy:
         policy:
           on_tcp_connect:
@@ -229,8 +221,6 @@ expected:
       url: "tcp://e3b0c-test-service-1-default.internal:11000"
       upstream:
         url: "tcp://test-service-1.default:11000"
-      bindings:
-      - "internal"
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: AgentEndpoint
     metadata:
@@ -243,5 +233,3 @@ expected:
       url: "tcp://e3b0c-test-service-2-default.internal:12000"
       upstream:
         url: "tcp://test-service-2.default:12000"
-      bindings:
-      - "internal"

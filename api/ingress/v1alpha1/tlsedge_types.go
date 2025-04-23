@@ -79,12 +79,12 @@ type TLSEdgeStatus struct {
 	CNAMETargets map[string]string `json:"cnameTargets,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
-//+kubebuilder:printcolumn:name="Hostports",type=string,JSONPath=`.status.hostports`,description="Hostports"
-//+kubebuilder:printcolumn:name="Backend ID",type=string,JSONPath=`.status.backend.id`,description="Tunnel Group Backend ID"
-//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
+// +kubebuilder:printcolumn:name="Hostports",type=string,JSONPath=`.status.hostports`,description="Hostports"
+// +kubebuilder:printcolumn:name="Backend ID",type=string,JSONPath=`.status.backend.id`,description="Tunnel Group Backend ID"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
 // TLSEdge is the Schema for the tlsedges API
 type TLSEdge struct {
@@ -95,7 +95,7 @@ type TLSEdge struct {
 	Status TLSEdgeStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // TLSEdgeList contains a list of TLSEdge
 type TLSEdgeList struct {

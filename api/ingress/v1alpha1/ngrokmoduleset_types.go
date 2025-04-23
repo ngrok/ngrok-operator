@@ -53,8 +53,8 @@ type NgrokModuleSetModules struct {
 	WebhookVerification *EndpointWebhookVerification `json:"webhookVerification,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // NgrokModuleSet is the Schema for the ngrokmodules API
 type NgrokModuleSet struct {
@@ -126,7 +126,7 @@ func (ms *NgrokModuleSet) Merge(o *NgrokModuleSet) {
 	}
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // NgrokModuleSetList contains a list of NgrokModule
 type NgrokModuleSetList struct {

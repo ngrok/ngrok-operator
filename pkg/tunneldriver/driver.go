@@ -3,15 +3,12 @@ package tunneldriver
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +18,7 @@ import (
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
@@ -35,19 +33,13 @@ type k8sLogger struct {
 	logger logr.Logger
 }
 
-func (l k8sLogger) Log(ctx context.Context, level logrok.LogLevel, msg string, kvs map[string]interface{}) {
+func (l k8sLogger) Log(_ context.Context, level logrok.LogLevel, msg string, kvs map[string]interface{}) {
 	keysAndValues := []any{}
 	for k, v := range kvs {
 		keysAndValues = append(keysAndValues, k, v)
 	}
 	l.logger.V(level-4).Info(msg, keysAndValues...)
 }
-
-const (
-	// TODO: Make this configurable via helm and document it so users can
-	// use it for things like proxies
-	customCertsPath = "/etc/ssl/certs/ngrok/"
-)
 
 type commonEndpointOption interface {
 	config.HTTPEndpointOption
@@ -129,7 +121,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		if commentString != "{}" {
 			comments = append(
 				comments,
-				string(commentString),
+				commentString,
 			)
 		}
 	}
@@ -137,7 +129,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		ngrok.WithClientInfo("ngrok-operator", version.GetVersion(), comments...),
 		ngrok.WithAuthtokenFromEnv(),
 		ngrok.WithLogger(k8sLogger{logger}),
-		ngrok.WithRestartHandler(func(ctx context.Context, sess ngrok.Session) error {
+		ngrok.WithRestartHandler(func(_ context.Context, _ ngrok.Session) error {
 			sessionState := td.session.Load()
 			if sessionState != nil && sessionState.session != nil {
 				sessionState.healthErr = fmt.Errorf("ngrok session restarting")
@@ -163,14 +155,11 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		return nil, fmt.Errorf("invalid value for RootCAs: %s", opts.RootCAs)
 	}
 
-	// Configure certs if the custom cert directory exists or host if set
-	if _, err := os.Stat(customCertsPath); !os.IsNotExist(err) || isHostCA {
-		caCerts, err := caCerts(isHostCA)
-		if err != nil {
-			return nil, err
-		}
-		connOpts = append(connOpts, ngrok.WithCA(caCerts))
+	certPool, err := util.LoadCerts()
+	if err != nil {
+		return nil, err
 	}
+	connOpts = append(connOpts, ngrok.WithCA(certPool))
 
 	if isHostCA {
 		connOpts = append(connOpts, ngrok.WithTLSConfig(func(c *tls.Config) {
@@ -182,12 +171,12 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		readyErr: fmt.Errorf("attempting to connect"),
 	})
 	connOpts = append(connOpts,
-		ngrok.WithConnectHandler(func(ctx context.Context, sess ngrok.Session) {
+		ngrok.WithConnectHandler(func(_ context.Context, sess ngrok.Session) {
 			td.session.Store(&sessionState{
 				session: sess,
 			})
 		}),
-		ngrok.WithDisconnectHandler(func(ctx context.Context, sess ngrok.Session, err error) {
+		ngrok.WithDisconnectHandler(func(_ context.Context, sess ngrok.Session, err error) {
 			state := td.session.Load()
 
 			if state.session != nil {
@@ -231,7 +220,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 			}
 		}),
 	)
-	_, err := ngrok.Connect(ctx, connOpts...)
+	_, err = ngrok.Connect(ctx, connOpts...)
 
 	return td, err
 }
@@ -260,45 +249,6 @@ func (td *TunnelDriver) getSession() (ngrok.Session, error) {
 	default:
 		return nil, fmt.Errorf("unexpected state")
 	}
-}
-
-// caCerts combines the system ca certs with a directory of custom ca certs
-func caCerts(hostCA bool) (*x509.CertPool, error) {
-	systemCertPool, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, err
-	}
-
-	// we're all set if we're using the host CA
-	if hostCA {
-		return systemCertPool, nil
-	}
-
-	// Clone the system cert pool
-	customCertPool := systemCertPool.Clone()
-
-	// Read each .crt file in the custom cert directory
-	files, err := os.ReadDir(customCertsPath)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, file := range files {
-		if filepath.Ext(file.Name()) != ".crt" {
-			continue
-		}
-
-		// Read the contents of the .crt file
-		certBytes, err := os.ReadFile(filepath.Join(customCertsPath, file.Name()))
-		if err != nil {
-			return nil, err
-		}
-
-		// Append the cert to the custom cert pool
-		customCertPool.AppendCertsFromPEM(certBytes)
-	}
-
-	return customCertPool, nil
 }
 
 // CreateTunnel creates and starts a new tunnel in a goroutine. If a tunnel with the same name already exists,

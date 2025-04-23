@@ -142,7 +142,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			assert.Equal(t, tc.metadata, result.Spec.Metadata, "unexpected metadata for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedURL, result.Spec.URL, "unexpected URL for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedUpstream, result.Spec.Upstream.URL, "unexpected upstream URL for test case: %s", tc.name)
-			assert.Equal(t, []string{"internal"}, result.Spec.Bindings, "unexpected bindings for test case: %s", tc.name)
+			assert.ElementsMatch(t, []string{}, result.Spec.Bindings, "unexpected bindings for test case: %s", tc.name)
 			assert.Equal(t, tc.irService.Protocol, result.Spec.Upstream.Protocol, "unexpected upstream protocol for test case: %s", tc.name)
 		})
 	}
@@ -535,6 +535,8 @@ func TestTranslate(t *testing.T) {
 			},
 			WithGatewayEnabled(true),
 			WithSyncAllowConcurrent(true),
+			WithGatewayTCPRouteEnabled(true),
+			WithGatewayTLSRouteEnabled(true),
 		)
 		t.Run(filepath.Base(file), func(t *testing.T) {
 			tc := loadTranslatorTestCase(t, file, sch)

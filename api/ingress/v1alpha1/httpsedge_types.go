@@ -126,8 +126,8 @@ type HTTPSEdgeStatus struct {
 	Routes []HTTPSEdgeRouteStatus `json:"routes,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // HTTPSEdge is the Schema for the httpsedges API
 type HTTPSEdge struct {
@@ -138,7 +138,7 @@ type HTTPSEdge struct {
 	Status HTTPSEdgeStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // HTTPSEdgeList contains a list of HTTPSEdge
 type HTTPSEdgeList struct {

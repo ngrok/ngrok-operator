@@ -253,15 +253,15 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	// upstream service
 	err := r.Get(ctx, client.ObjectKey{Namespace: desiredUpstreamService.Namespace, Name: desiredUpstreamService.Name}, &existingUpstreamService)
 	if err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			// Upstream Service doesn't exist, create it
-			log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
-			if err := r.createUpstreamService(ctx, cr, desiredUpstreamService); err != nil {
-				return r.controller.ReconcileStatus(ctx, cr, err)
-			}
-		} else {
+		if client.IgnoreNotFound(err) != nil {
 			// real error
 			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			return r.controller.ReconcileStatus(ctx, cr, err)
+		}
+
+		// Upstream Service doesn't exist, create it
+		log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
+		if err := r.createUpstreamService(ctx, cr, desiredUpstreamService); err != nil {
 			return r.controller.ReconcileStatus(ctx, cr, err)
 		}
 	} else {
@@ -283,15 +283,15 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	// target service
 	err = r.Get(ctx, client.ObjectKey{Namespace: desiredTargetService.Namespace, Name: desiredTargetService.Name}, &existingTargetService)
 	if err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			// Target Service doesn't exist, create it
-			log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
-			if err := r.createTargetService(ctx, cr, desiredTargetService); err != nil {
-				return r.controller.ReconcileStatus(ctx, cr, err)
-			}
-		} else {
+		if client.IgnoreNotFound(err) != nil {
 			// real error
 			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			return r.controller.ReconcileStatus(ctx, cr, err)
+		}
+
+		// Target Service doesn't exist, create it
+		log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
+		if err := r.createTargetService(ctx, cr, desiredTargetService); err != nil {
 			return r.controller.ReconcileStatus(ctx, cr, err)
 		}
 	} else {
@@ -331,45 +331,42 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 
 	targetNamespace := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: targetService.Namespace}}
 	if err := r.Client.Get(ctx, types.NamespacedName{Name: targetNamespace.Name}, targetNamespace); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			// fallthrough, no Target Service to delete
-		} else {
+		if client.IgnoreNotFound(err) != nil {
 			log.Error(err, "Failed to get Target Namespace")
 			return err
 		}
+		// fallthrough, no Target Service to delete
 	} else {
 		// Target Namespace exists, try to delete the Target Service
 
 		if err := r.Client.Delete(ctx, targetService); err != nil {
 			if client.IgnoreNotFound(err) == nil {
 				return nil
-			} else {
-				r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
-				log.Error(err, "Failed to delete Target Service")
-				return err
 			}
+			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
+			log.Error(err, "Failed to delete Target Service")
+			return err
 		}
 	}
 
 	if err := r.Client.Delete(ctx, upstreamService); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			// fallthrough, nothing to do
-		} else {
+		if client.IgnoreNotFound(err) != nil {
 			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
 			log.Error(err, "Failed to delete Upstream Service")
 			return err
 		}
+		// fallthrough, nothing to do
 	}
 
 	return nil
 }
 
-func (r *BoundEndpointReconciler) errResult(op controller.BaseControllerOp, cr *bindingsv1alpha1.BoundEndpoint, err error) (ctrl.Result, error) {
+func (r *BoundEndpointReconciler) errResult(_ controller.BaseControllerOp, _ *bindingsv1alpha1.BoundEndpoint, err error) (ctrl.Result, error) {
 	return ctrl.Result{}, err
 }
 
 // convertBoundEndpointToServices converts an BoundEndpoint into 2 Services: Target(ExternalName) and Upstream(Pod Forwarders)
-func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *bindingsv1alpha1.BoundEndpoint) (*v1.Service, *v1.Service) {
+func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *bindingsv1alpha1.BoundEndpoint) (target *v1.Service, upstream *v1.Service) {
 	// Send traffic to any Node in the cluster
 	internalTrafficPolicy := v1.ServiceInternalTrafficPolicyCluster
 
@@ -573,6 +570,7 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 			// connection was good
 			return nil
 		}
+
 	}
 
 	err = fmt.Errorf("exceeded max retries")

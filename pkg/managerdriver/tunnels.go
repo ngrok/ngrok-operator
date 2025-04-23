@@ -183,7 +183,7 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 
 			// Check matching Gateways for this HTTPRoute
 			// The controller already filters the resources based on our gateway class, so no need to check that here
-			refNamespace := string(httproute.Namespace)
+			refNamespace := httproute.Namespace
 			if parentRef.Namespace != nil {
 				refNamespace = string(*parentRef.Namespace)
 			}

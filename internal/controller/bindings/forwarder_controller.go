@@ -27,6 +27,7 @@ package bindings
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -65,6 +66,7 @@ type ForwarderReconciler struct {
 
 	BindingsDriver         *bindingsdriver.BindingsDriver
 	KubernetesOperatorName string
+	RootCAs                *x509.CertPool
 }
 
 func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
@@ -170,6 +172,10 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		},
 	}
 
+	if r.RootCAs != nil {
+		tlsDialer.Config.RootCAs = r.RootCAs
+	}
+
 	endpointURI, err := url.Parse(epb.Spec.EndpointURI)
 	if err != nil {
 		return err
@@ -254,7 +260,7 @@ func getIngressEndpointWithFallback(rawIngressEndpoint string, log logr.Logger) 
 	}
 }
 
-func (r *ForwarderReconciler) delete(ctx context.Context, epb *bindingsv1alpha1.BoundEndpoint) error {
+func (r *ForwarderReconciler) delete(_ context.Context, epb *bindingsv1alpha1.BoundEndpoint) error {
 	port := int32(epb.Spec.Port)
 	r.BindingsDriver.Close(port)
 	return nil

@@ -38,7 +38,7 @@ func (r *ModuleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // It is invoked whenever there is an event that occurs for a resource
 // being watched (in our case, NgrokModuleSets). If you tail the controller
 // logs and delete, update, edit ngrokmoduleset objects, you see the events come in.
-func (r *ModuleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ModuleSetReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	if err := r.Driver.SyncEdges(ctx, r.Client); err != nil {
 		return ctrl.Result{}, err
 	}

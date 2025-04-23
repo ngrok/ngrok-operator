@@ -11,8 +11,8 @@ Should match snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.16.0
-        helm.sh/chart: ngrok-operator-0.18.0-rc.1
+        app.kubernetes.io/version: 0.16.1
+        helm.sh/chart: ngrok-operator-0.18.1
       name: RELEASE-NAME-ngrok-operator-bindings-forwarder
       namespace: NAMESPACE
     spec:
@@ -71,9 +71,7 @@ Should match snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
-                - name: SSL_CERT_DIR
-                  value: /etc/ssl/certs/ngrok
-              image: docker.io/ngrok/ngrok-operator:0.16.0
+              image: docker.io/ngrok/ngrok-operator:0.16.1
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
@@ -93,12 +91,4 @@ Should match snapshot:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
-              volumeMounts:
-                - mountPath: /etc/ssl/certs/ngrok
-                  name: ngrok-ca
-                  readOnly: true
           serviceAccountName: RELEASE-NAME-ngrok-operator-bindings-forwarder
-          volumes:
-            - configMap:
-                name: ngrok-intermediate-ca
-              name: ngrok-ca
