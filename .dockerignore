@@ -15,6 +15,7 @@
 !internal/
 !pkg/
 !scripts/
+!certs/*
 !**/*.go
 !**/*.mod
 !**/*.sum

@@ -42,6 +42,7 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 	// +kubebuilder:scaffold:imports
@@ -137,6 +138,11 @@ func runController(_ context.Context, opts managerOpts) error {
 
 	bd := bindingsdriver.New()
 
+	certPool, err := util.LoadCerts()
+	if err != nil {
+		return err
+	}
+
 	if err = (&bindingscontroller.ForwarderReconciler{
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("bindings-forwarder"),
@@ -144,6 +150,7 @@ func runController(_ context.Context, opts managerOpts) error {
 		Recorder:               mgr.GetEventRecorderFor("bindings-forwarder-controller"),
 		BindingsDriver:         bd,
 		KubernetesOperatorName: opts.releaseName,
+		RootCAs:                certPool,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BindingsForwarder")
 		os.Exit(1)
