@@ -8,10 +8,11 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
-	"log"
+	"fmt"
 	"os"
 	"time"
 
+	"github.com/go-logr/logr"
 	clientcommpb "github.com/ngrok/ngrok-operator/pkg/gen/clientcomm/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -19,9 +20,10 @@ import (
 )
 
 const (
-	PhoneHomeInterval = 8 * time.Hour
+	// PhoneHomeInterval = 8 * time.Hour
+	PhoneHomeInterval = 2 * time.Minute
 
-	PhoneHomeEndpoint = "https://alice-todo.ngrok.io" // TODO: Alice, add real endpoint after configuring it
+	PhoneHomeEndpoint = "alice-clientcomm.ngrok.io:443" // TODO: Alice, add real endpoint after configuring it
 )
 
 // TODO: Alice
@@ -38,7 +40,7 @@ const (
 // - alternatively, client can gen its own keypair and submit a CSR
 //
 
-func ConnectAndStream() error {
+func ConnectAndStream(logger logr.Logger) error {
 	// TODO: Alice, mTLS later when we have the certs added
 	// creds := credentials.NewTLS(&tls.Config{
 	// 	Certificates:       []tls.Certificate{clientCert},
@@ -47,7 +49,12 @@ func ConnectAndStream() error {
 	// 	ClientAuth:         tls.RequireAndVerifyClientCert,
 	// })
 
-	conn, err := grpc.Dial(PhoneHomeEndpoint, grpc.WithInsecure())
+	conn, err := grpc.Dial(PhoneHomeEndpoint, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+		// Optional: verify server certificate
+		MinVersion: tls.VersionTLS12,
+		// NextProtos: []string{"h2"},
+		// ServerName: "alice-clientcomm.ngrok.io", // must match the server cert
+	})))
 	if err != nil {
 		return err
 	}
@@ -64,12 +71,12 @@ func ConnectAndStream() error {
 
 	// Start sender and receiver goroutines
 	errCh := make(chan error, 2)
-	go func() { errCh <- sendLoop(stream, privateKey) }()
-	go func() { errCh <- receiveLoop(stream) }()
+	go func() { errCh <- sendLoop(logger, stream, privateKey) }()
+	go func() { errCh <- receiveLoop(logger, stream) }()
 	return <-errCh // return on first error (will trigger retry)
 }
 
-func sendLoop(stream clientcommpb.ClientCommService_StreamClient, key *rsa.PrivateKey) error {
+func sendLoop(logger logr.Logger, stream clientcommpb.ClientCommService_StreamClient, privateKey *rsa.PrivateKey) error {
 	ticker := time.NewTicker(8 * time.Hour)
 	defer ticker.Stop()
 
@@ -94,6 +101,7 @@ func sendLoop(stream clientcommpb.ClientCommService_StreamClient, key *rsa.Priva
 			marshaler := proto.MarshalOptions{Deterministic: true}
 			data, err := marshaler.Marshal(payload)
 			if err != nil {
+				logger.Error(err, "failed to marshal payload to send to server")
 				return err
 			}
 
@@ -103,16 +111,18 @@ func sendLoop(stream clientcommpb.ClientCommService_StreamClient, key *rsa.Priva
 			}
 
 			if err := stream.Send(msg); err != nil {
+				logger.Error(err, "failed to send message to server")
 				return err
 			}
 		}
 	}
 }
 
-func receiveLoop(stream clientcommpb.ClientCommService_StreamClient) error {
+func receiveLoop(logger logr.Logger, stream clientcommpb.ClientCommService_StreamClient) error {
 	for {
 		signedMsg, err := stream.Recv()
 		if err != nil {
+			logger.Error(err, "failed to receive message from server")
 			return err
 		}
 
@@ -120,16 +130,23 @@ func receiveLoop(stream clientcommpb.ClientCommService_StreamClient) error {
 		// Deserialize the payload
 		var serverMsg clientcommpb.ServerMessage
 		if err := proto.Unmarshal(signedMsg.GetPayload(), &serverMsg); err != nil {
-			log.Printf("Failed to unmarshal server message: %v", err)
+			logger.Error(err, "failed to unmarshal server message")
 			continue
 		}
 
 		switch cmd := serverMsg.Kind.(type) {
 		case *clientcommpb.ServerMessage_SetReportingInterval:
 			// TODO: Alice, implement
-			log.Printf("Received SetReportingInterval message from server")
+			newInterval := cmd.SetReportingInterval
+			if newInterval == nil {
+				logger.Error(fmt.Errorf("nil cmd.SetReportingInterval"), "invalid server message received")
+				continue
+			}
+			logger.Info("Received SetReportingInterval message from server",
+				"new interval", newInterval.NewInterval.AsDuration(),
+			)
 		default:
-			log.Printf("Received unknown or unsupported command: %T", cmd)
+			logger.Error(fmt.Errorf("unknown or unsupported command: %T", cmd), "invalid server message received")
 		}
 	}
 }
