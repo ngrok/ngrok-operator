@@ -26,9 +26,9 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/ngrok/ngrok-api-go/v7"
-	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
