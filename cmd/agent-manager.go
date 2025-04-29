@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package cmd
 
 import (
 	"context"
@@ -29,7 +29,6 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,12 +47,9 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-)
-
 func init() {
+	rootCmd.AddCommand(agentCmd())
+
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
@@ -62,39 +58,24 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-func main() {
-	if err := cmd().Execute(); err != nil {
-		setupLog.Error(err, "error running agent-manager")
-		os.Exit(1)
-	}
-}
-
-type managerOpts struct {
+type agentOpts struct {
+	operatorCommon
 	// flags
-	metricsAddr string
-	probeAddr   string
 	serverAddr  string
-	description string
 	managerName string
 	zapOpts     *zap.Options
-
-	// feature flags
-	enableFeatureIngress          bool
-	enableFeatureGateway          bool
-	enableFeatureBindings         bool
-	disableGatewayReferenceGrants bool
 
 	// agent(tunnel driver) flags
 	region  string
 	rootCAs string
 }
 
-func cmd() *cobra.Command {
-	var opts managerOpts
+func agentCmd() *cobra.Command {
+	var opts agentOpts
 	c := &cobra.Command{
 		Use: "agent-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runController(c.Context(), opts)
+			return runAgentController(c.Context(), opts)
 		},
 	}
 
@@ -123,7 +104,7 @@ func cmd() *cobra.Command {
 	return c
 }
 
-func runController(ctx context.Context, opts managerOpts) error {
+func runAgentController(ctx context.Context, opts agentOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	buildInfo := version.Get()

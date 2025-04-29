@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package cmd
 
 import (
 	"context"
@@ -29,7 +29,6 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,30 +47,17 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-)
-
 func init() {
+	rootCmd.AddCommand(bindingsForwarderCmd())
+
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 }
 
-func main() {
-	if err := cmd().Execute(); err != nil {
-		setupLog.Error(err, "error running bindings-forwarder-manager")
-		os.Exit(1)
-	}
-}
-
-type managerOpts struct {
+type bindingsForwarderManagerOpts struct {
+	operatorCommon
 	// flags
-	releaseName string
-	metricsAddr string
-	probeAddr   string
-	description string
 	managerName string
 	zapOpts     *zap.Options
 
@@ -79,8 +65,8 @@ type managerOpts struct {
 	namespace string
 }
 
-func cmd() *cobra.Command {
-	var opts managerOpts
+func bindingsForwarderCmd() *cobra.Command {
+	var opts bindingsForwarderManagerOpts
 	c := &cobra.Command{
 		Use: "bindings-forwarder-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
@@ -102,7 +88,7 @@ func cmd() *cobra.Command {
 	return c
 }
 
-func runController(_ context.Context, opts managerOpts) error {
+func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	buildInfo := version.Get()
