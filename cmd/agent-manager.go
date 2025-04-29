@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package cmd
 
 import (
 	"context"
@@ -26,10 +26,12 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 
+	// typically only use blank imports in main
+	// but we treat each of these cmd's as their own
+	// "main", they are all subcommands
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,12 +50,9 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-)
-
 func init() {
+	rootCmd.AddCommand(agentCmd())
+
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
@@ -62,14 +61,7 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-func main() {
-	if err := cmd().Execute(); err != nil {
-		setupLog.Error(err, "error running agent-manager")
-		os.Exit(1)
-	}
-}
-
-type managerOpts struct {
+type agentManagerOpts struct {
 	// flags
 	metricsAddr string
 	probeAddr   string
@@ -89,12 +81,12 @@ type managerOpts struct {
 	rootCAs string
 }
 
-func cmd() *cobra.Command {
-	var opts managerOpts
+func agentCmd() *cobra.Command {
+	var opts agentManagerOpts
 	c := &cobra.Command{
 		Use: "agent-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runController(c.Context(), opts)
+			return runAgentController(c.Context(), opts)
 		},
 	}
 
@@ -123,7 +115,7 @@ func cmd() *cobra.Command {
 	return c
 }
 
-func runController(ctx context.Context, opts managerOpts) error {
+func runAgentController(ctx context.Context, opts agentManagerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	buildInfo := version.Get()
