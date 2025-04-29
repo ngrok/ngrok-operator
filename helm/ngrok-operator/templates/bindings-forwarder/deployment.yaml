@@ -69,18 +69,13 @@ spec:
         image: {{ include "ngrok-operator.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
-        - /bindings-forwarder-manager
+        - /ngrok-operator
         args:
-        - --release-name={{ .Release.Name }}
-        {{- if .Values.description }}
-        - --description={{ .Values.description | quote }}
-        {{- end }}
+        - bindings-forwarder-manager
+        - --config=/conf/ngrok_operator_manager_config.yml
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
         - --zap-encoder={{ .Values.log.format }}
-        - --health-probe-bind-address=:8081
-        - --metrics-bind-address=:8080
-        - --manager-name={{ include "ngrok-operator.fullname" . }}-bindings-forwarder
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -101,7 +96,13 @@ spec:
         {{- end }}
         {{- if .Values.extraVolumeMounts }}
         volumeMounts:
+        - mountPath: /conf
+          name: {{ include "ngrok-operator.fullname" . }}-combined-config
         {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+        {{- else }}
+        volumeMounts:
+        - mountPath: /conf
+          name: {{ include "ngrok-operator.fullname" . }}-combined-config
         {{- end }}
         {{- if .Values.lifecycle }}
         lifecycle:
@@ -123,6 +124,14 @@ spec:
         {{- toYaml $forwarder.resources | nindent 10 }}
       {{- if .Values.extraVolumes }}
       volumes:
-        {{- toYaml .Values.extraVolumes | nindent 8 }}
+      - configMap:
+          name: {{ include "ngrok-operator.fullname" . }}-combined-config
+        name: {{ include "ngrok-operator.fullname" . }}-combined-config
+      {{- toYaml .Values.extraVolumes | nindent 8 }}
+      {{- else }}
+      volumes:
+      - configMap:
+          name: {{ include "ngrok-operator.fullname" . }}-combined-config
+        name: {{ include "ngrok-operator.fullname" . }}-combined-config
       {{- end }}
 {{- end }}

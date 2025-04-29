@@ -68,69 +68,13 @@ spec:
         image: {{ include "ngrok-operator.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
-        - /api-manager
+        - /ngrok-operator
         args:
-        - --release-name={{ .Release.Name }}
-        {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
-        {{- if .Values.oneClickDemoMode }}
-        - --one-click-demo-mode
-        {{- end }}
-        {{- if .Values.bindings.enabled }}
-        - --bindings-endpoint-selectors={{ join "," .Values.bindings.endpointSelectors }}
-        {{- if .Values.bindings.serviceAnnotations }}
-        - --bindings-service-annotations={{- $serviceAnnotations := list -}}
-          {{- range $key, $value := .Values.bindings.serviceAnnotations }}
-          {{- $serviceAnnotations = append $serviceAnnotations (printf "%s=%s" $key $value) -}}
-          {{- end }}
-          {{- $serviceAnnotations | join "," }}
-        {{- end }}
-        {{- if .Values.bindings.serviceLabels }}
-        - --bindings-service-labels={{- $serviceLabels := list -}}
-          {{- range $key, $value := .Values.bindings.serviceLabels }}
-          {{- $serviceLabels = append $serviceLabels (printf "%s=%s" $key $value) -}}
-          {{- end }}
-          {{- $serviceLabels | join "," }}
-        {{- end }}
-        - --bindings-ingress-endpoint={{ .Values.bindings.ingressEndpoint }}
-        {{- end }}
-        {{- if .Values.description }}
-        - --description={{ .Values.description | quote }}
-        {{- end }}
-        {{- if .Values.region }}
-        - --region={{ .Values.region}}
-        {{- end }}
-        {{- if .Values.apiURL }}
-        - --api-url={{ .Values.apiURL}}
-        {{- end }}
-        {{- if .Values.rootCAs }}
-        - --root-cas={{ .Values.rootCAs}}
-        {{- end }}
-        {{- if .Values.serverAddr }}
-        - --server-addr={{ .Values.serverAddr}}
-        {{- end }}
-        {{- /* backwards compatibility for .metaData -> .ngrokMetadata */}}
-        {{- $ngrokMetadata := (.Values.metaData) | default .Values.ngrokMetadata }}
-        {{- if $ngrokMetadata }}
-        - --ngrokMetadata={{- $metadataArgs := list -}}
-          {{- range $key, $value := $ngrokMetadata }}
-          {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
-          {{- end }}
-          {{- $metadataArgs | join "," }}
-        {{- end }}
-        - --ingress-controller-name={{ .Values.controllerName | default .Values.ingress.controllerName }}
-        {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
-        - --ingress-watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
-        {{- end }}
+        - api-manager
+        - --config=/conf/ngrok_operator_manager_config.yml
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
         - --zap-encoder={{ .Values.log.format }}
-        - --health-probe-bind-address=:8081
-        - --metrics-bind-address=:8080
-        - --election-id={{ include "ngrok-operator.fullname" . }}-leader
-        - --manager-name={{ include "ngrok-operator.fullname" . }}-manager
-        {{- if .Values.clusterDomain }}
-        - --cluster-domain={{ .Values.clusterDomain }}
-        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -151,7 +95,13 @@ spec:
         {{- end }}
         {{- if .Values.extraVolumeMounts  }}
         volumeMounts:
+        - mountPath: /conf
+          name: {{ include "ngrok-operator.fullname" . }}-combined-config
         {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
+        {{- else }}
+        volumeMounts:
+        - mountPath: /conf
+          name: {{ include "ngrok-operator.fullname" . }}-combined-config
         {{- end }}
         {{- if .Values.lifecycle }}
         lifecycle:
@@ -173,5 +123,13 @@ spec:
         {{- toYaml .Values.resources | nindent 10 }}
       {{- if .Values.extraVolumes }}
       volumes:
-        {{ toYaml .Values.extraVolumes | nindent 6 }}
+      - configMap:
+          name: {{ include "ngrok-operator.fullname" . }}-combined-config
+        name: {{ include "ngrok-operator.fullname" . }}-combined-config
+      {{- toYaml .Values.extraVolumes | nindent 8 }}
+      {{- else }}
+      volumes:
+      - configMap:
+          name: {{ include "ngrok-operator.fullname" . }}-combined-config
+        name: {{ include "ngrok-operator.fullname" . }}-combined-config
       {{- end }}

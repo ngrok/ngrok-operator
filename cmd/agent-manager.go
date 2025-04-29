@@ -58,43 +58,26 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-type agentOpts struct {
+type agentManagerOpts struct {
 	operatorCommon
-	// flags
-	serverAddr  string
-	managerName string
-	zapOpts     *zap.Options
-
 	// agent(tunnel driver) flags
-	region  string
-	rootCAs string
+	RootCAs string `yaml:"root_cas"`
 }
 
 func agentCmd() *cobra.Command {
-	var opts agentOpts
+	var opts agentManagerOpts
 	c := &cobra.Command{
 		Use: "agent-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
+			err := loadConfig(cfgPath, &opts)
+			if err != nil {
+				return fmt.Errorf("error loading config: %w", err)
+			}
 			return runAgentController(c.Context(), opts)
 		},
 	}
 
-	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
-	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
-	// TODO(operator-rename): Same as above, but for the manager name.
-	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
-
-	// agent(tunnel driver) flags
-	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
-	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
-	c.Flags().StringVar(&opts.rootCAs, "root-cas", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
-
-	// feature flags
-	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
-	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
-	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
+	c.Flags().StringVar(&opts.RootCAs, "root-cas", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -104,7 +87,7 @@ func agentCmd() *cobra.Command {
 	return c
 }
 
-func runAgentController(ctx context.Context, opts agentOpts) error {
+func runAgentController(ctx context.Context, opts agentManagerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	buildInfo := version.Get()
@@ -113,10 +96,10 @@ func runAgentController(ctx context.Context, opts agentOpts) error {
 	options := ctrl.Options{
 		Scheme: scheme,
 		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
+			BindAddress: opts.MetricsAddr,
 		},
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
+		HealthProbeBindAddress: opts.ProbeAddr,
 		LeaderElection:         false,
 	}
 
@@ -130,21 +113,21 @@ func runAgentController(ctx context.Context, opts agentOpts) error {
 	// shared features between Ingress and Gateway (tunnels)
 
 	var comments tunneldriver.TunnelDriverComments
-	if opts.enableFeatureGateway {
+	if opts.EnableFeatureGateway {
 		comments = tunneldriver.TunnelDriverComments{
 			Gateway: "gateway-api",
 		}
 	}
 
 	rootCAs := "trusted"
-	if opts.rootCAs != "" {
-		rootCAs = opts.rootCAs
+	if opts.RootCAs != "" {
+		rootCAs = opts.RootCAs
 	}
 
 	td, err := tunneldriver.New(ctx, ctrl.Log.WithName("drivers").WithName("tunnel"),
 		tunneldriver.TunnelDriverOpts{
-			ServerAddr: opts.serverAddr,
-			Region:     opts.region,
+			ServerAddr: opts.ServerAddr,
+			Region:     opts.Region,
 			RootCAs:    rootCAs,
 			Comments:   &comments,
 		},

@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -57,12 +56,6 @@ func init() {
 
 type bindingsForwarderManagerOpts struct {
 	operatorCommon
-	// flags
-	managerName string
-	zapOpts     *zap.Options
-
-	// env vars
-	namespace string
 }
 
 func bindingsForwarderCmd() *cobra.Command {
@@ -70,15 +63,13 @@ func bindingsForwarderCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use: "bindings-forwarder-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
+			err := loadConfig(cfgPath, &opts)
+			if err != nil {
+				return fmt.Errorf("error loading config: %w", err)
+			}
 			return runController(c.Context(), opts)
 		},
 	}
-
-	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
-	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
-	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
-	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -94,24 +85,18 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 	buildInfo := version.Get()
 	setupLog.Info("starting bindings-forwarder-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
 
-	var ok bool
-	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
-	if !ok {
-		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
-	}
-
 	options := ctrl.Options{
 		Scheme: scheme,
 		Cache: cache.Options{
 			DefaultNamespaces: map[string]cache.Config{
-				opts.namespace: {},
+				opts.Namespace: {},
 			},
 		},
 		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
+			BindAddress: opts.MetricsAddr,
 		},
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
+		HealthProbeBindAddress: opts.ProbeAddr,
 		LeaderElection:         false,
 	}
 
@@ -135,7 +120,7 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		Scheme:                 mgr.GetScheme(),
 		Recorder:               mgr.GetEventRecorderFor("bindings-forwarder-controller"),
 		BindingsDriver:         bd,
-		KubernetesOperatorName: opts.releaseName,
+		KubernetesOperatorName: opts.ReleaseName,
 		RootCAs:                certPool,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BindingsForwarder")

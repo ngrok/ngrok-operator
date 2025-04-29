@@ -1,0 +1,60 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-combined-config
+  namespace: {{ .Release.Namespace }}
+data:
+  ngrok_operator_manager_config.yml: |
+    release_name: {{ .Release.Name }}
+    description: {{ .Values.description }}
+    metrics_addr: :8080
+    probe_addr: :8081
+    manager_name: {{ include "ngrok-operator.fullname" . }}-manager
+    server_addr: {{ .Values.serverAddr }}
+    # feature flags
+    enable_feature_ingress: {{ .Values.ingress.enabled }}
+    enable_feature_gateway: {{ .Values.gateway.enabled }}
+    enable_feature_bindings: {{ .Values.bindings.enabled }}
+    disable_gateway_reference_grants: {{ .Values.gateway.disableReferenceGrants }}
+    # api manager config
+    election_id: {{ include "ngrok-operator.fullname" . }}-leader
+    cluster_domain: {{ .Values.clusterDomain }}
+    api-url: {{ .Values.apiURL }}
+    ingress_controller_name: {{ .Values.controllerName | default .Values.ingress.controllerName }}
+    {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
+    ingress-watch-namespace: {{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
+    {{- end }}
+    {{- /* backwards compatibility for .metaData -> .ngrokMetadata */}}
+    {{- $ngrokMetadata := (.Values.metaData) | default .Values.ngrokMetadata }}
+    {{- if $ngrokMetadata }}
+    ngrokMetadata:{{- $metadataArgs := list -}}
+      {{- range $key, $value := $ngrokMetadata }}
+      {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
+      {{- end }}
+      {{- $metadataArgs | join "," }}
+    {{- end }}
+    one_click_demo_mode: {{ .Values.oneClickDemoMode }}
+    bindings:
+      enabled: {{ .Values.bindings.enabled }}
+      endpoint_selectors: {{ toYaml .Values.bindings.endpointSelectors | nindent 6 }}
+      service_annotations: {{- $serviceAnnotations := list -}}
+          {{- range $key, $value := .Values.bindings.serviceAnnotations }}
+          {{- $serviceAnnotations = append $serviceAnnotations (printf "%s=%s" $key $value) -}}
+          {{- end }}
+          {{- $serviceAnnotations | join "," }}
+      service_labels: {{- $serviceLabels := list -}}
+          {{- range $key, $value := .Values.bindings.serviceLabels }}
+          {{- $serviceLabels = append $serviceLabels (printf "%s=%s" $key $value) -}}
+          {{- end }}
+          {{- $serviceLabels | join "," }}
+      ingress_endpoint: {{ .Values.bindings.ingressEndpoint }}
+    namespace: {{ .Release.Namespace }}
+    region: {{ .Values.region }}
+    {{- if and .Values.ingress.enabled (not .Values.oneClickDemoMode) }}
+    # agent config
+    root_cas: {{ .Values.rootCAs }}
+    {{- end}}
+    {{- if and .Values.bindings.enabled (not .Values.oneClickDemoMode) }}
+    {{- /* No bindings-forwader specific config yet */}}
+    {{- end }}
