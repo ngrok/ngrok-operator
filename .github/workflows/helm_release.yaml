@@ -76,3 +76,22 @@ jobs:
           CR_SIGN: true
         with:
           charts_dir: helm
+
+      - run: ls -alth .
+        working-directory: ./.cr-release-packages
+        shell: bash
+
+      - name: Push to charts.ngrok.com
+        working-directory: ./.cr-release-packages
+        env:
+          CHART_PUSH_AUTH: ${{ secrets.CHART_PUSH_AUTH }}
+        run: |
+          for chart in ngrok-operator-*.tgz; do
+            if [ -f "${chart}.prov" ]; then
+              echo "Uploading ${chart} and ${chart}.prov"
+              curl -H "Authorization: Basic ${CHART_PUSH_AUTH}" -F "chart=@${chart}" -F "prov=@${chart}.prov" "https://charts.ngrok.com/api/charts"
+            else
+              echo "Uploading ${chart}"
+              curl -H "Authorization: Basic ${CHART_PUSH_AUTH}" -F "chart=@${chart}" "https://charts.ngrok.com/api/charts"
+            fi
+          done
