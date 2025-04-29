@@ -34,6 +34,13 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type DomainReclaimPolicy string
+
+const (
+	DomainReclaimPolicyDelete DomainReclaimPolicy = "Delete"
+	DomainReclaimPolicyRetain DomainReclaimPolicy = "Retain"
+)
+
 // DomainSpec defines the desired state of Domain
 type DomainSpec struct {
 	ngrokAPICommon `json:",inline"`
@@ -45,6 +52,11 @@ type DomainSpec struct {
 	// Region is the region in which to reserve the domain
 	// +kubebuilder:validation:Required
 	Region string `json:"region,omitempty"`
+
+	// DomainReclaimPolicy is the policy to use when the domain is deleted
+	// +kubebuilder:validation:Enum=Delete;Retain
+	// +kubebuilder:default=Delete
+	ReclaimPolicy DomainReclaimPolicy `json:"reclaimPolicy,omitempty"`
 }
 
 // DomainStatus defines the observed state of Domain
@@ -71,9 +83,10 @@ type DomainStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
+// +kubebuilder:printcolumn:name="Reclaim Policy",type=string,JSONPath=`.spec.reclaimPolicy`,description="Reclaim Policy"
 // +kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`,description="Region"
 // +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.status.domain`,description="Domain"
-// +kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cnameTarget`,description="CNAME Target"
+// +kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cnameTarget`,description="CNAME Target",priority=2
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
 // Domain is the Schema for the domains API

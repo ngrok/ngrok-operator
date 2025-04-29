@@ -163,6 +163,10 @@ func (r *DomainReconciler) update(ctx context.Context, domain *ingressv1alpha1.D
 }
 
 func (r *DomainReconciler) delete(ctx context.Context, domain *ingressv1alpha1.Domain) error {
+	if domain.Spec.ReclaimPolicy != ingressv1alpha1.DomainReclaimPolicyDelete {
+		return nil
+	}
+
 	err := r.DomainsClient.Delete(ctx, domain.Status.ID)
 	if err == nil || ngrok.IsNotFound(err) {
 		domain.Status.ID = ""

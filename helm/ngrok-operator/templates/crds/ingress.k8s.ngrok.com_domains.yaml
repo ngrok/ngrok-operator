@@ -19,6 +19,10 @@ spec:
       jsonPath: .status.id
       name: ID
       type: string
+    - description: Reclaim Policy
+      jsonPath: .spec.reclaimPolicy
+      name: Reclaim Policy
+      type: string
     - description: Region
       jsonPath: .status.region
       name: Region
@@ -30,6 +34,7 @@ spec:
     - description: CNAME Target
       jsonPath: .status.cnameTarget
       name: CNAME Target
+      priority: 2
       type: string
     - description: Age
       jsonPath: .metadata.creationTimestamp
@@ -72,6 +77,14 @@ spec:
                 default: '{"owned-by":"kubernetes-ingress-controller"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
+                type: string
+              reclaimPolicy:
+                default: Delete
+                description: DomainReclaimPolicy is the policy to use when the domain
+                  is deleted
+                enum:
+                - Delete
+                - Retain
                 type: string
               region:
                 description: Region is the region in which to reserve the domain
