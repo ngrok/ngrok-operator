@@ -1,7 +1,6 @@
 package ngrok
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -43,14 +42,14 @@ func Test_findTrafficPolicy(t *testing.T) {
 	}
 
 	// Call the function under test
-	policy, err := r.findTrafficPolicyByName(context.Background(), "policy-1", "default")
+	policy, err := r.findTrafficPolicyByName(t.Context(), "policy-1", "default")
 
 	// Assert that the correct policy is found
 	assert.NoError(t, err)
 	assert.Equal(t, `{"type":"allow"}`, policy)
 
 	// Test case where TrafficPolicy is not found
-	policy, err = r.findTrafficPolicyByName(context.Background(), "nonexistent-policy", "default")
+	policy, err = r.findTrafficPolicyByName(t.Context(), "nonexistent-policy", "default")
 	assert.Error(t, err)
 	assert.Equal(t, "", policy)
 }
@@ -98,7 +97,7 @@ func Test_ensureDomainExists(t *testing.T) {
 		},
 	}
 
-	domain, err := r.ensureDomainExists(context.Background(), clep)
+	domain, err := r.ensureDomainExists(t.Context(), clep)
 	assert.Equal(t, ErrDomainCreating, err)
 	assert.Equal(t, existingNotReadyDomain, domain)
 
@@ -113,7 +112,7 @@ func Test_ensureDomainExists(t *testing.T) {
 		},
 	}
 
-	domain, err = r.ensureDomainExists(context.Background(), clep)
+	domain, err = r.ensureDomainExists(t.Context(), clep)
 	assert.NoError(t, err)
 	assert.Equal(t, existingReadyDomain, domain)
 
@@ -128,7 +127,7 @@ func Test_ensureDomainExists(t *testing.T) {
 		},
 	}
 
-	domain, err = r.ensureDomainExists(context.Background(), clep)
+	domain, err = r.ensureDomainExists(t.Context(), clep)
 	assert.Equal(t, ErrDomainCreating, err)
 	assert.Empty(t, domain.Status.ID)
 }

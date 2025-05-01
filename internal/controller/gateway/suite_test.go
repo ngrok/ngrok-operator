@@ -71,7 +71,7 @@ func TestControllers(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel = context.WithCancel(GinkgoT().Context())
 
 	By("bootstrapping test environment")
 	operatorAPIs := filepath.Join("..", "..", "..", "helm", "ngrok-operator", "templates", "crds")

@@ -25,7 +25,6 @@ SOFTWARE.
 package gateway
 
 import (
-	"context"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -54,7 +53,7 @@ var _ = Describe("GatewayClass controller", func() {
 	)
 
 	BeforeEach(func() {
-		ctx := context.Background()
+		ctx := GinkgoT().Context()
 		unmanagedGatewayClass = &gatewayv1.GatewayClass{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "unaccepted-gateway-class",
@@ -76,7 +75,7 @@ var _ = Describe("GatewayClass controller", func() {
 	})
 
 	AfterEach(func() {
-		ctx := context.Background()
+		ctx := GinkgoT().Context()
 		Expect(k8sClient.Delete(ctx, managedGatewayClass)).To(Succeed())
 		Expect(k8sClient.Delete(ctx, unmanagedGatewayClass)).To(Succeed())
 	})

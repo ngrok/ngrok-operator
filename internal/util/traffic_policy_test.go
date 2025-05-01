@@ -1,7 +1,6 @@
 package util
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -976,7 +975,7 @@ func TestNewTrafficPolicyFromModuleset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tp, err := NewTrafficPolicyFromModuleset(context.Background(), tt.moduleset, secretResolver, ipPolicyResolver)
+			tp, err := NewTrafficPolicyFromModuleset(t.Context(), tt.moduleset, secretResolver, ipPolicyResolver)
 			assert.Equal(t, tt.err, err)
 
 			jsonTP, err := json.Marshal(tp)

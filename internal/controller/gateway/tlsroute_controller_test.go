@@ -25,7 +25,6 @@ SOFTWARE.
 package gateway
 
 import (
-	"context"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -46,7 +45,7 @@ var _ = Describe("TLSRoute controller", func() {
 	)
 
 	BeforeEach(func() {
-		ctx := context.Background()
+		ctx := GinkgoT().Context()
 		testTLSroute = &gatewayv1alpha2.TLSRoute{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: TLSRouteName,
@@ -71,7 +70,7 @@ var _ = Describe("TLSRoute controller", func() {
 	})
 
 	AfterEach(func() {
-		ctx := context.Background()
+		ctx := GinkgoT().Context()
 		hasTLSRoute := false
 		tlsRoutes := driver.GetStore().ListTLSRoutes()
 		for _, tlsRoute := range tlsRoutes {
