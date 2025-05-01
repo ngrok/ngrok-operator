@@ -8,7 +8,6 @@ require (
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/go-logr/logr v1.4.2
 	github.com/gobwas/glob v0.2.3
-	github.com/golang/mock v1.4.4
 	github.com/google/uuid v1.6.0
 	github.com/imdario/mergo v0.3.16
 	github.com/ngrok/ngrok-api-go/v7 v7.3.0
@@ -16,6 +15,7 @@ require (
 	github.com/onsi/gomega v1.36.1
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
+	go.uber.org/mock v0.5.2
 	golang.ngrok.com/ngrok v1.12.0
 	golang.org/x/sync v0.10.0
 	google.golang.org/protobuf v1.36.4
@@ -26,10 +26,7 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/controller-runtime v0.20.2
-	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230103223931-056869c967cd
-	sigs.k8s.io/controller-tools v0.16.3
 	sigs.k8s.io/gateway-api v1.2.1
-	sigs.k8s.io/kustomize/kustomize/v3 v3.10.0
 )
 
 require (
@@ -104,10 +101,20 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.32.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
+	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230103223931-056869c967cd // indirect
+	sigs.k8s.io/controller-tools v0.16.3 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/kustomize/api v0.12.1 // indirect
 	sigs.k8s.io/kustomize/cmd/config v0.10.9 // indirect
+	sigs.k8s.io/kustomize/kustomize/v3 v3.10.0 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.10 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
+)
+
+tool (
+	go.uber.org/mock/mockgen
+	sigs.k8s.io/controller-runtime/tools/setup-envtest
+	sigs.k8s.io/controller-tools/cmd/controller-gen
+	sigs.k8s.io/kustomize/kustomize/v3
 )
