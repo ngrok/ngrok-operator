@@ -23,8 +23,8 @@ RUN --mount=type=cache,target=/go \
 FROM gcr.io/distroless/static:nonroot
 COPY certs /etc/ssl/certs/ngrok
 WORKDIR /
-COPY --from=builder /workspace/bin/api-manager /workspace/bin/agent-manager /workspace/bin/bindings-forwarder-manager ./
+COPY --from=builder /workspace/bin/ngrok-operator ./
 USER 65532:65532
 
 
-ENTRYPOINT ["/api-manager"]
+ENTRYPOINT ["/ngrok-operator"]
