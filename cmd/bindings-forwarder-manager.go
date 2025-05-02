@@ -55,7 +55,7 @@ func init() {
 }
 
 type bindingsForwarderManagerOpts struct {
-	operatorCommon
+	operatorCommon `yaml:",inline"`
 }
 
 func bindingsForwarderCmd() *cobra.Command {

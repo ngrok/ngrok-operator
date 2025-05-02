@@ -59,7 +59,7 @@ func init() {
 }
 
 type agentManagerOpts struct {
-	operatorCommon
+	operatorCommon `yaml:",inline"`
 	// agent(tunnel driver) flags
 	RootCAs string `yaml:"root_cas"`
 }
