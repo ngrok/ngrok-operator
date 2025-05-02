@@ -67,6 +67,7 @@ func bindingsForwarderCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error loading config: %w", err)
 			}
+			fmt.Printf("opts:\n%+v\n", opts)
 			return runController(c.Context(), opts)
 		},
 	}
