@@ -86,8 +86,9 @@ func init() {
 type apiManagerOpts struct {
 	// filled from yaml config file
 	operatorCommon `yaml:",inline"`
-	ElectionID     string `yaml:"election_id"` // The name of the configmap that is used for holding the leader lock
-	ApiURL         string `yaml:"api_url"`     // The base URL to use for the ngrok api
+	ManagerName    string `yaml:"api_manager_name"` // Manager name to identify unique ngrok ingress controller instances
+	ElectionID     string `yaml:"election_id"`      // The name of the configmap that is used for holding the leader lock
+	ApiURL         string `yaml:"api_url"`          // The base URL to use for the ngrok api
 	// TODO(operator-rename): This probably needs to be on a per controller basis. Each of the controllers will have their own value or we migrate this to k8s.ngrok.com/ngrok-operator.
 	IngressControllerName string `yaml:"ingress_controller_name"` // The name of the controller to use for matching ingresses classes
 	// TODO(operator-rename): Same as above, but for the manager name.

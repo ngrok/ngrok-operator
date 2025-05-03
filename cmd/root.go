@@ -39,7 +39,6 @@ type operatorCommon struct {
 	Description string `yaml:"description"`  // User-provided description
 	MetricsAddr string `yaml:"metrics_addr"` // The address the metric endpoint binds to
 	ProbeAddr   string `yaml:"probe_addr"`   // The address the probe endpoint binds to.
-	ManagerName string `yaml:"manager_name"` // Manager name to identify unique ngrok ingress controller instances
 	ServerAddr  string `yaml:"server_addr"`  // The address of the ngrok server to use for tunnels
 	Namespace   string `yaml:"namespace"`
 	Region      string `yaml:"region"` // The region to use for ngrok tunnels

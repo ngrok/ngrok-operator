@@ -61,7 +61,8 @@ func init() {
 type agentManagerOpts struct {
 	operatorCommon `yaml:",inline"`
 	// agent(tunnel driver) flags
-	RootCAs string `yaml:"root_cas"`
+	ManagerName string `yaml:"agent_manager_name"` // Manager name to identify unique ngrok ingress controller instances
+	RootCAs     string `yaml:"root_cas"`
 }
 
 func agentCmd() *cobra.Command {

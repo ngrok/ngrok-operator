@@ -10,7 +10,6 @@ data:
     description: {{ .Values.description }}
     metrics_addr: :8080
     probe_addr: :8081
-    manager_name: {{ include "ngrok-operator.fullname" . }}-manager
     server_addr: {{ .Values.serverAddr }}
     # feature flags
     enable_feature_ingress: {{ .Values.ingress.enabled }}
@@ -18,6 +17,7 @@ data:
     enable_feature_bindings: {{ .Values.bindings.enabled }}
     disable_gateway_reference_grants: {{ .Values.gateway.disableReferenceGrants }}
     # api manager config
+    api_manager_name: {{ include "ngrok-operator.fullname" . }}-manager
     election_id: {{ include "ngrok-operator.fullname" . }}-leader
     cluster_domain: {{ .Values.clusterDomain }}
     api-url: {{ .Values.apiURL }}
@@ -53,8 +53,10 @@ data:
     region: {{ .Values.region }}
     {{- if and .Values.ingress.enabled (not .Values.oneClickDemoMode) }}
     # agent config
+    agent_manager_name: {{ include "ngrok-operator.fullname" . }}-agent-manager
     root_cas: {{ .Values.rootCAs }}
     {{- end}}
     {{- if and .Values.bindings.enabled (not .Values.oneClickDemoMode) }}
-    {{- /* No bindings-forwader specific config yet */}}
+    # bindings forwarder config
+    bindings_forwarder_manager_name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
     {{- end }}

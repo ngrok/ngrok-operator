@@ -56,6 +56,7 @@ func init() {
 
 type bindingsForwarderManagerOpts struct {
 	operatorCommon `yaml:",inline"`
+	ManagerName    string `yaml:"bindings_forwarder_manager_name"` // Manager name to identify unique ngrok ingress controller instances
 }
 
 func bindingsForwarderCmd() *cobra.Command {
