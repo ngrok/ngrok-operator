@@ -11,6 +11,7 @@ require (
 	github.com/ngrok/ngrok-api-go/v7 v7.3.0
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
+	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.2
@@ -112,6 +113,7 @@ require (
 )
 
 tool (
+	github.com/onsi/ginkgo/v2/ginkgo
 	go.uber.org/mock/mockgen
 	sigs.k8s.io/controller-runtime/tools/setup-envtest
 	sigs.k8s.io/controller-tools/cmd/controller-gen
