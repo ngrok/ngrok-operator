@@ -29,6 +29,7 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v7"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -126,7 +127,7 @@ func (d *Domain) Equal(ngrokDomain *ngrok.ReservedDomain) bool {
 		d.Status.Region == ngrokDomain.Region &&
 		d.Status.Domain == ngrokDomain.Domain &&
 		d.Status.URI == ngrokDomain.URI &&
-		d.Status.CNAMETarget == ngrokDomain.CNAMETarget &&
+		ptr.Equal(d.Status.CNAMETarget, ngrokDomain.CNAMETarget) &&
 		d.Spec.Description == ngrokDomain.Description &&
 		d.Spec.Metadata == ngrokDomain.Metadata
 }
