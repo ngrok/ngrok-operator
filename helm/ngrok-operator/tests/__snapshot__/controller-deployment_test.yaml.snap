@@ -1,5 +1,13 @@
 Should match all-options snapshot:
   1: |
+    apiVersion: v1
+    data:
+      ngrok_operator_manager_config.yml: "release_name: RELEASE-NAME\ndescription: \"The official ngrok Kubernetes Operator.\"\nmetrics_addr: :8080\nprobe_addr: :8081\nserver_addr: \n# feature flags\nenable_feature_ingress: true\nenable_feature_gateway: true\nenable_feature_bindings: false\ndisable_gateway_reference_grants: false\n# api manager config\napi_manager_name: RELEASE-NAME-ngrok-operator-manager\nelection_id: RELEASE-NAME-ngrok-operator-leader\ncluster_domain: svc.cluster.local\napi-url: \ningress_controller_name: k8s.ngrok.com/ingress-controller\none_click_demo_mode: false\nbindings:\n  enabled: false\n  endpoint_selectors: \n  - \"true\"\n  service_annotations: \n  service_labels: \n  ingress_endpoint: kubernetes-binding-ingress.ngrok.io:443\nnamespace: NAMESPACE\nregion: \n# agent config\nagent_manager_name: RELEASE-NAME-ngrok-operator-agent-manager\nroot_cas: \n"
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-combined-config
+      namespace: NAMESPACE
+  2: |
     apiVersion: apps/v1
     kind: Deployment
     metadata:
@@ -52,22 +60,13 @@ Should match all-options snapshot:
                   weight: 1
           containers:
             - args:
-                - --release-name=RELEASE-NAME
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description="The official ngrok Kubernetes Operator."
-                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
+                - api-manager
+                - --config=/conf/ngrok_operator_manager_config.yml
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json
-                - --health-probe-bind-address=:8081
-                - --metrics-bind-address=:8080
-                - --election-id=RELEASE-NAME-ngrok-operator-leader
-                - --manager-name=RELEASE-NAME-ngrok-operator-manager
-                - --cluster-domain=svc.cluster.local
               command:
-                - /api-manager
+                - /ngrok-operator
               env:
                 - name: NGROK_API_KEY
                   valueFrom:
@@ -108,13 +107,18 @@ Should match all-options snapshot:
               securityContext:
                 allowPrivilegeEscalation: false
               volumeMounts:
+                - mountPath: /conf
+                  name: RELEASE-NAME-ngrok-operator-combined-config
                 - mountPath: /test-volume
                   name: test-volume
           serviceAccountName: RELEASE-NAME-ngrok-operator
           volumes:
+            - configMap:
+                name: RELEASE-NAME-ngrok-operator-combined-config
+              name: RELEASE-NAME-ngrok-operator-combined-config
             - emptyDir: {}
               name: test-volume
-  2: |
+  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
@@ -152,7 +156,7 @@ Should match all-options snapshot:
         verbs:
           - create
           - patch
-  3: |
+  4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -170,7 +174,7 @@ Should match all-options snapshot:
           - subjectaccessreviews
         verbs:
           - create
-  4: |
+  5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
@@ -184,7 +188,7 @@ Should match all-options snapshot:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
-  5: |
+  6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -197,7 +201,7 @@ Should match all-options snapshot:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
-  6: |
+  7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -210,7 +214,7 @@ Should match all-options snapshot:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
-  7: |
+  8: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -710,6 +714,14 @@ Should match all-options snapshot:
           - update
 Should match default snapshot:
   1: |
+    apiVersion: v1
+    data:
+      ngrok_operator_manager_config.yml: "release_name: RELEASE-NAME\ndescription: \"The official ngrok Kubernetes Operator.\"\nmetrics_addr: :8080\nprobe_addr: :8081\nserver_addr: \n# feature flags\nenable_feature_ingress: true\nenable_feature_gateway: true\nenable_feature_bindings: false\ndisable_gateway_reference_grants: false\n# api manager config\napi_manager_name: RELEASE-NAME-ngrok-operator-manager\nelection_id: RELEASE-NAME-ngrok-operator-leader\ncluster_domain: svc.cluster.local\napi-url: \ningress_controller_name: k8s.ngrok.com/ingress-controller\none_click_demo_mode: false\nbindings:\n  enabled: false\n  endpoint_selectors: \n  - \"true\"\n  service_annotations: \n  service_labels: \n  ingress_endpoint: kubernetes-binding-ingress.ngrok.io:443\nnamespace: NAMESPACE\nregion: \n# agent config\nagent_manager_name: RELEASE-NAME-ngrok-operator-agent-manager\nroot_cas: \n"
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-combined-config
+      namespace: NAMESPACE
+  2: |
     apiVersion: apps/v1
     kind: Deployment
     metadata:
@@ -762,22 +774,13 @@ Should match default snapshot:
                   weight: 1
           containers:
             - args:
-                - --release-name=RELEASE-NAME
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description="The official ngrok Kubernetes Operator."
-                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
+                - api-manager
+                - --config=/conf/ngrok_operator_manager_config.yml
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json
-                - --health-probe-bind-address=:8081
-                - --metrics-bind-address=:8080
-                - --election-id=RELEASE-NAME-ngrok-operator-leader
-                - --manager-name=RELEASE-NAME-ngrok-operator-manager
-                - --cluster-domain=svc.cluster.local
               command:
-                - /api-manager
+                - /ngrok-operator
               env:
                 - name: NGROK_API_KEY
                   valueFrom:
@@ -810,8 +813,15 @@ Should match default snapshot:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
+              volumeMounts:
+                - mountPath: /conf
+                  name: RELEASE-NAME-ngrok-operator-combined-config
           serviceAccountName: RELEASE-NAME-ngrok-operator
-  2: |
+          volumes:
+            - configMap:
+                name: RELEASE-NAME-ngrok-operator-combined-config
+              name: RELEASE-NAME-ngrok-operator-combined-config
+  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
@@ -849,7 +859,7 @@ Should match default snapshot:
         verbs:
           - create
           - patch
-  3: |
+  4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -867,7 +877,7 @@ Should match default snapshot:
           - subjectaccessreviews
         verbs:
           - create
-  4: |
+  5: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
@@ -881,7 +891,7 @@ Should match default snapshot:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
-  5: |
+  6: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -894,7 +904,7 @@ Should match default snapshot:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
-  6: |
+  7: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -907,7 +917,7 @@ Should match default snapshot:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
-  7: |
+  8: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:

@@ -10,16 +10,9 @@ build: preflight generate fmt vet _build ## Build binaries.
 
 .PHONY: _build
 _build:
-	go build -o bin/api-manager -trimpath -ldflags "-s -w \
+	go build -o bin/ngrok-operator -trimpath -ldflags "-s -w \
 		-X $(REPO_URL)/internal/version.gitCommit=$(GIT_COMMIT) \
-		-X $(REPO_URL)/internal/version.version=$(VERSION)" cmd/api/main.go
-	go build -o bin/agent-manager -trimpath -ldflags "-s -w \
-		-X $(REPO_URL)/internal/version.gitCommit=$(GIT_COMMIT) \
-		-X $(REPO_URL)/internal/version.version=$(VERSION)" cmd/agent/main.go
-	go build -o bin/bindings-forwarder-manager -trimpath -ldflags "-s -w \
-		-X $(REPO_URL)/internal/version.gitCommit=$(GIT_COMMIT) \
-		-X $(REPO_URL)/internal/version.version=$(VERSION)" cmd/bindings-forwarder/main.go
-
+		-X $(REPO_URL)/internal/version.version=$(VERSION)"
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.

@@ -49,16 +49,13 @@ Should match snapshot:
                   weight: 1
           containers:
             - args:
-                - --release-name=RELEASE-NAME
-                - --description="The official ngrok Kubernetes Operator."
+                - bindings-forwarder-manager
+                - --config=/conf/ngrok_operator_manager_config.yml
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json
-                - --health-probe-bind-address=:8081
-                - --metrics-bind-address=:8080
-                - --manager-name=RELEASE-NAME-ngrok-operator-bindings-forwarder
               command:
-                - /bindings-forwarder-manager
+                - /ngrok-operator
               env:
                 - name: NGROK_AUTHTOKEN
                   valueFrom:
@@ -91,4 +88,11 @@ Should match snapshot:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
+              volumeMounts:
+                - mountPath: /conf
+                  name: RELEASE-NAME-ngrok-operator-combined-config
           serviceAccountName: RELEASE-NAME-ngrok-operator-bindings-forwarder
+          volumes:
+            - configMap:
+                name: RELEASE-NAME-ngrok-operator-combined-config
+              name: RELEASE-NAME-ngrok-operator-combined-config

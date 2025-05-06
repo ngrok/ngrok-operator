@@ -1,0 +1,5 @@
+bindings:
+  endpointSelectors:
+    - endpoint.url.contains('foo')
+    - endpoint.url.contains('bar')
+  foo: bar

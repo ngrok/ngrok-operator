@@ -14,11 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package cmd
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -26,10 +25,12 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 
+	// typically only use blank imports in main
+	// but we treat each of these cmd's as their own
+	// "main", they are all subcommands
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,51 +49,32 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-)
-
 func init() {
+	rootCmd.AddCommand(bindingsForwarderCmd())
+
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 }
 
-func main() {
-	if err := cmd().Execute(); err != nil {
-		setupLog.Error(err, "error running bindings-forwarder-manager")
-		os.Exit(1)
-	}
+type bindingsForwarderManagerOpts struct {
+	operatorCommon `yaml:",inline"`
+	ManagerName    string `yaml:"bindings_forwarder_manager_name"` // Manager name to identify unique ngrok ingress controller instances
 }
 
-type managerOpts struct {
-	// flags
-	releaseName string
-	metricsAddr string
-	probeAddr   string
-	description string
-	managerName string
-	zapOpts     *zap.Options
-
-	// env vars
-	namespace string
-}
-
-func cmd() *cobra.Command {
-	var opts managerOpts
+func bindingsForwarderCmd() *cobra.Command {
+	var opts bindingsForwarderManagerOpts
 	c := &cobra.Command{
 		Use: "bindings-forwarder-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
+			err := loadConfig(cfgPath, &opts)
+			if err != nil {
+				return fmt.Errorf("error loading config: %w", err)
+			}
+			fmt.Printf("opts:\n%+v\n", opts)
 			return runController(c.Context(), opts)
 		},
 	}
-
-	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
-	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
-	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
-	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -102,30 +84,24 @@ func cmd() *cobra.Command {
 	return c
 }
 
-func runController(_ context.Context, opts managerOpts) error {
+func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	buildInfo := version.Get()
 	setupLog.Info("starting bindings-forwarder-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
 
-	var ok bool
-	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
-	if !ok {
-		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
-	}
-
 	options := ctrl.Options{
 		Scheme: scheme,
 		Cache: cache.Options{
 			DefaultNamespaces: map[string]cache.Config{
-				opts.namespace: {},
+				opts.Namespace: {},
 			},
 		},
 		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
+			BindAddress: opts.MetricsAddr,
 		},
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
+		HealthProbeBindAddress: opts.ProbeAddr,
 		LeaderElection:         false,
 	}
 
@@ -149,7 +125,7 @@ func runController(_ context.Context, opts managerOpts) error {
 		Scheme:                 mgr.GetScheme(),
 		Recorder:               mgr.GetEventRecorderFor("bindings-forwarder-controller"),
 		BindingsDriver:         bd,
-		KubernetesOperatorName: opts.releaseName,
+		KubernetesOperatorName: opts.ReleaseName,
 		RootCAs:                certPool,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BindingsForwarder")
