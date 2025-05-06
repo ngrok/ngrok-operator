@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/ngrok/ngrok-operator/internal/mocks"
+	"go.uber.org/mock/gomock"
 )
 
 func TestConnectionIsClosed(t *testing.T) {
