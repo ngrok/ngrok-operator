@@ -1,7 +1,6 @@
 package resolvers
 
 import (
-	"context"
 	"testing"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -43,12 +42,12 @@ func TestDefaultIPPolicyResolver(t *testing.T) {
 	defaultIPPolicyResolver := NewDefaultIPPolicyResolver(fakeClient)
 
 	// Test that resolving a policy name returns the ID
-	ids, err := defaultIPPolicyResolver.ResolveIPPolicyNamesorIds(context.Background(), "namespace", []string{"my-ip-policy"})
+	ids, err := defaultIPPolicyResolver.ResolveIPPolicyNamesorIds(t.Context(), "namespace", []string{"my-ip-policy"})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"ipp_111111111122222222223333333"}, ids)
 
 	// Test that when the policy name or id looks like an ID, it is returned as is
-	ids, err = defaultIPPolicyResolver.ResolveIPPolicyNamesorIds(context.Background(), "namespace", []string{"ipp_99999999922222222223333333"})
+	ids, err = defaultIPPolicyResolver.ResolveIPPolicyNamesorIds(t.Context(), "namespace", []string{"ipp_99999999922222222223333333"})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"ipp_99999999922222222223333333"}, ids)
 }

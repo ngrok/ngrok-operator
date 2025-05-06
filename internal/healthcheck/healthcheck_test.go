@@ -25,8 +25,8 @@ func (m *mockChecker) Ready(_ context.Context, _ *http.Request) error {
 func Test_HealthChecker(t *testing.T) {
 	assert := assert.New(t)
 
-	ctx := context.Background() // fake context
-	var req *http.Request       // fake request
+	ctx := t.Context()
+	var req *http.Request // fake request
 
 	// nothing in the instance
 	// should return nil

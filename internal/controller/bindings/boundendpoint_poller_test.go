@@ -1,7 +1,6 @@
 package bindings
 
 import (
-	"context"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -153,7 +152,7 @@ func Test_BoundEndpointPoller_filterBoundEndpointActions(t *testing.T) {
 			t.Parallel()
 			assert := assert.New(t)
 
-			gotCreate, gotUpdate, gotDelete := examplePoller.filterBoundEndpointActions(context.TODO(), test.existing, test.desired)
+			gotCreate, gotUpdate, gotDelete := examplePoller.filterBoundEndpointActions(t.Context(), test.existing, test.desired)
 
 			assert.ElementsMatch(test.wantCreate, gotCreate)
 			assert.ElementsMatch(test.wantUpdate, gotUpdate)
@@ -365,7 +364,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			t.Parallel()
 			assert := assert.New(t)
 
-			got := boundEndpointNeedsUpdate(context.TODO(), test.existing, test.desired)
+			got := boundEndpointNeedsUpdate(t.Context(), test.existing, test.desired)
 			assert.Equal(test.want, got)
 		})
 	}

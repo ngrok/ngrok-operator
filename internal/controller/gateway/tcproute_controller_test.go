@@ -25,7 +25,6 @@ SOFTWARE.
 package gateway
 
 import (
-	"context"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -46,7 +45,7 @@ var _ = Describe("TCPRoute controller", func() {
 	)
 
 	BeforeEach(func() {
-		ctx := context.Background()
+		ctx := GinkgoT().Context()
 		testTCProute = &gatewayv1alpha2.TCPRoute{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: TCPRouteName,
@@ -71,7 +70,7 @@ var _ = Describe("TCPRoute controller", func() {
 	})
 
 	AfterEach(func() {
-		ctx := context.Background()
+		ctx := GinkgoT().Context()
 		hasTCPRoute := false
 		tcpRoutes := driver.GetStore().ListTCPRoutes()
 		for _, tcpRoute := range tcpRoutes {
