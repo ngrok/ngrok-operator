@@ -218,13 +218,13 @@ tests:
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - matchRegex:
-      path: spec.template.spec.volumes[0].name
+      path: spec.template.spec.volumes[1].name
       pattern: test-volume
   - matchRegex:
-      path: spec.template.spec.containers[0].volumeMounts[0].name
+      path: spec.template.spec.containers[0].volumeMounts[1].name
       pattern: test-volume
   - matchRegex:
-      path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+      path: spec.template.spec.containers[0].volumeMounts[1].mountPath
       pattern: /test-volume
 - it: Should pass log level argument if set
   set:

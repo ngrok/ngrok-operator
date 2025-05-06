@@ -97,7 +97,7 @@ spec:
         volumeMounts:
         - mountPath: /conf
           name: {{ include "ngrok-operator.fullname" . }}-combined-config
-        {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
+        {{ toYaml .Values.extraVolumeMounts | nindent 8 }}
         {{- else }}
         volumeMounts:
         - mountPath: /conf
@@ -126,7 +126,7 @@ spec:
       - configMap:
           name: {{ include "ngrok-operator.fullname" . }}-combined-config
         name: {{ include "ngrok-operator.fullname" . }}-combined-config
-      {{- toYaml .Values.extraVolumes | nindent 8 }}
+      {{- toYaml .Values.extraVolumes | nindent 6 }}
       {{- else }}
       volumes:
       - configMap:
