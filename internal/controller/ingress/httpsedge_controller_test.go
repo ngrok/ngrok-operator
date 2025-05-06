@@ -1,18 +1,11 @@
 package ingress
 
 import (
-	"testing"
-
 	"github.com/ngrok/ngrok-api-go/v7"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-func TestControllers(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Controllers package Test Suite")
-}
 
 var _ = Describe("HTTPSEdgeController", func() {
 	DescribeTable("isMigratingAuthProviders", func(current *ngrok.HTTPSEdgeRoute, desired *ingressv1alpha1.HTTPSEdgeRouteSpec, expected bool) {
