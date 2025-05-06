@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
+	"log"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,13 +23,12 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgPath, "config", "", "path to the ngrok-operator config file")
-	cobra.MarkFlagRequired(rootCmd.PersistentFlags(), "config")
+	_ = cobra.MarkFlagRequired(rootCmd.PersistentFlags(), "config") // can't fail if the config flag exists
 }
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalln(err)
 	}
 }
 

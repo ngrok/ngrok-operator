@@ -9,6 +9,7 @@ templates:
 - controller-rbac.yaml
 - credentials-secret.yaml
 - rbac/role.yaml
+- config-configmap.yaml
 tests:
 - it: Should match default snapshot
   asserts:
@@ -32,64 +33,64 @@ tests:
 - it: Uses the new gateway.enabled value
   set:
     gateway.enabled: true
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=true
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'enable_feature_gateway: true'
 - it: Disables ReferenceGrants with GatewayAPI
   set:
     gateway.enabled: true
     gateway.disableReferenceGrants: true
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=true
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --disable-reference-grants=true
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'enable_feature_gateway: true'
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'disable_gateway_reference_grants: true'
 - it: Uses the new gateway.enabled value when the old one is disabled
   set:
     useExperimentalGatewayApi: false
     gateway.enabled: true
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=true
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'enable_feature_gateway: true'
 - it: Disables the gateway feature when both are false
   set:
     useExperimentalGatewayApi: false
     gateway.enabled: false
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=false
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'enable_feature_gateway: false'
 - it: Enables the gateway feature when the old value is true (backwards compatibility)
   set:
     useExperimentalGatewayApi: true
     gateway.enabled: false
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=true
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'enable_feature_gateway: true'
 - it: Should use the specified cluster domain name
   set:
     clusterDomain: svc.example.com
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --cluster-domain=svc.example.com
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'cluster_domain: svc.example.com'
 - it: Should use the specified secret name for the credentials secret
   set:
     credentials.secret.name: test-secret-name
@@ -99,93 +100,93 @@ tests:
   - matchRegex:
       path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
       pattern: test-secret-name
-- it: Sets --ingress-watch-namespace
+- it: Set ingress-watch-namespace
   set:
     ingress.enabled: true
     ingress.watchNamespace: test-namespace
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ingress-watch-namespace=test-namespace
-- it: Sets --ingress-watch-namespace when the old value is set
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'ingress_watch_namespace: test-namespace'
+- it: Sets ingress-watch-namespace when the old value is set
   set:
     watchNamespace: "test-namespace"
     ingress.watchNamespace: "" # unset on purpose
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ingress-watch-namespace=test-namespace
-- it: Sets --ingress-controller-name
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'ingress_watch_namespace: test-namespace'
+- it: Sets ingress-controller-name
   set:
     ingress.enabled: true
     ingress.controllerName: "my-controller"
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ingress-controller-name=my-controller
-- it: Sets --ingress-controller-name when the old value is set
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'ingress_controller_name: my-controller'
+- it: Sets ingress-controller-name when the old value is set
   set:
     controllerName: "my-controller"
     ingress.controllerName: "" # unset on purpose
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ingress-controller-name=my-controller
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'ingress_controller_name: my-controller'
 - it: Should pass the region via container args to the controller if specified
   set:
     region: eu
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --region=eu
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'region: eu'
 - it: Should not pass the region via container args to the controller if not specified
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - notContains:
-      path: spec.template.spec.containers[0].args
-      content: --region=eu
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'region: \n'
 - it: Should pass description
   set:
     description: "test description"
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --description="test description"
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'description: "test description"'
 - it: Should support deprecated metaData to the deployment
   set:
     metaData:
       metaDataKey1: metaDataValue1
       metaDataKey2: metaDataValue2
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ngrokMetadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'ngrok_metadata: metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2'
 - it: Should pass extra ngrokMetadata to the deployment
   set:
     ngrokMetadata:
       metaDataKey1: metaDataValue1
       metaDataKey2: metaDataValue2
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ngrokMetadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'ngrok_metadata: metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2'
 - it: Should pass bindings.serviceAnnotations and bindings.serviceLabels to the controller
   set:
     bindings:
@@ -196,15 +197,15 @@ tests:
       serviceLabels:
         serviceLabelKey1: serviceLabelValue1
         serviceLabelKey2: serviceLabelValue2
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --bindings-service-annotations=serviceAnnotationKey1=serviceAnnotationValue1,serviceAnnotationKey2=serviceAnnotationValue2
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --bindings-service-labels=serviceLabelKey1=serviceLabelValue1,serviceLabelKey2=serviceLabelValue2
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'service_annotations: serviceAnnotationKey1=serviceAnnotationValue1,serviceAnnotationKey2=serviceAnnotationValue2'
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'service_labels: serviceLabelKey1=serviceLabelValue1,serviceLabelKey2=serviceLabelValue2'
 - it: Should pass through extra volumes and extra volume mounts
   set:
     extraVolumes:
@@ -242,21 +243,21 @@ tests:
       endpointSelectors:
       - "true"
       - "false"
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --bindings-endpoint-selectors=true,false
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'endpoint_selectors: \n  - "true"\n  - "false"\n'
 - it: Should pass one-click-demo mode if set
   set:
     oneClickDemoMode: true
-  template: controller-deployment.yaml
+  template: config-configmap.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --one-click-demo-mode
+  - matchRegex:
+      path: data['ngrok_operator_manager_config.yml']
+      pattern: 'one_click_demo_mode: true'
 - it: Should pass log format argument if set
   set:
     log:

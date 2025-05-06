@@ -49,18 +49,13 @@ Should match snapshot:
                   weight: 1
           containers:
             - args:
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description="The official ngrok Kubernetes Operator."
+                - agent-manager
+                - --config=/conf/ngrok_operator_manager_config.yml
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json
-                - --health-probe-bind-address=:8081
-                - --metrics-bind-address=:8080
-                - --manager-name=RELEASE-NAME-ngrok-operator-agent-manager
               command:
-                - /agent-manager
+                - /ngrok-operator
               env:
                 - name: NGROK_AUTHTOKEN
                   valueFrom:
@@ -93,7 +88,14 @@ Should match snapshot:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
+              volumeMounts:
+                - mountPath: /conf
+                  name: RELEASE-NAME-ngrok-operator-combined-config
           serviceAccountName: RELEASE-NAME-ngrok-operator-agent
+          volumes:
+            - configMap:
+                name: RELEASE-NAME-ngrok-operator-combined-config
+              name: RELEASE-NAME-ngrok-operator-combined-config
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole

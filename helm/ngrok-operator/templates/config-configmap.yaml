@@ -7,13 +7,17 @@ metadata:
 data:
   ngrok_operator_manager_config.yml: |
     release_name: {{ .Release.Name }}
-    description: {{ .Values.description }}
+    description: {{ .Values.description | quote }}
     metrics_addr: :8080
     probe_addr: :8081
     server_addr: {{ .Values.serverAddr }}
     # feature flags
     enable_feature_ingress: {{ .Values.ingress.enabled }}
-    enable_feature_gateway: {{ .Values.gateway.enabled }}
+    {{- if .Values.useExperimentalGatewayApi | default .Values.gateway.enabled }}
+    enable_feature_gateway: true
+    {{- else }}
+    enable_feature_gateway: false
+    {{- end }}
     enable_feature_bindings: {{ .Values.bindings.enabled }}
     disable_gateway_reference_grants: {{ .Values.gateway.disableReferenceGrants }}
     # api manager config
@@ -23,12 +27,12 @@ data:
     api-url: {{ .Values.apiURL }}
     ingress_controller_name: {{ .Values.controllerName | default .Values.ingress.controllerName }}
     {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
-    ingress-watch-namespace: {{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
+    ingress_watch_namespace: {{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
     {{- end }}
     {{- /* backwards compatibility for .metaData -> .ngrokMetadata */}}
     {{- $ngrokMetadata := (.Values.metaData) | default .Values.ngrokMetadata }}
     {{- if $ngrokMetadata }}
-    ngrokMetadata:{{- $metadataArgs := list -}}
+    ngrok_metadata: {{ $metadataArgs := list -}}
       {{- range $key, $value := $ngrokMetadata }}
       {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
       {{- end }}
@@ -38,12 +42,12 @@ data:
     bindings:
       enabled: {{ .Values.bindings.enabled }}
       endpoint_selectors: {{ toYaml .Values.bindings.endpointSelectors | nindent 6 }}
-      service_annotations: {{- $serviceAnnotations := list -}}
+      service_annotations: {{ $serviceAnnotations := list -}}
           {{- range $key, $value := .Values.bindings.serviceAnnotations }}
           {{- $serviceAnnotations = append $serviceAnnotations (printf "%s=%s" $key $value) -}}
           {{- end }}
           {{- $serviceAnnotations | join "," }}
-      service_labels: {{- $serviceLabels := list -}}
+      service_labels: {{ $serviceLabels := list -}}
           {{- range $key, $value := .Values.bindings.serviceLabels }}
           {{- $serviceLabels = append $serviceLabels (printf "%s=%s" $key $value) -}}
           {{- end }}
