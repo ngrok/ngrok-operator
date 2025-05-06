@@ -17,6 +17,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .status.id
+      name: ID
+      type: string
     - jsonPath: .spec.url
       name: URL
       type: string
