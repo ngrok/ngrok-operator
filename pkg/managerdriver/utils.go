@@ -1,7 +1,6 @@
 package managerdriver
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -264,27 +263,16 @@ func findBackendRefServicesPort(log logr.Logger, service *corev1.Service, backen
 	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, int32(*backendRef.Port), string(backendRef.Name))
 }
 
-func calculateIngressLoadBalancerIPStatus(log logr.Logger, ing *netv1.Ingress, c client.Reader) []netv1.IngressLoadBalancerIngress {
+func calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, domains map[string]ingressv1alpha1.Domain) []netv1.IngressLoadBalancerIngress {
 	ingressHosts := map[string]bool{}
 	for _, rule := range ing.Spec.Rules {
 		ingressHosts[rule.Host] = true
 	}
 
-	domains := &ingressv1alpha1.DomainList{}
-	if err := c.List(context.Background(), domains); err != nil {
-		log.Error(err, "failed to list domains")
-		return []netv1.IngressLoadBalancerIngress{}
-	}
-
-	domainsByDomain := map[string]ingressv1alpha1.Domain{}
-	for _, domain := range domains.Items {
-		domainsByDomain[domain.Spec.Domain] = domain
-	}
-
 	status := []netv1.IngressLoadBalancerIngress{}
 
 	for host := range ingressHosts {
-		d, ok := domainsByDomain[host]
+		d, ok := domains[host]
 		if !ok {
 			continue
 		}
