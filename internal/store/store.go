@@ -54,6 +54,7 @@ type Storer interface {
 	GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error)
 	GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error)
 	GetGateway(name string, namespace string) (*gatewayv1.Gateway, error)
+	GetGatewayClass(name string) (*gatewayv1.GatewayClass, error)
 	GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error)
 	GetTCPRoute(name string, namespace string) (*gatewayv1alpha2.TCPRoute, error)
 	GetTLSRoute(name string, namespace string) (*gatewayv1alpha2.TLSRoute, error)
@@ -65,6 +66,7 @@ type Storer interface {
 	ListNgrokIngressesV1() []*netv1.Ingress
 
 	ListGateways() []*gatewayv1.Gateway
+	ListGatewayClasses() []*gatewayv1.GatewayClass
 	ListHTTPRoutes() []*gatewayv1.HTTPRoute
 	ListTCPRoutes() []*gatewayv1alpha2.TCPRoute
 	ListTLSRoutes() []*gatewayv1alpha2.TLSRoute
@@ -131,8 +133,8 @@ func (s Store) GetIngressClassV1(name string) (*netv1.IngressClass, error) {
 }
 
 // GetIngressV1 returns the 'name' Ingress resource.
-func (s Store) GetIngressV1(name, namespcae string) (*netv1.Ingress, error) {
-	p, exists, err := s.stores.IngressV1.GetByKey(getKey(name, namespcae))
+func (s Store) GetIngressV1(name, namespace string) (*netv1.Ingress, error) {
+	p, exists, err := s.stores.IngressV1.GetByKey(getKey(name, namespace))
 	if err != nil {
 		return nil, err
 	}
@@ -222,6 +224,17 @@ func (s Store) GetGateway(name string, namespace string) (*gatewayv1.Gateway, er
 		return nil, errors.NewErrorNotFound(fmt.Sprintf("Gateway %v not found", name))
 	}
 	return gtw.(*gatewayv1.Gateway), nil
+}
+
+func (s Store) GetGatewayClass(name string) (*gatewayv1.GatewayClass, error) {
+	gwClass, exists, err := s.stores.GatewayClass.GetByKey(name)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("GatewayClass %v not found", name))
+	}
+	return gwClass.(*gatewayv1.GatewayClass), nil
 }
 
 func (s Store) GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error) {
@@ -355,6 +368,24 @@ func (s Store) ListGateways() []*gatewayv1.Gateway {
 	})
 
 	return gateways
+}
+
+func (s Store) ListGatewayClasses() []*gatewayv1.GatewayClass {
+	var gatewayClasses []*gatewayv1.GatewayClass
+
+	for _, item := range s.stores.GatewayClass.List() {
+		gwClass, ok := item.(*gatewayv1.GatewayClass)
+		if !ok {
+			s.log.Error(nil, "GatewayClass: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
+			continue
+		}
+		gatewayClasses = append(gatewayClasses, gwClass)
+	}
+	sort.SliceStable(gatewayClasses, func(i, j int) bool {
+		return strings.Compare(fmt.Sprintf("%s/%s", gatewayClasses[i].Namespace, gatewayClasses[i].Name),
+			fmt.Sprintf("%s/%s", gatewayClasses[j].Namespace, gatewayClasses[j].Name)) < 0
+	})
+	return gatewayClasses
 }
 
 func (s Store) ListHTTPRoutes() []*gatewayv1.HTTPRoute {
