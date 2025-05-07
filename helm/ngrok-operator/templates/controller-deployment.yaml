@@ -68,8 +68,9 @@ spec:
         image: {{ include "ngrok-operator.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
-        - /api-manager
+        - /ngrok-operator
         args:
+        - api-manager
         - --release-name={{ .Release.Name }}
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
         {{- if .Values.oneClickDemoMode }}
