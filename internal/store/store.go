@@ -20,6 +20,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -29,6 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/go-logr/logr"
@@ -38,7 +40,7 @@ import (
 // about ingresses, services, and other CRDs.
 // It exposes methods to list both all and filtered resources
 type Storer interface {
-	Get(obj runtime.Object) (item interface{}, exists bool, err error)
+	Get(obj runtime.Object) (item any, exists bool, err error)
 	Add(runtime.Object) error
 	Update(runtime.Object) error
 	Delete(runtime.Object) error
@@ -122,61 +124,26 @@ func (s Store) Delete(obj runtime.Object) error {
 
 // GetIngressClassV1 returns the 'name' IngressClass resource.
 func (s Store) GetIngressClassV1(name string) (*netv1.IngressClass, error) {
-	p, exists, err := s.stores.IngressClassV1.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("IngressClass %v not found", name))
-	}
-	return p.(*netv1.IngressClass), nil
+	return genericGetByKey[netv1.IngressClass](s.stores.IngressClassV1, name)
 }
 
 // GetIngressV1 returns the 'name' Ingress resource.
 func (s Store) GetIngressV1(name, namespace string) (*netv1.Ingress, error) {
-	p, exists, err := s.stores.IngressV1.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("Ingress %v not found", name))
-	}
-	return p.(*netv1.Ingress), nil
+	return genericGetByKey[netv1.Ingress](s.stores.IngressV1, getKey(name, namespace))
 }
 
 func (s Store) GetServiceV1(name, namespace string) (*corev1.Service, error) {
-	p, exists, err := s.stores.ServiceV1.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("Service %v not found", name))
-	}
-	return p.(*corev1.Service), nil
+	return genericGetByKey[corev1.Service](s.stores.ServiceV1, getKey(name, namespace))
 }
 
 // GetIngressV1 returns the named Secret
 func (s Store) GetSecretV1(name, namespace string) (*corev1.Secret, error) {
-	p, exists, err := s.stores.SecretV1.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("Secret %v not found", name))
-	}
-	return p.(*corev1.Secret), nil
+	return genericGetByKey[corev1.Secret](s.stores.SecretV1, getKey(name, namespace))
 }
 
 // GetConfigMapV1 returns the named ConfigMap
 func (s Store) GetConfigMapV1(name, namespace string) (*corev1.ConfigMap, error) {
-	p, exists, err := s.stores.ConfigMapV1.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("ConfigMap %v not found", name))
-	}
-	return p.(*corev1.ConfigMap), nil
+	return genericGetByKey[corev1.ConfigMap](s.stores.ConfigMapV1, getKey(name, namespace))
 }
 
 // GetNgrokIngressV1 looks up the Ingress resource by name and namespace and returns it if it's found
@@ -194,124 +161,61 @@ func (s Store) GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 }
 
 func (s Store) GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error) {
-	p, exists, err := s.stores.NgrokModuleV1.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("NgrokModuleSet %v not found", name))
-	}
-	return p.(*ingressv1alpha1.NgrokModuleSet), nil
+	return genericGetByKey[ingressv1alpha1.NgrokModuleSet](s.stores.NgrokModuleV1, getKey(name, namespace))
 }
 
 func (s Store) GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
-	p, exists, err := s.stores.NgrokTrafficPolicyV1.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("NgrokTrafficPolicy %v not found", name))
-	}
-	return p.(*ngrokv1alpha1.NgrokTrafficPolicy), nil
+	return genericGetByKey[ngrokv1alpha1.NgrokTrafficPolicy](s.stores.NgrokTrafficPolicyV1, getKey(name, namespace))
 }
 
 func (s Store) GetGateway(name string, namespace string) (*gatewayv1.Gateway, error) {
-	gtw, exists, err := s.stores.Gateway.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("Gateway %v not found", name))
-	}
-	return gtw.(*gatewayv1.Gateway), nil
+	return genericGetByKey[gatewayv1.Gateway](s.stores.Gateway, getKey(name, namespace))
 }
 
 func (s Store) GetGatewayClass(name string) (*gatewayv1.GatewayClass, error) {
-	gwClass, exists, err := s.stores.GatewayClass.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("GatewayClass %v not found", name))
-	}
-	return gwClass.(*gatewayv1.GatewayClass), nil
+	return genericGetByKey[gatewayv1.GatewayClass](s.stores.GatewayClass, name)
 }
 
 func (s Store) GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error) {
-	obj, exists, err := s.stores.HTTPRoute.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("HTTPRoute %v not found", name))
-	}
-	return obj.(*gatewayv1.HTTPRoute), nil
+	return genericGetByKey[gatewayv1.HTTPRoute](s.stores.HTTPRoute, getKey(name, namespace))
 }
 
 func (s Store) GetTCPRoute(name string, namespace string) (*gatewayv1alpha2.TCPRoute, error) {
-	obj, exists, err := s.stores.TCPRoute.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("TCPRoute %v not found", name))
-	}
-	return obj.(*gatewayv1alpha2.TCPRoute), nil
+	return genericGetByKey[gatewayv1alpha2.TCPRoute](s.stores.TCPRoute, getKey(name, namespace))
 }
 
 func (s Store) GetTLSRoute(name string, namespace string) (*gatewayv1alpha2.TLSRoute, error) {
-	obj, exists, err := s.stores.TLSRoute.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("TLSRoute %v not found", name))
-	}
-	return obj.(*gatewayv1alpha2.TLSRoute), nil
+	return genericGetByKey[gatewayv1alpha2.TLSRoute](s.stores.TLSRoute, getKey(name, namespace))
 }
 
 // GetReferenceGrant returns the named ReferenceGrant
 func (s Store) GetReferenceGrant(name, namespace string) (*gatewayv1beta1.ReferenceGrant, error) {
-	p, exists, err := s.stores.ReferenceGrant.GetByKey(getKey(name, namespace))
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("ReferenceGrant %v not found", name))
-	}
-	return p.(*gatewayv1beta1.ReferenceGrant), nil
+	return genericGetByKey[gatewayv1beta1.ReferenceGrant](s.stores.ReferenceGrant, getKey(name, namespace))
 }
 
 // GetNamespaceV1 returns the named Namespace
 func (s Store) GetNamespaceV1(name string) (*corev1.Namespace, error) {
-	p, exists, err := s.stores.NamespaceV1.GetByKey(name)
+	return genericGetByKey[corev1.Namespace](s.stores.NamespaceV1, name)
+}
+
+func genericGetByKey[T any, PT interface {
+	*T
+	client.Object
+}](s cache.Store, key string) (*T, error) {
+	p, exists, err := s.GetByKey(key)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewErrorNotFound(fmt.Sprintf("Namespace %v not found", name))
+		var e PT = new(T)
+		return nil, errors.NewErrorNotFound(fmt.Sprintf("%T %v not found", e.GetObjectKind().GroupVersionKind().Kind, key))
 	}
-	return p.(*corev1.Namespace), nil
+	return p.(PT), nil
 }
 
 // ListIngressClassesV1 returns the list of Ingresses in the Ingress v1 store.
 func (s Store) ListIngressClassesV1() []*netv1.IngressClass {
-	// filter ingress rules
-	var classes []*netv1.IngressClass
-	for _, item := range s.stores.IngressClassV1.List() {
-		class, ok := item.(*netv1.IngressClass)
-		if !ok {
-			s.log.Info("listIngressClassesV1: dropping object of unexpected type: %#v", item)
-			continue
-		}
-		classes = append(classes, class)
-	}
-
-	sort.SliceStable(classes, func(i, j int) bool {
-		return strings.Compare(classes[i].Name, classes[j].Name) < 0
-	})
-
-	return classes
+	return genericListSorted[netv1.IngressClass](s.log, s.stores.IngressClassV1)
 }
 
 // ListNgrokIngressClassesV1 returns the list of Ingresses in the Ingress v1 store filtered
@@ -330,149 +234,37 @@ func (s Store) ListNgrokIngressClassesV1() []*netv1.IngressClass {
 
 // ListIngressesV1 returns the list of Ingresses in the Ingress v1 store.
 func (s Store) ListIngressesV1() []*netv1.Ingress {
-	// filter ingress rules
-	var ingresses []*netv1.Ingress
-
-	for _, item := range s.stores.IngressV1.List() {
-		ing, ok := item.(*netv1.Ingress)
-		if !ok {
-			s.log.Error(nil, "listIngressesV1: dropping object of unexpected type", "type", fmt.Sprintf("%v", item))
-			continue
-		}
-		ingresses = append(ingresses, ing)
-	}
-
-	sort.SliceStable(ingresses, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", ingresses[i].Namespace, ingresses[i].Name),
-			fmt.Sprintf("%s/%s", ingresses[j].Namespace, ingresses[j].Name)) < 0
-	})
-
-	return ingresses
+	return genericListSorted[netv1.Ingress](s.log, s.stores.IngressV1)
 }
 
 func (s Store) ListGateways() []*gatewayv1.Gateway {
-	var gateways []*gatewayv1.Gateway
-
-	for _, item := range s.stores.Gateway.List() {
-		gtw, ok := item.(*gatewayv1.Gateway)
-		if !ok {
-			s.log.Error(nil, "Gateway: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
-			continue
-		}
-		gateways = append(gateways, gtw)
-	}
-
-	sort.SliceStable(gateways, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", gateways[i].Namespace, gateways[i].Name),
-			fmt.Sprintf("%s/%s", gateways[j].Namespace, gateways[j].Name)) < 0
-	})
-
-	return gateways
+	return genericListSorted[gatewayv1.Gateway](s.log, s.stores.Gateway)
 }
 
 func (s Store) ListGatewayClasses() []*gatewayv1.GatewayClass {
-	var gatewayClasses []*gatewayv1.GatewayClass
-
-	for _, item := range s.stores.GatewayClass.List() {
-		gwClass, ok := item.(*gatewayv1.GatewayClass)
-		if !ok {
-			s.log.Error(nil, "GatewayClass: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
-			continue
-		}
-		gatewayClasses = append(gatewayClasses, gwClass)
-	}
-	sort.SliceStable(gatewayClasses, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", gatewayClasses[i].Namespace, gatewayClasses[i].Name),
-			fmt.Sprintf("%s/%s", gatewayClasses[j].Namespace, gatewayClasses[j].Name)) < 0
-	})
-	return gatewayClasses
+	return genericListSorted[gatewayv1.GatewayClass](s.log, s.stores.GatewayClass)
 }
 
 func (s Store) ListHTTPRoutes() []*gatewayv1.HTTPRoute {
-	var httproutes []*gatewayv1.HTTPRoute
-
-	for _, item := range s.stores.HTTPRoute.List() {
-		httproute, ok := item.(*gatewayv1.HTTPRoute)
-		if !ok {
-			s.log.Error(nil, "HTTPRoute: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
-			continue
-		}
-		httproutes = append(httproutes, httproute)
-	}
-
-	return httproutes
+	return genericList[gatewayv1.HTTPRoute](s.log, s.stores.HTTPRoute)
 }
 
 func (s Store) ListTCPRoutes() []*gatewayv1alpha2.TCPRoute {
-	var tcpRoutes []*gatewayv1alpha2.TCPRoute
-
-	for _, item := range s.stores.TCPRoute.List() {
-		tcpRoute, ok := item.(*gatewayv1alpha2.TCPRoute)
-		if !ok {
-			s.log.Error(nil, "TCPRoute: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
-			continue
-		}
-		tcpRoutes = append(tcpRoutes, tcpRoute)
-	}
-
-	return tcpRoutes
+	return genericList[gatewayv1alpha2.TCPRoute](s.log, s.stores.TCPRoute)
 }
 
 func (s Store) ListTLSRoutes() []*gatewayv1alpha2.TLSRoute {
-	var tlsRoutes []*gatewayv1alpha2.TLSRoute
-
-	for _, item := range s.stores.TLSRoute.List() {
-		tlsRoute, ok := item.(*gatewayv1alpha2.TLSRoute)
-		if !ok {
-			s.log.Error(nil, "TLSRoute: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
-			continue
-		}
-		tlsRoutes = append(tlsRoutes, tlsRoute)
-	}
-
-	return tlsRoutes
+	return genericList[gatewayv1alpha2.TLSRoute](s.log, s.stores.TLSRoute)
 }
 
 // ListReferenceGrants returns the stored ReferenceGrants
 func (s Store) ListReferenceGrants() []*gatewayv1beta1.ReferenceGrant {
-	var referenceGrants []*gatewayv1beta1.ReferenceGrant
-
-	for _, item := range s.stores.ReferenceGrant.List() {
-		referenceGrant, ok := item.(*gatewayv1beta1.ReferenceGrant)
-		if !ok {
-			s.log.Error(nil, "ReferenceGrant: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
-			continue
-		}
-		referenceGrants = append(referenceGrants, referenceGrant)
-	}
-
-	sort.SliceStable(referenceGrants, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", referenceGrants[i].Namespace, referenceGrants[i].Name),
-			fmt.Sprintf("%s/%s", referenceGrants[j].Namespace, referenceGrants[j].Name)) < 0
-	})
-
-	return referenceGrants
+	return genericListSorted[gatewayv1beta1.ReferenceGrant](s.log, s.stores.ReferenceGrant)
 }
 
 // ListNamespaces returns the stored Namespaces
 func (s Store) ListNamespaces() []*corev1.Namespace {
-	var namespaces []*corev1.Namespace
-
-	for _, item := range s.stores.NamespaceV1.List() {
-		namespace, ok := item.(*corev1.Namespace)
-		if !ok {
-			s.log.Error(nil, "Namespace: dropping object of unexpected type", "type", fmt.Sprintf("%#v", item))
-			continue
-		}
-		namespaces = append(namespaces, namespace)
-	}
-
-	sort.SliceStable(namespaces, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", namespaces[i].Namespace, namespaces[i].Name),
-			fmt.Sprintf("%s/%s", namespaces[j].Namespace, namespaces[j].Name)) < 0
-	})
-
-	return namespaces
+	return genericListSorted[corev1.Namespace](s.log, s.stores.NamespaceV1)
 }
 
 func (s Store) ListNgrokIngressesV1() []*netv1.Ingress {
@@ -490,83 +282,53 @@ func (s Store) ListNgrokIngressesV1() []*netv1.Ingress {
 
 // ListDomainsV1 returns the list of Domains in the Domain v1 store.
 func (s Store) ListDomainsV1() []*ingressv1alpha1.Domain {
-	// filter ingress rules
-	var domains []*ingressv1alpha1.Domain
-	for _, item := range s.stores.DomainV1.List() {
-		domain, ok := item.(*ingressv1alpha1.Domain)
-		if !ok {
-			s.log.Info("listDomainsV1: dropping object of unexpected type: %#v", item)
-			continue
-		}
-		domains = append(domains, domain)
-	}
-
-	sort.SliceStable(domains, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", domains[i].Namespace, domains[i].Name),
-			fmt.Sprintf("%s/%s", domains[j].Namespace, domains[j].Name)) < 0
-	})
-
-	return domains
+	return genericListSorted[ingressv1alpha1.Domain](s.log, s.stores.DomainV1)
 }
 
 // ListTunnelsV1 returns the list of Tunnels in the Tunnel v1 store.
 func (s Store) ListTunnelsV1() []*ingressv1alpha1.Tunnel {
-	var tunnels []*ingressv1alpha1.Tunnel
-	for _, item := range s.stores.TunnelV1.List() {
-		tunnel, ok := item.(*ingressv1alpha1.Tunnel)
-		if !ok {
-			s.log.Info("listTunnelsV1: dropping object of unexpected type: %#v", item)
-			continue
-		}
-		tunnels = append(tunnels, tunnel)
-	}
-
-	sort.SliceStable(tunnels, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", tunnels[i].Namespace, tunnels[i].Name),
-			fmt.Sprintf("%s/%s", tunnels[j].Namespace, tunnels[j].Name)) < 0
-	})
-
-	return tunnels
+	return genericListSorted[ingressv1alpha1.Tunnel](s.log, s.stores.TunnelV1)
 }
 
 // ListHTTPSEdgesV1 returns the list of HTTPSEdges in the HTTPSEdge v1 store.
 func (s Store) ListHTTPSEdgesV1() []*ingressv1alpha1.HTTPSEdge {
-	var edges []*ingressv1alpha1.HTTPSEdge
-	for _, item := range s.stores.HTTPSEdgeV1.List() {
-		edge, ok := item.(*ingressv1alpha1.HTTPSEdge)
-		if !ok {
-			s.log.Info("listHTTPSEdgesV1: dropping object of unexpected type: %#v", item)
-			continue
-		}
-		edges = append(edges, edge)
-	}
-
-	sort.SliceStable(edges, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", edges[i].Namespace, edges[i].Name),
-			fmt.Sprintf("%s/%s", edges[j].Namespace, edges[j].Name)) < 0
-	})
-
-	return edges
+	return genericListSorted[ingressv1alpha1.HTTPSEdge](s.log, s.stores.HTTPSEdgeV1)
 }
 
 // ListNgrokModuleSetsV1 returns the list of NgrokModules in the NgrokModuleSet v1 store.
 func (s Store) ListNgrokModuleSetsV1() []*ingressv1alpha1.NgrokModuleSet {
-	var modules []*ingressv1alpha1.NgrokModuleSet
-	for _, item := range s.stores.NgrokModuleV1.List() {
-		module, ok := item.(*ingressv1alpha1.NgrokModuleSet)
+	return genericListSorted[ingressv1alpha1.NgrokModuleSet](s.log, s.stores.NgrokModuleV1)
+}
+
+func genericList[T any, PT interface {
+	*T
+	client.Object
+}](log logr.Logger, s cache.Store) []PT {
+	var result []PT
+	for _, item := range s.List() {
+		obj, ok := item.(PT)
 		if !ok {
-			s.log.Info(fmt.Sprintf("listNgrokModulesV1: dropping object of unexpected type: %#v", item))
+			var e PT = new(T)
+			log.Error(nil, "List: dropping object of unexpected type", "expected", e.GetObjectKind().GroupVersionKind().Kind, "type", fmt.Sprintf("%#v", item))
 			continue
 		}
-		modules = append(modules, module)
+		result = append(result, obj)
 	}
 
-	sort.SliceStable(modules, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", modules[i].Namespace, modules[i].Name),
-			fmt.Sprintf("%s/%s", modules[j].Namespace, modules[j].Name)) < 0
-	})
+	return result
+}
 
-	return modules
+func genericListSorted[T any, PT interface {
+	*T
+	client.Object
+}](log logr.Logger, s cache.Store) []PT {
+	var result = genericList[T, PT](log, s)
+	sort.SliceStable(result, func(i, j int) bool {
+		is := fmt.Sprintf("%s/%s", result[i].GetNamespace(), result[i].GetName())
+		js := fmt.Sprintf("%s/%s", result[j].GetNamespace(), result[j].GetName())
+		return strings.Compare(is, js) < 0
+	})
+	return result
 }
 
 // shouldHandleIngress checks if the ingress object is valid and belongs to the correct class.
