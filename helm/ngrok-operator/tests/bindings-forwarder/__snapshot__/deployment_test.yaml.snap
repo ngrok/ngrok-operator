@@ -49,6 +49,7 @@ Should match snapshot:
                   weight: 1
           containers:
             - args:
+                - bindings-forwarder-manager
                 - --release-name=RELEASE-NAME
                 - --description="The official ngrok Kubernetes Operator."
                 - --zap-log-level=info
@@ -58,7 +59,7 @@ Should match snapshot:
                 - --metrics-bind-address=:8080
                 - --manager-name=RELEASE-NAME-ngrok-operator-bindings-forwarder
               command:
-                - /bindings-forwarder-manager
+                - /ngrok-operator
               env:
                 - name: NGROK_AUTHTOKEN
                   valueFrom:

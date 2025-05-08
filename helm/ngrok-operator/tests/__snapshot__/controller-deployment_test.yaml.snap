@@ -52,6 +52,7 @@ Should match all-options snapshot:
                   weight: 1
           containers:
             - args:
+                - api-manager
                 - --release-name=RELEASE-NAME
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=true
@@ -67,7 +68,7 @@ Should match all-options snapshot:
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
                 - --cluster-domain=svc.cluster.local
               command:
-                - /api-manager
+                - /ngrok-operator
               env:
                 - name: NGROK_API_KEY
                   valueFrom:
@@ -762,6 +763,7 @@ Should match default snapshot:
                   weight: 1
           containers:
             - args:
+                - api-manager
                 - --release-name=RELEASE-NAME
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=true
@@ -777,7 +779,7 @@ Should match default snapshot:
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
                 - --cluster-domain=svc.cluster.local
               command:
-                - /api-manager
+                - /ngrok-operator
               env:
                 - name: NGROK_API_KEY
                   valueFrom:

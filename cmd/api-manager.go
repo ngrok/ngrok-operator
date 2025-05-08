@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package cmd
 
 import (
 	"context"
@@ -30,12 +30,14 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 
 	"k8s.io/client-go/discovery"
+	// typically only use blank imports in main
+	// but we treat each of these cmd's as their own
+	// "main", they are all subcommands
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -72,12 +74,9 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-)
-
 func init() {
+	rootCmd.AddCommand(apiCmd())
+
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(gatewayv1beta1.Install(scheme))
@@ -88,14 +87,7 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-func main() {
-	if err := cmd().Execute(); err != nil {
-		setupLog.Error(err, "error running api-manager")
-		os.Exit(1)
-	}
-}
-
-type managerOpts struct {
+type apiManagerOpts struct {
 	// flags
 	releaseName           string
 	metricsAddr           string
@@ -140,8 +132,8 @@ type managerOpts struct {
 	region string
 }
 
-func cmd() *cobra.Command {
-	var opts managerOpts
+func apiCmd() *cobra.Command {
+	var opts apiManagerOpts
 	c := &cobra.Command{
 		Use: "api-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
@@ -185,7 +177,7 @@ func cmd() *cobra.Command {
 }
 
 // startOperator starts the ngrok-op
-func startOperator(ctx context.Context, opts managerOpts) error {
+func startOperator(ctx context.Context, opts apiManagerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	buildInfo := version.Get()
@@ -316,7 +308,7 @@ func runOneClickDemoMode(ctx context.Context, mgr ctrl.Manager) error {
 }
 
 // runNormalMode runs the operator in normal operation mode
-func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Client, mgr ctrl.Manager, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) error {
+func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Client, mgr ctrl.Manager, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) error {
 	ngrokClientset, err := loadNgrokClientset(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
@@ -413,7 +405,7 @@ func runNormalMode(ctx context.Context, opts managerOpts, k8sClient client.Clien
 }
 
 // loadManager loads the controller-runtime manager with the provided options
-func loadManager(k8sConfig *rest.Config, opts managerOpts) (manager.Manager, error) {
+func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, error) {
 	options := ctrl.Options{
 		Scheme: scheme,
 		Metrics: server.Options{
@@ -442,7 +434,7 @@ func loadManager(k8sConfig *rest.Config, opts managerOpts) (manager.Manager, err
 }
 
 // loadNgrokClientset loads the ngrok API clientset from the environment and managerOpts
-func loadNgrokClientset(ctx context.Context, opts managerOpts) (ngrokapi.Clientset, error) {
+func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clientset, error) {
 	var ok bool
 	opts.ngrokAPIKey, ok = os.LookupEnv("NGROK_API_KEY")
 	if !ok {
@@ -478,7 +470,7 @@ func loadNgrokClientset(ctx context.Context, opts managerOpts) (ngrokapi.Clients
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options managerOpts, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) (*managerdriver.Driver, error) {
+func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiManagerOpts, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) (*managerdriver.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
 
 	driverOpts := []managerdriver.DriverOpt{
@@ -523,7 +515,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options mana
 }
 
 // enableIngressFeatureSet enables the Ingress feature set for the operator
-func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset) error {
+func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset) error {
 	if err := (&ingresscontroller.IngressReconciler{
 		Client:               mgr.GetClient(),
 		Log:                  ctrl.Log.WithName("controllers").WithName("ingress"),
@@ -645,7 +637,7 @@ func enableIngressFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 }
 
 // enableGatewayFeatureSet enables the Gateway feature set for the operator
-func enableGatewayFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, _ ngrokapi.Clientset, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) error {
+func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, _ ngrokapi.Clientset, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) error {
 	if err := (&gatewaycontroller.GatewayClassReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("GatewayClass"),
@@ -734,7 +726,7 @@ func enableGatewayFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manag
 }
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
-func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset) error {
+func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset) error {
 	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
 	if err != nil {
 		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")
@@ -783,7 +775,7 @@ func enableBindingsFeatureSet(_ context.Context, opts managerOpts, mgr ctrl.Mana
 	return nil
 }
 
-func createKubernetesOperator(ctx context.Context, client client.Client, opts managerOpts) error {
+func createKubernetesOperator(ctx context.Context, client client.Client, opts apiManagerOpts) error {
 	k8sOperator := &ngrokv1alpha1.KubernetesOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      opts.releaseName,

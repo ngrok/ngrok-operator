@@ -49,6 +49,7 @@ Should match snapshot:
                   weight: 1
           containers:
             - args:
+                - agent-manager
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=true
                 - --disable-reference-grants=false
@@ -60,7 +61,7 @@ Should match snapshot:
                 - --metrics-bind-address=:8080
                 - --manager-name=RELEASE-NAME-ngrok-operator-agent-manager
               command:
-                - /agent-manager
+                - /ngrok-operator
               env:
                 - name: NGROK_AUTHTOKEN
                   valueFrom:
