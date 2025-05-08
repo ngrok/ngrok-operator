@@ -581,7 +581,9 @@ var _ = Describe("Driver", func() {
 				).
 				WithScheme(scheme).
 				Build()
-			status = calculateIngressLoadBalancerIPStatus(driver.log, &ingress, c)
+			domainsByDomain, err := getDomainsByDomain(GinkgoT().Context(), c)
+			Expect(err).ToNot(HaveOccurred())
+			status = calculateIngressLoadBalancerIPStatus(&ingress, domainsByDomain)
 		})
 
 		addIngressHostname := func(i *netv1.Ingress, hostname string) {

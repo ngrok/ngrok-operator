@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -638,35 +639,89 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	if err := d.updateIngressStatuses(ctx, c); err != nil {
+	// Update Statuses
+	return d.updateStatuses(ctx, c)
+}
+
+func getDomainsByDomain(ctx context.Context, c client.Client) (map[string]ingressv1alpha1.Domain, error) {
+	domainsByDomain := map[string]ingressv1alpha1.Domain{}
+
+	domains := &ingressv1alpha1.DomainList{}
+	if err := c.List(ctx, domains); err != nil {
+		return domainsByDomain, err
+	}
+
+	for _, domain := range domains.Items {
+		domainsByDomain[domain.Spec.Domain] = domain
+	}
+	return domainsByDomain, nil
+}
+
+// updateStatuses updates the statuses of all the resources that need
+func (d *Driver) updateStatuses(ctx context.Context, c client.Client) error {
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		return d.updateIngressStatuses(ctx, c)
+	})
+
+	if d.gatewayEnabled {
+		g.Go(func() error {
+			if err := d.updateHTTPRouteStatuses(ctx, c); err != nil {
+				return err
+			}
+			return d.updateGatewayStatuses(ctx, c)
+		})
+	}
+
+	return g.Wait()
+}
+
+// updateIngressesStatuses iterates over all ingresses and updates their statuses if
+// they need it. It does this by calculating the domains for each ingress and checking
+// against the DomainCRs CNAMETargets to propery set the LoadBalancer.Ingress status.
+func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) error {
+	domains, err := getDomainsByDomain(ctx, c)
+	if err != nil {
+		d.log.Error(err, "failed to list domains")
 		return err
 	}
 
-	// UpdateGatewayStatuses
-	// if err := d.updateGatewayStatuses(ctx, c); err != nil {
-	// 	return err
-	// }
+	// Calculate the ingresses that need their status updated
+	needsUpdate := []*netv1.Ingress{}
+	for _, ingress := range d.store.ListIngressesV1() {
+		newLBIPStatus := calculateIngressLoadBalancerIPStatus(ingress, domains)
+		if reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
+			continue
+		}
+		ingress.Status.LoadBalancer.Ingress = newLBIPStatus
+		needsUpdate = append(needsUpdate, ingress)
+	}
 
-	// UpdateHTTPRouteStatuses
-	// if err := d.updateHTTPRouteStatuses(ctx, c); err != nil {
-	// 	return err
-	// }
+	// Update the status of the ingresses that need it
+	g := new(errgroup.Group)
+	g.SetLimit(4)
 
+	for _, ingress := range needsUpdate {
+		g.Go(func() error {
+			err := c.Status().Update(ctx, ingress)
+			if err != nil {
+				d.log.Error(err, "error updating ingress status", "ingress", ingress)
+			}
+			return err
+		})
+	}
+
+	return g.Wait()
+}
+
+// TODO: implement this
+func (d *Driver) updateGatewayStatuses(_ context.Context, _ client.Client) error {
 	return nil
 }
 
-func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) error {
-	ingresses := d.store.ListNgrokIngressesV1()
-	for _, ingress := range ingresses {
-		newLBIPStatus := calculateIngressLoadBalancerIPStatus(d.log, ingress, c)
-		if !reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
-			ingress.Status.LoadBalancer.Ingress = newLBIPStatus
-			if err := c.Status().Update(ctx, ingress); err != nil {
-				d.log.Error(err, "error updating ingress status", "ingress", ingress)
-				return err
-			}
-		}
-	}
+// TODO: implement this
+func (d *Driver) updateHTTPRouteStatuses(_ context.Context, _ client.Client) error {
 	return nil
 }
 

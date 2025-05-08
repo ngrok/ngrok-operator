@@ -52,7 +52,7 @@ func (e *ControllerEventHandler) Update(ctx context.Context, evt event.UpdateEve
 		e.log.Error(err, "error updating object in update", "object", evt.ObjectNew)
 		return
 	}
-	if err := e.driver.updateIngressStatuses(ctx, e.client); err != nil {
+	if err := e.driver.updateStatuses(ctx, e.client); err != nil {
 		e.log.Error(err, "error syncing after object update", "object", evt.ObjectNew)
 		return
 	}
