@@ -31,6 +31,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/ngrok/ngrok-operator/internal/controller/ingress"
+	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	. "github.com/onsi/ginkgo/v2"
@@ -58,10 +60,11 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg       *rest.Config
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	driver    *managerdriver.Driver
+	cfg          *rest.Config
+	k8sClient    client.Client
+	testEnv      *envtest.Environment
+	driver       *managerdriver.Driver
+	domainClient *nmockapi.DomainClient
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -120,6 +123,8 @@ var _ = BeforeSuite(func() {
 		managerdriver.WithSyncAllowConcurrent(true),
 	)
 
+	domainClient = nmockapi.NewDomainClient()
+
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
 		Metrics: server.Options{
@@ -129,6 +134,18 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sManager).NotTo(BeNil())
+
+	// Run Domain reconciler with a mock domain client so that when we create Domain CRs
+	// they are reconciled and we can test that addresses are
+	// assigned to the Gateway resources.
+	err = (&ingress.DomainReconciler{
+		Client:        k8sManager.GetClient(),
+		Log:           logf.Log.WithName("controllers").WithName("Domain"),
+		Recorder:      k8sManager.GetEventRecorderFor("domain-controller"),
+		Scheme:        k8sManager.GetScheme(),
+		DomainsClient: domainClient,
+	}).SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = (&GatewayClassReconciler{
 		Client:   k8sManager.GetClient(),
@@ -186,6 +203,10 @@ var _ = AfterSuite(func() {
 	cancel()
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
+})
+
+var _ = BeforeEach(func() {
+	domainClient.Reset()
 })
 
 func CreateGatewayAndWaitForAcceptance(ctx SpecContext, gw *gatewayv1.Gateway, timeout time.Duration, interval time.Duration) {
