@@ -77,9 +77,19 @@ To enable Bindings support, set the helm value `bindings.enabled` to true.
 📘 Learn more: https://ngrok.com/docs/k8s/guides/bindings/
 {{- end }}
 
+{{- if .Release.IsInstall }}
+
 === 🎉 Installation Complete 🎉 =========================================================
+🎉 Thanks for installing the ngrok-operator!
 
-Thank you for installing the ngrok-operator!
+{{- end }}
 
-➡️ Check out the next-steps after installing: https://ngrok.com/docs/k8s/installation/install/
+{{- if .Release.IsUpgrade }}
+
+=== 🎉 Upgrade Complete 🎉 =========================================================
+🔄 Upgrade successful for the ngrok-operator.
+
+{{- end }}
+
+➡️ Check out the next-steps docs: https://ngrok.com/docs/k8s/installation/install/
 📣 Questions or feedback? Open an issue at https://github.com/ngrok/ngrok-operator/issues
