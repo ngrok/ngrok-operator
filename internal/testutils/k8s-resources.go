@@ -9,6 +9,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/ptr"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -107,6 +108,30 @@ func NewDomainV1(name string, namespace string) ingressv1alpha1.Domain {
 		},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: name,
+		},
+	}
+}
+
+// RandomName generates a random name with the given prefix. The random part is 5 characters long.
+// This is useful for generating unique names for resources in tests.
+func RandomName(prefix string) string {
+	return prefix + "-" + rand.String(5)
+}
+
+// NewGatewayClass creates a new GatewayClass with a random name to be used in tests. If
+// isManaged is true, the controller name will be set to the ngrok gateway controller name.
+// If isManaged is false, the controller name will be set to a different value.
+func NewGatewayClass(isManaged bool) *gatewayv1.GatewayClass {
+	var controllerName gatewayv1.GatewayController = "ngrok.com/gateway-controller"
+	if !isManaged {
+		controllerName = "k8s.io/some-other-controller"
+	}
+	return &gatewayv1.GatewayClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: RandomName("gateway-class"),
+		},
+		Spec: gatewayv1.GatewayClassSpec{
+			ControllerName: controllerName,
 		},
 	}
 }
