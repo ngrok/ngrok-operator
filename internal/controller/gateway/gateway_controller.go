@@ -28,6 +28,9 @@ import (
 	"context"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -71,10 +74,8 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	gw := new(gatewayv1.Gateway)
 	err := r.Client.Get(ctx, req.NamespacedName, gw)
-	switch {
-	case err == nil:
-		// all good, continue
-	case client.IgnoreNotFound(err) == nil:
+
+	if apierrors.IsNotFound(err) {
 		if err := r.Driver.DeleteNamedGateway(req.NamespacedName); err != nil {
 			log.Error(err, "Failed to delete gateway from store")
 			return ctrl.Result{}, err
@@ -87,34 +88,15 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		return ctrl.Result{}, nil
-	default:
-		return ctrl.Result{}, err
 	}
 
-	log.V(1).Info("verifying gatewayclass")
-	gwClass := &gatewayv1.GatewayClass{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwClass); err != nil {
-		log.V(1).Info("could not retrieve gatewayclass for gateway", "gatewayclass", gwClass.Spec.ControllerName)
-		return ctrl.Result{}, nil
-	}
-	if gwClass.Spec.ControllerName != ControllerName {
-		log.V(1).Info("unsupported gatewayclass controllername, ignoring", "gatewayclass", gwClass.Name, "controllername", gwClass.Spec.ControllerName)
-
-		return ctrl.Result{}, nil
-	}
-
-	gw, err = r.Driver.UpdateGateway(gw)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if controller.IsUpsert(gw) {
-		// The object is not being deleted, so register and sync finalizer
-		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, gw); err != nil {
-			log.Error(err, "Failed to register finalizer")
-			return ctrl.Result{}, err
-		}
-	} else {
+	// If the gateway is being deleted, remove the finalizer, delete it from the store and
+	// return early.
+	if controller.IsDelete(gw) {
 		log.Info("Deleting gateway from store")
 		if controller.HasFinalizer(gw) {
 			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
@@ -123,10 +105,36 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 		}
 
-		// Remove it from the store
-		if err := r.Driver.DeleteGateway(gw); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, r.Driver.DeleteGateway(gw)
+	}
+
+	log.V(1).Info("verifying gatewayclass")
+	gwClass := &gatewayv1.GatewayClass{}
+	if err := r.Client.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwClass); err != nil {
+		log.V(1).Info("could not retrieve gatewayclass for gateway", "gatewayclass", gwClass.Spec.ControllerName)
+		return ctrl.Result{}, err
+	}
+
+	if !ShouldHandleGatewayClass(gwClass) {
+		log.V(1).Info("unsupported gatewayclass controllername, ignoring", "gatewayclass", gwClass.Name, "controllername", gwClass.Spec.ControllerName)
+		return ctrl.Result{}, nil
+	}
+
+	// The object is not being deleted, so register and sync finalizer
+	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+		log.Error(err, "Failed to register finalizer")
+		return ctrl.Result{}, err
+	}
+
+	// Accept the Gateway
+	if err := r.reconcileAcceptedCondition(ctx, gw); err != nil {
+		log.Error(err, "Failed to accept gateway")
+		return ctrl.Result{}, err
+	}
+
+	_, err = r.Driver.UpdateGateway(gw)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	if err := r.Driver.Sync(ctx, r.Client); err != nil {
@@ -135,6 +143,29 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *GatewayReconciler) reconcileAcceptedCondition(ctx context.Context, gw *gatewayv1.Gateway) error {
+	changed := meta.SetStatusCondition(&gw.Status.Conditions, metav1.Condition{
+		Type:               string(gatewayv1.GatewayConditionAccepted),
+		Status:             metav1.ConditionTrue,
+		Reason:             string(gatewayv1.GatewayReasonAccepted),
+		Message:            "gateway accepted by the ngrok controller",
+		ObservedGeneration: gw.Generation,
+	})
+
+	if !changed {
+		return nil
+	}
+
+	log := ctrl.LoggerFrom(ctx)
+	log.V(1).Info("Accepting Gateway")
+	if err := r.Status().Update(ctx, gw); err != nil {
+		log.Error(err, "Failed to update gateway status")
+		return err
+	}
+	log.V(1).Info("Gateway accepted")
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
