@@ -27,84 +27,66 @@ package gateway
 import (
 	"time"
 
+	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 var _ = Describe("GatewayClass controller", func() {
 	const (
-		GatewayClassName = "test-gateway-class"
-
 		timeout  = 10 * time.Second
 		duration = 10 * time.Second
 		interval = 250 * time.Millisecond
 	)
 
 	var (
-		unmanagedGatewayClass          *gatewayv1.GatewayClass
-		unmanagedGatewayClassLookupKey = types.NamespacedName{Name: "unaccepted-gateway-class"}
-
-		managedGatewayClass          *gatewayv1.GatewayClass
-		managedGatewayClassLookupKey = types.NamespacedName{Name: GatewayClassName}
+		isManaged    bool
+		gatewayClass *gatewayv1.GatewayClass
 	)
 
-	BeforeEach(func() {
-		ctx := GinkgoT().Context()
-		unmanagedGatewayClass = &gatewayv1.GatewayClass{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "unaccepted-gateway-class",
-			},
-			Spec: gatewayv1.GatewayClassSpec{
-				ControllerName: "example.com/some-other-controller",
-			},
-		}
-		managedGatewayClass = &gatewayv1.GatewayClass{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: GatewayClassName,
-			},
-			Spec: gatewayv1.GatewayClassSpec{
-				ControllerName: ControllerName,
-			},
-		}
-		Expect(k8sClient.Create(ctx, managedGatewayClass)).To(Succeed())
-		Expect(k8sClient.Create(ctx, unmanagedGatewayClass)).To(Succeed())
+	JustBeforeEach(func(ctx SpecContext) {
+		// Create the GatewayClass
+		gatewayClass = testutils.NewGatewayClass(isManaged)
+		Expect(k8sClient.Create(ctx, gatewayClass)).To(Succeed())
 	})
 
-	AfterEach(func() {
-		ctx := GinkgoT().Context()
-		Expect(k8sClient.Delete(ctx, managedGatewayClass)).To(Succeed())
-		Expect(k8sClient.Delete(ctx, unmanagedGatewayClass)).To(Succeed())
+	AfterEach(func(ctx SpecContext) {
+		DeleteAllGatewayClasses(ctx, timeout, interval)
 	})
 
-	Context("When the controllerName does not match the expected value", func() {
-		It("Should not accept the new GatewayClass", func() {
+	When("the controllerName does not match the expected value", func() {
+		BeforeEach(func() {
+			isManaged = false
+		})
+
+		It("Should not accept the new GatewayClass", func(ctx SpecContext) {
 			By("By checking the GatewayClass status is not accepted")
-			createdGatewayClass := &gatewayv1.GatewayClass{}
 			Consistently(func(g Gomega) {
-				g.Expect(k8sClient.Get(ctx, unmanagedGatewayClassLookupKey, createdGatewayClass)).To(Succeed())
-				g.Expect(gatewayClassIsAccepted(createdGatewayClass)).To(BeFalse())
-
+				obj := &gatewayv1.GatewayClass{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gatewayClass), obj)).To(Succeed())
+				g.Expect(gatewayClassIsAccepted(obj)).To(BeFalse())
 			}, duration, interval).Should(Succeed())
 		})
 	})
 
-	Context("When the controllerName matches the expected value", func() {
-		It("Should validate and accept the new GatewayClass", func() {
-			By("By checking the GatewayClass status has an accepted condition")
-			createdGatewayClass := &gatewayv1.GatewayClass{}
-			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(ctx, managedGatewayClassLookupKey, createdGatewayClass)).To(Succeed())
-			}, timeout, interval).Should(Succeed())
+	When("the controllerName matches the expected value", func() {
+		BeforeEach(func() {
+			isManaged = true
 		})
 
-		It("Should correctly set the finalizer on the GatewayClass", func() {
+		It("Should validate and accept the new GatewayClass", func(ctx SpecContext) {
+			By("By checking the GatewayClass status has an accepted condition")
+			ExpectGatewayClassAccepted(ctx, gatewayClass, timeout, interval)
+		})
+
+		It("Should correctly set the finalizer on the GatewayClass", func(ctx SpecContext) {
 			// Create the initial GatewayClass. There should be no gateways that exist, so the finalizer should not be set.
 			By("By creating a new GatewayClass")
-			Expect(controllerutil.ContainsFinalizer(managedGatewayClass, gatewayv1.GatewayClassFinalizerGatewaysExist)).To(BeFalse())
+			Expect(controllerutil.ContainsFinalizer(gatewayClass, gatewayv1.GatewayClassFinalizerGatewaysExist)).To(BeFalse())
 
 			// Create a Gateway that references the GatewayClass. This should cause the finalizer to be set.
 			By("By creating a new Gateway")
@@ -114,7 +96,7 @@ var _ = Describe("GatewayClass controller", func() {
 					Namespace: "default",
 				},
 				Spec: gatewayv1.GatewaySpec{
-					GatewayClassName: GatewayClassName,
+					GatewayClassName: gatewayv1.ObjectName(gatewayClass.Name),
 					Listeners: []gatewayv1.Listener{
 						{
 							Name:     "http",
@@ -127,10 +109,10 @@ var _ = Describe("GatewayClass controller", func() {
 			Expect(k8sClient.Create(ctx, gateway)).To(Succeed())
 
 			By("By checking the GatewayClass has the finalizer set")
-			createdGatewayClass := &gatewayv1.GatewayClass{}
 			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(ctx, managedGatewayClassLookupKey, createdGatewayClass)).To(Succeed())
-				g.Expect(controllerutil.ContainsFinalizer(createdGatewayClass, gatewayv1.GatewayClassFinalizerGatewaysExist)).To(BeTrue())
+				obj := &gatewayv1.GatewayClass{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gatewayClass), obj)).To(Succeed())
+				g.Expect(controllerutil.ContainsFinalizer(obj, gatewayv1.GatewayClassFinalizerGatewaysExist)).To(BeTrue())
 			}, timeout, interval).Should(Succeed())
 
 			By("By deleting the Gateway")
@@ -138,8 +120,9 @@ var _ = Describe("GatewayClass controller", func() {
 
 			By("By checking the GatewayClass has the finalizer removed")
 			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(ctx, managedGatewayClassLookupKey, createdGatewayClass)).To(Succeed())
-				g.Expect(controllerutil.ContainsFinalizer(createdGatewayClass, gatewayv1.GatewayClassFinalizerGatewaysExist)).To(BeFalse())
+				obj := &gatewayv1.GatewayClass{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gatewayClass), obj)).To(Succeed())
+				g.Expect(controllerutil.ContainsFinalizer(obj, gatewayv1.GatewayClassFinalizerGatewaysExist)).To(BeFalse())
 			}).Should(Succeed())
 		})
 	})

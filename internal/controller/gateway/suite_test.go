@@ -28,6 +28,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -35,6 +36,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -92,6 +97,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	err = gatewayv1alpha2.Install(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+	err = ingressv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = ngrokv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
 
@@ -125,6 +134,25 @@ var _ = BeforeSuite(func() {
 		Client:   k8sManager.GetClient(),
 		Log:      logf.Log.WithName("controllers").WithName("GatewayClass"),
 		Recorder: k8sManager.GetEventRecorderFor("gatewayclass-controller"),
+		Scheme:   k8sManager.GetScheme(),
+	}).SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = (&GatewayReconciler{
+		Client:   k8sManager.GetClient(),
+		Log:      logf.Log.WithName("controllers").WithName("Gateway"),
+		Scheme:   k8sManager.GetScheme(),
+		Recorder: k8sManager.GetEventRecorderFor("gateway-controller"),
+		Driver:   driver,
+	}).SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = (&HTTPRouteReconciler{
+		Client:   k8sManager.GetClient(),
+		Log:      logf.Log.WithName("controllers").WithName("HTTPRoute"),
+		Scheme:   k8sManager.GetScheme(),
+		Recorder: k8sManager.GetEventRecorderFor("httproute-controller"),
+		Driver:   driver,
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -159,3 +187,42 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+func CreateGatewayAndWaitForAcceptance(ctx SpecContext, gw *gatewayv1.Gateway, timeout time.Duration, interval time.Duration) {
+	Expect(k8sClient.Create(ctx, gw)).To(Succeed())
+	ExpectGatewayAccepted(ctx, gw, timeout, interval)
+}
+
+func CreateGatewayClassAndWaitForAcceptance(ctx SpecContext, gwc *gatewayv1.GatewayClass, timeout time.Duration, interval time.Duration) {
+	Expect(k8sClient.Create(ctx, gwc)).To(Succeed())
+	ExpectGatewayClassAccepted(ctx, gwc, timeout, interval)
+}
+
+func DeleteAllGatewayClasses(ctx SpecContext, timeout, interval time.Duration) {
+	Expect(k8sClient.DeleteAllOf(ctx, &gatewayv1.GatewayClass{})).To(Succeed())
+
+	// Wait for all the gateway classes to be deleted
+	Eventually(func(g Gomega) {
+		gatewayClasses := &gatewayv1.GatewayClassList{}
+		g.Expect(k8sClient.List(ctx, gatewayClasses)).To(Succeed())
+		g.Expect(gatewayClasses.Items).To(BeEmpty())
+	}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+}
+
+func ExpectGatewayClassAccepted(ctx SpecContext, gwc *gatewayv1.GatewayClass, timeout time.Duration, interval time.Duration) {
+	Eventually(func(g Gomega) {
+		obj := &gatewayv1.GatewayClass{}
+		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gwc), obj)).To(Succeed())
+		g.Expect(gatewayClassIsAccepted(obj)).To(BeTrue())
+	}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+}
+
+func ExpectGatewayAccepted(ctx SpecContext, gw *gatewayv1.Gateway, timeout time.Duration, interval time.Duration) {
+	Eventually(func(g Gomega) {
+		obj := &gatewayv1.Gateway{}
+		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), obj)).To(Succeed())
+		cond := meta.FindStatusCondition(obj.Status.Conditions, string(gatewayv1.GatewayConditionAccepted))
+		g.Expect(cond).NotTo(BeNil())
+		g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+	}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+}
