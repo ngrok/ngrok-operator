@@ -1,57 +1,85 @@
-Thank you for installing the ngrok-operator!
-
-You've deployed the following features:
-
-{{- /* Ingress */}}
 {{- if .Values.ingress.enabled }}
+=== 📥 Ingress ==========================================================================
 
-=== Ingress ==============================;======================================
-
-You have enabled the Ingress featureset of the ngrok-operator.
-This allows you to expose `kind: Ingress` and `kind: Service` to the internet via the ngrok platform!
+Ingress support is enabled.
+You can expose applications using Ingress and Service resources.
+To disable this, set `ingress.enabled` to `false` in your Helm values.
 
 {{ if .Values.ingress.ingressClass.create -}}
-Use IngressClass: `{{ .Values.ingress.ingressClass.name }}`
+➡️ Use IngressClass: `{{ .Values.ingress.ingressClass.name }}`
 {{- end }}
 
-{{/* TODO(hkatz) Update this docs link */ -}}
-Check out the docs for the Ingress features at https://ngrok.com/docs/k8s/getting-started-kic/
+📘 Learn more: https://ngrok.com/docs/k8s/guides/using-ingresses/
+{{- end }}
+{{- if not .Values.ingress.enabled }}
 
+=== 📥 Ingress Feature Not Enabled ==================================================================
+
+Ingress support is currently disabled.
+By enabling it, you can use standard Kubernetes Ingress and Service resources to expose and connect your applications with ngrok.
+To enable Ingress support, set the helm value `ingress.enabled` to `true`
+
+📘 Learn more: https://ngrok.com/docs/k8s/guides/using-ingresses/
 {{- end }}
 
-{{- /* Gateway */}}
 {{- if .Values.gateway.enabled }}
 
-=== Gateway API ================================================================
+=== 🌐 Gateway API ======================================================================
 
-You have enabled the Gateway API featureset of the ngrok-operator.
-This allows you to manage `kind: GatewayClass`, `kind: Gateway`, and create `kind: HTTPRoute` to the internet via the ngrok platform!
+Gateway API support is enabled.
+This enables use of GatewayClass, Gateway, HTTPRoute, TCPRoute, and TLSRoute resources for exposing services.
+To disable this, set `gateway.enabled` to `false` in your Helm values.
 
-{{/* TODO(hkatz) Update this docs link */ -}}
-Check out the docs for the Gateway API features at https://ngrok.com/docs/k8s/getting-started-kic/
+📘 Learn more: https://ngrok.com/docs/k8s/guides/using-gwapi/
+{{- end }}
+{{- if not .Values.gateway.enabled }}
 
+=== 🌐 Gateway API Feature Not Enabled ============================================================
+
+Gateway API support is currently disabled.
+Enabling it allows you to configure ngrok endpoints using GatewayClass, Gateway, HTTPRoute, TCPRoute, and TLSRoute resources to expose and connect your applications with ngrok.
+To enable Gateway API support, set the helm value `gateway.enabled` to `true`.
+
+📘 Learn more: https://ngrok.com/docs/k8s/guides/using-gwapi/
 {{- end }}
 
-{{- /* Bindings */}}
 {{- if .Values.bindings.enabled }}
 
-=== Bindings ===================================================================
+=== 🔗 Bindings =========================================================================
 
-You have enabled the Kubernetes Bindings featureset of the ngrok-operator.
-This allows you to project `kind: Service` into your Namespaces from already existing Endpoints in the ngrok platform!
+The Kubernetes Bindings feature is currently enabled.
+This allows ngrok endpoints with the `kubernetes` binding type to be projected into the cluster as Service resources.
+To disable Bindings support, set the helm value `bindings.enabled` to `false`.
 
-How to start a kubernetes-bound endpoint:
-
+📌 Example:
     $ ngrok http 80 --binding kubernetes --url http://example-service.example-namespace
 
-You are filtering which endpoints will be bound to this cluster with the following selectors:
+This will appear in the cluster as a Service with:
+- Name: "example-service"
+- Namespace: "example-namespace" (The "example-namespace" namespace must already exist in the cluster)
+
+The following selectors from `bindings.endpointSelectors` control which endpoints can bind to this cluster.
+The default value allows all kubernetes-bound endpoints to bind to this cluster.
 {{- range .Values.bindings.endpointSelectors}}
 - {{.}}
 {{- end}}
 
-{{/* TODO(hkatz) Update this docs link */ -}}
-Check out the docs for the Kubernetes Bindings features at https://ngrok.com/docs/k8s/getting-started-kic/
+📘 Learn more: https://ngrok.com/docs/k8s/guides/bindings/
+{{- end }}
+{{- if not .Values.bindings.enabled }}
 
+=== 🔗 Bindings Not Enabled ================================================================
+
+Kubernetes Bindings support is currently disabled.
+When enabled, this feature lets you expose ngrok-managed endpoints with the binding type `kubernetes` into your cluster as native Service resources.
+To enable Bindings support, set the helm value `bindings.enabled` to true.
+
+📘 Learn more: https://ngrok.com/docs/k8s/guides/bindings/
 {{- end }}
 
-If you have any questions or feedback please use our Github Issue tracker at https://github.com/ngrok/ngrok-operator/issues and let us know!
+=== 🎉 Installation Complete 🎉 =========================================================
+
+Thank you for installing the ngrok-operator!
+
+➡️ Check out the next-steps after installing: https://ngrok.com/docs/k8s/installation/install/
+📣 Questions or feedback? Open an issue at https://github.com/ngrok/ngrok-operator/issues
