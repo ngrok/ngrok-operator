@@ -27,6 +27,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -62,7 +63,7 @@ func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(func(o client.Object) bool {
 					switch v := o.(type) {
 					case *gatewayv1.GatewayClass:
-						return shouldHandleGatewayClass(v)
+						return ShouldHandleGatewayClass(v)
 					default:
 					}
 					r.Log.V(1).Info("Filtering out object", "object", o)
@@ -93,7 +94,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !shouldHandleGatewayClass(gwc) {
+	if !ShouldHandleGatewayClass(gwc) {
 		return ctrl.Result{}, nil
 	}
 
@@ -112,18 +113,21 @@ func (r *GatewayClassReconciler) reconcileAcceptedCondition(ctx context.Context,
 	log := ctrl.LoggerFrom(ctx)
 
 	if gatewayClassIsAccepted(gwc) {
-		log.V(1).Info("GatewayClass already accepted")
+		log.V(3).Info("GatewayClass already accepted")
 		return nil
 	}
 
-	gwc.Status.Conditions = appendGatewayClassCondition(gwc.Status.Conditions, metav1.Condition{
+	changed := meta.SetStatusCondition(&gwc.Status.Conditions, metav1.Condition{
 		Type:               string(gatewayv1.GatewayClassConditionStatusAccepted),
 		Status:             metav1.ConditionTrue,
 		Reason:             string(gatewayv1.GatewayClassReasonAccepted),
 		Message:            "gatewayclass accepted by the ngrok controller",
-		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: gwc.Generation,
 	})
+
+	if !changed {
+		return nil
+	}
 
 	log.V(1).Info("Accepting GatewayClass")
 	return r.Status().Update(ctx, gwc)
@@ -203,31 +207,12 @@ func (r *GatewayClassReconciler) findGatewayClassForGateway(_ context.Context, o
 	}
 }
 
-// shouldHandleGatewayClass returns true if the GatewayClass should be handled by this controller
+// ShouldHandleGatewayClass returns true if the GatewayClass should be handled by this controller
 // based on the ControllerName field, false otherwise.
-func shouldHandleGatewayClass(gatewayClass *gatewayv1.GatewayClass) bool {
+func ShouldHandleGatewayClass(gatewayClass *gatewayv1.GatewayClass) bool {
 	return gatewayClass.Spec.ControllerName == ControllerName
 }
 
-// appendGatewayClassCondition appends a new condition to the list of conditions, replacing any existing condition with the same type.
-func appendGatewayClassCondition(conditions []metav1.Condition, newCondition metav1.Condition) []metav1.Condition {
-	newConditions := []metav1.Condition{}
-	for _, c := range conditions {
-		if c.Type != newCondition.Type {
-			newConditions = append(newConditions, c)
-		}
-	}
-	return append(newConditions, newCondition)
-}
-
 func gatewayClassIsAccepted(gwc *gatewayv1.GatewayClass) bool {
-	for _, condition := range gwc.Status.Conditions {
-		if condition.Type == string(gatewayv1.GatewayClassConditionStatusAccepted) &&
-			condition.Status == metav1.ConditionTrue &&
-			condition.Reason == string(gatewayv1.GatewayClassReasonAccepted) &&
-			condition.ObservedGeneration == gwc.Generation {
-			return true
-		}
-	}
-	return false
+	return meta.IsStatusConditionTrue(gwc.Status.Conditions, string(gatewayv1.GatewayClassConditionStatusAccepted))
 }
