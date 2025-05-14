@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -13,6 +14,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -690,12 +692,20 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 	// Calculate the ingresses that need their status updated
 	needsUpdate := []*netv1.Ingress{}
 	for _, ingress := range d.store.ListIngressesV1() {
+		if ingress == nil {
+			continue
+		}
+
 		newLBIPStatus := calculateIngressLoadBalancerIPStatus(ingress, domains)
 		if reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
 			continue
 		}
-		ingress.Status.LoadBalancer.Ingress = newLBIPStatus
-		needsUpdate = append(needsUpdate, ingress)
+
+		// We shouldn't modfiy the objects from the store, so we need to
+		// create a copy of the ingress and update the status on that
+		ingCopy := ingress.DeepCopy()
+		ingCopy.Status.LoadBalancer.Ingress = newLBIPStatus
+		needsUpdate = append(needsUpdate, ingCopy)
 	}
 
 	// Update the status of the ingresses that need it
@@ -715,9 +725,86 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 	return g.Wait()
 }
 
-// TODO: implement this
-func (d *Driver) updateGatewayStatuses(_ context.Context, _ client.Client) error {
-	return nil
+func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) error {
+	domains, err := getDomainsByDomain(ctx, c)
+	if err != nil {
+		d.log.Error(err, "failed to list domains")
+		return err
+	}
+
+	needsUpdate := []*gatewayv1.Gateway{}
+
+	for _, gateway := range d.store.ListGateways() {
+		if gateway == nil {
+			continue
+		}
+
+		addresses := map[string]struct{}{}
+
+		newStatus := gateway.Status.DeepCopy()
+		newStatus.Addresses = []gatewayv1.GatewayStatusAddress{}
+
+		for _, listener := range gateway.Spec.Listeners {
+			if listener.Hostname == nil {
+				continue
+			}
+
+			d, ok := domains[string(*listener.Hostname)]
+			if !ok {
+				continue
+			}
+
+			var hostname string
+
+			if d.Status.CNAMETarget != nil {
+				hostname = *d.Status.CNAMETarget
+			} else {
+				// Trim the wildcard prefix if it exists for ngrok managed domains
+				hostname = strings.TrimPrefix(d.Status.Domain, ".*")
+			}
+
+			if hostname != "" {
+				addresses[hostname] = struct{}{}
+			}
+		}
+
+		for addr := range addresses {
+			newStatus.Addresses = append(newStatus.Addresses, gatewayv1.GatewayStatusAddress{
+				Type:  ptr.To(gatewayv1.HostnameAddressType),
+				Value: addr,
+			})
+		}
+
+		if reflect.DeepEqual(gateway.Status, newStatus) {
+			continue
+		}
+
+		// We shouldn't modfiy the objects from the store, so we need to
+		// create a copy of the gateway and update the status on that
+		gwCopy := gateway.DeepCopy()
+		gwCopy.Status = *newStatus
+		needsUpdate = append(needsUpdate, gwCopy)
+	}
+
+	if len(needsUpdate) == 0 {
+		return nil
+	}
+
+	// Update the status of the gateways that need it
+	g := new(errgroup.Group)
+	g.SetLimit(4)
+
+	for _, gateway := range needsUpdate {
+		g.Go(func() error {
+			err := c.Status().Update(ctx, gateway)
+			if err != nil {
+				d.log.Error(err, "error updating gateway status", "gateway", gateway)
+			}
+			return err
+		})
+	}
+
+	return g.Wait()
 }
 
 // TODO: implement this
