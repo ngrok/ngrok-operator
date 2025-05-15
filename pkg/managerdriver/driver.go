@@ -61,6 +61,8 @@ type Driver struct {
 	gatewayTCPRouteEnabled        bool
 	gatewayTLSRouteEnabled        bool
 	disableGatewayReferenceGrants bool
+
+	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 }
 
 type DriverOpt func(*Driver)
@@ -98,6 +100,12 @@ func WithGatewayTCPRouteEnabled(enabled bool) DriverOpt {
 func WithGatewayTLSRouteEnabled(enabled bool) DriverOpt {
 	return func(d *Driver) {
 		d.gatewayTLSRouteEnabled = enabled
+	}
+}
+
+func WithDefaultDomainReclaimPolicy(policy ingressv1alpha1.DomainReclaimPolicy) DriverOpt {
+	return func(d *Driver) {
+		d.defaultDomainReclaimPolicy = &policy
 	}
 }
 
@@ -580,16 +588,11 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	)
 	translationResult := translator.Translate()
 
-	currDomains := &ingressv1alpha1.DomainList{}
 	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
 	currTunnels := &ingressv1alpha1.TunnelList{}
 	currAgentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
 	currCloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
 
-	if err := c.List(ctx, currDomains); err != nil {
-		d.log.Error(err, "error listing domains")
-		return err
-	}
 	if err := c.List(ctx, currEdges, client.MatchingLabels{
 		labelControllerNamespace: d.managerName.Namespace,
 		labelControllerName:      d.managerName.Name,
@@ -619,7 +622,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	if err := d.applyDomains(ctx, c, domains.totalDomains, currDomains.Items); err != nil {
+	if err := d.applyDomains(ctx, c, domains.totalDomains); err != nil {
 		return err
 	}
 

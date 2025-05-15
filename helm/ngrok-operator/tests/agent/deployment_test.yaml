@@ -90,3 +90,11 @@ tests:
   - equal:
       path: spec.template.spec.containers[0].resources
       value: *resources
+- it: Should set the default domain reclaim policy arg
+  set:
+    defaultDomainReclaimPolicy: "Retain"
+  template: agent/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --default-domain-reclaim-policy=Retain

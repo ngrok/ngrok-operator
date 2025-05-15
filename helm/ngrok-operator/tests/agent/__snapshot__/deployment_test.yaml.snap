@@ -60,6 +60,7 @@ Should match snapshot:
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --manager-name=RELEASE-NAME-ngrok-operator-agent-manager
+                - --default-domain-reclaim-policy=Delete
               command:
                 - /ngrok-operator
               env:

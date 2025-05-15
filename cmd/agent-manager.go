@@ -79,6 +79,8 @@ type agentManagerOpts struct {
 	// agent(tunnel driver) flags
 	region  string
 	rootCAs string
+
+	defaultDomainReclaimPolicy string
 }
 
 func agentCmd() *cobra.Command {
@@ -107,6 +109,8 @@ func agentCmd() *cobra.Command {
 	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
 
+	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
+
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -117,6 +121,11 @@ func agentCmd() *cobra.Command {
 
 func runAgentController(ctx context.Context, opts agentManagerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+
+	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
+	if err != nil {
+		return err
+	}
 
 	buildInfo := version.Get()
 	setupLog.Info("starting agent-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
@@ -180,11 +189,12 @@ func runAgentController(ctx context.Context, opts agentManagerOpts) error {
 	}
 
 	if err = (&agentcontroller.AgentEndpointReconciler{
-		Client:       mgr.GetClient(),
-		Log:          ctrl.Log.WithName("controllers").WithName("agentendpoint"),
-		Scheme:       mgr.GetScheme(),
-		Recorder:     mgr.GetEventRecorderFor("agentendpoint-controller"),
-		TunnelDriver: td,
+		Client:                     mgr.GetClient(),
+		Log:                        ctrl.Log.WithName("controllers").WithName("agentendpoint"),
+		Scheme:                     mgr.GetScheme(),
+		Recorder:                   mgr.GetEventRecorderFor("agentendpoint-controller"),
+		TunnelDriver:               td,
+		DefaultDomainReclaimPolicy: defaultDomainReclaimPolicy,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")
 		os.Exit(1)

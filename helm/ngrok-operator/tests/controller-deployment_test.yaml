@@ -277,6 +277,15 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --zap-stacktrace-level=error
+- it: Should set the default domain reclaim policy arg
+  set:
+    defaultDomainReclaimPolicy: "Retain"
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --default-domain-reclaim-policy=Retain
 - it: Defaults to having "soft" pod anti-affinity
   template: controller-deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template

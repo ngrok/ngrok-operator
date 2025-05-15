@@ -63,6 +63,8 @@ type CloudEndpointReconciler struct {
 	Log            logr.Logger
 	Recorder       record.EventRecorder
 	NgrokClientset ngrokapi.Clientset
+
+	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 }
 
 // Define a custom error types to catch and handle requeuing logic for
@@ -372,6 +374,11 @@ func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *
 			Domain: domain,
 		},
 	}
+
+	if r.DefaultDomainReclaimPolicy != nil {
+		newDomain.Spec.ReclaimPolicy = *r.DefaultDomainReclaimPolicy
+	}
+
 	if err := r.Create(ctx, newDomain); err != nil {
 		r.Recorder.Event(clep, v1.EventTypeWarning, "DomainCreationFailed", fmt.Sprintf("Failed to create Domain CRD %s", hyphenatedDomain))
 		return newDomain, err

@@ -74,6 +74,8 @@ type AgentEndpointReconciler struct {
 	TunnelDriver *tunneldriver.TunnelDriver
 
 	controller *controller.BaseController[*ngrokv1alpha1.AgentEndpoint]
+
+	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 }
 
 // SetupWithManager sets up the controller with the Manager
@@ -415,6 +417,11 @@ func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *n
 			Domain: domain,
 		},
 	}
+
+	if r.DefaultDomainReclaimPolicy != nil {
+		newDomain.Spec.ReclaimPolicy = *r.DefaultDomainReclaimPolicy
+	}
+
 	if err := r.Create(ctx, newDomain); err != nil {
 		r.Recorder.Event(aep, v1.EventTypeWarning, "DomainCreationFailed", fmt.Sprintf("Failed to create Domain CRD %s", hyphenatedDomain))
 		return err

@@ -54,6 +54,7 @@ Should match all-options snapshot:
             - args:
                 - api-manager
                 - --release-name=RELEASE-NAME
+                - --default-domain-reclaim-policy=Delete
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=true
                 - --disable-reference-grants=false
@@ -765,6 +766,7 @@ Should match default snapshot:
             - args:
                 - api-manager
                 - --release-name=RELEASE-NAME
+                - --default-domain-reclaim-policy=Delete
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=true
                 - --disable-reference-grants=false

@@ -132,15 +132,15 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 
 		When("the parent ref is an unsupported type", func() {
 			var (
-				service v1.Service
+				service *v1.Service
 				svcGVK  schema.GroupVersionKind
 			)
 
 			BeforeEach(func(ctx SpecContext) {
 				var err error
 				service = testutils.NewTestServiceV1(testutils.RandomName("svc"), "default")
-				Expect(k8sClient.Create(ctx, &service)).To(Succeed())
-				svcGVK, err = k8sClient.GroupVersionKindFor(&service)
+				Expect(k8sClient.Create(ctx, service)).To(Succeed())
+				svcGVK, err = k8sClient.GroupVersionKindFor(service)
 				Expect(err).ToNot(HaveOccurred())
 
 				route = &gatewayv1.HTTPRoute{

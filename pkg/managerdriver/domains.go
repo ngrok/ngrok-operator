@@ -3,14 +3,15 @@ package managerdriver
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
+	"golang.org/x/sync/errgroup"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -100,34 +101,40 @@ func gatewayToDomains(log logr.Logger, in *gatewayv1.Gateway, newDomainMetadata 
 }
 
 // applyDomains takes a set of the desired domains and current domains, creates any missing desired domains, and updated existing domains if needed
-func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomains map[string]ingressv1alpha1.Domain, currentDomains []ingressv1alpha1.Domain) error {
+func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomains map[string]ingressv1alpha1.Domain) error {
+	var g errgroup.Group
+
 	for _, desiredDomain := range desiredDomains {
-		found := false
-		for _, currDomain := range currentDomains {
-			if desiredDomain.Name == currDomain.Name && desiredDomain.Namespace == currDomain.Namespace {
-				// It matches so lets update it if anything is different
-				if !reflect.DeepEqual(desiredDomain.Spec, currDomain.Spec) {
-					currDomain.Spec = desiredDomain.Spec
-					if err := c.Update(ctx, &currDomain); err != nil {
-						d.log.Error(err, "error updating domain", "domain", desiredDomain)
-						return err
-					}
+		g.Go(func() error {
+			domain := &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      desiredDomain.Name,
+					Namespace: desiredDomain.Namespace,
+				},
+			}
+
+			res, err := controllerutil.CreateOrPatch(ctx, c, domain, func() error {
+				domain.Spec.Domain = desiredDomain.Spec.Domain
+				// Only set the reclaim policy on create
+				if domain.CreationTimestamp.IsZero() && d.defaultDomainReclaimPolicy != nil {
+					domain.Spec.ReclaimPolicy = *d.defaultDomainReclaimPolicy
 				}
-				found = true
-				break
+				return nil
+			})
+
+			log := d.log.WithValues("domain", domain.Name, "namespace", domain.Namespace, "result", res)
+
+			if err != nil {
+				log.Error(err, "error creating or patching domain")
+			} else {
+				log.V(3).Info("create or patched domain")
 			}
-		}
-		if !found {
-			if err := c.Create(ctx, &desiredDomain); err != nil {
-				d.log.Error(err, "error creating domain", "domain", desiredDomain)
-				return err
-			}
-		}
+
+			return err
+		})
 	}
 
-	// Don't delete domains to prevent accidentally de-registering them and making people re-do DNS
-
-	return nil
+	return g.Wait()
 }
 
 // Domain set is a helper data type to encapsulate all of the domains and what sources they are from
