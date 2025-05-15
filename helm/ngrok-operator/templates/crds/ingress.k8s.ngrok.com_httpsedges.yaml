@@ -14,7 +14,11 @@ spec:
     singular: httpsedge
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - deprecated: true
+    deprecationWarning: HTTPSEdge is deprecated and will be removed in a future release.
+      Please migrate to CloudEndpoint or AgentEndpoint instead. See https://github.com/ngrok/ngrok-operator/discussions/654
+      for more information.
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: HTTPSEdge is the Schema for the httpsedges API

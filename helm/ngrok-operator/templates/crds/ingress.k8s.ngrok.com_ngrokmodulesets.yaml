@@ -14,7 +14,11 @@ spec:
     singular: ngrokmoduleset
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - deprecated: true
+    deprecationWarning: NgrokModuleSet is deprecated and will be removed in a future
+      release. Please migrate to traffic policies instead. See https://github.com/ngrok/ngrok-operator/discussions/654
+      for more information.
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: NgrokModuleSet is the Schema for the ngrokmodules API

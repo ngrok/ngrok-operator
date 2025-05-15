@@ -23,6 +23,10 @@ spec:
       jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    deprecated: true
+    deprecationWarning: Tunnel is deprecated and will be removed in a future release.
+      Please migrate to AgentEndpoint instead. See https://github.com/ngrok/ngrok-operator/discussions/654
+      for more information.
     name: v1alpha1
     schema:
       openAPIV3Schema:

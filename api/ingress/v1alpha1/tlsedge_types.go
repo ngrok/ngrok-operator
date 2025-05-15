@@ -81,6 +81,7 @@ type TLSEdgeStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="TLSEdge is deprecated and will be removed in a future release. Please migrate to CloudEndpoint or AgentEndpoint instead. See https://github.com/ngrok/ngrok-operator/discussions/654 for more information."
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
 // +kubebuilder:printcolumn:name="Hostports",type=string,JSONPath=`.status.hostports`,description="Hostports"
 // +kubebuilder:printcolumn:name="Backend ID",type=string,JSONPath=`.status.backend.id`,description="Tunnel Group Backend ID"

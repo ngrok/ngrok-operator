@@ -69,6 +69,7 @@ type TunnelStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="Tunnel is deprecated and will be removed in a future release. Please migrate to AgentEndpoint instead. See https://github.com/ngrok/ngrok-operator/discussions/654 for more information."
 // +kubebuilder:printcolumn:name="ForwardsTo",type=string,JSONPath=`.spec.forwardsTo`,description="Service/port to forward to"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 
