@@ -128,6 +128,7 @@ type HTTPSEdgeStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="HTTPSEdge is deprecated and will be removed in a future release. Please migrate to CloudEndpoint or AgentEndpoint instead. See https://github.com/ngrok/ngrok-operator/discussions/654 for more information."
 
 // HTTPSEdge is the Schema for the httpsedges API
 type HTTPSEdge struct {

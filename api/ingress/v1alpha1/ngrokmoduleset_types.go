@@ -55,6 +55,7 @@ type NgrokModuleSetModules struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="NgrokModuleSet is deprecated and will be removed in a future release. Please migrate to traffic policies instead. See https://github.com/ngrok/ngrok-operator/discussions/654 for more information."
 
 // NgrokModuleSet is the Schema for the ngrokmodules API
 type NgrokModuleSet struct {
