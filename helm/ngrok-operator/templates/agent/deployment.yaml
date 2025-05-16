@@ -91,6 +91,7 @@ spec:
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name={{ include "ngrok-operator.fullname" . }}-agent-manager
+        - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
         securityContext:
           allowPrivilegeEscalation: false
         env:

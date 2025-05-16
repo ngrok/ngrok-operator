@@ -70,31 +70,32 @@ To uninstall the chart:
 
 ### Operator Manager parameters
 
-| Name                                 | Description                                                                               | Value   |
-| ------------------------------------ | ----------------------------------------------------------------------------------------- | ------- |
-| `replicaCount`                       | The number of controllers to run.                                                         | `1`     |
-| `affinity`                           | Affinity for the controller pod assignment                                                | `{}`    |
-| `podAffinityPreset`                  | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`       | `""`    |
-| `podAntiAffinityPreset`              | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`  | `soft`  |
-| `nodeAffinityPreset.type`            | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard` | `""`    |
-| `nodeAffinityPreset.key`             | Node label key to match. Ignored if `affinity` is set.                                    | `""`    |
-| `nodeAffinityPreset.values`          | Node label values to match. Ignored if `affinity` is set.                                 | `[]`    |
-| `nodeSelector`                       | Node labels for manager pod(s)                                                            | `{}`    |
-| `tolerations`                        | Tolerations for manager pod(s)                                                            | `[]`    |
-| `topologySpreadConstraints`          | Topology Spread Constraints for manager pod(s)                                            | `[]`    |
-| `priorityClassName`                  | Priority class for pod scheduling                                                         | `""`    |
-| `lifecycle`                          | an object containing lifecycle configuration                                              | `{}`    |
-| `podDisruptionBudget.create`         | Enable a Pod Disruption Budget creation                                                   | `false` |
-| `podDisruptionBudget.maxUnavailable` | Maximum number/percentage of pods that may be made unavailable                            | `""`    |
-| `podDisruptionBudget.minAvailable`   | Minimum number/percentage of pods that should remain scheduled                            | `""`    |
-| `resources.limits`                   | The resources limits for the container                                                    | `{}`    |
-| `resources.requests`                 | The requested resources for the container                                                 | `{}`    |
-| `extraVolumes`                       | An array of extra volumes to add to the controller.                                       | `[]`    |
-| `extraVolumeMounts`                  | An array of extra volume mounts to add to the controller.                                 | `[]`    |
-| `extraEnv`                           | an object of extra environment variables to add to the controller.                        | `{}`    |
-| `serviceAccount.create`              | Specifies whether a ServiceAccount should be created                                      | `true`  |
-| `serviceAccount.name`                | The name of the ServiceAccount to use.                                                    | `""`    |
-| `serviceAccount.annotations`         | Additional annotations to add to the ServiceAccount                                       | `{}`    |
+| Name                                 | Description                                                                                                                                    | Value    |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `replicaCount`                       | The number of controllers to run.                                                                                                              | `1`      |
+| `affinity`                           | Affinity for the controller pod assignment                                                                                                     | `{}`     |
+| `podAffinityPreset`                  | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                                            | `""`     |
+| `podAntiAffinityPreset`              | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                                       | `soft`   |
+| `nodeAffinityPreset.type`            | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                                      | `""`     |
+| `nodeAffinityPreset.key`             | Node label key to match. Ignored if `affinity` is set.                                                                                         | `""`     |
+| `nodeAffinityPreset.values`          | Node label values to match. Ignored if `affinity` is set.                                                                                      | `[]`     |
+| `nodeSelector`                       | Node labels for manager pod(s)                                                                                                                 | `{}`     |
+| `tolerations`                        | Tolerations for manager pod(s)                                                                                                                 | `[]`     |
+| `topologySpreadConstraints`          | Topology Spread Constraints for manager pod(s)                                                                                                 | `[]`     |
+| `priorityClassName`                  | Priority class for pod scheduling                                                                                                              | `""`     |
+| `lifecycle`                          | an object containing lifecycle configuration                                                                                                   | `{}`     |
+| `podDisruptionBudget.create`         | Enable a Pod Disruption Budget creation                                                                                                        | `false`  |
+| `podDisruptionBudget.maxUnavailable` | Maximum number/percentage of pods that may be made unavailable                                                                                 | `""`     |
+| `podDisruptionBudget.minAvailable`   | Minimum number/percentage of pods that should remain scheduled                                                                                 | `""`     |
+| `resources.limits`                   | The resources limits for the container                                                                                                         | `{}`     |
+| `resources.requests`                 | The requested resources for the container                                                                                                      | `{}`     |
+| `extraVolumes`                       | An array of extra volumes to add to the controller.                                                                                            | `[]`     |
+| `extraVolumeMounts`                  | An array of extra volume mounts to add to the controller.                                                                                      | `[]`     |
+| `extraEnv`                           | an object of extra environment variables to add to the controller.                                                                             | `{}`     |
+| `serviceAccount.create`              | Specifies whether a ServiceAccount should be created                                                                                           | `true`   |
+| `serviceAccount.name`                | The name of the ServiceAccount to use.                                                                                                         | `""`     |
+| `serviceAccount.annotations`         | Additional annotations to add to the ServiceAccount                                                                                            | `{}`     |
+| `defaultDomainReclaimPolicy`         | The default domain reclaim policy to use for domains created by the operator. Valid values are "Delete" and "Retain". The default is "Delete". | `Delete` |
 
 ### Logging configuration
 

@@ -243,6 +243,11 @@
                 }
             }
         },
+        "defaultDomainReclaimPolicy": {
+            "type": "string",
+            "description": "The default domain reclaim policy to use for domains created by the operator. Valid values are \"Delete\" and \"Retain\". The default is \"Delete\".",
+            "default": "Delete"
+        },
         "log": {
             "type": "object",
             "properties": {

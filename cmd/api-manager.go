@@ -130,6 +130,8 @@ type apiManagerOpts struct {
 	ngrokAPIKey string
 
 	region string
+
+	defaultDomainReclaimPolicy string
 }
 
 func apiCmd() *cobra.Command {
@@ -167,6 +169,7 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
+	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -309,6 +312,11 @@ func runOneClickDemoMode(ctx context.Context, mgr ctrl.Manager) error {
 
 // runNormalMode runs the operator in normal operation mode
 func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Client, mgr ctrl.Manager, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) error {
+	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
+	if err != nil {
+		return err
+	}
+
 	ngrokClientset, err := loadNgrokClientset(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
@@ -324,7 +332,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	var k8sResourceDriver *managerdriver.Driver
 	if opts.enableFeatureIngress || opts.enableFeatureGateway {
 		// we only need a driver if these features are enabled
-		k8sResourceDriver, err = getK8sResourceDriver(ctx, mgr, opts, tcpRouteCRDInstalled, tlsRouteCRDInstalled)
+		k8sResourceDriver, err = getK8sResourceDriver(ctx, mgr, opts, tcpRouteCRDInstalled, tlsRouteCRDInstalled, *defaultDomainReclaimPolicy)
 		if err != nil {
 			return fmt.Errorf("unable to create Driver: %w", err)
 		}
@@ -340,7 +348,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 
 	if opts.enableFeatureIngress {
 		setupLog.Info("Ingress feature set enabled")
-		if err := enableIngressFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset); err != nil {
+		if err := enableIngressFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, *defaultDomainReclaimPolicy); err != nil {
 			return fmt.Errorf("unable to enable Ingress feature set: %w", err)
 		}
 	} else {
@@ -470,13 +478,14 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiManagerOpts, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) (*managerdriver.Driver, error) {
+func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiManagerOpts, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy) (*managerdriver.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
 
 	driverOpts := []managerdriver.DriverOpt{
 		managerdriver.WithGatewayEnabled(options.enableFeatureGateway),
 		managerdriver.WithClusterDomain(options.clusterDomain),
 		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
+		managerdriver.WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),
 	}
 
 	if tcpRouteCRDInstalled {
@@ -515,7 +524,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 }
 
 // enableIngressFeatureSet enables the Ingress feature set for the operator
-func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset) error {
+func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy) error {
 	if err := (&ingresscontroller.IngressReconciler{
 		Client:               mgr.GetClient(),
 		Log:                  ctrl.Log.WithName("controllers").WithName("ingress"),
@@ -623,11 +632,12 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 	}
 
 	if err := (&ngrokcontroller.CloudEndpointReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("cloud-endpoint"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("cloud-endpoint-controller"),
-		NgrokClientset: ngrokClientset,
+		Client:                     mgr.GetClient(),
+		Log:                        ctrl.Log.WithName("controllers").WithName("cloud-endpoint"),
+		Scheme:                     mgr.GetScheme(),
+		Recorder:                   mgr.GetEventRecorderFor("cloud-endpoint-controller"),
+		NgrokClientset:             ngrokClientset,
+		DefaultDomainReclaimPolicy: ptr.To(defaultDomainReclaimPolicy),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudEndpoint")
 		os.Exit(1)

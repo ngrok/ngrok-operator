@@ -17,7 +17,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
-func NewTestIngressClass(name string, isDefault bool, isNgrok bool) netv1.IngressClass {
+func NewTestIngressClass(name string, isDefault bool, isNgrok bool) *netv1.IngressClass {
 	i := netv1.IngressClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -39,17 +39,17 @@ func NewTestIngressClass(name string, isDefault bool, isNgrok bool) netv1.Ingres
 		}
 	}
 
-	return i
+	return &i
 }
 
-func NewTestIngressV1WithClass(name string, namespace string, ingressClass string) netv1.Ingress {
+func NewTestIngressV1WithClass(name string, namespace string, ingressClass string) *netv1.Ingress {
 	i := NewTestIngressV1(name, namespace)
 	i.Spec.IngressClassName = &ingressClass
 	return i
 }
 
-func NewTestIngressV1(name string, namespace string) netv1.Ingress {
-	return netv1.Ingress{
+func NewTestIngressV1(name string, namespace string) *netv1.Ingress {
+	return &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -81,8 +81,8 @@ func NewTestIngressV1(name string, namespace string) netv1.Ingress {
 	}
 }
 
-func NewTestServiceV1(name string, namespace string) corev1.Service {
-	return corev1.Service{
+func NewTestServiceV1(name string, namespace string) *corev1.Service {
+	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -100,10 +100,10 @@ func NewTestServiceV1(name string, namespace string) corev1.Service {
 	}
 }
 
-func NewDomainV1(name string, namespace string) ingressv1alpha1.Domain {
-	return ingressv1alpha1.Domain{
+func NewDomainV1(name string, namespace string) *ingressv1alpha1.Domain {
+	return &ingressv1alpha1.Domain{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(name),
 			Namespace: namespace,
 		},
 		Spec: ingressv1alpha1.DomainSpec{

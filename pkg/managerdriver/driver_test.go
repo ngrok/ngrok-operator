@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -46,11 +45,10 @@ var _ = Describe("Driver", func() {
 	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
+
 	BeforeEach(func() {
-		// create a fake logger to pass into the cachestore
-		logger := logr.New(logr.Discard().GetSink())
 		driver = NewDriver(
-			logger,
+			GinkgoLogr,
 			scheme,
 			testutils.DefaultControllerName,
 			types.NamespacedName{Name: defaultManagerName},
@@ -73,7 +71,7 @@ var _ = Describe("Driver", func() {
 			d2 := testutils.NewDomainV1("test-domain-2.com", "test-namespace")
 			e1 := testutils.NewHTTPSEdge("test-edge", "test-namespace")
 			e2 := testutils.NewHTTPSEdge("test-edge-2", "test-namespace")
-			obs := []runtime.Object{&ic1, &ic2, &i1, &i2, &d1, &d2, &e1, &e2}
+			obs := []runtime.Object{ic1, ic2, i1, i2, d1, d2, &e1, &e2}
 
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
 			err := driver.Seed(GinkgoT().Context(), c)
@@ -92,7 +90,7 @@ var _ = Describe("Driver", func() {
 	Describe("DeleteIngress", func() {
 		It("Should remove the ingress from the store", func() {
 			i1 := testutils.NewTestIngressV1("test-ingress", "test-namespace")
-			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&i1).Build()
+			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(i1).Build()
 			err := driver.Seed(GinkgoT().Context(), c)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -102,7 +100,7 @@ var _ = Describe("Driver", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			foundObj, found, err := driver.store.Get(&i1)
+			foundObj, found, err := driver.store.Get(i1)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeFalse())
 			Expect(foundObj).To(BeNil())
@@ -148,7 +146,7 @@ var _ = Describe("Driver", func() {
 				ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
 				ic2 := testutils.NewTestIngressClass("test-ingress-class-2", true, true)
 				s := testutils.NewTestServiceV1("example", "test-namespace")
-				obs := []runtime.Object{&ic1, &ic2, &i1, &i2, &s}
+				obs := []runtime.Object{ic1, ic2, i1, i2, s}
 				c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
 
 				for _, obj := range obs {
@@ -277,7 +275,7 @@ var _ = Describe("Driver", func() {
 
 			JustBeforeEach(func() {
 				// Add the services and ingress to the fake client and the store
-				objs := []runtime.Object{&ic, httpService, httpsService, ingress}
+				objs := []runtime.Object{ic, httpService, httpsService, ingress}
 				c = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
 
 				for _, obj := range objs {
@@ -472,7 +470,7 @@ var _ = Describe("Driver", func() {
 
 			JustBeforeEach(func() {
 				// Add the services and ingress to the fake client and the store
-				objs := []runtime.Object{&ic, trafficPolicy, httpService, ingress}
+				objs := []runtime.Object{ic, trafficPolicy, httpService, ingress}
 				c = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
 
 				for _, obj := range objs {
@@ -564,11 +562,106 @@ var _ = Describe("Driver", func() {
 				})
 			})
 		})
+
+		When("The defaultDomainReclaimPolicy is set", func() {
+			var (
+				defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy
+				objs                       []runtime.Object
+				c                          client.WithWatch
+			)
+
+			BeforeEach(func() {
+				objs = []runtime.Object{
+					testutils.NewTestIngressClass("test-ingress-class", true, true),
+					testutils.NewTestIngressV1("test-ingress", "test-namespace"),
+					testutils.NewTestServiceV1("example", "test-namespace"),
+				}
+			})
+
+			JustBeforeEach(func(ctx SpecContext) {
+				driver = NewDriver(
+					GinkgoLogr,
+					scheme,
+					testutils.DefaultControllerName,
+					types.NamespacedName{Name: defaultManagerName},
+					WithGatewayEnabled(false),
+					WithSyncAllowConcurrent(true),
+					WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),
+				)
+				c = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+				Expect(driver.Seed(ctx, c)).To(Succeed())
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+			})
+
+			When("policy is Delete", func() {
+				BeforeEach(func() {
+					defaultDomainReclaimPolicy = ingressv1alpha1.DomainReclaimPolicyDelete
+				})
+
+				When("no domains exist", func() {
+					It("should create new domains with ReclaimPolicy set to Delete", func(ctx SpecContext) {
+						domains := &ingressv1alpha1.DomainList{}
+						Expect(c.List(ctx, domains)).To(Succeed())
+						Expect(domains.Items).To(HaveLen(1))
+						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ingressv1alpha1.DomainReclaimPolicyDelete))
+					})
+				})
+
+				When("a domain already exists", func() {
+					BeforeEach(func() {
+						d := testutils.NewDomainV1("example.com", "test-namespace")
+						d.ObjectMeta.SetCreationTimestamp(metav1.Now())
+						d.Spec.ReclaimPolicy = ingressv1alpha1.DomainReclaimPolicyRetain
+
+						objs = append(objs, d)
+					})
+
+					It("should not modify the reclaim policy of existing domains", func(ctx SpecContext) {
+						domains := &ingressv1alpha1.DomainList{}
+						Expect(c.List(ctx, domains)).To(Succeed())
+						Expect(domains.Items).To(HaveLen(1))
+						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ingressv1alpha1.DomainReclaimPolicyRetain))
+					})
+				})
+			})
+
+			When("policy is Retain", func() {
+				BeforeEach(func() {
+					defaultDomainReclaimPolicy = ingressv1alpha1.DomainReclaimPolicyRetain
+				})
+
+				When("no domains exist", func() {
+					It("should create new domains with ReclaimPolicy set to Retain", func(ctx SpecContext) {
+						domains := &ingressv1alpha1.DomainList{}
+						Expect(c.List(ctx, domains)).To(Succeed())
+						Expect(domains.Items).To(HaveLen(1))
+						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ingressv1alpha1.DomainReclaimPolicyRetain))
+					})
+				})
+
+				When("a domain already exists", func() {
+					BeforeEach(func() {
+						d := testutils.NewDomainV1("example.com", "test-namespace")
+						d.ObjectMeta.SetCreationTimestamp(metav1.Now())
+						d.Spec.ReclaimPolicy = ingressv1alpha1.DomainReclaimPolicyDelete
+
+						objs = append(objs, d)
+					})
+
+					It("should not modify the reclaim policy of existing domains", func(ctx SpecContext) {
+						domains := &ingressv1alpha1.DomainList{}
+						Expect(c.List(ctx, domains)).To(Succeed())
+						Expect(domains.Items).To(HaveLen(1))
+						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ingressv1alpha1.DomainReclaimPolicyDelete))
+					})
+				})
+			})
+		})
 	})
 
 	Describe("calculateIngressLoadBalancerIPStatus", func() {
 		var domains []ingressv1alpha1.Domain
-		var ingress netv1.Ingress
+		var ingress *netv1.Ingress
 		var c client.WithWatch
 		var status []netv1.IngressLoadBalancerIngress
 
@@ -583,7 +676,7 @@ var _ = Describe("Driver", func() {
 				Build()
 			domainsByDomain, err := getDomainsByDomain(GinkgoT().Context(), c)
 			Expect(err).ToNot(HaveOccurred())
-			status = calculateIngressLoadBalancerIPStatus(&ingress, domainsByDomain)
+			status = calculateIngressLoadBalancerIPStatus(ingress, domainsByDomain)
 		})
 
 		addIngressHostname := func(i *netv1.Ingress, hostname string) {
@@ -724,8 +817,8 @@ var _ = Describe("Driver", func() {
 
 			BeforeEach(func() {
 				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
-				addIngressHostname(&ingress, "test-domain1.com")
-				addIngressHostname(&ingress, "test-domain2.com")
+				addIngressHostname(ingress, "test-domain1.com")
+				addIngressHostname(ingress, "test-domain2.com")
 				domains = newTestDomainList(
 					newTestDomain(
 						"test-domain1-com",
@@ -754,8 +847,8 @@ var _ = Describe("Driver", func() {
 
 			BeforeEach(func() {
 				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
-				addIngressHostname(&ingress, "test-domain1.com")
-				addIngressHostname(&ingress, "test-domain1.com")
+				addIngressHostname(ingress, "test-domain1.com")
+				addIngressHostname(ingress, "test-domain1.com")
 				domains = newTestDomainList(
 					newTestDomain(
 						"test-domain1-com",
@@ -816,9 +909,9 @@ var _ = Describe("Driver", func() {
 
 		It("Should return an empty module set if the ingress has no modules annotaion", func() {
 			ing := testutils.NewTestIngressV1("test-ingress", "test")
-			Expect(driver.store.Add(&ing)).To(BeNil())
+			Expect(driver.store.Add(ing)).To(BeNil())
 
-			ms, err := getNgrokModuleSetForObject(&ing, driver.store)
+			ms, err := getNgrokModuleSetForObject(ing, driver.store)
 			Expect(err).To(BeNil())
 			Expect(ms.Modules.Compression).To(BeNil())
 			Expect(ms.Modules.Headers).To(BeNil())
@@ -830,9 +923,9 @@ var _ = Describe("Driver", func() {
 		It("Should return the matching module set if the ingress has a modules annotaion", func() {
 			ing := testutils.NewTestIngressV1("test-ingress", "test")
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1"})
-			Expect(driver.store.Add(&ing)).To(BeNil())
+			Expect(driver.store.Add(ing)).To(BeNil())
 
-			ms, err := getNgrokModuleSetForObject(&ing, driver.store)
+			ms, err := getNgrokModuleSetForObject(ing, driver.store)
 			Expect(err).To(BeNil())
 			Expect(ms.Modules).To(Equal(ms1.Modules))
 		})
@@ -840,9 +933,9 @@ var _ = Describe("Driver", func() {
 		It("merges modules with the last one winning if multiple module sets are specified", func() {
 			ing := testutils.NewTestIngressV1("test-ingress", "test")
 			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1,ms2,ms3"})
-			Expect(driver.store.Add(&ing)).To(BeNil())
+			Expect(driver.store.Add(ing)).To(BeNil())
 
-			ms, err := getNgrokModuleSetForObject(&ing, driver.store)
+			ms, err := getNgrokModuleSetForObject(ing, driver.store)
 			Expect(err).To(BeNil())
 			Expect(ms.Modules).To(Equal(
 				ingressv1alpha1.NgrokModuleSetModules{
@@ -1166,7 +1259,7 @@ var _ = Describe("Driver", func() {
 				},
 			}
 
-			obs := []runtime.Object{&ic1, &i1, &i2}
+			obs := []runtime.Object{ic1, i1, i2}
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
 			Expect(driver.Seed(GinkgoT().Context(), c)).To(BeNil())
 
