@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/go-logr/logr"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
@@ -27,6 +28,10 @@ import (
 	"golang.ngrok.com/ngrok"
 	"golang.ngrok.com/ngrok/config"
 	logrok "golang.ngrok.com/ngrok/log"
+)
+
+const (
+	defaultDialTimeout = 10 * time.Second
 )
 
 type k8sLogger struct {
@@ -308,7 +313,9 @@ func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingr
 
 	go handleTCPConnections(
 		ctx,
-		&net.Dialer{},
+		&net.Dialer{
+			Timeout: defaultDialTimeout,
+		},
 		tun,
 		service,
 		port,
@@ -449,7 +456,9 @@ func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, sp
 	// Start forwarding connections
 	go handleTCPConnections(
 		ctx,
-		&net.Dialer{},
+		&net.Dialer{
+			Timeout: defaultDialTimeout,
+		},
 		tun,
 		upstreamURL.Hostname(),
 		upstreamPort,
@@ -530,6 +539,9 @@ func handleTCPConn(ctx context.Context, dialer Dialer, ngrokConnection net.Conn,
 	contextDialStr := fmt.Sprintf("%s:%d", upstreamHostname, upstreamPort)
 	upstreamConnection, err := dialer.DialContext(ctx, "tcp", contextDialStr)
 	if err != nil {
+		if closeErr := ngrokConnection.Close(); closeErr != nil {
+			return fmt.Errorf("error closing ngrok connection: %w", closeErr)
+		}
 		return err
 	}
 
