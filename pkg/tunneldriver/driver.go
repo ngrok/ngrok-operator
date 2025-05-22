@@ -530,6 +530,9 @@ func handleTCPConn(ctx context.Context, dialer Dialer, ngrokConnection net.Conn,
 	contextDialStr := fmt.Sprintf("%s:%d", upstreamHostname, upstreamPort)
 	upstreamConnection, err := dialer.DialContext(ctx, "tcp", contextDialStr)
 	if err != nil {
+		if closeErr := ngrokConnection.Close(); closeErr != nil {
+			return fmt.Errorf("error closing ngrok connection: %w", closeErr)
+		}
 		return err
 	}
 
