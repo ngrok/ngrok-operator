@@ -12,8 +12,11 @@ import (
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -771,6 +774,19 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 			}
 		}
 
+		for _, listener := range gateway.Status.Listeners {
+			if meta.IsStatusConditionFalse(listener.Conditions, string(gatewayv1.ListenerConditionAccepted)) {
+				continue
+			}
+
+			meta.SetStatusCondition(&listener.Conditions, metav1.Condition{
+				Type:               string(gatewayv1.ListenerConditionProgrammed),
+				Status:             metav1.ConditionTrue,
+				Reason:             string(gatewayv1.ListenerReasonProgrammed),
+				ObservedGeneration: gateway.Generation,
+			})
+		}
+
 		for addr := range addresses {
 			newStatus.Addresses = append(newStatus.Addresses, gatewayv1.GatewayStatusAddress{
 				Type:  ptr.To(gatewayv1.HostnameAddressType),
@@ -799,11 +815,20 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 
 	for _, gateway := range needsUpdate {
 		g.Go(func() error {
-			err := c.Status().Update(ctx, gateway)
-			if err != nil {
-				d.log.Error(err, "error updating gateway status", "gateway", gateway)
-			}
-			return err
+			return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				current := new(gatewayv1.Gateway)
+				err := c.Get(ctx, client.ObjectKeyFromObject(gateway), current)
+				if err != nil {
+					return err
+				}
+
+				if reflect.DeepEqual(current.Status, gateway.Status) {
+					return nil
+				}
+
+				current.Status = gateway.Status
+				return c.Status().Update(ctx, current)
+			})
 		})
 	}
 
