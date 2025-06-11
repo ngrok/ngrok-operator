@@ -26,6 +26,7 @@ package ingress
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
@@ -64,10 +65,10 @@ type IPPolicyReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.IPPoliciesClient == nil {
-		return fmt.Errorf("IPPoliciesClient must be set")
+		return errors.New("IPPoliciesClient must be set")
 	}
 	if r.IPPolicyRulesClient == nil {
-		return fmt.Errorf("IPPolicyRulesClient must be set")
+		return errors.New("IPPolicyRulesClient must be set")
 	}
 
 	r.controller = &controller.BaseController[*ingressv1alpha1.IPPolicy]{

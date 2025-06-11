@@ -17,7 +17,6 @@ limitations under the License.
 package annotations_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/ngrok/ngrok-operator/internal/annotations"
@@ -232,7 +231,7 @@ func TestExtractUseBindings(t *testing.T) {
 			annotations: map[string]string{
 				"k8s.ngrok.com/bindings": "public,internal",
 			},
-			expectedErr: fmt.Errorf("multiple bindings are not supported: [public internal]"),
+			expectedErr: errors.New("multiple bindings are not supported: [public internal]"),
 		},
 		{
 			name: "Missing Bindings Value",

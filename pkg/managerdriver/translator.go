@@ -175,7 +175,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 	validateMappingStrategies(irVHosts)
 	for _, irVHost := range irVHosts {
 		if irVHost.TrafficPolicy == nil && len(irVHost.Routes) == 0 {
-			t.log.Error(fmt.Errorf("skipping generating endpoints for hostname with no valid traffic policy or routes"),
+			t.log.Error(errors.New("skipping generating endpoints for hostname with no valid traffic policy or routes"),
 				"hostname", string(irVHost.Listener.Hostname),
 				"generated from resources", irVHost.OwningResources,
 			)
@@ -387,7 +387,7 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, agentEndpoint
 
 	for _, irRoute := range irVHost.Routes {
 		if len(irRoute.Destinations) == 0 && len(irRoute.TrafficPolicies) == 0 {
-			t.log.Error(fmt.Errorf("generated route does not have a destination"), "skipping endpoint configuration generation for invalid route, other routes will continue to be processed",
+			t.log.Error(errors.New("generated route does not have a destination"), "skipping endpoint configuration generation for invalid route, other routes will continue to be processed",
 				"generated from resources", irVHost.OwningResources,
 				"hostname", string(irVHost.Listener.Hostname),
 				"match criteria", irRoute.HTTPMatchCriteria,

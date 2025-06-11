@@ -26,6 +26,7 @@ package ingress
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
@@ -58,7 +59,7 @@ type DomainReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.DomainsClient == nil {
-		return fmt.Errorf("DomainsClient must be set")
+		return errors.New("DomainsClient must be set")
 	}
 
 	r.controller = &controller.BaseController[*ingressv1alpha1.Domain]{

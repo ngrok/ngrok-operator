@@ -1,6 +1,7 @@
 package ngrokapi
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -91,7 +92,7 @@ func (p *parsedHostport) String() string {
 // parseHostport parses the hostport from its 4-tuple into a struct
 func parseHostport(proto string, publicURL string) (*parsedHostport, error) {
 	if publicURL == "" {
-		return nil, fmt.Errorf("missing publicURL")
+		return nil, errors.New("missing publicURL")
 	}
 
 	// to be parsed and filled in

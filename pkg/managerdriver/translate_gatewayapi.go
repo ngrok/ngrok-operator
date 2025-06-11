@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ngrok/ngrok-operator/internal/annotations"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
@@ -118,7 +119,7 @@ func (t *translator) findMatchingVHostsForXRoute(
 		gatewayAddressHostnames := []string{}
 		for _, gatewayAddress := range gateway.Spec.Addresses {
 			if gatewayAddress.Type == nil || *gatewayAddress.Type != gatewayv1.HostnameAddressType {
-				t.log.Error(fmt.Errorf("invalid Gateway. non-hostname address in spec.addresses"), "this Gateway will be skipped. only hostname type addresses are supported at the moment. The default type is IPAddress, so the type must explicitly be set to \"Hostname\"",
+				t.log.Error(errors.New("invalid Gateway. non-hostname address in spec.addresses"), "this Gateway will be skipped. only hostname type addresses are supported at the moment. The default type is IPAddress, so the type must explicitly be set to \"Hostname\"",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 					"address value", gatewayAddress.Value,
 				)
@@ -126,7 +127,7 @@ func (t *translator) findMatchingVHostsForXRoute(
 			}
 
 			if net.ParseIP(gatewayAddress.Value) != nil {
-				t.log.Error(fmt.Errorf("ip address used as address value in spec.addresses"), "this Gateway will be skipped. only hostname type addresses are supported at the moment.",
+				t.log.Error(errors.New("ip address used as address value in spec.addresses"), "this Gateway will be skipped. only hostname type addresses are supported at the moment.",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 					"address value", gatewayAddress.Value,
 				)
@@ -223,14 +224,14 @@ func (t *translator) findMatchingVHostsForXRoute(
 				switch matchingListener.Protocol {
 				case gatewayv1.HTTPSProtocolType:
 					if tlsTermCfg.Mode != nil && *tlsTermCfg.Mode == gatewayv1.TLSModePassthrough {
-						t.log.Error(fmt.Errorf("TLS passthrough mode is not possible for HTTPS endpoints, you can use a TLS protocol listener for this functionality"), "skipping gateway listener for HTTPRoutes because the tls mode is set to passthrough",
+						t.log.Error(errors.New("TLS passthrough mode is not possible for HTTPS endpoints, you can use a TLS protocol listener for this functionality"), "skipping gateway listener for HTTPRoutes because the tls mode is set to passthrough",
 							"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 						)
 						continue
 					}
 				// HTTP and TCP endpoints don't do TLS, use HTTPS/TLS endpoints instead
 				case gatewayv1.HTTPProtocolType, gatewayv1.TCPProtocolType:
-					t.log.Error(fmt.Errorf("TLS termination is not supported for HTTP and TCP listeners. You can use an HTTPS/TLS listener for this functionality"), "skipping gateway listener",
+					t.log.Error(errors.New("TLS termination is not supported for HTTP and TCP listeners. You can use an HTTPS/TLS listener for this functionality"), "skipping gateway listener",
 						"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 					)
 					continue
@@ -640,21 +641,21 @@ func (t *translator) matchGatewayListenersToXRoute(
 		listenerHostname := "*"
 		if len(gatewayAddressHostnames) == 0 {
 			if listener.Hostname == nil {
-				t.log.Error(fmt.Errorf("gateway has a listener with a nil hostname"), "Gateway listeners with nil hostnames are not supported when Gateway.spec.addresses is empty, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
+				t.log.Error(errors.New("gateway has a listener with a nil hostname"), "Gateway listeners with nil hostnames are not supported when Gateway.spec.addresses is empty, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 				)
 				continue
 			}
 
 			if string(*listener.Hostname) == "*" {
-				t.log.Error(fmt.Errorf("gateway has a listener with hostname \"*\""), "Gateway listeners with hostname \"*\" are not supported when Gateway.spec.addresses is empty, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
+				t.log.Error(errors.New("gateway has a listener with hostname \"*\""), "Gateway listeners with hostname \"*\" are not supported when Gateway.spec.addresses is empty, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 				)
 				continue
 			}
 
 			if listener.Hostname != nil && string(*listener.Hostname) == "" {
-				t.log.Error(fmt.Errorf("gateway has a listener with an empty hostname"), "Gateway listeners with empty hostnames are not supported when Gateway.spec.addresses is empty, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
+				t.log.Error(errors.New("gateway has a listener with an empty hostname"), "Gateway listeners with empty hostnames are not supported when Gateway.spec.addresses is empty, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 				)
 				continue
@@ -677,7 +678,7 @@ func (t *translator) matchGatewayListenersToXRoute(
 				return []gatewayv1.Listener{}
 			}
 			if !match {
-				t.log.Error(fmt.Errorf("listener hostname does not match one of the Gateway's spec.addresses"), "all listener hostnames must match all Gateway addresses. this Gateway will be skipped",
+				t.log.Error(errors.New("listener hostname does not match one of the Gateway's spec.addresses"), "all listener hostnames must match all Gateway addresses. this Gateway will be skipped",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 					"gateway address", gatewgatewayAddressHostname,
 					"listener hostname", listenerHostname,
@@ -812,7 +813,7 @@ func gatewayMethodToIR(method *gatewayv1.HTTPMethod) *ir.IRMethodMatch {
 
 // gatewayAPIFilterToTrafficPolicy translates Gateway API filters into traffic policy config
 func (t *translator) gatewayAPIFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, namespace string, store store.Storer, matchCriteria *ir.IRHTTPMatch) (*trafficpolicy.TrafficPolicy, error) {
-	sharedErr := fmt.Errorf("unable to convert gateway API filter to traffic policy config")
+	sharedErr := errors.New("unable to convert gateway API filter to traffic policy config")
 
 	switch filter.Type {
 	case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
@@ -852,7 +853,7 @@ func (t *translator) gatewayAPIFilterToTrafficPolicy(filter gatewayv1.HTTPRouteF
 		}
 
 		if len(routeTrafficPolicy.OnTCPConnect) != 0 {
-			return nil, fmt.Errorf("traffic policies supplied as external ref filters may not contain any on_tcp_connect rules as there is no way to only run them for certain routes")
+			return nil, errors.New("traffic policies supplied as external ref filters may not contain any on_tcp_connect rules as there is no way to only run them for certain routes")
 		}
 
 		return &routeTrafficPolicy, nil
@@ -867,7 +868,7 @@ func (t *translator) gatewayAPIFilterToTrafficPolicy(filter gatewayv1.HTTPRouteF
 func gwapiRequestHeaderFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter) (*trafficpolicy.TrafficPolicy, error) {
 	requestHeaders := filter.RequestHeaderModifier
 	if requestHeaders == nil {
-		return nil, fmt.Errorf("filter type specified as RequestHeaderModifier but the section config was nil")
+		return nil, errors.New("filter type specified as RequestHeaderModifier but the section config was nil")
 	}
 
 	headersToRemove := []string{}
@@ -913,7 +914,7 @@ func gwapiRequestHeaderFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter) (
 func gwapiResponseHeaderFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter) (*trafficpolicy.TrafficPolicy, error) {
 	responseHeaders := filter.ResponseHeaderModifier
 	if responseHeaders == nil {
-		return nil, fmt.Errorf("filter type specified as ResponseHeaderModifier but the section config was nil")
+		return nil, errors.New("filter type specified as ResponseHeaderModifier but the section config was nil")
 	}
 
 	headersToRemove := []string{}
@@ -959,7 +960,7 @@ func gwapiResponseHeaderFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter) 
 func gwapiRedirectFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, matchCriteria *ir.IRHTTPMatch) (*trafficpolicy.TrafficPolicy, error) {
 	redirect := filter.RequestRedirect
 	if redirect == nil {
-		return nil, fmt.Errorf("filter type specified as RequestRedirect but the section config was nil")
+		return nil, errors.New("filter type specified as RequestRedirect but the section config was nil")
 	}
 
 	prefix := ""
@@ -987,13 +988,13 @@ func gwapiRedirectFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, matchC
 		switch redirect.Path.Type {
 		case gatewayv1.FullPathHTTPPathModifier:
 			if redirect.Path.ReplaceFullPath == nil {
-				return nil, fmt.Errorf("ReplaceFullPath type specified but replaceFullPath is nil")
+				return nil, errors.New("ReplaceFullPath type specified but replaceFullPath is nil")
 			}
 			toPrefix = ""
 			toRemainingPath = *redirect.Path.ReplaceFullPath
 		case gatewayv1.PrefixMatchHTTPPathModifier:
 			if redirect.Path.ReplacePrefixMatch == nil {
-				return nil, fmt.Errorf("ReplacePrefixMatch type specified but replacePrefixPatch is nil")
+				return nil, errors.New("ReplacePrefixMatch type specified but replacePrefixPatch is nil")
 			}
 			toPrefix = *redirect.Path.ReplacePrefixMatch
 		}
@@ -1051,11 +1052,11 @@ func gwapiRedirectFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, matchC
 func gwapiURLRewriteFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, matchCriteria *ir.IRHTTPMatch) (*trafficpolicy.TrafficPolicy, error) {
 	rewrite := filter.URLRewrite
 	if rewrite == nil {
-		return nil, fmt.Errorf("filter type specified as URLRewrite but the section config was nil")
+		return nil, errors.New("filter type specified as URLRewrite but the section config was nil")
 	}
 
 	if rewrite.Hostname == nil && rewrite.Path == nil {
-		return nil, fmt.Errorf("URLRewrite filter must specify at least one of hostname or path")
+		return nil, errors.New("URLRewrite filter must specify at least one of hostname or path")
 	}
 
 	prefix := ""
@@ -1079,14 +1080,14 @@ func gwapiURLRewriteFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, matc
 		switch rewrite.Path.Type {
 		case gatewayv1.FullPathHTTPPathModifier:
 			if rewrite.Path.ReplaceFullPath == nil {
-				return nil, fmt.Errorf("ReplaceFullPath type specified but replaceFullPath is nil")
+				return nil, errors.New("ReplaceFullPath type specified but replaceFullPath is nil")
 			}
 			toPrefix = ""
 			toRemainingPath = *rewrite.Path.ReplaceFullPath
 
 		case gatewayv1.PrefixMatchHTTPPathModifier:
 			if rewrite.Path.ReplacePrefixMatch == nil {
-				return nil, fmt.Errorf("ReplacePrefixMatch type specified but replacePrefixMatch is nil")
+				return nil, errors.New("ReplacePrefixMatch type specified but replacePrefixMatch is nil")
 			}
 			toPrefix = *rewrite.Path.ReplacePrefixMatch
 		}
@@ -1142,7 +1143,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 	}
 
 	if backendRef.Kind != nil && !strings.EqualFold(string(*backendRef.Kind), "Service") {
-		return nil, fmt.Errorf("invalid backendRef kind supplied to HTTPRoute. only Service backends are currently supported")
+		return nil, errors.New("invalid backendRef kind supplied to HTTPRoute. only Service backends are currently supported")
 	}
 
 	serviceName := string(backendRef.Name)
@@ -1363,7 +1364,7 @@ func (t *translator) gatewayTLSTermConfigToIR(listenerTLS *gatewayv1.GatewayTLSC
 
 	if len(listenerTLS.CertificateRefs) > 0 {
 		if len(listenerTLS.CertificateRefs) > 1 {
-			t.log.Error(fmt.Errorf("multiple Gateway TLS certificateRefs provided"), "Only the first will be used, multiple are not currently supported")
+			t.log.Error(errors.New("multiple Gateway TLS certificateRefs provided"), "Only the first will be used, multiple are not currently supported")
 		}
 
 		certRef := listenerTLS.CertificateRefs[0]
