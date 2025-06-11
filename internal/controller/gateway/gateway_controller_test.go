@@ -112,6 +112,194 @@ var _ = Describe("Gateway controller", Ordered, func() {
 				})
 			})
 		})
+
+		When("the gateway has a HTTP listener with no hostname", func() {
+			BeforeEach(func() {
+				gw.Spec.Listeners = []gatewayv1.Listener{
+					{
+						Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
+						Port:     80,
+						Protocol: gatewayv1.HTTPProtocolType,
+					},
+				}
+			})
+
+			It("Should not accept the gateway", func(ctx SpecContext) {
+				ExpectGatewayNotAccepted(ctx, gw).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+
+			It("Should set the listener to not accepted and have a reason of HostnameRequired", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionAccepted,
+					metav1.ConditionFalse,
+					ListenerReasonHostnameRequired,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+
+			It("Should set the listener programmed condition to invalid", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionProgrammed,
+					metav1.ConditionFalse,
+					gatewayv1.ListenerReasonInvalid,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+		})
+
+		When("the gateway has a HTTPS listener with no hostname", func() {
+			BeforeEach(func() {
+				gw.Spec.Listeners = []gatewayv1.Listener{
+					{
+						Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
+						Port:     443,
+						Protocol: gatewayv1.HTTPSProtocolType,
+					},
+				}
+			})
+
+			It("Should not accept the gateway", func(ctx SpecContext) {
+				ExpectGatewayNotAccepted(ctx, gw).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+
+			It("Should set the listener to not accepted and have a reason of HostnameRequired", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionAccepted,
+					metav1.ConditionFalse,
+					ListenerReasonHostnameRequired,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+
+			It("Should set the listener programmed condition to invalid", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionProgrammed,
+					metav1.ConditionFalse,
+					gatewayv1.ListenerReasonInvalid,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+		})
+
+		When("the gateway has a HTTP listener with port other than 80", func() {
+			BeforeEach(func() {
+				gw.Spec.Listeners = []gatewayv1.Listener{
+					{
+						Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
+						Port:     8080,
+						Hostname: ptr.To(gatewayv1.Hostname("example.com")),
+						Protocol: gatewayv1.HTTPProtocolType,
+					},
+				}
+			})
+
+			It("Should not accept the gateway", func(ctx SpecContext) {
+				ExpectGatewayNotAccepted(ctx, gw).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+
+			It("Should set the listener to not accepted and have a reason of PortUnavailable", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionAccepted,
+					metav1.ConditionFalse,
+					gatewayv1.ListenerReasonPortUnavailable,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+
+			It("Should set the listener programmed condition to invalid", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionProgrammed,
+					metav1.ConditionFalse,
+					gatewayv1.ListenerReasonInvalid,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+		})
+
+		When("the gateway has a HTTPS listener with port other than 443", func() {
+			BeforeEach(func() {
+				gw.Spec.Listeners = []gatewayv1.Listener{
+					{
+						Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
+						Port:     8443,
+						Hostname: ptr.To(gatewayv1.Hostname("example.com")),
+						Protocol: gatewayv1.HTTPProtocolType,
+					},
+				}
+			})
+
+			It("Should not accept the gateway", func(ctx SpecContext) {
+				ExpectGatewayNotAccepted(ctx, gw).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+
+			It("Should set the listener to not accepted and have a reason of PortUnavailable", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionAccepted,
+					metav1.ConditionFalse,
+					gatewayv1.ListenerReasonPortUnavailable,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+
+			It("Should set the listener programmed condition to invalid", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionProgrammed,
+					metav1.ConditionFalse,
+					gatewayv1.ListenerReasonInvalid,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+		})
+
+		When("the gateway has a UDP listener", func() {
+			BeforeEach(func() {
+				gw.Spec.Listeners = []gatewayv1.Listener{
+					{
+						Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
+						Port:     53,
+						Protocol: gatewayv1.UDPProtocolType,
+					},
+				}
+			})
+
+			It("Should set the listener to not accepted and have a reason of UnsupportedProtocol", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionAccepted,
+					metav1.ConditionFalse,
+					gatewayv1.ListenerReasonUnsupportedProtocol,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+
+			It("Should set the listener programmed condition to invalid", func(ctx SpecContext) {
+				ExpectListenerStatus(
+					ctx,
+					gw,
+					gw.Spec.Listeners[0].Name,
+					gatewayv1.ListenerConditionProgrammed,
+					metav1.ConditionFalse,
+					gatewayv1.ListenerReasonInvalid,
+				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			})
+		})
 	})
 
 	When("The gateway's gateway class should not be handled by us", func() {

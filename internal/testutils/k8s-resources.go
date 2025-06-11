@@ -146,6 +146,7 @@ func NewGateway(name string, namespace string) gatewayv1.Gateway {
 			GatewayClassName: "test-gatewayclass",
 			Listeners: []gatewayv1.Listener{
 				{
+					Hostname: ptr.To(gatewayv1.Hostname("example.com")),
 					Name:     "http",
 					Port:     80,
 					Protocol: gatewayv1.HTTPProtocolType,
