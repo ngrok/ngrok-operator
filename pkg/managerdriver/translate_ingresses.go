@@ -125,7 +125,7 @@ func (t *translator) ingressToIR(
 	for _, rule := range ingress.Spec.Rules {
 		ruleHostname := rule.Host
 		if ruleHostname == "" {
-			t.log.Error(fmt.Errorf("skipping converting ingress rule into cloud and agent endpoints because the rule.host is empty"),
+			t.log.Error(errors.New("skipping converting ingress rule into cloud and agent endpoints because the rule.host is empty"),
 				"empty host in ingress spec rule",
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
@@ -142,7 +142,7 @@ func (t *translator) ingressToIR(
 		if exists {
 			// If we already have a virtual host for this hostname, the traffic policy config must be the same as the one we are currently processing
 			if !reflect.DeepEqual(irVHost.TrafficPolicyObjRef, annotationTrafficPolicyRef) {
-				t.log.Error(fmt.Errorf("different traffic policy annotations provided for the same hostname"),
+				t.log.Error(errors.New("different traffic policy annotations provided for the same hostname"),
 					"when using the same hostname across multiple ingresses, ensure that they do not use different traffic policies provided via annotations",
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 					"hostname", ruleHostname,
@@ -151,7 +151,7 @@ func (t *translator) ingressToIR(
 			}
 			// They must have the same configuration for whether or not to pool endpoints
 			if irVHost.EndpointPoolingEnabled != endpointPoolingEnabled {
-				t.log.Error(fmt.Errorf("different endpoint pooling annotations provided for the same hostname"),
+				t.log.Error(errors.New("different endpoint pooling annotations provided for the same hostname"),
 					"when using the same hostname across multiple ingresses, ensure that they all enable or all disable endpoint pooling",
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 					"hostname", ruleHostname,
@@ -171,7 +171,7 @@ func (t *translator) ingressToIR(
 
 			// They must have the same default backend
 			if !reflect.DeepEqual(irVHost.DefaultDestination, defaultDestination) {
-				t.log.Error(fmt.Errorf("different ingress default backends provided for the same hostname"),
+				t.log.Error(errors.New("different ingress default backends provided for the same hostname"),
 					"when using the same hostname across multiple ingresses, ensure that they do not use different default backends. the existing default backend for the hostname will not be overwritten",
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 					"hostname", ruleHostname,
@@ -283,7 +283,7 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 		}
 
 		if len(routeTrafficPolicy.OnTCPConnect) != 0 {
-			return nil, fmt.Errorf("traffic policies supplied as ingress backends may not contain any on_tcp_connect rules as there is no way to only run them for certain routes")
+			return nil, errors.New("traffic policies supplied as ingress backends may not contain any on_tcp_connect rules as there is no way to only run them for certain routes")
 		}
 
 		return &ir.IRDestination{
@@ -293,7 +293,7 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 
 	// If the backend is not a traffic policy, then it must be a service
 	if backend.Service == nil {
-		return nil, fmt.Errorf("ingress backend is invalid. Not an NgrokTrafficPolicy or service")
+		return nil, errors.New("ingress backend is invalid. Not an NgrokTrafficPolicy or service")
 	}
 
 	serviceName := backend.Service.Name

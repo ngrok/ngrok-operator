@@ -363,7 +363,7 @@ func netv1PathTypeToIR(log logr.Logger, pathType *netv1.PathType) ir.IRPathMatch
 	case netv1.PathTypeExact:
 		return ir.IRPathType_Exact
 	default:
-		log.Error(fmt.Errorf("unknown path type, defaulting to prefix match"), "unknown path type", "pathType", *pathType)
+		log.Error(errors.New("unknown path type, defaulting to prefix match"), "unknown path type", "pathType", *pathType)
 		return ir.IRPathType_Prefix
 	}
 }

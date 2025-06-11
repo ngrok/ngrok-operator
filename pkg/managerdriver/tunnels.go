@@ -11,6 +11,7 @@ import (
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -194,7 +195,7 @@ func (d *Driver) calculateTunnelsFromGateway(tunnels map[tunnelKey]ingressv1alph
 			}
 			gateway, exists := gatewayMap[gatewayKey]
 			if !exists {
-				d.log.Error(fmt.Errorf("HTTPRoute parent ref not found"), "the HTTPRoute lists a Gateway parent ref that does not exist",
+				d.log.Error(errors.New("HTTPRoute parent ref not found"), "the HTTPRoute lists a Gateway parent ref that does not exist",
 					"httproute", fmt.Sprintf("%s.%s", httproute.Name, httproute.Namespace),
 					"parentRef", fmt.Sprintf("%s.%s", string(parentRef.Name), refNamespace),
 				)

@@ -27,7 +27,6 @@ package ingress
 import (
 	"context"
 	"errors"
-	"fmt"
 	"maps"
 	"reflect"
 	"slices"
@@ -833,7 +832,7 @@ func (u *edgeRouteModuleUpdater) setEdgeRouteOAuth(ctx context.Context, route *n
 	}
 
 	if module == nil {
-		return ierr.NewErrInvalidConfiguration(fmt.Errorf("no OAuth provider configured"))
+		return ierr.NewErrInvalidConfiguration(errors.New("no OAuth provider configured"))
 	}
 
 	if reflect.DeepEqual(module, route.OAuth) {

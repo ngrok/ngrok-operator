@@ -83,7 +83,7 @@ type AgentEndpointReconciler struct {
 
 func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.TunnelDriver == nil {
-		return fmt.Errorf("TunnelDriver is nil")
+		return errors.New("TunnelDriver is nil")
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.AgentEndpoint]{

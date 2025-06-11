@@ -26,6 +26,7 @@ package bindings
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -545,7 +546,7 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 	for i := range retries {
 		select {
 		case <-ctx.Done():
-			err = fmt.Errorf("attempting to connect to BoundEndpoint URI timed out")
+			err = errors.New("attempting to connect to BoundEndpoint URI timed out")
 			log.Error(err, bindErrMsg)
 			return err
 
@@ -573,7 +574,7 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 
 	}
 
-	err = fmt.Errorf("exceeded max retries")
+	err = errors.New("exceeded max retries")
 	log.Error(err, bindErrMsg)
 	return err
 

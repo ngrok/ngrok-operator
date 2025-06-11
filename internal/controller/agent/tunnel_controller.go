@@ -26,6 +26,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -61,7 +62,7 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
 
 	if r.TunnelDriver == nil {
-		return fmt.Errorf("TunnelDriver is nil")
+		return errors.New("TunnelDriver is nil")
 	}
 
 	r.controller = &controller.BaseController[*ingressv1alpha1.Tunnel]{

@@ -870,15 +870,15 @@ func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, n
 		}
 
 		if match.Method != nil {
-			d.log.Error(fmt.Errorf("unsupported match type"), "Unsupported match type", "HTTPMethod", *match.Method)
+			d.log.Error(errors.New("unsupported match type"), "Unsupported match type", "HTTPMethod", *match.Method)
 		}
 
 		if len(match.Headers) > 0 {
-			d.log.Error(fmt.Errorf("unsupported match type"), "Unsupported match type", "HTTPHeaderMatch", match.Headers)
+			d.log.Error(errors.New("unsupported match type"), "Unsupported match type", "HTTPHeaderMatch", match.Headers)
 		}
 
 		if len(match.QueryParams) > 0 {
-			d.log.Error(fmt.Errorf("unsupported match type"), "Unsupported match type", "HTTPQueryParamMatch", match.QueryParams)
+			d.log.Error(errors.New("unsupported match type"), "Unsupported match type", "HTTPQueryParamMatch", match.QueryParams)
 		}
 	}
 
@@ -1218,7 +1218,7 @@ func (d *Driver) handleURLRewriteFilter(filter *gatewayv1.HTTPURLRewriteFilter, 
 			return err
 		}
 	default:
-		d.log.Error(fmt.Errorf("unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
+		d.log.Error(errors.New("unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
 		return nil
 	}
 	return nil
@@ -1270,7 +1270,7 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 			return err
 		}
 	default:
-		d.log.Error(fmt.Errorf("unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
+		d.log.Error(errors.New("unsupported path modifier type"), "unsupported path modifier type", "HTTPPathModifier", filter.Path.Type)
 		return nil
 	}
 	return nil

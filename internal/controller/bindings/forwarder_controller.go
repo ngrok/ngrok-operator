@@ -28,6 +28,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -71,11 +72,11 @@ type ForwarderReconciler struct {
 
 func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	if r.BindingsDriver == nil {
-		return fmt.Errorf("BindingsDriver is required")
+		return errors.New("BindingsDriver is required")
 	}
 
 	if r.KubernetesOperatorName == "" {
-		return fmt.Errorf("KubernetesOperatorName is required")
+		return errors.New("KubernetesOperatorName is required")
 	}
 
 	r.controller = &controller.BaseController[*bindingsv1alpha1.BoundEndpoint]{
@@ -138,11 +139,11 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 	// Bindings should be enabled on the operator, if they aren't we can't do anything
 	if op.Spec.Binding == nil {
-		return fmt.Errorf("operator does not have binding configuration")
+		return errors.New("operator does not have binding configuration")
 	}
 
 	if op.Status.BindingsIngressEndpoint == "" {
-		return fmt.Errorf("operator binding configuration does not have an ingress endpoint")
+		return errors.New("operator binding configuration does not have an ingress endpoint")
 	}
 
 	// Get the secret
@@ -155,7 +156,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 	certData, hasCert := secret.Data["tls.crt"]
 
 	if !hasKey || !hasCert {
-		return fmt.Errorf("missing tls.key or tls.crt")
+		return errors.New("missing tls.key or tls.crt")
 	}
 
 	cert, err := tls.X509KeyPair(certData, keyData)
@@ -239,7 +240,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 func getIngressEndpointWithFallback(rawIngressEndpoint string, log logr.Logger) (string, error) {
 	if rawIngressEndpoint == "" {
-		err := fmt.Errorf("operator binding configuration does not have an ingress endpoint")
+		err := errors.New("operator binding configuration does not have an ingress endpoint")
 		log.Error(err, "bindings ingress endpoint from status was empty")
 		return "", err
 	}
@@ -254,7 +255,7 @@ func getIngressEndpointWithFallback(rawIngressEndpoint string, log logr.Logger) 
 		// what we expect, do nothing
 		return rawIngressEndpoint, nil
 	default:
-		err := fmt.Errorf("couldn't parse binding ingress endpoint")
+		err := errors.New("couldn't parse binding ingress endpoint")
 		log.Error(err, "too many colons in ingress bindings endpoint", "endpoint", rawIngressEndpoint)
 		return "", err
 	}

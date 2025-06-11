@@ -2,7 +2,6 @@ package util
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -221,7 +220,7 @@ func TestToCRDJson(t *testing.T) {
 					PhaseOnHttpRequest: {[]byte(`ngrok is built to deliver applications and APIs with  zero networking configuration and zero hardware`)},
 				},
 			},
-			expectedErr: fmt.Errorf(`json: error calling MarshalJSON for type json.RawMessage: invalid character 'g' in literal null (expecting 'u')`),
+			expectedErr: errors.New(`json: error calling MarshalJSON for type json.RawMessage: invalid character 'g' in literal null (expecting 'u')`),
 		},
 	}
 
@@ -285,14 +284,14 @@ func TestFilterEnabled(t *testing.T) {
 			msg:                   []byte(`Industry leaders rely on ngrok`),
 			expectedReturnedMsg:   nil,
 			expectedSetEnabledVal: nil,
-			expectedErr:           fmt.Errorf("invalid character 'I' looking for beginning of value"),
+			expectedErr:           errors.New("invalid character 'I' looking for beginning of value"),
 		},
 		{
 			name:                  "message is empty json",
 			msg:                   []byte(""),
 			expectedReturnedMsg:   nil,
 			expectedSetEnabledVal: nil,
-			expectedErr:           fmt.Errorf("unexpected end of JSON input"),
+			expectedErr:           errors.New("unexpected end of JSON input"),
 		},
 		{
 			name:                  "message is nil",
@@ -492,7 +491,7 @@ func TestMergeEndpointRule(t *testing.T) {
 			addedPhase: PhaseOnHttpRequest,
 			// original traffic policy should be unaffected
 			expectedMergedTrafficPolicy: *newBaseTrafficPolicy(t, nil),
-			expectedErr:                 fmt.Errorf("json: error calling MarshalJSON for type json.RawMessage: invalid character 'i' looking for beginning of value"),
+			expectedErr:                 errors.New("json: error calling MarshalJSON for type json.RawMessage: invalid character 'i' looking for beginning of value"),
 		},
 	}
 

@@ -1,7 +1,7 @@
 linters:
   enable:
   - gofmt           # Format enforcement
-  - gocritic        # Code pattern analysis    
+  - gocritic        # Code pattern analysis
   - govet           # Built-in static checks
   - staticcheck     # Strong static analysis
   - errcheck        # Enforce checking errors
@@ -42,3 +42,4 @@ linters-settings:
     - name: unnecessary-stmt        # Suggests removing or simplifying unnecessary statements
     - name: unreachable-code        # Warns on unreachable code
     - name: unused-parameter        # Suggests to rename or remove unused function parameters
+    - name: use-errors-new          # identifies calls to fmt.Errorf that can be safely replaced by, the more efficient, errors.New.

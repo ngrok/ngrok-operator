@@ -898,7 +898,7 @@ func (r *baseSubresourceReconciler[T, PT]) Reconcile(ctx context.Context, c clie
 	// We only support one desired resource of a particular type for now
 	// If there are cases where we need to create multiple edges or tunnels, we will need to change this handling
 	if len(desired) > 1 {
-		return fmt.Errorf("multiple desired resources not supported")
+		return errors.New("multiple desired resources not supported")
 	}
 
 	d := desired[0]

@@ -8,6 +8,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -245,7 +246,7 @@ func (d *Driver) calculateHTTPSEdgesFromIngress(edgeMap map[string]ingressv1alph
 					case netv1.PathTypeImplementationSpecific:
 						matchType = "path_prefix" // Path Prefix seems like a sane default for most cases
 					default:
-						d.log.Error(fmt.Errorf("unknown path type"), "unknown path type", "pathType", *httpIngressPath.PathType)
+						d.log.Error(errors.New("unknown path type"), "unknown path type", "pathType", *httpIngressPath.PathType)
 						continue
 					}
 				}

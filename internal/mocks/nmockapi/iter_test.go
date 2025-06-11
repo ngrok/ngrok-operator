@@ -2,7 +2,7 @@ package nmockapi_test
 
 import (
 	context "context"
-	"fmt"
+	"errors"
 
 	"github.com/ngrok/ngrok-api-go/v7"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
@@ -29,7 +29,7 @@ var _ = Describe("Iter", func() {
 	Describe("Item()", func() {
 		Context("when there is an error", func() {
 			BeforeEach(func() {
-				iterErr = fmt.Errorf("ut-oh")
+				iterErr = errors.New("ut-oh")
 			})
 
 			It("should return an empty item", func() {
@@ -74,7 +74,7 @@ var _ = Describe("Iter", func() {
 	Describe("Next", func() {
 		Context("when there is an error", func() {
 			BeforeEach(func() {
-				iterErr = fmt.Errorf("ut-oh")
+				iterErr = errors.New("ut-oh")
 			})
 
 			It("should return false", func() {
@@ -113,7 +113,7 @@ var _ = Describe("Iter", func() {
 	Describe("Err()", func() {
 		Context("when there is an error", func() {
 			BeforeEach(func() {
-				iterErr = fmt.Errorf("ut-oh")
+				iterErr = errors.New("ut-oh")
 			})
 
 			It("should return the error", func() {

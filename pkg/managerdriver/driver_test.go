@@ -2,7 +2,6 @@ package managerdriver
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -27,6 +26,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -1310,16 +1310,16 @@ func TestExtractPolicy(t *testing.T) {
 		{
 			name:        "invalid json message",
 			msg:         []byte(`ngrok operates a global network where it accepts traffic to your upstream services from clients.`),
-			expectedErr: fmt.Errorf("invalid character 'g' in literal null (expecting 'u')"),
+			expectedErr: errors.New("invalid character 'g' in literal null (expecting 'u')"),
 		},
 		{
 			name:        "empty json message",
 			msg:         []byte(""),
-			expectedErr: fmt.Errorf("unexpected end of JSON input"),
+			expectedErr: errors.New("unexpected end of JSON input"),
 		},
 		{
 			name:        "nil json message",
-			expectedErr: fmt.Errorf("unexpected end of JSON input"),
+			expectedErr: errors.New("unexpected end of JSON input"),
 		},
 	}
 

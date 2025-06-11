@@ -137,7 +137,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 		ngrok.WithRestartHandler(func(_ context.Context, _ ngrok.Session) error {
 			sessionState := td.session.Load()
 			if sessionState != nil && sessionState.session != nil {
-				sessionState.healthErr = fmt.Errorf("ngrok session restarting")
+				sessionState.healthErr = errors.New("ngrok session restarting")
 				td.session.Store(sessionState)
 				logger.Info("ngrok session restarting")
 			}
@@ -173,7 +173,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 	}
 
 	td.session.Store(&sessionState{
-		readyErr: fmt.Errorf("attempting to connect"),
+		readyErr: errors.New("attempting to connect"),
 	})
 	connOpts = append(connOpts,
 		ngrok.WithConnectHandler(func(_ context.Context, sess ngrok.Session) {
@@ -188,7 +188,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 				// we have established session in the past, so record err only when it is going away
 				if err == nil {
 					td.session.Store(&sessionState{
-						healthErr: fmt.Errorf("session closed"),
+						healthErr: errors.New("session closed"),
 					})
 				}
 				return
@@ -198,7 +198,7 @@ func New(ctx context.Context, logger logr.Logger, opts TunnelDriverOpts) (*Tunne
 				// session is disconnecting, do not override error
 				if state.healthErr == nil {
 					td.session.Store(&sessionState{
-						healthErr: fmt.Errorf("session closed"),
+						healthErr: errors.New("session closed"),
 					})
 				}
 				return
@@ -252,7 +252,7 @@ func (td *TunnelDriver) getSession() (ngrok.Session, error) {
 	case state.readyErr != nil:
 		return nil, state.readyErr
 	default:
-		return nil, fmt.Errorf("unexpected state")
+		return nil, errors.New("unexpected state")
 	}
 }
 

@@ -27,7 +27,6 @@ package ingress
 import (
 	"context"
 	"errors"
-	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -645,7 +644,7 @@ func (r *TLSEdgeReconciler) getDesiredDomains(ctx context.Context, edge *ingress
 func parseHostAndPort(hostport string) (string, int32, error) {
 	pieces := strings.SplitN(hostport, ":", 2)
 	if len(pieces) != 2 {
-		return "", 0, fmt.Errorf("invalid hostport")
+		return "", 0, errors.New("invalid hostport")
 	}
 
 	port, err := strconv.ParseInt(pieces[1], 10, 32)
