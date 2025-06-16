@@ -130,25 +130,17 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Validate the Gateway
-	validationErr := r.validateGateway(ctx, gw)
+	_ = r.validateGateway(ctx, gw)
 
 	// Update the gateway status
 	if err := r.updateGatewayStatus(ctx, gw); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if validationErr != nil {
-		// If the gateway is not valid, remove it from the store
-		if err := r.Driver.DeleteGateway(gw); err != nil {
-			log.Error(err, "Failed to delete gateway from store")
-			return ctrl.Result{}, err
-		}
-	} else {
-		// Update the gateway in the store if it passes validation
-		if _, err := r.Driver.UpdateGateway(gw); err != nil {
-			log.Error(err, "Failed to update gateway in store")
-			return ctrl.Result{}, err
-		}
+	// Update the gateway in the store
+	if _, err := r.Driver.UpdateGateway(gw); err != nil {
+		log.Error(err, "Failed to update gateway in store")
+		return ctrl.Result{}, err
 	}
 
 	if err := r.Driver.Sync(ctx, r.Client); err != nil {
@@ -278,15 +270,17 @@ func (r *GatewayReconciler) validateGateway(ctx context.Context, gw *gatewayv1.G
 		newStatus.Listeners = append(newStatus.Listeners, listenerStatus)
 	}
 
-	listenersAreValid := true
+	// Check if we have at least one valid(accepted) listener
+	hasValidListener := false
 	for _, l := range newStatus.Listeners {
-		if meta.IsStatusConditionFalse(l.Conditions, string(gatewayv1.ListenerConditionAccepted)) {
-			listenersAreValid = false
+		if meta.IsStatusConditionTrue(l.Conditions, string(gatewayv1.ListenerConditionAccepted)) {
+			hasValidListener = true
 			break
 		}
 	}
 
-	if !listenersAreValid {
+	// If we have at least one valid listener, we will accept the gateway.
+	if !hasValidListener {
 		meta.SetStatusCondition(&newStatus.Conditions, metav1.Condition{
 			Type:               string(gatewayv1.GatewayConditionAccepted),
 			Status:             metav1.ConditionFalse,

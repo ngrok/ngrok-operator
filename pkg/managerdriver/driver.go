@@ -774,7 +774,14 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 			}
 		}
 
-		for _, listener := range gateway.Status.Listeners {
+		for addr := range addresses {
+			newStatus.Addresses = append(newStatus.Addresses, gatewayv1.GatewayStatusAddress{
+				Type:  ptr.To(gatewayv1.HostnameAddressType),
+				Value: addr,
+			})
+		}
+
+		for _, listener := range newStatus.Listeners {
 			if meta.IsStatusConditionFalse(listener.Conditions, string(gatewayv1.ListenerConditionAccepted)) {
 				continue
 			}
@@ -785,12 +792,12 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 				Reason:             string(gatewayv1.ListenerReasonProgrammed),
 				ObservedGeneration: gateway.Generation,
 			})
-		}
 
-		for addr := range addresses {
-			newStatus.Addresses = append(newStatus.Addresses, gatewayv1.GatewayStatusAddress{
-				Type:  ptr.To(gatewayv1.HostnameAddressType),
-				Value: addr,
+			meta.SetStatusCondition(&newStatus.Conditions, metav1.Condition{
+				Type:               string(gatewayv1.GatewayConditionProgrammed),
+				Status:             metav1.ConditionTrue,
+				Reason:             string(gatewayv1.GatewayReasonProgrammed),
+				ObservedGeneration: gateway.Generation,
 			})
 		}
 
