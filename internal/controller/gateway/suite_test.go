@@ -37,6 +37,7 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap/zapcore"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -77,7 +78,13 @@ func TestControllers(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	logf.SetLogger(
+		zap.New(
+			zap.WriteTo(GinkgoWriter),
+			zap.UseDevMode(true),
+			zap.Level(zapcore.Level(-5)),
+		),
+	)
 
 	ctx, cancel = context.WithCancel(GinkgoT().Context())
 

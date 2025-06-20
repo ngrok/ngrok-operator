@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -805,11 +806,8 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 			continue
 		}
 
-		// We shouldn't modfiy the objects from the store, so we need to
-		// create a copy of the gateway and update the status on that
-		gwCopy := gateway.DeepCopy()
-		gwCopy.Status = *newStatus
-		needsUpdate = append(needsUpdate, gwCopy)
+		gateway.Status = *newStatus
+		needsUpdate = append(needsUpdate, gateway)
 	}
 
 	if len(needsUpdate) == 0 {
@@ -826,6 +824,9 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 				current := new(gatewayv1.Gateway)
 				err := c.Get(ctx, client.ObjectKeyFromObject(gateway), current)
 				if err != nil {
+					if apierrors.IsNotFound(err) { // If the gateway was deleted, we don't need to update the status
+						return nil
+					}
 					return err
 				}
 

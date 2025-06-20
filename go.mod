@@ -15,6 +15,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.2
+	go.uber.org/zap v1.27.0
 	golang.ngrok.com/ngrok v1.12.0
 	golang.org/x/sync v0.13.0
 	google.golang.org/protobuf v1.36.5
@@ -85,7 +86,6 @@ require (
 	go.starlark.net v0.0.0-20230103143115-09991d3a103e // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.0 // indirect
 	golang.ngrok.com/muxado/v2 v2.0.1 // indirect
 	golang.org/x/mod v0.24.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
