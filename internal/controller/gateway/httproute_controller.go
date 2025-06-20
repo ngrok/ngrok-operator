@@ -45,7 +45,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -109,9 +111,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Validate the HTTPRoute before updating the store
-	if err := r.validateHTTPRoute(ctx, httproute); err != nil {
-		return ctrl.Result{}, err
-	}
+	_ = r.validateHTTPRoute(ctx, httproute)
 
 	// Update the HTTPRoute in the store if it passes validation
 	_, err = r.Driver.UpdateHTTPRoute(httproute)
@@ -131,7 +131,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	storedResources := []client.Object{
 		&gatewayv1.GatewayClass{},
-		&gatewayv1.Gateway{},
 		&corev1.Service{},
 		&ingressv1alpha1.Domain{},
 		&ingressv1alpha1.HTTPSEdge{},
@@ -149,6 +148,11 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				),
 			),
 		)
+
+	builder = builder.Watches(
+		&gatewayv1.Gateway{},
+		handler.EnqueueRequestsFromMapFunc(r.findHTTPRouteForGateway),
+	)
 
 	for _, obj := range storedResources {
 		builder = builder.Watches(
@@ -196,6 +200,7 @@ func (r *HTTPRouteReconciler) validateHTTPRoute(ctx context.Context, route *gate
 		}
 	}
 
+	log.V(3).Info("All parentRefs have been accepted", "parents", route.Status.RouteStatus.Parents)
 	return nil
 }
 
@@ -254,6 +259,7 @@ func (r *HTTPRouteReconciler) validateRouteParentRefs(ctx context.Context, route
 					break
 				}
 
+				log.Error(err, "Gateway not found", "parentRef", parentRefName, "namespace", parentRefNamespace)
 				cnd = r.newCondition(
 					route,
 					gatewayv1.RouteConditionAccepted,
@@ -324,4 +330,72 @@ func (r *HTTPRouteReconciler) newCondition(route *gatewayv1.HTTPRoute, t gateway
 		Reason:             string(reason),
 		Message:            msg,
 	}
+}
+
+func (r *HTTPRouteReconciler) findHTTPRouteForGateway(ctx context.Context, o client.Object) []reconcile.Request {
+	log := r.Log
+
+	gw, ok := o.(*gatewayv1.Gateway)
+	if !ok {
+		log.Error(nil, "object is not a Gateway", "object", o)
+		return nil
+	}
+
+	log = log.WithValues(
+		"gateway.name", gw.Name,
+		"gateway.namespace", gw.Namespace,
+		"gateway.gatewayClassName", gw.Spec.GatewayClassName,
+	)
+
+	gwc := &gatewayv1.GatewayClass{}
+	err := r.Client.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc)
+	if err != nil {
+		log.Error(err, "Failed to get GatewayClass", "gatewayClassName", gw.Spec.GatewayClassName)
+		return nil
+	}
+
+	if !ShouldHandleGatewayClass(gwc) {
+		log.V(5).Info("GatewayClass is not handled by this controller, ignoring")
+		return nil
+	}
+
+	routes := &gatewayv1.HTTPRouteList{}
+	err = r.Client.List(ctx, &gatewayv1.HTTPRouteList{})
+	if err != nil {
+		log.Error(err, "Failed to list HTTPRoutes")
+		return nil
+	}
+
+	requests := []reconcile.Request{}
+	log.V(3).Info("Finding HTTPRoutes for Gateway")
+	for _, route := range routes.Items {
+		for _, parentRef := range route.Spec.ParentRefs {
+			group := ptr.Deref(parentRef.Group, gatewayv1.GroupName)
+			if group != gatewayv1.GroupName {
+				log.V(5).Info("ParentRef group is not gateway.networking.k8s.io, ignoring", "group", parentRef.Group)
+				continue
+			}
+
+			kind := ptr.Deref(parentRef.Kind, gatewayv1.Kind("Gateway"))
+			if kind != "Gateway" {
+				log.V(5).Info("ParentRef kind is not Gateway, ignoring", "kind", parentRef.Kind)
+				continue
+			}
+
+			if string(parentRef.Name) != gw.Name || (parentRef.Namespace != nil && string(*parentRef.Namespace) != gw.Namespace) {
+				log.V(5).Info("ParentRef does not match Gateway, ignoring", "parentRef", parentRef)
+				continue
+			}
+
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: route.Namespace,
+					Name:      route.Name,
+				},
+			})
+			break // Only enqueue the route once per parentRef
+		}
+	}
+
+	return requests
 }

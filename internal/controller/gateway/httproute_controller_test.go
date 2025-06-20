@@ -125,7 +125,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 						g.Expect(cond).ToNot(BeNil())
 						g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 						g.Expect(cond.Reason).To(Equal(string(gatewayv1.RouteReasonNoMatchingParent)))
-					}, 30*time.Second, interval).Should(Succeed())
+					}, timeout, interval).Should(Succeed())
 				})
 			})
 		})
