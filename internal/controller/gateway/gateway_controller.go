@@ -26,6 +26,8 @@ package gateway
 
 import (
 	"context"
+	"errors"
+	"reflect"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +35,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -126,14 +129,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	// Accept the Gateway
-	if err := r.reconcileAcceptedCondition(ctx, gw); err != nil {
-		log.Error(err, "Failed to accept gateway")
-		return ctrl.Result{}, err
-	}
+	// Validate the Gateway, conditionally modifying the status of the Gateway
+	_ = r.validateGateway(ctx, gw)
 
-	_, err = r.Driver.UpdateGateway(gw)
-	if err != nil {
+	// Update the gateway in the store
+	if _, err := r.Driver.UpdateGateway(gw); err != nil {
+		log.Error(err, "Failed to update gateway in store")
 		return ctrl.Result{}, err
 	}
 
@@ -145,26 +146,223 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-func (r *GatewayReconciler) reconcileAcceptedCondition(ctx context.Context, gw *gatewayv1.Gateway) error {
-	changed := meta.SetStatusCondition(&gw.Status.Conditions, metav1.Condition{
-		Type:               string(gatewayv1.GatewayConditionAccepted),
-		Status:             metav1.ConditionTrue,
-		Reason:             string(gatewayv1.GatewayReasonAccepted),
-		Message:            "gateway accepted by the ngrok controller",
+const (
+	ListenerReasonHostnameRequired gatewayv1.ListenerConditionReason = "HostnameRequired"
+)
+
+// validateGateway validates the Gateway object, it will modify the status of the Gateway
+// to set the conditions if there are any errors. You could pass in a copy of the gateway object so
+// that the status can be modified without modifying the original object.
+func (r *GatewayReconciler) validateGateway(ctx context.Context, gw *gatewayv1.Gateway) error {
+	log := ctrl.LoggerFrom(ctx)
+	log.V(5).Info("Validating Gateway")
+
+	var changed bool
+	setStatusCondition := func(conditions *[]metav1.Condition, newCondition metav1.Condition) {
+		if meta.SetStatusCondition(conditions, newCondition) {
+			changed = true
+		}
+	}
+
+	// In order to preserve existing status conditions, we need copy an existing listener status
+	// if there is one.
+	listenerStatusByName := make(map[gatewayv1.SectionName]gatewayv1.ListenerStatus)
+	for _, l := range gw.Status.Listeners {
+		listenerStatusByName[l.Name] = l
+	}
+
+	// Copy the existing addresses and conditions from the existing status
+	newStatus := gatewayv1.GatewayStatus{
+		Addresses:  gw.Status.Addresses,
+		Conditions: gw.Status.Conditions,
+		Listeners:  []gatewayv1.ListenerStatus{},
+	}
+
+	// Listener Rules specific to the ngrok operator & ngrok product
+	// (1) ngrok does not support listening for HTTP/HTTPS traffic on arbitrary ports.
+	// Listeners that specify protocolTypeHTTP must listen on port 80.
+	// Listeners that specify protocolTypeHTTPS must listen on port 443.
+	// (2) ngrok does not support HTTP/HTTPS listeners without a hostname.
+	for _, l := range gw.Spec.Listeners {
+		listenerStatus, ok := listenerStatusByName[l.Name]
+		if !ok {
+			listenerStatus = gatewayv1.ListenerStatus{
+				Name:           l.Name,
+				SupportedKinds: []gatewayv1.RouteGroupKind{},
+				AttachedRoutes: 0,
+				Conditions:     []metav1.Condition{},
+			}
+		}
+
+		listenerValid := false
+
+		switch l.Protocol {
+		case gatewayv1.HTTPProtocolType:
+			switch {
+			case l.Port != 80:
+				setStatusCondition(&listenerStatus.Conditions, r.newListenerCondition(
+					gw,
+					gatewayv1.ListenerConditionAccepted,
+					gatewayv1.ListenerReasonPortUnavailable,
+					"ngrok only supports HTTP on port 80",
+				))
+			case l.Hostname == nil || *l.Hostname == "":
+				setStatusCondition(&listenerStatus.Conditions, r.newListenerCondition(
+					gw,
+					gatewayv1.ListenerConditionAccepted,
+					ListenerReasonHostnameRequired,
+					"ngrok does not support HTTP listeners without a hostname",
+				))
+			default:
+				listenerValid = true
+			}
+		case gatewayv1.HTTPSProtocolType:
+			switch {
+
+			case l.Port != 443:
+				setStatusCondition(&listenerStatus.Conditions, r.newListenerCondition(
+					gw,
+					gatewayv1.ListenerConditionAccepted,
+					gatewayv1.ListenerReasonPortUnavailable,
+					"ngrok only supports HTTPS on port 443",
+				))
+			case l.Hostname == nil || *l.Hostname == "":
+				setStatusCondition(&listenerStatus.Conditions, r.newListenerCondition(
+					gw,
+					gatewayv1.ListenerConditionAccepted,
+					ListenerReasonHostnameRequired,
+					"ngrok does not support HTTPS listeners without a hostname",
+				))
+			default:
+				listenerValid = true
+			}
+		case gatewayv1.UDPProtocolType:
+			setStatusCondition(&listenerStatus.Conditions, r.newListenerCondition(
+				gw,
+				gatewayv1.ListenerConditionAccepted,
+				gatewayv1.ListenerReasonUnsupportedProtocol,
+				"ngrok does not currently support UDP listeners",
+			))
+		default:
+			listenerValid = true
+		}
+
+		if listenerValid {
+			setStatusCondition(&listenerStatus.Conditions, r.newListenerCondition(
+				gw,
+				gatewayv1.ListenerConditionAccepted,
+				gatewayv1.ListenerReasonAccepted,
+				"listener accepted by the ngrok operator",
+			))
+
+			programmed := meta.FindStatusCondition(listenerStatus.Conditions, string(gatewayv1.ListenerConditionProgrammed))
+			if programmed == nil || programmed.Status != metav1.ConditionTrue {
+				setStatusCondition(&listenerStatus.Conditions, r.newListenerCondition(
+					gw,
+					gatewayv1.ListenerConditionProgrammed,
+					gatewayv1.ListenerReasonPending,
+					"listener is pending programming by the ngrok operator",
+				))
+			}
+		} else {
+			setStatusCondition(&listenerStatus.Conditions, r.newListenerCondition(
+				gw,
+				gatewayv1.ListenerConditionProgrammed,
+				gatewayv1.ListenerReasonInvalid,
+				"listener is not valid",
+			))
+		}
+
+		newStatus.Listeners = append(newStatus.Listeners, listenerStatus)
+	}
+
+	// Check if we have at least one valid(accepted) listener
+	hasValidListener := false
+	for _, l := range newStatus.Listeners {
+		if meta.IsStatusConditionTrue(l.Conditions, string(gatewayv1.ListenerConditionAccepted)) {
+			hasValidListener = true
+			break
+		}
+	}
+
+	// If we have at least one valid listener, we will accept the gateway.
+	if !hasValidListener {
+		setStatusCondition(&newStatus.Conditions, metav1.Condition{
+			Type:               string(gatewayv1.GatewayConditionAccepted),
+			Status:             metav1.ConditionFalse,
+			Reason:             string(gatewayv1.GatewayReasonListenersNotValid),
+			Message:            "gateway listeners are not valid",
+			ObservedGeneration: gw.Generation,
+		})
+	} else {
+		setStatusCondition(&newStatus.Conditions, metav1.Condition{
+			Type:               string(gatewayv1.GatewayConditionAccepted),
+			Status:             metav1.ConditionTrue,
+			Reason:             string(gatewayv1.GatewayReasonAccepted),
+			Message:            "gateway accepted by the ngrok controller",
+			ObservedGeneration: gw.Generation,
+		})
+	}
+
+	var gatewayValidationError error
+	if meta.IsStatusConditionTrue(newStatus.Conditions, string(gatewayv1.GatewayConditionAccepted)) {
+		gatewayValidationError = errors.New("gateway validation failed")
+	}
+
+	gw.Status = newStatus
+
+	if changed {
+		log.V(1).Info("Gateway validation changed, updating status")
+		if err := r.updateGatewayStatus(ctx, gw); err != nil {
+			log.Error(err, "Failed to update gateway status")
+			return err
+		}
+	}
+
+	return gatewayValidationError
+}
+
+func (r GatewayReconciler) newListenerCondition(gw *gatewayv1.Gateway, t gatewayv1.ListenerConditionType, reason gatewayv1.ListenerConditionReason, msg string) metav1.Condition {
+	status := metav1.ConditionTrue
+	if reason != gatewayv1.ListenerReasonAccepted && reason != gatewayv1.ListenerReasonResolvedRefs {
+		status = metav1.ConditionFalse
+	}
+	return metav1.Condition{
+		Type:               string(t),
+		Status:             status,
 		ObservedGeneration: gw.Generation,
+		Reason:             string(reason),
+		Message:            msg,
+	}
+}
+
+func (r *GatewayReconciler) updateGatewayStatus(ctx context.Context, gw *gatewayv1.Gateway) error {
+	log := ctrl.LoggerFrom(ctx)
+	log.V(1).Info("Updating Gateway status")
+
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := new(gatewayv1.Gateway)
+		err := r.Client.Get(ctx, client.ObjectKeyFromObject(gw), current)
+
+		if err != nil {
+			return err
+		}
+
+		if reflect.DeepEqual(current.Status, gw.Status) {
+			log.V(1).Info("Gateway status is already up to date")
+			return nil
+		}
+
+		current = current.DeepCopy()
+		current.Status = gw.Status
+
+		return r.Client.Status().Update(ctx, current)
 	})
 
-	if !changed {
-		return nil
+	if err != nil {
+		log.Error(err, "Failed to update gateway status")
 	}
 
-	log := ctrl.LoggerFrom(ctx)
-	log.V(1).Info("Accepting Gateway")
-	if err := r.Status().Update(ctx, gw); err != nil {
-		log.Error(err, "Failed to update gateway status")
-		return err
-	}
-	log.V(1).Info("Gateway accepted")
 	return nil
 }
 

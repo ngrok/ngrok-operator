@@ -37,6 +37,7 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap/zapcore"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -77,7 +78,13 @@ func TestControllers(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	logf.SetLogger(
+		zap.New(
+			zap.WriteTo(GinkgoWriter),
+			zap.UseDevMode(true),
+			zap.Level(zapcore.Level(-5)),
+		),
+	)
 
 	ctx, cancel = context.WithCancel(GinkgoT().Context())
 
@@ -210,16 +217,19 @@ var _ = BeforeEach(func() {
 })
 
 func CreateGatewayAndWaitForAcceptance(ctx SpecContext, gw *gatewayv1.Gateway, timeout time.Duration, interval time.Duration) {
+	GinkgoHelper()
 	Expect(k8sClient.Create(ctx, gw)).To(Succeed())
 	ExpectGatewayAccepted(ctx, gw, timeout, interval)
 }
 
 func CreateGatewayClassAndWaitForAcceptance(ctx SpecContext, gwc *gatewayv1.GatewayClass, timeout time.Duration, interval time.Duration) {
+	GinkgoHelper()
 	Expect(k8sClient.Create(ctx, gwc)).To(Succeed())
 	ExpectGatewayClassAccepted(ctx, gwc, timeout, interval)
 }
 
 func DeleteAllGatewayClasses(ctx SpecContext, timeout, interval time.Duration) {
+	GinkgoHelper()
 	Expect(k8sClient.DeleteAllOf(ctx, &gatewayv1.GatewayClass{})).To(Succeed())
 
 	// Wait for all the gateway classes to be deleted
@@ -231,6 +241,7 @@ func DeleteAllGatewayClasses(ctx SpecContext, timeout, interval time.Duration) {
 }
 
 func ExpectGatewayClassAccepted(ctx SpecContext, gwc *gatewayv1.GatewayClass, timeout time.Duration, interval time.Duration) {
+	GinkgoHelper()
 	Eventually(func(g Gomega) {
 		obj := &gatewayv1.GatewayClass{}
 		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gwc), obj)).To(Succeed())
@@ -239,6 +250,7 @@ func ExpectGatewayClassAccepted(ctx SpecContext, gwc *gatewayv1.GatewayClass, ti
 }
 
 func ExpectGatewayAccepted(ctx SpecContext, gw *gatewayv1.Gateway, timeout time.Duration, interval time.Duration) {
+	GinkgoHelper()
 	Eventually(func(g Gomega) {
 		obj := &gatewayv1.Gateway{}
 		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), obj)).To(Succeed())
@@ -246,4 +258,40 @@ func ExpectGatewayAccepted(ctx SpecContext, gw *gatewayv1.Gateway, timeout time.
 		g.Expect(cond).NotTo(BeNil())
 		g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 	}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+}
+
+func ExpectGatewayNotAccepted(ctx SpecContext, gw *gatewayv1.Gateway) AsyncAssertion {
+	GinkgoHelper()
+	return Eventually(func(g Gomega) {
+		obj := &gatewayv1.Gateway{}
+		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), obj)).To(Succeed())
+
+		cond := meta.FindStatusCondition(obj.Status.Conditions, string(gatewayv1.GatewayConditionAccepted))
+		g.Expect(cond).NotTo(BeNil())
+		g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+	})
+}
+
+func ExpectListenerStatus(ctx SpecContext, gw *gatewayv1.Gateway, listenerName gatewayv1.SectionName, t gatewayv1.ListenerConditionType, status metav1.ConditionStatus, reason gatewayv1.ListenerConditionReason) AsyncAssertion {
+	GinkgoHelper()
+	return Eventually(func(g Gomega) {
+		obj := &gatewayv1.Gateway{}
+		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), obj)).To(Succeed())
+
+		// Find the listener with the given name
+		var listener *gatewayv1.ListenerStatus
+		for _, l := range obj.Status.Listeners {
+			if l.Name == listenerName {
+				listener = &l
+				break
+			}
+		}
+		g.Expect(listener).NotTo(BeNil())
+
+		cnd := meta.FindStatusCondition(listener.Conditions, string(t))
+		g.Expect(cnd).NotTo(BeNil())
+
+		g.Expect(cnd.Status).To(Equal(status))
+		g.Expect(cnd.Reason).To(Equal(string(reason)))
+	})
 }
