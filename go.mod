@@ -1,6 +1,6 @@
 module github.com/ngrok/ngrok-operator
 
-go 1.24.2
+go 1.24.4
 
 require (
 	github.com/docker/docker v27.3.1+incompatible
