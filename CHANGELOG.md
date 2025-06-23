@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.16.1...ngrok-operator-0.17.0
+
+### Added
+- feat: Add a reclaimPolicy to domains by @jonstacks in [#641](https://github.com/ngrok/ngrok-operator/pull/641)
+- Add gatewayclass to store by @jonstacks in [#650](https://github.com/ngrok/ngrok-operator/pull/650)
+- feat(gateway-api): Set accepted conditions on gateways & httproutes by @jonstacks in [#651](https://github.com/ngrok/ngrok-operator/pull/651)
+- feat(gateway-api): Add gateay status addresses by @jonstacks in [#653](https://github.com/ngrok/ngrok-operator/pull/653)
+- feat(gateway-api): Validate gateway listeners hostname and port by @jonstacks in [#658](https://github.com/ngrok/ngrok-operator/pull/658)
+- feat(cloud-endpoints): Add CloudEndpoint ID to printer column by @jonstacks in [#647](https://github.com/ngrok/ngrok-operator/pull/647)
+
+### Changed
+- bake ca into image by @Megalonia in [#626](https://github.com/ngrok/ngrok-operator/pull/626)
+- chore(testing): Add tests for Domain Reconciler by @jonstacks in [#646](https://github.com/ngrok/ngrok-operator/pull/646)
+- Combine binaries by @masonj5n in [#648](https://github.com/ngrok/ngrok-operator/pull/648)
+- refactor: Update statuses concurrently and pre-calculate domains by @jonstacks in [#649](https://github.com/ngrok/ngrok-operator/pull/649)
+- perf: Enable 'use-errors-new' revive linter by @jonstacks in [#659](https://github.com/ngrok/ngrok-operator/pull/659)
+- chore(deprecation): Add deprecation notice to CRDs by @jonstacks in [#655](https://github.com/ngrok/ngrok-operator/pull/655). See [discussion](https://github.com/ngrok/ngrok-operator/discussions/654) for details.
+- chore(deps): Updated to go 1.24 by @jonstacks in [#642](https://github.com/ngrok/ngrok-operator/pull/642) and [#661](https://github.com/ngrok/ngrok-operator/pull/661).
+- chore: Use slices and maps from stdlib by @jonstacks in [#638](https://github.com/ngrok/ngrok-operator/pull/638)
+
+### Fixed
+- Periodically re-reconcile boundendpoints and refactor connectivity check by @masonj5n in [#628](https://github.com/ngrok/ngrok-operator/pull/628).
+- fix: Hanging connections by @jonstacks in [#657](https://github.com/ngrok/ngrok-operator/pull/657)
+- fix: httproute should enqueue requests when gateways are deleted by @jonstacks in [#660](https://github.com/ngrok/ngrok-operator/pull/660)
+
 ## 0.16.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.16.0...ngrok-operator-0.16.1
 
