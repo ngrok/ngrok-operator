@@ -32,10 +32,7 @@ jobs:
           repository: ${{github.event.pull_request.head.repo.full_name}}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run helm template
-        run: |
-          helm template ngrok-operator helm/ngrok-operator \
-            -n ngrok-operator \
-            --set credentials.secret.name="ngrok-operator-credentials" > manifest-bundle.yaml
+        run: make manifest-bundle
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
