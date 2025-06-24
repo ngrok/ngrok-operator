@@ -61,6 +61,8 @@ jobs:
         kubectl get httpsedges.ingress.k8s.ngrok.com
         kubectl get tlsedges.ingress.k8s.ngrok.com
         kubectl get tcpedges.ingress.k8s.ngrok.com
+        kubectl get cloudendpoints.ngrok.k8s.ngrok.com -A
+        kubectl get agentendpoints.ngrok.k8s.ngrok.com -A
     - name: Show logs of the ngrok-operator
       continue-on-error: true
       run: |

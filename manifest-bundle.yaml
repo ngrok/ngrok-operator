@@ -1,4 +1,19 @@
 ---
+# Source: ngrok-operator/templates/agent/service-account.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ngrok-operator-agent
+  namespace: ngrok-operator
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+---
 # Source: ngrok-operator/templates/controller-serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -6,10 +21,10 @@ metadata:
   name: ngrok-operator
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.15.0
+    helm.sh/chart: ngrok-operator-0.19.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/version: "0.17.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
@@ -32,6 +47,204 @@ data:
       leaderElect: true
       resourceName: ngrok-operator-leader
 ---
+# Source: ngrok-operator/templates/crds/bindings.k8s.ngrok.com_boundendpoints.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: boundendpoints.bindings.k8s.ngrok.com
+spec:
+  group: bindings.k8s.ngrok.com
+  names:
+    kind: BoundEndpoint
+    listKind: BoundEndpointList
+    plural: boundendpoints
+    singular: boundendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.endpointURI
+      name: URI
+      type: string
+    - jsonPath: .spec.port
+      name: Port
+      type: string
+    - jsonPath: .status.endpoints[0].status
+      name: Status
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: BoundEndpoint is the Schema for the boundendpoints API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: BoundEndpointSpec defines the desired state of BoundEndpoint
+            properties:
+              endpointURI:
+                description: |-
+                  EndpointURI is the unique identifier
+                  representing the BoundEndpoint + its Endpoints
+                  Format: <scheme>://<service>.<namespace>:<port>
+
+
+                  See: https://regex101.com/r/9QkXWl/1
+                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$
+                type: string
+              port:
+                description: Port is the Service port this Endpoint uses internally
+                  to communicate with its Upstream Service
+                type: integer
+              scheme:
+                default: https
+                description: |-
+                  Scheme is a user-defined field for endpoints that describe how the data packets
+                  are framed by the pod forwarders mTLS connection to the ngrok edge
+                enum:
+                - tcp
+                - http
+                - https
+                - tls
+                type: string
+              target:
+                description: EndpointTarget is the target Service that this Endpoint
+                  projects
+                properties:
+                  metadata:
+                    description: Metadata is a subset of metav1.ObjectMeta that is
+                      added to the Service
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Annotations is an unstructured key value map stored with a resource that may be
+                          set by external tools to store and retrieve arbitrary metadata. They are not
+                          queryable and should be preserved when modifying objects.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Map of string keys and values that can be used to organize and categorize
+                          (scope and select) objects. May match selectors of replication controllers
+                          and services.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+                        type: object
+                    type: object
+                  namespace:
+                    description: Namespace is the destination Namespace for the Service
+                      this Endpoint projects
+                    type: string
+                  port:
+                    description: Port is the Service targetPort this Endpoint's Target
+                      Service uses for requests
+                    format: int32
+                    type: integer
+                  protocol:
+                    default: TCP
+                    description: Protocol is the Service protocol this Endpoint uses
+                    enum:
+                    - TCP
+                    type: string
+                  service:
+                    description: Service is the name of the Service that this Endpoint
+                      projects
+                    type: string
+                required:
+                - namespace
+                - port
+                - protocol
+                - service
+                type: object
+            required:
+            - endpointURI
+            - port
+            - scheme
+            - target
+            type: object
+          status:
+            description: BoundEndpointStatus defines the observed state of BoundEndpoint
+            properties:
+              endpoints:
+                description: |-
+                  Endpoints is the list of BindingEndpoints that are created for this BoundEndpoint
+
+
+                  Note: The collection of Endpoints per Binding are Many-to-One
+                        The uniqueness of each Endpoint is not ID, but rather the 4-tuple <scheme,service-name,namespace,port>
+                        All Endpoints bound to a BoundEndpoint will share the same 4-tuple, statuses, errors, etc...
+                        this is because BoundEndpoint represents 1 Service, yet many Endpoints
+                items:
+                  description: BindingEndpoint is a reference to an Endpoint object
+                    in the ngrok API that is attached to the kubernetes operator binding
+                  properties:
+                    errorCode:
+                      description: ErrorCode is the ngrok API error code if the status
+                        is error
+                      pattern: ^ERR_NGROK_\d+$
+                      type: string
+                    errorMessage:
+                      description: ErrorMessage is a free-form error message if the
+                        status is error
+                      maxLength: 4096
+                      type: string
+                    id:
+                      description: a resource identifier
+                      type: string
+                    status:
+                      default: unknown
+                      description: BindingEndpointStatus is an enum that represents
+                        the status of a BindingEndpoint
+                      enum:
+                      - unknown
+                      - provisioning
+                      - bound
+                      - error
+                      type: string
+                    uri:
+                      description: a uri for locating a resource
+                      type: string
+                  required:
+                  - status
+                  type: object
+                type: array
+              hashedName:
+                description: HashName is the hashed output of the TargetService and
+                  TargetNamespace for unique identification
+                type: string
+            required:
+            - endpoints
+            - hashedName
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
 # Source: ngrok-operator/templates/crds/ingress.k8s.ngrok.com_domains.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -53,6 +266,10 @@ spec:
       jsonPath: .status.id
       name: ID
       type: string
+    - description: Reclaim Policy
+      jsonPath: .spec.reclaimPolicy
+      name: Reclaim Policy
+      type: string
     - description: Region
       jsonPath: .status.region
       name: Region
@@ -64,6 +281,7 @@ spec:
     - description: CNAME Target
       jsonPath: .status.cnameTarget
       name: CNAME Target
+      priority: 2
       type: string
     - description: Age
       jsonPath: .metadata.creationTimestamp
@@ -106,6 +324,14 @@ spec:
                 default: '{"owned-by":"kubernetes-ingress-controller"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
+                type: string
+              reclaimPolicy:
+                default: Delete
+                description: DomainReclaimPolicy is the policy to use when the domain
+                  is deleted
+                enum:
+                - Delete
+                - Retain
                 type: string
               region:
                 description: Region is the region in which to reserve the domain
@@ -154,7 +380,11 @@ spec:
     singular: httpsedge
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - deprecated: true
+    deprecationWarning: HTTPSEdge is deprecated and will be removed in a future release.
+      Please migrate to CloudEndpoint or AgentEndpoint instead. See https://github.com/ngrok/ngrok-operator/discussions/654
+      for more information.
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: HTTPSEdge is the Schema for the httpsedges API
@@ -1059,8 +1289,8 @@ spec:
                           type: array
                       type: object
                     policy:
-                      description: raw json policy string that was applied to the
-                        ngrok API
+                      description: TrafficPolicy is the raw json policy string that
+                        was applied to the ngrok API
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
                     saml:
@@ -1327,7 +1557,11 @@ spec:
     singular: ngrokmoduleset
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - deprecated: true
+    deprecationWarning: NgrokModuleSet is deprecated and will be removed in a future
+      release. Please migrate to traffic policies instead. See https://github.com/ngrok/ngrok-operator/discussions/654
+      for more information.
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: NgrokModuleSet is the Schema for the ngrokmodules API
@@ -2161,7 +2395,8 @@ spec:
                     type: array
                 type: object
               policy:
-                description: Policy configuration for this module set
+                description: Policy module is deprecated, use the `NgrokTrafficPolicy`
+                  CRD or the Gateway API instead
                 properties:
                   enabled:
                     description: Determines if the rule will be applied to traffic
@@ -2284,11 +2519,16 @@ spec:
                       connections to the edge
                     type: string
                   terminateAt:
+                    default: edge
                     description: |-
                       TerminateAt determines where the TLS connection should be terminated.
                       "edge" if the ngrok edge should terminate TLS traffic, "upstream" if TLS
                       traffic should be passed through to the upstream ngrok agent /
                       application server for termination.
+                    enum:
+                    - edge
+                    - agent
+                    - upstream
                     type: string
                 type: object
               webhookVerification:
@@ -2353,6 +2593,10 @@ spec:
       jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    deprecated: true
+    deprecationWarning: TCPEdge is deprecated and will be removed in a future release.
+      Please migrate to CloudEndpoint or AgentEndpoint instead. See https://github.com/ngrok/ngrok-operator/discussions/654
+      for more information.
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -2418,8 +2662,8 @@ spec:
                   the object in the ngrok API/Dashboard
                 type: string
               policy:
-                description: raw json policy string that was applied to the ngrok
-                  API
+                description: Policy is the raw json policy string that was applied
+                  to the ngrok API
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
             type: object
@@ -2486,6 +2730,10 @@ spec:
       jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    deprecated: true
+    deprecationWarning: TLSEdge is deprecated and will be removed in a future release.
+      Please migrate to CloudEndpoint or AgentEndpoint instead. See https://github.com/ngrok/ngrok-operator/discussions/654
+      for more information.
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -2566,8 +2814,8 @@ spec:
                     type: array
                 type: object
               policy:
-                description: raw json policy string that was applied to the ngrok
-                  API
+                description: Policy is the raw json policy string that was applied
+                  to the ngrok API
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
               tlsTermination:
@@ -2577,11 +2825,16 @@ spec:
                       connections to the edge
                     type: string
                   terminateAt:
+                    default: edge
                     description: |-
                       TerminateAt determines where the TLS connection should be terminated.
                       "edge" if the ngrok edge should terminate TLS traffic, "upstream" if TLS
                       traffic should be passed through to the upstream ngrok agent /
                       application server for termination.
+                    enum:
+                    - edge
+                    - agent
+                    - upstream
                     type: string
                 type: object
             type: object
@@ -2645,6 +2898,10 @@ spec:
       jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    deprecated: true
+    deprecationWarning: Tunnel is deprecated and will be removed in a future release.
+      Please migrate to AgentEndpoint instead. See https://github.com/ngrok/ngrok-operator/discussions/654
+      for more information.
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -2671,8 +2928,12 @@ spec:
             description: TunnelSpec defines the desired state of Tunnel
             properties:
               appProtocol:
-                description: The appProtocol for the backend. Currently only supports
-                  `http2`
+                description: |-
+                  Specifies the protocol to use when connecting to the backend. Currently only http1 and http2 are supported
+                  with prior knowledge (defaulting to http1).
+                enum:
+                - http1
+                - http2
                 type: string
               backend:
                 description: The configuration for backend connections to services
@@ -2692,6 +2953,504 @@ spec:
             type: object
           status:
             description: TunnelStatus defines the observed state of Tunnel
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: ngrok-operator/templates/crds/ngrok.k8s.ngrok.com_agentendpoints.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: agentendpoints.ngrok.k8s.ngrok.com
+spec:
+  group: ngrok.k8s.ngrok.com
+  names:
+    kind: AgentEndpoint
+    listKind: AgentEndpointList
+    plural: agentendpoints
+    shortNames:
+    - aep
+    singular: agentendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.url
+      name: URL
+      type: string
+    - jsonPath: .spec.upstream.url
+      name: Upstream URL
+      type: string
+    - jsonPath: .spec.bindings
+      name: Bindings
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Status')].status
+      name: Status
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: AgentEndpoint is the Schema for the agentendpoints API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AgentEndpointSpec defines the desired state of an AgentEndpoint
+            properties:
+              bindings:
+                description: |-
+                  List of Binding IDs to associate with the endpoint
+                  Accepted values are "public", "internal", or "kubernetes"
+                items:
+                  type: string
+                type: array
+              clientCertificateRefs:
+                description: List of client certificates to present to the upstream
+                  when performing a TLS handshake
+                items:
+                  properties:
+                    name:
+                      description: The name of the Kubernetes resource being referenced
+                      type: string
+                    namespace:
+                      description: The namespace of the Kubernetes resource being
+                        referenced
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              description:
+                default: Created by the ngrok-operator
+                description: Human-readable description of this agent endpoint
+                type: string
+              metadata:
+                default: '{"owned-by":"ngrok-operator"}'
+                description: String of arbitrary data associated with the object in
+                  the ngrok API/Dashboard
+                type: string
+              trafficPolicy:
+                description: |-
+                  Allows configuring a TrafficPolicy to be used with this AgentEndpoint
+                  When configured, the traffic policy is provided inline or as a reference to an NgrokTrafficPolicy resource
+                properties:
+                  inline:
+                    description: |-
+                      Inline definition of a TrafficPolicy to attach to the agent Endpoint
+                      The raw JSON-encoded policy that was applied to the ngrok API
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  targetRef:
+                    description: Reference to a TrafficPolicy resource to attach to
+                      the Agent Endpoint
+                    properties:
+                      name:
+                        description: The name of the Kubernetes resource being referenced
+                        type: string
+                    required:
+                    - name
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: targetRef or inline must be provided to trafficPolicy
+                  rule: has(self.inline) || has(self.targetRef)
+                - message: Only one of inline and targetRef can be configured for
+                    trafficPolicy
+                  rule: has(self.inline) != has(self.targetRef)
+              upstream:
+                description: Defines the destination for traffic to this AgentEndpoint
+                properties:
+                  protocol:
+                    description: |-
+                      Specifies the protocol to use when connecting to the upstream. Currently only http1 and http2 are supported
+                      with prior knowledge (defaulting to http1). alpn negotiation is not currently supported.
+                    enum:
+                    - http1
+                    - http2
+                    type: string
+                  proxyProtocolVersion:
+                    description: Optionally specify the version of proxy protocol
+                      to use if the upstream requires it
+                    enum:
+                    - 1
+                    - 2
+                    type: string
+                  url:
+                    description: |-
+                      The local or remote address you would like to incoming traffic to be forwarded to. Accepted formats are:
+                      Origin - https://example.org or http://example.org:80 or tcp://127.0.0.1:80
+                          When using the origin format you are defining the protocol, domain and port.
+                              When no port is present and scheme is https or http the port will be inferred.
+                                  For https port will be443.
+                                  For http port will be 80.
+                      Domain - example.org
+                          This is only allowed for https and http endpoints.
+                              For tcp and tls endpoints host and port is required.
+                          When using the domain format you are only defining the host.
+                              Scheme will default to http.
+                              Port will default to 80.
+                      Scheme (shorthand) - https://
+                          This only works for https and http.
+                              For tcp and tls host and port is required.
+                          When using scheme you are defining the protocol and the port will be inferred on the local host.
+                              For https port will be443.
+                              For http port will be 80.
+                              Host will be localhost.
+                      Port (shorthand) - 8080
+                          When using port you are defining the port on the local host that will receive traffic.
+                              Scheme will default to http.
+                              Host will default to localhost.
+                    type: string
+                required:
+                - url
+                type: object
+              url:
+                description: |-
+                  The unique URL for this agent endpoint. This URL is the public address. The following formats are accepted
+                  Domain - example.org
+                      When using the domain format you are only defining the domain. The scheme and port will be inferred.
+                  Origin - https://example.ngrok.app or https://example.ngrok.app:443 or tcp://1.tcp.ngrok.io:12345 or tls://example.ngrok.app
+                      When using the origin format you are defining the protocol, domain and port. HTTP endpoints accept ports 80 or 443 with respective protocol.
+                  Scheme (shorthand) - https:// or tcp:// or tls:// or http://
+                      When using scheme you are defining the protocol and will receive back a randomly assigned ngrok address.
+                  Empty - ``
+                      When empty your endpoint will default to be https and receive back a randomly assigned ngrok address.
+                  Internal - some.domain.internal
+                      When ending your url with .internal, an internal endpoint will be created. nternal Endpoints cannot be accessed directly, but rather
+                      can only be accessed using the forward-internal traffic policy action.
+                type: string
+            required:
+            - upstream
+            - url
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: ngrok-operator/templates/crds/ngrok.k8s.ngrok.com_cloudendpoints.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: cloudendpoints.ngrok.k8s.ngrok.com
+spec:
+  group: ngrok.k8s.ngrok.com
+  names:
+    kind: CloudEndpoint
+    listKind: CloudEndpointList
+    plural: cloudendpoints
+    shortNames:
+    - clep
+    singular: cloudendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.id
+      name: ID
+      type: string
+    - jsonPath: .spec.url
+      name: URL
+      type: string
+    - jsonPath: .spec.trafficPolicyName
+      name: Traffic Policy
+      type: string
+    - jsonPath: .spec.bindings
+      name: Bindings
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CloudEndpoint is the Schema for the cloudendpoints API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CloudEndpointSpec defines the desired state of CloudEndpoint
+            properties:
+              bindings:
+                description: |-
+                  Bindings is the list of Binding IDs to associate with the endpoint
+                  Accepted values are "public", "internal", or "kubernetes"
+                items:
+                  type: string
+                type: array
+              description:
+                default: Created by the ngrok-operator
+                description: Human-readable description of this cloud endpoint
+                type: string
+              metadata:
+                default: '{"owned-by":"ngrok-operator"}'
+                description: String of arbitrary data associated with the object in
+                  the ngrok API/Dashboard
+                type: string
+              poolingEnabled:
+                description: |-
+                  Controls whether or not the Cloud Endpoint should allow pooling with other
+                  Cloud Endpoints sharing the same URL. When Cloud Endpoints are pooled, any requests
+                  going to the URL for the pooled endpoint will be distributed among all Cloud Endpoints
+                  in the pool. A URL can only be shared across multiple Cloud Endpoints if they all have pooling enabled.
+                type: boolean
+              trafficPolicy:
+                description: Allows inline definition of a TrafficPolicy object
+                properties:
+                  policy:
+                    description: The raw json encoded policy that was applied to the
+                      ngrok API
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                type: object
+              trafficPolicyName:
+                description: Reference to the TrafficPolicy resource to attach to
+                  the Cloud Endpoint
+                type: string
+              url:
+                description: |-
+                  The unique URL for this cloud endpoint. This URL is the public address. The following formats are accepted
+                  Domain - example.org
+                      When using the domain format you are only defining the domain. The scheme and port will be inferred.
+                  Origin - https://example.ngrok.app or https://example.ngrok.app:443 or tcp://1.tcp.ngrok.io:12345 or tls://example.ngrok.app
+                      When using the origin format you are defining the protocol, domain and port. HTTP endpoints accept ports 80 or 443 with respective protocol.
+                  Scheme (shorthand) - https:// or tcp:// or tls:// or http://
+                      When using scheme you are defining the protocol and will receive back a randomly assigned ngrok address.
+                  Empty - ``
+                      When empty your endpoint will default to be https and receive back a randomly assigned ngrok address.
+                  Internal - some.domain.internal
+                      When ending your url with .internal, an internal endpoint will be created. nternal Endpoints cannot be accessed directly, but rather
+                      can only be accessed using the forward-internal traffic policy action.
+                type: string
+            required:
+            - url
+            type: object
+          status:
+            description: CloudEndpointStatus defines the observed state of CloudEndpoint
+            properties:
+              domain:
+                description: |-
+                  Domain is the DomainStatus object associated with this endpoint.
+                  For internal endpoints, this will be nil.
+                properties:
+                  cnameTarget:
+                    description: CNAMETarget is the CNAME target for the domain
+                    type: string
+                  domain:
+                    description: Domain is the domain that was reserved
+                    type: string
+                  id:
+                    description: ID is the unique identifier of the domain
+                    type: string
+                  region:
+                    description: Region is the region in which the domain was created
+                    type: string
+                  uri:
+                    description: URI of the reserved domain API resource
+                    type: string
+                type: object
+              id:
+                description: ID is the unique identifier for this endpoint
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: ngrok-operator/templates/crds/ngrok.k8s.ngrok.com_kubernetesoperators.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: kubernetesoperators.ngrok.k8s.ngrok.com
+spec:
+  group: ngrok.k8s.ngrok.com
+  names:
+    kind: KubernetesOperator
+    listKind: KubernetesOperatorList
+    plural: kubernetesoperators
+    singular: kubernetesoperator
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Kubernetes Operator ID
+      jsonPath: .status.id
+      name: ID
+      type: string
+    - jsonPath: .status.registrationStatus
+      name: Status
+      type: string
+    - jsonPath: .status.enabledFeatures
+      name: Enabled Features
+      type: string
+    - jsonPath: .spec.binding.endpointSelectors
+      name: Endpoint Selectors
+      type: string
+    - jsonPath: .spec.binding.ingressEndpoint
+      name: Binding Ingress Endpoint
+      priority: 2
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: KubernetesOperator is the Schema for the ngrok kubernetesoperators
+          API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              binding:
+                description: Configuration for the binding feature of this Kubernetes
+                  Operator
+                properties:
+                  endpointSelectors:
+                    description: EndpointSelectors is a list of cel expression that
+                      determine which kubernetes-bound Endpoints will be created by
+                      the operator
+                    items:
+                      type: string
+                    type: array
+                  ingressEndpoint:
+                    description: The public ingress endpoint for this Kubernetes Operator
+                    type: string
+                  tlsSecretName:
+                    default: default-tls
+                    description: TlsSecretName is the name of the k8s secret that
+                      contains the TLS private/public keys to use for the ngrok forwarding
+                      endpoint
+                    type: string
+                required:
+                - tlsSecretName
+                type: object
+              deployment:
+                description: Deployment information of this Kubernetes Operator
+                properties:
+                  name:
+                    description: Name is the name of the k8s deployment for the operator
+                    type: string
+                  namespace:
+                    description: The namespace in which the operator is deployed
+                    type: string
+                  version:
+                    description: The version of the operator that is currently running
+                    type: string
+                type: object
+              description:
+                default: Created by ngrok-operator
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
+                type: string
+              enabledFeatures:
+                description: Features enabled for this Kubernetes Operator
+                items:
+                  type: string
+                type: array
+              metadata:
+                default: '{"owned-by":"ngrok-operator"}'
+                description: Metadata is a string of arbitrary data associated with
+                  the object in the ngrok API/Dashboard
+                type: string
+              region:
+                default: global
+                description: |-
+                  The ngrok region in which the ingress for this operator is served. Defaults to
+                  "global" if not specified.
+                type: string
+            type: object
+          status:
+            description: KubernetesOperatorStatus defines the observed state of KubernetesOperator
+            properties:
+              bindingsIngressEndpoint:
+                description: |-
+                  BindingsIngressEndpoint is the URL that the operator will use to talk
+                  to the ngrok edge when forwarding traffic for k8s-bound endpoints
+                type: string
+              enabledFeatures:
+                description: EnabledFeatures is the string representation of the features
+                  enabled for this Kubernetes Operator
+                type: string
+              errorMessage:
+                description: RegistrationErrorMessage is a free-form error message
+                  if the status is error
+                maxLength: 4096
+                type: string
+              id:
+                description: ID is the unique identifier for this Kubernetes Operator
+                type: string
+              registrationErrorCode:
+                description: RegistrationErrorCode is the returned ngrok error code
+                pattern: ^ERR_NGROK_\d+$
+                type: string
+              registrationStatus:
+                default: pending
+                description: RegistrationStatus is the status of the registration
+                  of this Kubernetes Operator with the ngrok API
+                type: string
+              uri:
+                description: URI is the URI for this Kubernetes Operator
+                type: string
             type: object
         type: object
     served: true
@@ -2762,11 +3521,100 @@ spec:
     subresources:
       status: {}
 ---
+# Source: ngrok-operator/templates/agent/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-agent-role
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - tunnels/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+---
 # Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ngrok-ingress-controller-proxy-role
+  name: ngrok-operator-proxy-role
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -2781,16 +3629,208 @@ rules:
   verbs:
   - create
 ---
+# Source: ngrok-operator/templates/rbac/bindingconfiguration_editor_role.yaml
+# permissions for end users to edit bindingconfigurations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-bindingconfiguration-editor-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - bindingconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - bindingconfigurations/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/bindingconfiguration_viewer_role.yaml
+# permissions for end users to view bindingconfigurations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-bindingconfiguration-viewer-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - bindingconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - bindingconfigurations/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/boundendpoint_editor_role.yaml
+# permissions for end users to edit boundendpoints
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-boundendpoint-editor-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - boundendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - boundendpoints/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/boundendpoint_viewer_role.yaml
+# permissions for end users to view boundendpoints
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-boundendpoint-viewer-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - boundendpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - boundendpoints/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/cloudendpoint_editor_role.yaml
+# permissions for end users to edit cloudendpoints
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-cloudendpoint-editor-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/cloudendpoint_viewer_role.yaml
+# permissions for end users to view cloudendpoints
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-cloudendpoint-viewer-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get
+---
 # Source: ngrok-operator/templates/rbac/domain_editor_role.yaml
 # permissions for end users to edit domains.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.15.0
+    helm.sh/chart: ngrok-operator-0.19.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/version: "0.17.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
@@ -2821,10 +3861,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.15.0
+    helm.sh/chart: ngrok-operator-0.19.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/version: "0.17.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
@@ -2851,13 +3891,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: httpsedge-editor-role
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: httpsedge-editor-role
+  name: ngrok-operator-httpsedge-editor-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -2884,13 +3925,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: httpsedge-viewer-role
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: httpsedge-viewer-role
+  name: ngrok-operator-httpsedge-viewer-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -2913,13 +3955,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: ippolicy-editor-role
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: ippolicy-editor-role
+  name: ngrok-operator-ippolicy-editor-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -2946,13 +3989,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: ippolicy-viewer-role
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: ippolicy-viewer-role
+  name: ngrok-operator-ippolicy-viewer-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -2975,13 +4019,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: ngrokmoduleset-editor-role
-    app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-operator
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
     app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: kustomize
-  name: ngrokmoduleset-editor-role
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-ngrokmoduleset-editor-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -3008,13 +4053,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: ngrokmoduleset-viewer-role
-    app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-operator
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
     app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: kustomize
-  name: ngrokmoduleset-viewer-role
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-ngrokmoduleset-viewer-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -3028,6 +4074,70 @@ rules:
   - ingress.k8s.ngrok.com
   resources:
   - ngrokmodulesets/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/operatorconfiguration_editor_role.yaml
+# permissions for end users to edit operatorconfigurations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-operatorconfiguration-editor-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - operatorconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - operatorconfigurations/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/operatorconfiguration_viewer_role.yaml
+# permissions for end users to view operatorconfigurations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: rbac
+  name: ngrok-operator-operatorconfiguration-viewer-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - operatorconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - operatorconfigurations/status
   verbs:
   - get
 ---
@@ -3092,10 +4202,38 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gateway.networking.k8s.io
+  - bindings.k8s.ngrok.com
   resources:
-  - gatewayclasses
+  - boundendpoints
   verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - boundendpoints/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - boundendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
   - get
   - list
   - update
@@ -3103,10 +4241,28 @@ rules:
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
+  - gatewayclasses
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
   - gatewayclasses/status
   verbs:
   - get
   - list
+  - patch
   - update
   - watch
 - apiGroups:
@@ -3140,6 +4296,50 @@ rules:
   - gateway.networking.k8s.io
   resources:
   - httproutes/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - referencegrants
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tcproutes
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tcproutes/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tlsroutes
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tlsroutes/status
   verbs:
   - get
   - list
@@ -3338,6 +4538,84 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
+  - agentendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
   - ngroktrafficpolicies
   verbs:
   - create
@@ -3368,13 +4646,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: tcpedge-editor-role
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: tcpedge-editor-role
+  name: ngrok-operator-tcpedge-editor-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -3401,13 +4680,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: tcpedge-viewer-role
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: tcpedge-viewer-role
+  name: ngrok-operator-tcpedge-viewer-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -3430,13 +4710,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: tlsedge-editor-role
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: tlsedge-editor-role
+  name: ngrok-operator-tlsedge-editor-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -3463,13 +4744,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: tlsedge-viewer-role
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: ngrok-ingress-controller
-    app.kubernetes.io/part-of: ngrok-ingress-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: tlsedge-viewer-role
+  name: ngrok-operator-tlsedge-viewer-role
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -3492,10 +4774,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.15.0
+    helm.sh/chart: ngrok-operator-0.19.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/version: "0.17.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
@@ -3526,10 +4808,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.15.0
+    helm.sh/chart: ngrok-operator-0.19.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/version: "0.17.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: rbac
@@ -3550,15 +4832,29 @@ rules:
   verbs:
   - get
 ---
+# Source: ngrok-operator/templates/agent/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ngrok-operator-agent-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ngrok-operator-agent-role
+subjects:
+- kind: ServiceAccount
+  name: ngrok-operator-agent
+  namespace: ngrok-operator
+---
 # Source: ngrok-operator/templates/controller-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ngrok-ingress-controller-manager-rolebinding
+  name: ngrok-operator-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ngrok-ingress-controller-manager-role
+  name: ngrok-operator-manager-role
 subjects:
 - kind: ServiceAccount
   name: ngrok-operator
@@ -3568,11 +4864,11 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ngrok-ingress-controller-proxy-rolebinding
+  name: ngrok-operator-proxy-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ngrok-ingress-controller-proxy-role
+  name: ngrok-operator-proxy-role
 subjects:
 - kind: ServiceAccount
   name: ngrok-operator
@@ -3582,7 +4878,7 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: ngrok-ingress-controller-leader-election-role
+  name: ngrok-operator-leader-election-role
   namespace: ngrok-operator
 rules:
 - apiGroups:
@@ -3621,34 +4917,135 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: ngrok-ingress-controller-leader-election-rolebinding
+  name: ngrok-operator-leader-election-rolebinding
   namespace: ngrok-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: ngrok-ingress-controller-leader-election-role
+  name: ngrok-operator-leader-election-role
 subjects:
 - kind: ServiceAccount
   name: ngrok-operator
   namespace: ngrok-operator
+---
+# Source: ngrok-operator/templates/agent/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    helm.sh/chart: ngrok-operator-0.19.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: agent
+  name: ngrok-operator-agent
+  namespace: ngrok-operator
+  annotations:
+    checksum/rbac: a54fd2dfd1421959807938ef7e8ace3fdc2a2c12635968ceb0af729b7d3c0468
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ngrok-operator
+      app.kubernetes.io/instance: ngrok-operator
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: '8080'
+        prometheus.io/scrape: 'true'
+        checksum/rbac: a54fd2dfd1421959807938ef7e8ace3fdc2a2c12635968ceb0af729b7d3c0468
+      labels:
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/instance: ngrok-operator
+        app.kubernetes.io/component: agent
+    spec:
+      affinity:
+        podAffinity:
+          
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: ngrok-operator
+                    app.kubernetes.io/name: ngrok-operator
+                    app.kubernetes.io/component: agent
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          
+      
+      serviceAccountName: ngrok-operator-agent
+      containers:
+      - name: agent
+        image: docker.io/ngrok/ngrok-operator:0.17.0
+        imagePullPolicy: IfNotPresent
+        command:
+        - /ngrok-operator
+        args:
+        - agent-manager
+        - --enable-feature-ingress=true
+        - --enable-feature-gateway=true
+        - --disable-reference-grants=false
+        - --description="The official ngrok Kubernetes Operator."
+        - --zap-log-level=info
+        - --zap-stacktrace-level=error
+        - --zap-encoder=json
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8080
+        - --manager-name=ngrok-operator-agent-manager
+        - --default-domain-reclaim-policy=Delete
+        securityContext:
+          allowPrivilegeEscalation: false
+        env:
+        - name: NGROK_AUTHTOKEN
+          valueFrom:
+            secretKeyRef:
+              key: AUTHTOKEN
+              name: ngrok-operator-credentials
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: HELM_RELEASE_NAME
+          value: "ngrok-operator"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits: {}
+          requests: {}
 ---
 # Source: ngrok-operator/templates/controller-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.15.0
+    helm.sh/chart: ngrok-operator-0.19.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/version: "0.17.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: ed37888050e245ffd6475cd4ffdb4f441de1c6be6c4f398ca6cc7f67b77cf8c3
-    checksum/rbac: 23ce04dfd4dc3a00a0ffdf26cde962c673175d116e34684e09fae5cc12bae4e6
+    checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
+    checksum/rbac: 2e07378e8ddca5d310017d13d9b93eaa8aab75c0652d8f28edea5fd4518d97ad
 spec:
   replicas: 1
   selector:
@@ -3662,8 +5059,8 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: ed37888050e245ffd6475cd4ffdb4f441de1c6be6c4f398ca6cc7f67b77cf8c3
-        checksum/rbac: 23ce04dfd4dc3a00a0ffdf26cde962c673175d116e34684e09fae5cc12bae4e6
+        checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
+        checksum/rbac: 2e07378e8ddca5d310017d13d9b93eaa8aab75c0652d8f28edea5fd4518d97ad
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
         app.kubernetes.io/name: ngrok-operator
@@ -3685,15 +5082,23 @@ spec:
               weight: 1
         nodeAffinity:
           
+      
       serviceAccountName: ngrok-operator
       containers:
-      - name: ngrok-ingress-controller
-        image: docker.io/ngrok/ngrok-operator:0.12.2
+      - name: ngrok-operator
+        image: docker.io/ngrok/ngrok-operator:0.17.0
         imagePullPolicy: IfNotPresent
         command:
-        - /manager
+        - /ngrok-operator
         args:
-        - --controller-name=k8s.ngrok.com/ingress-controller
+        - api-manager
+        - --release-name=ngrok-operator
+        - --default-domain-reclaim-policy=Delete
+        - --enable-feature-ingress=true
+        - --enable-feature-gateway=true
+        - --disable-reference-grants=false
+        - --description="The official ngrok Kubernetes Operator."
+        - --ingress-controller-name=k8s.ngrok.com/ingress-controller
         - --zap-log-level=info
         - --zap-stacktrace-level=error
         - --zap-encoder=json
@@ -3710,15 +5115,12 @@ spec:
             secretKeyRef:
               key: API_KEY
               name: ngrok-operator-credentials
-        - name: NGROK_AUTHTOKEN
-          valueFrom:
-            secretKeyRef:
-              key: AUTHTOKEN
-              name: ngrok-operator-credentials
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: HELM_RELEASE_NAME
+          value: "ngrok-operator"
         livenessProbe:
           httpGet:
             path: /healthz
@@ -3740,10 +5142,10 @@ apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.15.0
+    helm.sh/chart: ngrok-operator-0.19.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.12.2"
+    app.kubernetes.io/version: "0.17.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller

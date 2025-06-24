@@ -15,6 +15,12 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 		output:rbac:artifacts:config=$(HELM_TEMPLATES_DIR)/rbac
 
 
+.PHONY: manifest-bundle
+manifest-bundle: ## Generates the manifest-bundle at the root of the repo.
+	helm template ngrok-operator $(HELM_CHART_DIR) \
+		--namespace $(KUBE_NAMESPACE) \
+		--set credentials.secret.name="ngrok-operator-credentials" > manifest-bundle.yaml
+
 .PHONY: helm-update-snapshots
 helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
 	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
