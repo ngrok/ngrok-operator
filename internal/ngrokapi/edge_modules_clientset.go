@@ -7,7 +7,6 @@ import (
 )
 
 type EdgeModulesClientset interface {
-	TCP() TCPEdgeModulesClientset
 	HTTPS() HTTPSEdgeModulesClientset
 	TLS() TLSEdgeModulesClientset
 }
@@ -26,21 +25,15 @@ type EdgeRouteModulesReplacer[R, T any] interface {
 }
 
 type defaultEdgeModulesClientset struct {
-	tcp   *defaultTCPEdgeModulesClientset
 	https *defaultHTTPSEdgeModulesClientset
 	tls   *defaultTLSEdgeModulesClientset
 }
 
 func newEdgeModulesClientset(config *ngrok.ClientConfig) *defaultEdgeModulesClientset {
 	return &defaultEdgeModulesClientset{
-		tcp:   newTCPEdgeModulesClientset(config),
 		https: newHTTPSEdgeModulesClientset(config),
 		tls:   newTLSEdgeModulesClientset(config),
 	}
-}
-
-func (c *defaultEdgeModulesClientset) TCP() TCPEdgeModulesClientset {
-	return c.tcp
 }
 
 func (c *defaultEdgeModulesClientset) HTTPS() HTTPSEdgeModulesClientset {

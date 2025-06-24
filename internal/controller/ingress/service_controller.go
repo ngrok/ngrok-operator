@@ -107,7 +107,6 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	owns := []client.Object{
 		&ingressv1alpha1.Tunnel{},
-		&ingressv1alpha1.TCPEdge{},
 		&ingressv1alpha1.TLSEdge{},
 		&ngrokv1alpha1.AgentEndpoint{},
 		&ngrokv1alpha1.CloudEndpoint{},
@@ -195,7 +194,6 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=ngrokmodulesets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tunnels,verbs=get;list;watch;create;update;delete
-// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tcpedges,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges,verbs=get;list;watch;create;update;delete
 
 // This reconcile function is called by the controller-runtime manager.
@@ -213,7 +211,6 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	subResourceReconcilers := serviceSubresourceReconcilers{
-		newServiceTCPEdgeReconciler(),
 		newServiceTLSEdgeReconciler(),
 		newServiceTunnelReconciler(),
 		newServiceCloudEndpointReconciler(),
@@ -267,7 +264,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 		}
 
-		// Once we clean up the tunnels and TCP edges, we can remove the finalizer if it exists. We don't
+		// Once we clean up the tunnels and Cloud/Agent Endpoints, we can remove the finalizer if it exists. We don't
 		// care about registering a finalizer since we only care about load balancer services
 		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
 			log.Error(err, "Failed to remove finalizer")
@@ -295,23 +292,15 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	// Best effort to try to use endpoints(if configured via annotation and eventually as a global default).
-	// If the conversion of modulesets -> trafficpolicy fails or there is some other error such that we can't
-	// build the desired endpoints correctly, we will fall back to using tunnels and edges
-	// and just bubble up the error as an event on the service
-	if mappingStrategy != ir.IRMappingStrategy_Edges {
-		desired, err = r.buildEndpoints(ctx, svc, mappingStrategy)
-		if err != nil {
-			log.Error(err, "Failed to build desired endpoints")
-			r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToBuildEndpoints", err.Error())
-			desired, err = r.buildTunnelAndEdge(ctx, svc)
-		}
-	} else {
-		desired, err = r.buildTunnelAndEdge(ctx, svc)
+	if mappingStrategy == ir.IRMappingStrategy_Edges {
+		log.Info("The 'edges' mapping strategy is no longer supported. Defaulting to 'endpoints' mapping strategy.")
+		mappingStrategy = ir.IRMappingStrategy_EndpointsDefault
 	}
 
+	desired, err = r.buildEndpoints(ctx, svc, mappingStrategy)
 	if err != nil {
-		log.Error(err, "Failed to build desired resources")
+		log.Error(err, "Failed to build desired endpoints")
+		r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToBuildEndpoints", err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -679,115 +668,6 @@ func (r *ServiceReconciler) getListenerURL(svc *corev1.Service) (string, error) 
 	return "tcp://", nil
 }
 
-func (r *ServiceReconciler) buildTunnelAndEdge(ctx context.Context, svc *corev1.Service) ([]client.Object, error) {
-	log := ctrl.LoggerFrom(ctx)
-
-	port := svc.Spec.Ports[0].Port
-	objects := make([]client.Object, 0)
-
-	backendLabels := map[string]string{
-		"k8s.ngrok.com/namespace":   svc.Namespace,
-		"k8s.ngrok.com/service":     svc.Name,
-		"k8s.ngrok.com/service-uid": string(svc.UID),
-		"k8s.ngrok.com/port":        strconv.Itoa(int(port)),
-	}
-
-	tunnel := &ingressv1alpha1.Tunnel{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: svc.Name + "-",
-			Namespace:    svc.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
-			},
-		},
-		Spec: ingressv1alpha1.TunnelSpec{
-			ForwardsTo: fmt.Sprintf("%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
-			Labels:     backendLabels,
-		},
-	}
-	objects = append(objects, tunnel)
-
-	// Get the modules from the service annotations
-	moduleSets, err := getNgrokModuleSetForService(ctx, r.Client, svc)
-	if err != nil {
-		log.Error(err, "Failed to get module sets")
-		return objects, err
-	}
-
-	policy, err := getNgrokTrafficPolicyForService(ctx, r.Client, svc)
-	if err != nil {
-		log.Error(err, "Failed to get traffic policy")
-		return objects, err
-	}
-
-	listenerURL, err := r.getListenerURL(svc)
-	if err != nil {
-		r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToGetListenerURL", err.Error())
-		return objects, err
-	}
-
-	parsedURL, err := url.Parse(listenerURL)
-	if err != nil {
-		return objects, err
-	}
-
-	if parsedURL.Scheme == "tcp" {
-		edge := &ingressv1alpha1.TCPEdge{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: svc.Name + "-",
-				Namespace:    svc.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
-				},
-				Annotations: map[string]string{},
-			},
-			Spec: ingressv1alpha1.TCPEdgeSpec{
-				Backend: ingressv1alpha1.TunnelGroupBackend{
-					Labels: backendLabels,
-				},
-			},
-		}
-		if moduleSets != nil {
-			edge.Spec.IPRestriction = moduleSets.Modules.IPRestriction
-		}
-		if policy != nil {
-			edge.Spec.Policy = policy.Spec.Policy
-		}
-
-		objects = append(objects, edge)
-	} else {
-		edge := &ingressv1alpha1.TLSEdge{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: svc.Name + "-",
-				Namespace:    svc.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
-				},
-				Annotations: map[string]string{},
-			},
-			Spec: ingressv1alpha1.TLSEdgeSpec{
-				Backend: ingressv1alpha1.TunnelGroupBackend{
-					Labels: backendLabels,
-				},
-				Hostports: []string{
-					fmt.Sprintf("%s:443", parsedURL.Hostname()),
-				},
-			},
-		}
-		if moduleSets != nil {
-			edge.Spec.IPRestriction = moduleSets.Modules.IPRestriction
-			edge.Spec.MutualTLS = moduleSets.Modules.MutualTLS
-			edge.Spec.TLSTermination = moduleSets.Modules.TLSTermination
-		}
-		if policy != nil {
-			edge.Spec.Policy = policy.Spec.Policy
-		}
-		objects = append(objects, edge)
-	}
-
-	return objects, nil
-}
-
 func shouldHandleService(svc *corev1.Service) bool {
 	return svc.Spec.Type == corev1.ServiceTypeLoadBalancer &&
 		ptr.Deref(svc.Spec.LoadBalancerClass, "") == NgrokLoadBalancerClass
@@ -945,51 +825,6 @@ func (r *baseSubresourceReconciler[T, PT]) UpdateServiceStatus(ctx context.Conte
 	}
 
 	return r.updateStatus(ctx, c, svc, v)
-}
-
-func newServiceTCPEdgeReconciler() serviceSubresourceReconciler {
-	return &baseSubresourceReconciler[ingressv1alpha1.TCPEdge, *ingressv1alpha1.TCPEdge]{
-		listOwned: func(ctx context.Context, c client.Client, opts ...client.ListOption) ([]ingressv1alpha1.TCPEdge, error) {
-			edges := &ingressv1alpha1.TCPEdgeList{}
-			if err := c.List(ctx, edges, opts...); err != nil {
-				return nil, err
-			}
-			return edges.Items, nil
-		},
-		matches: func(desired, existing ingressv1alpha1.TCPEdge) bool {
-			return reflect.DeepEqual(existing.Spec, desired.Spec)
-		},
-		mergeExisting: func(desired ingressv1alpha1.TCPEdge, existing *ingressv1alpha1.TCPEdge) {
-			existing.Spec = desired.Spec
-		},
-		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, edge *ingressv1alpha1.TCPEdge) error {
-			clearIngressStatus := func(svc *corev1.Service) error {
-				svc.Status.LoadBalancer.Ingress = nil
-				return c.Status().Update(ctx, svc)
-			}
-
-			if len(edge.Status.Hostports) == 0 {
-				return clearIngressStatus(svc)
-			}
-			host, port, err := parseHostAndPort(edge.Status.Hostports[0])
-			if err != nil {
-				return err
-			}
-
-			svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
-				{
-					Hostname: host,
-					Ports: []corev1.PortStatus{
-						{
-							Port:     port,
-							Protocol: corev1.ProtocolTCP,
-						},
-					},
-				},
-			}
-			return c.Status().Update(ctx, svc)
-		},
-	}
 }
 
 func newServiceTLSEdgeReconciler() serviceSubresourceReconciler {

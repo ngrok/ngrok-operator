@@ -39,7 +39,6 @@ The following controllers for the most part manage a single resource and reflect
 - [IP Policy Controller](../../internal/controller/ingress/ippolicy_controller.go): It simply watches these CRDs and reflects the changes in the ngrok API.
 - [Domain Controller](../../internal/controller/ingress/domain_controller.go): It will watch for domain CRDs and reflect those changes in the ngrok API. It will also update the domain CRD objects' status fields with the current state of the domain in the ngrok API, such as a CNAME target if it's a white label domain.
 - [HTTPS Edge Controller](../../internal/controller/ingress/httpsedge_controller.go): This CRD contains all the data necessary to build not just the edge, but also all routes, backends, and route modules by calling various ngrok APIs to combine resources. The HTTPSEdge CRD is the common type other controllers can create based on different source inputs like Ingress objects or Gateway objects.
-- [TCP Edge Controller](../../internal/controller/ingress/tcpedge_controller.go): This CRD contains all the data necessary to build the edge and any edge modules configured. It will likely be a first class CRD used by consumers of the controller to create TCP edges because Kubernetes Ingress does not support TCP.
 
 The following controllers are more complex and manage multiple resources and reflect those changes in the ngrok API.
 
@@ -75,7 +74,6 @@ The API manager is a leader elected manager that runs the following controllers 
 * Domain Controller
 * IP Policy Controller
 * HTTPS Edge Controller
-* TCP Edge Controller
 * TLS Edge Controller
 * Service Controller
 * NgrokModuleSet Controller

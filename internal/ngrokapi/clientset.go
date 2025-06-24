@@ -7,7 +7,6 @@ import (
 	tunnel_group_backends "github.com/ngrok/ngrok-api-go/v7/backends/tunnel_group"
 	https_edges "github.com/ngrok/ngrok-api-go/v7/edges/https"
 	https_edge_routes "github.com/ngrok/ngrok-api-go/v7/edges/https_routes"
-	tcp_edges "github.com/ngrok/ngrok-api-go/v7/edges/tcp"
 	tls_edges "github.com/ngrok/ngrok-api-go/v7/edges/tls"
 	"github.com/ngrok/ngrok-api-go/v7/endpoints"
 	"github.com/ngrok/ngrok-api-go/v7/ip_policies"
@@ -27,7 +26,6 @@ type Clientset interface {
 	IPPolicyRules() IPPolicyRulesClient
 	KubernetesOperators() KubernetesOperatorsClient
 	TCPAddresses() TCPAddressesClient
-	TCPEdges() TCPEdgesClient
 	TLSEdges() TLSEdgesClient
 	TunnelGroupBackends() TunnelGroupBackendsClient
 }
@@ -42,7 +40,6 @@ type DefaultClientset struct {
 	ipPolicyRulesClient       *ip_policy_rules.Client
 	kubernetesOperatorsClient *kubernetes_operators.Client
 	tcpAddrsClient            *reserved_addrs.Client
-	tcpEdgesClient            *tcp_edges.Client
 	tlsEdgesClient            *tls_edges.Client
 	tunnelGroupBackendsClient *tunnel_group_backends.Client
 }
@@ -59,7 +56,6 @@ func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
 		ipPolicyRulesClient:       ip_policy_rules.NewClient(config),
 		kubernetesOperatorsClient: kubernetes_operators.NewClient(config),
 		tcpAddrsClient:            reserved_addrs.NewClient(config),
-		tcpEdgesClient:            tcp_edges.NewClient(config),
 		tlsEdgesClient:            tls_edges.NewClient(config),
 		tunnelGroupBackendsClient: tunnel_group_backends.NewClient(config),
 	}
@@ -191,18 +187,6 @@ type TLSEdgesClient interface {
 
 func (c *DefaultClientset) TLSEdges() TLSEdgesClient {
 	return c.tlsEdgesClient
-}
-
-type TCPEdgesClient interface {
-	Creator[*ngrok.TCPEdgeCreate, *ngrok.TCPEdge]
-	Reader[*ngrok.TCPEdge]
-	Updater[*ngrok.TCPEdgeUpdate, *ngrok.TCPEdge]
-	Deletor
-	Lister[*ngrok.TCPEdge]
-}
-
-func (c *DefaultClientset) TCPEdges() TCPEdgesClient {
-	return c.tcpEdgesClient
 }
 
 type TunnelGroupBackendsClient interface {

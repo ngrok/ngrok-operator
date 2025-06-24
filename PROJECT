@@ -33,15 +33,6 @@ resources:
   controller: true
   domain: k8s.ngrok.com
   group: ingress
-  kind: TCPEdge
-  path: github.com/ngrok/ngrok-operator/api/ingress/v1alpha1
-  version: v1alpha1
-- api:
-    crdVersion: v1
-    namespaced: true
-  controller: true
-  domain: k8s.ngrok.com
-  group: ingress
   kind: HTTPSEdge
   path: github.com/ngrok/ngrok-operator/api/ingress/v1alpha1
   version: v1alpha1
