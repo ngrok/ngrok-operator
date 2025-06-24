@@ -107,7 +107,6 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	owns := []client.Object{
 		&ingressv1alpha1.Tunnel{},
-		&ingressv1alpha1.TLSEdge{},
 		&ngrokv1alpha1.AgentEndpoint{},
 		&ngrokv1alpha1.CloudEndpoint{},
 	}
@@ -194,7 +193,6 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=ngrokmodulesets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tunnels,verbs=get;list;watch;create;update;delete
-// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=tlsedges,verbs=get;list;watch;create;update;delete
 
 // This reconcile function is called by the controller-runtime manager.
 // It is invoked whenever there is an event that occurs for a resource
@@ -211,7 +209,6 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	subResourceReconcilers := serviceSubresourceReconcilers{
-		newServiceTLSEdgeReconciler(),
 		newServiceTunnelReconciler(),
 		newServiceCloudEndpointReconciler(),
 		newServiceAgentEndpointReconciler(),
@@ -825,56 +822,6 @@ func (r *baseSubresourceReconciler[T, PT]) UpdateServiceStatus(ctx context.Conte
 	}
 
 	return r.updateStatus(ctx, c, svc, v)
-}
-
-func newServiceTLSEdgeReconciler() serviceSubresourceReconciler {
-	return &baseSubresourceReconciler[ingressv1alpha1.TLSEdge, *ingressv1alpha1.TLSEdge]{
-		listOwned: func(ctx context.Context, c client.Client, opts ...client.ListOption) ([]ingressv1alpha1.TLSEdge, error) {
-			edges := &ingressv1alpha1.TLSEdgeList{}
-			if err := c.List(ctx, edges, opts...); err != nil {
-				return nil, err
-			}
-			return edges.Items, nil
-		},
-		matches: func(desired, existing ingressv1alpha1.TLSEdge) bool {
-			return reflect.DeepEqual(existing.Spec, desired.Spec)
-		},
-		mergeExisting: func(desired ingressv1alpha1.TLSEdge, existing *ingressv1alpha1.TLSEdge) {
-			existing.Spec = desired.Spec
-		},
-		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, edge *ingressv1alpha1.TLSEdge) error {
-			clearIngressStatus := func(svc *corev1.Service) error {
-				svc.Status.LoadBalancer.Ingress = nil
-				return c.Status().Update(ctx, svc)
-			}
-
-			domain, err := parser.GetStringAnnotation("domain", svc)
-			if err != nil {
-				if errors.IsMissingAnnotations(err) {
-					return clearIngressStatus(svc)
-				}
-				return err
-			}
-
-			hostname, ok := edge.Status.CNAMETargets[domain]
-			if !ok {
-				hostname = domain // ngrok managed domain case
-			}
-
-			svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
-				{
-					Hostname: hostname,
-					Ports: []corev1.PortStatus{
-						{
-							Port:     443,
-							Protocol: corev1.ProtocolTCP,
-						},
-					},
-				},
-			}
-			return c.Status().Update(ctx, svc)
-		},
-	}
 }
 
 func newServiceTunnelReconciler() serviceSubresourceReconciler {

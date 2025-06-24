@@ -564,17 +564,6 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		os.Exit(1)
 	}
 
-	if err := (&ingresscontroller.TLSEdgeReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("tls-edge"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("tls-edge-controller"),
-		NgrokClientset: ngrokClientset,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TLSEdge")
-		os.Exit(1)
-	}
-
 	if err := (&ingresscontroller.HTTPSEdgeReconciler{
 		Client:         mgr.GetClient(),
 		Log:            ctrl.Log.WithName("controllers").WithName("https-edge"),

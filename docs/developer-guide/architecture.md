@@ -74,7 +74,6 @@ The API manager is a leader elected manager that runs the following controllers 
 * Domain Controller
 * IP Policy Controller
 * HTTPS Edge Controller
-* TLS Edge Controller
 * Service Controller
 * NgrokModuleSet Controller
 * Gateway Controller
