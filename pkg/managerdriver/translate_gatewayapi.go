@@ -144,21 +144,6 @@ func (t *translator) findMatchingVHostsForXRoute(
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
-		if mappingStrategy == ir.IRMappingStrategy_Edges {
-			if routeKind != xRouteKind_HTTPRoute {
-				t.log.Error(fmt.Errorf("%ss cannot be used on Gateways with the the %q annotation because Edges are not supported for %ss", routeKind, annotations.MappingStrategyAnnotation, routeKind), "the TCPRoute will be ignored for this Gateway",
-					string(routeKind), fmt.Sprintf("%s.%s", routeName, routeNamespace),
-					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
-				)
-			} else {
-				t.log.Info(fmt.Sprintf("the Gateway and its routes will be provided by ngrok edges instead of endpoints because of the %q annotation",
-					annotations.MappingStrategyAnnotation),
-					string(routeKind), fmt.Sprintf("%s.%s", routeName, routeNamespace),
-					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
-				)
-			}
-			continue
-		}
 
 		useEndpointPooling, err := annotations.ExtractUseEndpointPooling(gateway)
 		if err != nil {
@@ -176,16 +161,6 @@ func (t *translator) findMatchingVHostsForXRoute(
 			t.log.Error(err, "error getting ngrok traffic policy for gateway",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace))
 			continue
-		}
-
-		// If we don't have a native traffic policy from annotations, see if one was provided from a moduleset annotation
-		if annotationTrafficPolicy == nil {
-			annotationTrafficPolicy, tpObjRef, err = trafficPolicyFromModSetAnnotation(t.log, t.store, gateway, true)
-			if err != nil {
-				t.log.Error(err, "error getting ngrok traffic policy for gateway",
-					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace))
-				continue
-			}
 		}
 
 		bindings, err := annotations.ExtractUseBindings(gateway)

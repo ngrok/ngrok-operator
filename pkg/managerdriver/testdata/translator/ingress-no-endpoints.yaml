@@ -1,4 +1,5 @@
-# Ingresses that have the mapping-strategy: edges should not create any endpoint resources
+# The "edges" mapping strategy has been removed since edges are no longer supported in the ngrok operator.
+# If the annotation is still set to edges, do the same thing as if the annotation was set to "endpoints" or not specified.
 input:
   ingressClasses:
   - apiVersion: networking.k8s.io/v1
@@ -90,7 +91,7 @@ input:
         protocol: TCP
         targetPort: http
       type: ClusterIP
-  trafficPolicies: 
+  trafficPolicies:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
     kind: NgrokTrafficPolicy
     metadata:
@@ -111,4 +112,85 @@ input:
                     content-type: text/plain
 expected:
   cloudEndpoints: []
-  agentEndpoints: []
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      name: e3b0c-test-service-1-default-8080
+      namespace: default
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+    spec:
+      url: https://test-ingresses.ngrok.io
+      upstream:
+        url: http://test-service-1.default:8080
+        protocol: null
+        proxyProtocolVersion: null
+      trafficPolicy:
+        inline:
+          on_http_request:
+          - actions:
+            - config:
+                content: Service is temporarily unavailable
+                headers:
+                  content-type: text/plain
+                status_code: 503
+              type: custom-response
+            expressions:
+            - req.url.path.startsWith('/foo')
+            name: response-503
+          - actions:
+            - config:
+                vars:
+                - request_matched_local_svc: false
+              type: set-vars
+            name: Initialize-Local-Service-Match
+          - actions:
+            - config:
+                vars:
+                - request_matched_local_svc: true
+              type: set-vars
+            expressions:
+            - req.url.path.startsWith('/test-1')
+            - vars.request_matched_local_svc == false
+            name: Generated-Local-Service-Route
+          - name: Generated-Route
+            expressions:
+            - req.url.path.startsWith('/test-2')
+            - vars.request_matched_local_svc == false
+            actions:
+            - type: forward-internal
+              config:
+                url: https://e3b0c-test-service-2-default-8080.internal
+          - name: Generated-Route-Default-Backend
+            expressions:
+            - vars.request_matched_local_svc == false
+            actions:
+            - type: set-vars
+              config:
+                vars:
+                - request_matched_local_svc: true
+          - actions:
+            - config:
+                content: No route was found for this ngrok Endpoint
+                headers:
+                  content-type: text/plain
+                status_code: 404
+              type: custom-response
+            expressions:
+            - vars.request_matched_local_svc == false
+            name: Fallback-404
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      name: e3b0c-test-service-2-default-8080
+      namespace: default
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+    spec:
+      url: https://e3b0c-test-service-2-default-8080.internal
+      upstream:
+        url: http://test-service-2.default:8080
+

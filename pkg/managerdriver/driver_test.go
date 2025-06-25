@@ -69,9 +69,9 @@ var _ = Describe("Driver", func() {
 			ic2 := testutils.NewTestIngressClass("test-ingress-class-2", true, true)
 			d1 := testutils.NewDomainV1("test-domain.com", "test-namespace")
 			d2 := testutils.NewDomainV1("test-domain-2.com", "test-namespace")
-			e1 := testutils.NewHTTPSEdge("test-edge", "test-namespace")
-			e2 := testutils.NewHTTPSEdge("test-edge-2", "test-namespace")
-			obs := []runtime.Object{ic1, ic2, i1, i2, d1, d2, &e1, &e2}
+			c1 := testutils.NewCloudEndpoint()
+			c2 := testutils.NewCloudEndpoint()
+			obs := []runtime.Object{ic1, ic2, i1, i2, d1, d2, c1, c2}
 
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
 			err := driver.Seed(GinkgoT().Context(), c)
@@ -119,19 +119,19 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(domains.Items).To(HaveLen(0))
 
-				edges := &ingressv1alpha1.HTTPSEdgeList{}
-				err = c.List(GinkgoT().Context(), &ingressv1alpha1.HTTPSEdgeList{})
+				agentendpoints := &ngrokv1alpha1.AgentEndpointList{}
+				err = c.List(GinkgoT().Context(), &ngrokv1alpha1.AgentEndpointList{})
 				Expect(err).ToNot(HaveOccurred())
-				Expect(edges.Items).To(HaveLen(0))
+				Expect(agentendpoints.Items).To(HaveLen(0))
 
-				tunnels := &ingressv1alpha1.TunnelList{}
-				err = c.List(GinkgoT().Context(), &ingressv1alpha1.TunnelList{})
+				cloudendpoints := &ngrokv1alpha1.CloudEndpointList{}
+				err = c.List(GinkgoT().Context(), &ngrokv1alpha1.CloudEndpointList{})
 				Expect(err).ToNot(HaveOccurred())
-				Expect(tunnels.Items).To(HaveLen(0))
+				Expect(cloudendpoints.Items).To(HaveLen(0))
 			})
 		})
-		Context("When there are just edge ingresses and edges need to be created", func() {
-			It("Should create the CRDs", func() {
+		Context("When the old edges mapping-strategy is used, it defaults to endpoint", func() {
+			It("Should create AgentEndpoints", func() {
 				i1 := testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				if i1.Annotations == nil {
 					i1.Annotations = map[string]string{}
@@ -167,25 +167,12 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(foundDomain.Spec.Domain).To(Equal(i1.Spec.Rules[0].Host))
 
-				foundEdges := &ingressv1alpha1.HTTPSEdgeList{}
-				err = c.List(GinkgoT().Context(), foundEdges)
+				agentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
+				err = c.List(GinkgoT().Context(), agentEndpoints, client.InNamespace("test-namespace"))
 				Expect(err).ToNot(HaveOccurred())
-				Expect(len(foundEdges.Items)).To(Equal(1))
-				foundEdge := foundEdges.Items[0]
-				Expect(err).ToNot(HaveOccurred())
-				Expect(foundEdge.Spec.Hostports[0]).To(ContainSubstring(i1.Spec.Rules[0].Host))
-				Expect(foundEdge.Namespace).To(Equal("test-namespace"))
-				Expect(foundEdge.Name).To(HavePrefix("example-com-"))
-				Expect(foundEdge.Labels["k8s.ngrok.com/controller-name"]).To(Equal(defaultManagerName))
-
-				foundTunnels := &ingressv1alpha1.TunnelList{}
-				err = c.List(GinkgoT().Context(), foundTunnels)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(len(foundTunnels.Items)).To(Equal(1))
-				foundTunnel := foundTunnels.Items[0]
-				Expect(foundTunnel.Namespace).To(Equal("test-namespace"))
-				Expect(foundTunnel.Name).To(HavePrefix("example-80-"))
-				Expect(foundTunnel.Labels["k8s.ngrok.com/controller-name"]).To(Equal(defaultManagerName))
+				Expect(len(agentEndpoints.Items)).To(Equal(1))
+				agentEndpoint := agentEndpoints.Items[0]
+				Expect(agentEndpoint.Spec.URL).To(Equal("https://" + i1.Spec.Rules[0].Host))
 			})
 		})
 
@@ -196,7 +183,8 @@ var _ = Describe("Driver", func() {
 				ingress                 *netv1.Ingress
 				c                       client.WithWatch
 				namespace               = "app-proto-namespace"
-				foundTunnels            *ingressv1alpha1.TunnelList
+				agentEndpoints          *ngrokv1alpha1.AgentEndpointList
+				cloudEndpoints          *ngrokv1alpha1.CloudEndpointList
 				ic                      = testutils.NewTestIngressClass("app-proto-ingress-class", true, true)
 				setIngressTargetService = func(i *netv1.Ingress, s *v1.Service) {
 					// Modify the ingress to include the service
@@ -286,9 +274,14 @@ var _ = Describe("Driver", func() {
 				Expect(driver.Seed(GinkgoT().Context(), c)).To(BeNil())
 				Expect(driver.Sync(GinkgoT().Context(), c)).To(BeNil())
 
-				// Find the tunnels in this namespace
-				foundTunnels = &ingressv1alpha1.TunnelList{}
-				err := c.List(GinkgoT().Context(), foundTunnels, client.InNamespace(namespace))
+				// Find the agent endpoints in this namespace
+				agentEndpoints = &ngrokv1alpha1.AgentEndpointList{}
+				err := c.List(GinkgoT().Context(), agentEndpoints, client.InNamespace(namespace))
+				Expect(err).ToNot(HaveOccurred())
+
+				// Find the cloud endpoints in this namespace
+				cloudEndpoints = &ngrokv1alpha1.CloudEndpointList{}
+				err = c.List(GinkgoT().Context(), cloudEndpoints, client.InNamespace(namespace))
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -301,14 +294,14 @@ var _ = Describe("Driver", func() {
 				})
 
 				It("Should ignore the unknown appProtocol", func() {
-					// We expect one tunnel to be created
-					Expect(len(foundTunnels.Items)).To(Equal(1))
+					// We expect one agent endpoint to be created
+					Expect(len(agentEndpoints.Items)).To(Equal(1))
 
-					By("Creating a tunnel with no appProtocol and the correct upstream")
-					foundTunnel := foundTunnels.Items[0]
-					Expect(foundTunnel.Spec.AppProtocol).To(BeNil())
-					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("http-service.app-proto-namespace.svc.cluster.local:80"))
-					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTP"))
+					By("Creating an agent endpoint with no appProtocol and the correct upstream")
+					foundAgentEndpoint := agentEndpoints.Items[0]
+					Expect(foundAgentEndpoint.Spec.Upstream.ProxyProtocolVersion).To(BeNil())
+					Expect(foundAgentEndpoint.Spec.Upstream.URL).To(Equal("http://http-service.app-proto-namespace:80"))
+					Expect(foundAgentEndpoint.Spec.Upstream.Protocol).To(BeNil())
 				})
 			})
 
@@ -320,15 +313,14 @@ var _ = Describe("Driver", func() {
 					setIngressTargetService(ingress, httpService)
 				})
 
-				It("Should create a tunnel with appProtocol http1", func() {
-					// We expect one tunnel to be created
-					Expect(len(foundTunnels.Items)).To(Equal(1))
+				It("Should create an AgentEndpoint with appProtocol http1", func() {
+					// We expect one AgentEndpoint to be created
+					Expect(len(agentEndpoints.Items)).To(Equal(1))
 
-					By("Creating a tunnel with appProtocol http1")
-					foundTunnel := foundTunnels.Items[0]
-					Expect(foundTunnel.Spec.AppProtocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP1)))
-					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("http-service.app-proto-namespace.svc.cluster.local:80"))
-					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTP"))
+					By("Creating an AgentEndpoint with appProtocol http1")
+					foundAgentEndpoint := agentEndpoints.Items[0]
+					Expect(foundAgentEndpoint.Spec.Upstream.Protocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP1)))
+					Expect(foundAgentEndpoint.Spec.Upstream.URL).To(Equal("http://http-service.app-proto-namespace:80"))
 				})
 			})
 
@@ -341,15 +333,14 @@ var _ = Describe("Driver", func() {
 					setIngressTargetService(ingress, httpsService)
 				})
 
-				It("Should create a tunnel with appProtocol http2", func() {
-					// We expect one tunnel to be created
-					Expect(len(foundTunnels.Items)).To(Equal(1))
+				It("Should create an AgentEndpoint with an upstream protocol of http2", func() {
+					// We expect one AgentEndpoint to be created
+					Expect(len(agentEndpoints.Items)).To(Equal(1))
 
-					By("Creating a tunnel with appProtocol http2")
-					foundTunnel := foundTunnels.Items[0]
-					Expect(foundTunnel.Spec.AppProtocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
-					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("https-service.app-proto-namespace.svc.cluster.local:443"))
-					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTPS"))
+					By("Creating an AgentEndpoint with appProtocol http2")
+					foundAgentEndpoint := agentEndpoints.Items[0]
+					Expect(foundAgentEndpoint.Spec.Upstream.Protocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
+					Expect(foundAgentEndpoint.Spec.Upstream.URL).To(Equal("https://https-service.app-proto-namespace:443"))
 				})
 			})
 
@@ -362,25 +353,14 @@ var _ = Describe("Driver", func() {
 					setIngressTargetService(ingress, httpsService)
 				})
 
-				It("Should create a tunnel with appProtocol http2", func() {
-					// We expect one tunnel to be created
-					Expect(len(foundTunnels.Items)).To(Equal(1))
+				It("Should create an AgentEndpoint with appProtocol http2", func() {
+					// We expect one AgentEndpoint to be created
+					Expect(len(agentEndpoints.Items)).To(Equal(1))
 
-					By("Creating a tunnel with appProtocol http2")
-					foundTunnel := foundTunnels.Items[0]
-					Expect(foundTunnel.Spec.AppProtocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
-					Expect(foundTunnel.Spec.ForwardsTo).To(Equal("https-service.app-proto-namespace.svc.cluster.local:443"))
-					Expect(foundTunnel.Spec.BackendConfig.Protocol).To(Equal("HTTPS"))
-				})
-			})
-
-			When("The Ingress does not specify mapping-strategy: edges", func() {
-				BeforeEach(func() {
-					ingress.Annotations = map[string]string{} // Removing the edges annotation should cause the translation to be endpoints instead.
-				})
-
-				It("Should not have any tunnels", func() {
-					Expect(len(foundTunnels.Items)).To(Equal(0))
+					By("Creating an AgentEndpoint with appProtocol http2")
+					foundAgentEndpoint := agentEndpoints.Items[0]
+					Expect(foundAgentEndpoint.Spec.Upstream.Protocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
+					Expect(foundAgentEndpoint.Spec.Upstream.URL).To(Equal("https://https-service.app-proto-namespace:443"))
 				})
 			})
 		})
@@ -392,7 +372,6 @@ var _ = Describe("Driver", func() {
 				httpService         *v1.Service
 				ingress             *netv1.Ingress
 				trafficPolicy       *ngrokv1alpha1.NgrokTrafficPolicy
-				foundHTTPEdges      *ingressv1alpha1.HTTPSEdgeList
 				foundAgentEndpoints *ngrokv1alpha1.AgentEndpointList
 				foundCloudEndpoints *ngrokv1alpha1.CloudEndpointList
 				ic                  = testutils.NewTestIngressClass("edge-tp-ingress-class", true, true)
@@ -481,10 +460,6 @@ var _ = Describe("Driver", func() {
 				Expect(driver.Seed(GinkgoT().Context(), c)).To(Succeed())
 				Expect(driver.Sync(GinkgoT().Context(), c)).To(Succeed())
 
-				// Find the HTTPSEdges in this namespace
-				foundHTTPEdges = &ingressv1alpha1.HTTPSEdgeList{}
-				Expect(c.List(GinkgoT().Context(), foundHTTPEdges, client.InNamespace(namespace))).To(Succeed())
-
 				// Find the AgentEndpoints in this namespace
 				foundAgentEndpoints = &ngrokv1alpha1.AgentEndpointList{}
 				Expect(c.List(GinkgoT().Context(), foundAgentEndpoints, client.InNamespace(namespace))).To(Succeed())
@@ -494,16 +469,15 @@ var _ = Describe("Driver", func() {
 				Expect(c.List(GinkgoT().Context(), foundCloudEndpoints, client.InNamespace(namespace))).To(Succeed())
 			})
 
-			When("The the ingress is using the edges mapping strategy", func() {
+			When("The the ingress is using the old edges mapping strategy", func() {
 				BeforeEach(func() {
 					controller.AddAnnotations(ingress, map[string]string{
 						"k8s.ngrok.com/mapping-strategy": "edges",
 					})
 				})
 
-				It("Should only create an HTTPSEdge", func() {
-					Expect(len(foundHTTPEdges.Items)).To(Equal(1))
-					Expect(len(foundAgentEndpoints.Items)).To(Equal(0))
+				It("Should create an AgentEndpoint", func() {
+					Expect(len(foundAgentEndpoints.Items)).To(Equal(1))
 					Expect(len(foundCloudEndpoints.Items)).To(Equal(0))
 				})
 
@@ -515,13 +489,24 @@ var _ = Describe("Driver", func() {
 					})
 
 					It("Should use the traffic policy", func() {
-						edge := foundHTTPEdges.Items[0]
-						Expect(edge.Spec.Routes).To(HaveLen(1))
+						foundAgentEndpoint := foundAgentEndpoints.Items[0]
 
-						By("Having the traffic policy on all routes on the edge")
-						for _, route := range edge.Spec.Routes {
-							Expect(route.Policy).To(Equal(trafficPolicy.Spec.Policy))
-						}
+						By("Having the traffic policy on the AgentEndpoint")
+						Expect(foundAgentEndpoint.Spec.TrafficPolicy.Inline).ToNot(BeNil())
+						pol, err := trafficpolicy.NewTrafficPolicyFromJSON(foundAgentEndpoint.Spec.TrafficPolicy.Inline)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(pol.OnHTTPRequest).To(ContainElement(
+							trafficpolicy.Rule{
+								Name: "test-name",
+								Actions: []trafficpolicy.Action{
+									{
+										Type:   "compress-response",
+										Config: map[string]interface{}{},
+									},
+								},
+							},
+						))
 					})
 				})
 			})
@@ -531,7 +516,6 @@ var _ = Describe("Driver", func() {
 				It("Should only create an AgentEndpoint", func() {
 					Expect(len(foundAgentEndpoints.Items)).To(Equal(1))
 					Expect(len(foundCloudEndpoints.Items)).To(Equal(0))
-					Expect(len(foundHTTPEdges.Items)).To(Equal(0))
 				})
 
 				When("The traffic policy exists", func() {
@@ -871,85 +855,6 @@ var _ = Describe("Driver", func() {
 		})
 	})
 
-	Describe("getNgrokModuleSetForIngress", func() {
-		var ms1, ms2, ms3 *ingressv1alpha1.NgrokModuleSet
-
-		BeforeEach(func() {
-			ms1 = &ingressv1alpha1.NgrokModuleSet{
-				ObjectMeta: metav1.ObjectMeta{Name: "ms1", Namespace: "test"},
-				Modules: ingressv1alpha1.NgrokModuleSetModules{
-					Compression: &ingressv1alpha1.EndpointCompression{
-						Enabled: true,
-					},
-				},
-			}
-			ms2 = &ingressv1alpha1.NgrokModuleSet{
-				ObjectMeta: metav1.ObjectMeta{Name: "ms2", Namespace: "test"},
-				Modules: ingressv1alpha1.NgrokModuleSetModules{
-					Compression: &ingressv1alpha1.EndpointCompression{
-						Enabled: false,
-					},
-					IPRestriction: &ingressv1alpha1.EndpointIPPolicy{
-						IPPolicies: []string{"policy1", "policy2"},
-					},
-				},
-			}
-			ms3 = &ingressv1alpha1.NgrokModuleSet{
-				ObjectMeta: metav1.ObjectMeta{Name: "ms3", Namespace: "test"},
-				Modules: ingressv1alpha1.NgrokModuleSetModules{
-					Compression: &ingressv1alpha1.EndpointCompression{
-						Enabled: true,
-					},
-				},
-			}
-			Expect(driver.store.Add(ms1)).To(BeNil())
-			Expect(driver.store.Add(ms2)).To(BeNil())
-			Expect(driver.store.Add(ms3)).To(BeNil())
-		})
-
-		It("Should return an empty module set if the ingress has no modules annotaion", func() {
-			ing := testutils.NewTestIngressV1("test-ingress", "test")
-			Expect(driver.store.Add(ing)).To(BeNil())
-
-			ms, err := getNgrokModuleSetForObject(ing, driver.store)
-			Expect(err).To(BeNil())
-			Expect(ms.Modules.Compression).To(BeNil())
-			Expect(ms.Modules.Headers).To(BeNil())
-			Expect(ms.Modules.IPRestriction).To(BeNil())
-			Expect(ms.Modules.TLSTermination).To(BeNil())
-			Expect(ms.Modules.WebhookVerification).To(BeNil())
-		})
-
-		It("Should return the matching module set if the ingress has a modules annotaion", func() {
-			ing := testutils.NewTestIngressV1("test-ingress", "test")
-			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1"})
-			Expect(driver.store.Add(ing)).To(BeNil())
-
-			ms, err := getNgrokModuleSetForObject(ing, driver.store)
-			Expect(err).To(BeNil())
-			Expect(ms.Modules).To(Equal(ms1.Modules))
-		})
-
-		It("merges modules with the last one winning if multiple module sets are specified", func() {
-			ing := testutils.NewTestIngressV1("test-ingress", "test")
-			ing.SetAnnotations(map[string]string{"k8s.ngrok.com/modules": "ms1,ms2,ms3"})
-			Expect(driver.store.Add(ing)).To(BeNil())
-
-			ms, err := getNgrokModuleSetForObject(ing, driver.store)
-			Expect(err).To(BeNil())
-			Expect(ms.Modules).To(Equal(
-				ingressv1alpha1.NgrokModuleSetModules{
-					Compression: &ingressv1alpha1.EndpointCompression{
-						Enabled: true, // From ms3
-					},
-					IPRestriction: &ingressv1alpha1.EndpointIPPolicy{
-						IPPolicies: []string{"policy1", "policy2"}, // From ms2
-					},
-				},
-			))
-		})
-	})
-
 	Describe("createEndpointPolicyForGateway", func() {
 		var rule *gatewayv1.HTTPRouteRule
 		var namespace string
@@ -1264,12 +1169,11 @@ var _ = Describe("Driver", func() {
 			Expect(driver.Seed(GinkgoT().Context(), c)).To(BeNil())
 
 			domainSet := driver.calculateDomainSet()
-			Expect(domainSet.edgeIngressDomains).To(HaveLen(4))
-			Expect(domainSet.edgeIngressDomains).To(HaveKey("a.customdomain.com"))
-			Expect(domainSet.edgeIngressDomains).To(HaveKey("b.customdomain.com"))
-			Expect(domainSet.edgeIngressDomains).To(HaveKey("c.customdomain.com"))
-			Expect(domainSet.edgeIngressDomains).To(HaveKey("d.customdomain.com"))
-			Expect(domainSet.endpointIngressDomains).To(HaveLen(0))
+			Expect(domainSet.endpointIngressDomains).To(HaveLen(4))
+			Expect(domainSet.endpointIngressDomains).To(HaveKey("a.customdomain.com"))
+			Expect(domainSet.endpointIngressDomains).To(HaveKey("b.customdomain.com"))
+			Expect(domainSet.endpointIngressDomains).To(HaveKey("c.customdomain.com"))
+			Expect(domainSet.endpointIngressDomains).To(HaveKey("d.customdomain.com"))
 		})
 	})
 })

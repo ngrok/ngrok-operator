@@ -19,6 +19,4 @@ func ExampleClientset() {
 	cs := NewClientSet(config)
 	// Access a client for the domains API.
 	cs.Domains()
-	// Access a client for HTTPS Edge Route Modules
-	cs.EdgeModules().HTTPS().Routes().Compression()
 }

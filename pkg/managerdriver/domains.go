@@ -2,11 +2,8 @@ package managerdriver
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"golang.org/x/sync/errgroup"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,8 +13,7 @@ import (
 )
 
 // ingressToDomains constructs domains for edges/endpoints from an input ingress
-func ingressToDomains(log logr.Logger, in *netv1.Ingress, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (edgeDomains map[string]ingressv1alpha1.Domain, endpointDomains map[string]ingressv1alpha1.Domain) {
-	edgeDomains = make(map[string]ingressv1alpha1.Domain)
+func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (endpointDomains map[string]ingressv1alpha1.Domain) {
 	endpointDomains = make(map[string]ingressv1alpha1.Domain)
 
 	for _, rule := range in.Spec.Rules {
@@ -41,24 +37,13 @@ func ingressToDomains(log logr.Logger, in *netv1.Ingress, newDomainMetadata stri
 			},
 		}
 		domain.Spec.Metadata = newDomainMetadata
-
-		// Check the annotation to see if an edge or endpoint is desired from this ingress resource
-		useEdges, err := annotations.ExtractUseEdges(in)
-		if err != nil {
-			log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
-		}
-		if !useEdges {
-			endpointDomains[domainName] = domain
-		} else {
-			edgeDomains[domainName] = domain
-		}
+		endpointDomains[domainName] = domain
 	}
-	return edgeDomains, endpointDomains
+	return endpointDomains
 }
 
 // gatewayToDomains constructs domains for edges/endpoints from an input Gateway
-func gatewayToDomains(log logr.Logger, in *gatewayv1.Gateway, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (edgeDomains map[string]ingressv1alpha1.Domain, endpointDomains map[string]ingressv1alpha1.Domain) {
-	edgeDomains = make(map[string]ingressv1alpha1.Domain)
+func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (endpointDomains map[string]ingressv1alpha1.Domain) {
 	endpointDomains = make(map[string]ingressv1alpha1.Domain)
 	for _, listener := range in.Spec.Listeners {
 		if listener.Hostname == nil {
@@ -86,18 +71,10 @@ func gatewayToDomains(log logr.Logger, in *gatewayv1.Gateway, newDomainMetadata 
 		}
 		domain.Spec.Metadata = newDomainMetadata
 
-		// Check the annotation to see if an edge or endpoint is desired from this ingress resource
-		useEdges, err := annotations.ExtractUseEdges(in)
-		if err != nil {
-			log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
-		}
-		if !useEdges {
-			endpointDomains[domainName] = domain
-		} else {
-			edgeDomains[domainName] = domain
-		}
+		endpointDomains[domainName] = domain
+
 	}
-	return edgeDomains, endpointDomains
+	return endpointDomains
 }
 
 // applyDomains takes a set of the desired domains and current domains, creates any missing desired domains, and updated existing domains if needed
@@ -145,11 +122,6 @@ type domainSet struct {
 	endpointIngressDomains map[string]ingressv1alpha1.Domain
 	endpointGatewayDomains map[string]ingressv1alpha1.Domain
 
-	// The following two domain maps track domains for ingress/gateway resources that have opted to
-	// use edges
-	edgeIngressDomains map[string]ingressv1alpha1.Domain
-	edgeGatewayDomains map[string]ingressv1alpha1.Domain
-
 	// totalDomains tracks all domains regardless of source
 	totalDomains map[string]ingressv1alpha1.Domain
 }
@@ -158,19 +130,13 @@ func (d *Driver) calculateDomainSet() *domainSet {
 	ret := &domainSet{
 		endpointIngressDomains: make(map[string]ingressv1alpha1.Domain),
 		endpointGatewayDomains: make(map[string]ingressv1alpha1.Domain),
-		edgeIngressDomains:     make(map[string]ingressv1alpha1.Domain),
-		edgeGatewayDomains:     make(map[string]ingressv1alpha1.Domain),
 		totalDomains:           make(map[string]ingressv1alpha1.Domain),
 	}
 
 	// Calculate domains from ingress resources
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
-		edgeDomains, endpointDomains := ingressToDomains(d.log, ingress, d.ingressNgrokMetadata, nil)
-		for key, val := range edgeDomains {
-			ret.totalDomains[key] = val
-			ret.edgeIngressDomains[key] = val
-		}
+		endpointDomains := ingressToDomains(ingress, d.ingressNgrokMetadata, nil)
 		for key, val := range endpointDomains {
 			ret.totalDomains[key] = val
 			ret.endpointIngressDomains[key] = val
@@ -180,11 +146,7 @@ func (d *Driver) calculateDomainSet() *domainSet {
 	// Calculate domains from gateway resources
 	gateways := d.store.ListGateways()
 	for _, gateway := range gateways {
-		edgeDomains, endpointDomains := gatewayToDomains(d.log, gateway, d.gatewayNgrokMetadata, ret.totalDomains)
-		for key, val := range edgeDomains {
-			ret.totalDomains[key] = val
-			ret.edgeGatewayDomains[key] = val
-		}
+		endpointDomains := gatewayToDomains(gateway, d.gatewayNgrokMetadata, ret.totalDomains)
 		for key, val := range endpointDomains {
 			ret.totalDomains[key] = val
 			ret.endpointGatewayDomains[key] = val
