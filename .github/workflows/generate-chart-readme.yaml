@@ -17,15 +17,14 @@ jobs:
       - name: Install readme-generator-for-helm
         run: npm install -g @bitnami/readme-generator-for-helm@2.6.1
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{github.event.pull_request.head.ref}}
           repository: ${{github.event.pull_request.head.repo.full_name}}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Execute readme-generator-for-helm
         working-directory: helm/ngrok-operator
-        run: |
-          make update-readme
+        run: readme-generator --values "values.yaml" --readme "README.md" --schema "values.schema.json"
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
