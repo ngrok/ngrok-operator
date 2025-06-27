@@ -1,10 +1,8 @@
-package tunneldriver_test
+package util
 
 import (
 	"net/url"
 	"testing"
-
-	"github.com/ngrok/ngrok-operator/pkg/tunneldriver"
 )
 
 func TestParseAndSanitizeEndpointURL(t *testing.T) {
@@ -122,7 +120,7 @@ func TestParseAndSanitizeEndpointURL(t *testing.T) {
 	t.Run("Success cases", func(t *testing.T) {
 		for _, tt := range successCases {
 			t.Run(tt.name, func(t *testing.T) {
-				result, err := tunneldriver.ParseAndSanitizeEndpointURL(tt.input, tt.isIngressURL)
+				result, err := ParseAndSanitizeEndpointURL(tt.input, tt.isIngressURL)
 				if err != nil {
 					t.Errorf("Unexpected error for input %q: %v", tt.input, err)
 					return
@@ -137,7 +135,7 @@ func TestParseAndSanitizeEndpointURL(t *testing.T) {
 	t.Run("Error cases", func(t *testing.T) {
 		for _, tt := range errorCases {
 			t.Run(tt.name, func(t *testing.T) {
-				_, err := tunneldriver.ParseAndSanitizeEndpointURL(tt.input, tt.isIngressURL)
+				_, err := ParseAndSanitizeEndpointURL(tt.input, tt.isIngressURL)
 				if err == nil {
 					t.Errorf("Expected error for input %q, but got none", tt.input)
 					return

@@ -36,7 +36,8 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
-	"github.com/ngrok/ngrok-operator/pkg/tunneldriver"
+	"github.com/ngrok/ngrok-operator/internal/util"
+	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -68,10 +69,10 @@ var (
 type AgentEndpointReconciler struct {
 	client.Client
 
-	Log          logr.Logger
-	Scheme       *runtime.Scheme
-	Recorder     record.EventRecorder
-	TunnelDriver *tunneldriver.TunnelDriver
+	Log         logr.Logger
+	Scheme      *runtime.Scheme
+	Recorder    record.EventRecorder
+	AgentDriver agent.Driver
 
 	controller *controller.BaseController[*ngrokv1alpha1.AgentEndpoint]
 
@@ -82,8 +83,8 @@ type AgentEndpointReconciler struct {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if r.TunnelDriver == nil {
-		return errors.New("TunnelDriver is nil")
+	if r.AgentDriver == nil {
+		return errors.New("AgentDriver is nil")
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.AgentEndpoint]{
@@ -196,12 +197,12 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	}
 
 	tunnelName := r.statusID(endpoint)
-	return r.TunnelDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts)
+	return r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts)
 }
 
 func (r *AgentEndpointReconciler) delete(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
 	tunnelName := r.statusID(endpoint)
-	return r.TunnelDriver.DeleteAgentEndpoint(ctx, tunnelName)
+	return r.AgentDriver.DeleteAgentEndpoint(ctx, tunnelName)
 	// TODO: Delete any associated domain
 }
 
@@ -368,7 +369,7 @@ func (r *AgentEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 
 // ensureDomainExists checks if the Domain CRD exists, and if not, creates it.
 func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) error {
-	parsedURL, err := tunneldriver.ParseAndSanitizeEndpointURL(aep.Spec.URL, true)
+	parsedURL, err := util.ParseAndSanitizeEndpointURL(aep.Spec.URL, true)
 	if err != nil {
 		r.Recorder.Event(aep, v1.EventTypeWarning, "InvalidURL", fmt.Sprintf("Failed to parse URL: %s", aep.Spec.URL))
 		return fmt.Errorf("failed to parse URL %q from AgentEndpoint \"%s.%s\"", aep.Spec.URL, aep.Name, aep.Namespace)

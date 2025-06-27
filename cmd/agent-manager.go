@@ -46,7 +46,7 @@ import (
 	agentcontroller "github.com/ngrok/ngrok-operator/internal/controller/agent"
 	"github.com/ngrok/ngrok-operator/internal/healthcheck"
 	"github.com/ngrok/ngrok-operator/internal/version"
-	"github.com/ngrok/ngrok-operator/pkg/tunneldriver"
+	"github.com/ngrok/ngrok-operator/pkg/agent"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -119,7 +119,7 @@ func agentCmd() *cobra.Command {
 	return c
 }
 
-func runAgentController(ctx context.Context, opts agentManagerOpts) error {
+func runAgentController(_ context.Context, opts agentManagerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
@@ -148,12 +148,9 @@ func runAgentController(ctx context.Context, opts agentManagerOpts) error {
 	}
 
 	// shared features between Ingress and Gateway (tunnels)
-
-	var comments tunneldriver.TunnelDriverComments
+	agentComments := []string{}
 	if opts.enableFeatureGateway {
-		comments = tunneldriver.TunnelDriverComments{
-			Gateway: "gateway-api",
-		}
+		agentComments = append(agentComments, `{"gateway": "gateway-api"}`)
 	}
 
 	rootCAs := "trusted"
@@ -161,28 +158,26 @@ func runAgentController(ctx context.Context, opts agentManagerOpts) error {
 		rootCAs = opts.rootCAs
 	}
 
-	td, err := tunneldriver.New(ctx, ctrl.Log.WithName("drivers").WithName("tunnel"),
-		tunneldriver.TunnelDriverOpts{
-			ServerAddr: opts.serverAddr,
-			Region:     opts.region,
-			RootCAs:    rootCAs,
-			Comments:   &comments,
-		},
+	ad, err := agent.NewDriver(
+		agent.WithAgentConnectURL(opts.serverAddr),
+		agent.WithAgentConnectCAs(rootCAs),
+		agent.WithLogger(ctrl.Log.WithName("drivers").WithName("agent")),
+		agent.WithAgentComments(agentComments...),
 	)
 
 	if err != nil {
-		return fmt.Errorf("unable to create tunnel driver: %w", err)
+		return fmt.Errorf("unable to create agent driver: %w", err)
 	}
 
 	// register healthcheck for tunnel driver
-	healthcheck.RegisterHealthChecker(td)
+	healthcheck.RegisterHealthChecker(ad)
 
 	if err = (&agentcontroller.AgentEndpointReconciler{
 		Client:                     mgr.GetClient(),
 		Log:                        ctrl.Log.WithName("controllers").WithName("agentendpoint"),
 		Scheme:                     mgr.GetScheme(),
 		Recorder:                   mgr.GetEventRecorderFor("agentendpoint-controller"),
-		TunnelDriver:               td,
+		AgentDriver:                ad,
 		DefaultDomainReclaimPolicy: defaultDomainReclaimPolicy,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")
