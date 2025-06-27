@@ -1,6 +1,0 @@
-config.yaml:
-  paths:
-    "/": "HTTP/2 200"
-    "/path2": "HTTP/2 200"
-    "/path2/": "HTTP/2 200"
-    "/path2/50x.html": "HTTP/2 200"

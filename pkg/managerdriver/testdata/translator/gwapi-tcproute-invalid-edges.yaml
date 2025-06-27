@@ -1,4 +1,6 @@
-# Tests translation for a simple TCPRoute and Gateway, but the Gateway specifies edges which is invalid for the TCPRoute
+# Tests translation for a simple TCPRoute and Gateway, but the Gateway specifies the old edges annotation
+# which is invalid for the TCPRoute. We now automatically translate this to endpoints as edges is no longer
+# supported.
 input:
   gatewayClasses:
   - apiVersion: gateway.networking.k8s.io/v1
@@ -56,4 +58,16 @@ input:
       type: ClusterIP
 expected:
   cloudEndpoints: []
-  agentEndpoints: []
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      name: e3b0c-test-service-1-default-11000
+      namespace: default
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+    spec:
+      url: tcp://test-hostname.ngrok.io:9000
+      upstream:
+        url: tcp://test-service-1.default:11000

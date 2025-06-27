@@ -906,8 +906,6 @@ func MappingStrategyAnnotationToIR(obj client.Object) (ir.IRMappingStrategy, err
 	}
 
 	switch val {
-	case string(annotations.MappingStrategy_Edges):
-		return ir.IRMappingStrategy_Edges, nil
 	case string(annotations.MappingStrategy_EndpointsDefault), string(ir.IRMappingStrategy_EndpointsCollapsed):
 		return ir.IRMappingStrategy_EndpointsDefault, nil
 	case string(annotations.MappingStrategy_EndpointsVerbose):

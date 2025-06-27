@@ -24,7 +24,6 @@ import (
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 
 	corev1 "k8s.io/api/core/v1"
@@ -53,7 +52,6 @@ type Storer interface {
 	GetNamespaceV1(name string) (*corev1.Namespace, error)
 	GetConfigMapV1(name, namespace string) (*corev1.ConfigMap, error)
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
-	GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error)
 	GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error)
 	GetGateway(name string, namespace string) (*gatewayv1.Gateway, error)
 	GetGatewayClass(name string) (*gatewayv1.GatewayClass, error)
@@ -75,9 +73,6 @@ type Storer interface {
 	ListReferenceGrants() []*gatewayv1beta1.ReferenceGrant
 
 	ListDomainsV1() []*ingressv1alpha1.Domain
-	ListTunnelsV1() []*ingressv1alpha1.Tunnel
-	ListHTTPSEdgesV1() []*ingressv1alpha1.HTTPSEdge
-	ListNgrokModuleSetsV1() []*ingressv1alpha1.NgrokModuleSet
 }
 
 // Store implements Storer and can be used to list Ingress, Services
@@ -158,10 +153,6 @@ func (s Store) GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	}
 
 	return ing, nil
-}
-
-func (s Store) GetNgrokModuleSetV1(name, namespace string) (*ingressv1alpha1.NgrokModuleSet, error) {
-	return genericGetByKey[ingressv1alpha1.NgrokModuleSet](s.stores.NgrokModuleV1, getKey(name, namespace))
 }
 
 func (s Store) GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
@@ -285,21 +276,6 @@ func (s Store) ListDomainsV1() []*ingressv1alpha1.Domain {
 	return genericListSorted[ingressv1alpha1.Domain](s.log, s.stores.DomainV1)
 }
 
-// ListTunnelsV1 returns the list of Tunnels in the Tunnel v1 store.
-func (s Store) ListTunnelsV1() []*ingressv1alpha1.Tunnel {
-	return genericListSorted[ingressv1alpha1.Tunnel](s.log, s.stores.TunnelV1)
-}
-
-// ListHTTPSEdgesV1 returns the list of HTTPSEdges in the HTTPSEdge v1 store.
-func (s Store) ListHTTPSEdgesV1() []*ingressv1alpha1.HTTPSEdge {
-	return genericListSorted[ingressv1alpha1.HTTPSEdge](s.log, s.stores.HTTPSEdgeV1)
-}
-
-// ListNgrokModuleSetsV1 returns the list of NgrokModules in the NgrokModuleSet v1 store.
-func (s Store) ListNgrokModuleSetsV1() []*ingressv1alpha1.NgrokModuleSet {
-	return genericListSorted[ingressv1alpha1.NgrokModuleSet](s.log, s.stores.NgrokModuleV1)
-}
-
 func genericList[T any, PT interface {
 	*T
 	client.Object
@@ -378,13 +354,6 @@ func (s Store) shouldHandleIngressCheckClass(ing *netv1.Ingress) (bool, error) {
 // shouldHandleIngressIsValid checks if the ingress spec meets controller requirements.
 func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 	errs := errors.NewErrInvalidIngressSpec()
-	useEdges, err := annotations.ExtractUseEdges(ing)
-	if err != nil {
-		errs.AddError(fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints: %s",
-			annotations.MappingStrategyAnnotation,
-			err.Error(),
-		))
-	}
 	if len(ing.Spec.Rules) == 0 {
 		errs.AddError("At least one rule is required to be set")
 	} else {
@@ -392,35 +361,9 @@ func (s Store) shouldHandleIngressIsValid(ing *netv1.Ingress) (bool, error) {
 			if rule.Host == "" {
 				errs.AddError("A host is required to be set for each rule")
 			}
-			if rule.HTTP != nil {
-				for _, path := range rule.HTTP.Paths {
-					switch {
-					case path.Backend.Resource != nil:
-						if useEdges {
-							errs.AddError(fmt.Sprintf("Resource backends are not supported for ingresses with the %q: %q annotation. Ingresses provided by endpoints instead of edges do support default backends",
-								annotations.MappingStrategyAnnotation,
-								annotations.MappingStrategy_Edges,
-							))
-						}
-					case path.Backend.Service == nil:
-						errs.AddError(fmt.Sprintf("A valid service backend is required for this ingress since a resource backend was not provided (resource backends are only supported for ingresses without the %q: %q annotation.)",
-							annotations.MappingStrategyAnnotation,
-							annotations.MappingStrategy_Edges,
-						))
-					}
-				}
-			} else {
+			if rule.HTTP == nil {
 				errs.AddError("HTTP rules are required for ingress")
 			}
-		}
-	}
-
-	if ing.Spec.DefaultBackend != nil {
-		if useEdges {
-			errs.AddError(fmt.Sprintf("Default backends are not supported for ingresses with the %q: %q annotation. Ingresses provided by endpoints instead of edges do support default backends",
-				annotations.MappingStrategyAnnotation,
-				annotations.MappingStrategy_Edges,
-			))
 		}
 	}
 

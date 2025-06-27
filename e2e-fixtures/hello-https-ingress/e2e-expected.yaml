@@ -1,4 +1,0 @@
-config.yaml:
-  paths:
-    "/https-echo-plain": "HTTP/2 200"
-    "/https-echo-tls": "HTTP/2 200"

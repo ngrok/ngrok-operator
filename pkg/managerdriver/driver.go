@@ -241,18 +241,6 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 		domains := &ingressv1alpha1.DomainList{}
 		err := client.List(ctx, domains)
 		return util.ToClientObjects(domains.Items), err
-	case *ingressv1alpha1.HTTPSEdge:
-		edges := &ingressv1alpha1.HTTPSEdgeList{}
-		err := client.List(ctx, edges)
-		return util.ToClientObjects(edges.Items), err
-	case *ingressv1alpha1.Tunnel:
-		tunnels := &ingressv1alpha1.TunnelList{}
-		err := client.List(ctx, tunnels)
-		return util.ToClientObjects(tunnels.Items), err
-	case *ingressv1alpha1.NgrokModuleSet:
-		modules := &ingressv1alpha1.NgrokModuleSetList{}
-		err := client.List(ctx, modules)
-		return util.ToClientObjects(modules.Items), err
 	case *ngrokv1alpha1.NgrokTrafficPolicy:
 		policies := &ngrokv1alpha1.NgrokTrafficPolicyList{}
 		err := client.List(ctx, policies)
@@ -301,9 +289,6 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 		&corev1.ConfigMap{},
 		// CRDs
 		&ingressv1alpha1.Domain{},
-		&ingressv1alpha1.HTTPSEdge{},
-		&ingressv1alpha1.Tunnel{},
-		&ingressv1alpha1.NgrokModuleSet{},
 		&ngrokv1alpha1.NgrokTrafficPolicy{},
 		&ngrokv1alpha1.AgentEndpoint{},
 		&ngrokv1alpha1.CloudEndpoint{},
@@ -578,8 +563,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 	// TODO (Alice): move domains, edges, tunnels to translator
 	domains := d.calculateDomainSet()
-	desiredEdges := d.calculateHTTPSEdges(domains)
-	desiredTunnels := d.calculateTunnels()
 
 	translator := NewTranslator(
 		d.log,
@@ -592,25 +575,9 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	)
 	translationResult := translator.Translate()
 
-	currEdges := &ingressv1alpha1.HTTPSEdgeList{}
-	currTunnels := &ingressv1alpha1.TunnelList{}
 	currAgentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
 	currCloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
 
-	if err := c.List(ctx, currEdges, client.MatchingLabels{
-		labelControllerNamespace: d.managerName.Namespace,
-		labelControllerName:      d.managerName.Name,
-	}); err != nil {
-		d.log.Error(err, "error listing edges")
-		return err
-	}
-	if err := c.List(ctx, currTunnels, client.MatchingLabels{
-		labelControllerNamespace: d.managerName.Namespace,
-		labelControllerName:      d.managerName.Name,
-	}); err != nil {
-		d.log.Error(err, "error listing tunnels")
-		return err
-	}
 	if err := c.List(ctx, currAgentEndpoints, client.MatchingLabels{
 		labelControllerNamespace: d.managerName.Namespace,
 		labelControllerName:      d.managerName.Name,
@@ -630,10 +597,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	if err := d.applyHTTPSEdges(ctx, c, desiredEdges, currEdges.Items); err != nil {
-		return err
-	}
-
 	if err := d.applyAgentEndpoints(ctx, c, translationResult.AgentEndpoints, currAgentEndpoints.Items); err != nil {
 		d.log.Error(err, "applying agent endpoints")
 		return err
@@ -641,10 +604,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currCloudEndpoints.Items); err != nil {
 		d.log.Error(err, "applying cloud endpoints")
-		return err
-	}
-
-	if err := d.applyTunnels(ctx, c, desiredTunnels, currTunnels.Items); err != nil {
 		return err
 	}
 
@@ -846,37 +805,6 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 // TODO: implement this
 func (d *Driver) updateHTTPRouteStatuses(_ context.Context, _ client.Client) error {
 	return nil
-}
-
-// getTrafficPolicyJSON retrieves the traffic policy for an ingress and falls back to the modSet policy if it doesn't exist.
-func (d *Driver) getTrafficPolicyJSON(ingress *netv1.Ingress, modSet *ingressv1alpha1.NgrokModuleSet) (json.RawMessage, error) {
-	var err error
-	var policyJSON json.RawMessage
-
-	trafficPolicy, err := getNgrokTrafficPolicyForIngress(ingress, d.store)
-
-	if err != nil {
-		d.log.Error(err, "error getting ngrok traffic policy for ingress", "ingress", ingress)
-		return nil, err
-	}
-
-	if modSet.IsEmpty() {
-		if trafficPolicy != nil {
-			return trafficPolicy.Spec.Policy, nil
-		}
-		return policyJSON, nil
-	}
-
-	if modSet.Modules.Policy != nil && trafficPolicy != nil {
-		return nil, fmt.Errorf("cannot have both a traffic policy and a moduleset policy on ingress: %s", ingress.Name)
-	}
-
-	if policyJSON, err = json.Marshal(modSet.Modules.Policy); err != nil {
-		d.log.Error(err, "cannot convert module-set policy json", "ingress", ingress, "Policy", modSet.Modules.Policy)
-		return nil, err
-	}
-
-	return policyJSON, nil
 }
 
 func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (json.RawMessage, error) {
@@ -1309,41 +1237,12 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 	return nil
 }
 
-func (d *Driver) findBackendRefServicePort(backendRef gatewayv1.BackendRef, namespace string) (*corev1.Service, *corev1.ServicePort, error) {
-	service, err := d.store.GetServiceV1(string(backendRef.Name), namespace)
-	if err != nil {
-		return nil, nil, err
-	}
-	servicePort, err := findBackendRefServicesPort(d.log, service, &backendRef)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return service, servicePort, nil
-}
-
-func (d *Driver) findBackendServicePort(backendSvc netv1.IngressServiceBackend, namespace string) (*corev1.Service, *corev1.ServicePort, error) {
-	service, err := d.store.GetServiceV1(backendSvc.Name, namespace)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	servicePort, err := findServicesPort(d.log, service, backendSvc.Port)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return service, servicePort, nil
-}
-
 // MigrateKubernetesIngressControllerLabelsToNgrokOperator migrates the labels from the old Kubernetes Ingress Controller to the new ngrok operator labels
 // so that the ngrok operator can take over management of items previously managed by the Kubernetes Ingress Controller.
 // TODO: Delete this function after users have migrated from the ngrok Kubernetes Ingress Controller to the ngrok Operator.
 func (d *Driver) MigrateKubernetesIngressControllerLabelsToNgrokOperator(ctx context.Context, k8sClient client.Client) error {
 	typesToMigrate := []interface{}{
 		&ingressv1alpha1.Domain{},
-		&ingressv1alpha1.Tunnel{},
-		&ingressv1alpha1.HTTPSEdge{},
 	}
 
 	for _, t := range typesToMigrate {

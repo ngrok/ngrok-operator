@@ -6,7 +6,6 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	internalerrors "github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
@@ -22,12 +21,11 @@ import (
 // https://pkg.go.dev/sigs.k8s.io/controller-runtime#section-readme
 type IngressReconciler struct {
 	client.Client
-	Log                  logr.Logger
-	Scheme               *runtime.Scheme
-	Recorder             record.EventRecorder
-	Namespace            string
-	AnnotationsExtractor annotations.Extractor
-	Driver               *managerdriver.Driver
+	Log       logr.Logger
+	Scheme    *runtime.Scheme
+	Recorder  record.EventRecorder
+	Namespace string
+	Driver    *managerdriver.Driver
 }
 
 func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -35,9 +33,6 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		&netv1.IngressClass{},
 		&corev1.Service{},
 		&ingressv1alpha1.Domain{},
-		&ingressv1alpha1.HTTPSEdge{},
-		&ingressv1alpha1.Tunnel{},
-		&ingressv1alpha1.NgrokModuleSet{},
 		&ngrokv1alpha1.NgrokTrafficPolicy{},
 	}
 
@@ -58,7 +53,6 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses/status,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingressclasses,verbs=get;list;watch
-// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=ngrokmodulesets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch
 
 // This reconcile function is called by the controller-runtime manager.

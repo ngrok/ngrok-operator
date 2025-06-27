@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"net/http"
 	"strconv"
@@ -18,7 +17,6 @@ import (
 
 	"github.com/go-logr/logr"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -256,95 +254,6 @@ func (td *TunnelDriver) getSession() (ngrok.Session, error) {
 	}
 }
 
-// CreateTunnel creates and starts a new tunnel in a goroutine. If a tunnel with the same name already exists,
-// it will be stopped and replaced with a new tunnel unless the labels match.
-func (td *TunnelDriver) CreateTunnel(ctx context.Context, name string, spec ingressv1alpha1.TunnelSpec) error {
-	session, err := td.getSession()
-	if err != nil {
-		return err
-	}
-
-	log := log.FromContext(ctx)
-
-	newAppProtocol := ""
-	if spec.AppProtocol != nil {
-		newAppProtocol = string(*spec.AppProtocol)
-	}
-	if tun, ok := td.tunnels[name]; ok {
-		// Check if the tunnel matches the spec
-		var currentAppProtocol string
-		if fwdProto, ok := tun.(interface{ ForwardsProto() string }); ok {
-			currentAppProtocol = fwdProto.ForwardsProto()
-		}
-
-		if maps.Equal(tun.Labels(), spec.Labels) && tun.ForwardsTo() == spec.ForwardsTo && currentAppProtocol == newAppProtocol {
-			log.Info("Tunnel already exists and matches spec")
-			return nil
-		}
-		// There is already a tunnel with this name, start the new one and defer closing the old one
-		//nolint:errcheck
-		defer td.stopTunnel(context.Background(), tun)
-	}
-
-	tun, err := session.Listen(ctx, td.buildTunnelConfig(spec.Labels, spec.ForwardsTo, newAppProtocol))
-	if err != nil {
-		return err
-	}
-	td.tunnels[name] = tun
-
-	upstreamTLS := false
-	if spec.BackendConfig != nil {
-		// This is janky but the CRD just supports any random string here so we need to deal with the fact that is in the wild now
-		switch strings.ToUpper(spec.BackendConfig.Protocol) {
-		case "TLS", "HTTPS":
-			upstreamTLS = true
-		}
-	}
-
-	service, portStr, err := net.SplitHostPort(spec.ForwardsTo)
-	if err != nil {
-		return fmt.Errorf("invalid spec.forwardsTo (%q): %w", spec.ForwardsTo, err)
-	}
-
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return fmt.Errorf("invalid port for spec.forwardsTo (%q): %w", spec.ForwardsTo, err)
-	}
-
-	go handleTCPConnections(
-		ctx,
-		&net.Dialer{
-			Timeout: defaultDialTimeout,
-		},
-		tun,
-		service,
-		port,
-		upstreamTLS,
-		spec.AppProtocol,
-		nil,
-	)
-	return nil
-}
-
-// DeleteTunnel stops and deletes a tunnel
-func (td *TunnelDriver) DeleteTunnel(ctx context.Context, name string) error {
-	log := log.FromContext(ctx).WithValues("name", name)
-
-	tun := td.tunnels[name]
-	if tun == nil {
-		log.Info("Tunnel not found while trying to delete tunnel")
-		return nil
-	}
-
-	err := td.stopTunnel(ctx, tun)
-	if err != nil {
-		return err
-	}
-	delete(td.tunnels, name)
-	log.Info("Tunnel deleted successfully")
-	return nil
-}
-
 // CreateAgentEndpoint will create or update an agent endpoint by name using the provided desired configuration state
 func (td *TunnelDriver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) error {
 	log := log.FromContext(ctx).WithValues(
@@ -492,16 +401,6 @@ func (td *TunnelDriver) stopTunnel(ctx context.Context, tun ngrok.Tunnel) error 
 		return nil
 	}
 	return tun.CloseWithContext(ctx)
-}
-
-func (td *TunnelDriver) buildTunnelConfig(labels map[string]string, destination, appProtocol string) config.Tunnel {
-	opts := []config.LabeledTunnelOption{}
-	for key, value := range labels {
-		opts = append(opts, config.WithLabel(key, value))
-	}
-	opts = append(opts, config.WithForwardsTo(destination))
-	opts = append(opts, config.WithAppProtocol(appProtocol))
-	return config.LabeledTunnel(opts...)
 }
 
 func handleTCPConnections(ctx context.Context, dialer Dialer, tun ngrok.Tunnel, upstreamHostname string, upstreamPort int, upstreamTLS bool, upstreamAppProto *commonv1alpha1.ApplicationProtocol, clientCerts []tls.Certificate) {

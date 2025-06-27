@@ -177,17 +177,6 @@ func runAgentController(ctx context.Context, opts agentManagerOpts) error {
 	// register healthcheck for tunnel driver
 	healthcheck.RegisterHealthChecker(td)
 
-	if err = (&agentcontroller.TunnelReconciler{
-		Client:       mgr.GetClient(),
-		Log:          ctrl.Log.WithName("controllers").WithName("tunnel"),
-		Scheme:       mgr.GetScheme(),
-		Recorder:     mgr.GetEventRecorderFor("tunnel-controller"),
-		TunnelDriver: td,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Tunnel")
-		os.Exit(1)
-	}
-
 	if err = (&agentcontroller.AgentEndpointReconciler{
 		Client:                     mgr.GetClient(),
 		Log:                        ctrl.Log.WithName("controllers").WithName("agentendpoint"),

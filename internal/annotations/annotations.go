@@ -20,17 +20,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/imdario/mergo"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/annotations/compression"
-	"github.com/ngrok/ngrok-operator/internal/annotations/headers"
-	"github.com/ngrok/ngrok-operator/internal/annotations/ip_policies"
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
-	"github.com/ngrok/ngrok-operator/internal/annotations/tls"
-	"github.com/ngrok/ngrok-operator/internal/annotations/webhook_verification"
 	"github.com/ngrok/ngrok-operator/internal/errors"
-	networking "k8s.io/api/networking/v1"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -69,85 +60,12 @@ const (
 type MappingStrategy string
 
 const (
-	MappingStrategy_Edges MappingStrategy = "edges"
-
 	// The default strategy when translating resources into AgentEndpoint / CloudEndpoint that prioritizes collapsing into a single public AgentEndpoint when possible
 	MappingStrategy_EndpointsDefault MappingStrategy = "endpoints"
 
 	// Alternative strategy when translating resources into AgentEndpoint / CloudEndpoint that always creates CloudEndpoints for hostnames and only internal AgentEndpoints for each unique upstream
 	MappingStrategy_EndpointsVerbose MappingStrategy = "endpoints-verbose"
 )
-
-type RouteModules struct {
-	Compression         *ingressv1alpha1.EndpointCompression
-	Headers             *ingressv1alpha1.EndpointHeaders
-	IPRestriction       *ingressv1alpha1.EndpointIPPolicy
-	TLSTermination      *ingressv1alpha1.EndpointTLSTerminationAtEdge
-	WebhookVerification *ingressv1alpha1.EndpointWebhookVerification
-}
-
-type Extractor struct {
-	annotations map[string]parser.Annotation
-}
-
-func NewAnnotationsExtractor() Extractor {
-	return Extractor{
-		annotations: map[string]parser.Annotation{
-			"Compression":         compression.NewParser(),
-			"Headers":             headers.NewParser(),
-			"IPRestriction":       ip_policies.NewParser(),
-			"TLSTermination":      tls.NewParser(),
-			"WebhookVerification": webhook_verification.NewParser(),
-		},
-	}
-}
-
-// Extract extracts the annotations from an Ingress
-func (e Extractor) Extract(ing *networking.Ingress) *RouteModules {
-	pia := &RouteModules{}
-
-	data := make(map[string]interface{})
-	for name, annotationParser := range e.annotations {
-		val, err := annotationParser.Parse(ing)
-		klog.V(5).InfoS("Parsing Ingress annotation", "name", name, "ingress", klog.KObj(ing), "value", val)
-		if err != nil {
-			if errors.IsMissingAnnotations(err) {
-				continue
-			}
-
-			if !errors.IsLocationDenied(err) {
-				continue
-			}
-
-			_, alreadyDenied := data[DeniedKeyName]
-			if !alreadyDenied {
-				errString := err.Error()
-				data[DeniedKeyName] = &errString
-				klog.ErrorS(err, "error reading Ingress annotation", "name", name, "ingress", klog.KObj(ing))
-				continue
-			}
-
-			klog.V(5).ErrorS(err, "error reading Ingress annotation", "name", name, "ingress", klog.KObj(ing))
-		}
-
-		if val != nil {
-			data[name] = val
-		}
-	}
-
-	err := mergo.MapWithOverwrite(pia, data)
-	if err != nil {
-		klog.ErrorS(err, "unexpected error merging extracted annotations")
-	}
-
-	return pia
-}
-
-// Extracts a list of module set names from the annotation
-// k8s.ngrok.com/modules: "module1,module2"
-func ExtractNgrokModuleSetsFromAnnotations(obj client.Object) ([]string, error) {
-	return parser.GetStringSliceAnnotation("modules", obj)
-}
 
 // Extracts a single traffic policy str from the annotation
 // k8s.ngrok.com/traffic-policy: "module1"
@@ -167,19 +85,6 @@ func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error)
 	}
 
 	return "", nil
-}
-
-// Whether or not we should use edges in building the ngrok model for resources. Extracts the value
-// from the annotation "k8s.ngrok.com/mapping-strategy" if it is present. Otherwise, it defaults to false
-func ExtractUseEdges(obj client.Object) (bool, error) {
-	val, err := parser.GetStringAnnotation(MappingStrategyAnnotationKey, obj)
-	if err != nil {
-		if errors.IsMissingAnnotations(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return strings.EqualFold(val, string(MappingStrategy_Edges)), nil
 }
 
 // Whether or not we should use endpoint pooling
