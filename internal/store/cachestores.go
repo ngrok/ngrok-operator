@@ -51,9 +51,6 @@ type CacheStores struct {
 
 	// Ngrok Stores
 	DomainV1             cache.Store
-	TunnelV1             cache.Store
-	HTTPSEdgeV1          cache.Store
-	NgrokModuleV1        cache.Store
 	NgrokTrafficPolicyV1 cache.Store
 	AgentEndpointV1      cache.Store
 	CloudEndpointV1      cache.Store
@@ -81,9 +78,6 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		ReferenceGrant: cache.NewStore(keyFunc),
 		// Ngrok Stores
 		DomainV1:             cache.NewStore(keyFunc),
-		TunnelV1:             cache.NewStore(keyFunc),
-		HTTPSEdgeV1:          cache.NewStore(keyFunc),
-		NgrokModuleV1:        cache.NewStore(keyFunc),
 		NgrokTrafficPolicyV1: cache.NewStore(keyFunc),
 		AgentEndpointV1:      cache.NewStore(keyFunc),
 		CloudEndpointV1:      cache.NewStore(keyFunc),
@@ -152,12 +146,6 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		return c.DomainV1.Get(obj)
-	case *ingressv1alpha1.Tunnel:
-		return c.TunnelV1.Get(obj)
-	case *ingressv1alpha1.HTTPSEdge:
-		return c.HTTPSEdgeV1.Get(obj)
-	case *ingressv1alpha1.NgrokModuleSet:
-		return c.NgrokModuleV1.Get(obj)
 	case *ngrokv1alpha1.NgrokTrafficPolicy:
 		return c.NgrokTrafficPolicyV1.Get(obj)
 	case *ngrokv1alpha1.AgentEndpoint:
@@ -213,12 +201,6 @@ func (c CacheStores) Add(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		return c.DomainV1.Add(obj)
-	case *ingressv1alpha1.Tunnel:
-		return c.TunnelV1.Add(obj)
-	case *ingressv1alpha1.HTTPSEdge:
-		return c.HTTPSEdgeV1.Add(obj)
-	case *ingressv1alpha1.NgrokModuleSet:
-		return c.NgrokModuleV1.Add(obj)
 	case *ngrokv1alpha1.NgrokTrafficPolicy:
 		return c.NgrokTrafficPolicyV1.Add(obj)
 	case *ngrokv1alpha1.AgentEndpoint:
@@ -275,12 +257,6 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		return c.DomainV1.Delete(obj)
-	case *ingressv1alpha1.Tunnel:
-		return c.TunnelV1.Delete(obj)
-	case *ingressv1alpha1.HTTPSEdge:
-		return c.HTTPSEdgeV1.Delete(obj)
-	case *ingressv1alpha1.NgrokModuleSet:
-		return c.NgrokModuleV1.Delete(obj)
 	case *ngrokv1alpha1.NgrokTrafficPolicy:
 		return c.NgrokTrafficPolicyV1.Delete(obj)
 	case *ngrokv1alpha1.AgentEndpoint:

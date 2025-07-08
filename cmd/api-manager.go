@@ -60,7 +60,6 @@ import (
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/annotations"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
@@ -526,13 +525,12 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 // enableIngressFeatureSet enables the Ingress feature set for the operator
 func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy) error {
 	if err := (&ingresscontroller.IngressReconciler{
-		Client:               mgr.GetClient(),
-		Log:                  ctrl.Log.WithName("controllers").WithName("ingress"),
-		Scheme:               mgr.GetScheme(),
-		Recorder:             mgr.GetEventRecorderFor("ingress-controller"),
-		Namespace:            opts.namespace,
-		AnnotationsExtractor: annotations.NewAnnotationsExtractor(),
-		Driver:               driver,
+		Client:    mgr.GetClient(),
+		Log:       ctrl.Log.WithName("controllers").WithName("ingress"),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  mgr.GetEventRecorderFor("ingress-controller"),
+		Namespace: opts.namespace,
+		Driver:    driver,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
@@ -564,39 +562,6 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		os.Exit(1)
 	}
 
-	if err := (&ingresscontroller.TCPEdgeReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("tcp-edge"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("tcp-edge-controller"),
-		NgrokClientset: ngrokClientset,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TCPEdge")
-		os.Exit(1)
-	}
-
-	if err := (&ingresscontroller.TLSEdgeReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("tls-edge"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("tls-edge-controller"),
-		NgrokClientset: ngrokClientset,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TLSEdge")
-		os.Exit(1)
-	}
-
-	if err := (&ingresscontroller.HTTPSEdgeReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("https-edge"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("https-edge-controller"),
-		NgrokClientset: ngrokClientset,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "HTTPSEdge")
-		os.Exit(1)
-	}
-
 	if err := (&ingresscontroller.IPPolicyReconciler{
 		Client:              mgr.GetClient(),
 		Log:                 ctrl.Log.WithName("controllers").WithName("ip-policy"),
@@ -606,17 +571,6 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		IPPolicyRulesClient: ngrokClientset.IPPolicyRules(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IPPolicy")
-		os.Exit(1)
-	}
-
-	if err := (&ingresscontroller.ModuleSetReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("ngrok-module-set"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("ngrok-module-set-controller"),
-		Driver:   driver,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NgrokModuleSet")
 		os.Exit(1)
 	}
 

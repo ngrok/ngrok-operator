@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
@@ -32,13 +31,6 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
-		if mappingStrategy == ir.IRMappingStrategy_Edges {
-			t.log.Info(fmt.Sprintf("the following ingress will be provided by ngrok edges instead of endpoints because of the %q annotation",
-				annotations.MappingStrategyAnnotation),
-				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
-			)
-			continue
-		}
 
 		useEndpointPooling, err := annotations.ExtractUseEndpointPooling(ingress)
 		if err != nil {
@@ -56,16 +48,6 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			t.log.Error(err, "error getting ngrok traffic policy for ingress",
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace))
 			continue
-		}
-
-		// If we don't have a native traffic policy from annotations, see if one was provided from a moduleset annotation
-		if annotationTrafficPolicy == nil {
-			annotationTrafficPolicy, tpObjRef, err = trafficPolicyFromModSetAnnotation(t.log, t.store, ingress, true)
-			if err != nil {
-				t.log.Error(err, "error getting ngrok traffic policy for ingress",
-					"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace))
-				continue
-			}
 		}
 
 		var defaultDestination *ir.IRDestination
@@ -397,53 +379,5 @@ func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *tra
 		Kind:      "NgrokTrafficPolicy",
 		Name:      tpObj.Name,
 		Namespace: tpObj.Namespace,
-	}, nil
-}
-
-func trafficPolicyFromModSetAnnotation(log logr.Logger, store store.Storer, obj client.Object, useEndpoints bool) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
-	// We don't support modulesets on endpoints or currently support converting a moduleset to a traffic policy, but still try to allow
-	// a moduleset that supplies a traffic policy with an error log to let users know that any other moduleset fields will be ignored
-	ingressModuleSet, err := getNgrokModuleSetForObject(obj, store)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// We always get back a moduleset from the above function, check if it is empty or not
-	if ingressModuleSet.IsEmpty() {
-		if useEndpoints {
-			log.Error(fmt.Errorf("ngrok moduleset supplied to %s with annotation to use endpoints instead of edges", obj.GetObjectKind().GroupVersionKind().Kind), "ngrok moduleset are not supported on endpoints. prefer using a traffic policy directly. any fields other than supplying a traffic policy using the module set will be ignored",
-				"ingress", fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
-			)
-		}
-		return nil, nil, nil
-	}
-
-	if ingressModuleSet.Modules.Policy == nil {
-		return nil, nil, nil
-	}
-
-	tpJSON, err := json.Marshal(ingressModuleSet.Modules.Policy)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%w: cannot convert module-set policy json for %s %q, moduleset policy: %v",
-			err,
-			obj.GetObjectKind().GroupVersionKind().Kind,
-			fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
-			ingressModuleSet.Modules.Policy,
-		)
-	}
-	var ingressTrafficPolicy *trafficpolicy.TrafficPolicy
-	if err := json.Unmarshal(tpJSON, ingressTrafficPolicy); err != nil {
-		return nil, nil, fmt.Errorf("%w: failed to unmarshal traffic policy from module set for %s %q, moduleset policy: %v",
-			err,
-			obj.GetObjectKind().GroupVersionKind().Kind,
-			fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
-			ingressModuleSet.Modules.Policy,
-		)
-	}
-
-	return ingressTrafficPolicy, &ir.OwningResource{
-		Kind:      "NgrokModuleSet",
-		Name:      ingressModuleSet.Name,
-		Namespace: ingressModuleSet.Namespace,
 	}, nil
 }

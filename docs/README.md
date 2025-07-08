@@ -11,7 +11,7 @@
 
 This is the ngrok ingress controller. It can be deployed and operated to a cluster and operated by a team allowing others to create ingress objects to dynamically self service ingress to their apps and services using a shared ngrok account. This is a great way to get started with ngrok and Kubernetes.
 
-The controller watches for [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) objects and creates the corresponding ngrok tunnels and edges. More details on how these are derived can be found [here](./user-guide/ingress-to-edge-relationship.md). Other ngrok features such as TCP Edges can be configured via [CRDs](./user-guide/crds.md).
+The controller watches for [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) objects and creates the corresponding ngrok tunnels and edges. More details on how these are derived can be found [here](./user-guide/ingress-to-edge-relationship.md). Other ngrok features such as Cloud or Agent Endpoints can be configured via [CRDs](./user-guide/crds.md).
 
 If you are looking to install the controller for the first time, see our [deployment-guide](./deployment-guide/README.md).
 If it's already installed and you are looking to configure ingress for an app or service, see our [user-guide](./user-guide/README.md).

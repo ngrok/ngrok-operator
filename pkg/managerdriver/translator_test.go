@@ -26,6 +26,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -497,6 +498,14 @@ type TranslatorTestCase struct {
 	}
 }
 
+func toIDs[T client.Object](objs []T) []string {
+	items := []string{}
+	for _, obj := range objs {
+		items = append(items, fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()))
+	}
+	return items
+}
+
 func TestTranslate(t *testing.T) {
 	testdataDir := "testdata/translator"
 	disableRefGrantsDir := "testdata/translator-disable-refgrants"
@@ -557,8 +566,8 @@ func TestTranslate(t *testing.T) {
 
 			// Finally, run translate and check the contents
 			result := translator.Translate()
-			assert.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints), fmt.Sprintf("mismatch in actual vs expected number of cloud endpoints from translation, expected: %v, actual: %v", tc.Expected.CloudEndpoints, result.CloudEndpoints))
-			assert.Equal(t, len(tc.Expected.AgentEndpoints), len(result.AgentEndpoints), fmt.Sprintf("mismatch in actual vs expected number of agent endpoints from translation, expected: %v, actual: %v", tc.Expected.AgentEndpoints, result.AgentEndpoints))
+			assert.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints), fmt.Sprintf("mismatch in actual vs expected number of cloud endpoints from translation, expected: %v, actual: %v", toIDs(tc.Expected.CloudEndpoints), result.CloudEndpoints))
+			assert.Equal(t, len(tc.Expected.AgentEndpoints), len(result.AgentEndpoints), fmt.Sprintf("mismatch in actual vs expected number of agent endpoints from translation, expected: %v, actual: %v", toIDs(tc.Expected.AgentEndpoints), result.AgentEndpoints))
 
 			for _, expectedCLEP := range tc.Expected.CloudEndpoints {
 				actualCLEP, exists := result.CloudEndpoints[types.NamespacedName{

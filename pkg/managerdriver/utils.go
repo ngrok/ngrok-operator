@@ -6,24 +6,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/gobwas/glob"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
-	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 // hasDefaultManagedResourceLabels takes input labels and the manager name/namespace to see if the label map contains
@@ -233,16 +227,6 @@ func getPortAppProtocol(log logr.Logger, service *corev1.Service, port *corev1.S
 	return nil
 }
 
-// Generates a labels map for matching ngrok Routes to Agent Tunnels
-func ngrokLabels(namespace, serviceUID, serviceName string, port int32) map[string]string {
-	return map[string]string{
-		labelNamespace:  namespace,
-		labelServiceUID: serviceUID,
-		labelService:    serviceName,
-		labelPort:       strconv.Itoa(int(port)),
-	}
-}
-
 func findServicesPort(log logr.Logger, service *corev1.Service, backendSvcPort netv1.ServiceBackendPort) (*corev1.ServicePort, error) {
 	for _, port := range service.Spec.Ports {
 		if (backendSvcPort.Number > 0 && port.Port == backendSvcPort.Number) || port.Name == backendSvcPort.Name {
@@ -251,16 +235,6 @@ func findServicesPort(log logr.Logger, service *corev1.Service, backendSvcPort n
 		}
 	}
 	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, backendSvcPort.Number, backendSvcPort.Name)
-}
-
-func findBackendRefServicesPort(log logr.Logger, service *corev1.Service, backendRef *gatewayv1.BackendRef) (*corev1.ServicePort, error) {
-	for _, port := range service.Spec.Ports {
-		if (int32(*backendRef.Port) > 0 && port.Port == int32(*backendRef.Port)) || port.Name == string(backendRef.Name) {
-			log.V(3).Info("Found matching port for service", "namespace", service.Namespace, "service", service.Name, "port.name", port.Name, "port.number", port.Port)
-			return &port, nil
-		}
-	}
-	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, int32(*backendRef.Port), string(backendRef.Name))
 }
 
 func calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, domains map[string]ingressv1alpha1.Domain) []netv1.IngressLoadBalancerIngress {
@@ -313,42 +287,6 @@ func extractPolicy(jsonMessage json.RawMessage) (util.TrafficPolicy, error) {
 	}
 
 	return extensionRefTrafficPolicy, nil
-}
-
-func getNgrokTrafficPolicyForIngress(ing *netv1.Ingress, resources store.Storer) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
-	policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(ing)
-	if err != nil {
-		if errors.IsMissingAnnotations(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	return resources.GetNgrokTrafficPolicyV1(policy, ing.Namespace)
-}
-
-// Given an object, it will resolve any ngrok modulesets defined on the object's annotations to the
-// CRDs and then will merge them in to a single moduleset
-func getNgrokModuleSetForObject(obj client.Object, resources store.Storer) (*ingressv1alpha1.NgrokModuleSet, error) {
-	computedModSet := &ingressv1alpha1.NgrokModuleSet{}
-
-	modules, err := annotations.ExtractNgrokModuleSetsFromAnnotations(obj)
-	if err != nil {
-		if errors.IsMissingAnnotations(err) {
-			return computedModSet, nil
-		}
-		return computedModSet, err
-	}
-
-	for _, module := range modules {
-		resolvedMod, err := resources.GetNgrokModuleSetV1(module, obj.GetNamespace())
-		if err != nil {
-			return computedModSet, err
-		}
-		computedModSet.Merge(resolvedMod)
-	}
-
-	return computedModSet, nil
 }
 
 // netv1PathTypeToIR validates an ingress

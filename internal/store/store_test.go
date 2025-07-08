@@ -465,51 +465,6 @@ var _ = Describe("Store", func() {
 		)
 	})
 
-	var _ = Describe("ListNgrokModulesV1", func() {
-		Context("when there are NgrokModuleSets", func() {
-			BeforeEach(func() {
-				m1 := testutils.NewTestNgrokModuleSet("ngrok", "test", true)
-				Expect(store.Add(&m1)).To(BeNil())
-				m2 := testutils.NewTestNgrokModuleSet("ngrok", "test2", true)
-				Expect(store.Add(&m2)).To(BeNil())
-				m3 := testutils.NewTestNgrokModuleSet("test", "test", true)
-				Expect(store.Add(&m3)).To(BeNil())
-			})
-			It("returns the NgrokModuleSet", func() {
-				modules := store.ListNgrokModuleSetsV1()
-				Expect(len(modules)).To(Equal(3))
-			})
-		})
-		Context("when there are no NgrokModuleSets", func() {
-			It("doesn't error", func() {
-				modules := store.ListNgrokModuleSetsV1()
-				Expect(len(modules)).To(Equal(0))
-			})
-		})
-	})
-
-	var _ = Describe("GetNgrokModuleSetV1", func() {
-		Context("when the NgrokModuleSet exists", func() {
-			BeforeEach(func() {
-				m := testutils.NewTestNgrokModuleSet("ngrok", "test", true)
-				Expect(store.Add(&m)).To(BeNil())
-			})
-			It("returns the NgrokModuleSet", func() {
-				modset, err := store.GetNgrokModuleSetV1("ngrok", "test")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(modset.Modules.Compression.Enabled).To(Equal(true))
-			})
-		})
-		Context("when the NgrokModuleSet does not exist", func() {
-			It("returns an error", func() {
-				modset, err := store.GetNgrokModuleSetV1("does-not-exist", "does-not-exist")
-				Expect(err).To(HaveOccurred())
-				Expect(errors.IsErrorNotFound(err)).To(Equal(true))
-				Expect(modset).To(BeNil())
-			})
-		})
-	})
-
 	var _ = Describe("GetNgrokTrafficPolicyV1", func() {
 		Context("when the NgrokTrafficPolicy exists", func() {
 			BeforeEach(func() {
@@ -662,9 +617,8 @@ var _ = Describe("Store", func() {
 					},
 				}
 				ok, err := store.shouldHandleIngressIsValid(ing)
-				Expect(ok).To(BeFalse())
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("Default backends are not supported"))
+				Expect(ok).To(BeTrue())
+				Expect(err).To(Not(HaveOccurred()))
 			})
 		})
 

@@ -1,8 +1,0 @@
-# 1. Copy this file to ./config.yaml
-# 2. Set you unique FQDN in the "value" field below
-- op: replace
-  path: /spec/rules/0/host
-  value: <UNIQUE DOMAIN>
-- op: replace
-  path: /spec/rules/1/host
-  value: <UNIQUE DOMAIN>

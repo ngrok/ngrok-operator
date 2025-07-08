@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
+        checksum/controller-role: e108215aa508729e0a9d9a12bed3b67d1fef8007aecee1e86b8d3ea8f872b829
         checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
       labels:
         app.kubernetes.io/component: controller
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
+            checksum/controller-role: e108215aa508729e0a9d9a12bed3b67d1fef8007aecee1e86b8d3ea8f872b829
             checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -445,32 +445,6 @@ Should match all-options snapshot:
       - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
-          - httpsedges
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - httpsedges/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - httpsedges/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
           - ippolicies
         verbs:
           - create
@@ -490,92 +464,6 @@ Should match all-options snapshot:
           - ingress.k8s.ngrok.com
         resources:
           - ippolicies/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - ngrokmodulesets
-        verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tcpedges
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tcpedges/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tcpedges/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tlsedges
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tlsedges/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tlsedges/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/status
         verbs:
           - get
           - patch
@@ -716,7 +604,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
+        checksum/controller-role: e108215aa508729e0a9d9a12bed3b67d1fef8007aecee1e86b8d3ea8f872b829
         checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
       labels:
         app.kubernetes.io/component: controller
@@ -738,7 +626,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 7a9dd902b42a29f69ffbd6c3b6dddda72b68e4f0ee3af37b60dc4dfd103d4ac4
+            checksum/controller-role: e108215aa508729e0a9d9a12bed3b67d1fef8007aecee1e86b8d3ea8f872b829
             checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -1144,32 +1032,6 @@ Should match default snapshot:
       - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
-          - httpsedges
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - httpsedges/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - httpsedges/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
           - ippolicies
         verbs:
           - create
@@ -1189,92 +1051,6 @@ Should match default snapshot:
           - ingress.k8s.ngrok.com
         resources:
           - ippolicies/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - ngrokmodulesets
-        verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tcpedges
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tcpedges/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tcpedges/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tlsedges
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tlsedges/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tlsedges/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/status
         verbs:
           - get
           - patch

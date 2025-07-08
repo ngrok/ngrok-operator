@@ -118,6 +118,11 @@ func RandomName(prefix string) string {
 	return prefix + "-" + rand.String(5)
 }
 
+// RandomURL generates a random URL.
+func RandomURL() string {
+	return "https://" + RandomName("test-url") + ".ngrok.io"
+}
+
 // NewGatewayClass creates a new GatewayClass with a random name to be used in tests. If
 // isManaged is true, the controller name will be set to the ngrok gateway controller name.
 // If isManaged is false, the controller name will be set to a different value.
@@ -249,29 +254,6 @@ func NewReferenceGrant(name string, namespace string) gatewayv1beta1.ReferenceGr
 	}
 }
 
-func NewHTTPSEdge(name string, namespace string) ingressv1alpha1.HTTPSEdge {
-	return ingressv1alpha1.HTTPSEdge{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-	}
-}
-
-func NewTestNgrokModuleSet(name string, namespace string, compressionEnabled bool) ingressv1alpha1.NgrokModuleSet {
-	return ingressv1alpha1.NgrokModuleSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Modules: ingressv1alpha1.NgrokModuleSetModules{
-			Compression: &ingressv1alpha1.EndpointCompression{
-				Enabled: compressionEnabled,
-			},
-		},
-	}
-}
-
 func NewTestNgrokTrafficPolicy(name string, namespace string, policyStr string) ngrokv1alpha1.NgrokTrafficPolicy {
 	return ngrokv1alpha1.NgrokTrafficPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -282,4 +264,47 @@ func NewTestNgrokTrafficPolicy(name string, namespace string, policyStr string) 
 			Policy: json.RawMessage(policyStr),
 		},
 	}
+}
+
+type CloudEndpointOpt func(*ngrokv1alpha1.CloudEndpoint)
+
+// NewCloudEndpoint creates a new CloudEndpoint with the given name and namespace.
+// The URL is set to a random name for testing purposes.
+// You can pass additional options to customize the CloudEndpoint further.
+// Example usage:
+//
+//	NewCloudEndpoint
+func NewCloudEndpoint(opts ...CloudEndpointOpt) *ngrokv1alpha1.CloudEndpoint {
+	clep := &ngrokv1alpha1.CloudEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      RandomName("cloud-endpoint"),
+			Namespace: RandomName("namespace"),
+		},
+		Spec: ngrokv1alpha1.CloudEndpointSpec{
+			URL: RandomName("url"),
+		},
+	}
+	for _, opt := range opts {
+		opt(clep)
+	}
+	return clep
+}
+
+type AgentEndpointOpt func(*ngrokv1alpha1.AgentEndpoint)
+
+func NewAgentEndpoint(opts ...AgentEndpointOpt) *ngrokv1alpha1.AgentEndpoint {
+	aep := &ngrokv1alpha1.AgentEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      RandomName("agent-endpoint"),
+			Namespace: RandomName("namespace"),
+		},
+		Spec: ngrokv1alpha1.AgentEndpointSpec{
+			URL: RandomURL(),
+		},
+	}
+
+	for _, opt := range opts {
+		opt(aep)
+	}
+	return aep
 }
