@@ -15,7 +15,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.2
 	go.uber.org/zap v1.27.0
-	golang.ngrok.com/ngrok v1.12.0
+	golang.ngrok.com/ngrok/v2 v2.0.0
 	golang.org/x/sync v0.13.0
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/yaml.v2 v2.4.0
