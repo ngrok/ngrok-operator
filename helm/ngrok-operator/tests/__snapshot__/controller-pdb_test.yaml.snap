@@ -9,8 +9,8 @@ should match snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.17.0
-        helm.sh/chart: ngrok-operator-0.19.0
+        app.kubernetes.io/version: 0.18.0
+        helm.sh/chart: ngrok-operator-0.20.0-rc.1
       name: test-release-ngrok-operator-controller-pdb
       namespace: test-namespace
     spec:

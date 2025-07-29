@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.18.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.17.0...ngrok-operator-0.18.0
+
+Warning: The ngrok-operator image version `0.18.0` and above include a breaking change due to the
+sunsetting of some ngrok platform features. Before you upgrade to this version of the image,
+please see https://github.com/ngrok/ngrok-operator/discussions/654.
+
+### Removed
+- [Breaking Change!] Remove Deprecated CRDs by @jonstacks in [#664](https://github.com/ngrok/ngrok-operator/pull/664).
+
+### Changed
+- chore(deps): bump golang.org/x/oauth2 from 0.23.0 to 0.27.0 by @dependabot in [#668](https://github.com/ngrok/ngrok-operator/pull/668).
+- feat: Migrate to ngrok-go v2 by @jonstacks in [#667](https://github.com/ngrok/ngrok-operator/pull/667).
+
 ## 0.17.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.16.1...ngrok-operator-0.17.0
 
