@@ -5,6 +5,19 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.20.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.19.0...helm-chart-0.20.0-rc.1
+
+Warning: The ngrok-operator image version `0.18.0` and above include a breaking change due to the
+sunsetting of some ngrok platform features. Before you upgrade to this version of the image,
+please see https://github.com/ngrok/ngrok-operator/discussions/654.
+
+### Removed
+- [Breaking Change!] Remove Deprecated CRDs by @jonstacks in [#664](https://github.com/ngrok/ngrok-operator/pull/664).
+
+### Changed
+- Update ngrok-operator image version to `0.18.0`
+
 ## 0.19.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.18.1...helm-chart-0.19.0
 
