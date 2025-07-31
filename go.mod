@@ -4,6 +4,7 @@ go 1.24.4
 
 require (
 	github.com/docker/docker v28.3.3+incompatible
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-logr/logr v1.4.2
 	github.com/gobwas/glob v0.2.3
 	github.com/google/uuid v1.6.0
@@ -36,7 +37,6 @@ require (
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fatih/color v1.17.0 // indirect
-	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
