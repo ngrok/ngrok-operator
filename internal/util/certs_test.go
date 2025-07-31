@@ -11,9 +11,9 @@ import (
 
 func resetCertsState() {
 	ngrokCertPool = nil
-	loadCertsOnce = sync.Once{}
-	loadCertsOnceErr = nil
-}
+	certsMu = sync.RWMutex{
+	}
+	}
 
 func TestLoadCerts_ValidPEM(t *testing.T) {
 	resetCertsState()
@@ -22,6 +22,8 @@ func TestLoadCerts_ValidPEM(t *testing.T) {
 
 	err := os.WriteFile(filepath.Join(tmpDir, "valid.pem"), []byte(validPEM), 0644)
 	require.NoError(t, err)
+
+	reloadCerts()
 
 	pool, err := LoadCerts()
 	require.NoError(t, err)
@@ -36,6 +38,7 @@ func TestLoadCerts_InvalidPEM(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tmpDir, "invalid.pem"), []byte("not a cert"), 0644)
 	require.NoError(t, err)
 
+	reloadCerts()
 	pool, err := LoadCerts()
 
 	require.Error(t, err, "expected error, got nil")
@@ -58,6 +61,32 @@ func TestLoadCerts_MissingPath(t *testing.T) {
 
 	// pool will be nil because cert loading failed completely
 	require.Nil(t, pool, "expected nil pool when certs path is missing")
+}
+
+func TestCerts_AutoReloadOnChange(t *testing.T) {
+	resetCertsState()
+	tmpDir := t.TempDir()
+	customCertsPath = tmpDir
+
+	// write initial valid cert
+	certPath := filepath.Join(tmpDir, "valid.pem")
+	err := os.WriteFile(certPath, []byte(validPEM), 0644)
+	require.NoError(t, err)
+
+	reloadCerts()
+	pool1, err := LoadCerts()
+	require.NoError(t, err)
+	require.NotNil(t, pool1)
+
+	// overwrite with invalid cert to simulate cert rotation
+	err = os.WriteFile(certPath, []byte("not a cert"), 0644)
+	require.NoError(t, err)
+
+	// simulate watcher event by calling reloadCerts again
+	reloadCerts()
+	pool2, err := LoadCerts()
+	require.Error(t, err)
+	require.Nil(t, pool2)
 }
 
 const validPEM = `-----BEGIN CERTIFICATE-----
