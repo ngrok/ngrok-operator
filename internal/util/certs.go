@@ -2,6 +2,7 @@ package util
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -41,6 +42,10 @@ func reloadCerts() {
 	err = filepath.WalkDir(customCertsPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if d.IsDir() {
+			return nil
 		}
 
 		// Skip directories, including symlinks to directories
@@ -108,7 +113,7 @@ func LoadCerts() (*x509.CertPool, error) {
 	certsMu.RLock()
 	defer certsMu.RUnlock()
 	if ngrokCertPool == nil {
-		return nil, fmt.Errorf("cert pool not loaded")
+		return nil, errors.New("cert pool not loaded")
 	}
 	return ngrokCertPool, nil
 }
