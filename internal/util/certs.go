@@ -2,7 +2,6 @@ package util
 
 import (
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 var (
@@ -17,66 +17,62 @@ var (
 	// use it for things like proxies
 	customCertsPath  = "/etc/ssl/certs/ngrok/"
 	ngrokCertPool    *x509.CertPool
-	// Mutex to protect concurrent access to the cert pool
-	certsMu          sync.RWMutex
+	loadCertsOnce    sync.Once
+	loadCertsOnceErr error
 )
 
-// init starts the certs directory watcher and loads certs at startup
 func init() {
-	go watchCertsDir() 
-	reloadCerts()      
+	go watchCertsDir()
 }
 
-// reloadCerts loads all certs from customCertsPath into ngrokCertPool
-// Called at startup and whenever a file change is detected
-func reloadCerts() {
-	certsMu.Lock()
-	defer certsMu.Unlock()
-
-	pool, err := x509.SystemCertPool()
-	if err != nil {
-		ngrokCertPool = nil
-		return
-	}
-
-	err = filepath.WalkDir(customCertsPath, func(path string, d fs.DirEntry, err error) error {
+// LoadCerts loads all certs from customCertsPath once, merges them with system certs
+func LoadCerts() (*x509.CertPool, error) {
+	// create a logger 
+	ctrl.Log.Info("Loading custom certs", "path", customCertsPath)
+	loadCertsOnce.Do(func() {
+		var err error
+		ngrokCertPool, err = x509.SystemCertPool()
 		if err != nil {
-			return err
+			loadCertsOnceErr = err
+			return
 		}
 
-		if d.IsDir() {
+		loadCertsOnceErr = filepath.WalkDir(customCertsPath, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+
+			// Skip directories, including symlinks to directories
+			info, statErr := os.Stat(path)
+			if statErr != nil {
+				return statErr
+			}
+			if info.IsDir() {
+				return nil
+			}
+
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if ok := ngrokCertPool.AppendCertsFromPEM(content); !ok {
+				return fmt.Errorf("failed to append certs from %s", path)
+			}
 			return nil
-		}
+		})
 
-		// Skip directories, including symlinks to directories
-		info, statErr := os.Stat(path)
-		if statErr != nil {
-			return statErr
+		if loadCertsOnceErr != nil {
+			ngrokCertPool = nil
 		}
-		if info.IsDir() {
-			return nil
-		}
-
-		// Read and append cert
-		content, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return fmt.Errorf("error reading %s: %w", path, readErr)
-		}
-		if ok := pool.AppendCertsFromPEM(content); !ok {
-			return fmt.Errorf("failed to append certs from %s", path)
-		}
-		return nil
 	})
 
-	if err != nil {
-		ngrokCertPool = nil
-	} else {
-		ngrokCertPool = pool
-	}
+	return ngrokCertPool, loadCertsOnceErr
 }
 
-
-// watchCertsDir watches the certs directory for changes and reloads certs automatically
+// watchCertsDir watches for changes in the certs directory and exits on any update
 func watchCertsDir() {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -84,7 +80,6 @@ func watchCertsDir() {
 	}
 	defer watcher.Close()
 
-	// Add the certs directory to the watcher
 	err = watcher.Add(customCertsPath)
 	if err != nil {
 		return
@@ -96,9 +91,9 @@ func watchCertsDir() {
 			if !ok {
 				return
 			}
-			// Reload certs if any file is written, created, removed, or renamed
 			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0 {
-				reloadCerts()
+				ctrl.Log.Info("Detected change in custom certs directory, restarting pod")
+				os.Exit(0)
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok || err != nil {
@@ -106,14 +101,4 @@ func watchCertsDir() {
 			}
 		}
 	}
-}
-
-// LoadCerts returns the current cert pool, or an error if not loaded
-func LoadCerts() (*x509.CertPool, error) {
-	certsMu.RLock()
-	defer certsMu.RUnlock()
-	if ngrokCertPool == nil {
-		return nil, errors.New("cert pool not loaded")
-	}
-	return ngrokCertPool, nil
 }
