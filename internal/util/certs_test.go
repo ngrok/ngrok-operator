@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +14,7 @@ func resetCertsState() {
 	ngrokCertPool = nil
 	loadCertsOnce = sync.Once{}
 	loadCertsOnceErr = nil
-	}
+}
 
 func TestLoadCerts_ValidPEM(t *testing.T) {
 	resetCertsState()
@@ -22,7 +23,6 @@ func TestLoadCerts_ValidPEM(t *testing.T) {
 
 	err := os.WriteFile(filepath.Join(tmpDir, "valid.pem"), []byte(validPEM), 0644)
 	require.NoError(t, err)
-
 
 	pool, err := LoadCerts()
 	require.NoError(t, err)
@@ -59,6 +59,33 @@ func TestLoadCerts_MissingPath(t *testing.T) {
 
 	// pool will be nil because cert loading failed completely
 	require.Nil(t, pool, "expected nil pool when certs path is missing")
+}
+
+func TestWatchCertsDir_TriggersCallbackOnChange(t *testing.T) {
+	tmpDir := t.TempDir()
+	certFile := filepath.Join(tmpDir, "test.pem")
+
+	triggered := make(chan bool, 1)
+
+	go func() {
+		err := watchCertsDirWithHandler(tmpDir, func() {
+			triggered <- true
+		})
+		require.NoError(t, err)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Write a file to trigger the watch
+	err := os.WriteFile(certFile, []byte(validPEM), 0644)
+	require.NoError(t, err)
+
+	select {
+	case <-triggered:
+		// Success
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected watcher to be triggered on cert file write")
+	}
 }
 
 

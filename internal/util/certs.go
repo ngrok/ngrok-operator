@@ -27,20 +27,25 @@ func init() {
 
 // LoadCerts loads all certs from customCertsPath once, merges them with system certs
 func LoadCerts() (*x509.CertPool, error) {
-	// create a logger 
+	// Load all certificates from the well known ngrok certs directory,
+	// combine them with the default certs, and save the cert pool once.
+	// If we've already done this, just return the cert pool.	
 	ctrl.Log.Info("Loading custom certs", "path", customCertsPath)
 	loadCertsOnce.Do(func() {
 		var err error
+		// Load the system cert pool
 		ngrokCertPool, err = x509.SystemCertPool()
 		if err != nil {
 			loadCertsOnceErr = err
 			return
 		}
-
+		// Now, walk the ngrok certs dir and add all the certs to the cert pool
 		loadCertsOnceErr = filepath.WalkDir(customCertsPath, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
+
+			// Skip directories
 			if d.IsDir() {
 				return nil
 			}
@@ -64,6 +69,7 @@ func LoadCerts() (*x509.CertPool, error) {
 			return nil
 		})
 
+		// if WalkDir or cert appending fails, clear the pool
 		if loadCertsOnceErr != nil {
 			ngrokCertPool = nil
 		}
@@ -72,33 +78,40 @@ func LoadCerts() (*x509.CertPool, error) {
 	return ngrokCertPool, loadCertsOnceErr
 }
 
-// watchCertsDir watches for changes in the certs directory and exits on any update
-func watchCertsDir() {
+func watchCertsDirWithHandler(path string, onChange func()) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return
+		return err
 	}
 	defer watcher.Close()
 
-	err = watcher.Add(customCertsPath)
-	if err != nil {
-		return
+	if err := watcher.Add(path); err != nil {
+		return err
 	}
 
 	for {
 		select {
 		case event, ok := <-watcher.Events:
 			if !ok {
-				return
+				return nil
 			}
 			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0 {
-				ctrl.Log.Info("Detected change in custom certs directory, restarting pod")
-				os.Exit(0)
+				onChange()
+				return nil
 			}
 		case err, ok := <-watcher.Errors:
-			if !ok || err != nil {
-				return
+			if !ok {
+				return nil
 			}
+			return err
 		}
 	}
+}
+
+// watchCertsDir watches for changes in the certs directory and exits on any update
+func watchCertsDir() {
+	_ = watchCertsDirWithHandler(customCertsPath, func() {
+		ctrl.Log.Info("Detected changes in custom certs directory, reloading certs")
+		os.Exit(0)
+	})
 }
