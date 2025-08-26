@@ -72,26 +72,7 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
-        {{- if .Values.description }}
-        - --description={{ .Values.description | quote }}
-        {{- end }}
-        {{- if .Values.region }}
-        - --region={{ .Values.region }}
-        {{- end }}
-        {{- if .Values.rootCAs }}
-        - --root-cas={{ .Values.rootCAs }}
-        {{- end }}
-        {{- if .Values.serverAddr }}
-        - --server-addr={{ .Values.serverAddr }}
-        {{- end }}
-        - --zap-log-level={{ .Values.log.level }}
-        - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
-        - --zap-encoder={{ .Values.log.format }}
-        - --health-probe-bind-address=:8081
-        - --metrics-bind-address=:8080
-        - --manager-name={{ include "ngrok-operator.fullname" . }}-agent-manager
-        - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
+        - --config={{ include "ngrok-operator.configPath" . }}
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -110,9 +91,12 @@ spec:
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}
         {{- end }}
-        {{- if .Values.extraVolumeMounts  }}
         volumeMounts:
-        {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
+        - name: config
+          mountPath: {{ include "ngrok-operator.configPath" . }}
+          readOnly: true
+        {{- if .Values.extraVolumeMounts  }}
+        {{ toYaml .Values.extraVolumeMounts | nindent 8 }}
         {{- end }}
         {{- if .Values.lifecycle }}
         lifecycle:
@@ -132,8 +116,11 @@ spec:
           periodSeconds: 10
         resources:
         {{- toYaml $agent.resources | nindent 10 }}
-      {{- if .Values.extraVolumes }}
       volumes:
+      - name: config
+        configMap:
+          name: {{ include "ngrok-operator.cmdParamsConfigMapName" . }}
+      {{- if .Values.extraVolumes }}
         {{ toYaml .Values.extraVolumes | nindent 6 }}
       {{- end }}
 {{- end }}

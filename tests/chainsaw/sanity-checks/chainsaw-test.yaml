@@ -13,10 +13,7 @@ spec:
     try:
     - assert:
         file: ./ngrok-operator-credentials.yaml
-  - name: check operator manager config
-    try:
-    - assert:
-        file: ./ngrok-operator-manager-config.yaml
+
   - name: check operator pods are running
     try:
     - assert:

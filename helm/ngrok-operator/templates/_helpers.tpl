@@ -129,3 +129,17 @@ Return the ngrok operator image name
 {{- $tag := .Values.image.tag | default .Chart.AppVersion | toString -}}
 {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
 {{- end -}}
+
+{{/*
+Config path for operator configuration
+*/}}
+{{- define "ngrok-operator.configPath" -}}
+/etc/operator
+{{- end -}}
+
+{{/*
+ConfigMap name for operator cmd params
+*/}}
+{{- define "ngrok-operator.cmdParamsConfigMapName" -}}
+{{ include "ngrok-operator.fullname" . }}-cmd-params-cm
+{{- end -}}

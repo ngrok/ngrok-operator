@@ -48,7 +48,7 @@ region: "" # empty means global or all regions
 
 ## @param rootCAs Set to "trusted" for the ngrok agent CA or "host" to trust the host's CA. Defaults to "trusted".
 ##
-rootCAs: ""
+rootCAs: "trusted"
 
 ## @param serverAddr  This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address.
 ##

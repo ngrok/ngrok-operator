@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -43,6 +42,7 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/config"
 	agentcontroller "github.com/ngrok/ngrok-operator/internal/controller/agent"
 	"github.com/ngrok/ngrok-operator/internal/healthcheck"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -61,82 +61,43 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-type agentManagerOpts struct {
-	// flags
-	metricsAddr string
-	probeAddr   string
-	serverAddr  string
-	description string
-	managerName string
-	zapOpts     *zap.Options
-
-	// feature flags
-	enableFeatureIngress          bool
-	enableFeatureGateway          bool
-	enableFeatureBindings         bool
-	disableGatewayReferenceGrants bool
-
-	// agent(tunnel driver) flags
-	region  string
-	rootCAs string
-
-	defaultDomainReclaimPolicy string
-}
-
 func agentCmd() *cobra.Command {
-	var opts agentManagerOpts
+	var configPath string
 	c := &cobra.Command{
 		Use: "agent-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runAgentController(c.Context(), opts)
+			return runAgentController(c.Context(), configPath)
 		},
 	}
 
-	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
-	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
-	// TODO(operator-rename): Same as above, but for the manager name.
-	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
-
-	// agent(tunnel driver) flags
-	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
-	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
-	c.Flags().StringVar(&opts.rootCAs, "root-cas", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
-
-	// feature flags
-	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
-	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
-	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
-
-	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
-
-	opts.zapOpts = &zap.Options{}
-	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
-	opts.zapOpts.BindFlags(goFlagSet)
-	c.Flags().AddGoFlagSet(goFlagSet)
+	c.Flags().StringVar(&configPath, "config", "", "Path to configuration directory")
 
 	return c
 }
 
-func runAgentController(_ context.Context, opts agentManagerOpts) error {
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+func runAgentController(_ context.Context, configPath string) error {
+	buildInfo := version.Get()
 
-	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
+	// Load and validate configuration from config file
+	operatorConfig, err := config.LoadAndValidateConfig(configPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	buildInfo := version.Get()
+	// Set up logging
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(operatorConfig.GetZapOptions())))
+	setupLog := ctrl.Log.WithName("setup")
 	setupLog.Info("starting agent-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
+
+	defaultDomainReclaimPolicy := config.GetDomainReclaimPolicy(operatorConfig.API.DefaultDomainReclaimPolicy)
 
 	options := ctrl.Options{
 		Scheme: scheme,
 		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
+			BindAddress: operatorConfig.MetricsBindAddress,
 		},
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
+		HealthProbeBindAddress: operatorConfig.HealthProbeBindAddress,
 		LeaderElection:         false,
 	}
 
@@ -149,18 +110,13 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 
 	// shared features between Ingress and Gateway (tunnels)
 	agentComments := []string{}
-	if opts.enableFeatureGateway {
+	if operatorConfig.EnableFeatureGateway {
 		agentComments = append(agentComments, `{"gateway": "gateway-api"}`)
 	}
 
-	rootCAs := "trusted"
-	if opts.rootCAs != "" {
-		rootCAs = opts.rootCAs
-	}
-
 	ad, err := agent.NewDriver(
-		agent.WithAgentConnectURL(opts.serverAddr),
-		agent.WithAgentConnectCAs(rootCAs),
+		agent.WithAgentConnectURL(operatorConfig.ServerAddr),
+		agent.WithAgentConnectCAs(operatorConfig.RootCAs),
 		agent.WithLogger(ctrl.Log.WithName("drivers").WithName("agent")),
 		agent.WithAgentComments(agentComments...),
 	)
@@ -169,7 +125,7 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		return fmt.Errorf("unable to create agent driver: %w", err)
 	}
 
-	// register healthcheck for tunnel driver
+	// register healthcheck for agent driver
 	healthcheck.RegisterHealthChecker(ad)
 
 	if err = (&agentcontroller.AgentEndpointReconciler{

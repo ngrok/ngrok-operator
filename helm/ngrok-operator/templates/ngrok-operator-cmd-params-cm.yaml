@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ngrok-operator.cmdParamsConfigMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+data:
+  # Logging configuration
+  log.level: {{ .Values.log.level | quote }}
+  log.format: {{ .Values.log.format | quote }}
+  log.stacktraceLevel: {{ .Values.log.stacktraceLevel | quote }}
+
+  # ngrok connection settings
+  region: {{ .Values.region | quote }}
+  serverAddr: {{ .Values.serverAddr | quote }}
+  apiURL: {{ .Values.apiURL | quote }}
+  rootCAs: {{ .Values.rootCAs | quote }}
+  description: {{ .Values.description | quote }}
+  {{- /* backwards compatibility for .metaData -> .ngrokMetadata */}}
+  {{- $ngrokMetadata := (.Values.metaData) | default .Values.ngrokMetadata }}
+  {{- if $ngrokMetadata }}
+  ngrokMetadata: {{- $metadataArgs := list -}}
+    {{- range $key, $value := $ngrokMetadata }}
+    {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
+    {{- end }}
+    {{- $metadataArgs | join "," | quote }}
+  {{- else }}
+  ngrokMetadata: ""
+  {{- end }}
+
+  # Manager settings (these have dynamic values from Helm)
+  releaseName: {{ .Release.Name | quote }}
+  managerName: {{ include "ngrok-operator.fullname" . }}-manager
+
+  # Feature flags
+  enableFeatureIngress: {{ .Values.ingress.enabled | quote }}
+  enableFeatureGateway: {{ (.Values.useExperimentalGatewayApi | default .Values.gateway.enabled) | quote }}
+  disableGatewayReferenceGrants: {{ .Values.gateway.disableReferenceGrants | quote }}
+  enableFeatureBindings: {{ .Values.bindings.enabled | quote }}
+  {{- if .Values.oneClickDemoMode }}
+  oneClickDemoMode: {{ .Values.oneClickDemoMode | quote }}
+  {{- end }}
+
+  # API manager specific settings
+  api.electionID: {{ include "ngrok-operator.fullname" . }}-leader
+  api.ingressControllerName: {{ .Values.controllerName | default .Values.ingress.controllerName | quote }}
+  api.ingressWatchNamespace: {{ (.Values.watchNamespace | default .Values.ingress.watchNamespace) | quote }}
+  api.defaultDomainReclaimPolicy: {{ .Values.defaultDomainReclaimPolicy | quote }}
+  api.clusterDomain: {{ .Values.clusterDomain | quote }}
+
+  # Bindings specific settings
+  bindings.endpointSelectors: {{ .Values.bindings.endpointSelectors | join "," | quote }}
+  {{- if .Values.bindings.serviceAnnotations }}
+  bindings.serviceAnnotations: {{- $serviceAnnotations := list -}}
+    {{- range $key, $value := .Values.bindings.serviceAnnotations }}
+    {{- $serviceAnnotations = append $serviceAnnotations (printf "%s=%s" $key $value) -}}
+    {{- end }}
+    {{- $serviceAnnotations | join "," | quote }}
+  {{- else }}
+  bindings.serviceAnnotations: ""
+  {{- end }}
+  {{- if .Values.bindings.serviceLabels }}
+  bindings.serviceLabels: {{- $serviceLabels := list -}}
+    {{- range $key, $value := .Values.bindings.serviceLabels }}
+    {{- $serviceLabels = append $serviceLabels (printf "%s=%s" $key $value) -}}
+    {{- end }}
+    {{- $serviceLabels | join "," | quote }}
+  {{- else }}
+  bindings.serviceLabels: ""
+  {{- end }}
+  bindings.ingressEndpoint: {{ .Values.bindings.ingressEndpoint | quote }}
