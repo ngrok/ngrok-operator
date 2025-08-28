@@ -41,14 +41,14 @@ import (
 // +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".spec.url"
 // +kubebuilder:printcolumn:name="Upstream URL",type="string",JSONPath=".spec.upstream.url"
 // +kubebuilder:printcolumn:name="Bindings",type="string",JSONPath=".spec.bindings"
-// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type=='Status')].status"
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type AgentEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec AgentEndpointSpec `json:"spec,omitempty"`
-	// Status AgentEndpointStatus `json:"status,omitempty"` Status subresource not yet supported
+	Spec   AgentEndpointSpec   `json:"spec,omitempty"`
+	Status AgentEndpointStatus `json:"status,omitempty"`
 }
 
 type EndpointUpstream struct {

@@ -29,6 +29,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -182,22 +183,100 @@ func (r *AgentEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
+	// Set reconciling condition
+	setReconcilingCondition(endpoint, "Reconciling AgentEndpoint")
+
 	err := r.ensureDomainExists(ctx, endpoint)
 	if err != nil {
+		if errors.Is(err, ErrDomainCreating) {
+			setDomainReadyCondition(endpoint, false, ReasonDomainCreating, "Domain is being created")
+			setReadyCondition(endpoint, false, ReasonDomainCreating, "Waiting for domain to be ready")
+		} else {
+			setDomainReadyCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
+			setReadyCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
+		}
+		// Update status even if domain creation failed
+		if statusErr := r.controller.ReconcileStatus(ctx, endpoint, err); statusErr != nil {
+			return statusErr
+		}
 		return err
 	}
+	setDomainReadyCondition(endpoint, true, "DomainReady", "Domain is ready")
 
 	trafficPolicy, err := r.getTrafficPolicy(ctx, endpoint)
 	if err != nil {
+		setTrafficPolicyCondition(endpoint, false, ReasonTrafficPolicyError, err.Error())
+		setReadyCondition(endpoint, false, ReasonTrafficPolicyError, err.Error())
+		if statusErr := r.controller.ReconcileStatus(ctx, endpoint, err); statusErr != nil {
+			return statusErr
+		}
 		return err
 	}
+
 	clientCerts, err := r.getClientCerts(ctx, endpoint)
 	if err != nil {
+		setReadyCondition(endpoint, false, ReasonConfigError, err.Error())
+		if statusErr := r.controller.ReconcileStatus(ctx, endpoint, err); statusErr != nil {
+			return statusErr
+		}
 		return err
 	}
 
 	tunnelName := r.statusID(endpoint)
-	return r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts)
+	result, err := r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts)
+
+	// Set traffic policy status (deterministic from spec)
+	if trafficPolicy != "" {
+		if endpoint.Spec.TrafficPolicy != nil && endpoint.Spec.TrafficPolicy.Reference != nil {
+			endpoint.Status.AttachedTrafficPolicy = endpoint.Spec.TrafficPolicy.Reference.Name
+		} else {
+			endpoint.Status.AttachedTrafficPolicy = "inline"
+		}
+	} else {
+		endpoint.Status.AttachedTrafficPolicy = "none"
+	}
+
+	// Update status based on endpoint creation result
+	if err != nil || (result != nil && result.Error != nil) {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		} else if result != nil && result.Error != nil {
+			errMsg = result.Error.Error()
+		}
+		
+		// Clean up error message for better display
+		errMsg = sanitizeErrorMessage(errMsg)
+
+		// Use more specific reason if this is a traffic policy error
+		reason := ReasonNgrokAPIError
+		if trafficPolicy != "" && (strings.Contains(errMsg, "policy") || strings.Contains(errMsg, "ERR_NGROK_2201")) {
+			reason = ReasonTrafficPolicyError
+		}
+
+		setEndpointCreatedCondition(endpoint, false, reason, errMsg)
+		setReadyCondition(endpoint, false, reason, errMsg)
+
+		if trafficPolicy != "" {
+			setTrafficPolicyCondition(endpoint, false, reason, errMsg)
+		}
+	} else if result != nil {
+		// Success - update status with endpoint information from ngrok
+		endpoint.Status.ID = result.ID
+		endpoint.Status.AssignedURL = result.URL
+
+		setEndpointCreatedCondition(endpoint, true, ReasonEndpointCreated, "Endpoint successfully created")
+		if trafficPolicy != "" {
+			setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
+		}
+		setReadyCondition(endpoint, true, ReasonEndpointActive, "AgentEndpoint is active and ready")
+	} else {
+		// Unexpected case - no result and no error
+		setReadyCondition(endpoint, false, ReasonNgrokAPIError, "No endpoint result returned")
+	}
+
+	// Always update status at the end
+	return r.controller.ReconcileStatus(ctx, endpoint, err)
 }
 
 func (r *AgentEndpointReconciler) delete(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
@@ -430,4 +509,18 @@ func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *n
 
 	r.Recorder.Event(aep, v1.EventTypeNormal, "DomainCreated", fmt.Sprintf("Domain CRD %s created successfully", hyphenatedDomain))
 	return ErrDomainCreating
+}
+
+// sanitizeErrorMessage cleans up ngrok API error messages for better display in kubectl output
+func sanitizeErrorMessage(msg string) string {
+	// Remove Windows-style line endings
+	cleaned := strings.ReplaceAll(msg, "\r\n", " ")
+	cleaned = strings.ReplaceAll(cleaned, "\r", " ")
+	cleaned = strings.ReplaceAll(cleaned, "\n", " ")
+	
+	// Remove extra whitespace
+	cleaned = regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
+	cleaned = strings.TrimSpace(cleaned)
+	
+	return cleaned
 }
