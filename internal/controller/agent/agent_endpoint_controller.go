@@ -183,7 +183,7 @@ func (r *AgentEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
-	// Set reconciling condition
+	// Set initial condition to reconciling
 	setReconcilingCondition(endpoint, "Reconciling AgentEndpoint")
 
 	err := r.ensureDomainExists(ctx, endpoint)
@@ -198,7 +198,6 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 
 	clientCerts, err := r.getClientCerts(ctx, endpoint)
 	if err != nil {
-		setReadyCondition(endpoint, false, ReasonConfigError, err.Error())
 		return r.controller.ReconcileStatus(ctx, endpoint, err)
 	}
 
@@ -283,7 +282,7 @@ func (r *AgentEndpointReconciler) findAgentEndpointForSecret(ctx context.Context
 }
 
 // getTrafficPolicy returns the TrafficPolicy JSON string from either the name reference or inline policy.
-// Also updates traffic policy related status conditions on the AgentEndpoint.
+// Updates the passed in AgentEndpoint with the status conditions based on the results.
 func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) (string, error) {
 	if aep.Spec.TrafficPolicy == nil {
 		return "", nil // No traffic policy to fetch, no error
@@ -321,6 +320,8 @@ func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngr
 	return policy, nil
 }
 
+// getClientCerts retrieves client certificates for upstream TLS connections.
+// Updates the passed in AgentEndpoint with the status conditions based on the results.
 func (r *AgentEndpointReconciler) getClientCerts(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) ([]tls.Certificate, error) {
 	if aep.Spec.ClientCertificateRefs == nil {
 		return nil, nil // Nothing to fetch
@@ -337,21 +338,28 @@ func (r *AgentEndpointReconciler) getClientCerts(ctx context.Context, aep *ngrok
 		certSecret := &v1.Secret{}
 		if err := r.Client.Get(ctx, key, certSecret); err != nil {
 			r.Recorder.Event(certSecret, v1.EventTypeWarning, "SecretNotFound", fmt.Sprintf("Failed to find Secret %s", clientCertRef.Name))
+			setReadyCondition(aep, false, ReasonConfigError, err.Error())
 			return nil, err
 		}
 
 		certData, exists := certSecret.Data["tls.crt"]
 		if !exists {
-			return nil, fmt.Errorf("tls.crt data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+			err := fmt.Errorf("tls.crt data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+			setReadyCondition(aep, false, ReasonConfigError, err.Error())
+			return nil, err
 		}
 		keyData, exists := certSecret.Data["tls.key"]
 		if !exists {
-			return nil, fmt.Errorf("tls.key data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+			err := fmt.Errorf("tls.key data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+			setReadyCondition(aep, false, ReasonConfigError, err.Error())
+			return nil, err
 		}
 
 		cert, err := tls.X509KeyPair(certData, keyData)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse TLS certificate AgentEndpoint clientCertRef %q: %w", fmt.Sprintf("%s.%s", key.Name, key.Namespace), err)
+			err := fmt.Errorf("failed to parse TLS certificate AgentEndpoint clientCertRef %q: %w", fmt.Sprintf("%s.%s", key.Name, key.Namespace), err)
+			setReadyCondition(aep, false, ReasonConfigError, err.Error())
+			return nil, err
 		}
 
 		ret = append(ret, cert)
@@ -384,7 +392,7 @@ func (r *AgentEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 }
 
 // ensureDomainExists checks if the Domain CRD exists, and if not, creates it.
-// Also updates domain-related status conditions on the AgentEndpoint.
+// Updates the passed in AgentEndpoint with the status conditions based on the results.
 func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) error {
 	parsedURL, err := util.ParseAndSanitizeEndpointURL(aep.Spec.URL, true)
 	if err != nil {
@@ -462,7 +470,7 @@ func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *n
 	return ErrDomainCreating
 }
 
-// updateEndpointStatus updates the endpoint status based on creation result
+// updateEndpointStatus updates the endpoint status based on creation result from the AgentDriver.
 func (r *AgentEndpointReconciler) updateEndpointStatus(endpoint *ngrokv1alpha1.AgentEndpoint, result *agent.EndpointResult, err error, trafficPolicy string) {
 	// Set traffic policy status (deterministic from spec)
 	if trafficPolicy != "" {
