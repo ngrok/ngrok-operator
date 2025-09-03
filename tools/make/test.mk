@@ -4,6 +4,13 @@
 test: manifests generate fmt vet ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out -timeout 120s
 
+.PHONY: test-coverage
+test-coverage: test ## Run tests and open coverage report.
+	rm -rf coverage
+	@mkdir -p coverage
+	go tool cover -html=cover.out -o coverage/index.html
+	open coverage/index.html
+	@echo "Coverage report opened: coverage/index.html"
 
 .PHONY: validate
 validate: build test lint manifests helm-update-snapshots ## Validate the codebase before a PR

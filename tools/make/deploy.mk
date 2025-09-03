@@ -20,7 +20,7 @@ deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## D
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile &&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
-
+	kubectl rollout restart deployment $(KUBE_AGENT_MANAGER_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
 .PHONY: deploy_gateway
 deploy_gateway: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
@@ -38,7 +38,7 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set metaData.env=local,metaData.from=makefile \
 		--set useExperimentalGatewayApi=true &&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
-
+	kubectl rollout restart deployment $(KUBE_AGENT_MANAGER_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
 .PHONY: deploy_with_bindings
 deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
@@ -57,7 +57,7 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		--set bindings.enabled=true \
 		&&\
 	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
-
+	kubectl rollout restart deployment $(KUBE_AGENT_MANAGER_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
 .PHONY: deploy_for_e2e
 deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.

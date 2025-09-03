@@ -39,6 +39,7 @@ CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/...}
 DEPLOY_ONE_CLICK_DEMO_MODE ?= false
 
 KUBE_DEPLOYMENT_NAME ?= ngrok-operator-manager
+KUBE_AGENT_MANAGER_DEPLOYMENT_NAME ?= ngrok-operator-agent
 KUBE_NAMESPACE ?= ngrok-operator
 
 HELM_RELEASE_NAME ?= ngrok-operator

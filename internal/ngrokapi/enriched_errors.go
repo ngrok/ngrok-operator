@@ -3,6 +3,8 @@ package ngrokapi
 import (
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/ngrok/ngrok-api-go/v7"
 )
@@ -42,4 +44,23 @@ func NewNgrokError(origErr error, ee EnrichedError, msg string) *ngrok.Error {
 		ErrorCode:  ee.name,
 		StatusCode: ee.statusCode,
 	}
+}
+
+// SanitizeErrorMessage cleans up ngrok API error messages for better display in kubectl output
+func SanitizeErrorMessage(msg string) string {
+	// Remove Windows-style line endings
+	cleaned := strings.ReplaceAll(msg, "\r\n", " ")
+	cleaned = strings.ReplaceAll(cleaned, "\r", " ")
+	cleaned = strings.ReplaceAll(cleaned, "\n", " ")
+
+	// Remove extra whitespace
+	cleaned = regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
+	cleaned = strings.TrimSpace(cleaned)
+
+	return cleaned
+}
+
+// IsTrafficPolicyError checks if an error message indicates a traffic policy configuration issue
+func IsTrafficPolicyError(errMsg string) bool {
+	return strings.Contains(errMsg, "policy") || strings.Contains(errMsg, "ERR_NGROK_2201")
 }
