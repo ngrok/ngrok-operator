@@ -179,9 +179,6 @@ func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {
 
 // AgentEndpointStatus defines the observed state of an AgentEndpoint
 type AgentEndpointStatus struct {
-	// The unique identifier for this endpoint
-	ID string `json:"id,omitempty"`
-
 	// The assigned URL. This will either be the user-supplied url, or the generated assigned url
 	// depending on the configuration of spec.url
 	//

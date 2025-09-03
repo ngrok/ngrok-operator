@@ -21,7 +21,6 @@ import (
 
 // EndpointResult contains information about the created endpoint
 type EndpointResult struct {
-	ID            string
 	URL           string
 	TrafficPolicy string
 	Ready         bool
@@ -294,9 +293,6 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 	d.forwarders.Add(name, epf)
 
 	result := &EndpointResult{
-		// TODO (Alex): This is wrong, this is some ID like 6bf0861e076640ddffad5f526ee85ad8 and isn't the Endpoint ID. We likely need to poll the ngrok API to find these
-		// Although if we have pooled endpoints multiple are returned so it might not be possible to match CRD aligns with which endpoint.
-		ID:            epf.ID(),
 		URL:           epf.URL().String(),
 		TrafficPolicy: epf.TrafficPolicy(),
 		Ready:         true,

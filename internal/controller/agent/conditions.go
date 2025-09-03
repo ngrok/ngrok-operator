@@ -1,29 +1,29 @@
 package agent
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Standard condition types for AgentEndpoint
 const (
-	ConditionReady            = "Ready"
-	ConditionEndpointCreated  = "EndpointCreated"
-	ConditionTrafficPolicy    = "TrafficPolicyApplied"
-	ConditionDomainReady      = "DomainReady"
+	ConditionReady           = "Ready"
+	ConditionEndpointCreated = "EndpointCreated"
+	ConditionTrafficPolicy   = "TrafficPolicyApplied"
+	ConditionDomainReady     = "DomainReady"
 )
 
 // Standard condition reasons
 const (
-	ReasonEndpointActive    = "EndpointActive"
-	ReasonTrafficPolicyError = "TrafficPolicyError" 
-	ReasonNgrokAPIError     = "NgrokAPIError"
-	ReasonDomainCreating    = "DomainCreating"
-	ReasonUpstreamError     = "UpstreamError"
-	ReasonEndpointCreated   = "EndpointCreated"
-	ReasonConfigError       = "ConfigurationError"
-	ReasonReconciling       = "Reconciling"
+	ReasonEndpointActive     = "EndpointActive"
+	ReasonTrafficPolicyError = "TrafficPolicyError"
+	ReasonNgrokAPIError      = "NgrokAPIError"
+	ReasonDomainCreating     = "DomainCreating"
+	ReasonUpstreamError      = "UpstreamError"
+	ReasonEndpointCreated    = "EndpointCreated"
+	ReasonConfigError        = "ConfigurationError"
+	ReasonReconciling        = "Reconciling"
 )
 
 // setReadyCondition sets the Ready condition based on the overall endpoint state
@@ -32,7 +32,7 @@ func setReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, reason
 	if !ready {
 		status = metav1.ConditionFalse
 	}
-	
+
 	condition := metav1.Condition{
 		Type:               ConditionReady,
 		Status:             status,
@@ -41,7 +41,7 @@ func setReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, reason
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: endpoint.Generation,
 	}
-	
+
 	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
 }
 
@@ -51,7 +51,7 @@ func setEndpointCreatedCondition(endpoint *ngrokv1alpha1.AgentEndpoint, created 
 	if !created {
 		status = metav1.ConditionFalse
 	}
-	
+
 	condition := metav1.Condition{
 		Type:               ConditionEndpointCreated,
 		Status:             status,
@@ -60,7 +60,7 @@ func setEndpointCreatedCondition(endpoint *ngrokv1alpha1.AgentEndpoint, created 
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: endpoint.Generation,
 	}
-	
+
 	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
 }
 
@@ -70,7 +70,7 @@ func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bo
 	if !applied {
 		status = metav1.ConditionFalse
 	}
-	
+
 	condition := metav1.Condition{
 		Type:               ConditionTrafficPolicy,
 		Status:             status,
@@ -79,7 +79,7 @@ func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bo
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: endpoint.Generation,
 	}
-	
+
 	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
 }
 
@@ -89,7 +89,7 @@ func setDomainReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, 
 	if !ready {
 		status = metav1.ConditionFalse
 	}
-	
+
 	condition := metav1.Condition{
 		Type:               ConditionDomainReady,
 		Status:             status,
@@ -98,7 +98,7 @@ func setDomainReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, 
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: endpoint.Generation,
 	}
-	
+
 	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
 }
 
