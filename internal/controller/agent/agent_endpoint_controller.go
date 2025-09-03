@@ -472,7 +472,7 @@ func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *n
 
 // updateEndpointStatus updates the endpoint status based on creation result from the AgentDriver.
 func (r *AgentEndpointReconciler) updateEndpointStatus(endpoint *ngrokv1alpha1.AgentEndpoint, result *agent.EndpointResult, err error, trafficPolicy string) {
-	// Set traffic policy status (deterministic from spec)
+	// Set traffic policy status
 	if trafficPolicy != "" {
 		if endpoint.Spec.TrafficPolicy != nil && endpoint.Spec.TrafficPolicy.Reference != nil {
 			endpoint.Status.AttachedTrafficPolicy = endpoint.Spec.TrafficPolicy.Reference.Name
@@ -495,7 +495,7 @@ func (r *AgentEndpointReconciler) updateEndpointStatus(endpoint *ngrokv1alpha1.A
 
 		errMsg = ngrokapi.SanitizeErrorMessage(errMsg)
 
-		// Choose appropriate condition reason based on error type
+		// Check if the error message indicates a traffic policy configuration issue
 		reason := ReasonNgrokAPIError
 		if trafficPolicy != "" && ngrokapi.IsTrafficPolicyError(errMsg) {
 			reason = ReasonTrafficPolicyError
