@@ -41,14 +41,14 @@ import (
 // +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".spec.url"
 // +kubebuilder:printcolumn:name="Upstream URL",type="string",JSONPath=".spec.upstream.url"
 // +kubebuilder:printcolumn:name="Bindings",type="string",JSONPath=".spec.bindings"
-// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type=='Status')].status"
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type AgentEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec AgentEndpointSpec `json:"spec,omitempty"`
-	// Status AgentEndpointStatus `json:"status,omitempty"` Status subresource not yet supported
+	Spec   AgentEndpointSpec   `json:"spec,omitempty"`
+	Status AgentEndpointStatus `json:"status,omitempty"`
 }
 
 type EndpointUpstream struct {
@@ -179,9 +179,6 @@ func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {
 
 // AgentEndpointStatus defines the observed state of an AgentEndpoint
 type AgentEndpointStatus struct {
-	// The unique identifier for this endpoint
-	ID string `json:"id,omitempty"`
-
 	// The assigned URL. This will either be the user-supplied url, or the generated assigned url
 	// depending on the configuration of spec.url
 	//

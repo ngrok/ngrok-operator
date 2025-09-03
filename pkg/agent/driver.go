@@ -19,9 +19,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// EndpointResult contains information about the created endpoint
+type EndpointResult struct {
+	URL           string
+	TrafficPolicy string
+	Ready         bool
+}
+
 type Driver interface {
 	// CreateAgentEndpoint creates or updates an agent endpoint by name using the provided desired configuration state.
-	CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) error
+	CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) (*EndpointResult, error)
 
 	// DeleteAgentEndpoint deletes an agent endpoint by name.
 	DeleteAgentEndpoint(ctx context.Context, name string) error
@@ -220,10 +227,10 @@ func NewDriver(driverOpts ...DriverOption) (Driver, error) {
 }
 
 // CreateAgentEndpoint will create or update an agent endpoint by name using the provided desired configuration state
-func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) (err error) {
+func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) (*EndpointResult, error) {
 	select {
 	case <-d.done:
-		return nil
+		return &EndpointResult{Ready: false}, fmt.Errorf("driver is shutting down")
 	default:
 		// continue
 	}
@@ -243,7 +250,7 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 			// If pooling is not enabled, we have to stop the old endpoint before starting a new one.
 			log.Info("Stopping existing agent endpoint", "id", epf.ID())
 			if err := epf.CloseWithContext(ctx); err != nil {
-				return err
+				return &EndpointResult{Ready: false}, err
 			}
 		} else {
 			defer epf.Close()
@@ -264,9 +271,9 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 		endpointOpts = append(endpointOpts, ngrok.WithTrafficPolicy(trafficPolicy))
 	}
 
-	epf, err = d.agent.Forward(context.Background(), upstream, endpointOpts...)
+	epf, err := d.agent.Forward(context.Background(), upstream, endpointOpts...)
 	if err != nil {
-		return err
+		return &EndpointResult{Ready: false}, err
 	}
 
 	log.WithValues(
@@ -283,7 +290,14 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 	).Info("Created agent endpoint")
 
 	d.forwarders.Add(name, epf)
-	return nil
+
+	result := &EndpointResult{
+		URL:           epf.URL().String(),
+		TrafficPolicy: epf.TrafficPolicy(),
+		Ready:         true,
+	}
+
+	return result, nil
 }
 
 func (d *driver) DeleteAgentEndpoint(ctx context.Context, name string) error {
