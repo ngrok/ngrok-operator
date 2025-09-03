@@ -69,7 +69,7 @@ func (m *MockAgentDriver) Reset() {
 }
 
 // CreateAgentEndpoint implements Driver interface
-func (m *MockAgentDriver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) (*EndpointResult, error) {
+func (m *MockAgentDriver) CreateAgentEndpoint(_ context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) (*EndpointResult, error) {
 	// Track the call
 	m.CreateCalls = append(m.CreateCalls, CreateCall{
 		Name:          name,
@@ -91,7 +91,7 @@ func (m *MockAgentDriver) CreateAgentEndpoint(ctx context.Context, name string, 
 }
 
 // DeleteAgentEndpoint implements Driver interface
-func (m *MockAgentDriver) DeleteAgentEndpoint(ctx context.Context, name string) error {
+func (m *MockAgentDriver) DeleteAgentEndpoint(_ context.Context, name string) error {
 	// Track the call
 	m.DeleteCalls = append(m.DeleteCalls, DeleteCall{
 		Name: name,
@@ -104,11 +104,11 @@ func (m *MockAgentDriver) DeleteAgentEndpoint(ctx context.Context, name string) 
 }
 
 // Ready implements healthcheck.HealthChecker interface
-func (m *MockAgentDriver) Ready(ctx context.Context, req *http.Request) error {
+func (m *MockAgentDriver) Ready(_ context.Context, _ *http.Request) error {
 	return nil
 }
 
 // Alive implements healthcheck.HealthChecker interface
-func (m *MockAgentDriver) Alive(ctx context.Context, req *http.Request) error {
+func (m *MockAgentDriver) Alive(_ context.Context, _ *http.Request) error {
 	return nil
 }

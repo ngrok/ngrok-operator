@@ -1,13 +1,13 @@
 package agent
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -70,7 +70,7 @@ var _ = Describe("AgentEndpointReconciler", func() {
 
 		Context("when endpoint creation fails", func() {
 			It("should set Ready condition to False with NgrokAPIError", func() {
-				err := fmt.Errorf("connection failed")
+				err := errors.New("connection failed")
 
 				reconciler.updateEndpointStatus(endpoint, nil, err, "")
 
@@ -82,7 +82,7 @@ var _ = Describe("AgentEndpointReconciler", func() {
 			})
 
 			It("should set TrafficPolicyError reason for policy errors", func() {
-				err := fmt.Errorf("Invalid policy action type 'rate-limit-fake' ERR_NGROK_2201")
+				err := errors.New("Invalid policy action type 'rate-limit-fake' ERR_NGROK_2201")
 
 				reconciler.updateEndpointStatus(endpoint, nil, err, "{}")
 
@@ -302,7 +302,7 @@ var _ = Describe("AgentEndpointReconciler", func() {
 				policy, err := reconciler.getTrafficPolicy(ctx, endpoint)
 
 				Expect(err).To(HaveOccurred())
-				Expect(errors.IsNotFound(err)).To(BeTrue())
+				Expect(apierrors.IsNotFound(err)).To(BeTrue())
 				Expect(policy).To(Equal(""))
 
 				policyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionTrafficPolicy)
@@ -466,7 +466,7 @@ var _ = Describe("AgentEndpointReconciler", func() {
 			})
 
 			It("should return error from AgentDriver", func(ctx SpecContext) {
-				deleteErr := fmt.Errorf("delete failed")
+				deleteErr := errors.New("delete failed")
 				mockDriver.DeleteError = deleteErr
 
 				err := reconciler.delete(ctx, endpoint)
@@ -508,7 +508,7 @@ var _ = Describe("AgentEndpointReconciler", func() {
 				policy, err := reconciler.findTrafficPolicyByName(ctx, "missing-policy", "default")
 
 				Expect(err).To(HaveOccurred())
-				Expect(errors.IsNotFound(err)).To(BeTrue())
+				Expect(apierrors.IsNotFound(err)).To(BeTrue())
 				Expect(policy).To(Equal(""))
 			})
 		})

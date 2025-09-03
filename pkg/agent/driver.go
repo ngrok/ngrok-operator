@@ -230,7 +230,7 @@ func NewDriver(driverOpts ...DriverOption) (Driver, error) {
 func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) (*EndpointResult, error) {
 	select {
 	case <-d.done:
-		return &EndpointResult{Ready: false}, fmt.Errorf("driver is shutting down")
+		return &EndpointResult{Ready: false}, errors.New("driver is shutting down")
 	default:
 		// continue
 	}
