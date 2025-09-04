@@ -54,6 +54,24 @@ const (
 	clientCertificateRefsIndex = "spec.clientCertificateRefs"
 )
 
+// indexClientCertificateRefs extracts client certificate reference keys for indexing
+func indexClientCertificateRefs(o client.Object) []string {
+	aep, ok := o.(*ngrokv1alpha1.AgentEndpoint)
+	if !ok {
+		return nil
+	}
+	var keys []string
+	for _, ref := range aep.Spec.ClientCertificateRefs {
+		effectiveNamespace := aep.Namespace
+		if ref.Namespace != nil && *ref.Namespace != "" {
+			effectiveNamespace = *ref.Namespace
+		}
+		key := effectiveNamespace + "/" + ref.Name
+		keys = append(keys, key)
+	}
+	return keys
+}
+
 var (
 	ErrDomainCreating             = errors.New("domain is being created, requeue after delay")
 	ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both targetRef and inline are set")
@@ -122,22 +140,7 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		context.Background(),
 		&ngrokv1alpha1.AgentEndpoint{},
 		clientCertificateRefsIndex,
-		func(o client.Object) []string {
-			aep, ok := o.(*ngrokv1alpha1.AgentEndpoint)
-			if !ok {
-				return nil
-			}
-			var keys []string
-			for _, ref := range aep.Spec.ClientCertificateRefs {
-				effectiveNamespace := aep.Namespace
-				if ref.Namespace != nil && *ref.Namespace != "" {
-					effectiveNamespace = *ref.Namespace
-				}
-				key := effectiveNamespace + "/" + ref.Name
-				keys = append(keys, key)
-			}
-			return keys
-		},
+		indexClientCertificateRefs,
 	); err != nil {
 		return err
 	}
@@ -260,7 +263,7 @@ func (r *AgentEndpointReconciler) findAgentEndpointForSecret(ctx context.Context
 	var agentEndpointList ngrokv1alpha1.AgentEndpointList
 	if err := r.Client.List(ctx, &agentEndpointList,
 		client.MatchingFields{
-			trafficPolicyNameIndex: secretKey,
+			clientCertificateRefsIndex: secretKey,
 		},
 	); err != nil {
 		r.Log.Error(err, "failed to list AgentEndpoints using index")
