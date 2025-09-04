@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
@@ -10,7 +12,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -523,4 +528,95 @@ var _ = Describe("AgentEndpointReconciler", func() {
 			})
 		})
 	})
+
+	Describe("findAgentEndpointForSecret", func() {
+		var (
+			testSecret            *v1.Secret
+			agentEndpointWithCert *ngrokv1alpha1.AgentEndpoint
+		)
+
+		BeforeEach(func() {
+			testSecret = &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-client-cert",
+					Namespace: "default",
+				},
+				Type: v1.SecretTypeTLS,
+			}
+
+			agentEndpointWithCert = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "endpoint-with-cert",
+					Namespace: "default",
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "https://with-cert.ngrok.app",
+					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						{Name: "test-client-cert"},
+					},
+				},
+			}
+		})
+
+		It("should find AgentEndpoints that reference the Secret via clientCertificateRefs", func(ctx SpecContext) {
+			var capturedMatchingFields client.MatchingFields
+			secretKey := fmt.Sprintf("%s/%s", testSecret.Namespace, testSecret.Name)
+
+			fakeClient := &fakeClientWithListInterceptor{
+				Client: fake.NewClientBuilder().WithScheme(scheme.Scheme).WithObjects(agentEndpointWithCert).Build(),
+				listFunc: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+					for _, opt := range opts {
+						if matchingFieldsOpt, ok := opt.(client.MatchingFields); ok {
+							capturedMatchingFields = matchingFieldsOpt
+						}
+					}
+
+					agentList := list.(*ngrokv1alpha1.AgentEndpointList)
+
+					// Use the same indexing logic as the real controller
+					if fieldValue, ok := capturedMatchingFields[clientCertificateRefsIndex]; ok && fieldValue == secretKey {
+						// Check if the AgentEndpoint would actually be indexed with this key
+						indexKeys := indexClientCertificateRefs(agentEndpointWithCert)
+						for _, indexKey := range indexKeys {
+							if indexKey == secretKey {
+								agentList.Items = []ngrokv1alpha1.AgentEndpoint{*agentEndpointWithCert}
+								return nil
+							}
+						}
+					}
+					agentList.Items = []ngrokv1alpha1.AgentEndpoint{}
+					return nil
+				},
+			}
+
+			testReconciler := &AgentEndpointReconciler{
+				Client: fakeClient,
+				Log:    logr.Discard(),
+			}
+
+			err := ngrokv1alpha1.AddToScheme(scheme.Scheme)
+			Expect(err).NotTo(HaveOccurred())
+
+			requests := testReconciler.findAgentEndpointForSecret(ctx, testSecret)
+
+			Expect(capturedMatchingFields).To(HaveKey(clientCertificateRefsIndex))
+			Expect(capturedMatchingFields[clientCertificateRefsIndex]).To(Equal(secretKey))
+
+			Expect(requests).To(HaveLen(1))
+			Expect(requests[0].Name).To(Equal("endpoint-with-cert"))
+			Expect(requests[0].Namespace).To(Equal("default"))
+		})
+	})
 })
+
+type fakeClientWithListInterceptor struct {
+	client.Client
+	listFunc func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error
+}
+
+func (f *fakeClientWithListInterceptor) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if f.listFunc != nil {
+		return f.listFunc(ctx, list, opts...)
+	}
+	return f.Client.List(ctx, list, opts...)
+}
