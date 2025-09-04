@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -29,7 +30,7 @@ func init() {
 func LoadCerts() (*x509.CertPool, error) {
 	// Load all certificates from the well known ngrok certs directory,
 	// combine them with the default certs, and save the cert pool once.
-	// If we've already done this, just return the cert pool.	
+	// If we've already done this, just return the cert pool.
 	ctrl.Log.Info("Loading custom certs", "path", customCertsPath)
 	loadCertsOnce.Do(func() {
 		var err error
@@ -111,7 +112,27 @@ func watchCertsDirWithHandler(path string, onChange func()) error {
 // watchCertsDir watches for changes in the certs directory and exits on any update
 func watchCertsDir() {
 	_ = watchCertsDirWithHandler(customCertsPath, func() {
-		ctrl.Log.Info("Detected changes in custom certs directory, reloading certs")
-		os.Exit(0)
+		if shouldExitOnCertChange() {
+			ctrl.Log.Info("Detected changes in custom certs directory, reloading certs")
+			os.Exit(0)
+		} else {
+			ctrl.Log.Info("Detected changes in custom certs directory, but NGROK_OPERATOR_EXIT_ON_CERT_CHANGE is not set to true, so not exiting")
+		}
 	})
+}
+
+// shouldExitOnCertChange checks if the environment variable indicates we should exit on cert changes
+func shouldExitOnCertChange() bool {
+	envVar := os.Getenv("NGROK_OPERATOR_EXIT_ON_CERT_CHANGE")
+	if envVar == "" {
+		return false
+	}
+
+	shouldExit, err := strconv.ParseBool(envVar)
+	if err != nil {
+		ctrl.Log.Info("Invalid boolean value for NGROK_OPERATOR_EXIT_ON_CERT_CHANGE, defaulting to false", "value", envVar)
+		return false
+	}
+
+	return shouldExit
 }

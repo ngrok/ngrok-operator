@@ -185,6 +185,7 @@ extraEnv: {}
 ##     secretKeyRef:
 ##       key: test-key
 ##       value: test-value
+##   NGROK_OPERATOR_EXIT_ON_CERT_CHANGE: "false"
 
 ## Controller Service Account Settings
 ## @param serviceAccount.create Specifies whether a ServiceAccount should be created
