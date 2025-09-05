@@ -116,21 +116,21 @@ func watchCertsDir() {
 			ctrl.Log.Info("Detected changes in custom certs directory, reloading certs")
 			os.Exit(0)
 		} else {
-			ctrl.Log.Info("Detected changes in custom certs directory, but NGROK_OPERATOR_EXIT_ON_CERT_CHANGE is not set to true, so not exiting")
+			ctrl.Log.Info("Detected changes in custom certs directory, but NGROK_OPERATOR_RESTART_ON_CERT_CHANGE is not set to true, so not restarting")
 		}
 	})
 }
 
 // shouldExitOnCertChange checks if the environment variable indicates we should exit on cert changes
 func shouldExitOnCertChange() bool {
-	envVar := os.Getenv("NGROK_OPERATOR_EXIT_ON_CERT_CHANGE")
+	envVar := os.Getenv("NGROK_OPERATOR_RESTART_ON_CERT_CHANGE")
 	if envVar == "" {
 		return false
 	}
 
 	shouldExit, err := strconv.ParseBool(envVar)
 	if err != nil {
-		ctrl.Log.Info("Invalid boolean value for NGROK_OPERATOR_EXIT_ON_CERT_CHANGE, defaulting to false", "value", envVar)
+		ctrl.Log.Info("Invalid boolean value for NGROK_OPERATOR_RESTART_ON_CERT_CHANGE, defaulting to false", "value", envVar)
 		return false
 	}
 
