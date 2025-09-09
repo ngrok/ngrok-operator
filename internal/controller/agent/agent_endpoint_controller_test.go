@@ -42,7 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("AgentEndpoint Controller Environment Tests", func() {
+var _ = Describe("AgentEndpoint Controller", func() {
 	const (
 		timeout  = 15 * time.Second
 		interval = 500 * time.Millisecond
@@ -77,7 +77,8 @@ var _ = Describe("AgentEndpoint Controller Environment Tests", func() {
 					Name: namespace,
 				},
 			}
-			k8sClient.Delete(context.Background(), ns)
+			err := k8sClient.Delete(context.Background(), ns)
+			Expect(err).NotTo(HaveOccurred())
 		}
 	})
 

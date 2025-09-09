@@ -9,6 +9,9 @@ import (
 	"github.com/ngrok/ngrok-api-go/v7"
 )
 
+// whitespaceRegex is compiled once to avoid repeated compilation
+var whitespaceRegex = regexp.MustCompile(`\s+`)
+
 // Enriched Errors utilities to help interact with ngrok.Error and ngrok.IsErrorCode() returned by the ngrok API
 // For right now these are all manually defined
 
@@ -48,13 +51,8 @@ func NewNgrokError(origErr error, ee EnrichedError, msg string) *ngrok.Error {
 
 // SanitizeErrorMessage cleans up ngrok API error messages for better display in kubectl output
 func SanitizeErrorMessage(msg string) string {
-	// Remove Windows-style line endings
-	cleaned := strings.ReplaceAll(msg, "\r\n", " ")
-	cleaned = strings.ReplaceAll(cleaned, "\r", " ")
-	cleaned = strings.ReplaceAll(cleaned, "\n", " ")
-
-	// Remove extra whitespace
-	cleaned = regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
+	// Replace all whitespace (including line endings) with single spaces
+	cleaned := whitespaceRegex.ReplaceAllString(msg, " ")
 	cleaned = strings.TrimSpace(cleaned)
 
 	return cleaned
