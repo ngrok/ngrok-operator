@@ -3,9 +3,14 @@ package ngrokapi
 import (
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/ngrok/ngrok-api-go/v7"
 )
+
+// whitespaceRegex is compiled once to avoid repeated compilation
+var whitespaceRegex = regexp.MustCompile(`\s+`)
 
 // Enriched Errors utilities to help interact with ngrok.Error and ngrok.IsErrorCode() returned by the ngrok API
 // For right now these are all manually defined
@@ -42,4 +47,18 @@ func NewNgrokError(origErr error, ee EnrichedError, msg string) *ngrok.Error {
 		ErrorCode:  ee.name,
 		StatusCode: ee.statusCode,
 	}
+}
+
+// SanitizeErrorMessage cleans up ngrok API error messages for better display in kubectl output
+func SanitizeErrorMessage(msg string) string {
+	// Replace all whitespace (including line endings) with single spaces
+	cleaned := whitespaceRegex.ReplaceAllString(msg, " ")
+	cleaned = strings.TrimSpace(cleaned)
+
+	return cleaned
+}
+
+// IsTrafficPolicyError checks if an error message indicates a traffic policy configuration issue
+func IsTrafficPolicyError(errMsg string) bool {
+	return strings.Contains(errMsg, "policy") || strings.Contains(errMsg, "ERR_NGROK_2201")
 }
