@@ -30,6 +30,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
@@ -999,6 +1000,134 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}, 5*time.Second, interval).Should(BeTrue())
 
 			Expect(foundCall.TrafficPolicy).To(ContainSubstring("rate-limit"))
+		})
+	})
+
+	Context("findAgentEndpointForSecret method (integration test)", func() {
+		var (
+			testReconciler *AgentEndpointReconciler
+		)
+
+		BeforeEach(func() {
+			testReconciler = &AgentEndpointReconciler{
+				Client: envMgr.GetClient(), // Use the manager client that has field indexing set up
+				Log:    logr.Discard(),
+			}
+		})
+
+		It("should find AgentEndpoints that reference the Secret via clientCertificateRefs", func(ctx SpecContext) {
+			// Create an AgentEndpoint that references a client certificate secret
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "endpoint-with-cert",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "tcp://endpoint-with-cert.tcp.ngrok.io:12345",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						{Name: "test-client-cert"},
+					},
+				},
+			}
+
+			By("Creating the AgentEndpoint in the cluster")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			// Wait for the AgentEndpoint to be indexed
+			Eventually(func() error {
+				var list ngrokv1alpha1.AgentEndpointList
+				return k8sClient.List(ctx, &list, client.InNamespace(namespace))
+			}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
+
+			// Create a secret that matches the reference
+			testSecret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-client-cert",
+					Namespace: namespace,
+				},
+				Type: v1.SecretTypeTLS,
+			}
+
+			By("Testing findAgentEndpointForSecret method - this will fail if wrong index is used")
+			requests := testReconciler.findAgentEndpointForSecret(ctx, testSecret)
+
+			By("Verifying the method finds the AgentEndpoint that references this secret")
+			// This test will FAIL if the controller uses trafficPolicyNameIndex instead of clientCertificateRefsIndex
+			// because the AgentEndpoint won't be found via the wrong index
+			Expect(requests).To(HaveLen(1))
+			Expect(requests[0].Name).To(Equal("endpoint-with-cert"))
+			Expect(requests[0].Namespace).To(Equal(namespace))
+		})
+
+		It("should handle cross-namespace client certificate references", func(ctx SpecContext) {
+			// Create a namespace for the secret
+			secretNamespace := &v1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "secret-ns-" + RandomString(8),
+				},
+			}
+			Expect(k8sClient.Create(ctx, secretNamespace)).To(Succeed())
+
+			// Create an AgentEndpoint that references a secret from different namespace
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cross-ns-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "tcp://cross-ns-endpoint.tcp.ngrok.io:54321",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						{
+							Name:      "cross-ns-cert",
+							Namespace: &secretNamespace.Name,
+						},
+					},
+				},
+			}
+
+			By("Creating the AgentEndpoint in the cluster")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			// Create a secret in the different namespace
+			crossNsSecret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cross-ns-cert",
+					Namespace: secretNamespace.Name,
+				},
+				Type: v1.SecretTypeTLS,
+			}
+
+			By("Testing findAgentEndpointForSecret with cross-namespace secret")
+			requests := testReconciler.findAgentEndpointForSecret(ctx, crossNsSecret)
+
+			By("Verifying the method finds the AgentEndpoint that references this cross-namespace secret")
+			// This test will FAIL if the controller uses the wrong index
+			Expect(requests).To(HaveLen(1))
+			Expect(requests[0].Name).To(Equal("cross-ns-endpoint"))
+			Expect(requests[0].Namespace).To(Equal(namespace))
+		})
+
+		It("should return empty list when no AgentEndpoints reference the Secret", func(ctx SpecContext) {
+			// Create a secret that is not referenced by any AgentEndpoint
+			unreferencedSecret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "unreferenced-secret",
+					Namespace: namespace,
+				},
+				Type: v1.SecretTypeTLS,
+			}
+
+			By("Testing findAgentEndpointForSecret with unreferenced secret")
+			requests := testReconciler.findAgentEndpointForSecret(ctx, unreferencedSecret)
+
+			By("Verifying no AgentEndpoints are returned")
+			Expect(requests).To(HaveLen(0))
 		})
 	})
 })
