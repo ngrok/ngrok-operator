@@ -107,7 +107,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 
 			When("the gateway does not exist", func() {
 				BeforeEach(func(ctx SpecContext) {
-					Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
+					DeleteGatewayAndWaitForDeletion(ctx, gw, timeout, interval)
 				})
 
 				It("Should not accept the HTTPRoute", func(ctx SpecContext) {

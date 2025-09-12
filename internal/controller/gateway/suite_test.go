@@ -41,6 +41,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -220,6 +221,18 @@ func CreateGatewayAndWaitForAcceptance(ctx SpecContext, gw *gatewayv1.Gateway, t
 	GinkgoHelper()
 	Expect(k8sClient.Create(ctx, gw)).To(Succeed())
 	ExpectGatewayAccepted(ctx, gw, timeout, interval)
+}
+
+func DeleteGatewayAndWaitForDeletion(ctx SpecContext, gw *gatewayv1.Gateway, timeout time.Duration, interval time.Duration) {
+	GinkgoHelper()
+	Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
+
+	// Wait for the gateway to be completely deleted
+	Eventually(func(g Gomega) {
+		obj := &gatewayv1.Gateway{}
+		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), obj)
+		g.Expect(errors.IsNotFound(err)).To(BeTrue())
+	}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 }
 
 func CreateGatewayClassAndWaitForAcceptance(ctx SpecContext, gwc *gatewayv1.GatewayClass, timeout time.Duration, interval time.Duration) {
