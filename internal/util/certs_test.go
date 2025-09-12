@@ -88,7 +88,6 @@ func TestWatchCertsDir_TriggersCallbackOnChange(t *testing.T) {
 	}
 }
 
-
 const validPEM = `-----BEGIN CERTIFICATE-----
 MIIDwjCCAqqgAwIBAgIUZqF2AkB17pISojTndgc2U5BDt7wwDQYJKoZIhvcNAQEL
 BQAwbzEQMA4GA1UEAwwHUm9vdCBDQTENMAsGA1UECwwEcHJvZDESMBAGA1UECgwJ
