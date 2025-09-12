@@ -1001,6 +1001,135 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(foundCall.TrafficPolicy).To(ContainSubstring("rate-limit"))
 		})
 	})
+
+	Context("Client certificate secret watch behavior", func() {
+		const testCert = `-----BEGIN CERTIFICATE-----
+MIIC/zCCAeegAwIBAgIUMC1u8LkeVxeTak8pRSvi2usKbvAwDQYJKoZIhvcNAQEL
+BQAwDzENMAsGA1UEAwwEdGVzdDAeFw0yNTA5MTEyMzE2NTNaFw0yNjA5MTEyMzE2
+NTNaMA8xDTALBgNVBAMMBHRlc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+AoIBAQC+cPOgW2avpjo5aJK2yNNfFEUSx/2+/rl13LT4sJUkPE9SdYODlYTkUnQ+
+Kbaxo3zcIHipkon4lgxUyfVowQn8jFtGlIgdWEWqSM+AIfb6+2fCtiy9+GStgcvv
+fJn/Gs8SvB0vb0kdZ0gIP57mhg7ky5d/DUb8PuAN2KyHRWPm/LrVLxVg2N1lHXuZ
+k6CWDYC/hk0uM/A0CPTDQF+sJfSV9LBvdaUMRkbY1z3sUO7bnsdtU+bVjj6zpWor
+BS4ycX/UL7GWXYE5K1s+gaMwfQ8vGarI91p+arBV8eeWmhs29WvDwCo0C19rFetQ
+y2JfZkRiq65NiUwlfQ943UIP9iSnAgMBAAGjUzBRMB0GA1UdDgQWBBSr6a8SDz5e
+Oo9S9Rl+R5dq6pyOLzAfBgNVHSMEGDAWgBSr6a8SDz5eOo9S9Rl+R5dq6pyOLzAP
+BgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQAvx42jnrJZJwtc2ElU
+OBtp0YLQipD5gWo0pLzbxAQb0UnngElDNe5BCZqzcWm26bQ3RGLSi72nuHcpOALX
+ahuV/k13LZZeM/aIUhoHoMhCma5WDhlvDUNmIukAI5RrnMTvi7vaso9eUAZO1VPx
+4YXYx0F5O1YlR6NiLVWQEAR8hzRS0QVEwvWS+5ncVH3XB9OoVXFZ7LAD7uQRS5Gy
+AoICy/E6NLhgyLqdn0rpSS1pj8QIZe6x7qghntyHHN50Dm402lrhrrgr0Rw1X0Ua
+NPBpoWqPs08ADzHDQRxlbTkkGYLX2VsSRC9Nwz1z1ol6fT/ytZ2MP+qYJccGvscx
+KQxp
+-----END CERTIFICATE-----`
+
+		const testKey = `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC+cPOgW2avpjo5
+aJK2yNNfFEUSx/2+/rl13LT4sJUkPE9SdYODlYTkUnQ+Kbaxo3zcIHipkon4lgxU
+yfVowQn8jFtGlIgdWEWqSM+AIfb6+2fCtiy9+GStgcvvfJn/Gs8SvB0vb0kdZ0gI
+P57mhg7ky5d/DUb8PuAN2KyHRWPm/LrVLxVg2N1lHXuZk6CWDYC/hk0uM/A0CPTD
+QF+sJfSV9LBvdaUMRkbY1z3sUO7bnsdtU+bVjj6zpWorBS4ycX/UL7GWXYE5K1s+
+gaMwfQ8vGarI91p+arBV8eeWmhs29WvDwCo0C19rFetQy2JfZkRiq65NiUwlfQ94
+3UIP9iSnAgMBAAECggEAEMBux1RC6Obku3GinJSqj/QaGPGhzs/2EGALRM6DnMRe
+Iqq9Mf3pyqVWHegdbrkq0OvD5JndrET50+hP8svIM4B4WiUGmoFnrCrrb1UnHIl9
+mKsQ4UUDb7lTIj9obGads5z7rdVKlF0mNCBXu39fUzdCN3LVI6sdzYBmhlLPdUOI
+pU4PjBAIOu3BR262W6SaG1JJPn/ZTfgRXKEpnEJCZFqEfaIIcIdl2NfncvVbF8Hi
+pwEYLyGTp0AQezhUsxq8oNHCKVv2tLTsmKziodvtaMjuUy2yXnWrak67CEMakfnI
+2ShlGYuGSslvqmZ2j4gz/DpoQFKM1KuKCL9COUj9QQKBgQDgYqCc6ZmBcPsRANSN
+fgvQAcwZv7UWDVKa/iIZv6aFjcvXPevfdP5k6BN6a77b/BgHoQVQYuE+m10R2MIV
+AfLSypYbhXWPnVW+LngKdsMULMJHEUqy2ibUgLb1iIIdMhmrhDK2HSx1lUjoNyHd
+zARdER7NsAJgsy9HdOyErz5iwwKBgQDZRf5Nz7nN3EeIIxW2w4lbe3Q5pjkET5PH
+Mclfi8QzaO1pWePhVFtsRJBPIlsGJBVirjpNiecRd0GJM4gX5mmoDEzuUO+dT7f/
+gUyqMGBGQcsZ/wuMB/L9TKTuVYM51Q9sIl22gf1CgwmU3tffQYO1z89TPjFtuCGl
+AnZBpvzQTQKBgQCglhVql0hUOj6E2bpFFTtw/4hJuUjpYlmHMW/IS7/qfyOuhNNl
+lj5miy09hRUQLWgpNZUvBcU8YEaIej/UdxOIxpINWkNbp/dwZ6NjocFVk/7qi7aR
+L81wcjn+mVa9fFigxrjgWxqxgEiwYJytNtC8pn8MJ/ZbrIGeu1B2WVDlrwKBgB4g
+PV2OouWvWF/A9Z7Mx/veR0RDDv7RBd2FwrUzzPWP4/NKmnVA3BhL/XJrghF86VYw
+cDcWGurqDTU35vPhZ978LaKRqFe4mPudcwLaCE9VihLFsVUuOPv0J55ATxyytRu6
+PCI1LeeOAcMZjvcOv3NzJ/0Tz4i2Ejwt9jWuMLm1AoGBAIOoXDYDI2DVHX0eOmDl
+385e8iuwqrfj2jtCEJHH4cPt+2M5LsPpkD8BDmyRr5JzGgA118qSmCJwEDp9SMBY
+hzBRRr30H7ehjAmTAyWu81tPtJLtuWP/DByCgzxgxHSuMNoM38iLY9AomFZY2Sxn
+cCzFoVcb6XWg4MpPeZ25v+xA
+-----END PRIVATE KEY-----`
+
+		It("should reconcile when client certificate secret is created after AgentEndpoint", func(ctx SpecContext) {
+			// Create AgentEndpoint first, without the certificate secret existing yet
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cert-watch-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "tcp://cert-watch.tcp.ngrok.io:12345",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						{Name: "watch-test-cert"},
+					},
+				},
+			}
+
+			By("Creating the AgentEndpoint (before certificate exists)")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Waiting for controller to reconcile and set config error condition")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// Should have config error because certificate doesn't exist yet
+				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
+			}, timeout, interval).Should(Succeed())
+
+			By("Creating the client certificate secret")
+			certSecret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "watch-test-cert",
+					Namespace: namespace,
+				},
+				Type: v1.SecretTypeTLS,
+				Data: map[string][]byte{
+					"tls.crt": []byte(testCert),
+					"tls.key": []byte(testKey),
+				},
+			}
+			Expect(k8sClient.Create(ctx, certSecret)).To(Succeed())
+
+			// Mock successful endpoint creation for when certificate becomes available
+			envMockDriver.SetEndpointResult(namespace+"/cert-watch-endpoint", &agent.EndpointResult{
+				URL: "tcp://cert-watch.tcp.ngrok.io:12345",
+			})
+
+			By("Waiting for controller to automatically reconcile AgentEndpoint when secret is created")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// Should now be ready because certificate exists
+				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(cond.Reason).To(Equal(ReasonEndpointActive))
+
+				// Verify status was updated
+				g.Expect(obj.Status.AssignedURL).To(Equal("tcp://cert-watch.tcp.ngrok.io:12345"))
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying that the controller was triggered to create the endpoint")
+			Eventually(func() bool {
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name == namespace+"/cert-watch-endpoint" {
+						return true
+					}
+				}
+				return false
+			}, 5*time.Second, interval).Should(BeTrue())
+		})
+	})
 })
 
 // findCondition finds a condition by type in a slice of conditions
