@@ -177,7 +177,9 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 		return err
 	}
 
-	if domain.Equal(resp) {
+	// Only update the domain if the description or metadata has changed
+	// These are the only fields that can be updated that we write to.
+	if domain.Spec.Description == resp.Description && domain.Spec.Metadata == resp.Metadata {
 		return nil
 	}
 
@@ -247,7 +249,6 @@ func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
 
 	// No requeue needed for ready domains
 	if isDomainReady(domain) {
-		r.Log.V(1).Info("Not requeuing ready domain", "domain", domain.Name)
 		return false
 	}
 
@@ -266,7 +267,6 @@ func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
 		return true
 	}
 
-	r.Log.V(1).Info("Not requeuing domain - appears ready", "domain", domain.Name)
 	return false
 }
 

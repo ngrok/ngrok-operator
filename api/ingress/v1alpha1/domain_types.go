@@ -27,9 +27,7 @@ package v1alpha1
 import (
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v7"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 )
 
 type DomainReclaimPolicy string
@@ -157,23 +155,6 @@ type DomainList struct {
 
 func init() {
 	SchemeBuilder.Register(&Domain{}, &DomainList{})
-}
-
-// SetStatus pulls the fields off the ngrok domain and sets each one on the status field of the domain
-func (d *Domain) SetStatus(ngrokDomain *ngrok.ReservedDomain) {
-
-}
-
-// Equal returns true if the domain status is equal to the ngrok domain
-// TODO: check where this is used as its not really checking everything
-func (d *Domain) Equal(ngrokDomain *ngrok.ReservedDomain) bool {
-	return d.Status.ID == ngrokDomain.ID &&
-		d.Status.Region == ngrokDomain.Region &&
-		d.Status.Domain == ngrokDomain.Domain &&
-		d.Status.URI == ngrokDomain.URI &&
-		ptr.Equal(d.Status.CNAMETarget, ngrokDomain.CNAMETarget) &&
-		d.Spec.Description == ngrokDomain.Description &&
-		d.Spec.Metadata == ngrokDomain.Metadata
 }
 
 var domainNameForResourceNameReplacer = strings.NewReplacer(
