@@ -131,45 +131,25 @@ func TestUpdateDomainConditions(t *testing.T) {
 	}
 }
 
-func TestHelperFunctions(t *testing.T) {
-	t.Run("isNgrokSubdomain", func(t *testing.T) {
-		tests := []struct {
-			domain   string
-			expected bool
-		}{
-			{"test.ngrok.app", true},
-			{"example.ngrok.dev", true},
-			{"my-app.ngrok.io", true},
-			{"pizza.ngrok.pizza", true},
-			{"custom.example.com", false},
-			{"notngrok.app", false},
-		}
-
-		for _, tt := range tests {
-			assert.Equal(t, tt.expected, isNgrokSubdomain(tt.domain), "Domain: %s", tt.domain)
-		}
-	})
-}
-
 func TestSetDomainCreationFailedConditions(t *testing.T) {
 	tests := []struct {
-		name          string
-		errorMsg      string
+		name           string
+		errorMsg       string
 		expectedReason string
 	}{
 		{
-			name:          "dangling DNS record error",
-			errorMsg:      "The domain 'ngrok.com' has a dangling A, AAAA, ALIAS or other record pointing to ngrok",
+			name:           "dangling DNS record error",
+			errorMsg:       "The domain 'ngrok.com' has a dangling A, AAAA, ALIAS or other record pointing to ngrok",
 			expectedReason: "DanglingDNSRecord",
 		},
 		{
-			name:          "protected domain error", 
-			errorMsg:      "This domain is already reserved for another account",
+			name:           "protected domain error",
+			errorMsg:       "This domain is already reserved for another account",
 			expectedReason: "ProtectedDomain",
 		},
 		{
-			name:          "generic creation error",
-			errorMsg:      "Some other API error occurred",
+			name:           "generic creation error",
+			errorMsg:       "Some other API error occurred",
 			expectedReason: "DomainCreationFailed",
 		},
 	}
@@ -178,7 +158,7 @@ func TestSetDomainCreationFailedConditions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			domain := &ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-failed-domain",
+					Name:       "test-failed-domain",
 					Generation: 1,
 				},
 				Spec: ingressv1alpha1.DomainSpec{
