@@ -67,9 +67,6 @@ type DomainStatus struct {
 	// Region is the region in which the domain was created
 	Region string `json:"region,omitempty"`
 
-	// URI of the reserved domain API resource
-	URI string `json:"uri,omitempty"`
-
 	// CNAMETarget is the CNAME target for the domain
 	CNAMETarget *string `json:"cnameTarget,omitempty"`
 
@@ -93,8 +90,6 @@ type DomainStatus struct {
 type DomainStatusCertificateInfo struct {
 	// ID is the certificate ID
 	ID string `json:"id"`
-	// URI is the certificate API URI
-	URI string `json:"uri"`
 }
 
 // DomainStatusCertificateManagementPolicy contains the certificate management configuration

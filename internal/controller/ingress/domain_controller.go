@@ -27,10 +27,8 @@ package ingress
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -221,11 +219,9 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 
 // updateStatus updates the status fields of the domain resource only if any values have changed
 func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) error {
-
 	domain.Status.ID = ngrokDomain.ID
 	domain.Status.Region = ngrokDomain.Region
 	domain.Status.Domain = ngrokDomain.Domain
-	domain.Status.URI = ngrokDomain.URI
 	domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
 	domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
 
@@ -234,61 +230,26 @@ func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Do
 	domain.Status.CertificateManagementStatus = buildCertificateManagementStatus(ngrokDomain.CertificateManagementStatus)
 
 	updateDomainConditions(domain, ngrokDomain)
-	r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updating Domain %s", domain.Name))
 	return r.controller.ReconcileStatus(ctx, domain, nil)
 }
 
 // shouldRequeue determines if a domain should be requeued for a follow-up status check.
 // Uses certificate management data from ngrok API instead of hardcoded domain patterns.
 func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
-	// No requeue for domains that failed creation (no ID)
-	if domain.Status.ID == "" {
-		r.Log.V(1).Info("Not requeuing domain without ID", "domain", domain.Name)
+	switch {
+	// If the ID didn't get set, it couldn't be created in the ngrok API, so don't requeue it
+	case domain.Status.ID == "":
+		return false
+	// If the domain is ready, no need to requeue
+	case isDomainReady(domain):
+		return false
+	// If the domain needs a follow-up status check, requeue it
+	case needsStatusFollowUp(domain):
+		return true
+	// Otherwise, default to not requeue
+	default:
 		return false
 	}
-
-	// No requeue needed for ready domains
-	if isDomainReady(domain) {
-		return false
-	}
-
-	// Check if domain needs certificate management (based on API response data)
-	if r.needsStatusFollowUp(domain) {
-		r.Log.V(1).Info("Requeuing domain for follow-up check", "domain", domain.Name,
-			"has_cert_policy", domain.Status.CertificateManagementPolicy != nil,
-			"has_cert_status", domain.Status.CertificateManagementStatus != nil,
-			"has_cert", domain.Status.Certificate != nil)
-		return true
-	}
-
-	// Requeue if we don't have conditions set yet (initial setup)
-	if len(domain.Status.Conditions) == 0 {
-		r.Log.V(1).Info("Requeuing domain to record initial conditions", "domain", domain.Name)
-		return true
-	}
-
-	return false
-}
-
-// needsStatusFollowUp determines if a domain needs a requeue to observe
-// certificate provisioning progress based on ngrok API status data.
-func (r *DomainReconciler) needsStatusFollowUp(domain *v1alpha1.Domain) bool {
-	// If there's a certificate management policy, this is a custom domain that may need polling
-	if domain.Status.CertificateManagementPolicy != nil {
-		// If there's an active provisioning job, definitely needs polling
-		if domain.Status.CertificateManagementStatus != nil &&
-			domain.Status.CertificateManagementStatus.ProvisioningJob != nil {
-			return true
-		}
-
-		// If no certificate yet but has policy, might need polling
-		if domain.Status.Certificate == nil {
-			return true
-		}
-	}
-
-	// ngrok-managed domains (no certificate management policy) don't need polling
-	return false
 }
 
 func isDomainReady(domain *v1alpha1.Domain) bool {
@@ -302,8 +263,7 @@ func buildCertificateInfo(certificate *ngrok.Ref) *v1alpha1.DomainStatusCertific
 	}
 
 	return &v1alpha1.DomainStatusCertificateInfo{
-		ID:  certificate.ID,
-		URI: certificate.URI,
+		ID: certificate.ID,
 	}
 }
 
