@@ -1,7 +1,7 @@
 package ingress
 
 import (
-	"strings"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,112 +109,74 @@ func setDNSConfiguredCondition(domain *ingressv1alpha1.Domain, configured bool, 
 
 // updateDomainConditions updates all domain conditions based on the ngrok domain state
 func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) {
-	// Always set DomainCreated=True if we have an ID
-	if domain.Status.ID != "" {
-		setDomainCreatedCondition(domain, true, ReasonDomainCreated, "Domain successfully reserved")
-	} else {
-		setDomainCreatedCondition(domain, false, ReasonDomainInvalid, "Domain could not be reserved")
-		setDomainReadyCondition(domain, false, ReasonDomainInvalid, "Domain could not be reserved")
+	if domain.Status.ID == "" {
+		message := "Domain could not be reserved"
+		setDomainCreatedCondition(domain, false, ReasonDomainInvalid, message)
+		setCertificateReadyCondition(domain, false, ReasonDomainInvalid, message)
+		setDNSConfiguredCondition(domain, false, ReasonDomainInvalid, message)
+		setDomainReadyCondition(domain, false, ReasonDomainInvalid, message)
 		return
 	}
 
-	// Determine domain readiness based on type and certificate status
-	if isNgrokSubdomain(domain.Spec.Domain) {
-		// ngrok subdomains: no cert management needed, ready immediately
+	setDomainCreatedCondition(domain, true, ReasonDomainCreated, "Domain successfully reserved")
+
+	if isNgrokManagedDomain(ngrokDomain) {
 		setCertificateReadyCondition(domain, true, ReasonNgrokManaged, "Certificate managed by ngrok")
 		setDNSConfiguredCondition(domain, true, ReasonNgrokManaged, "DNS managed by ngrok")
 		setDomainReadyCondition(domain, true, ReasonDomainActive, "Domain ready for use")
-	} else {
-		// Custom domains: check certificate provisioning status
-		if hasProvisioningError(ngrokDomain) {
-			error := getProvisioningError(ngrokDomain)
-			setCertificateReadyCondition(domain, false, ReasonProvisioningError, error.Message)
-
-			if isDNSError(error) {
-				setDNSConfiguredCondition(domain, false, ReasonDNSError, error.Message)
-				setDomainReadyCondition(domain, false, ReasonDNSError, "DNS configuration required: "+error.Message)
-			} else {
-				setDNSConfiguredCondition(domain, true, ReasonDomainCreated, "DNS records configured")
-				setDomainReadyCondition(domain, false, ReasonProvisioningError, "Certificate provisioning error: "+error.Message)
-			}
-		} else if isCertificateProvisioned(ngrokDomain) {
-			setCertificateReadyCondition(domain, true, ReasonCertificateReady, "Certificate provisioned successfully")
-			setDNSConfiguredCondition(domain, true, ReasonDomainCreated, "DNS records configured")
-			setDomainReadyCondition(domain, true, ReasonDomainActive, "Domain ready for use")
-		} else {
-			// Still provisioning
-			setCertificateReadyCondition(domain, false, ReasonCertificateProvisioning, "Certificate being provisioned")
-			setDNSConfiguredCondition(domain, true, ReasonDomainCreated, "DNS records configured")
-			setDomainReadyCondition(domain, false, ReasonWaitingForCertificate, "Waiting for certificate provisioning to complete")
-		}
+		return
 	}
+
+	job := currentProvisioningJob(domain.Status.CertificateManagementStatus)
+	if hasProvisioningError(job) {
+		message := job.Message
+		if job.ErrorCode != "" {
+			message = fmt.Sprintf("%s (code=%s)", job.Message, job.ErrorCode)
+		}
+		setCertificateReadyCondition(domain, false, ReasonProvisioningError, message)
+		setDNSConfiguredCondition(domain, false, ReasonProvisioningError, message)
+		setDomainReadyCondition(domain, false, ReasonProvisioningError, message)
+		return
+	}
+
+	if domain.Status.Certificate != nil {
+		setCertificateReadyCondition(domain, true, ReasonCertificateReady, "Certificate provisioned successfully")
+		setDNSConfiguredCondition(domain, true, ReasonDomainCreated, "DNS records configured")
+		setDomainReadyCondition(domain, true, ReasonDomainActive, "Domain ready for use")
+		return
+	}
+
+	message := "Certificate provisioning in progress"
+	if job != nil && job.Message != "" {
+		message = job.Message
+	}
+	setCertificateReadyCondition(domain, false, ReasonCertificateProvisioning, message)
+	setDNSConfiguredCondition(domain, true, ReasonDomainCreated, "Waiting for certificate provisioning to complete")
+	setDomainReadyCondition(domain, false, ReasonWaitingForCertificate, message)
 }
 
 // Helper functions to determine domain and certificate status
 
-func isNgrokSubdomain(domain string) bool {
-	ngrokDomains := []string{".ngrok.app", ".ngrok.dev", ".ngrok.io", ".ngrok.pizza"}
-	for _, suffix := range ngrokDomains {
-		if strings.HasSuffix(domain, suffix) {
-			return true
-		}
-	}
-	return false
+func isNgrokManagedDomain(ngrokDomain *ngrok.ReservedDomain) bool {
+	return ngrokDomain.CertificateManagementPolicy == nil
 }
 
-func hasProvisioningError(ngrokDomain *ngrok.ReservedDomain) bool {
-	return ngrokDomain.CertificateManagementStatus != nil &&
-		ngrokDomain.CertificateManagementStatus.ProvisioningJob != nil &&
-		ngrokDomain.CertificateManagementStatus.ProvisioningJob.ErrorCode != nil &&
-		*ngrokDomain.CertificateManagementStatus.ProvisioningJob.ErrorCode != ""
-}
-
-func getProvisioningError(ngrokDomain *ngrok.ReservedDomain) *ingressv1alpha1.DomainStatusProvisioningJob {
-	if !hasProvisioningError(ngrokDomain) {
+func currentProvisioningJob(status *ingressv1alpha1.DomainStatusCertificateManagementStatus) *ingressv1alpha1.DomainStatusProvisioningJob {
+	if status == nil {
 		return nil
 	}
-
-	job := ngrokDomain.CertificateManagementStatus.ProvisioningJob
-	return &ingressv1alpha1.DomainStatusProvisioningJob{
-		ErrorCode: *job.ErrorCode,
-		Message:   job.Msg,
-	}
+	return status.ProvisioningJob
 }
 
-func isDNSError(job *ingressv1alpha1.DomainStatusProvisioningJob) bool {
-	return job != nil && job.ErrorCode == "DNS_ERROR"
-}
-
-func isCertificateProvisioned(ngrokDomain *ngrok.ReservedDomain) bool {
-	// Certificate is provisioned if:
-	// 1. We have a certificate reference, AND
-	// 2. There's no active provisioning job with errors
-	return ngrokDomain.Certificate != nil && !hasProvisioningError(ngrokDomain)
-}
-
-func isDomainReady(domain *ingressv1alpha1.Domain) bool {
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
-	return readyCondition != nil && readyCondition.Status == metav1.ConditionTrue
+func hasProvisioningError(job *ingressv1alpha1.DomainStatusProvisioningJob) bool {
+	return job != nil && job.ErrorCode != ""
 }
 
 // setDomainCreationFailedConditions sets conditions for domains that failed to be created
 func setDomainCreationFailedConditions(domain *ingressv1alpha1.Domain, err error) {
-	errorMsg := err.Error()
-
-	// Determine specific failure reason based on error
-	// TODO: These should use the consts from above
-	var reason string
-	if strings.Contains(errorMsg, "dangling") {
-		reason = "DanglingDNSRecord"
-	} else if strings.Contains(errorMsg, "already reserved") || strings.Contains(errorMsg, "protected") {
-		reason = "ProtectedDomain"
-	} else {
-		reason = "DomainCreationFailed"
-	}
-
-	// Set all conditions to indicate creation failure
-	setDomainCreatedCondition(domain, false, reason, errorMsg)
-	setCertificateReadyCondition(domain, false, reason, "Domain creation failed")
-	setDNSConfiguredCondition(domain, false, reason, "Domain creation failed")
-	setDomainReadyCondition(domain, false, reason, errorMsg)
+	message := err.Error()
+	setDomainCreatedCondition(domain, false, ReasonDomainCreationFailed, message)
+	setCertificateReadyCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
+	setDNSConfiguredCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
+	setDomainReadyCondition(domain, false, ReasonDomainCreationFailed, message)
 }

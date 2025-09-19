@@ -31,6 +31,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -156,7 +157,8 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 		}
 		resp, err = r.DomainsClient.Create(ctx, req)
 		if err != nil {
-			return err
+			setDomainCreationFailedConditions(domain, err)
+			return r.controller.ReconcileStatus(ctx, domain, err)
 		}
 	}
 
@@ -225,74 +227,17 @@ func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Do
 	domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
 	domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
 
-	// Set certificate information
-	if ngrokDomain.Certificate != nil {
-		domain.Status.Certificate = &v1alpha1.DomainStatusCertificateInfo{
-			ID:  ngrokDomain.Certificate.ID,
-			URI: ngrokDomain.Certificate.URI,
-		}
-	} else {
-		domain.Status.Certificate = nil
-	}
-
-	// Set certificate management policy
-	if ngrokDomain.CertificateManagementPolicy != nil {
-		domain.Status.CertificateManagementPolicy = &v1alpha1.DomainStatusCertificateManagementPolicy{
-			Authority:      ngrokDomain.CertificateManagementPolicy.Authority,
-			PrivateKeyType: ngrokDomain.CertificateManagementPolicy.PrivateKeyType,
-		}
-	} else {
-		domain.Status.CertificateManagementPolicy = nil
-	}
-
-	// Set certificate management status
-	if ngrokDomain.CertificateManagementStatus != nil {
-		status := &v1alpha1.DomainStatusCertificateManagementStatus{}
-
-		// Parse renewal time if present
-		if ngrokDomain.CertificateManagementStatus.RenewsAt != nil && *ngrokDomain.CertificateManagementStatus.RenewsAt != "" {
-			if t, err := time.Parse(time.RFC3339, *ngrokDomain.CertificateManagementStatus.RenewsAt); err == nil {
-				status.RenewsAt = &metav1.Time{Time: t}
-			}
-		}
-
-		// Handle provisioning job
-		if ngrokDomain.CertificateManagementStatus.ProvisioningJob != nil {
-			job := &v1alpha1.DomainStatusProvisioningJob{
-				Message: ngrokDomain.CertificateManagementStatus.ProvisioningJob.Msg,
-			}
-
-			if ngrokDomain.CertificateManagementStatus.ProvisioningJob.ErrorCode != nil {
-				job.ErrorCode = *ngrokDomain.CertificateManagementStatus.ProvisioningJob.ErrorCode
-			}
-
-			if ngrokDomain.CertificateManagementStatus.ProvisioningJob.StartedAt != "" {
-				if t, err := time.Parse(time.RFC3339, ngrokDomain.CertificateManagementStatus.ProvisioningJob.StartedAt); err == nil {
-					job.StartedAt = &metav1.Time{Time: t}
-				}
-			}
-
-			if ngrokDomain.CertificateManagementStatus.ProvisioningJob.RetriesAt != nil && *ngrokDomain.CertificateManagementStatus.ProvisioningJob.RetriesAt != "" {
-				if t, err := time.Parse(time.RFC3339, *ngrokDomain.CertificateManagementStatus.ProvisioningJob.RetriesAt); err == nil {
-					job.RetriesAt = &metav1.Time{Time: t}
-				}
-			}
-
-			status.ProvisioningJob = job
-		}
-
-		domain.Status.CertificateManagementStatus = status
-	} else {
-		domain.Status.CertificateManagementStatus = nil
-	}
+	domain.Status.Certificate = buildCertificateInfo(ngrokDomain.Certificate)
+	domain.Status.CertificateManagementPolicy = buildCertificateManagementPolicy(ngrokDomain.CertificateManagementPolicy)
+	domain.Status.CertificateManagementStatus = buildCertificateManagementStatus(ngrokDomain.CertificateManagementStatus)
 
 	updateDomainConditions(domain, ngrokDomain)
 	r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updating Domain %s", domain.Name))
 	return r.controller.ReconcileStatus(ctx, domain, nil)
 }
 
-// shouldRequeue determines if a domain should be requeued for status polling
-// Uses certificate management data from ngrok API instead of hardcoded domain patterns
+// shouldRequeue determines if a domain should be requeued for a follow-up status check.
+// Uses certificate management data from ngrok API instead of hardcoded domain patterns.
 func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
 	// No requeue for domains that failed creation (no ID)
 	if domain.Status.ID == "" {
@@ -307,8 +252,8 @@ func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
 	}
 
 	// Check if domain needs certificate management (based on API response data)
-	if r.needsCertificatePolling(domain) {
-		r.Log.V(1).Info("Requeuing domain for certificate polling", "domain", domain.Name,
+	if r.needsStatusFollowUp(domain) {
+		r.Log.V(1).Info("Requeuing domain for follow-up check", "domain", domain.Name,
 			"has_cert_policy", domain.Status.CertificateManagementPolicy != nil,
 			"has_cert_status", domain.Status.CertificateManagementStatus != nil,
 			"has_cert", domain.Status.Certificate != nil)
@@ -317,7 +262,7 @@ func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
 
 	// Requeue if we don't have conditions set yet (initial setup)
 	if len(domain.Status.Conditions) == 0 {
-		r.Log.V(1).Info("Requeuing domain to set initial conditions", "domain", domain.Name)
+		r.Log.V(1).Info("Requeuing domain to record initial conditions", "domain", domain.Name)
 		return true
 	}
 
@@ -325,9 +270,9 @@ func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
 	return false
 }
 
-// needsCertificatePolling determines if a domain needs certificate status polling
-// based on the actual certificate management data from ngrok API
-func (r *DomainReconciler) needsCertificatePolling(domain *v1alpha1.Domain) bool {
+// needsStatusFollowUp determines if a domain needs a requeue to observe
+// certificate provisioning progress based on ngrok API status data.
+func (r *DomainReconciler) needsStatusFollowUp(domain *v1alpha1.Domain) bool {
 	// If there's a certificate management policy, this is a custom domain that may need polling
 	if domain.Status.CertificateManagementPolicy != nil {
 		// If there's an active provisioning job, definitely needs polling
@@ -344,4 +289,79 @@ func (r *DomainReconciler) needsCertificatePolling(domain *v1alpha1.Domain) bool
 
 	// ngrok-managed domains (no certificate management policy) don't need polling
 	return false
+}
+
+func isDomainReady(domain *v1alpha1.Domain) bool {
+	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	return readyCondition != nil && readyCondition.Status == metav1.ConditionTrue
+}
+
+func buildCertificateInfo(certificate *ngrok.Ref) *v1alpha1.DomainStatusCertificateInfo {
+	if certificate == nil || certificate.ID == "" {
+		return nil
+	}
+
+	return &v1alpha1.DomainStatusCertificateInfo{
+		ID:  certificate.ID,
+		URI: certificate.URI,
+	}
+}
+
+func buildCertificateManagementPolicy(policy *ngrok.ReservedDomainCertPolicy) *v1alpha1.DomainStatusCertificateManagementPolicy {
+	if policy == nil {
+		return nil
+	}
+
+	return &v1alpha1.DomainStatusCertificateManagementPolicy{
+		Authority:      policy.Authority,
+		PrivateKeyType: policy.PrivateKeyType,
+	}
+}
+
+func buildCertificateManagementStatus(status *ngrok.ReservedDomainCertStatus) *v1alpha1.DomainStatusCertificateManagementStatus {
+	if status == nil {
+		return nil
+	}
+
+	result := &v1alpha1.DomainStatusCertificateManagementStatus{}
+	result.RenewsAt = parseRFC3339Pointer(status.RenewsAt)
+	result.ProvisioningJob = buildProvisioningJob(status.ProvisioningJob)
+	return result
+}
+
+func buildProvisioningJob(job *ngrok.ReservedDomainCertJob) *v1alpha1.DomainStatusProvisioningJob {
+	if job == nil {
+		return nil
+	}
+
+	result := &v1alpha1.DomainStatusProvisioningJob{
+		Message: job.Msg,
+	}
+
+	if job.ErrorCode != nil {
+		result.ErrorCode = *job.ErrorCode
+	}
+
+	result.StartedAt = parseRFC3339String(job.StartedAt)
+	result.RetriesAt = parseRFC3339Pointer(job.RetriesAt)
+	return result
+}
+
+func parseRFC3339Pointer(value *string) *metav1.Time {
+	if value == nil {
+		return nil
+	}
+	return parseRFC3339String(*value)
+}
+
+func parseRFC3339String(value string) *metav1.Time {
+	if value == "" {
+		return nil
+	}
+
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil
+	}
+	return &metav1.Time{Time: t}
 }

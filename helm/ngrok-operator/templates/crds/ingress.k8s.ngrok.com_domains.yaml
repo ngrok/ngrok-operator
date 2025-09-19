@@ -15,36 +15,36 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Domain Ready
-      jsonPath: .status.conditions[?(@.type=='Ready')].status
-      name: Ready
-      type: string
     - description: Domain ID
       jsonPath: .status.id
       name: ID
       type: string
+    - description: Domain
+      jsonPath: .status.domain
+      name: Domain
+      type: string
     - description: Reclaim Policy
       jsonPath: .spec.reclaimPolicy
       name: Reclaim Policy
+      type: string
+    - description: Domain Ready
+      jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - description: CNAME Target
+      jsonPath: .status.cnameTarget
+      name: CNAME Target
+      priority: 2
       type: string
     - description: Region
       jsonPath: .status.region
       name: Region
       priority: 2
       type: string
-    - description: Domain
-      jsonPath: .status.domain
-      name: Domain
-      type: string
-    - description: CNAME Target
-      jsonPath: .status.cnameTarget
-      name: CNAME Target
-      priority: 2
-      type: string
-    - description: Age
-      jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:
