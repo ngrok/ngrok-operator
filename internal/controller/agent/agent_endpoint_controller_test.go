@@ -408,7 +408,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				obj := &ngrokv1alpha1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
-				policyCondition := findCondition(obj.Status.Conditions, ConditionTrafficPolicy)
+				policyCondition := findCondition(obj.Status.Conditions, ConditionTrafficPolicyApplied)
 				g.Expect(policyCondition).NotTo(BeNil())
 				g.Expect(policyCondition.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(policyCondition.Reason).To(Equal(ReasonTrafficPolicyError))

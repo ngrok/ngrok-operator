@@ -54,7 +54,7 @@ func TestConditionSetters(t *testing.T) {
 	t.Run("setTrafficPolicyCondition", func(t *testing.T) {
 		setTrafficPolicyCondition(endpoint, false, ReasonTrafficPolicyError, "Policy error")
 
-		condition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionTrafficPolicy)
+		condition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionTrafficPolicyApplied)
 		assert.NotNil(t, condition)
 		assert.Equal(t, metav1.ConditionFalse, condition.Status)
 		assert.Equal(t, ReasonTrafficPolicyError, condition.Reason)

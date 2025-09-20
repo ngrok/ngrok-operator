@@ -129,12 +129,8 @@ spec:
                       id:
                         description: ID is the certificate ID
                         type: string
-                      uri:
-                        description: URI is the certificate API URI
-                        type: string
                     required:
                     - id
-                    - uri
                     type: object
                   certificateManagementPolicy:
                     description: CertificateManagementPolicy contains the certificate
@@ -267,9 +263,6 @@ spec:
                     type: string
                   region:
                     description: Region is the region in which the domain was created
-                    type: string
-                  uri:
-                    description: URI of the reserved domain API resource
                     type: string
                 type: object
               id:
