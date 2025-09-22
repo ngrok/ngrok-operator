@@ -38,7 +38,6 @@ func setReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, reason
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: endpoint.Generation,
 	}
 
@@ -57,7 +56,6 @@ func setEndpointCreatedCondition(endpoint *ngrokv1alpha1.AgentEndpoint, created 
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: endpoint.Generation,
 	}
 
@@ -76,7 +74,6 @@ func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bo
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: endpoint.Generation,
 	}
 
@@ -95,7 +92,6 @@ func setDomainReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, 
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: endpoint.Generation,
 	}
 

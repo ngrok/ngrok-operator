@@ -27,13 +27,8 @@ package v1alpha1
 import (
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v7"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 )
-
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type DomainReclaimPolicy string
 
@@ -62,8 +57,6 @@ type DomainSpec struct {
 
 // DomainStatus defines the observed state of Domain
 type DomainStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 
 	// ID is the unique identifier of the domain
 	ID string `json:"id,omitempty"`
@@ -74,21 +67,68 @@ type DomainStatus struct {
 	// Region is the region in which the domain was created
 	Region string `json:"region,omitempty"`
 
-	// URI of the reserved domain API resource
-	URI string `json:"uri,omitempty"`
-
 	// CNAMETarget is the CNAME target for the domain
 	CNAMETarget *string `json:"cnameTarget,omitempty"`
+
+	// ACMEChallengeCNAMETarget is the CNAME target for ACME challenge (wildcards only)
+	ACMEChallengeCNAMETarget *string `json:"acmeChallengeCnameTarget,omitempty"`
+
+	// Certificate contains information about the TLS certificate
+	Certificate *DomainStatusCertificateInfo `json:"certificate,omitempty"`
+
+	// CertificateManagementPolicy contains the certificate management configuration
+	CertificateManagementPolicy *DomainStatusCertificateManagementPolicy `json:"certificateManagementPolicy,omitempty"`
+
+	// CertificateManagementStatus contains the certificate management status
+	CertificateManagementStatus *DomainStatusCertificateManagementStatus `json:"certificateManagementStatus,omitempty"`
+
+	// Conditions represent the latest available observations of the domain's state
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// DomainStatusCertificateInfo contains information about the TLS certificate for the domain
+type DomainStatusCertificateInfo struct {
+	// ID is the certificate ID
+	ID string `json:"id"`
+}
+
+// DomainStatusCertificateManagementPolicy contains the certificate management configuration
+type DomainStatusCertificateManagementPolicy struct {
+	// Authority is the certificate authority (e.g., "letsencrypt")
+	Authority string `json:"authority"`
+	// PrivateKeyType is the private key type (e.g., "ecdsa")
+	PrivateKeyType string `json:"privateKeyType"`
+}
+
+// DomainStatusCertificateManagementStatus contains the certificate management status
+type DomainStatusCertificateManagementStatus struct {
+	// RenewsAt is when the certificate will be renewed
+	RenewsAt *metav1.Time `json:"renewsAt,omitempty"`
+	// ProvisioningJob contains information about the current provisioning job
+	ProvisioningJob *DomainStatusProvisioningJob `json:"provisioningJob,omitempty"`
+}
+
+// DomainStatusProvisioningJob contains information about a certificate provisioning job
+type DomainStatusProvisioningJob struct {
+	// ErrorCode indicates the type of error (e.g., "DNS_ERROR")
+	ErrorCode string `json:"errorCode,omitempty"`
+	// Message is a human-readable description of the current status
+	Message string `json:"message,omitempty"`
+	// StartedAt is when the provisioning job started
+	StartedAt *metav1.Time `json:"startedAt,omitempty"`
+	// RetriesAt is when the provisioning job will be retried
+	RetriesAt *metav1.Time `json:"retriesAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
-// +kubebuilder:printcolumn:name="Reclaim Policy",type=string,JSONPath=`.spec.reclaimPolicy`,description="Reclaim Policy"
-// +kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`,description="Region"
 // +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.status.domain`,description="Domain"
-// +kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cnameTarget`,description="CNAME Target",priority=2
+// +kubebuilder:printcolumn:name="Reclaim Policy",type=string,JSONPath=`.spec.reclaimPolicy`,description="Reclaim Policy"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`,description="Domain Ready"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+// +kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cnameTarget`,description="CNAME Target",priority=2
+// +kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`,description="Region",priority=2
 
 // Domain is the Schema for the domains API
 type Domain struct {
@@ -110,26 +150,6 @@ type DomainList struct {
 
 func init() {
 	SchemeBuilder.Register(&Domain{}, &DomainList{})
-}
-
-// SetStatus pulls the fields off the ngrok domain and sets each one on the status field of the domain
-func (d *Domain) SetStatus(ngrokDomain *ngrok.ReservedDomain) {
-	d.Status.ID = ngrokDomain.ID
-	d.Status.Region = ngrokDomain.Region
-	d.Status.Domain = ngrokDomain.Domain
-	d.Status.URI = ngrokDomain.URI
-	d.Status.CNAMETarget = ngrokDomain.CNAMETarget
-}
-
-// Equal returns true if the domain status is equal to the ngrok domain
-func (d *Domain) Equal(ngrokDomain *ngrok.ReservedDomain) bool {
-	return d.Status.ID == ngrokDomain.ID &&
-		d.Status.Region == ngrokDomain.Region &&
-		d.Status.Domain == ngrokDomain.Domain &&
-		d.Status.URI == ngrokDomain.URI &&
-		ptr.Equal(d.Status.CNAMETarget, ngrokDomain.CNAMETarget) &&
-		d.Spec.Description == ngrokDomain.Description &&
-		d.Spec.Metadata == ngrokDomain.Metadata
 }
 
 var domainNameForResourceNameReplacer = strings.NewReplacer(

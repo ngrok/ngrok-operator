@@ -27,20 +27,23 @@ package ingress
 import (
 	"context"
 	"errors"
-	"fmt"
+	"time"
 
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	basecontroller "github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
@@ -53,7 +56,7 @@ type DomainReconciler struct {
 	Recorder      record.EventRecorder
 	DomainsClient ngrokapi.DomainClient
 
-	controller *controller.BaseController[*ingressv1alpha1.Domain]
+	controller *basecontroller.BaseController[*v1alpha1.Domain]
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -62,16 +65,16 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return errors.New("DomainsClient must be set")
 	}
 
-	r.controller = &controller.BaseController[*ingressv1alpha1.Domain]{
+	r.controller = &basecontroller.BaseController[*v1alpha1.Domain]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		StatusID: func(cr *ingressv1alpha1.Domain) string { return cr.Status.ID },
+		StatusID: func(cr *v1alpha1.Domain) string { return cr.Status.ID },
 		Create:   r.create,
 		Update:   r.update,
 		Delete:   r.delete,
-		ErrResult: func(_ controller.BaseControllerOp, _ *ingressv1alpha1.Domain, err error) (reconcile.Result, error) {
+		ErrResult: func(_ basecontroller.BaseControllerOp, _ *v1alpha1.Domain, err error) (reconcile.Result, error) {
 			retryableErrors := []int{
 				// Domain still attached to an edge, probably a race condition.
 				// Schedule for retry, and hopefully the edge will be gone
@@ -84,16 +87,23 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if ngrok.IsErrorCode(err, retryableErrors...) {
 				return ctrl.Result{}, err
 			}
-			return controller.CtrlResultForErr(err)
+			return basecontroller.CtrlResultForErr(err)
 		},
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ingressv1alpha1.Domain{}).
+		For(&v1alpha1.Domain{}).
 		WithEventFilter(predicate.Or(
 			predicate.AnnotationChangedPredicate{},
 			predicate.GenerationChangedPredicate{},
 		)).
+		WithOptions(controller.Options{
+			// Use a custom rate limiter to exponentially backoff while certificates for domains provision
+			RateLimiter: workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](
+				30*time.Second, // baseDelay
+				10*time.Minute, // maxDelay
+			),
+		}).
 		Complete(r)
 }
 
@@ -107,10 +117,27 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.Domain))
+	result, err := r.controller.Reconcile(ctx, req, new(v1alpha1.Domain))
+	if err != nil {
+		return result, err
+	}
+
+	// Get the updated domain to check if we need requeuing
+	domain := &v1alpha1.Domain{}
+	if err := r.Get(ctx, req.NamespacedName, domain); err != nil {
+		return result, client.IgnoreNotFound(err)
+	}
+
+	// Determine if we need to requeue based on domain state
+	if r.shouldRequeue(domain) {
+		// Requeue the event relying on the controllers custom RateLimiter for exponential backoff
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	return result, nil
 }
 
-func (r *DomainReconciler) create(ctx context.Context, domain *ingressv1alpha1.Domain) error {
+func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) error {
 	// First check if the reserved domain already exists. The API is sometimes returning dangling CNAME records
 	// errors right now, so we'll check if the domain already exists before trying to create it.
 	resp, err := r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
@@ -128,26 +155,29 @@ func (r *DomainReconciler) create(ctx context.Context, domain *ingressv1alpha1.D
 		}
 		resp, err = r.DomainsClient.Create(ctx, req)
 		if err != nil {
-			return err
+			setDomainCreationFailedConditions(domain, err)
+			return r.controller.ReconcileStatus(ctx, domain, err)
 		}
 	}
 
 	return r.updateStatus(ctx, domain, resp)
 }
 
-func (r *DomainReconciler) update(ctx context.Context, domain *ingressv1alpha1.Domain) error {
+func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) error {
 	resp, err := r.DomainsClient.Get(ctx, domain.Status.ID)
 	if err != nil {
 		// If the domain is gone, clear the status and trigger a re-reconcile
 		if ngrok.IsNotFound(err) {
-			domain.Status = ingressv1alpha1.DomainStatus{}
+			domain.Status = v1alpha1.DomainStatus{}
 			return r.controller.ReconcileStatus(ctx, domain, err)
 		}
 
 		return err
 	}
 
-	if domain.Equal(resp) {
+	// Only update the domain if the description or metadata has changed
+	// These are the only fields that can be updated that we write to.
+	if domain.Spec.Description == resp.Description && domain.Spec.Metadata == resp.Metadata {
 		return nil
 	}
 
@@ -163,8 +193,8 @@ func (r *DomainReconciler) update(ctx context.Context, domain *ingressv1alpha1.D
 	return r.updateStatus(ctx, domain, resp)
 }
 
-func (r *DomainReconciler) delete(ctx context.Context, domain *ingressv1alpha1.Domain) error {
-	if domain.Spec.ReclaimPolicy != ingressv1alpha1.DomainReclaimPolicyDelete {
+func (r *DomainReconciler) delete(ctx context.Context, domain *v1alpha1.Domain) error {
+	if domain.Spec.ReclaimPolicy != v1alpha1.DomainReclaimPolicyDelete {
 		return nil
 	}
 
@@ -188,11 +218,110 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 }
 
 // updateStatus updates the status fields of the domain resource only if any values have changed
-func (r *DomainReconciler) updateStatus(ctx context.Context, domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) error {
-	if domain.Equal(ngrokDomain) {
+func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) error {
+	domain.Status.ID = ngrokDomain.ID
+	domain.Status.Region = ngrokDomain.Region
+	domain.Status.Domain = ngrokDomain.Domain
+	domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
+	domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
+
+	domain.Status.Certificate = buildCertificateInfo(ngrokDomain.Certificate)
+	domain.Status.CertificateManagementPolicy = buildCertificateManagementPolicy(ngrokDomain.CertificateManagementPolicy)
+	domain.Status.CertificateManagementStatus = buildCertificateManagementStatus(ngrokDomain.CertificateManagementStatus)
+
+	updateDomainConditions(domain, ngrokDomain)
+	return r.controller.ReconcileStatus(ctx, domain, nil)
+}
+
+// shouldRequeue determines if a domain should be requeued for a follow-up status check.
+// Uses certificate management data from ngrok API instead of hardcoded domain patterns.
+func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
+	switch {
+	// If the ID didn't get set, it couldn't be created in the ngrok API, so don't requeue it
+	case domain.Status.ID == "":
+		return false
+	// If the domain is ready, no need to requeue
+	case isDomainReady(domain):
+		return false
+	// If the domain needs a follow-up status check, requeue it
+	case needsStatusFollowUp(domain):
+		return true
+	// Otherwise, default to not requeue
+	default:
+		return false
+	}
+}
+
+func isDomainReady(domain *v1alpha1.Domain) bool {
+	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	return readyCondition != nil && readyCondition.Status == metav1.ConditionTrue
+}
+
+func buildCertificateInfo(certificate *ngrok.Ref) *v1alpha1.DomainStatusCertificateInfo {
+	if certificate == nil || certificate.ID == "" {
 		return nil
 	}
-	domain.SetStatus(ngrokDomain)
-	r.Recorder.Event(domain, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updating Domain %s", domain.Name))
-	return r.Status().Update(ctx, domain)
+
+	return &v1alpha1.DomainStatusCertificateInfo{
+		ID: certificate.ID,
+	}
+}
+
+func buildCertificateManagementPolicy(policy *ngrok.ReservedDomainCertPolicy) *v1alpha1.DomainStatusCertificateManagementPolicy {
+	if policy == nil {
+		return nil
+	}
+
+	return &v1alpha1.DomainStatusCertificateManagementPolicy{
+		Authority:      policy.Authority,
+		PrivateKeyType: policy.PrivateKeyType,
+	}
+}
+
+func buildCertificateManagementStatus(status *ngrok.ReservedDomainCertStatus) *v1alpha1.DomainStatusCertificateManagementStatus {
+	if status == nil {
+		return nil
+	}
+
+	result := &v1alpha1.DomainStatusCertificateManagementStatus{}
+	result.RenewsAt = parseRFC3339Pointer(status.RenewsAt)
+	result.ProvisioningJob = buildProvisioningJob(status.ProvisioningJob)
+	return result
+}
+
+func buildProvisioningJob(job *ngrok.ReservedDomainCertJob) *v1alpha1.DomainStatusProvisioningJob {
+	if job == nil {
+		return nil
+	}
+
+	result := &v1alpha1.DomainStatusProvisioningJob{
+		Message: job.Msg,
+	}
+
+	if job.ErrorCode != nil {
+		result.ErrorCode = *job.ErrorCode
+	}
+
+	result.StartedAt = parseRFC3339String(job.StartedAt)
+	result.RetriesAt = parseRFC3339Pointer(job.RetriesAt)
+	return result
+}
+
+func parseRFC3339Pointer(value *string) *metav1.Time {
+	if value == nil {
+		return nil
+	}
+	return parseRFC3339String(*value)
+}
+
+func parseRFC3339String(value string) *metav1.Time {
+	if value == "" {
+		return nil
+	}
+
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil
+	}
+	return &metav1.Time{Time: t}
 }
