@@ -91,6 +91,13 @@ type CloudEndpointStatus struct {
 	// Domain is the DomainStatus object associated with this endpoint.
 	// For internal endpoints, this will be nil.
 	Domain *ingressv1alpha1.DomainStatus `json:"domain,omitempty"`
+
+	// Conditions describe the current conditions of the CloudEndpoint.
+	//
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // CloudEndpoint is the Schema for the cloudendpoints API

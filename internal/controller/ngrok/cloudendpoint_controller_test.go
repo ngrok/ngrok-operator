@@ -7,6 +7,7 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -72,6 +73,13 @@ func Test_ensureDomainExists(t *testing.T) {
 		},
 		Status: ingressv1alpha1.DomainStatus{
 			ID: "rd_123",
+			Conditions: []metav1.Condition{
+				{
+					Type:   "Ready",
+					Status: metav1.ConditionTrue,
+					Reason: "DomainActive",
+				},
+			},
 		},
 	}
 
@@ -97,11 +105,12 @@ func Test_ensureDomainExists(t *testing.T) {
 		},
 	}
 
-	domain, err := r.ensureDomainExists(t.Context(), clep)
-	assert.Equal(t, ErrDomainCreating, err)
+	// Test using the shared utilities
+	domain, err := util.EnsureDomainExists(t.Context(), r.Client, r.Recorder, clep, clep.Spec.URL, nil)
+	assert.Equal(t, util.ErrDomainCreating, err)
 	assert.Equal(t, existingNotReadyDomain, domain)
 
-	// Case 2: Domain already exists, but is not ready
+	// Case 2: Domain already exists, but is ready
 	clep = &ngrokv1alpha1.CloudEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cloud-endpoint-2",
@@ -111,23 +120,21 @@ func Test_ensureDomainExists(t *testing.T) {
 			URL: "https://example2.com",
 		},
 	}
-
-	domain, err = r.ensureDomainExists(t.Context(), clep)
+	domain, err = util.EnsureDomainExists(t.Context(), r.Client, r.Recorder, clep, clep.Spec.URL, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, existingReadyDomain, domain)
 
 	// Case 3: Domain does not exist and should be created
 	clep = &ngrokv1alpha1.CloudEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cloud-endpoint-2",
+			Name:      "cloud-endpoint-3",
 			Namespace: "default",
 		},
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL: "https://newdomain.com",
 		},
 	}
-
-	domain, err = r.ensureDomainExists(t.Context(), clep)
-	assert.Equal(t, ErrDomainCreating, err)
-	assert.Empty(t, domain.Status.ID)
+	domain, err = util.EnsureDomainExists(t.Context(), r.Client, r.Recorder, clep, clep.Spec.URL, nil)
+	assert.Equal(t, util.ErrDomainCreating, err)
+	assert.NotNil(t, domain)
 }
