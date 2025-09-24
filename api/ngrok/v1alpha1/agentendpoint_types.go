@@ -190,6 +190,10 @@ type AgentEndpointStatus struct {
 	// +kubebuilder:validation:Optional
 	AttachedTrafficPolicy string `json:"trafficPolicy,omitempty"`
 
+	// DomainRef is a reference to the Domain resource associated with this endpoint.
+	// For internal endpoints, this will be nil.
+	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
+
 	// Conditions describe the current conditions of the AgentEndpoint.
 	//
 	// +kubebuilder:validation:Optional

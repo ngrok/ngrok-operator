@@ -88,9 +88,38 @@ type CloudEndpointStatus struct {
 	// ID is the unique identifier for this endpoint
 	ID string `json:"id,omitempty"`
 
-	// Domain is the DomainStatus object associated with this endpoint.
+	// Deprecated: This is here for backwards compatibility with the old DomainStatus object.
+	// This will be removed in a future version. Use DomainRef instead.
+	Domain *CloudEndpointStatusDeprecatedDomainStatus `json:"domain,omitempty"`
+
+	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.
-	Domain *ingressv1alpha1.DomainStatus `json:"domain,omitempty"`
+	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
+}
+
+// Deprecated: This is here for backwards compatibility with the old DomainStatus object.
+// This will be removed in a future version.
+type CloudEndpointStatusDeprecatedDomainStatus struct {
+	// ID is the unique identifier of the domain
+	ID string `json:"id,omitempty"`
+
+	// Domain is the domain that was reserved
+	Domain string `json:"domain,omitempty"`
+
+	// Region is the region in which the domain was created
+	Region string `json:"region,omitempty"`
+
+	// CNAMETarget is the CNAME target for the domain
+	CNAMETarget *string `json:"cnameTarget,omitempty"`
+}
+
+func ConvertDomainStatusToDeprecatedDomainStatus(domain *ingressv1alpha1.DomainStatus) *CloudEndpointStatusDeprecatedDomainStatus {
+	return &CloudEndpointStatusDeprecatedDomainStatus{
+		ID:          domain.ID,
+		Domain:      domain.Domain,
+		Region:      domain.Region,
+		CNAMETarget: domain.CNAMETarget,
+	}
 }
 
 // CloudEndpoint is the Schema for the cloudendpoints API

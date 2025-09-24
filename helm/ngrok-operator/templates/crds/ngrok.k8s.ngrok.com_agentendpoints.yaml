@@ -265,6 +265,20 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              domainRef:
+                description: |-
+                  DomainRef is a reference to the Domain resource associated with this endpoint.
+                  For internal endpoints, this will be nil.
+                properties:
+                  name:
+                    description: The name of the Kubernetes resource being referenced
+                    type: string
+                  namespace:
+                    description: The namespace of the Kubernetes resource being referenced
+                    type: string
+                required:
+                - name
+                type: object
               trafficPolicy:
                 description: Identifies any traffic policies attached to the AgentEndpoint
                   ("inline", "none", or reference name).

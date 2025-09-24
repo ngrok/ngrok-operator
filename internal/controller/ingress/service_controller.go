@@ -35,6 +35,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
@@ -797,9 +798,18 @@ func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
 					return err
 				}
 
+				// Use this domain temporarily, but also check if there is a
+				// more specific CNAME value on the domain to use
 				hostname = domain
-				if endpoint.Status.Domain != nil && endpoint.Status.Domain.CNAMETarget != nil {
-					hostname = *endpoint.Status.Domain.CNAMETarget
+				if endpoint.Status.DomainRef != nil {
+					// Lookup the domain
+					domain := &ingressv1alpha1.Domain{}
+					if err := c.Get(ctx, client.ObjectKey{Namespace: *endpoint.Status.DomainRef.Namespace, Name: endpoint.Status.DomainRef.Name}, domain); err != nil {
+						return err
+					}
+					if domain.Status.CNAMETarget != nil {
+						hostname = *domain.Status.CNAMETarget
+					}
 				}
 			}
 
