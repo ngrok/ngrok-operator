@@ -1,4 +1,4 @@
-package ingress
+package service
 
 import (
 	. "github.com/onsi/ginkgo/v2"

@@ -64,6 +64,7 @@ import (
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
+	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -535,7 +536,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
 
-	if err := (&ingresscontroller.ServiceReconciler{
+	if err := (&servicecontroller.ServiceReconciler{
 		Client:        mgr.GetClient(),
 		Log:           ctrl.Log.WithName("controllers").WithName("service"),
 		Scheme:        mgr.GetScheme(),
