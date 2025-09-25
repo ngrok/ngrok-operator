@@ -234,12 +234,14 @@ func (r *CloudEndpointReconciler) delete(ctx context.Context, clep *ngrokv1alpha
 func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, ngrokClep *ngrok.Endpoint, domain *ingressv1alpha1.Domain) error {
 	clep.Status.ID = ngrokClep.ID
 	if domain != nil {
+		//nolint:staticcheck
 		clep.Status.Domain = ngrokv1alpha1.ConvertDomainStatusToDeprecatedDomainStatus(&domain.Status)
 		clep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 			Name:      domain.Name,
 			Namespace: &domain.Namespace,
 		}
 	} else {
+		//nolint:staticcheck
 		clep.Status.Domain = nil
 		clep.Status.DomainRef = nil
 	}
