@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: loadbalancer-services
+spec:
+  steps:
+  - name: create test deployment and services
+    try:
+    - create: { file: ./test-deployment.yaml }
+    - create: { file: ./test-tcp-service.yaml }
+    - create: { file: ./test-tls-service.yaml }
+
+  - name: verify TCP LoadBalancer service gets status
+    try:
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: test-tcp-lb
+          status:
+            # At least one ingress object with a hostname (null-safe; no [0] until it exists)
+            "(length(to_array(loadBalancer.ingress)[?hostname]) > `0`)": true
+            # At least one hostname matches "<digits>.tcp.ngrok.io"
+            "(length(to_array(loadBalancer.ingress)[? hostname && regex_match('^[0-9]+\\.tcp\\.ngrok\\.io$', hostname)]) > `0`)": true
+            # At least one positive port present (null-safe)
+            "(length(to_array(loadBalancer.ingress)[? length(to_array(ports)) > `0` && to_number(to_array(ports)[0].port) > `0`]) > `0`)": true
+
+  - name: verify TLS LoadBalancer service gets status
+    try:
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: test-tls-lb
+          status:
+            # Ingress entry exists (null-safe)
+            "(length(to_array(loadBalancer.ingress)[?hostname]) > `0`)": true
+            # Hostname ends with either ngrok.app or ngrok-cname.com (no direct indexing)
+            "(length(to_array(loadBalancer.ingress)[? hostname && (pattern_match('*.ngrok.app', hostname) || pattern_match('*.ngrok-cname.com', hostname)) ]) > `0`)": true
+            # Positive port present (null-safe)
+            "(length(to_array(loadBalancer.ingress)[? length(to_array(ports)) > `0` && to_number(to_array(ports)[0].port) > `0`]) > `0`)": true

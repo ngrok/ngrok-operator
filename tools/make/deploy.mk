@@ -61,7 +61,6 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 
 .PHONY: deploy_for_e2e
 deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	kind load docker-image $(IMG)
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
@@ -80,6 +79,9 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set bindings.serviceAnnotations.annotation1="val1" \
 		--set bindings.serviceAnnotations.annotation2="val2" \
 		--set bindings.serviceLabels.label1="val1"
+		&&\
+	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
+	kubectl rollout restart deployment $(KUBE_AGENT_MANAGER_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
 
 
 .PHONY: _deploy-check-env-vars

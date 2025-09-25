@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-tcp-lb
+  annotations:
+    k8s.ngrok.com/mapping-strategy: endpoints-verbose
+  labels:
+    app.kubernetes.io/name: test-server
+spec:
+  allocateLoadBalancerNodePorts: false
+  loadBalancerClass: ngrok
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+  selector:
+    app.kubernetes.io/name: test-server
+  type: LoadBalancer
