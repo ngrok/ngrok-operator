@@ -88,12 +88,6 @@ func IsIPPolicyReady(ipPolicy *ingressv1alpha1.IPPolicy) bool {
 	return false
 }
 
-// Checks if Rules Configuration condition has a value
-func HasIPPolicyRulesConfiguredCondition(ipPolicy *ingressv1alpha1.IPPolicy) bool {
-	rulesConfiguredCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
-	return rulesConfiguredCondition != nil
-}
-
 // Checks if Rules Configuration condition is true
 func IsIPPolicyRulesConfigured(ipPolicy *ingressv1alpha1.IPPolicy) bool {
 	rulesConfiguredCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
