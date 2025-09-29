@@ -97,6 +97,7 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
 func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	panic("Panicking IPPolicy")
 	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.IPPolicy))
 }
 
@@ -187,6 +188,9 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 			log.V(3).Info("Updated IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID)
 		}
 	}
+
+	updateIPPolicyConditions(policy)
+	log.V(3).Info("Updating IP Policy status conditions", "conditions", policy.Status.Conditions)
 
 	return nil
 }

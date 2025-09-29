@@ -62,6 +62,9 @@ type IPPolicyStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	ID string `json:"id,omitempty"`
 
+	// Conditions represent the latest available observations of the IP policy's state
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
 	Rules []IPPolicyRuleStatus `json:"rules,omitempty"`
 }
 
