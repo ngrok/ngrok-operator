@@ -31,5 +31,5 @@ e2e-clean: ## Clean up e2e tests
 
 
 .PHONY: helm-test
-helm-test: _helm_setup ## Run helm unittest plugin
-	$(MAKE) -C $(HELM_CHART_DIR) test
+helm-test: _helm_setup helm-unittest-plugin ## Run helm unittest plugin
+	HELM="$(HELM)" HELM_PLUGINS="$(HELM_PLUGIN_HOME)" $(MAKE) -C $(HELM_CHART_DIR) test

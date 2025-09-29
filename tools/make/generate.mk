@@ -16,15 +16,15 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 
 
 .PHONY: manifest-bundle
-manifest-bundle: ## Generates the manifest-bundle at the root of the repo.
-	helm template ngrok-operator $(HELM_CHART_DIR) \
+manifest-bundle: _helm_setup ## Generates the manifest-bundle at the root of the repo.
+	$(HELM) template ngrok-operator $(HELM_CHART_DIR) \
 		--namespace $(KUBE_NAMESPACE) \
 		--set credentials.secret.name="ngrok-operator-credentials" > manifest-bundle.yaml
 
 .PHONY: helm-update-snapshots
-helm-update-snapshots: _helm_setup ## Update helm unittest snapshots
-	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
+helm-update-snapshots: _helm_setup helm-unittest-plugin ## Update helm unittest snapshots
+	HELM="$(HELM)" HELM_PLUGINS="$(HELM_PLUGIN_HOME)" $(MAKE) -C $(HELM_CHART_DIR) update-snapshots
 
 
-helm-update-snapshots-no-deps: ## Update helm unittest snapshots without rebuilding dependencies
-	$(MAKE) -C $(HELM_CHART_DIR) update-snapshots
+helm-update-snapshots-no-deps: helm-unittest-plugin ## Update helm unittest snapshots without rebuilding dependencies
+	HELM="$(HELM)" HELM_PLUGINS="$(HELM_PLUGIN_HOME)" $(MAKE) -C $(HELM_CHART_DIR) update-snapshots

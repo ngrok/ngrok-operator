@@ -8,13 +8,33 @@ Have a look at the architecture guide on the internal workings of the ingress co
 
 ## Local Development
 
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or any other container runtime that can run kind)
 - [Go](https://go.dev/dl/)
-- [Helm](https://helm.sh/docs/intro/install/)
+- Optional but useful on your `$PATH`: [kubectl](https://kubernetes.io/docs/tasks/tools/) and [Helm](https://helm.sh/docs/intro/install/)
 
-Both of these can be obtained via [nix-direnv](https://github.com/nix-community/nix-direnv), which will automatically configure your shell for you.
+If you prefer declarative environments, the repository includes a `.envrc` that works with [nix-direnv](https://github.com/nix-community/nix-direnv); run `direnv allow` after installing it and the tooling above will be provided automatically.
 
-- A k8s cluster is available via your kubectl client. This can be a remote cluster or a local cluster like [minikube](https://minikube.sigs.k8s.io/docs/start/)
-  - NOTE: Depending on your cluster, you may have to take additional steps to make the image available. For example with minikube, you may need to run `eval $(minikube docker-env)` in each terminal session to make the image from `make deploy` available to the cluster.
+### Bootstrap repo-managed tools
+
+```sh
+make bootstrap-tools
+```
+
+This downloads the Go-based utilities the repo expects (kind, Helm, controller-gen, envtest, golangci-lint) into `./bin`. Make targets always invoke those exact binaries, so you don’t need to add `./bin` to your global `$PATH`; stick with the provided make commands. Install `helm`/`kubectl` separately if you want them available for manual use.
+
+### Create a local kind cluster
+
+By default we create a cluster named `ngrok-operator` and our CI and Makefiles are configured to load images into this specific cluster.
+
+```sh
+make kind-create
+```
+
+This installs kind (if necessary) and provisions the cluster. Use `make kind-delete` to tear it down and `make kind-logs` to collect diagnostic bundles.
+
+> NOTE: `kind create cluster` requires Docker to be running. If you prefer a different Kubernetes distribution (e.g. minikube), ensure your `kubectl` context points at it and that locally-built images are visible to the cluster before deploying.
 
 ### Setup
 
@@ -28,8 +48,7 @@ kubectl config set-context --current --namespace=ngrok-operator
 make deploy
 ```
 
-> Note: You may also need to load the image into your cluster.
-> For example with `kind` this is done with `kind load docker-image ngrok-operator`
+> Note: `make deploy*` loads the freshly built controller image into your kind cluster and sets a `redeployTimestamp` pod annotation each run, so Docker must be running locally and the controller pods always pick up the new image.
 
 ### Using the E2E Fixtures
 

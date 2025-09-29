@@ -26,7 +26,7 @@ GIT_COMMIT = $(shell git rev-parse HEAD)
 VERSION = $(shell cat VERSION)
 
 # Image URL to use for all building/pushing image targets
-IMG ?= ngrok-operator
+IMG ?= ngrok-operator-local
 
 # Repository URL
 REPO_URL = github.com/ngrok/ngrok-operator
@@ -38,9 +38,13 @@ CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/...}
 # when true, deploy with --set oneClickDemoMode=true
 DEPLOY_ONE_CLICK_DEMO_MODE ?= false
 
+# Timestamp used to force pod rollouts via annotations on each deploy.
+DEPLOY_ROLLOUT_TIMESTAMP := $(shell date +%s)
+
 KUBE_DEPLOYMENT_NAME ?= ngrok-operator-manager
 KUBE_AGENT_MANAGER_DEPLOYMENT_NAME ?= ngrok-operator-agent
 KUBE_NAMESPACE ?= ngrok-operator
+KIND_CLUSTER_NAME ?= ngrok-operator
 
 HELM_RELEASE_NAME ?= ngrok-operator
 HELM_CHART_DIR = ./helm/ngrok-operator
@@ -49,17 +53,19 @@ HELM_TEMPLATES_DIR = $(HELM_CHART_DIR)/templates
 
 ## Tool Binaries
 KUBECTL ?= kubectl
-KUSTOMIZE ?= $(LOCALBIN)/kustomize-$(KUSTOMIZE_VERSION)
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen-$(CONTROLLER_TOOLS_VERSION)
 ENVTEST ?= $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
+KIND ?= $(LOCALBIN)/kind-$(KIND_VERSION)
+HELM ?= $(LOCALBIN)/helm-$(HELM_VERSION)
 
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v5.4.1
 CONTROLLER_TOOLS_VERSION ?= v0.14.0
 ENVTEST_VERSION ?= release-0.20
 GOLANGCI_LINT_VERSION ?= v1.64.6
+KIND_VERSION ?= v0.26.0
+HELM_VERSION ?= v3.15.4
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.33.0
 
@@ -74,4 +80,5 @@ include tools/make/lint.mk
 include tools/make/test.mk
 include tools/make/build.mk
 include tools/make/deploy.mk
+include tools/make/kind.mk
 include tools/make/release.mk

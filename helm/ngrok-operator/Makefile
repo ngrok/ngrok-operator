@@ -1,24 +1,27 @@
+HELM ?= helm
+HELM_PLUGINS ?= $(abspath ../../bin/helm-plugins)
+
 .PHONY: setup
+
 setup:
-	../../scripts/helm-setup.sh
-	helm repo add bitnami https://charts.bitnami.com/bitnami
-	helm dependency build .
+	HELM_PLUGINS="$(HELM_PLUGINS)" "$(HELM)" repo add bitnami https://charts.bitnami.com/bitnami
+	HELM_PLUGINS="$(HELM_PLUGINS)" "$(HELM)" dependency build .
 
 .PHONY: lint
 lint: ## Lint the helm chart
-	helm lint .
+	"$(HELM)" lint .
 
 .PHONY: template
 template: ## Render the helm chart
-	helm template ngrok-operator . --debug
+	"$(HELM)" template ngrok-operator . --debug
 
 .PHONY: test
 test: ## Run helm unittest plugin
-	helm unittest -f 'tests/**/*_test.yaml' .
+	"$(HELM)" unittest -f 'tests/**/*_test.yaml' .
 
 .PHONY: update-snapshots
 update-snapshots: ## Update helm unittest snapshots
-	helm unittest -f 'tests/**/*_test.yaml' --update-snapshot .
+	"$(HELM)" unittest -f 'tests/**/*_test.yaml' --update-snapshot .
 
 .PHONY: update-readme
 update-readme: ## Updates the README.md file with the chart values
