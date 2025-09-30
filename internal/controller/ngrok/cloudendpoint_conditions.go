@@ -19,7 +19,7 @@ const (
 	ReasonCloudEndpointCreationFailed = "CloudEndpointCreationFailed"
 )
 
-// setCloudEndpointReadyCondition sets the Ready condition based on the overall endpoint state
+// setCloudEndpointReadyCondition sets the Ready condition
 func setCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, ready bool, reason, message string) {
 	status := metav1.ConditionTrue
 	if !ready {
@@ -55,9 +55,9 @@ func setCloudEndpointCreatedCondition(clep *ngrokv1alpha1.CloudEndpoint, created
 	meta.SetStatusCondition(&clep.Status.Conditions, condition)
 }
 
-// updateCloudEndpointConditions updates all cloud endpoint conditions based on creation status and domain readiness
-func updateCloudEndpointConditions(clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult) {
-	// Check if CloudEndpoint is created
+// calculateCloudEndpointReadyCondition calculates the overall Ready condition based on other conditions and domain status
+func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult) {
+	// Check CloudEndpoint created condition
 	cloudEndpointCreated := false
 	createdCondition := meta.FindStatusCondition(clep.Status.Conditions, ConditionCloudEndpointCreated)
 	if createdCondition != nil && createdCondition.Status == metav1.ConditionTrue {
@@ -69,7 +69,7 @@ func updateCloudEndpointConditions(clep *ngrokv1alpha1.CloudEndpoint, domainResu
 
 	// Overall ready status
 	ready := cloudEndpointCreated && domainReady
-	
+
 	// Determine reason and message based on state
 	var reason, message string
 	switch {
@@ -98,6 +98,6 @@ func updateCloudEndpointConditions(clep *ngrokv1alpha1.CloudEndpoint, domainResu
 		reason = "Unknown"
 		message = "Cloud endpoint is not ready"
 	}
-	
+
 	setCloudEndpointReadyCondition(clep, ready, reason, message)
 }

@@ -102,3 +102,29 @@ func setDomainReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, 
 func setReconcilingCondition(endpoint *ngrokv1alpha1.AgentEndpoint, message string) {
 	setReadyCondition(endpoint, false, ReasonReconciling, message)
 }
+
+// calculateAgentEndpointReadyCondition calculates the overall Ready condition based on other conditions
+func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint) {
+	// Check all required conditions
+	endpointCreatedCondition := meta.FindStatusCondition(aep.Status.Conditions, ConditionEndpointCreated)
+	trafficPolicyCondition := meta.FindStatusCondition(aep.Status.Conditions, ConditionTrafficPolicy)
+
+	// Check if endpoint is created
+	if endpointCreatedCondition == nil || endpointCreatedCondition.Status != metav1.ConditionTrue {
+		if endpointCreatedCondition != nil {
+			setReadyCondition(aep, false, endpointCreatedCondition.Reason, endpointCreatedCondition.Message)
+		} else {
+			setReadyCondition(aep, false, "Unknown", "Endpoint creation status unknown")
+		}
+		return
+	}
+
+	// If traffic policy is configured, check its condition
+	if trafficPolicyCondition != nil && trafficPolicyCondition.Status == metav1.ConditionFalse {
+		setReadyCondition(aep, false, trafficPolicyCondition.Reason, trafficPolicyCondition.Message)
+		return
+	}
+
+	// All conditions are satisfied
+	setReadyCondition(aep, true, ReasonEndpointActive, "AgentEndpoint is active and ready")
+}

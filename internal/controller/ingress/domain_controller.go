@@ -141,7 +141,8 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 	// errors right now, so we'll check if the domain already exists before trying to create it.
 	resp, err := r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
 	if err != nil {
-		return err
+		// Set conditions before returning error
+		return r.updateStatus(ctx, domain, nil, err)
 	}
 
 	// Not found, so we'll create it
@@ -154,12 +155,12 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 		}
 		resp, err = r.DomainsClient.Create(ctx, req)
 		if err != nil {
-			setDomainCreationFailedConditions(domain, err)
-			return r.controller.ReconcileStatus(ctx, domain, err)
+			// updateStatus will set conditions via updateDomainConditions
+			return r.updateStatus(ctx, domain, resp, err)
 		}
 	}
 
-	return r.updateStatus(ctx, domain, resp)
+	return r.updateStatus(ctx, domain, resp, nil)
 }
 
 func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) error {
@@ -171,13 +172,15 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 			return r.controller.ReconcileStatus(ctx, domain, err)
 		}
 
-		return err
+		// Set conditions for other Get errors
+		return r.updateStatus(ctx, domain, nil, err)
 	}
 
 	// Only update the domain if the description or metadata has changed
 	// These are the only fields that can be updated that we write to.
 	if domain.Spec.Description == resp.Description && domain.Spec.Metadata == resp.Metadata {
-		return nil
+		// No changes needed, still update status to ensure conditions are current
+		return r.updateStatus(ctx, domain, resp, nil)
 	}
 
 	req := &ngrok.ReservedDomainUpdate{
@@ -187,9 +190,10 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 	}
 	resp, err = r.DomainsClient.Update(ctx, req)
 	if err != nil {
-		return err
+		// Set conditions before returning error
+		return r.updateStatus(ctx, domain, resp, err)
 	}
-	return r.updateStatus(ctx, domain, resp)
+	return r.updateStatus(ctx, domain, resp, nil)
 }
 
 func (r *DomainReconciler) delete(ctx context.Context, domain *v1alpha1.Domain) error {
@@ -217,19 +221,21 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 }
 
 // updateStatus updates the status fields of the domain resource only if any values have changed
-func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) error {
-	domain.Status.ID = ngrokDomain.ID
-	domain.Status.Region = ngrokDomain.Region
-	domain.Status.Domain = ngrokDomain.Domain
-	domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
-	domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
+func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain, createErr error) error {
+	if ngrokDomain != nil {
+		domain.Status.ID = ngrokDomain.ID
+		domain.Status.Region = ngrokDomain.Region
+		domain.Status.Domain = ngrokDomain.Domain
+		domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
+		domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
 
-	domain.Status.Certificate = buildCertificateInfo(ngrokDomain.Certificate)
-	domain.Status.CertificateManagementPolicy = buildCertificateManagementPolicy(ngrokDomain.CertificateManagementPolicy)
-	domain.Status.CertificateManagementStatus = buildCertificateManagementStatus(ngrokDomain.CertificateManagementStatus)
+		domain.Status.Certificate = buildCertificateInfo(ngrokDomain.Certificate)
+		domain.Status.CertificateManagementPolicy = buildCertificateManagementPolicy(ngrokDomain.CertificateManagementPolicy)
+		domain.Status.CertificateManagementStatus = buildCertificateManagementStatus(ngrokDomain.CertificateManagementStatus)
+	}
 
-	updateDomainConditions(domain, ngrokDomain)
-	return r.controller.ReconcileStatus(ctx, domain, nil)
+	updateDomainConditions(domain, ngrokDomain, createErr)
+	return r.controller.ReconcileStatus(ctx, domain, createErr)
 }
 
 // shouldRequeue determines if a domain should be requeued for a follow-up status check.

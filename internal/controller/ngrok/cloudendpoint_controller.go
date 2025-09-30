@@ -167,18 +167,15 @@ func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // Create will make sure a domain is created before creating the Cloud Endpoint
 // It also looks up the Traffic Policy and creates the Cloud Endpoint using this Traffic Policy JSON
 func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
+	// EnsureDomainExists handles its own domain-related status
 	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep, clep.Spec.URL)
 	if err != nil {
-		// Set failure conditions and update status before returning error
-		updateCloudEndpointConditions(clep, &domainpkg.DomainResult{IsReady: false})
-		return r.controller.ReconcileStatus(ctx, clep, err)
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	policy, err := r.getTrafficPolicy(ctx, clep)
 	if err != nil {
-		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Traffic policy error: %v", err))
-		updateCloudEndpointConditions(clep, domainResult)
-		return r.controller.ReconcileStatus(ctx, clep, err)
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	createParams := &ngrok.EndpointCreate{
@@ -194,14 +191,13 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 	ngrokClep, err := r.NgrokClientset.Endpoints().Create(ctx, createParams)
 	if err != nil {
 		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to create cloud endpoint: %v", err))
-		updateCloudEndpointConditions(clep, domainResult)
-		return r.controller.ReconcileStatus(ctx, clep, err)
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
+	// Set success condition
 	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "Cloud endpoint created successfully")
-	updateCloudEndpointConditions(clep, domainResult)
 
-	return r.updateStatus(ctx, clep, ngrokClep, domainResult.Domain)
+	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
 
 // Update is called when we have a status ID and want to update the resource in the ngrok API
@@ -209,13 +205,12 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
 	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep, clep.Spec.URL)
 	if err != nil {
-		updateCloudEndpointConditions(clep, &domainpkg.DomainResult{IsReady: false})
-		return r.controller.ReconcileStatus(ctx, clep, err)
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	policy, err := r.getTrafficPolicy(ctx, clep)
 	if err != nil {
-		return err
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	updateParams := &ngrok.EndpointUpdate{
@@ -238,13 +233,13 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	}
 	if err != nil {
 		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to update cloud endpoint: %v", err))
-		return r.controller.ReconcileStatus(ctx, clep, err)
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
+	// Set success condition
 	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "Cloud endpoint updated successfully")
-	updateCloudEndpointConditions(clep, domainResult)
 
-	return r.updateStatus(ctx, clep, ngrokClep, domainResult.Domain)
+	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
 
 // Simply attempt to delete it. The base controller handles not found errors
@@ -252,21 +247,27 @@ func (r *CloudEndpointReconciler) delete(ctx context.Context, clep *ngrokv1alpha
 	return r.NgrokClientset.Endpoints().Delete(ctx, clep.Status.ID)
 }
 
-func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, ngrokClep *ngrok.Endpoint, domain *ingressv1alpha1.Domain) error {
-	clep.Status.ID = ngrokClep.ID
-	if domain != nil {
-		//nolint:staticcheck
-		clep.Status.Domain = ngrokv1alpha1.ConvertDomainStatusToDeprecatedDomainStatus(&domain.Status)
-		clep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-			Name:      domain.Name,
-			Namespace: &domain.Namespace,
-		}
-	} else {
-		//nolint:staticcheck
-		clep.Status.Domain = nil
-		clep.Status.DomainRef = nil
+func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, ngrokClep *ngrok.Endpoint, domainResult *domainpkg.DomainResult, statusErr error) error {
+	// Update status fields if we have an endpoint
+	if ngrokClep != nil {
+		clep.Status.ID = ngrokClep.ID
 	}
-	return r.Client.Status().Update(ctx, clep)
+
+	// Update domain status fields
+	if domainResult != nil && domainResult.Domain != nil {
+		//nolint:staticcheck
+		clep.Status.Domain = ngrokv1alpha1.ConvertDomainStatusToDeprecatedDomainStatus(&domainResult.Domain.Status)
+		clep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+			Name:      domainResult.Domain.Name,
+			Namespace: &domainResult.Domain.Namespace,
+		}
+	}
+
+	// Calculate overall Ready condition based on other conditions and domain status
+	calculateCloudEndpointReadyCondition(clep, domainResult)
+
+	// Write status to k8s API
+	return r.controller.ReconcileStatus(ctx, clep, statusErr)
 }
 
 // #region Helper Functions
