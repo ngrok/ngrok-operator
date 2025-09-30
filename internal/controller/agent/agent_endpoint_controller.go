@@ -29,15 +29,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/controller/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
-	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,7 +72,6 @@ func indexClientCertificateRefs(o client.Object) []string {
 }
 
 var (
-	ErrDomainCreating             = errors.New("domain is being created, requeue after delay")
 	ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both targetRef and inline are set")
 )
 
@@ -96,6 +94,7 @@ type AgentEndpointReconciler struct {
 	controller *controller.BaseController[*ngrokv1alpha1.AgentEndpoint]
 
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+	DomainManager              *domainpkg.Manager
 }
 
 // SetupWithManager sets up the controller with the Manager
@@ -106,6 +105,15 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return errors.New("AgentDriver is nil")
 	}
 
+	// Initialize domain manager if not already set
+	if r.DomainManager == nil {
+		r.DomainManager = &domainpkg.Manager{
+			Client:                     r.Client,
+			Recorder:                   r.Recorder,
+			DefaultDomainReclaimPolicy: r.DefaultDomainReclaimPolicy,
+		}
+	}
+
 	r.controller = &controller.BaseController[*ngrokv1alpha1.AgentEndpoint]{
 		Kube:     r.Client,
 		Log:      r.Log,
@@ -114,7 +122,7 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Delete:   r.delete,
 		StatusID: r.statusID,
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
-			if errors.Is(err, ErrDomainCreating) {
+			if errors.Is(err, domainpkg.ErrDomainCreating) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
@@ -189,7 +197,7 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	// Set initial condition to reconciling
 	setReconcilingCondition(endpoint, "Reconciling AgentEndpoint")
 
-	err := r.ensureDomainExists(ctx, endpoint)
+	_, err := r.DomainManager.EnsureDomainExists(ctx, endpoint, endpoint.Spec.URL)
 	if err != nil {
 		return r.controller.ReconcileStatus(ctx, endpoint, err)
 	}
@@ -392,85 +400,6 @@ func (r *AgentEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 	}
 
 	return string(policyBytes), nil
-}
-
-// ensureDomainExists checks if the Domain CRD exists, and if not, creates it.
-// Updates the passed in AgentEndpoint with the status conditions based on the results.
-func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) error {
-	parsedURL, err := util.ParseAndSanitizeEndpointURL(aep.Spec.URL, true)
-	if err != nil {
-		r.Recorder.Event(aep, v1.EventTypeWarning, "InvalidURL", fmt.Sprintf("Failed to parse URL: %s", aep.Spec.URL))
-		setDomainReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		setReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		return fmt.Errorf("failed to parse URL %q from AgentEndpoint \"%s.%s\"", aep.Spec.URL, aep.Name, aep.Namespace)
-	}
-
-	// Ngrok TCP URLs do not have to be reserved
-	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
-		setDomainReadyCondition(aep, true, "DomainReady", "Domain is ready")
-		return nil
-	}
-
-	// TODO: generate a domain for blank strings
-	domain := parsedURL.Hostname()
-	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domain)
-	if strings.HasSuffix(domain, ".internal") {
-		// Skip creating the Domain CR for ngrok TCP URLs
-		setDomainReadyCondition(aep, true, "DomainReady", "Domain is ready")
-		return nil
-	}
-
-	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain)
-
-	// Check if the Domain CRD already exists
-	domainObj := &ingressv1alpha1.Domain{}
-
-	err = r.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: aep.Namespace}, domainObj)
-	if err == nil {
-		// Domain already exists
-		if domainObj.Status.ID == "" {
-			// Domain is not ready yet
-			setDomainReadyCondition(aep, false, ReasonDomainCreating, "Domain is being created")
-			setReadyCondition(aep, false, ReasonDomainCreating, "Waiting for domain to be ready")
-			return ErrDomainCreating
-		}
-		setDomainReadyCondition(aep, true, "DomainReady", "Domain is ready")
-		return nil
-	}
-	if client.IgnoreNotFound(err) != nil {
-		// Some other error occurred
-		log.Error(err, "failed to check Domain CRD existence")
-		setDomainReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		setReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		return err
-	}
-
-	// Create the Domain CRD since it doesn't exist
-	newDomain := &ingressv1alpha1.Domain{
-		ObjectMeta: ctrl.ObjectMeta{
-			Name:      hyphenatedDomain,
-			Namespace: aep.Namespace,
-		},
-		Spec: ingressv1alpha1.DomainSpec{
-			Domain: domain,
-		},
-	}
-
-	if r.DefaultDomainReclaimPolicy != nil {
-		newDomain.Spec.ReclaimPolicy = *r.DefaultDomainReclaimPolicy
-	}
-
-	if err := r.Create(ctx, newDomain); err != nil {
-		r.Recorder.Event(aep, v1.EventTypeWarning, "DomainCreationFailed", fmt.Sprintf("Failed to create Domain CRD %s", hyphenatedDomain))
-		setDomainReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		setReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		return err
-	}
-
-	r.Recorder.Event(aep, v1.EventTypeNormal, "DomainCreated", fmt.Sprintf("Domain CRD %s created successfully", hyphenatedDomain))
-	setDomainReadyCondition(aep, false, ReasonDomainCreating, "Domain is being created")
-	setReadyCondition(aep, false, ReasonDomainCreating, "Waiting for domain to be ready")
-	return ErrDomainCreating
 }
 
 // updateEndpointStatus updates the endpoint status based on creation result from the AgentDriver.

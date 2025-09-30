@@ -95,6 +95,14 @@ type CloudEndpointStatus struct {
 	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.
 	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
+
+	// Conditions describe the current conditions of the AgentEndpoint.
+	//
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:MaxItems=8
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // Deprecated: This is here for backwards compatibility with the old DomainStatus object.
@@ -133,6 +141,7 @@ func ConvertDomainStatusToDeprecatedDomainStatus(domain *ingressv1alpha1.DomainS
 // +kubebuilder:printcolumn:name="Traffic Policy",type="string",JSONPath=".spec.trafficPolicyName"
 // +kubebuilder:printcolumn:name="Bindings",type="string",JSONPath=".spec.bindings"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 type CloudEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -148,6 +157,26 @@ type CloudEndpointList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []CloudEndpoint `json:"items"`
+}
+
+// GetConditions returns a pointer to the conditions slice for CloudEndpoint
+func (c *CloudEndpoint) GetConditions() *[]metav1.Condition {
+	return &c.Status.Conditions
+}
+
+// GetGeneration returns the generation for CloudEndpoint
+func (c *CloudEndpoint) GetGeneration() int64 {
+	return c.Generation
+}
+
+// GetDomainRef returns the domain reference for CloudEndpoint
+func (c *CloudEndpoint) GetDomainRef() *K8sObjectRefOptionalNamespace {
+	return c.Status.DomainRef
+}
+
+// SetDomainRef sets the domain reference for CloudEndpoint
+func (c *CloudEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
+	c.Status.DomainRef = ref
 }
 
 func init() {

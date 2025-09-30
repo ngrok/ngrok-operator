@@ -29,7 +29,6 @@ import (
 	"errors"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -241,7 +240,7 @@ func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
 	case domain.Status.ID == "":
 		return false
 	// If the domain is ready, no need to requeue
-	case isDomainReady(domain):
+	case IsDomainReady(domain):
 		return false
 	// If the domain needs a follow-up status check, requeue it
 	case needsStatusFollowUp(domain):
@@ -252,10 +251,7 @@ func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
 	}
 }
 
-func isDomainReady(domain *v1alpha1.Domain) bool {
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
-	return readyCondition != nil && readyCondition.Status == metav1.ConditionTrue
-}
+
 
 func buildCertificateInfo(certificate *ngrok.Ref) *v1alpha1.DomainStatusCertificateInfo {
 	if certificate == nil || certificate.ID == "" {

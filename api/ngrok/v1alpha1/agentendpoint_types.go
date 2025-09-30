@@ -212,6 +212,26 @@ type AgentEndpointList struct {
 	Items           []AgentEndpoint `json:"items"`
 }
 
+// GetConditions returns a pointer to the conditions slice for AgentEndpoint
+func (a *AgentEndpoint) GetConditions() *[]metav1.Condition {
+	return &a.Status.Conditions
+}
+
+// GetGeneration returns the generation for AgentEndpoint
+func (a *AgentEndpoint) GetGeneration() int64 {
+	return a.Generation
+}
+
+// GetDomainRef returns the domain reference for AgentEndpoint
+func (a *AgentEndpoint) GetDomainRef() *K8sObjectRefOptionalNamespace {
+	return a.Status.DomainRef
+}
+
+// SetDomainRef sets the domain reference for AgentEndpoint
+func (a *AgentEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
+	a.Status.DomainRef = ref
+}
+
 func init() {
 	SchemeBuilder.Register(&AgentEndpoint{}, &AgentEndpointList{})
 }

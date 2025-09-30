@@ -209,6 +209,23 @@ func setDomainCreationFailedConditions(domain *ingressv1alpha1.Domain, err error
 	setDomainReadyCondition(domain, false, ReasonDomainCreationFailed, message)
 }
 
+// IsDomainReady checks if a domain is ready by examining both Status.ID and Ready condition
+func IsDomainReady(domain *ingressv1alpha1.Domain) bool {
+	// First check if domain has an ID (basic requirement)
+	if domain.Status.ID == "" {
+		return false
+	}
+
+	// Then check the Ready condition for more detailed status
+	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	if readyCondition == nil {
+		// No ready condition set yet, fall back to ID-only check
+		return true
+	}
+
+	return readyCondition.Status == metav1.ConditionTrue
+}
+
 // needsStatusFollowUp determines if a domain needs a requeue to observe
 // certificate provisioning progress based on status conditions.
 func needsStatusFollowUp(domain *ingressv1alpha1.Domain) bool {
