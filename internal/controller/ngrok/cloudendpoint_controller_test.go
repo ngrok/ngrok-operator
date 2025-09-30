@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/go-logr/logr"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,80 +52,82 @@ func Test_findTrafficPolicy(t *testing.T) {
 	assert.Equal(t, "", policy)
 }
 
-func Test_ensureDomainExists(t *testing.T) {
-	// Set up a fake client with a sample Domain
-	scheme := runtime.NewScheme()
-	_ = ingressv1alpha1.AddToScheme(scheme)
-
-	existingNotReadyDomain := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "example-com",
-			Namespace: "default",
-		},
-	}
-	existingReadyDomain := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "example2-com",
-			Namespace: "default",
-		},
-		Status: ingressv1alpha1.DomainStatus{
-			ID: "rd_123",
-		},
-	}
-
-	fakeClient := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(existingNotReadyDomain, existingReadyDomain).
-		Build()
-
-	r := &CloudEndpointReconciler{
-		Client:   fakeClient,
-		Log:      logr.Discard(),
-		Recorder: record.NewFakeRecorder(10),
-	}
-
-	// Case 1: Domain already exists, but is not ready
-	clep := &ngrokv1alpha1.CloudEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cloud-endpoint-1",
-			Namespace: "default",
-		},
-		Spec: ngrokv1alpha1.CloudEndpointSpec{
-			URL: "https://example.com",
-		},
-	}
-
-	domain, err := r.ensureDomainExists(t.Context(), clep)
-	assert.Equal(t, ErrDomainCreating, err)
-	assert.Equal(t, existingNotReadyDomain, domain)
-
-	// Case 2: Domain already exists, but is not ready
-	clep = &ngrokv1alpha1.CloudEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cloud-endpoint-2",
-			Namespace: "default",
-		},
-		Spec: ngrokv1alpha1.CloudEndpointSpec{
-			URL: "https://example2.com",
-		},
-	}
-
-	domain, err = r.ensureDomainExists(t.Context(), clep)
-	assert.NoError(t, err)
-	assert.Equal(t, existingReadyDomain, domain)
-
-	// Case 3: Domain does not exist and should be created
-	clep = &ngrokv1alpha1.CloudEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cloud-endpoint-2",
-			Namespace: "default",
-		},
-		Spec: ngrokv1alpha1.CloudEndpointSpec{
-			URL: "https://newdomain.com",
-		},
-	}
-
-	domain, err = r.ensureDomainExists(t.Context(), clep)
-	assert.Equal(t, ErrDomainCreating, err)
-	assert.Empty(t, domain.Status.ID)
-}
+// NOTE: This test is now obsolete as domain logic has been refactored to the domain manager package.
+// Domain-related functionality is tested in internal/controller/domain/manager_test.go
+// func Test_ensureDomainExists(t *testing.T) {
+// 	// Set up a fake client with a sample Domain
+// 	scheme := runtime.NewScheme()
+// 	_ = ingressv1alpha1.AddToScheme(scheme)
+//
+// 	existingNotReadyDomain := &ingressv1alpha1.Domain{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Name:      "example-com",
+// 			Namespace: "default",
+// 		},
+// 	}
+// 	existingReadyDomain := &ingressv1alpha1.Domain{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Name:      "example2-com",
+// 			Namespace: "default",
+// 		},
+// 		Status: ingressv1alpha1.DomainStatus{
+// 			ID: "rd_123",
+// 		},
+// 	}
+//
+// 	fakeClient := fake.NewClientBuilder().
+// 		WithScheme(scheme).
+// 		WithObjects(existingNotReadyDomain, existingReadyDomain).
+// 		Build()
+//
+// 	r := &CloudEndpointReconciler{
+// 		Client:   fakeClient,
+// 		Log:      logr.Discard(),
+// 		Recorder: record.NewFakeRecorder(10),
+// 	}
+//
+// 	// Case 1: Domain already exists, but is not ready
+// 	clep := &ngrokv1alpha1.CloudEndpoint{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Name:      "cloud-endpoint-1",
+// 			Namespace: "default",
+// 		},
+// 		Spec: ngrokv1alpha1.CloudEndpointSpec{
+// 			URL: "https://example.com",
+// 		},
+// 	}
+//
+// 	domain, err := r.ensureDomainExists(t.Context(), clep)
+// 	assert.Equal(t, ErrDomainCreating, err)
+// 	assert.Equal(t, existingNotReadyDomain, domain)
+//
+// 	// Case 2: Domain already exists, but is not ready
+// 	clep = &ngrokv1alpha1.CloudEndpoint{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Name:      "cloud-endpoint-2",
+// 			Namespace: "default",
+// 		},
+// 		Spec: ngrokv1alpha1.CloudEndpointSpec{
+// 			URL: "https://example2.com",
+// 		},
+// 	}
+//
+// 	domain, err = r.ensureDomainExists(t.Context(), clep)
+// 	assert.NoError(t, err)
+// 	assert.Equal(t, existingReadyDomain, domain)
+//
+// 	// Case 3: Domain does not exist and should be created
+// 	clep = &ngrokv1alpha1.CloudEndpoint{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Name:      "cloud-endpoint-2",
+// 			Namespace: "default",
+// 		},
+// 		Spec: ngrokv1alpha1.CloudEndpointSpec{
+// 			URL: "https://newdomain.com",
+// 		},
+// 	}
+//
+// 	domain, err = r.ensureDomainExists(t.Context(), clep)
+// 	assert.Equal(t, ErrDomainCreating, err)
+// 	assert.Empty(t, domain.Status.ID)
+// }

@@ -50,7 +50,6 @@ import (
 
 const (
 	trafficPolicyNameIndex = "spec.trafficPolicyName"
-	domainIndex            = "spec.URL"
 )
 
 // CloudEndpointReconciler reconciles a CloudEndpoint object
@@ -170,12 +169,16 @@ func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
 	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep, clep.Spec.URL)
 	if err != nil {
-		return err
+		// Set failure conditions and update status before returning error
+		updateCloudEndpointConditions(clep, &domainpkg.DomainResult{IsReady: false})
+		return r.controller.ReconcileStatus(ctx, clep, err)
 	}
 
 	policy, err := r.getTrafficPolicy(ctx, clep)
 	if err != nil {
-		return err
+		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Traffic policy error: %v", err))
+		updateCloudEndpointConditions(clep, domainResult)
+		return r.controller.ReconcileStatus(ctx, clep, err)
 	}
 
 	createParams := &ngrok.EndpointCreate{
@@ -190,8 +193,13 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 
 	ngrokClep, err := r.NgrokClientset.Endpoints().Create(ctx, createParams)
 	if err != nil {
-		return err
+		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to create cloud endpoint: %v", err))
+		updateCloudEndpointConditions(clep, domainResult)
+		return r.controller.ReconcileStatus(ctx, clep, err)
 	}
+
+	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "Cloud endpoint created successfully")
+	updateCloudEndpointConditions(clep, domainResult)
 
 	return r.updateStatus(ctx, clep, ngrokClep, domainResult.Domain)
 }
@@ -201,7 +209,8 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
 	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep, clep.Spec.URL)
 	if err != nil {
-		return err
+		updateCloudEndpointConditions(clep, &domainpkg.DomainResult{IsReady: false})
+		return r.controller.ReconcileStatus(ctx, clep, err)
 	}
 
 	policy, err := r.getTrafficPolicy(ctx, clep)
@@ -228,8 +237,12 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return r.create(ctx, clep)
 	}
 	if err != nil {
-		return err
+		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to update cloud endpoint: %v", err))
+		return r.controller.ReconcileStatus(ctx, clep, err)
 	}
+
+	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "Cloud endpoint updated successfully")
+	updateCloudEndpointConditions(clep, domainResult)
 
 	return r.updateStatus(ctx, clep, ngrokClep, domainResult.Domain)
 }
