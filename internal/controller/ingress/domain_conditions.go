@@ -199,6 +199,9 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 // This uses the fact that the API returns back a null value for the certificate management policy for ngrok managed domains
 // VS a custom domain has a policy for provisioning the custom cert.
 func isNgrokManagedDomain(ngrokDomain *ngrok.ReservedDomain) bool {
+	if ngrokDomain == nil {
+		return false
+	}
 	return ngrokDomain.CertificateManagementPolicy == nil
 }
 

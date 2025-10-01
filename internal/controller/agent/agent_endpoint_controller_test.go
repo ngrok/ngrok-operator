@@ -32,6 +32,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -177,10 +178,10 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check domain creation condition
-				domainCond := findCondition(obj.Status.Conditions, ConditionDomainReady)
+				domainCond := findCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
 				g.Expect(domainCond).NotTo(BeNil())
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
-				g.Expect(domainCond.Reason).To(Equal(ReasonDomainCreating))
+				g.Expect(domainCond.Reason).To(Equal(domainpkg.ReasonDomainCreating))
 			}, timeout, interval).Should(Succeed())
 
 			By("Verifying domain CR was created by controller")

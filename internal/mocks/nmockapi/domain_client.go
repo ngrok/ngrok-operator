@@ -17,6 +17,12 @@ import (
 // environments.
 type DomainClient struct {
 	baseClient[*ngrok.ReservedDomain]
+
+	// Error injection fields for testing
+	createError error
+	getError    error
+	updateError error
+	listError   error
 }
 
 func NewDomainClient() *DomainClient {
@@ -27,7 +33,40 @@ func NewDomainClient() *DomainClient {
 	}
 }
 
+// SetCreateError configures the client to return an error on Create calls
+func (m *DomainClient) SetCreateError(err error) {
+	m.createError = err
+}
+
+// SetGetError configures the client to return an error on Get calls
+func (m *DomainClient) SetGetError(err error) {
+	m.getError = err
+}
+
+// SetUpdateError configures the client to return an error on Update calls
+func (m *DomainClient) SetUpdateError(err error) {
+	m.updateError = err
+}
+
+// SetListError configures the client to return an error on List calls
+func (m *DomainClient) SetListError(err error) {
+	m.listError = err
+}
+
+// ClearErrors clears all configured errors
+func (m *DomainClient) ClearErrors() {
+	m.createError = nil
+	m.getError = nil
+	m.updateError = nil
+	m.listError = nil
+}
+
 func (m *DomainClient) Create(_ context.Context, item *ngrok.ReservedDomainCreate) (*ngrok.ReservedDomain, error) {
+	// Check for injected error first
+	if m.createError != nil {
+		return nil, m.createError
+	}
+
 	if m.any(func(rd *ngrok.ReservedDomain) bool { return rd.Domain == item.Domain }) {
 		return nil, &ngrok.Error{
 			StatusCode: http.StatusConflict,
@@ -55,6 +94,11 @@ func (m *DomainClient) Create(_ context.Context, item *ngrok.ReservedDomainCreat
 }
 
 func (m *DomainClient) Update(ctx context.Context, item *ngrok.ReservedDomainUpdate) (*ngrok.ReservedDomain, error) {
+	// Check for injected error first
+	if m.updateError != nil {
+		return nil, m.updateError
+	}
+
 	existingItem, err := m.Get(ctx, item.ID)
 	if err != nil {
 		return nil, err
@@ -80,6 +124,21 @@ func (m *DomainClient) Update(ctx context.Context, item *ngrok.ReservedDomainUpd
 
 	m.items[item.ID] = existingItem
 	return existingItem, nil
+}
+
+// Get overrides the base client Get method to add error injection
+func (m *DomainClient) Get(ctx context.Context, id string) (*ngrok.ReservedDomain, error) {
+	// Check for injected error first
+	if m.getError != nil {
+		return nil, m.getError
+	}
+
+	// Call the base client Get method
+	item, err := m.baseClient.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return item, nil
 }
 
 var (

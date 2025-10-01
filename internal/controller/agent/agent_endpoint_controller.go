@@ -211,6 +211,7 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 
 	clientCerts, err := r.getClientCerts(ctx, endpoint)
 	if err != nil {
+		setEndpointCreatedCondition(endpoint, false, ReasonConfigError, fmt.Sprintf("Failed to get client certificates: %v", err))
 		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 

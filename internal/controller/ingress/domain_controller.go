@@ -188,11 +188,7 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 		Metadata:    &domain.Spec.Metadata,
 	}
 	resp, err = r.DomainsClient.Update(ctx, req)
-	if err != nil {
-		// Set conditions before returning error
-		return r.updateStatus(ctx, domain, resp, err)
-	}
-	return r.updateStatus(ctx, domain, resp, nil)
+	return r.updateStatus(ctx, domain, resp, err)
 }
 
 func (r *DomainReconciler) delete(ctx context.Context, domain *v1alpha1.Domain) error {

@@ -12,7 +12,6 @@ const (
 	ConditionReady           = "Ready"
 	ConditionEndpointCreated = "EndpointCreated"
 	ConditionTrafficPolicy   = "TrafficPolicyApplied"
-	ConditionDomainReady     = "DomainReady"
 )
 
 // Standard condition reasons
@@ -20,7 +19,6 @@ const (
 	ReasonEndpointActive     = "EndpointActive"
 	ReasonTrafficPolicyError = "TrafficPolicyError"
 	ReasonNgrokAPIError      = "NgrokAPIError"
-	ReasonDomainCreating     = "DomainCreating"
 	ReasonUpstreamError      = "UpstreamError"
 	ReasonEndpointCreated    = "EndpointCreated"
 	ReasonConfigError        = "ConfigurationError"
@@ -72,24 +70,6 @@ func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bo
 
 	condition := metav1.Condition{
 		Type:               ConditionTrafficPolicy,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: endpoint.Generation,
-	}
-
-	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
-}
-
-// setDomainReadyCondition sets the DomainReady condition
-func setDomainReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !ready {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionDomainReady,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,

@@ -89,7 +89,9 @@ func (m *Manager) checkSkippedDomains(endpoint EndpointWithDomain, parsedURL *ur
 		m.setDomainCondition(endpoint, true, "DomainReady", "Domain is ready")
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
-			IsReady: true,
+			IsReady:      true,
+			ReadyReason:  "DomainReady",
+			ReadyMessage: "Domain is ready",
 		}
 	}
 
@@ -98,7 +100,9 @@ func (m *Manager) checkSkippedDomains(endpoint EndpointWithDomain, parsedURL *ur
 		m.setDomainCondition(endpoint, true, "DomainReady", "Domain is ready")
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
-			IsReady: true,
+			IsReady:      true,
+			ReadyReason:  "DomainReady",
+			ReadyMessage: "Domain is ready",
 		}
 	}
 
