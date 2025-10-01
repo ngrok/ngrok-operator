@@ -2,6 +2,7 @@ package agent
 
 import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -103,28 +104,57 @@ func setReconcilingCondition(endpoint *ngrokv1alpha1.AgentEndpoint, message stri
 	setReadyCondition(endpoint, false, ReasonReconciling, message)
 }
 
-// calculateAgentEndpointReadyCondition calculates the overall Ready condition based on other conditions
-func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint) {
+// calculateAgentEndpointReadyCondition calculates the overall Ready condition based on other conditions and domain status
+func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, domainResult *domainpkg.DomainResult) {
 	// Check all required conditions
 	endpointCreatedCondition := meta.FindStatusCondition(aep.Status.Conditions, ConditionEndpointCreated)
+	endpointCreated := endpointCreatedCondition != nil && endpointCreatedCondition.Status == metav1.ConditionTrue
+
 	trafficPolicyCondition := meta.FindStatusCondition(aep.Status.Conditions, ConditionTrafficPolicy)
-
-	// Check if endpoint is created
-	if endpointCreatedCondition == nil || endpointCreatedCondition.Status != metav1.ConditionTrue {
-		if endpointCreatedCondition != nil {
-			setReadyCondition(aep, false, endpointCreatedCondition.Reason, endpointCreatedCondition.Message)
-		} else {
-			setReadyCondition(aep, false, "Unknown", "Endpoint creation status unknown")
-		}
-		return
-	}
-
-	// If traffic policy is configured, check its condition
+	trafficPolicyReady := true
+	// If traffic policy condition exists and is False, it's not ready
 	if trafficPolicyCondition != nil && trafficPolicyCondition.Status == metav1.ConditionFalse {
-		setReadyCondition(aep, false, trafficPolicyCondition.Reason, trafficPolicyCondition.Message)
-		return
+		trafficPolicyReady = false
 	}
 
-	// All conditions are satisfied
-	setReadyCondition(aep, true, ReasonEndpointActive, "AgentEndpoint is active and ready")
+	// Check if domain is ready
+	domainReady := domainResult.IsReady
+
+	// Overall ready status - all conditions must be true
+	ready := endpointCreated && trafficPolicyReady && domainReady
+
+	// Determine reason and message based on state
+	var reason, message string
+	switch {
+	case ready:
+		reason = ReasonEndpointActive
+		message = "AgentEndpoint is active and ready"
+	case !endpointCreated:
+		// If EndpointCreated condition exists and is False, use its reason/message
+		if endpointCreatedCondition != nil && endpointCreatedCondition.Status == metav1.ConditionFalse {
+			reason = endpointCreatedCondition.Reason
+			message = endpointCreatedCondition.Message
+		} else {
+			reason = "Pending"
+			message = "Waiting for endpoint creation"
+		}
+	case !trafficPolicyReady:
+		// Use the traffic policy's condition reason/message
+		reason = trafficPolicyCondition.Reason
+		message = trafficPolicyCondition.Message
+	case !domainReady:
+		// Use the domain's Ready condition reason/message for better context
+		if domainResult.ReadyReason != "" {
+			reason = domainResult.ReadyReason
+			message = domainResult.ReadyMessage
+		} else {
+			reason = "DomainNotReady"
+			message = "Domain is not ready"
+		}
+	default:
+		reason = "Unknown"
+		message = "AgentEndpoint is not ready"
+	}
+
+	setReadyCondition(aep, ready, reason, message)
 }

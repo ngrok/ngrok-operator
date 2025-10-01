@@ -198,20 +198,20 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	setReconcilingCondition(endpoint, "Reconciling AgentEndpoint")
 
 	// EnsureDomainExists handles its own domain-related status
-	_, err := r.DomainManager.EnsureDomainExists(ctx, endpoint, endpoint.Spec.URL)
+	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint, endpoint.Spec.URL)
 	if err != nil {
-		return r.updateStatus(ctx, endpoint, nil, "", err)
+		return r.updateStatus(ctx, endpoint, nil, "", domainResult, err)
 	}
 
 	// getTrafficPolicy sets its own condition on error
 	trafficPolicy, err := r.getTrafficPolicy(ctx, endpoint)
 	if err != nil {
-		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, err)
+		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 
 	clientCerts, err := r.getClientCerts(ctx, endpoint)
 	if err != nil {
-		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, err)
+		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 
 	// Create the endpoint
@@ -223,7 +223,7 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 		if trafficPolicy != "" && ngrokapi.IsTrafficPolicyError(err.Error()) {
 			setTrafficPolicyCondition(endpoint, false, ReasonTrafficPolicyError, ngrokapi.SanitizeErrorMessage(err.Error()))
 		}
-		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, err)
+		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 
 	// Set success conditions
@@ -232,7 +232,7 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 		setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
 	}
 
-	return r.updateStatus(ctx, endpoint, result, trafficPolicy, nil)
+	return r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil)
 }
 
 func (r *AgentEndpointReconciler) delete(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
@@ -409,7 +409,7 @@ func (r *AgentEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 }
 
 // updateStatus updates the endpoint status fields, calculates Ready condition, and writes to k8s API
-func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint, result *agent.EndpointResult, trafficPolicy string, statusErr error) error {
+func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint, result *agent.EndpointResult, trafficPolicy string, domainResult *domainpkg.DomainResult, statusErr error) error {
 	// Update status fields if we have a result
 	if result != nil {
 		endpoint.Status.AssignedURL = result.URL
@@ -426,8 +426,8 @@ func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ng
 		endpoint.Status.AttachedTrafficPolicy = "none"
 	}
 
-	// Calculate overall Ready condition based on other conditions
-	calculateAgentEndpointReadyCondition(endpoint)
+	// Calculate overall Ready condition based on other conditions and domain status
+	calculateAgentEndpointReadyCondition(endpoint, domainResult)
 
 	// Write status to k8s API
 	return r.controller.ReconcileStatus(ctx, endpoint, statusErr)
