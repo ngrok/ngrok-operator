@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -18,6 +19,25 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
+const (
+	ConditionDomainReady = "DomainReady"
+)
+
+const (
+	ReasonDomainReady    = "DomainReady"
+	ReasonDomainCreating = "DomainCreating"
+	ReasonNgrokAPIError  = "NgrokAPIError"
+)
+
+var (
+	ErrDomainCreating = errors.New("waiting while domain is being created")
+)
+
+// SetCondition is a helper that wraps meta.SetStatusCondition for convenience
+func SetCondition(conditions *[]metav1.Condition, condition metav1.Condition) {
+	meta.SetStatusCondition(conditions, condition)
+}
+
 // EndpointWithDomain represents an endpoint resource that has domain conditions and references
 type EndpointWithDomain interface {
 	client.Object
@@ -29,12 +49,12 @@ type EndpointWithDomain interface {
 
 // DomainResult contains the result of domain operations
 type DomainResult struct {
-	Domain            *ingressv1alpha1.Domain
-	IsReady           bool
-	IsCreating        bool
-	SkippedReason     string // Why domain creation was skipped (e.g., "tcp", "internal")
-	ReadyReason       string // Reason from domain's Ready condition
-	ReadyMessage      string // Message from domain's Ready condition
+	Domain        *ingressv1alpha1.Domain
+	IsReady       bool
+	IsCreating    bool
+	SkippedReason string // Why domain creation was skipped (e.g., "tcp", "internal")
+	ReadyReason   string // Reason from domain's Ready condition
+	ReadyMessage  string // Message from domain's Ready condition
 }
 
 // Manager handles domain creation and condition management

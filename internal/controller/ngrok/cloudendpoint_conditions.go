@@ -5,7 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	domainpkg "github.com/ngrok/ngrok-operator/internal/controller/domain"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 )
 
 const (

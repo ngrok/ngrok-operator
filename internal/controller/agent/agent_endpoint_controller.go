@@ -35,7 +35,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
-	domainpkg "github.com/ngrok/ngrok-operator/internal/controller/domain"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
@@ -432,4 +432,3 @@ func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ng
 	// Write status to k8s API
 	return r.controller.ReconcileStatus(ctx, endpoint, statusErr)
 }
-

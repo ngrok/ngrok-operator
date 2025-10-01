@@ -47,7 +47,6 @@ type CloudEndpointSpec struct {
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 
-	// Deprecated: Use TrafficPolicy instead
 	// Reference to the TrafficPolicy resource to attach to the Cloud Endpoint
 	//
 	// +kubebuilder:validation:Optional
