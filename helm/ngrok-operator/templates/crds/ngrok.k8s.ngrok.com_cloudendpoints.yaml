@@ -93,9 +93,8 @@ spec:
                     x-kubernetes-preserve-unknown-fields: true
                 type: object
               trafficPolicyName:
-                description: |-
-                  Deprecated: Use TrafficPolicy instead
-                  Reference to the TrafficPolicy resource to attach to the Cloud Endpoint
+                description: Reference to the TrafficPolicy resource to attach to
+                  the Cloud Endpoint
                 type: string
               url:
                 description: |-

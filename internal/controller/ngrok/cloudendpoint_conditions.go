@@ -75,16 +75,7 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 	switch {
 	case ready:
 		reason = ReasonCloudEndpointActive
-		message = "Cloud endpoint is active and ready"
-	case !cloudEndpointCreated:
-		// If CloudEndpointCreated condition exists and is False, use its reason/message
-		if createdCondition != nil && createdCondition.Status == metav1.ConditionFalse {
-			reason = createdCondition.Reason
-			message = createdCondition.Message
-		} else {
-			reason = "Pending"
-			message = "Waiting for domain to be ready"
-		}
+		message = "CloudEndpoint is active and ready"
 	case !domainReady:
 		// Use the domain's Ready condition reason/message for better context
 		if domainResult.ReadyReason != "" {
@@ -94,9 +85,18 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 			reason = "DomainNotReady"
 			message = "Domain is not ready"
 		}
+	case !cloudEndpointCreated:
+		// If CloudEndpointCreated condition exists and is False, use its reason/message
+		if createdCondition != nil && createdCondition.Status == metav1.ConditionFalse {
+			reason = createdCondition.Reason
+			message = createdCondition.Message
+		} else {
+			reason = "Pending"
+			message = "Waiting for CloudEndpoint to be ready"
+		}
 	default:
 		reason = "Unknown"
-		message = "Cloud endpoint is not ready"
+		message = "CloudEndpoint is not ready"
 	}
 
 	setCloudEndpointReadyCondition(clep, ready, reason, message)

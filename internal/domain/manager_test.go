@@ -45,7 +45,7 @@ func TestManager_EnsureDomainExists_SkipsTCPDomains(t *testing.T) {
 	// Should not create a domain and should return ready
 	assert.NoError(t, err)
 	assert.True(t, result.IsReady)
-	assert.Equal(t, "tcp", result.SkippedReason)
+	assert.Equal(t, "tcp", result.ReadyReason)
 	assert.Nil(t, result.Domain)
 	assert.Nil(t, endpoint.GetDomainRef())
 
@@ -87,7 +87,7 @@ func TestManager_EnsureDomainExists_SkipsInternalDomains(t *testing.T) {
 	// Should not create a domain and should return ready
 	assert.NoError(t, err)
 	assert.True(t, result.IsReady)
-	assert.Equal(t, "internal", result.SkippedReason)
+	assert.Equal(t, "internal", result.ReadyReason)
 	assert.Nil(t, result.Domain)
 	assert.Nil(t, endpoint.GetDomainRef())
 

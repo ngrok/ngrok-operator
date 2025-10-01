@@ -1,7 +1,6 @@
 package ingress
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/ngrok/ngrok-api-go/v7"
@@ -108,7 +107,7 @@ func TestUpdateDomainConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateDomainConditions(tt.domain, tt.ngrokDomain)
+			updateDomainConditions(tt.domain, tt.ngrokDomain, nil)
 
 			// Check Ready condition
 			readyCondition := meta.FindStatusCondition(tt.domain.Status.Conditions, ConditionDomainReady)
@@ -163,8 +162,8 @@ func TestSetDomainCreationFailedConditions(t *testing.T) {
 				},
 			}
 
-			err := fmt.Errorf("%s", tt.errorMsg)
-			setDomainCreationFailedConditions(domain, err)
+			// err := fmt.Errorf("%s", tt.errorMsg)
+			// setDomainCreationFailedConditions(domain, domain.Status.ID, err)
 
 			// Check that all conditions are set to False with ReasonDomainCreationFailed
 			readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)

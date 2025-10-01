@@ -155,7 +155,6 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 		}
 		resp, err = r.DomainsClient.Create(ctx, req)
 		if err != nil {
-			// updateStatus will set conditions via updateDomainConditions
 			return r.updateStatus(ctx, domain, resp, err)
 		}
 	}
@@ -256,8 +255,6 @@ func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
 		return false
 	}
 }
-
-
 
 func buildCertificateInfo(certificate *ngrok.Ref) *v1alpha1.DomainStatusCertificateInfo {
 	if certificate == nil || certificate.ID == "" {

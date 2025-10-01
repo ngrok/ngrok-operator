@@ -33,11 +33,6 @@ var (
 	ErrDomainCreating = errors.New("waiting while domain is being created")
 )
 
-// SetCondition is a helper that wraps meta.SetStatusCondition for convenience
-func SetCondition(conditions *[]metav1.Condition, condition metav1.Condition) {
-	meta.SetStatusCondition(conditions, condition)
-}
-
 // EndpointWithDomain represents an endpoint resource that has domain conditions and references
 type EndpointWithDomain interface {
 	client.Object
@@ -49,12 +44,10 @@ type EndpointWithDomain interface {
 
 // DomainResult contains the result of domain operations
 type DomainResult struct {
-	Domain        *ingressv1alpha1.Domain
-	IsReady       bool
-	IsCreating    bool
-	SkippedReason string // Why domain creation was skipped (e.g., "tcp", "internal")
-	ReadyReason   string // Reason from domain's Ready condition
-	ReadyMessage  string // Message from domain's Ready condition
+	Domain       *ingressv1alpha1.Domain
+	IsReady      bool
+	ReadyReason  string // Reason from domain's Ready condition
+	ReadyMessage string // Message from domain's Ready condition
 }
 
 // Manager handles domain creation and condition management
@@ -96,8 +89,7 @@ func (m *Manager) checkSkippedDomains(endpoint EndpointWithDomain, parsedURL *ur
 		m.setDomainCondition(endpoint, true, "DomainReady", "Domain is ready")
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
-			IsReady:       true,
-			SkippedReason: "tcp",
+			IsReady: true,
 		}
 	}
 
@@ -106,8 +98,7 @@ func (m *Manager) checkSkippedDomains(endpoint EndpointWithDomain, parsedURL *ur
 		m.setDomainCondition(endpoint, true, "DomainReady", "Domain is ready")
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
-			IsReady:       true,
-			SkippedReason: "internal",
+			IsReady: true,
 		}
 	}
 
@@ -152,30 +143,24 @@ func (m *Manager) checkExistingDomain(endpoint EndpointWithDomain, domainObj *in
 	}
 
 	isReady := ingress.IsDomainReady(domainObj)
-	if !isReady && domainObj.Status.ID == "" {
-		m.setDomainCondition(endpoint, false, readyReason, readyMessage)
-		return &DomainResult{
-			Domain:       domainObj,
-			IsReady:      false,
-			IsCreating:   true,
-			ReadyReason:  readyReason,
-			ReadyMessage: readyMessage,
-		}, ErrDomainCreating
-	}
-
 	if isReady {
 		m.setDomainCondition(endpoint, true, readyReason, readyMessage)
-	} else {
-		m.setDomainCondition(endpoint, false, readyReason, readyMessage)
+		return &DomainResult{
+			Domain:       domainObj,
+			IsReady:      true,
+			ReadyReason:  readyReason,
+			ReadyMessage: readyMessage,
+		}, nil
 	}
 
+	m.setDomainCondition(endpoint, false, readyReason, readyMessage)
 	return &DomainResult{
 		Domain:       domainObj,
-		IsReady:      isReady,
-		IsCreating:   !isReady,
+		IsReady:      false,
 		ReadyReason:  readyReason,
 		ReadyMessage: readyMessage,
-	}, nil
+	}, ErrDomainCreating
+
 }
 
 // createNewDomain creates a new Domain CRD
@@ -209,7 +194,6 @@ func (m *Manager) createNewDomain(ctx context.Context, endpoint EndpointWithDoma
 	return &DomainResult{
 		Domain:       newDomain,
 		IsReady:      false,
-		IsCreating:   true,
 		ReadyReason:  ReasonDomainCreating,
 		ReadyMessage: "Domain is being created",
 	}, ErrDomainCreating
@@ -230,5 +214,5 @@ func (m *Manager) setDomainCondition(endpoint EndpointWithDomain, ready bool, re
 		ObservedGeneration: endpoint.GetGeneration(),
 	}
 
-	SetCondition(endpoint.GetConditions(), condition)
+	meta.SetStatusCondition(endpoint.GetConditions(), condition)
 }

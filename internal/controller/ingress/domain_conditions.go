@@ -133,7 +133,7 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 		setDomainCreatedCondition(domain, false, ReasonDomainCreationFailed, message)
 		setCertificateReadyCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
 		setDNSConfiguredCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
-		setDomainReadyCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
+		setDomainReadyCondition(domain, false, ReasonDomainCreationFailed, message)
 		return
 	}
 
@@ -220,8 +220,8 @@ func IsDomainReady(domain *ingressv1alpha1.Domain) bool {
 	// Then check the Ready condition for more detailed status
 	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
 	if readyCondition == nil {
-		// No ready condition set yet, fall back to ID-only check
-		return true
+		// No ready condition set yet, so it's not ready
+		return false
 	}
 
 	return readyCondition.Status == metav1.ConditionTrue

@@ -195,7 +195,7 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 	}
 
 	// Set success condition
-	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "Cloud endpoint created successfully")
+	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint created successfully")
 
 	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
@@ -237,7 +237,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	}
 
 	// Set success condition
-	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "Cloud endpoint updated successfully")
+	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint updated successfully")
 
 	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
@@ -255,12 +255,9 @@ func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv
 
 	// Update domain status fields
 	if domainResult != nil && domainResult.Domain != nil {
+		// Set the deprecated domain status for backwards compatibility
 		//nolint:staticcheck
 		clep.Status.Domain = ngrokv1alpha1.ConvertDomainStatusToDeprecatedDomainStatus(&domainResult.Domain.Status)
-		clep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-			Name:      domainResult.Domain.Name,
-			Namespace: &domainResult.Domain.Namespace,
-		}
 	}
 
 	// Calculate overall Ready condition based on other conditions and domain status

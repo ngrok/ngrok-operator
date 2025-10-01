@@ -129,6 +129,15 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 	case ready:
 		reason = ReasonEndpointActive
 		message = "AgentEndpoint is active and ready"
+	case !domainReady:
+		// Use the domain's Ready condition reason/message for better context
+		if domainResult.ReadyReason != "" {
+			reason = domainResult.ReadyReason
+			message = domainResult.ReadyMessage
+		} else {
+			reason = "DomainNotReady"
+			message = "Domain is not ready"
+		}
 	case !endpointCreated:
 		// If EndpointCreated condition exists and is False, use its reason/message
 		if endpointCreatedCondition != nil && endpointCreatedCondition.Status == metav1.ConditionFalse {
@@ -142,15 +151,6 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 		// Use the traffic policy's condition reason/message
 		reason = trafficPolicyCondition.Reason
 		message = trafficPolicyCondition.Message
-	case !domainReady:
-		// Use the domain's Ready condition reason/message for better context
-		if domainResult.ReadyReason != "" {
-			reason = domainResult.ReadyReason
-			message = domainResult.ReadyMessage
-		} else {
-			reason = "DomainNotReady"
-			message = "Domain is not ready"
-		}
 	default:
 		reason = "Unknown"
 		message = "AgentEndpoint is not ready"
