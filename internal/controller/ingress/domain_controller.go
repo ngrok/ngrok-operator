@@ -127,8 +127,8 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return result, client.IgnoreNotFound(err)
 	}
 
-	// Determine if we need to requeue based on domain state
-	if r.shouldRequeue(domain) {
+	// Requeue if the domain is not ready
+	if !IsDomainReady(domain) {
 		// Requeue the event relying on the controllers custom RateLimiter for exponential backoff
 		return ctrl.Result{Requeue: true}, nil
 	}
@@ -235,25 +235,6 @@ func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Do
 
 	updateDomainConditions(domain, ngrokDomain, createErr)
 	return r.controller.ReconcileStatus(ctx, domain, createErr)
-}
-
-// shouldRequeue determines if a domain should be requeued for a follow-up status check.
-// Uses certificate management data from ngrok API instead of hardcoded domain patterns.
-func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
-	switch {
-	// If the ID didn't get set, it couldn't be created in the ngrok API, so don't requeue it
-	case domain.Status.ID == "":
-		return false
-	// If the domain is ready, no need to requeue
-	case IsDomainReady(domain):
-		return false
-	// If the domain needs a follow-up status check, requeue it
-	case needsStatusFollowUp(domain):
-		return true
-	// Otherwise, default to not requeue
-	default:
-		return false
-	}
 }
 
 func buildCertificateInfo(certificate *ngrok.Ref) *v1alpha1.DomainStatusCertificateInfo {
