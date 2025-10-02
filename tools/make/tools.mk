@@ -20,11 +20,8 @@ preflight: ## Verifies required things like the go version
 	scripts/preflight.sh
 
 
-.PHONY: kustomize
-kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
-$(KUSTOMIZE): $(LOCALBIN)
-	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v5,$(KUSTOMIZE_VERSION))
-
+.PHONY: bootstrap-tools
+bootstrap-tools: controller-gen envtest golangci-lint kind helm helm-unittest-plugin ## Install common local tooling.
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
@@ -44,6 +41,29 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
 
 
+.PHONY: kind
+kind: $(KIND) ## Download kind locally if necessary.
+$(KIND): $(LOCALBIN)
+	$(call go-install-tool,$(KIND),sigs.k8s.io/kind,$(KIND_VERSION))
+
+
+.PHONY: helm
+helm: $(HELM) ## Download helm locally if necessary.
+$(HELM): $(LOCALBIN)
+	$(call go-install-tool,$(HELM),helm.sh/helm/v3/cmd/helm,$(HELM_VERSION))
+
+HELM_PLUGIN_HOME ?= $(LOCALBIN)/helm-plugins
+
+.PHONY: helm-unittest-plugin
+helm-unittest-plugin: helm ## Install helm-unittest plugin if needed.
+	@mkdir -p "$(HELM_PLUGIN_HOME)"
+	@if [ ! -d "$(HELM_PLUGIN_HOME)/helm-unittest" ]; then \
+		echo "Installing helm-unittest plugin"; \
+		HELM_PLUGINS="$(HELM_PLUGIN_HOME)" "$(HELM)" plugin install https://github.com/helm-unittest/helm-unittest --version 0.6.1; \
+	else \
+		echo "helm-unittest plugin already present"; \
+	fi
+
 .PHONY: _helm_setup
-_helm_setup: ## Setup helm dependencies
-	$(MAKE) -C $(HELM_CHART_DIR) setup
+_helm_setup: helm ## Setup helm chart dependencies
+	HELM="$(HELM)" HELM_PLUGINS="$(HELM_PLUGIN_HOME)" $(MAKE) -C $(HELM_CHART_DIR) setup

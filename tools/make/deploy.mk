@@ -6,29 +6,29 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 
 .PHONY: deploy
-deploy: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	$(HELM) upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
+		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
 		--set log.format=console \
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile &&\
-	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
-	kubectl rollout restart deployment $(KUBE_AGENT_MANAGER_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
+		--set metaData.env=local,metaData.from=makefile
 
 .PHONY: deploy_gateway
-deploy_gateway: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	$(HELM) upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
+		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
@@ -36,17 +36,16 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set useExperimentalGatewayApi=true &&\
-	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
-	kubectl rollout restart deployment $(KUBE_AGENT_MANAGER_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
+		--set useExperimentalGatewayApi=true
 
 .PHONY: deploy_with_bindings
-deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	$(HELM) upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
+		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
@@ -54,21 +53,18 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests kustomize _h
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=true \
-		&&\
-	kubectl rollout restart deployment $(KUBE_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
-	kubectl rollout restart deployment $(KUBE_AGENT_MANAGER_DEPLOYMENT_NAME) -n $(KUBE_NAMESPACE)
+		--set bindings.enabled=true
 
 .PHONY: deploy_for_e2e
-deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_setup ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	kind load docker-image $(IMG)
-	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube.config.
+	$(HELM) upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set image.pullPolicy="Never" \
+		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
@@ -81,6 +77,9 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests kustomize _helm_se
 		--set bindings.serviceAnnotations.annotation2="val2" \
 		--set bindings.serviceLabels.label1="val1"
 
+.PHONY: kind-load-image
+kind-load-image: kind ## Load the locally built image into the kind cluster.
+	$(KIND) load docker-image $(IMG) --name $(KIND_CLUSTER_NAME)
 
 .PHONY: _deploy-check-env-vars
 _deploy-check-env-vars:
@@ -94,4 +93,4 @@ endif
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
-	helm uninstall ngrok-operator
+	$(HELM) uninstall ngrok-operator
