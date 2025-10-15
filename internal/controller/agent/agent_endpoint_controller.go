@@ -29,15 +29,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
-	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,7 +72,6 @@ func indexClientCertificateRefs(o client.Object) []string {
 }
 
 var (
-	ErrDomainCreating             = errors.New("domain is being created, requeue after delay")
 	ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both targetRef and inline are set")
 )
 
@@ -96,6 +94,7 @@ type AgentEndpointReconciler struct {
 	controller *controller.BaseController[*ngrokv1alpha1.AgentEndpoint]
 
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+	DomainManager              *domainpkg.Manager
 }
 
 // SetupWithManager sets up the controller with the Manager
@@ -106,6 +105,15 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return errors.New("AgentDriver is nil")
 	}
 
+	// Initialize domain manager if not already set
+	if r.DomainManager == nil {
+		r.DomainManager = &domainpkg.Manager{
+			Client:                     r.Client,
+			Recorder:                   r.Recorder,
+			DefaultDomainReclaimPolicy: r.DefaultDomainReclaimPolicy,
+		}
+	}
+
 	r.controller = &controller.BaseController[*ngrokv1alpha1.AgentEndpoint]{
 		Kube:     r.Client,
 		Log:      r.Log,
@@ -114,7 +122,7 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Delete:   r.delete,
 		StatusID: r.statusID,
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
-			if errors.Is(err, ErrDomainCreating) {
+			if errors.Is(err, domainpkg.ErrDomainCreating) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
@@ -189,26 +197,44 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	// Set initial condition to reconciling
 	setReconcilingCondition(endpoint, "Reconciling AgentEndpoint")
 
-	err := r.ensureDomainExists(ctx, endpoint)
+	// EnsureDomainExists checks if the domain exists, creates it if needed, and sets conditions/domainRef
+	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint, endpoint.Spec.URL)
 	if err != nil {
-		return r.controller.ReconcileStatus(ctx, endpoint, err)
+		return r.updateStatus(ctx, endpoint, nil, "", domainResult, err)
 	}
 
+	// getTrafficPolicy checks if the traffic policy exists, creates it if needed, and sets conditions/trafficPolicyRef
 	trafficPolicy, err := r.getTrafficPolicy(ctx, endpoint)
 	if err != nil {
-		return r.controller.ReconcileStatus(ctx, endpoint, err)
+		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 
 	clientCerts, err := r.getClientCerts(ctx, endpoint)
 	if err != nil {
-		return r.controller.ReconcileStatus(ctx, endpoint, err)
+		setEndpointCreatedCondition(endpoint, false, ReasonConfigError, fmt.Sprintf("Failed to get client certificates: %v", err))
+		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 
+	// Create the endpoint
 	tunnelName := r.statusID(endpoint)
 	result, err := r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts)
+	if err != nil {
+		// Mark the endpoint as failed creation
+		setEndpointCreatedCondition(endpoint, false, ReasonNgrokAPIError, fmt.Sprintf("Failed to create endpoint: %v", err))
+		// If error indicates traffic policy issue, also set that condition
+		if trafficPolicy != "" && ngrokapi.IsTrafficPolicyError(err.Error()) {
+			setTrafficPolicyCondition(endpoint, false, ReasonTrafficPolicyError, ngrokapi.SanitizeErrorMessage(err.Error()))
+		}
+		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
+	}
 
-	r.updateEndpointStatus(endpoint, result, err, trafficPolicy)
-	return r.controller.ReconcileStatus(ctx, endpoint, err)
+	// Mark the endpoint as successfully created
+	setEndpointCreatedCondition(endpoint, true, ReasonEndpointCreated, "Endpoint successfully created")
+	if trafficPolicy != "" {
+		setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
+	}
+
+	return r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil)
 }
 
 func (r *AgentEndpointReconciler) delete(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
@@ -294,7 +320,6 @@ func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngr
 	// Ensure mutually exclusive fields are not both set
 	if aep.Spec.TrafficPolicy.Reference != nil && aep.Spec.TrafficPolicy.Inline != nil {
 		setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, ErrInvalidTrafficPolicyConfig.Error())
-		setReadyCondition(aep, false, ReasonTrafficPolicyError, ErrInvalidTrafficPolicyConfig.Error())
 		return "", ErrInvalidTrafficPolicyConfig
 	}
 
@@ -305,9 +330,9 @@ func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngr
 	case ngrokv1alpha1.TrafficPolicyCfgType_Inline:
 		policyBytes, err := aep.Spec.TrafficPolicy.Inline.MarshalJSON()
 		if err != nil {
-			setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, err.Error())
-			setReadyCondition(aep, false, ReasonTrafficPolicyError, err.Error())
-			return "", fmt.Errorf("failed to marshal inline TrafficPolicy: %w", err)
+			errMsg := fmt.Sprintf("failed to marshal inline TrafficPolicy: %v", err)
+			setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, errMsg)
+			return "", errors.New(errMsg)
 		}
 		policy = string(policyBytes)
 	case ngrokv1alpha1.TrafficPolicyCfgType_K8sRef:
@@ -315,7 +340,6 @@ func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngr
 		policy, err = r.findTrafficPolicyByName(ctx, aep.Spec.TrafficPolicy.Reference.Name, aep.Namespace)
 		if err != nil {
 			setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, err.Error())
-			setReadyCondition(aep, false, ReasonTrafficPolicyError, err.Error())
 			return "", err
 		}
 	}
@@ -341,28 +365,21 @@ func (r *AgentEndpointReconciler) getClientCerts(ctx context.Context, aep *ngrok
 		certSecret := &v1.Secret{}
 		if err := r.Client.Get(ctx, key, certSecret); err != nil {
 			r.Recorder.Event(certSecret, v1.EventTypeWarning, "SecretNotFound", fmt.Sprintf("Failed to find Secret %s", clientCertRef.Name))
-			setReadyCondition(aep, false, ReasonConfigError, err.Error())
 			return nil, err
 		}
 
 		certData, exists := certSecret.Data["tls.crt"]
 		if !exists {
-			err := fmt.Errorf("tls.crt data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
-			setReadyCondition(aep, false, ReasonConfigError, err.Error())
-			return nil, err
+			return nil, fmt.Errorf("tls.crt data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
 		}
 		keyData, exists := certSecret.Data["tls.key"]
 		if !exists {
-			err := fmt.Errorf("tls.key data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
-			setReadyCondition(aep, false, ReasonConfigError, err.Error())
-			return nil, err
+			return nil, fmt.Errorf("tls.key data is missing from AgentEndpoint clientCertRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
 		}
 
 		cert, err := tls.X509KeyPair(certData, keyData)
 		if err != nil {
-			err := fmt.Errorf("failed to parse TLS certificate AgentEndpoint clientCertRef %q: %w", fmt.Sprintf("%s.%s", key.Name, key.Namespace), err)
-			setReadyCondition(aep, false, ReasonConfigError, err.Error())
-			return nil, err
+			return nil, fmt.Errorf("failed to parse TLS certificate AgentEndpoint clientCertRef %q: %w", fmt.Sprintf("%s.%s", key.Name, key.Namespace), err)
 		}
 
 		ret = append(ret, cert)
@@ -394,87 +411,13 @@ func (r *AgentEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 	return string(policyBytes), nil
 }
 
-// ensureDomainExists checks if the Domain CRD exists, and if not, creates it.
-// Updates the passed in AgentEndpoint with the status conditions based on the results.
-func (r *AgentEndpointReconciler) ensureDomainExists(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) error {
-	parsedURL, err := util.ParseAndSanitizeEndpointURL(aep.Spec.URL, true)
-	if err != nil {
-		r.Recorder.Event(aep, v1.EventTypeWarning, "InvalidURL", fmt.Sprintf("Failed to parse URL: %s", aep.Spec.URL))
-		setDomainReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		setReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		return fmt.Errorf("failed to parse URL %q from AgentEndpoint \"%s.%s\"", aep.Spec.URL, aep.Name, aep.Namespace)
+// updateStatus updates the endpoint status fields, calculates Ready condition, and writes to k8s API
+func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint, result *agent.EndpointResult, trafficPolicy string, domainResult *domainpkg.DomainResult, statusErr error) error {
+	// Update status fields if we have a result
+	if result != nil {
+		endpoint.Status.AssignedURL = result.URL
 	}
 
-	// Ngrok TCP URLs do not have to be reserved
-	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
-		setDomainReadyCondition(aep, true, "DomainReady", "Domain is ready")
-		return nil
-	}
-
-	// TODO: generate a domain for blank strings
-	domain := parsedURL.Hostname()
-	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domain)
-	if strings.HasSuffix(domain, ".internal") {
-		// Skip creating the Domain CR for ngrok TCP URLs
-		setDomainReadyCondition(aep, true, "DomainReady", "Domain is ready")
-		return nil
-	}
-
-	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain)
-
-	// Check if the Domain CRD already exists
-	domainObj := &ingressv1alpha1.Domain{}
-
-	err = r.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: aep.Namespace}, domainObj)
-	if err == nil {
-		// Domain already exists
-		if domainObj.Status.ID == "" {
-			// Domain is not ready yet
-			setDomainReadyCondition(aep, false, ReasonDomainCreating, "Domain is being created")
-			setReadyCondition(aep, false, ReasonDomainCreating, "Waiting for domain to be ready")
-			return ErrDomainCreating
-		}
-		setDomainReadyCondition(aep, true, "DomainReady", "Domain is ready")
-		return nil
-	}
-	if client.IgnoreNotFound(err) != nil {
-		// Some other error occurred
-		log.Error(err, "failed to check Domain CRD existence")
-		setDomainReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		setReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		return err
-	}
-
-	// Create the Domain CRD since it doesn't exist
-	newDomain := &ingressv1alpha1.Domain{
-		ObjectMeta: ctrl.ObjectMeta{
-			Name:      hyphenatedDomain,
-			Namespace: aep.Namespace,
-		},
-		Spec: ingressv1alpha1.DomainSpec{
-			Domain: domain,
-		},
-	}
-
-	if r.DefaultDomainReclaimPolicy != nil {
-		newDomain.Spec.ReclaimPolicy = *r.DefaultDomainReclaimPolicy
-	}
-
-	if err := r.Create(ctx, newDomain); err != nil {
-		r.Recorder.Event(aep, v1.EventTypeWarning, "DomainCreationFailed", fmt.Sprintf("Failed to create Domain CRD %s", hyphenatedDomain))
-		setDomainReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		setReadyCondition(aep, false, ReasonNgrokAPIError, err.Error())
-		return err
-	}
-
-	r.Recorder.Event(aep, v1.EventTypeNormal, "DomainCreated", fmt.Sprintf("Domain CRD %s created successfully", hyphenatedDomain))
-	setDomainReadyCondition(aep, false, ReasonDomainCreating, "Domain is being created")
-	setReadyCondition(aep, false, ReasonDomainCreating, "Waiting for domain to be ready")
-	return ErrDomainCreating
-}
-
-// updateEndpointStatus updates the endpoint status based on creation result from the AgentDriver.
-func (r *AgentEndpointReconciler) updateEndpointStatus(endpoint *ngrokv1alpha1.AgentEndpoint, result *agent.EndpointResult, err error, trafficPolicy string) {
 	// Set traffic policy status
 	if trafficPolicy != "" {
 		if endpoint.Spec.TrafficPolicy != nil && endpoint.Spec.TrafficPolicy.Reference != nil {
@@ -486,34 +429,9 @@ func (r *AgentEndpointReconciler) updateEndpointStatus(endpoint *ngrokv1alpha1.A
 		endpoint.Status.AttachedTrafficPolicy = "none"
 	}
 
-	// Update status based on endpoint creation result
-	switch {
-	case err != nil:
-		errMsg := ngrokapi.SanitizeErrorMessage(err.Error())
+	// Calculate overall Ready condition based on other conditions and domain status
+	calculateAgentEndpointReadyCondition(endpoint, domainResult)
 
-		// Check if the error message indicates a traffic policy configuration issue
-		reason := ReasonNgrokAPIError
-		if trafficPolicy != "" && ngrokapi.IsTrafficPolicyError(errMsg) {
-			reason = ReasonTrafficPolicyError
-		}
-
-		setEndpointCreatedCondition(endpoint, false, reason, errMsg)
-		setReadyCondition(endpoint, false, reason, errMsg)
-
-		if trafficPolicy != "" {
-			setTrafficPolicyCondition(endpoint, false, reason, errMsg)
-		}
-	case result != nil:
-		// Success - update status with endpoint information from ngrok
-		endpoint.Status.AssignedURL = result.URL
-
-		setEndpointCreatedCondition(endpoint, true, ReasonEndpointCreated, "Endpoint successfully created")
-		if trafficPolicy != "" {
-			setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
-		}
-		setReadyCondition(endpoint, true, ReasonEndpointActive, "AgentEndpoint is active and ready")
-	default:
-		// Unexpected case - no result and no error
-		setReadyCondition(endpoint, false, ReasonNgrokAPIError, "No endpoint result returned")
-	}
+	// Write status to k8s API
+	return r.controller.ReconcileStatus(ctx, endpoint, statusErr)
 }

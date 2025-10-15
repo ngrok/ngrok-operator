@@ -28,8 +28,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
-	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -46,12 +44,12 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
 const (
 	trafficPolicyNameIndex = "spec.trafficPolicyName"
-	domainIndex            = "spec.URL"
 )
 
 // CloudEndpointReconciler reconciles a CloudEndpoint object
@@ -65,10 +63,10 @@ type CloudEndpointReconciler struct {
 	NgrokClientset ngrokapi.Clientset
 
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+	DomainManager              *domainpkg.Manager
 }
 
 // Define a custom error types to catch and handle requeuing logic for
-var ErrDomainCreating = errors.New("domain is being created, requeue after delay")
 var ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both TrafficPolicyName and TrafficPolicy are set")
 
 // SetupWithManager sets up the controller with the Manager.
@@ -77,6 +75,15 @@ var ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configurat
 func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.NgrokClientset == nil {
 		return errors.New("NgrokClientset is required")
+	}
+
+	// Initialize domain manager if not already set
+	if r.DomainManager == nil {
+		r.DomainManager = &domainpkg.Manager{
+			Client:                     r.Client,
+			Recorder:                   r.Recorder,
+			DefaultDomainReclaimPolicy: r.DefaultDomainReclaimPolicy,
+		}
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.CloudEndpoint]{
@@ -104,7 +111,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if ngrok.IsErrorCode(err, retryableErrors...) {
 				return ctrl.Result{}, err
 			}
-			if errors.Is(err, ErrDomainCreating) {
+			if errors.Is(err, domainpkg.ErrDomainCreating) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
@@ -160,14 +167,15 @@ func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // Create will make sure a domain is created before creating the Cloud Endpoint
 // It also looks up the Traffic Policy and creates the Cloud Endpoint using this Traffic Policy JSON
 func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
-	domain, err := r.ensureDomainExists(ctx, clep)
+	// EnsureDomainExists handles its own domain-related status
+	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep, clep.Spec.URL)
 	if err != nil {
-		return err
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	policy, err := r.getTrafficPolicy(ctx, clep)
 	if err != nil {
-		return err
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	createParams := &ngrok.EndpointCreate{
@@ -182,23 +190,27 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 
 	ngrokClep, err := r.NgrokClientset.Endpoints().Create(ctx, createParams)
 	if err != nil {
-		return err
+		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to create cloud endpoint: %v", err))
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
-	return r.updateStatus(ctx, clep, ngrokClep, domain)
+	// Set success condition
+	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint created successfully")
+
+	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
 
 // Update is called when we have a status ID and want to update the resource in the ngrok API
 // If it fails to find the resource by ID, create a new one instead
 func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
-	domain, err := r.ensureDomainExists(ctx, clep)
+	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep, clep.Spec.URL)
 	if err != nil {
-		return err
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	policy, err := r.getTrafficPolicy(ctx, clep)
 	if err != nil {
-		return err
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	updateParams := &ngrok.EndpointUpdate{
@@ -220,10 +232,14 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return r.create(ctx, clep)
 	}
 	if err != nil {
-		return err
+		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to update cloud endpoint: %v", err))
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
-	return r.updateStatus(ctx, clep, ngrokClep, domain)
+	// Set success condition
+	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint updated successfully")
+
+	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
 
 // Simply attempt to delete it. The base controller handles not found errors
@@ -231,21 +247,24 @@ func (r *CloudEndpointReconciler) delete(ctx context.Context, clep *ngrokv1alpha
 	return r.NgrokClientset.Endpoints().Delete(ctx, clep.Status.ID)
 }
 
-func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, ngrokClep *ngrok.Endpoint, domain *ingressv1alpha1.Domain) error {
-	clep.Status.ID = ngrokClep.ID
-	if domain != nil {
-		//nolint:staticcheck
-		clep.Status.Domain = ngrokv1alpha1.ConvertDomainStatusToDeprecatedDomainStatus(&domain.Status)
-		clep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-			Name:      domain.Name,
-			Namespace: &domain.Namespace,
-		}
-	} else {
-		//nolint:staticcheck
-		clep.Status.Domain = nil
-		clep.Status.DomainRef = nil
+func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, ngrokClep *ngrok.Endpoint, domainResult *domainpkg.DomainResult, statusErr error) error {
+	// Update status fields if we have an endpoint
+	if ngrokClep != nil {
+		clep.Status.ID = ngrokClep.ID
 	}
-	return r.Client.Status().Update(ctx, clep)
+
+	// Update domain status fields
+	if domainResult != nil && domainResult.Domain != nil {
+		// Set the deprecated domain status for backwards compatibility
+		//nolint:staticcheck
+		clep.Status.Domain = ngrokv1alpha1.ConvertDomainStatusToDeprecatedDomainStatus(&domainResult.Domain.Status)
+	}
+
+	// Calculate overall Ready condition based on other conditions and domain status
+	calculateCloudEndpointReadyCondition(clep, domainResult)
+
+	// Write status to k8s API
+	return r.controller.ReconcileStatus(ctx, clep, statusErr)
 }
 
 // #region Helper Functions
@@ -330,74 +349,4 @@ func (r *CloudEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 	}
 
 	return string(policyBytes), nil
-}
-
-// ensureDomainExists checks if the Domain CRD exists, and if not, creates it.
-func (r *CloudEndpointReconciler) ensureDomainExists(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) (*ingressv1alpha1.Domain, error) {
-	parsedURL, err := url.Parse(clep.Spec.URL)
-	if err != nil {
-		r.Recorder.Event(clep, v1.EventTypeWarning, "InvalidURL", fmt.Sprintf("Failed to parse URL: %s", clep.Spec.URL))
-		return nil, err
-	}
-
-	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
-		// Skip creating the Domain CR for ngrok TCP URLs
-		return nil, nil
-	}
-	domain := parsedURL.Hostname()
-
-	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domain)
-	if domainEndsInReservedTLD(domain) {
-		// Skip creating the Domain CRD for reserved TLDs
-		return nil, nil
-	}
-
-	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain)
-
-	// Check if the Domain CRD already exists
-	domainObj := &ingressv1alpha1.Domain{}
-	err = r.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: clep.Namespace}, domainObj)
-	if err == nil {
-		// Domain already exists
-		if domainObj.Status.ID == "" {
-			// Domain is not ready yet
-			return domainObj, ErrDomainCreating
-		}
-		return domainObj, nil
-	}
-	if client.IgnoreNotFound(err) != nil {
-		// Some other error occurred
-		log.Error(err, "failed to check Domain CRD existence")
-		return nil, err
-	}
-
-	// Create the Domain CRD
-	newDomain := &ingressv1alpha1.Domain{
-		ObjectMeta: ctrl.ObjectMeta{
-			Name:      hyphenatedDomain,
-			Namespace: clep.Namespace,
-		},
-		Spec: ingressv1alpha1.DomainSpec{
-			Domain: domain,
-		},
-	}
-
-	if r.DefaultDomainReclaimPolicy != nil {
-		newDomain.Spec.ReclaimPolicy = *r.DefaultDomainReclaimPolicy
-	}
-
-	if err := r.Create(ctx, newDomain); err != nil {
-		r.Recorder.Event(clep, v1.EventTypeWarning, "DomainCreationFailed", fmt.Sprintf("Failed to create Domain CRD %s", hyphenatedDomain))
-		return newDomain, err
-	}
-
-	r.Recorder.Event(clep, v1.EventTypeNormal, "DomainCreated", fmt.Sprintf("Domain CRD %s created successfully", hyphenatedDomain))
-	return newDomain, ErrDomainCreating
-}
-
-// domainEndsInReservedTLD checks if the domain ends in a reserved TLD (e.g., ".internal") in
-// order to filter it out of lists of domains to create automatically.
-func domainEndsInReservedTLD(domain string) bool {
-	// Check if the domain ends in the "internal" tld
-	return strings.HasSuffix(domain, ".internal")
 }

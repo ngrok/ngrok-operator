@@ -28,6 +28,10 @@ func NewDomainClient() *DomainClient {
 }
 
 func (m *DomainClient) Create(_ context.Context, item *ngrok.ReservedDomainCreate) (*ngrok.ReservedDomain, error) {
+	if m.createError != nil {
+		return nil, m.createError
+	}
+
 	if m.any(func(rd *ngrok.ReservedDomain) bool { return rd.Domain == item.Domain }) {
 		return nil, &ngrok.Error{
 			StatusCode: http.StatusConflict,
@@ -55,6 +59,10 @@ func (m *DomainClient) Create(_ context.Context, item *ngrok.ReservedDomainCreat
 }
 
 func (m *DomainClient) Update(ctx context.Context, item *ngrok.ReservedDomainUpdate) (*ngrok.ReservedDomain, error) {
+	if m.updateError != nil {
+		return nil, m.updateError
+	}
+
 	existingItem, err := m.Get(ctx, item.ID)
 	if err != nil {
 		return nil, err

@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -179,6 +180,82 @@ var _ = Describe("DomainReconciler", func() {
 				})
 			})
 		})
+
+		When("the domain creation succeeds", func() {
+			It("should set success conditions and create the domain", func() {
+				domain := &ingressv1alpha1.Domain{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      fmt.Sprintf("test-domain-%s", rand.String(10)),
+						Namespace: namespace,
+					},
+					Spec: ingressv1alpha1.DomainSpec{
+						Domain: fmt.Sprintf("test-domain-%s.%s", rand.String(10), NgrokManagedDomainSuffix),
+					},
+				}
+				Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+				Eventually(func(g Gomega) {
+					foundDomain := &ingressv1alpha1.Domain{}
+					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
+					g.Expect(err).ToNot(HaveOccurred())
+
+					// Should have success conditions set
+					readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+					g.Expect(readyCondition).ToNot(BeNil())
+					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue))
+					g.Expect(readyCondition.Reason).To(Equal(ReasonDomainActive))
+
+					// Should have domain created condition
+					createdCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainCreated)
+					g.Expect(createdCondition).ToNot(BeNil())
+					g.Expect(createdCondition.Status).To(Equal(metav1.ConditionTrue))
+					g.Expect(createdCondition.Reason).To(Equal(ReasonDomainCreated))
+
+					// Domain should have been created in ngrok
+					g.Expect(foundDomain.Status.ID).ToNot(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
+		When("the domain creation fails due to API error", func() {
+			BeforeEach(func() {
+				// Configure the domain client to return an error on Create
+				domainClient.SetCreateError(errors.New("API connection failed"))
+			})
+
+			AfterEach(func() {
+				// Clear the error after the test
+				domainClient.ClearErrors()
+			})
+
+			It("should set error conditions and not create the domain", func() {
+				domain := &ingressv1alpha1.Domain{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      fmt.Sprintf("test-domain-%s", rand.String(10)),
+						Namespace: namespace,
+					},
+					Spec: ingressv1alpha1.DomainSpec{
+						Domain: fmt.Sprintf("test-domain-%s.%s", rand.String(10), NgrokManagedDomainSuffix),
+					},
+				}
+				Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+				Eventually(func(g Gomega) {
+					foundDomain := &ingressv1alpha1.Domain{}
+					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
+					g.Expect(err).ToNot(HaveOccurred())
+
+					// Should have error conditions set
+					readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+					g.Expect(readyCondition).ToNot(BeNil())
+					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
+					g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+
+					// Domain should not have been created in ngrok
+					g.Expect(foundDomain.Status.ID).To(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+			})
+		})
 	})
 
 	Describe("UpdateDomain", func() {
@@ -277,6 +354,76 @@ var _ = Describe("DomainReconciler", func() {
 					g.Expect(d.Status.ID).ToNot(Equal(previousID))
 					g.Expect(d.Status.Domain).To(Equal(domainName))
 					g.Expect(d.Status.CNAMETarget).To(BeNil())
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
+		When("the domain update fails due to API error", func() {
+			BeforeEach(func() {
+				// Configure the domain client to return an error on Update
+				domainClient.SetUpdateError(errors.New("API connection failed"))
+			})
+
+			AfterEach(func() {
+				// Clear the error after the test
+				domainClient.ClearErrors()
+			})
+
+			It("should set error conditions", func() {
+				// Wait for domain to be created first
+				Eventually(func(g Gomega) {
+					d := &ingressv1alpha1.Domain{}
+					err := k8sClient.Get(ctx, objKey, d)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(d.Status.ID).ToNot(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+
+				// Trigger an update by changing the description
+				patch := client.MergeFrom(domain.DeepCopy())
+				domain.Spec.Description = "updated description"
+				Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
+
+				Eventually(func(g Gomega) {
+					d := &ingressv1alpha1.Domain{}
+					err := k8sClient.Get(ctx, objKey, d)
+					g.Expect(err).ToNot(HaveOccurred())
+
+					// Should have error conditions set
+					readyCondition := meta.FindStatusCondition(d.Status.Conditions, ConditionDomainReady)
+					g.Expect(readyCondition).ToNot(BeNil())
+					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
+					g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
+		When("no changes are needed during update", func() {
+			It("should still update status to ensure conditions are current", func() {
+				// Wait for domain to be created first
+				Eventually(func(g Gomega) {
+					d := &ingressv1alpha1.Domain{}
+					err := k8sClient.Get(ctx, objKey, d)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(d.Status.ID).ToNot(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+
+				// Trigger a reconcile by adding an annotation (no spec changes)
+				patch := client.MergeFrom(domain.DeepCopy())
+				controller.AddAnnotations(domain, map[string]string{
+					"test-annotation": "test-value",
+				})
+				Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
+
+				Eventually(func(g Gomega) {
+					d := &ingressv1alpha1.Domain{}
+					err := k8sClient.Get(ctx, objKey, d)
+					g.Expect(err).ToNot(HaveOccurred())
+
+					// Should still have conditions set (status was updated)
+					readyCondition := meta.FindStatusCondition(d.Status.Conditions, ConditionDomainReady)
+					g.Expect(readyCondition).ToNot(BeNil())
+					// The observed generation should be updated to match the current generation
+					g.Expect(readyCondition.ObservedGeneration).To(Equal(d.Generation))
 				}, timeout, interval).Should(Succeed())
 			})
 		})
@@ -580,4 +727,5 @@ var _ = Describe("DomainReconciler", func() {
 			}, timeout, interval).Should(Succeed())
 		})
 	})
+
 })

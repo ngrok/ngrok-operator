@@ -29,7 +29,6 @@ import (
 	"errors"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -128,8 +127,8 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return result, client.IgnoreNotFound(err)
 	}
 
-	// Determine if we need to requeue based on domain state
-	if r.shouldRequeue(domain) {
+	// Requeue if the domain is not ready
+	if !IsDomainReady(domain) {
 		// Requeue the event relying on the controllers custom RateLimiter for exponential backoff
 		return ctrl.Result{Requeue: true}, nil
 	}
@@ -142,7 +141,8 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 	// errors right now, so we'll check if the domain already exists before trying to create it.
 	resp, err := r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
 	if err != nil {
-		return err
+		// Set conditions before returning error
+		return r.updateStatus(ctx, domain, nil, err)
 	}
 
 	// Not found, so we'll create it
@@ -155,12 +155,11 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 		}
 		resp, err = r.DomainsClient.Create(ctx, req)
 		if err != nil {
-			setDomainCreationFailedConditions(domain, err)
-			return r.controller.ReconcileStatus(ctx, domain, err)
+			return r.updateStatus(ctx, domain, resp, err)
 		}
 	}
 
-	return r.updateStatus(ctx, domain, resp)
+	return r.updateStatus(ctx, domain, resp, nil)
 }
 
 func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) error {
@@ -172,13 +171,15 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 			return r.controller.ReconcileStatus(ctx, domain, err)
 		}
 
-		return err
+		// Set conditions for other Get errors
+		return r.updateStatus(ctx, domain, nil, err)
 	}
 
 	// Only update the domain if the description or metadata has changed
 	// These are the only fields that can be updated that we write to.
 	if domain.Spec.Description == resp.Description && domain.Spec.Metadata == resp.Metadata {
-		return nil
+		// No changes needed, still update status to ensure conditions are current
+		return r.updateStatus(ctx, domain, resp, nil)
 	}
 
 	req := &ngrok.ReservedDomainUpdate{
@@ -187,10 +188,7 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 		Metadata:    &domain.Spec.Metadata,
 	}
 	resp, err = r.DomainsClient.Update(ctx, req)
-	if err != nil {
-		return err
-	}
-	return r.updateStatus(ctx, domain, resp)
+	return r.updateStatus(ctx, domain, resp, err)
 }
 
 func (r *DomainReconciler) delete(ctx context.Context, domain *v1alpha1.Domain) error {
@@ -218,43 +216,21 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 }
 
 // updateStatus updates the status fields of the domain resource only if any values have changed
-func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) error {
-	domain.Status.ID = ngrokDomain.ID
-	domain.Status.Region = ngrokDomain.Region
-	domain.Status.Domain = ngrokDomain.Domain
-	domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
-	domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
+func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain, createErr error) error {
+	if ngrokDomain != nil {
+		domain.Status.ID = ngrokDomain.ID
+		domain.Status.Region = ngrokDomain.Region
+		domain.Status.Domain = ngrokDomain.Domain
+		domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
+		domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
 
-	domain.Status.Certificate = buildCertificateInfo(ngrokDomain.Certificate)
-	domain.Status.CertificateManagementPolicy = buildCertificateManagementPolicy(ngrokDomain.CertificateManagementPolicy)
-	domain.Status.CertificateManagementStatus = buildCertificateManagementStatus(ngrokDomain.CertificateManagementStatus)
-
-	updateDomainConditions(domain, ngrokDomain)
-	return r.controller.ReconcileStatus(ctx, domain, nil)
-}
-
-// shouldRequeue determines if a domain should be requeued for a follow-up status check.
-// Uses certificate management data from ngrok API instead of hardcoded domain patterns.
-func (r *DomainReconciler) shouldRequeue(domain *v1alpha1.Domain) bool {
-	switch {
-	// If the ID didn't get set, it couldn't be created in the ngrok API, so don't requeue it
-	case domain.Status.ID == "":
-		return false
-	// If the domain is ready, no need to requeue
-	case isDomainReady(domain):
-		return false
-	// If the domain needs a follow-up status check, requeue it
-	case needsStatusFollowUp(domain):
-		return true
-	// Otherwise, default to not requeue
-	default:
-		return false
+		domain.Status.Certificate = buildCertificateInfo(ngrokDomain.Certificate)
+		domain.Status.CertificateManagementPolicy = buildCertificateManagementPolicy(ngrokDomain.CertificateManagementPolicy)
+		domain.Status.CertificateManagementStatus = buildCertificateManagementStatus(ngrokDomain.CertificateManagementStatus)
 	}
-}
 
-func isDomainReady(domain *v1alpha1.Domain) bool {
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
-	return readyCondition != nil && readyCondition.Status == metav1.ConditionTrue
+	updateDomainConditions(domain, ngrokDomain, createErr)
+	return r.controller.ReconcileStatus(ctx, domain, createErr)
 }
 
 func buildCertificateInfo(certificate *ngrok.Ref) *v1alpha1.DomainStatusCertificateInfo {

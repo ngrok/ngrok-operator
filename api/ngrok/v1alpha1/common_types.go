@@ -24,6 +24,11 @@ SOFTWARE.
 
 package v1alpha1
 
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
 // K8sObjectRef defines a reference to a Kubernetes Object
 type K8sObjectRef struct {
 	// The name of the Kubernetes resource being referenced
@@ -39,4 +44,14 @@ type K8sObjectRefOptionalNamespace struct {
 	// The namespace of the Kubernetes resource being referenced
 	// +kubebuilder:validation:Optional
 	Namespace *string `json:"namespace,omitempty"`
+}
+
+// +kubebuilder:object:generate=false
+// EndpointWithDomain represents an endpoint resource that has domain conditions and references
+type EndpointWithDomain interface {
+	client.Object
+	GetConditions() *[]metav1.Condition
+	GetGeneration() int64
+	GetDomainRef() *K8sObjectRefOptionalNamespace
+	SetDomainRef(*K8sObjectRefOptionalNamespace)
 }

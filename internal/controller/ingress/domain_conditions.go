@@ -125,8 +125,18 @@ func setDNSConfiguredCondition(domain *ingressv1alpha1.Domain, configured bool, 
 	meta.SetStatusCondition(&domain.Status.Conditions, condition)
 }
 
-// updateDomainConditions updates all domain conditions based on the ngrok domain state
-func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain) {
+// updateDomainConditions updates all domain conditions based on the ngrok domain state and any creation errors
+func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain, createErr error) {
+	// Handle creation errors first
+	if createErr != nil {
+		message := ngrokapi.SanitizeErrorMessage(createErr.Error())
+		setDomainCreatedCondition(domain, false, ReasonDomainCreationFailed, message)
+		setCertificateReadyCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
+		setDNSConfiguredCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
+		setDomainReadyCondition(domain, false, ReasonDomainCreationFailed, message)
+		return
+	}
+
 	if domain.Status.ID == "" {
 		message := "Domain could not be reserved"
 		setDomainCreatedCondition(domain, false, ReasonDomainInvalid, message)
@@ -189,6 +199,9 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 // This uses the fact that the API returns back a null value for the certificate management policy for ngrok managed domains
 // VS a custom domain has a policy for provisioning the custom cert.
 func isNgrokManagedDomain(ngrokDomain *ngrok.ReservedDomain) bool {
+	if ngrokDomain == nil {
+		return false
+	}
 	return ngrokDomain.CertificateManagementPolicy == nil
 }
 
@@ -200,49 +213,19 @@ func currentProvisioningJob(status *ingressv1alpha1.DomainStatusCertificateManag
 	return status.ProvisioningJob
 }
 
-// setDomainCreationFailedConditions sets conditions for domains that failed to be created
-func setDomainCreationFailedConditions(domain *ingressv1alpha1.Domain, err error) {
-	message := ngrokapi.SanitizeErrorMessage(err.Error())
-	setDomainCreatedCondition(domain, false, ReasonDomainCreationFailed, message)
-	setCertificateReadyCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
-	setDNSConfiguredCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
-	setDomainReadyCondition(domain, false, ReasonDomainCreationFailed, message)
-}
-
-// needsStatusFollowUp determines if a domain needs a requeue to observe
-// certificate provisioning progress based on status conditions.
-func needsStatusFollowUp(domain *ingressv1alpha1.Domain) bool {
-	// Check if domain creation failed - don't follow up on terminally failed domains
-	domainCreatedCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainCreated)
-	if domainCreatedCondition != nil && domainCreatedCondition.Status == metav1.ConditionFalse {
+// IsDomainReady checks if a domain is ready by examining both Status.ID and Ready condition
+func IsDomainReady(domain *ingressv1alpha1.Domain) bool {
+	// First check if domain has an ID (basic requirement)
+	if domain.Status.ID == "" {
 		return false
 	}
 
-	// Check if domain is ready - no need to follow up on ready domains
+	// Then check the Ready condition for more detailed status
 	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
-	if readyCondition != nil && readyCondition.Status == metav1.ConditionTrue {
+	if readyCondition == nil {
+		// No ready condition set yet, so it's not ready
 		return false
 	}
 
-	// Check certificate condition - follow up if certificate is not ready
-	certCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionCertificateReady)
-	if certCondition != nil && certCondition.Status == metav1.ConditionFalse {
-		// Only follow up if it's not a terminal error (like domain creation failed)
-		if certCondition.Reason != ReasonDomainCreationFailed &&
-			certCondition.Reason != ReasonDomainInvalid {
-			return true
-		}
-	}
-
-	// Check DNS condition - follow up if DNS is not configured
-	dnsCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDNSConfigured)
-	if dnsCondition != nil && dnsCondition.Status == metav1.ConditionFalse {
-		// Only follow up if it's not a terminal error (like domain creation failed)
-		if dnsCondition.Reason != ReasonDomainCreationFailed &&
-			dnsCondition.Reason != ReasonDomainInvalid {
-			return true
-		}
-	}
-
-	return false
+	return readyCondition.Status == metav1.ConditionTrue
 }
