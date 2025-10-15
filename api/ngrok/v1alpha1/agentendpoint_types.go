@@ -212,6 +212,9 @@ type AgentEndpointList struct {
 	Items           []AgentEndpoint `json:"items"`
 }
 
+// EndpointWithDomain implementation for AgentEndpoint
+var _ EndpointWithDomain = &AgentEndpoint{}
+
 // GetConditions returns a pointer to the conditions slice for AgentEndpoint
 func (a *AgentEndpoint) GetConditions() *[]metav1.Condition {
 	return &a.Status.Conditions

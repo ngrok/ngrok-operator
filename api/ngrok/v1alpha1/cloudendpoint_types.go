@@ -159,6 +159,9 @@ type CloudEndpointList struct {
 	Items           []CloudEndpoint `json:"items"`
 }
 
+// EndpointWithDomain implementation for CloudEndpoint
+var _ EndpointWithDomain = &CloudEndpoint{}
+
 // GetConditions returns a pointer to the conditions slice for CloudEndpoint
 func (c *CloudEndpoint) GetConditions() *[]metav1.Condition {
 	return &c.Status.Conditions

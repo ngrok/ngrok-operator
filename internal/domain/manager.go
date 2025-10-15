@@ -33,15 +33,6 @@ var (
 	ErrDomainCreating = errors.New("waiting while domain is being created")
 )
 
-// EndpointWithDomain represents an endpoint resource that has domain conditions and references
-type EndpointWithDomain interface {
-	client.Object
-	GetConditions() *[]metav1.Condition
-	GetGeneration() int64
-	GetDomainRef() *ngrokv1alpha1.K8sObjectRefOptionalNamespace
-	SetDomainRef(*ngrokv1alpha1.K8sObjectRefOptionalNamespace)
-}
-
 // DomainResult contains the result of domain operations
 type DomainResult struct {
 	Domain       *ingressv1alpha1.Domain
@@ -58,7 +49,7 @@ type Manager struct {
 }
 
 // EnsureDomainExists checks if the Domain CRD exists, creates it if needed, and sets conditions/domainRef
-func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint EndpointWithDomain, url string) (*DomainResult, error) {
+func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, url string) (*DomainResult, error) {
 	parsedURL, err := m.parseAndValidateURL(endpoint, url)
 	if err != nil {
 		return nil, err
@@ -73,7 +64,7 @@ func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint EndpointWithD
 }
 
 // parseAndValidateURL parses and validates the endpoint URL
-func (m *Manager) parseAndValidateURL(endpoint EndpointWithDomain, urlStr string) (*url.URL, error) {
+func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain, urlStr string) (*url.URL, error) {
 	parsedURL, err := util.ParseAndSanitizeEndpointURL(urlStr, true)
 	if err != nil {
 		m.setDomainCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
@@ -83,7 +74,7 @@ func (m *Manager) parseAndValidateURL(endpoint EndpointWithDomain, urlStr string
 }
 
 // checkSkippedDomains checks if the domain should be skipped (TCP or internal)
-func (m *Manager) checkSkippedDomains(endpoint EndpointWithDomain, parsedURL *url.URL) *DomainResult {
+func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL) *DomainResult {
 	// Skip TCP ngrok URLs
 	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
 		m.setDomainCondition(endpoint, true, "DomainReady", "Domain is ready")
@@ -110,7 +101,7 @@ func (m *Manager) checkSkippedDomains(endpoint EndpointWithDomain, parsedURL *ur
 }
 
 // getOrCreateDomain gets an existing domain or creates a new one
-func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint EndpointWithDomain, domain string) (*DomainResult, error) {
+func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, domain string) (*DomainResult, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain)
 	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domain)
 
@@ -130,7 +121,7 @@ func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint EndpointWithDo
 }
 
 // checkExistingDomain checks the status of an existing domain
-func (m *Manager) checkExistingDomain(endpoint EndpointWithDomain, domainObj *ingressv1alpha1.Domain) (*DomainResult, error) {
+func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain, domainObj *ingressv1alpha1.Domain) (*DomainResult, error) {
 	domainRef := &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 		Name:      domainObj.Name,
 		Namespace: &domainObj.Namespace,
@@ -168,7 +159,7 @@ func (m *Manager) checkExistingDomain(endpoint EndpointWithDomain, domainObj *in
 }
 
 // createNewDomain creates a new Domain CRD
-func (m *Manager) createNewDomain(ctx context.Context, endpoint EndpointWithDomain, domain, hyphenatedDomain string) (*DomainResult, error) {
+func (m *Manager) createNewDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, domain, hyphenatedDomain string) (*DomainResult, error) {
 	newDomain := &ingressv1alpha1.Domain{
 		ObjectMeta: ctrl.ObjectMeta{
 			Name:      hyphenatedDomain,
@@ -204,7 +195,7 @@ func (m *Manager) createNewDomain(ctx context.Context, endpoint EndpointWithDoma
 }
 
 // setDomainCondition sets the DomainReady condition on the endpoint
-func (m *Manager) setDomainCondition(endpoint EndpointWithDomain, ready bool, reason, message string) {
+func (m *Manager) setDomainCondition(endpoint ngrokv1alpha1.EndpointWithDomain, ready bool, reason, message string) {
 	status := metav1.ConditionTrue
 	if !ready {
 		status = metav1.ConditionFalse
