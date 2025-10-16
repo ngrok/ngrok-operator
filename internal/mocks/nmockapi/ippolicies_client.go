@@ -56,7 +56,7 @@ func (m *IPPolicyClient) Update(ctx context.Context, item *ngrok.IPPolicyUpdate)
 	return existingItem, nil
 }
 
-func (m *IPPolicyClient) ConfigureRules(ctx context.Context, id string, rules []*ngrok.IPPolicyRule) (*ngrok.IPPolicy, error) {
+func (m *IPPolicyClient) ConfigureRules(ctx context.Context, id string, _ []*ngrok.IPPolicyRule) (*ngrok.IPPolicy, error) {
 	// The real ngrok IPPolicy does not store rules on the policy object in this mock.
 	// Rules are managed via the IPPolicyRule client. For compatibility, just verify the
 	// policy exists and return it.

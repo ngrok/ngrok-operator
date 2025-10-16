@@ -92,11 +92,12 @@ func calculateIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy) {
 		ipPolicyRulesConfigured = true
 	}
 
-	if ipPolicyCreated && ipPolicyRulesConfigured {
+	switch {
+	case ipPolicyCreated && ipPolicyRulesConfigured:
 		setIPPolicyReadyCondition(ipPolicy, true, ReasonIPPolicyActive, "IP Policy is active")
-	} else if ipPolicyCreated && !ipPolicyRulesConfigured {
+	case ipPolicyCreated && !ipPolicyRulesConfigured:
 		setIPPolicyReadyCondition(ipPolicy, false, ReasonIPPolicyRulesConfigurationError, "IP Policy rules are not configured")
-	} else {
+	default:
 		setIPPolicyReadyCondition(ipPolicy, false, ReasonIPPolicyCreationFailed, "IP Policy is not ready")
 	}
 

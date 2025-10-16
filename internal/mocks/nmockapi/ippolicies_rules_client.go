@@ -24,7 +24,7 @@ func NewIPPolicyRuleClient(ippClient *IPPolicyClient) *IPPolicyRuleClient {
 	}
 }
 
-func (m *IPPolicyRuleClient) Create(ctx context.Context, item *ngrok.IPPolicyRuleCreate) (*ngrok.IPPolicyRule, error) {
+func (m *IPPolicyRuleClient) Create(_ context.Context, item *ngrok.IPPolicyRuleCreate) (*ngrok.IPPolicyRule, error) {
 	if item.Action == nil {
 		return nil, &ngrok.Error{
 			StatusCode: http.StatusBadRequest,
