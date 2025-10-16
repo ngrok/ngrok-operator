@@ -23,10 +23,12 @@
             golangci-lint
             gotools
             jq
+            kind
             kubebuilder
             kubernetes-helm
             kyverno-chainsaw
             nixfmt-rfc-style
+            tilt
             yq
           ];
 
