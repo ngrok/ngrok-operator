@@ -162,7 +162,7 @@ func (r *IPPolicyReconciler) delete(ctx context.Context, policy *ingressv1alpha1
 	if err == nil || ngrok.IsNotFound(err) {
 		policy.Status.ID = ""
 	}
-	return nil
+	return err
 }
 
 func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
