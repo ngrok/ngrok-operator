@@ -45,8 +45,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -178,20 +178,32 @@ func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
 
+	// Create upstream service
 	if err := r.createUpstreamService(ctx, cr, upstreamService); err != nil {
-		return r.controller.ReconcileStatus(ctx, cr, err)
+		return r.updateStatus(ctx, cr, err)
 	}
 
+	// Create target service
 	if err := r.createTargetService(ctx, cr, targetService); err != nil {
-		return r.controller.ReconcileStatus(ctx, cr, err)
+		return r.updateStatus(ctx, cr, err)
 	}
 
+	// Both services created successfully
+	setServicesCreatedCondition(cr, true, ReasonServicesCreated, "Target and Upstream services created")
+	updateServiceRefs(cr, targetService, upstreamService)
+
+	// Test connectivity
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	err := r.testBoundEndpointConnectivity(timeoutCtx, cr)
-	determineAndSetBindingEndpointStatus(cr, err)
-	return r.controller.ReconcileStatus(ctx, cr, err)
+	if err != nil {
+		setConnectivityVerifiedCondition(cr, false, err)
+	} else {
+		setConnectivityVerifiedCondition(cr, true, nil)
+	}
+
+	return r.updateStatus(ctx, cr, nil)
 }
 
 func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner *bindingsv1alpha1.BoundEndpoint, service *v1.Service) error {
@@ -202,19 +214,14 @@ func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner
 		log.Error(err, "Failed to create Target Service")
 
 		ngrokErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateTargetService, "Failed to create Target Service")
-
-		setEndpointsStatus(owner, &bindingsv1alpha1.BindingEndpoint{
-			Status:       bindingsv1alpha1.StatusError,
-			ErrorCode:    ngrokErr.ErrorCode,
-			ErrorMessage: ngrokErr.Error(),
-		})
+		setServicesCreatedCondition(owner, false, ReasonServiceCreationFailed, ngrokErr.Error())
 
 		return ngrokErr
 	}
 
 	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Target Service")
 	r.Recorder.Event(owner, v1.EventTypeNormal, "Created", "Created Target Service")
-	log.Info("Created Upstream Service", "service", service.Name)
+	log.Info("Created Target Service", "service", service.Name)
 	return nil
 }
 
@@ -226,12 +233,7 @@ func (r *BoundEndpointReconciler) createUpstreamService(ctx context.Context, own
 		log.Error(err, "Failed to create Upstream Service")
 
 		ngrokErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateUpstreamService, "Failed to create Upstream Service")
-
-		setEndpointsStatus(owner, &bindingsv1alpha1.BindingEndpoint{
-			Status:       bindingsv1alpha1.StatusError,
-			ErrorCode:    ngrokErr.ErrorCode,
-			ErrorMessage: ngrokErr.Error(),
-		})
+		setServicesCreatedCondition(owner, false, ReasonServiceCreationFailed, ngrokErr.Error())
 
 		return ngrokErr
 	}
@@ -257,13 +259,13 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 		if client.IgnoreNotFound(err) != nil {
 			// real error
 			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
-			return r.controller.ReconcileStatus(ctx, cr, err)
+			return r.updateStatus(ctx, cr, err)
 		}
 
 		// Upstream Service doesn't exist, create it
 		log.Info("Unable to find existing Upstream Service, creating...", "name", desiredUpstreamService.Name)
 		if err := r.createUpstreamService(ctx, cr, desiredUpstreamService); err != nil {
-			return r.controller.ReconcileStatus(ctx, cr, err)
+			return r.updateStatus(ctx, cr, err)
 		}
 	} else {
 		// update upstream service
@@ -276,7 +278,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 			r.Recorder.Event(&existingUpstreamService, v1.EventTypeWarning, "UpdateFailed", "Failed to update Upstream Service")
 			r.Recorder.Event(cr, v1.EventTypeWarning, "UpdateFailed", "Failed to update Upstream Service")
 			log.Error(err, "Failed to update Upstream Service")
-			return r.controller.ReconcileStatus(ctx, cr, err)
+			return r.updateStatus(ctx, cr, err)
 		}
 		r.Recorder.Event(&existingUpstreamService, v1.EventTypeNormal, "Updated", "Updated Upstream Service")
 	}
@@ -287,13 +289,13 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 		if client.IgnoreNotFound(err) != nil {
 			// real error
 			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
-			return r.controller.ReconcileStatus(ctx, cr, err)
+			return r.updateStatus(ctx, cr, err)
 		}
 
 		// Target Service doesn't exist, create it
 		log.Info("Unable to find existing Target Service, creating...", "name", desiredTargetService.Name)
 		if err := r.createTargetService(ctx, cr, desiredTargetService); err != nil {
-			return r.controller.ReconcileStatus(ctx, cr, err)
+			return r.updateStatus(ctx, cr, err)
 		}
 	} else {
 		// update target service
@@ -306,18 +308,28 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 			r.Recorder.Event(&existingTargetService, v1.EventTypeWarning, "UpdateFailed", "Failed to update Target Service")
 			r.Recorder.Event(cr, v1.EventTypeWarning, "UpdateFailed", "Failed to update Target Service")
 			log.Error(err, "Failed to update Target Service")
-			return r.controller.ReconcileStatus(ctx, cr, err)
+			return r.updateStatus(ctx, cr, err)
 		}
 		r.Recorder.Event(&existingTargetService, v1.EventTypeNormal, "Updated", "Updated Target Service")
 	}
 
+	// Both services exist and are up to date
+	setServicesCreatedCondition(cr, true, ReasonServicesCreated, "Target and Upstream services created")
+	updateServiceRefs(cr, desiredTargetService, desiredUpstreamService)
+
+	// Test connectivity
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	err = r.testBoundEndpointConnectivity(timeoutCtx, cr)
-	determineAndSetBindingEndpointStatus(cr, err)
+	if err != nil {
+		setConnectivityVerifiedCondition(cr, false, err)
+	} else {
+		setConnectivityVerifiedCondition(cr, true, nil)
+	}
+
 	r.Recorder.Event(cr, v1.EventTypeNormal, "Updated", "Updated Services")
-	return r.controller.ReconcileStatus(ctx, cr, err)
+	return r.updateStatus(ctx, cr, nil)
 }
 
 func (r *BoundEndpointReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
@@ -325,38 +337,37 @@ func (r *BoundEndpointReconciler) delete(ctx context.Context, cr *bindingsv1alph
 }
 
 // deleteBoundEndpointServices deletes the Target and Upstream Services for the BoundEndpoint
+// Uses indexed lookup by labels to find services even if namespace is deleted or spec changed
 func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
-
-	targetNamespace := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: targetService.Namespace}}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: targetNamespace.Name}, targetNamespace); err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, "Failed to get Target Namespace")
-			return err
-		}
-		// fallthrough, no Target Service to delete
-	} else {
-		// Target Namespace exists, try to delete the Target Service
-
-		if err := r.Client.Delete(ctx, targetService); err != nil {
-			if client.IgnoreNotFound(err) == nil {
-				return nil
-			}
-			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
-			log.Error(err, "Failed to delete Target Service")
-			return err
-		}
+	// Find all services owned by this BoundEndpoint using label selectors
+	// This works even if the target namespace was deleted or the spec changed
+	serviceList := &v1.ServiceList{}
+	listOpts := []client.ListOption{
+		client.MatchingLabels{
+			LabelBoundEndpointName:      cr.Name,
+			LabelBoundEndpointNamespace: cr.Namespace,
+		},
 	}
 
-	if err := r.Client.Delete(ctx, upstreamService); err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
-			log.Error(err, "Failed to delete Upstream Service")
-			return err
+	if err := r.Client.List(ctx, serviceList, listOpts...); err != nil {
+		log.Error(err, "Failed to list services for BoundEndpoint")
+		return err
+	}
+
+	// Delete all services that match
+	for i := range serviceList.Items {
+		service := &serviceList.Items[i]
+		if err := r.Client.Delete(ctx, service); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", fmt.Sprintf("Failed to delete Service %s/%s", service.Namespace, service.Name))
+				log.Error(err, "Failed to delete Service", "namespace", service.Namespace, "name", service.Name)
+				return err
+			}
+		} else {
+			log.Info("Deleted Service", "namespace", service.Namespace, "name", service.Name)
 		}
-		// fallthrough, nothing to do
 	}
 
 	return nil
@@ -581,38 +592,36 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 }
 
 // determineAndSetBindingEndpointStatus determines what the status of an endpoint should be
-// based on the passed-in error and then calls setEndpointsStatus
-func determineAndSetBindingEndpointStatus(boundEndpoint *bindingsv1alpha1.BoundEndpoint, err error) {
-	var desired *bindingsv1alpha1.BindingEndpoint
-	var ngrokErr *ngrok.Error
-	if err != nil {
-		// error
-		ngrokErr = ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToConnectServices, "failed to bind BoundEndpoint")
-		desired = &bindingsv1alpha1.BindingEndpoint{
-			Status:       bindingsv1alpha1.StatusError,
-			ErrorCode:    ngrokErr.ErrorCode,
-			ErrorMessage: ngrokErr.Error(),
-		}
-	} else {
-		// success
-		desired = &bindingsv1alpha1.BindingEndpoint{
-			Status:       bindingsv1alpha1.StatusBound,
-			ErrorCode:    "",
-			ErrorMessage: "",
-		}
+// updateStatus is the single point where controller writes status to k8s API
+// Note: Controller does NOT set EndpointsSummary - the poller owns that field
+func (r *BoundEndpointReconciler) updateStatus(ctx context.Context, be *bindingsv1alpha1.BoundEndpoint, statusErr error) error {
+	// Get the current version to preserve poller-owned fields (Endpoints, EndpointsSummary, HashedName)
+	current := &bindingsv1alpha1.BoundEndpoint{}
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(be), current); err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "Failed to get current BoundEndpoint for status update")
+		return err
 	}
 
-	// set status
-	setEndpointsStatus(boundEndpoint, desired)
+	// Copy controller-owned fields to current
+	current.Status.Conditions = be.Status.Conditions
+	current.Status.TargetServiceRef = be.Status.TargetServiceRef
+	current.Status.UpstreamServiceRef = be.Status.UpstreamServiceRef
+	
+	// Calculate overall Ready condition based on other conditions
+	calculateReadyCondition(current)
+
+	// Write status to k8s API using base controller (handles logging and events)
+	return r.controller.ReconcileStatus(ctx, current, statusErr)
 }
 
-// setEndpointsStatus sets the status of every endpoint on boundEndpoint to the desired status
-// Note: All endpoints share the same status since they are represented by the same resources (Target/Upstream Services)
-func setEndpointsStatus(boundEndpoint *bindingsv1alpha1.BoundEndpoint, desired *bindingsv1alpha1.BindingEndpoint) {
-	for i := range boundEndpoint.Status.Endpoints {
-		endpoint := &boundEndpoint.Status.Endpoints[i]
-		endpoint.Status = desired.Status
-		endpoint.ErrorCode = desired.ErrorCode
-		endpoint.ErrorMessage = desired.ErrorMessage
+// updateServiceRefs sets the TargetServiceRef and UpstreamServiceRef from created services
+func updateServiceRefs(be *bindingsv1alpha1.BoundEndpoint, targetSvc, upstreamSvc *v1.Service) {
+	targetNs := targetSvc.Namespace
+	be.Status.TargetServiceRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+		Name:      targetSvc.Name,
+		Namespace: &targetNs,
+	}
+	be.Status.UpstreamServiceRef = &ngrokv1alpha1.K8sObjectRef{
+		Name: upstreamSvc.Name,
 	}
 }
