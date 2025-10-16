@@ -22,7 +22,7 @@ const (
 	ReasonIPPolicyCreationFailed          = "IPPolicyCreationFailed"
 )
 
-// setReadyCOndition sets the Ready condition based on the overall IP policy state
+// setIPPolicyReadyCondition sets the Ready condition based on the overall IP policy state
 func setIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy, ready bool, reason, message string) {
 	status := metav1.ConditionTrue
 	if !ready {
@@ -76,29 +76,28 @@ func setIPPolicyRulesConfiguredCondition(ipPolicy *ingressv1alpha1.IPPolicy, con
 	meta.SetStatusCondition(&ipPolicy.Status.Conditions, condition)
 }
 
-// Checks if the IP policy is ready based on other conditions
-func IsIPPolicyReady(ipPolicy *ingressv1alpha1.IPPolicy) bool {
-	// Check if the CreatedCondition is set to true
+// sets the Ready condition based on the other conditions
+func calculateIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy) {
+	// check IP Policy created condition
+	ipPolicyCreated := false
 	createdCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
-	rulesConfiguredCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
-	if createdCondition != nil && createdCondition.Status == metav1.ConditionTrue && rulesConfiguredCondition != nil && rulesConfiguredCondition.Status == metav1.ConditionTrue {
-		return true
+	if createdCondition != nil && createdCondition.Status == metav1.ConditionTrue {
+		ipPolicyCreated = true
 	}
 
-	return false
-}
-
-<<<<<<< HEAD
-=======
-// Checks if Rules Configuration condition has a value
-func HasIPPolicyRulesConfiguredCondition(ipPolicy *ingressv1alpha1.IPPolicy) bool {
+	// check IP Policy rules configured condition
+	ipPolicyRulesConfigured := false
 	rulesConfiguredCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
-	return rulesConfiguredCondition != nil
-}
+	if rulesConfiguredCondition != nil && rulesConfiguredCondition.Status == metav1.ConditionTrue {
+		ipPolicyRulesConfigured = true
+	}
 
->>>>>>> 1347be6 (Adding status conditions for the IP policy along with unit tests)
-// Checks if Rules Configuration condition is true
-func IsIPPolicyRulesConfigured(ipPolicy *ingressv1alpha1.IPPolicy) bool {
-	rulesConfiguredCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
-	return rulesConfiguredCondition != nil && rulesConfiguredCondition.Status == metav1.ConditionTrue
+	if ipPolicyCreated && ipPolicyRulesConfigured {
+		setIPPolicyReadyCondition(ipPolicy, true, ReasonIPPolicyActive, "IP Policy is active")
+	} else if ipPolicyCreated && !ipPolicyRulesConfigured {
+		setIPPolicyReadyCondition(ipPolicy, false, ReasonIPPolicyRulesConfigurationError, "IP Policy rules are not configured")
+	} else {
+		setIPPolicyReadyCondition(ipPolicy, false, ReasonIPPolicyCreationFailed, "IP Policy is not ready")
+	}
+
 }

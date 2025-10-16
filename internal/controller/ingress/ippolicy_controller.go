@@ -97,7 +97,6 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
 func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	panic("Panicking IPPolicy")
 	return r.controller.Reconcile(ctx, req, new(ingressv1alpha1.IPPolicy))
 }
 
@@ -111,21 +110,13 @@ func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1
 		return err
 	}
 
-	setIPPolicyCreatedCondition(policy, true, ReasonIPPolicyCreated, "IP Policy successfully created")
 	policy.Status.ID = remotePolicy.ID
+	setIPPolicyCreatedCondition(policy, true, ReasonIPPolicyCreated, "IP Policy successfully created")
 
 	err = r.createOrUpdateIPPolicyRules(ctx, policy)
-	log := ctrl.LoggerFrom(ctx)
-	log.V(3).Info("After createOrUpdateIPPolicyRules")
-	if IsIPPolicyReady(policy) {
-		log.V(3).Info("Setting IP Policy Ready condition to true")
-		setIPPolicyReadyCondition(policy, true, ReasonIPPolicyActive, "IP Policy is ready")
-	} else {
-		log.V(3).Info("IP Policy is not ready")
-		if !IsIPPolicyRulesConfigured(policy) {
-			setIPPolicyReadyCondition(policy, false, ReasonIPPolicyRulesConfigurationError, "IP Policy rules not yet configured")
-		}
-	}
+
+	calculateIPPolicyReadyCondition(policy)
+
 	return r.controller.ReconcileStatus(ctx, policy, err)
 }
 
@@ -136,9 +127,11 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 			policy.Status.ID = ""
 			return r.Status().Update(ctx, policy)
 		}
+
 		setIPPolicyCreatedCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
 		setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
 		setIPPolicyReadyCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
+
 		return r.controller.ReconcileStatus(ctx, policy, err)
 	}
 
@@ -158,17 +151,9 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 	}
 
 	err = r.createOrUpdateIPPolicyRules(ctx, policy)
-	log := ctrl.LoggerFrom(ctx)
-	log.V(3).Info("After createOrUpdateIPPolicyRules")
-	if IsIPPolicyReady(policy) {
-		log.V(3).Info("Setting IP Policy Ready condition to true")
-		setIPPolicyReadyCondition(policy, true, ReasonIPPolicyActive, "IP Policy is ready")
-	} else {
-		log.V(3).Info("IP Policy is not ready")
-		if !IsIPPolicyRulesConfigured(policy) {
-			setIPPolicyReadyCondition(policy, false, ReasonIPPolicyRulesConfigurationError, "IP Policy rules not yet configured")
-		}
-	}
+
+	calculateIPPolicyReadyCondition(policy)
+
 	return r.controller.ReconcileStatus(ctx, policy, err)
 }
 
@@ -209,7 +194,6 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 			log.V(3).Info("Creating IP Policy Rule", "policy.id", policy.Status.ID, "cidr", c.CIDR, "action", c.Action)
 			rule, err := r.IPPolicyRulesClient.Create(ctx, c)
 			if err != nil {
-				log.V(3).Info("Error from create", "err", err)
 				if ngrokErr, ok := err.(*ngrok.Error); ok {
 					// check if the error is due to invalid cidr
 					if ngrokErr.ErrorCode == "ERR_NGROK_1406" {
@@ -246,9 +230,6 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 			log.V(3).Info("Updated IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID)
 		}
 	}
-
-	updateIPPolicyConditions(policy)
-	log.V(3).Info("Updating IP Policy status conditions", "conditions", policy.Status.Conditions)
 
 	return nil
 }

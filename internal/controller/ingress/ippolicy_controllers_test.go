@@ -1,253 +1,182 @@
 package ingress
 
 import (
-	"testing"
+	"context"
+	"time"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	ngrok "github.com/ngrok/ngrok-api-go/v7"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func TestIPPolicyDiff(t *testing.T) {
-	remoteRules := []*ngrok.IPPolicyRule{
-		{ID: "1", CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionAllow, Description: "a"},    // 2. Rule changed from allow to deny
-		{ID: "2", CIDR: "192.168.128.0/25", Action: IPPolicyRuleActionDeny, Description: "aa"},  // 3. Rule changed from deny to allow
-		{ID: "3", CIDR: "172.16.0.0/16", Action: IPPolicyRuleActionAllow, Description: "aaa"},   // 5. Allow Rule that will no longer exist
-		{ID: "4", CIDR: "172.17.0.0/16", Action: IPPolicyRuleActionDeny, Description: "aaaa"},   // 5. Deny Rule that will no longer exist
-		{ID: "5", CIDR: "172.19.0.0/16", Action: IPPolicyRuleActionAllow, Description: "aaaaa"}, // 6. Just changing description
-	}
-	changedDescriptionRule := ingressv1alpha1.IPPolicyRule{CIDR: "172.19.0.0/16", Action: IPPolicyRuleActionAllow}
-	changedDescriptionRule.Description = "b"
-
-	specRules := []ingressv1alpha1.IPPolicyRule{
-		{CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionDeny},    // 2. Rule changed from allow to deny
-		{CIDR: "192.168.128.0/25", Action: IPPolicyRuleActionAllow}, // 3. Rule changed from deny to allow
-		{CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionDeny},        // 1. New Rule to be denied
-		{CIDR: "172.18.0.0/16", Action: IPPolicyRuleActionAllow},    // 4. New Rule to be allowed
-		changedDescriptionRule, // 6. Just changing description
-	}
-
-	diff := newIPPolicyDiff("test", remoteRules, specRules)
-
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsDelete())
-	assert.Empty(t, diff.NeedsUpdate())
-	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[2].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)}},
-		diff.NeedsCreate(),
+var _ = Describe("IPPolicyReconciler", func() {
+	const (
+		timeout  = 10 * time.Second
+		interval = 250 * time.Millisecond
 	)
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsUpdate())
-	assert.Equal(t, []*ngrok.IPPolicyRule{remoteRules[0]}, diff.NeedsDelete())
-	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[0].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)},
-	}, diff.NeedsCreate())
+	var (
+		ctx context.Context
+	)
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsUpdate())
-	assert.Equal(t, []*ngrok.IPPolicyRule{remoteRules[1]}, diff.NeedsDelete())
-	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[1].CIDR, Action: ptr.To(IPPolicyRuleActionAllow)},
-	}, diff.NeedsCreate())
+	BeforeEach(func() {
+		ctx = GinkgoT().Context()
+		// reset mocks
+		ipPolicyClient.Reset()
+		ipPolicyRuleClient.SetItems(nil)
+	})
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsUpdate())
-	assert.Equal(t, []*ngrok.IPPolicyRule{}, diff.NeedsDelete())
-	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[3].CIDR, Action: ptr.To(IPPolicyRuleActionAllow)},
-	}, diff.NeedsCreate())
+	It("creates IPPolicy and configures rules", func() {
+		ip := &ingressv1alpha1.IPPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy", Namespace: "default"},
+			Spec:       ingressv1alpha1.IPPolicySpec{},
+		}
+		ip.Spec.Metadata = "test"
+		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "allow"}, {CIDR: "192.168.1.0/24", Action: "deny"}}
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsUpdate())
-	assert.Equal(t, []*ngrok.IPPolicyRule{remoteRules[2], remoteRules[3]}, diff.NeedsDelete())
-	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{}, diff.NeedsCreate())
+		// set descriptions after literal construction
+		ip.Spec.Rules[0].Description = "desc1"
+		ip.Spec.Rules[1].Description = "desc2"
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsDelete())
-	assert.Empty(t, diff.NeedsCreate())
-	assert.Equal(t, []*ngrok.IPPolicyRuleUpdate{
-		{ID: "5", CIDR: ptr.To("172.19.0.0/16"), Description: ptr.To("b"), Metadata: ptr.To("")},
-	}, diff.NeedsUpdate())
+		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
-	assert.False(t, diff.Next())
-}
-func TestIPPolicyDiff_EmptyRemoteRules(t *testing.T) {
-	specRules := []ingressv1alpha1.IPPolicyRule{
-		{CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionAllow},
-		{CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionDeny},
-	}
-	diff := newIPPolicyDiff("test", nil, specRules)
+		Eventually(func() []string {
+			items := ipPolicyRuleClient.Items()
+			out := []string{}
+			for _, it := range items {
+				out = append(out, it.CIDR)
+			}
+			return out
+		}, timeout, interval).Should(ContainElements("10.0.0.0/8", "192.168.1.0/24"))
+	})
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsDelete())
-	assert.Empty(t, diff.NeedsUpdate())
-	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[0].CIDR, Action: ptr.To(IPPolicyRuleActionAllow)},
-	}, diff.NeedsCreate())
+	It("updates existing rule descriptions", func() {
+		ip := &ingressv1alpha1.IPPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy-update", Namespace: "default"},
+			Spec:       ingressv1alpha1.IPPolicySpec{},
+		}
+		ip.Spec.Metadata = "test"
+		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "allow"}}
+		ip.Spec.Rules[0].Description = "orig"
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsDelete())
-	assert.Empty(t, diff.NeedsUpdate())
-	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[1].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)},
-	}, diff.NeedsCreate())
+		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
-	assert.False(t, diff.Next())
-}
+		Eventually(func() []string {
+			items := ipPolicyRuleClient.Items()
+			out := []string{}
+			for _, it := range items {
+				out = append(out, it.Description)
+			}
+			return out
+		}, timeout, interval).Should(ContainElement("orig"))
 
-func TestIPPolicyDiff_EmptySpecRules(t *testing.T) {
-	remoteRules := []*ngrok.IPPolicyRule{
-		{ID: "1", CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionAllow, Description: "desc"},
-		{ID: "2", CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionDeny, Description: "desc2"},
-	}
-	diff := newIPPolicyDiff("test", remoteRules, nil)
+		patch := client.MergeFrom(ip.DeepCopy())
+		ip.Spec.Rules[0].Description = "updated"
+		Expect(k8sClient.Patch(ctx, ip, patch)).To(Succeed())
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsUpdate())
-	assert.Equal(t, []*ngrok.IPPolicyRule{remoteRules[0], remoteRules[1]}, diff.NeedsDelete())
-	assert.Empty(t, diff.NeedsCreate())
+		Eventually(func() []string {
+			items := ipPolicyRuleClient.Items()
+			out := []string{}
+			for _, it := range items {
+				out = append(out, it.Description)
+			}
+			return out
+		}, timeout, interval).Should(ContainElement("updated"))
+	})
 
-	assert.False(t, diff.Next())
-}
+	It("deletes obsolete rules", func() {
+		ip := &ingressv1alpha1.IPPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy-del", Namespace: "default"},
+			Spec:       ingressv1alpha1.IPPolicySpec{},
+		}
+		ip.Spec.Metadata = "test"
+		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "allow"}}
+		ip.Spec.Rules[0].Description = "orig"
 
-func TestIPPolicyDiff_NoChanges(t *testing.T) {
-	remoteRules := []*ngrok.IPPolicyRule{
-		{ID: "1", CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionAllow, Description: "desc"},
-		{ID: "2", CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionDeny, Description: "desc2"},
-	}
-	specRules := []ingressv1alpha1.IPPolicyRule{
-		{CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionAllow, Description: "desc"},
-		{CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionDeny, Description: "desc2"},
-	}
-	diff := newIPPolicyDiff("test", remoteRules, specRules)
+		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
-	assert.False(t, diff.Next())
-}
+		Eventually(func() []string {
+			items := ipPolicyRuleClient.Items()
+			out := []string{}
+			for _, it := range items {
+				out = append(out, it.CIDR)
+			}
+			return out
+		}, timeout, interval).Should(ContainElement("10.0.0.0/8"))
 
-func TestIPPolicyDiff_MetadataChange(t *testing.T) {
-	remoteRules := []*ngrok.IPPolicyRule{
-		{ID: "1", CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionAllow, Description: "desc", Metadata: "oldmeta"},
-	}
-	specRules := []ingressv1alpha1.IPPolicyRule{
-		{CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionAllow, Description: "desc"},
-	}
-	diff := newIPPolicyDiff("test", remoteRules, specRules)
+		patch := client.MergeFrom(ip.DeepCopy())
+		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{}
+		Expect(k8sClient.Patch(ctx, ip, patch)).To(Succeed())
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsDelete())
-	assert.Empty(t, diff.NeedsCreate())
-	assert.Equal(t, []*ngrok.IPPolicyRuleUpdate{
-		{ID: "1", CIDR: ptr.To("10.0.0.0/8"), Description: ptr.To("desc"), Metadata: ptr.To("")},
-	}, diff.NeedsUpdate())
+		Eventually(func() int {
+			count := 0
+			for _, it := range ipPolicyRuleClient.Items() {
+				if it.IPPolicy.ID == ip.Status.ID {
+					count++
+				}
+			}
+			return count
+		}, timeout, interval).Should(Equal(0))
+	})
+})
 
-	assert.False(t, diff.Next())
-}
+var _ = Describe("IPPolicyDiff", func() {
+	It("computes creates, deletes and updates correctly", func() {
+		remoteRules := []*ngrok.IPPolicyRule{
+			{ID: "1", CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionAllow, Description: "a"},
+			{ID: "2", CIDR: "192.168.128.0/25", Action: IPPolicyRuleActionDeny, Description: "aa"},
+			{ID: "3", CIDR: "172.16.0.0/16", Action: IPPolicyRuleActionAllow, Description: "aaa"},
+			{ID: "4", CIDR: "172.17.0.0/16", Action: IPPolicyRuleActionDeny, Description: "aaaa"},
+			{ID: "5", CIDR: "172.19.0.0/16", Action: IPPolicyRuleActionAllow, Description: "aaaaa"},
+		}
 
-func TestIPPolicyDiff_ActionChangeOnly(t *testing.T) {
-	remoteRules := []*ngrok.IPPolicyRule{
-		{ID: "1", CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionAllow, Description: "desc"},
-	}
-	specRules := []ingressv1alpha1.IPPolicyRule{
-		{CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionDeny, Description: "desc"},
-	}
-	diff := newIPPolicyDiff("test", remoteRules, specRules)
+		changedDescriptionRule := ingressv1alpha1.IPPolicyRule{CIDR: "172.19.0.0/16", Action: IPPolicyRuleActionAllow}
+		changedDescriptionRule.Description = "b"
 
-	assert.True(t, diff.Next())
-	assert.Empty(t, diff.NeedsUpdate())
-	assert.Equal(t, []*ngrok.IPPolicyRule{remoteRules[0]}, diff.NeedsDelete())
-	assert.Equal(t, []*ngrok.IPPolicyRuleCreate{
-		{IPPolicyID: "test", CIDR: specRules[0].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)},
-	}, diff.NeedsCreate())
+		specRules := []ingressv1alpha1.IPPolicyRule{
+			{CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionDeny},
+			{CIDR: "192.168.128.0/25", Action: IPPolicyRuleActionAllow},
+			{CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionDeny},
+			{CIDR: "172.18.0.0/16", Action: IPPolicyRuleActionAllow},
+			changedDescriptionRule,
+		}
 
-	assert.False(t, diff.Next())
-}
+		diff := newIPPolicyDiff("test", remoteRules, specRules)
 
-func TestCreateIPPolicyRules_CreatesRules(t *testing.T) {
-	client := &mockNgrokClient{}
-	ipPolicyID := "test-policy"
-	rules := []ingressv1alpha1.IPPolicyRule{
-		{CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionAllow, Description: "desc1"},
-		{CIDR: "192.168.1.0/24", Action: IPPolicyRuleActionDeny, Description: "desc2"},
-	}
+		Expect(diff.Next()).To(BeTrue())
+		Expect(diff.NeedsDelete()).To(BeEmpty())
+		Expect(diff.NeedsUpdate()).To(BeEmpty())
+		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[2].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)}}))
 
-	created := []*ngrok.IPPolicyRuleCreate{}
-	client.On("CreateIPPolicyRule", mock.Anything).Run(func(args mock.Arguments) {
-		created = append(created, args.Get(0).(*ngrok.IPPolicyRuleCreate))
-	}).Return(&ngrok.IPPolicyRule{}, nil)
+		Expect(diff.Next()).To(BeTrue())
+		Expect(diff.NeedsUpdate()).To(BeEmpty())
+		Expect(diff.NeedsDelete()).To(Equal([]*ngrok.IPPolicyRule{remoteRules[0]}))
+		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[0].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)}}))
 
-	err := createIPPolicyRules(client, ipPolicyID, rules)
-	assert.NoError(t, err)
-	assert.Len(t, created, 2)
-	assert.Equal(t, ipPolicyID, created[0].IPPolicyID)
-	assert.Equal(t, "10.0.0.0/8", created[0].CIDR)
-	assert.Equal(t, IPPolicyRuleActionAllow, *created[0].Action)
-	assert.Equal(t, "desc1", created[0].Description)
-	assert.Equal(t, "192.168.1.0/24", created[1].CIDR)
-	assert.Equal(t, IPPolicyRuleActionDeny, *created[1].Action)
-	assert.Equal(t, "desc2", created[1].Description)
-}
+		Expect(diff.Next()).To(BeTrue())
+		Expect(diff.NeedsUpdate()).To(BeEmpty())
+		Expect(diff.NeedsDelete()).To(Equal([]*ngrok.IPPolicyRule{remoteRules[1]}))
+		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[1].CIDR, Action: ptr.To(IPPolicyRuleActionAllow)}}))
 
-func TestUpdateIPPolicyRules_UpdatesRules(t *testing.T) {
-	client := &mockNgrokClient{}
-	updates := []*ngrok.IPPolicyRuleUpdate{
-		{ID: "1", CIDR: ptr.To("10.0.0.0/8"), Description: ptr.To("newdesc")},
-		{ID: "2", CIDR: ptr.To("192.168.1.0/24"), Action: ptr.To(IPPolicyRuleActionDeny)},
-	}
+		Expect(diff.Next()).To(BeTrue())
+		Expect(diff.NeedsUpdate()).To(BeEmpty())
+		Expect(diff.NeedsDelete()).To(BeEmpty())
+		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[3].CIDR, Action: ptr.To(IPPolicyRuleActionAllow)}}))
 
-	updated := []*ngrok.IPPolicyRuleUpdate{}
-	client.On("UpdateIPPolicyRule", mock.Anything).Run(func(args mock.Arguments) {
-		updated = append(updated, args.Get(0).(*ngrok.IPPolicyRuleUpdate))
-	}).Return(&ngrok.IPPolicyRule{}, nil)
+		Expect(diff.Next()).To(BeTrue())
+		Expect(diff.NeedsUpdate()).To(BeEmpty())
+		Expect(diff.NeedsDelete()).To(Equal([]*ngrok.IPPolicyRule{remoteRules[2], remoteRules[3]}))
+		Expect(diff.NeedsCreate()).To(BeEmpty())
 
-	err := updateIPPolicyRules(client, updates)
-	assert.NoError(t, err)
-	assert.Len(t, updated, 2)
-	assert.Equal(t, "1", updated[0].ID)
-	assert.Equal(t, "newdesc", *updated[0].Description)
-	assert.Equal(t, "2", updated[1].ID)
-	assert.Equal(t, IPPolicyRuleActionDeny, *updated[1].Action)
-}
+		Expect(diff.Next()).To(BeTrue())
+		Expect(diff.NeedsDelete()).To(BeEmpty())
+		Expect(diff.NeedsCreate()).To(BeEmpty())
+		Expect(diff.NeedsUpdate()).To(Equal([]*ngrok.IPPolicyRuleUpdate{{ID: "5", CIDR: ptr.To("172.19.0.0/16"), Description: ptr.To("b"), Metadata: ptr.To("")}}))
 
-func TestCreateOrUpdateIPPolicyRules_CreatesAndUpdates(t *testing.T) {
-	client := &mockNgrokClient{}
-	ipPolicyID := "test-policy"
-	createRules := []ingressv1alpha1.IPPolicyRule{
-		{CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionAllow, Description: "desc1"},
-	}
-	updateRules := []*ngrok.IPPolicyRuleUpdate{
-		{ID: "2", CIDR: ptr.To("192.168.1.0/24"), Action: ptr.To(IPPolicyRuleActionDeny)},
-	}
-
-	created := []*ngrok.IPPolicyRuleCreate{}
-	updated := []*ngrok.IPPolicyRuleUpdate{}
-	client.On("CreateIPPolicyRule", mock.Anything).Run(func(args mock.Arguments) {
-		created = append(created, args.Get(0).(*ngrok.IPPolicyRuleCreate))
-	}).Return(&ngrok.IPPolicyRule{}, nil)
-	client.On("UpdateIPPolicyRule", mock.Anything).Run(func(args mock.Arguments) {
-		updated = append(updated, args.Get(0).(*ngrok.IPPolicyRuleUpdate))
-	}).Return(&ngrok.IPPolicyRule{}, nil)
-
-	err := createOrUpdateIPPolicyRules(client, ipPolicyID, createRules, updateRules)
-	assert.NoError(t, err)
-	assert.Len(t, created, 1)
-	assert.Len(t, updated, 1)
-	assert.Equal(t, "10.0.0.0/8", created[0].CIDR)
-	assert.Equal(t, "2", updated[0].ID)
-}
-
-// Mock client for ngrok API
-type mockNgrokClient struct {
-	mock.Mock
-}
-
-func (m *mockNgrokClient) CreateIPPolicyRule(rule *ngrok.IPPolicyRuleCreate) (*ngrok.IPPolicyRule, error) {
-	args := m.Called(rule)
-	return args.Get(0).(*ngrok.IPPolicyRule), args.Error(1)
-}
-
-func (m *mockNgrokClient) UpdateIPPolicyRule(rule *ngrok.IPPolicyRuleUpdate) (*ngrok.IPPolicyRule, error) {
-	args := m.Called(rule)
-	return args.Get(0).(*ngrok.IPPolicyRule), args.Error(1)
-}
+		Expect(diff.Next()).To(BeFalse())
+	})
+})

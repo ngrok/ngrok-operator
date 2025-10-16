@@ -43,7 +43,7 @@ func (m *IPPolicyRuleClient) Create(ctx context.Context, item *ngrok.IPPolicyRul
 		return nil, &ngrok.Error{
 			StatusCode: http.StatusBadRequest,
 			Msg:        fmt.Sprintf("Invalid CIDR: %s", item.CIDR),
-			ErrorCode:  "ERR_NGROK_400",
+			ErrorCode:  "ERR_NGROK_1406",
 		}
 	}
 
@@ -55,6 +55,8 @@ func (m *IPPolicyRuleClient) Create(ctx context.Context, item *ngrok.IPPolicyRul
 		Action:      *item.Action,
 		CIDR:        item.CIDR,
 		Description: item.Description,
+		// Associate the created rule with the IP policy referenced in the create request
+		IPPolicy: ngrok.Ref{ID: item.IPPolicyID},
 	}
 
 	m.items[id] = newRule
@@ -72,7 +74,7 @@ func (m *IPPolicyRuleClient) Update(ctx context.Context, item *ngrok.IPPolicyRul
 			return nil, &ngrok.Error{
 				StatusCode: http.StatusBadRequest,
 				Msg:        fmt.Sprintf("Invalid CIDR: %s", *item.CIDR),
-				ErrorCode:  "ERR_NGROK_400",
+				ErrorCode:  "ERR_NGROK_1406",
 			}
 		}
 		existingItem.CIDR = *item.CIDR
@@ -131,4 +133,25 @@ func isValidCIDR(cidr string) bool {
 	}
 
 	return true
+}
+
+// SetItems replaces the internal store of rules with the provided slice.
+// Useful for tests to configure the set of remote rules that List will return.
+func (m *IPPolicyRuleClient) SetItems(items []*ngrok.IPPolicyRule) {
+	m.items = make(map[string]*ngrok.IPPolicyRule)
+	for _, it := range items {
+		if it.ID == "" {
+			it.ID = m.newID()
+		}
+		m.items[it.ID] = it
+	}
+}
+
+// Items returns a slice copy of all rules currently stored in the mock.
+func (m *IPPolicyRuleClient) Items() []*ngrok.IPPolicyRule {
+	out := make([]*ngrok.IPPolicyRule, 0, len(m.items))
+	for _, v := range m.items {
+		out = append(out, v)
+	}
+	return out
 }
