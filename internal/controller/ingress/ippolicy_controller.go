@@ -180,7 +180,6 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 	iter := newIPPolicyDiff(policy.Status.ID, remoteRules, policy.Spec.Rules)
 
 	for iter.Next() {
-		log.V(3).Info("In the loop")
 		log.V(3).Info("Created IPPolicyDiff", "creates", len(iter.creates), "updates", len(iter.updates), "deletes", len(iter.deletes))
 		for _, d := range iter.NeedsDelete() {
 			log.V(3).Info("Deleting IP Policy Rule", "id", d.ID, "policy.id", policy.Status.ID, "cidr", d.CIDR, "action", d.Action)
