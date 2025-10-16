@@ -10,191 +10,98 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 )
 
-// test ip policy not created yet
-func TestIpPolicyNotCreated(t *testing.T) {
-	test := struct {
-		name     string
-		ipPolicy *ingressv1alpha1.IPPolicy
-	}{
-		name:     "IP Policy Ready",
-		ipPolicy: &ingressv1alpha1.IPPolicy{},
-	}
-
-	t.Run("IP Policy Ready", func(t *testing.T) {
-		updateIPPolicyConditions(test.ipPolicy)
-
-		// Check Ready condition
-		readyCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyReady)
-		assert.NotNil(t, readyCondition)
-		assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
-		assert.Equal(t, ReasonIPPolicyCreationFailed, readyCondition.Reason)
-		assert.Equal(t, "IP Policy not yet created", readyCondition.Message)
-
-		// Check IPPolicyCreated condition
-		createdCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
-		assert.NotNil(t, createdCondition)
-		assert.Equal(t, metav1.ConditionFalse, createdCondition.Status)
-		assert.Equal(t, ReasonIPPolicyCreationFailed, createdCondition.Reason)
-		assert.Equal(t, "IP Policy not yet created", createdCondition.Message)
-
-		// Check RulesConfigured condition
-		rulesConfiguredCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
-		assert.NotNil(t, rulesConfiguredCondition)
-		assert.Equal(t, metav1.ConditionFalse, rulesConfiguredCondition.Status)
-		assert.Equal(t, ReasonIPPolicyCreationFailed, rulesConfiguredCondition.Reason)
-		assert.Equal(t, "IP Policy not yet created", rulesConfiguredCondition.Message)
-
-	})
-}
-
-// test ip policy rules not configured yet
-func TestIpPolicyRulesNotConfigured(t *testing.T) {
-	test := struct {
-		name     string
-		ipPolicy *ingressv1alpha1.IPPolicy
-	}{
-		name: "IP Policy Ready",
-		ipPolicy: &ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:       "test-ip-policy",
-				Generation: 1,
-			},
-			Spec: ingressv1alpha1.IPPolicySpec{},
-			Status: ingressv1alpha1.IPPolicyStatus{
-				ID: "ip_123",
-			},
+// Tests that ipPolicy condition ready is set correctly
+func TestSetIPPolicyReadyCondition(t *testing.T) {
+	ipPolicy := &ingressv1alpha1.IPPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-ip-policy",
+			Generation: 1,
 		},
 	}
 
-	t.Run("IP Policy Ready", func(t *testing.T) {
-		updateIPPolicyConditions(test.ipPolicy)
+	setIPPolicyReadyCondition(ipPolicy, true, ReasonIPPolicyActive, "IP Policy is active")
 
-		// Check Ready condition
-		readyCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyReady)
-		assert.NotNil(t, readyCondition)
-		assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
-		assert.Equal(t, ReasonIPPolicyRulesConfigurationError, readyCondition.Reason)
-		assert.Equal(t, "No rules configured for IP Policy", readyCondition.Message)
+	condition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyReady)
+	if condition == nil {
+		t.Fatal("Expected Ready condition to be set")
+	}
+	assert.Equal(t, metav1.ConditionTrue, condition.Status)
+	assert.Equal(t, ReasonIPPolicyActive, condition.Reason)
+	assert.Equal(t, "IP Policy is active", condition.Message)
+	assert.Equal(t, int64(1), condition.ObservedGeneration)
 
-		// Check IPPolicyCreated condition
-		createdCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
-		assert.NotNil(t, createdCondition)
-		assert.Equal(t, metav1.ConditionTrue, createdCondition.Status)
-		assert.Equal(t, ReasonIPPolicyCreated, createdCondition.Reason)
-		assert.Equal(t, "IP Policy successfully created", createdCondition.Message)
+	setIPPolicyReadyCondition(ipPolicy, false, ReasonIPPolicyCreationFailed, "Failed to create IP Policy")
 
-		// Check RulesConfigured condition
-		rulesConfiguredCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
-		assert.NotNil(t, rulesConfiguredCondition)
-		assert.Equal(t, metav1.ConditionFalse, rulesConfiguredCondition.Status)
-		assert.Equal(t, ReasonIPPolicyRulesConfigurationError, rulesConfiguredCondition.Reason)
-		assert.Equal(t, "No rules configured for IP Policy", rulesConfiguredCondition.Message)
-
-	})
+	condition = meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyReady)
+	if condition == nil {
+		t.Fatal("Expected Ready condition to be set")
+	}
+	assert.Equal(t, metav1.ConditionFalse, condition.Status)
+	assert.Equal(t, ReasonIPPolicyCreationFailed, condition.Reason)
+	assert.Equal(t, "Failed to create IP Policy", condition.Message)
+	assert.Equal(t, int64(1), condition.ObservedGeneration)
 }
 
-// test ip policy rule have invalid cidr
-func TestIpPolicyRuleInvalidCIDR(t *testing.T) {
-	test := struct {
-		name     string
-		ipPolicy *ingressv1alpha1.IPPolicy
-	}{
-		name: "IP Policy Invalid CIDR",
-		ipPolicy: &ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:       "test-ip-policy-invalid-cidr",
-				Generation: 1,
-			},
-			Spec: ingressv1alpha1.IPPolicySpec{
-				Rules: []ingressv1alpha1.IPPolicyRule{
-					{
-						Action: IPPolicyRuleActionAllow,
-						CIDR:   "1.2.3.155/323",
-					},
-				},
-			},
-			Status: ingressv1alpha1.IPPolicyStatus{
-				ID: "ip_456",
-			},
+// Tests that ipPolicy condition created is set correctly
+func TestSetIPPolicyCreatedCondition(t *testing.T) {
+	ipPolicy := &ingressv1alpha1.IPPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-ip-policy",
+			Generation: 1,
 		},
 	}
 
-	t.Run("IP Policy Invalid CIDR", func(t *testing.T) {
-		updateIPPolicyConditions(test.ipPolicy)
+	setIPPolicyCreatedCondition(ipPolicy, true, ReasonIPPolicyCreated, "IP Policy has been created")
 
-		// Check Ready condition
-		readyCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyReady)
-		assert.NotNil(t, readyCondition)
-		assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
-		assert.Equal(t, ReasonIPPolicyInvalidCIDR, readyCondition.Reason)
-		assert.Equal(t, "Invalid CIDR in IP Policy rules", readyCondition.Message)
+	condition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
+	if condition == nil {
+		t.Fatal("Expected Created condition to be set")
+	}
+	assert.Equal(t, metav1.ConditionTrue, condition.Status)
+	assert.Equal(t, ReasonIPPolicyCreated, condition.Reason)
+	assert.Equal(t, "IP Policy has been created", condition.Message)
+	assert.Equal(t, int64(1), condition.ObservedGeneration)
 
-		// Check IPPolicyCreated condition
-		createdCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
-		assert.NotNil(t, createdCondition)
-		assert.Equal(t, metav1.ConditionTrue, createdCondition.Status)
-		assert.Equal(t, ReasonIPPolicyCreated, createdCondition.Reason)
-		assert.Equal(t, "IP Policy successfully created", createdCondition.Message)
+	setIPPolicyCreatedCondition(ipPolicy, false, ReasonIPPolicyCreationFailed, "Failed to create IP Policy")
 
-		// Check RulesConfigured condition
-		rulesConfiguredCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
-		assert.NotNil(t, rulesConfiguredCondition)
-		assert.Equal(t, metav1.ConditionFalse, rulesConfiguredCondition.Status)
-		assert.Equal(t, ReasonIPPolicyInvalidCIDR, rulesConfiguredCondition.Reason)
-		assert.Equal(t, "Invalid CIDR in IP Policy rules", rulesConfiguredCondition.Message)
-
-	})
+	condition = meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
+	if condition == nil {
+		t.Fatal("Expected Created condition to be set")
+	}
+	assert.Equal(t, metav1.ConditionFalse, condition.Status)
+	assert.Equal(t, ReasonIPPolicyCreationFailed, condition.Reason)
+	assert.Equal(t, "Failed to create IP Policy", condition.Message)
+	assert.Equal(t, int64(1), condition.ObservedGeneration)
 }
 
-// test ip policy ready
-func TestIpPolicyReady(t *testing.T) {
-	test := struct {
-		name     string
-		ipPolicy *ingressv1alpha1.IPPolicy
-	}{
-		name: "IP Policy Ready",
-		ipPolicy: &ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:       "test-ip-policy",
-				Generation: 1,
-			},
-			Spec: ingressv1alpha1.IPPolicySpec{
-				Rules: []ingressv1alpha1.IPPolicyRule{
-					{
-						Action: IPPolicyRuleActionAllow,
-						CIDR:   "1.2.3.155/32",
-					},
-				},
-			},
-			Status: ingressv1alpha1.IPPolicyStatus{
-				ID: "ip_123",
-			},
+// Tests that ipPolicy condition rules configured is set correctly
+func TestSetIPPolicyRulesConfiguredCondition(t *testing.T) {
+	ipPolicy := &ingressv1alpha1.IPPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-ip-policy",
+			Generation: 1,
 		},
 	}
 
-	t.Run("IP Policy Ready", func(t *testing.T) {
-		updateIPPolicyConditions(test.ipPolicy)
+	setIPPolicyRulesConfiguredCondition(ipPolicy, true, ReasonIPPolicyRulesConfigured, "IP Policy rules have been configured")
 
-		// Check Ready condition
-		readyCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyReady)
-		assert.NotNil(t, readyCondition)
-		assert.Equal(t, metav1.ConditionTrue, readyCondition.Status)
-		assert.Equal(t, ReasonIPPolicyActive, readyCondition.Reason)
-		assert.Equal(t, "IP Policy is active", readyCondition.Message)
+	condition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
+	if condition == nil {
+		t.Fatal("Expected RulesConfigured condition to be set")
+	}
+	assert.Equal(t, metav1.ConditionTrue, condition.Status)
+	assert.Equal(t, ReasonIPPolicyRulesConfigured, condition.Reason)
+	assert.Equal(t, "IP Policy rules have been configured", condition.Message)
+	assert.Equal(t, int64(1), condition.ObservedGeneration)
 
-		// Check IPPolicyCreated condition
-		createdCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
-		assert.NotNil(t, createdCondition)
-		assert.Equal(t, metav1.ConditionTrue, createdCondition.Status)
-		assert.Equal(t, ReasonIPPolicyCreated, createdCondition.Reason)
-		assert.Equal(t, "IP Policy successfully created", createdCondition.Message)
+	setIPPolicyRulesConfiguredCondition(ipPolicy, false, ReasonIPPolicyRulesConfigurationError, "Failed to configure IP Policy rules")
 
-		// Check RulesConfigured condition
-		rulesConfiguredCondition := meta.FindStatusCondition(test.ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
-		assert.NotNil(t, rulesConfiguredCondition)
-		assert.Equal(t, metav1.ConditionTrue, rulesConfiguredCondition.Status)
-		assert.Equal(t, ReasonIPPolicyRulesConfigured, rulesConfiguredCondition.Reason)
-		assert.Equal(t, "All rules configured for IP Policy", rulesConfiguredCondition.Message)
-
-	})
+	condition = meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
+	if condition == nil {
+		t.Fatal("Expected RulesConfigured condition to be set")
+	}
+	assert.Equal(t, metav1.ConditionFalse, condition.Status)
+	assert.Equal(t, ReasonIPPolicyRulesConfigurationError, condition.Reason)
+	assert.Equal(t, "Failed to configure IP Policy rules", condition.Message)
+	assert.Equal(t, int64(1), condition.ObservedGeneration)
 }

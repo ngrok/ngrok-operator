@@ -141,6 +141,20 @@ var _ = BeforeSuite(func() {
 
 	Expect(err).NotTo(HaveOccurred())
 
+	ipPolicyClient := nmockapi.NewIPPolicyClient()
+	ipPolicyRuleClient := nmockapi.NewIPPolicyRuleClient(ipPolicyClient)
+
+	err = (&IPPolicyReconciler{
+		Client:              k8sManager.GetClient(),
+		Log:                 logf.Log.WithName("controllers").WithName("IPPolicy"),
+		Recorder:            k8sManager.GetEventRecorderFor("ippolicy-controller"),
+		Scheme:              k8sManager.GetScheme(),
+		IPPoliciesClient:    ipPolicyClient,
+		IPPolicyRulesClient: ipPolicyRuleClient,
+	}).SetupWithManager(k8sManager)
+
+	Expect(err).NotTo(HaveOccurred())
+
 	go func() {
 		defer GinkgoRecover()
 		err = k8sManager.Start(ctx)
