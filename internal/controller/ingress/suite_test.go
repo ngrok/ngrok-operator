@@ -143,8 +143,8 @@ var _ = BeforeSuite(func() {
 
 	Expect(err).NotTo(HaveOccurred())
 
-	ipPolicyClient := nmockapi.NewIPPolicyClient()
-	ipPolicyRuleClient := nmockapi.NewIPPolicyRuleClient(ipPolicyClient)
+	ipPolicyClient = nmockapi.NewIPPolicyClient()
+	ipPolicyRuleClient = nmockapi.NewIPPolicyRuleClient(ipPolicyClient)
 
 	err = (&IPPolicyReconciler{
 		Client:              k8sManager.GetClient(),

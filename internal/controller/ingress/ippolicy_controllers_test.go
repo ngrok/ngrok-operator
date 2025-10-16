@@ -25,9 +25,10 @@ var _ = Describe("IPPolicyReconciler", func() {
 
 	BeforeEach(func() {
 		ctx = GinkgoT().Context()
-		// reset mocks
+	})
+
+	AfterEach(func() {
 		ipPolicyClient.Reset()
-		ipPolicyRuleClient.SetItems(nil)
 	})
 
 	It("creates IPPolicy and configures rules", func() {

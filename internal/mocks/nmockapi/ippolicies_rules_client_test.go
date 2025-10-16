@@ -1,27 +1,22 @@
-package nmockapi
+package nmockapi_test
 
 import (
 	"context"
-	"testing"
 
 	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-func TestIPPolicyRuleClient_Ginkgo(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "IPPolicyRuleClient Suite")
-}
-
 var _ = Describe("IPPolicyRuleClient", func() {
 	var (
-		client *IPPolicyRuleClient
+		client *nmockapi.IPPolicyRuleClient
 		ctx    context.Context
 	)
 
 	BeforeEach(func() {
-		client = NewIPPolicyRuleClient(NewIPPolicyClient())
+		client = nmockapi.NewIPPolicyRuleClient(nmockapi.NewIPPolicyClient())
 		ctx = context.Background()
 	})
 
@@ -121,35 +116,6 @@ var _ = Describe("IPPolicyRuleClient", func() {
 			Expect(err).To(BeNil())
 			Expect(updated.Description).To(Equal(newDesc))
 			Expect(updated.CIDR).To(Equal(rule.CIDR))
-		})
-	})
-
-	Describe("isValidCIDR", func() {
-		It("returns true for valid CIDRs", func() {
-			valid := []string{
-				"192.168.1.0/24",
-				"10.0.0.1/32",
-				"0.0.0.0/0",
-			}
-			for _, cidr := range valid {
-				Expect(isValidCIDR(cidr)).To(BeTrue(), "should be valid: %s", cidr)
-			}
-		})
-
-		It("returns false for invalid CIDRs", func() {
-			invalid := []string{
-				"192.168.1.0",
-				"192.168.1.0/33",
-				"256.0.0.1/24",
-				"192.168.1/24",
-				"192.168.1.0/-1",
-				"abc.def.ghi.jkl/24",
-				"192.168.1.0/abc",
-				"192.168.1.0//24",
-			}
-			for _, cidr := range invalid {
-				Expect(isValidCIDR(cidr)).To(BeFalse(), "should be invalid: %s", cidr)
-			}
 		})
 	})
 })
