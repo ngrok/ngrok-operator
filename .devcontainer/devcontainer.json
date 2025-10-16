@@ -1,0 +1,12 @@
+{
+  "name": "ngrok-operator",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/nix:1": {
+      "extraNixConfig": "experimental-features = nix-command flakes,sandbox = true",
+      "packages": "direnv"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "direnv allow && direnv exec . make bootstrap-tools"
+}
