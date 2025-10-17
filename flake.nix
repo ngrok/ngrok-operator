@@ -3,7 +3,6 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
   };
-
   outputs =
     {
       self,
@@ -13,7 +12,12 @@
     (flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs {
+          inherit system;
+          config = {
+            allowUnfreePredicate = pkg: pkg.pname == "ngrok";
+          };
+        };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -28,6 +32,7 @@
             kubectl
             kubernetes-helm
             kyverno-chainsaw
+            ngrok
             nixfmt-rfc-style
             tilt
             yq
