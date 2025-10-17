@@ -30,6 +30,7 @@ var (
 	NgrokOpErrFailedToConnectServices       = EnrichedError{"ERR_NGROK_20004", 20004, http.StatusServiceUnavailable}
 	NgrokOpErrEndpointDenied                = EnrichedError{"ERR_NGROK_20005", 20005, http.StatusForbidden}
 	NgrokOpErrFailedToCreateCSR             = EnrichedError{"ERR_NGROK_20006", 20006, http.StatusInternalServerError}
+	NgrokOpErrInvalidCIDR                   = EnrichedError{"ERR_NGROK_1406", 1406, http.StatusBadRequest}
 )
 
 func NewNgrokError(origErr error, ee EnrichedError, msg string) *ngrok.Error {
