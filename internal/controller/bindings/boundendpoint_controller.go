@@ -197,11 +197,7 @@ func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alph
 	defer cancel()
 
 	err := r.testBoundEndpointConnectivity(timeoutCtx, cr)
-	if err != nil {
-		setConnectivityVerifiedCondition(cr, false, err)
-	} else {
-		setConnectivityVerifiedCondition(cr, true, nil)
-	}
+	r.setConnectivityStatus(cr, err)
 
 	return r.updateStatus(ctx, cr, nil)
 }
@@ -322,11 +318,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	defer cancel()
 
 	err = r.testBoundEndpointConnectivity(timeoutCtx, cr)
-	if err != nil {
-		setConnectivityVerifiedCondition(cr, false, err)
-	} else {
-		setConnectivityVerifiedCondition(cr, true, nil)
-	}
+	r.setConnectivityStatus(cr, err)
 
 	r.Recorder.Event(cr, v1.EventTypeNormal, "Updated", "Updated Services")
 	return r.updateStatus(ctx, cr, nil)
@@ -623,5 +615,15 @@ func updateServiceRefs(be *bindingsv1alpha1.BoundEndpoint, targetSvc, upstreamSv
 	}
 	be.Status.UpstreamServiceRef = &ngrokv1alpha1.K8sObjectRef{
 		Name: upstreamSvc.Name,
+	}
+}
+
+// setConnectivityStatus wraps connectivity test errors and sets the ConnectivityVerified condition
+func (r *BoundEndpointReconciler) setConnectivityStatus(be *bindingsv1alpha1.BoundEndpoint, err error) {
+	if err != nil {
+		ngrokErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToConnectServices, "failed to bind BoundEndpoint")
+		setConnectivityVerifiedCondition(be, false, ngrokErr)
+	} else {
+		setConnectivityVerifiedCondition(be, true, nil)
 	}
 }
