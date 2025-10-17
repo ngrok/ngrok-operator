@@ -192,17 +192,13 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 			log.V(3).Info("Creating IP Policy Rule", "policy.id", policy.Status.ID, "cidr", c.CIDR, "action", c.Action)
 			rule, err := r.IPPolicyRulesClient.Create(ctx, c)
 			if err != nil {
-				if ngrokErr, ok := err.(*ngrok.Error); ok {
-					// check if the error is due to invalid cidr
-					if ngrokErr.ErrorCode == "ERR_NGROK_1406" {
-						setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
-						setIPPolicyReadyCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
-					} else {
-						setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
-						setIPPolicyReadyCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
-					}
+				if ngrok.IsErrorCode(err, ngrokapi.NgrokOpErrInvalidCIDR.Code) {
+					setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
+					setIPPolicyReadyCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
+				} else {
+					setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
+					setIPPolicyReadyCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
 				}
-				return err
 			}
 			setIPPolicyRulesConfiguredCondition(policy, true, ReasonIPPolicyRulesConfigured, "All rules configured for IP Policy")
 			log.V(3).Info("Created IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID, "cidr", rule.CIDR, "action", rule.Action)
@@ -212,15 +208,12 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 			log.V(3).Info("Updating IP Policy Rule", "id", u.ID, "policy.id", policy.Status.ID, "cidr", u.CIDR, "metadata", u.Metadata, "description", u.Description)
 			rule, err := r.IPPolicyRulesClient.Update(ctx, u)
 			if err != nil {
-				if ngrokErr, ok := err.(*ngrok.Error); ok {
-					// check if the error is due to invalid cidr
-					if ngrokErr.ErrorCode == "ERR_NGROK_1406" {
-						setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
-						setIPPolicyReadyCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
-					} else {
-						setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
-						setIPPolicyReadyCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
-					}
+				if ngrok.IsErrorCode(err, ngrokapi.NgrokOpErrInvalidCIDR.Code) {
+					setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
+					setIPPolicyReadyCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
+				} else {
+					setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
+					setIPPolicyReadyCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
 				}
 				return err
 			}
