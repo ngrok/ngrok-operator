@@ -33,10 +33,6 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
-func stringPtr(input string) *string {
-	return &input
-}
-
 func TestBuildInternalAgentEndpoint(t *testing.T) {
 	testCases := []struct {
 		name                   string
@@ -205,7 +201,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			testName: "Name prefix",
 			irVHost: &ir.IRVirtualHost{
 				Bindings:               []string{"public"},
-				NamePrefix:             stringPtr("prefix"),
+				NamePrefix:             ptr.To("prefix"),
 				Namespace:              "foo",
 				Metadata:               "test-metadata",
 				EndpointPoolingEnabled: true,
@@ -370,14 +366,6 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 }
 
 func TestGatewayMethodToIR(t *testing.T) {
-	methodPtr := func(v gatewayv1.HTTPMethod) *gatewayv1.HTTPMethod {
-		return &v
-	}
-
-	irPtr := func(v ir.IRMethodMatch) *ir.IRMethodMatch {
-		return &v
-	}
-
 	testCases := []struct {
 		name     string
 		input    *gatewayv1.HTTPMethod
@@ -390,48 +378,48 @@ func TestGatewayMethodToIR(t *testing.T) {
 		},
 		{
 			name:     "GET",
-			input:    methodPtr(gatewayv1.HTTPMethodGet),
-			expected: irPtr(ir.IRMethodMatch_Get),
+			input:    ptr.To(gatewayv1.HTTPMethodGet),
+			expected: ptr.To(ir.IRMethodMatch_Get),
 		},
 		{
 			name:     "HEAD",
-			input:    methodPtr(gatewayv1.HTTPMethodHead),
-			expected: irPtr(ir.IRMethodMatch_Head),
+			input:    ptr.To(gatewayv1.HTTPMethodHead),
+			expected: ptr.To(ir.IRMethodMatch_Head),
 		},
 		{
 			name:     "POST",
-			input:    methodPtr(gatewayv1.HTTPMethodPost),
-			expected: irPtr(ir.IRMethodMatch_Post),
+			input:    ptr.To(gatewayv1.HTTPMethodPost),
+			expected: ptr.To(ir.IRMethodMatch_Post),
 		},
 		{
 			name:     "PUT",
-			input:    methodPtr(gatewayv1.HTTPMethodPut),
-			expected: irPtr(ir.IRMethodMatch_Put),
+			input:    ptr.To(gatewayv1.HTTPMethodPut),
+			expected: ptr.To(ir.IRMethodMatch_Put),
 		},
 		{
 			name:     "DELETE",
-			input:    methodPtr(gatewayv1.HTTPMethodDelete),
-			expected: irPtr(ir.IRMethodMatch_Delete),
+			input:    ptr.To(gatewayv1.HTTPMethodDelete),
+			expected: ptr.To(ir.IRMethodMatch_Delete),
 		},
 		{
 			name:     "CONNECT",
-			input:    methodPtr(gatewayv1.HTTPMethodConnect),
-			expected: irPtr(ir.IRMethodMatch_Connect),
+			input:    ptr.To(gatewayv1.HTTPMethodConnect),
+			expected: ptr.To(ir.IRMethodMatch_Connect),
 		},
 		{
 			name:     "OPTIONS",
-			input:    methodPtr(gatewayv1.HTTPMethodOptions),
-			expected: irPtr(ir.IRMethodMatch_Options),
+			input:    ptr.To(gatewayv1.HTTPMethodOptions),
+			expected: ptr.To(ir.IRMethodMatch_Options),
 		},
 		{
 			name:     "TRACE",
-			input:    methodPtr(gatewayv1.HTTPMethodTrace),
-			expected: irPtr(ir.IRMethodMatch_Trace),
+			input:    ptr.To(gatewayv1.HTTPMethodTrace),
+			expected: ptr.To(ir.IRMethodMatch_Trace),
 		},
 		{
 			name:     "PATCH",
-			input:    methodPtr(gatewayv1.HTTPMethodPatch),
-			expected: irPtr(ir.IRMethodMatch_Patch),
+			input:    ptr.To(gatewayv1.HTTPMethodPatch),
+			expected: ptr.To(ir.IRMethodMatch_Patch),
 		},
 	}
 
