@@ -10,24 +10,24 @@ import (
 
 const (
 	// Condition types for BoundEndpoint
-	ConditionTypeReady                   = "Ready"
-	ConditionTypeServicesCreated         = "ServicesCreated"
-	ConditionTypeConnectivityVerified    = "ConnectivityVerified"
+	ConditionTypeReady                = "Ready"
+	ConditionTypeServicesCreated      = "ServicesCreated"
+	ConditionTypeConnectivityVerified = "ConnectivityVerified"
 )
 
 const (
 	// Reasons for Ready condition
-	ReasonBoundEndpointReady          = "BoundEndpointReady"
-	ReasonServicesNotCreated          = "ServicesNotCreated"
-	ReasonConnectivityNotVerified     = "ConnectivityNotVerified"
+	ReasonBoundEndpointReady      = "BoundEndpointReady"
+	ReasonServicesNotCreated      = "ServicesNotCreated"
+	ReasonConnectivityNotVerified = "ConnectivityNotVerified"
 
 	// Reasons for ServicesCreated condition
-	ReasonServicesCreated             = "ServicesCreated"
-	ReasonServiceCreationFailed       = "ServiceCreationFailed"
+	ReasonServicesCreated       = "ServicesCreated"
+	ReasonServiceCreationFailed = "ServiceCreationFailed"
 
 	// Reasons for ConnectivityVerified condition
-	ReasonConnectivityVerified        = "ConnectivityVerified"
-	ReasonConnectivityFailed          = "ConnectivityFailed"
+	ReasonConnectivityVerified = "ConnectivityVerified"
+	ReasonConnectivityFailed   = "ConnectivityFailed"
 )
 
 // setServicesCreatedCondition sets the ServicesCreated condition

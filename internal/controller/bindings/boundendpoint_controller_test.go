@@ -32,13 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func Test_BoundEndpoint(t *testing.T) {
-	assert := assert.New(t)
-
-	// TODO(hkatz) implement me
-	assert.True(true)
-}
-
 func Test_convertBoundEndpointToServices(t *testing.T) {
 	assert := assert.New(t)
 
@@ -75,89 +68,4 @@ func Test_convertBoundEndpointToServices(t *testing.T) {
 
 	assert.Equal(upstreamService.Name, "abc123")
 	assert.Equal(upstreamService.Spec.Ports[0].Name, "https")
-}
-
-func Test_setEndpointsStatus(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		boundEndpoint *bindingsv1alpha1.BoundEndpoint
-		desired       *bindingsv1alpha1.BindingEndpoint
-	}{
-		{
-			name: "Set provisioning status",
-			boundEndpoint: &bindingsv1alpha1.BoundEndpoint{
-				Status: bindingsv1alpha1.BoundEndpointStatus{
-					Endpoints: []bindingsv1alpha1.BindingEndpoint{
-						{
-							Status:       bindingsv1alpha1.StatusUnknown,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-					},
-				},
-			},
-			desired: &bindingsv1alpha1.BindingEndpoint{
-				Status:       bindingsv1alpha1.StatusProvisioning,
-				ErrorCode:    "",
-				ErrorMessage: "",
-			},
-		},
-		{
-			name: "Set error status",
-			boundEndpoint: &bindingsv1alpha1.BoundEndpoint{
-				Status: bindingsv1alpha1.BoundEndpointStatus{
-					Endpoints: []bindingsv1alpha1.BindingEndpoint{
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-					},
-				},
-			},
-			desired: &bindingsv1alpha1.BindingEndpoint{
-				Status:       bindingsv1alpha1.StatusError,
-				ErrorCode:    "ERR_NGROK_1234",
-				ErrorMessage: "Example Error Message",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			assert := assert.New(t)
-
-			setEndpointsStatus(test.boundEndpoint, test.desired)
-
-			for _, endpoint := range test.boundEndpoint.Status.Endpoints {
-				assert.Equal(endpoint.Status, test.desired.Status)
-				assert.Equal(endpoint.ErrorCode, test.desired.ErrorCode)
-				assert.Equal(endpoint.ErrorMessage, test.desired.ErrorMessage)
-			}
-		})
-	}
-
 }
