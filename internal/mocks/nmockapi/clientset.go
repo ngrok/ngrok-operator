@@ -8,6 +8,8 @@ import (
 type Clientset struct {
 	domainsClient             *DomainClient
 	endpointsClient           *EndpointsClient
+	ipPoliciesClient          *IPPolicyClient
+	ipPolicyRulesClient       *IPPolicyRuleClient
 	kubernetesOperatorsClient *KubernetesOperatorsClient
 }
 
@@ -15,6 +17,8 @@ func NewClientset() *Clientset {
 	return &Clientset{
 		domainsClient:             NewDomainClient(),
 		endpointsClient:           NewEndpointsClient(),
+		ipPoliciesClient:          NewIPPolicyClient(),
+		ipPolicyRulesClient:       NewIPPolicyRuleClient(NewIPPolicyClient()),
 		kubernetesOperatorsClient: NewKubernetesOperatorsClient(),
 	}
 }
@@ -28,11 +32,11 @@ func (m *Clientset) Endpoints() ngrokapi.EndpointsClient {
 }
 
 func (m *Clientset) IPPolicies() ngrokapi.IPPoliciesClient {
-	return nil
+	return m.ipPoliciesClient
 }
 
 func (m *Clientset) IPPolicyRules() ngrokapi.IPPolicyRulesClient {
-	return nil
+	return m.ipPolicyRulesClient
 }
 
 func (m *Clientset) KubernetesOperators() ngrokapi.KubernetesOperatorsClient {

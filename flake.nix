@@ -25,6 +25,7 @@
             jq
             kind
             kubebuilder
+            kubectl
             kubernetes-helm
             kyverno-chainsaw
             nixfmt-rfc-style

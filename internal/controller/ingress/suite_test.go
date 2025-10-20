@@ -57,11 +57,13 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg          *rest.Config
-	k8sClient    client.Client
-	testEnv      *envtest.Environment
-	driver       *managerdriver.Driver
-	domainClient *nmockapi.DomainClient
+	cfg                *rest.Config
+	k8sClient          client.Client
+	testEnv            *envtest.Environment
+	driver             *managerdriver.Driver
+	domainClient       *nmockapi.DomainClient
+	ipPolicyClient     *nmockapi.IPPolicyClient
+	ipPolicyRuleClient *nmockapi.IPPolicyRuleClient
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -137,6 +139,20 @@ var _ = BeforeSuite(func() {
 		Recorder:      k8sManager.GetEventRecorderFor("domain-controller"),
 		Scheme:        k8sManager.GetScheme(),
 		DomainsClient: domainClient,
+	}).SetupWithManager(k8sManager)
+
+	Expect(err).NotTo(HaveOccurred())
+
+	ipPolicyClient = nmockapi.NewIPPolicyClient()
+	ipPolicyRuleClient = nmockapi.NewIPPolicyRuleClient(ipPolicyClient)
+
+	err = (&IPPolicyReconciler{
+		Client:              k8sManager.GetClient(),
+		Log:                 logf.Log.WithName("controllers").WithName("IPPolicy"),
+		Recorder:            k8sManager.GetEventRecorderFor("ippolicy-controller"),
+		Scheme:              k8sManager.GetScheme(),
+		IPPoliciesClient:    ipPolicyClient,
+		IPPolicyRulesClient: ipPolicyRuleClient,
 	}).SetupWithManager(k8sManager)
 
 	Expect(err).NotTo(HaveOccurred())

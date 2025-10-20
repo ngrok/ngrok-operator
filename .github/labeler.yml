@@ -6,6 +6,11 @@ area/controller:
 - '**/*.go'
 - Dockerfile
 
+area/devenv:
+- .devcontainer/**/*
+- flake.nix
+- flake.lock
+
 area/helm-chart:
 - helm/**/*
 

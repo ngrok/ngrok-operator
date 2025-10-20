@@ -17,7 +17,7 @@ deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-imag
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
 		--set log.format=console \
-		--set log.level=debug \
+		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile
 
@@ -33,7 +33,7 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
 		--set log.format=console \
-		--set log.level=debug \
+		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
 		--set useExperimentalGatewayApi=true
