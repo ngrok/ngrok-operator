@@ -23,7 +23,6 @@ coverage/
 *.swp
 *.swo
 *~
-.vscode
 .DS_Store
 
 e2e-fixtures/*/config*.yaml
