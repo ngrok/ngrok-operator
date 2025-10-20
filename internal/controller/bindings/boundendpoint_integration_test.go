@@ -256,4 +256,141 @@ var _ = Describe("BoundEndpoint Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
+
+	Context("Status updates", func() {
+		It("should not get stuck in provisioning when adding endpoints", func() {
+			By("Creating target namespace")
+			createTestNamespace(testCtx, "status-namespace")
+			defer deleteTestNamespace(testCtx, "status-namespace")
+
+			By("Setting up mock API with one endpoint initially")
+			setMockEndpoints([]ngrok.Endpoint{
+				{
+					ID:        "ep_initial",
+					URI:       "https://api.ngrok.com/endpoints/ep_initial",
+					PublicURL: "https://my-app.status-namespace:8080",
+					Proto:     "https",
+					Bindings:  []string{"public", "kubernetes://my-app.status-namespace:8080"},
+				},
+			})
+
+			By("Triggering poller to create initial BoundEndpoint")
+			err := triggerPoller(testCtx)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for services to be created")
+			var boundEndpointName string
+			Eventually(func(g Gomega) {
+				list := &bindingsv1alpha1.BoundEndpointList{}
+				err := k8sClient.List(testCtx, list, &client.ListOptions{
+					Namespace: pollerController.Namespace,
+				})
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(list.Items).To(HaveLen(1))
+
+				be := list.Items[0]
+				boundEndpointName = be.Name
+
+				servicesCreatedCond := findCondition(be.Status.Conditions, ConditionTypeServicesCreated)
+				g.Expect(servicesCreatedCond).NotTo(BeNil())
+				g.Expect(servicesCreatedCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+
+			By("Adding a second endpoint to the same service")
+			setMockEndpoints([]ngrok.Endpoint{
+				{
+					ID:        "ep_initial",
+					URI:       "https://api.ngrok.com/endpoints/ep_initial",
+					PublicURL: "https://my-app.status-namespace:8080",
+					Proto:     "https",
+					Bindings:  []string{"public", "kubernetes://my-app.status-namespace:8080"},
+				},
+				{
+					ID:        "ep_second",
+					URI:       "https://api.ngrok.com/endpoints/ep_second",
+					PublicURL: "https://my-app.status-namespace:8080",
+					Proto:     "https",
+					Bindings:  []string{"public", "kubernetes://my-app.status-namespace:8080"},
+				},
+			})
+
+			By("Triggering poller to update BoundEndpoint")
+			err = triggerPoller(testCtx)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying ServicesCreated condition stays True (not reset to provisioning)")
+			Eventually(func(g Gomega) {
+				be := &bindingsv1alpha1.BoundEndpoint{}
+				err := k8sClient.Get(testCtx, types.NamespacedName{
+					Name:      boundEndpointName,
+					Namespace: pollerController.Namespace,
+				}, be)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				// Should now have 2 endpoints
+				g.Expect(be.Status.Endpoints).To(HaveLen(2))
+				g.Expect(be.Status.EndpointsSummary).To(Equal("2 endpoints"))
+
+				// KEY TEST: ServicesCreated condition should remain True
+				servicesCreatedCond := findCondition(be.Status.Conditions, ConditionTypeServicesCreated)
+				g.Expect(servicesCreatedCond).NotTo(BeNil())
+				g.Expect(servicesCreatedCond.Status).To(Equal(metav1.ConditionTrue),
+					"ServicesCreated should stay True after adding endpoint")
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
+	Context("Error handling", func() {
+		It("should set ServicesCreated condition to False when target namespace missing", func() {
+			By("NOT creating target namespace - this will cause service creation to fail")
+
+			By("Setting up mock API with endpoint pointing to non-existent namespace")
+			setMockEndpoints([]ngrok.Endpoint{
+				{
+					ID:        "ep_missing_ns",
+					URI:       "https://api.ngrok.com/endpoints/ep_missing_ns",
+					PublicURL: "https://my-service.missing-namespace:8080",
+					Proto:     "https",
+					Bindings:  []string{"public", "kubernetes://my-service.missing-namespace:8080"},
+				},
+			})
+
+			By("Triggering poller to create BoundEndpoint")
+			err := triggerPoller(testCtx)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for BoundEndpoint to be created")
+			var boundEndpointName string
+			Eventually(func(g Gomega) {
+				list := &bindingsv1alpha1.BoundEndpointList{}
+				err := k8sClient.List(testCtx, list, &client.ListOptions{
+					Namespace: pollerController.Namespace,
+				})
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(list.Items).To(HaveLen(1))
+				boundEndpointName = list.Items[0].Name
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying ServicesCreated condition is False with namespace error")
+			Eventually(func(g Gomega) {
+				be := &bindingsv1alpha1.BoundEndpoint{}
+				err := k8sClient.Get(testCtx, types.NamespacedName{
+					Name:      boundEndpointName,
+					Namespace: pollerController.Namespace,
+				}, be)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				servicesCreatedCond := findCondition(be.Status.Conditions, ConditionTypeServicesCreated)
+				g.Expect(servicesCreatedCond).NotTo(BeNil())
+				g.Expect(servicesCreatedCond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(servicesCreatedCond.Reason).To(Equal(ReasonServiceCreationFailed))
+				g.Expect(servicesCreatedCond.Message).To(ContainSubstring("namespace"))
+
+				// Ready should also be False
+				readyCond := findCondition(be.Status.Conditions, ConditionTypeReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
 })
