@@ -329,37 +329,38 @@ func (r *BoundEndpointReconciler) delete(ctx context.Context, cr *bindingsv1alph
 }
 
 // deleteBoundEndpointServices deletes the Target and Upstream Services for the BoundEndpoint
-// Uses indexed lookup by labels to find services even if namespace is deleted or spec changed
 func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// Find all services owned by this BoundEndpoint using label selectors
-	// This works even if the target namespace was deleted or the spec changed
-	serviceList := &v1.ServiceList{}
-	listOpts := []client.ListOption{
-		client.MatchingLabels{
-			LabelBoundEndpointName:      cr.Name,
-			LabelBoundEndpointNamespace: cr.Namespace,
-		},
-	}
+	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
 
-	if err := r.Client.List(ctx, serviceList, listOpts...); err != nil {
-		log.Error(err, "Failed to list services for BoundEndpoint")
-		return err
-	}
-
-	// Delete all services that match
-	for i := range serviceList.Items {
-		service := &serviceList.Items[i]
-		if err := r.Client.Delete(ctx, service); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", fmt.Sprintf("Failed to delete Service %s/%s", service.Namespace, service.Name))
-				log.Error(err, "Failed to delete Service", "namespace", service.Namespace, "name", service.Name)
-				return err
-			}
-		} else {
-			log.Info("Deleted Service", "namespace", service.Namespace, "name", service.Name)
+	targetNamespace := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: targetService.Namespace}}
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: targetNamespace.Name}, targetNamespace); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			log.Error(err, "Failed to get Target Namespace")
+			return err
 		}
+		// fallthrough, no Target Service to delete
+	} else {
+		// Target Namespace exists, try to delete the Target Service
+
+		if err := r.Client.Delete(ctx, targetService); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return nil
+			}
+			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
+			log.Error(err, "Failed to delete Target Service")
+			return err
+		}
+	}
+
+	if err := r.Client.Delete(ctx, upstreamService); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
+			log.Error(err, "Failed to delete Upstream Service")
+			return err
+		}
+		// fallthrough, nothing to do
 	}
 
 	return nil
@@ -585,7 +586,7 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 
 // determineAndSetBindingEndpointStatus determines what the status of an endpoint should be
 // updateStatus is the single point where controller writes status to k8s API
-// Note: Controller does NOT set EndpointsSummary - the poller owns that field
+// Note: Controller does NOT set Endpoints or EndpointsSummary status fields - the poller owns them
 func (r *BoundEndpointReconciler) updateStatus(ctx context.Context, be *bindingsv1alpha1.BoundEndpoint, statusErr error) error {
 	// Get the current version to preserve poller-owned fields (Endpoints, EndpointsSummary, HashedName)
 	current := &bindingsv1alpha1.BoundEndpoint{}
