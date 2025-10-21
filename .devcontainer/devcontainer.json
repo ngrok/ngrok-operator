@@ -12,5 +12,10 @@
     },
     "./features/direnv-hook": {}
   },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  },
   "postCreateCommand": ".devcontainer/post-create.sh"
 }
