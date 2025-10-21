@@ -177,11 +177,6 @@ var _ = AfterSuite(func() {
 
 // Test helper functions
 
-// StringPtr returns a pointer to a string value
-func StringPtr(s string) *string {
-	return &s
-}
-
 // triggerPoller manually triggers a poll cycle
 func triggerPoller(ctx context.Context) error {
 	return pollerController.reconcileBoundEndpointsFromAPI(ctx)
@@ -215,14 +210,4 @@ func deleteTestNamespace(ctx context.Context, name string) {
 		},
 	}
 	_ = k8sClient.Delete(ctx, ns)
-}
-
-// findCondition finds a condition by type in a list of conditions
-func findCondition(conditions []metav1.Condition, condType string) *metav1.Condition {
-	for i := range conditions {
-		if conditions[i].Type == condType {
-			return &conditions[i]
-		}
-	}
-	return nil
 }

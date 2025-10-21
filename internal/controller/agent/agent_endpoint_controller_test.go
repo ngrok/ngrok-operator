@@ -33,6 +33,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -111,7 +112,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition set by running controller
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 				g.Expect(cond.Reason).To(Equal(ReasonEndpointActive))
@@ -148,7 +149,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				obj := &ngrokv1alpha1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 				g.Expect(obj.Status.AssignedURL).To(Equal("https://test.internal"))
@@ -178,7 +179,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check domain creation condition
-				domainCond := findCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
 				g.Expect(domainCond).NotTo(BeNil())
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(domainCond.Reason).To(Equal(domainpkg.ReasonDomainCreating))
@@ -218,7 +219,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check error condition set by running controller
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(cond.Reason).To(Equal(ReasonNgrokAPIError))
@@ -303,7 +304,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 				g.Expect(obj.Status.AttachedTrafficPolicy).To(Equal("inline"))
 
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
@@ -365,7 +366,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 				g.Expect(obj.Status.AttachedTrafficPolicy).To(Equal("referenced-policy"))
 
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
@@ -409,7 +410,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				obj := &ngrokv1alpha1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
-				policyCondition := findCondition(obj.Status.Conditions, ConditionTrafficPolicy)
+				policyCondition := testutils.FindCondition(obj.Status.Conditions, ConditionTrafficPolicy)
 				g.Expect(policyCondition).NotTo(BeNil())
 				g.Expect(policyCondition.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(policyCondition.Reason).To(Equal(ReasonTrafficPolicyError))
@@ -487,7 +488,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 
@@ -610,7 +611,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition is false
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(cond.Reason).To(Equal(ReasonNgrokAPIError))
@@ -702,7 +703,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				obj := &ngrokv1alpha1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
@@ -747,7 +748,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				obj := &ngrokv1alpha1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
@@ -791,7 +792,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				obj := &ngrokv1alpha1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
@@ -833,7 +834,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition set by running controller
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 				g.Expect(cond.Reason).To(Equal(ReasonEndpointActive))
@@ -879,7 +880,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition set by running controller
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(cond.Reason).To(Equal(ReasonNgrokAPIError))
@@ -979,7 +980,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 
@@ -1080,7 +1081,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Should have config error because certificate doesn't exist yet
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
@@ -1111,7 +1112,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Should now be ready because certificate exists
-				cond := findCondition(obj.Status.Conditions, ConditionReady)
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 				g.Expect(cond.Reason).To(Equal(ReasonEndpointActive))
@@ -1134,15 +1135,6 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 })
 
 // findCondition finds a condition by type in a slice of conditions
-func findCondition(conditions []metav1.Condition, conditionType string) *metav1.Condition {
-	for _, condition := range conditions {
-		if condition.Type == conditionType {
-			return &condition
-		}
-	}
-	return nil
-}
-
 // RandomString generates a random string of specified length for test isolation
 func RandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
