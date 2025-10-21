@@ -58,8 +58,8 @@ var _ = Describe("BoundEndpoint Controller", func() {
 	Context("Single endpoint", func() {
 		It("should create services and set conditions", func() {
 			By("Creating target namespace")
-			createTestNamespace(testCtx, "test-namespace")
-			defer deleteTestNamespace(testCtx, "test-namespace")
+			expectCreateNs("test-namespace")
+			defer expectDeleteNs("test-namespace")
 
 			By("Setting up mock API with one endpoint")
 			setMockEndpoints([]ngrok.Endpoint{
@@ -155,8 +155,8 @@ var _ = Describe("BoundEndpoint Controller", func() {
 	Context("Multiple endpoints", func() {
 		It("should aggregate endpoints targeting the same service", func() {
 			By("Creating target namespace")
-			createTestNamespace(testCtx, "multi-namespace")
-			defer deleteTestNamespace(testCtx, "multi-namespace")
+			expectCreateNs("multi-namespace")
+			defer expectDeleteNs("multi-namespace")
 
 			By("Setting up mock API with two endpoints pointing to same service")
 			setMockEndpoints([]ngrok.Endpoint{
@@ -237,8 +237,8 @@ var _ = Describe("BoundEndpoint Controller", func() {
 	Context("Status updates", func() {
 		It("should not get stuck in provisioning when adding endpoints", func() {
 			By("Creating target namespace")
-			createTestNamespace(testCtx, "status-namespace")
-			defer deleteTestNamespace(testCtx, "status-namespace")
+			expectCreateNs("status-namespace")
+			defer expectDeleteNs("status-namespace")
 
 			By("Setting up mock API with one endpoint initially")
 			setMockEndpoints([]ngrok.Endpoint{

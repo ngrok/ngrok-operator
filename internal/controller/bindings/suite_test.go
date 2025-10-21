@@ -35,6 +35,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -63,6 +64,10 @@ var (
 	// Test manager and reconcilers
 	k8sManager       ctrl.Manager
 	pollerController *BoundEndpointPoller
+
+	// Test helper closures
+	expectCreateNs func(string)
+	expectDeleteNs func(string)
 )
 
 func TestControllers(t *testing.T) {
@@ -98,6 +103,10 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+
+	// Initialize test helper closures
+	expectCreateNs = testutils.ExpectCreateNamespace(k8sClient)
+	expectDeleteNs = testutils.ExpectDeleteNamespace(k8sClient)
 
 	// Create the operator namespace that the poller will use
 	operatorNs := &v1.Namespace{
@@ -190,24 +199,4 @@ func setMockEndpoints(endpoints []ngrok.Endpoint) {
 // resetMockEndpoints clears all mock endpoints
 func resetMockEndpoints() {
 	mockClientset.KubernetesOperators().(*nmockapi.KubernetesOperatorsClient).ResetBoundEndpoints()
-}
-
-// createTestNamespace creates a namespace for testing
-func createTestNamespace(ctx context.Context, name string) {
-	ns := &v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-	Expect(k8sClient.Create(ctx, ns)).To(Succeed())
-}
-
-// deleteTestNamespace deletes a test namespace
-func deleteTestNamespace(ctx context.Context, name string) {
-	ns := &v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-	_ = k8sClient.Delete(ctx, ns)
 }
