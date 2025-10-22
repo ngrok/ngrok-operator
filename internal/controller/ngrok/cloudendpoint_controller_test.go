@@ -106,7 +106,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(obj.Status.ID).NotTo(BeEmpty())
 
 				// Check ready condition
-				cond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				cond := findCloudEndpointCondition(obj.Status.Conditions, string(ngrokv1alpha1.CloudEndpointConditionReady))
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
@@ -242,7 +242,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
 
 				// Check that error condition is set
-				cond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointCreated)
+				cond := findCloudEndpointCondition(obj.Status.Conditions, string(ngrokv1alpha1.CloudEndpointConditionCreated))
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 			}, timeout, interval).Should(Succeed())
@@ -533,7 +533,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
 
 				// Check that error condition is set
-				cond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointCreated)
+				cond := findCloudEndpointCondition(obj.Status.Conditions, string(ngrokv1alpha1.CloudEndpointConditionCreated))
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 			}, timeout, interval).Should(Succeed())

@@ -189,7 +189,7 @@ func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alph
 	}
 
 	// Both services created successfully
-	setServicesCreatedCondition(cr, true, ReasonServicesCreated, "Target and Upstream services created")
+	setServicesCreatedCondition(cr, true, bindingsv1alpha1.BoundEndpointReasonServicesCreated, "Target and Upstream services created")
 	updateServiceRefs(cr, targetService, upstreamService)
 
 	// Test connectivity
@@ -210,7 +210,7 @@ func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner
 		log.Error(err, "Failed to create Target Service")
 
 		ngrokErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateTargetService, "Failed to create Target Service")
-		setServicesCreatedCondition(owner, false, ReasonServiceCreationFailed, ngrokErr.Error())
+		setServicesCreatedCondition(owner, false, bindingsv1alpha1.BoundEndpointReasonServiceCreationFailed, ngrokErr.Error())
 
 		return ngrokErr
 	}
@@ -229,7 +229,7 @@ func (r *BoundEndpointReconciler) createUpstreamService(ctx context.Context, own
 		log.Error(err, "Failed to create Upstream Service")
 
 		ngrokErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateUpstreamService, "Failed to create Upstream Service")
-		setServicesCreatedCondition(owner, false, ReasonServiceCreationFailed, ngrokErr.Error())
+		setServicesCreatedCondition(owner, false, bindingsv1alpha1.BoundEndpointReasonServiceCreationFailed, ngrokErr.Error())
 
 		return ngrokErr
 	}
@@ -310,7 +310,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	}
 
 	// Both services exist and are up to date
-	setServicesCreatedCondition(cr, true, ReasonServicesCreated, "Target and Upstream services created")
+	setServicesCreatedCondition(cr, true, bindingsv1alpha1.BoundEndpointReasonServicesCreated, "Target and Upstream services created")
 	updateServiceRefs(cr, desiredTargetService, desiredUpstreamService)
 
 	// Test connectivity

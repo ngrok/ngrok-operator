@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 )
 
 // Tests that ipPolicy condition ready is set correctly
@@ -19,25 +19,25 @@ func TestSetIPPolicyReadyCondition(t *testing.T) {
 		},
 	}
 
-	setIPPolicyReadyCondition(ipPolicy, true, ReasonIPPolicyActive, "IP Policy is active")
+	setIPPolicyReadyCondition(ipPolicy, true, ingressv1alpha1.IPPolicyReasonActive, "IP Policy is active")
 
-	condition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyReady)
+	condition := conditions.FindCondition(ipPolicy.Status.Conditions, ingressv1alpha1.IPPolicyConditionReady)
 	if condition == nil {
 		t.Fatal("Expected Ready condition to be set")
 	}
 	assert.Equal(t, metav1.ConditionTrue, condition.Status)
-	assert.Equal(t, ReasonIPPolicyActive, condition.Reason)
+	assert.Equal(t, string(ingressv1alpha1.IPPolicyReasonActive), condition.Reason)
 	assert.Equal(t, "IP Policy is active", condition.Message)
 	assert.Equal(t, int64(1), condition.ObservedGeneration)
 
-	setIPPolicyReadyCondition(ipPolicy, false, ReasonIPPolicyCreationFailed, "Failed to create IP Policy")
+	setIPPolicyReadyCondition(ipPolicy, false, ingressv1alpha1.IPPolicyReasonCreationFailed, "Failed to create IP Policy")
 
-	condition = meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyReady)
+	condition = conditions.FindCondition(ipPolicy.Status.Conditions, ingressv1alpha1.IPPolicyConditionReady)
 	if condition == nil {
 		t.Fatal("Expected Ready condition to be set")
 	}
 	assert.Equal(t, metav1.ConditionFalse, condition.Status)
-	assert.Equal(t, ReasonIPPolicyCreationFailed, condition.Reason)
+	assert.Equal(t, string(ingressv1alpha1.IPPolicyReasonCreationFailed), condition.Reason)
 	assert.Equal(t, "Failed to create IP Policy", condition.Message)
 	assert.Equal(t, int64(1), condition.ObservedGeneration)
 }
@@ -51,25 +51,25 @@ func TestSetIPPolicyCreatedCondition(t *testing.T) {
 		},
 	}
 
-	setIPPolicyCreatedCondition(ipPolicy, true, ReasonIPPolicyCreated, "IP Policy has been created")
+	setIPPolicyCreatedCondition(ipPolicy, true, ingressv1alpha1.IPPolicyCreatedReasonCreated, "IP Policy has been created")
 
-	condition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
+	condition := conditions.FindCondition(ipPolicy.Status.Conditions, ingressv1alpha1.IPPolicyConditionCreated)
 	if condition == nil {
 		t.Fatal("Expected Created condition to be set")
 	}
 	assert.Equal(t, metav1.ConditionTrue, condition.Status)
-	assert.Equal(t, ReasonIPPolicyCreated, condition.Reason)
+	assert.Equal(t, string(ingressv1alpha1.IPPolicyCreatedReasonCreated), condition.Reason)
 	assert.Equal(t, "IP Policy has been created", condition.Message)
 	assert.Equal(t, int64(1), condition.ObservedGeneration)
 
-	setIPPolicyCreatedCondition(ipPolicy, false, ReasonIPPolicyCreationFailed, "Failed to create IP Policy")
+	setIPPolicyCreatedCondition(ipPolicy, false, ingressv1alpha1.IPPolicyCreatedReasonCreationFailed, "Failed to create IP Policy")
 
-	condition = meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
+	condition = conditions.FindCondition(ipPolicy.Status.Conditions, ingressv1alpha1.IPPolicyConditionCreated)
 	if condition == nil {
 		t.Fatal("Expected Created condition to be set")
 	}
 	assert.Equal(t, metav1.ConditionFalse, condition.Status)
-	assert.Equal(t, ReasonIPPolicyCreationFailed, condition.Reason)
+	assert.Equal(t, string(ingressv1alpha1.IPPolicyCreatedReasonCreationFailed), condition.Reason)
 	assert.Equal(t, "Failed to create IP Policy", condition.Message)
 	assert.Equal(t, int64(1), condition.ObservedGeneration)
 }
@@ -83,25 +83,25 @@ func TestSetIPPolicyRulesConfiguredCondition(t *testing.T) {
 		},
 	}
 
-	setIPPolicyRulesConfiguredCondition(ipPolicy, true, ReasonIPPolicyRulesConfigured, "IP Policy rules have been configured")
+	setIPPolicyRulesConfiguredCondition(ipPolicy, true, ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigured, "IP Policy rules have been configured")
 
-	condition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
+	condition := conditions.FindCondition(ipPolicy.Status.Conditions, ingressv1alpha1.IPPolicyConditionRulesConfigured)
 	if condition == nil {
 		t.Fatal("Expected RulesConfigured condition to be set")
 	}
 	assert.Equal(t, metav1.ConditionTrue, condition.Status)
-	assert.Equal(t, ReasonIPPolicyRulesConfigured, condition.Reason)
+	assert.Equal(t, string(ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigured), condition.Reason)
 	assert.Equal(t, "IP Policy rules have been configured", condition.Message)
 	assert.Equal(t, int64(1), condition.ObservedGeneration)
 
-	setIPPolicyRulesConfiguredCondition(ipPolicy, false, ReasonIPPolicyRulesConfigurationError, "Failed to configure IP Policy rules")
+	setIPPolicyRulesConfiguredCondition(ipPolicy, false, ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigurationError, "Failed to configure IP Policy rules")
 
-	condition = meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
+	condition = conditions.FindCondition(ipPolicy.Status.Conditions, ingressv1alpha1.IPPolicyConditionRulesConfigured)
 	if condition == nil {
 		t.Fatal("Expected RulesConfigured condition to be set")
 	}
 	assert.Equal(t, metav1.ConditionFalse, condition.Status)
-	assert.Equal(t, ReasonIPPolicyRulesConfigurationError, condition.Reason)
+	assert.Equal(t, string(ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigurationError), condition.Reason)
 	assert.Equal(t, "Failed to configure IP Policy rules", condition.Message)
 	assert.Equal(t, int64(1), condition.ObservedGeneration)
 }

@@ -9,10 +9,10 @@ import (
 	"github.com/ngrok/ngrok-api-go/v7"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -200,16 +200,16 @@ var _ = Describe("DomainReconciler", func() {
 					g.Expect(err).ToNot(HaveOccurred())
 
 					// Should have success conditions set
-					readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+					readyCondition := conditions.FindCondition(foundDomain.Status.Conditions, ingressv1alpha1.DomainConditionReady)
 					g.Expect(readyCondition).ToNot(BeNil())
 					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue))
-					g.Expect(readyCondition.Reason).To(Equal(ReasonDomainActive))
+					g.Expect(readyCondition.Reason).To(Equal(string(ingressv1alpha1.DomainReasonActive)))
 
 					// Should have domain created condition
-					createdCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainCreated)
+					createdCondition := conditions.FindCondition(foundDomain.Status.Conditions, ingressv1alpha1.DomainConditionCreated)
 					g.Expect(createdCondition).ToNot(BeNil())
 					g.Expect(createdCondition.Status).To(Equal(metav1.ConditionTrue))
-					g.Expect(createdCondition.Reason).To(Equal(ReasonDomainCreated))
+					g.Expect(createdCondition.Reason).To(Equal(string(ingressv1alpha1.DomainCreatedReasonCreated)))
 
 					// Domain should have been created in ngrok
 					g.Expect(foundDomain.Status.ID).ToNot(BeEmpty())
@@ -246,10 +246,10 @@ var _ = Describe("DomainReconciler", func() {
 					g.Expect(err).ToNot(HaveOccurred())
 
 					// Should have error conditions set
-					readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+					readyCondition := conditions.FindCondition(foundDomain.Status.Conditions, ingressv1alpha1.DomainConditionReady)
 					g.Expect(readyCondition).ToNot(BeNil())
 					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
-					g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+					g.Expect(readyCondition.Reason).To(Equal(string(ingressv1alpha1.DomainReasonCreationFailed)))
 
 					// Domain should not have been created in ngrok
 					g.Expect(foundDomain.Status.ID).To(BeEmpty())
@@ -389,10 +389,10 @@ var _ = Describe("DomainReconciler", func() {
 					g.Expect(err).ToNot(HaveOccurred())
 
 					// Should have error conditions set
-					readyCondition := meta.FindStatusCondition(d.Status.Conditions, ConditionDomainReady)
+					readyCondition := conditions.FindCondition(d.Status.Conditions, ingressv1alpha1.DomainConditionReady)
 					g.Expect(readyCondition).ToNot(BeNil())
 					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
-					g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+					g.Expect(readyCondition.Reason).To(Equal(string(ingressv1alpha1.DomainReasonCreationFailed)))
 				}, timeout, interval).Should(Succeed())
 			})
 		})
@@ -420,7 +420,7 @@ var _ = Describe("DomainReconciler", func() {
 					g.Expect(err).ToNot(HaveOccurred())
 
 					// Should still have conditions set (status was updated)
-					readyCondition := meta.FindStatusCondition(d.Status.Conditions, ConditionDomainReady)
+					readyCondition := conditions.FindCondition(d.Status.Conditions, ingressv1alpha1.DomainConditionReady)
 					g.Expect(readyCondition).ToNot(BeNil())
 					// The observed generation should be updated to match the current generation
 					g.Expect(readyCondition.ObservedGeneration).To(Equal(d.Generation))
@@ -611,10 +611,10 @@ var _ = Describe("DomainReconciler", func() {
 				}
 
 				// Check that we have the main conditions
-				readyCondition := meta.FindStatusCondition(d.Status.Conditions, "Ready")
+				readyCondition := conditions.FindCondition(d.Status.Conditions, ingressv1alpha1.DomainConditionReady)
 				g.Expect(readyCondition).ToNot(BeNil())
 
-				domainCreatedCondition := meta.FindStatusCondition(d.Status.Conditions, "DomainCreated")
+				domainCreatedCondition := conditions.FindCondition(d.Status.Conditions, ingressv1alpha1.DomainConditionCreated)
 				g.Expect(domainCreatedCondition).ToNot(BeNil())
 			}, timeout, interval).Should(Succeed())
 		})
@@ -671,12 +671,12 @@ var _ = Describe("DomainReconciler", func() {
 				g.Expect(d.Status.Conditions).ToNot(BeEmpty())
 
 				// All conditions should be True for ngrok subdomains
-				readyCondition := meta.FindStatusCondition(d.Status.Conditions, "Ready")
+				readyCondition := conditions.FindCondition(d.Status.Conditions, ingressv1alpha1.DomainConditionReady)
 				g.Expect(readyCondition).ToNot(BeNil())
 				g.Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue))
 				g.Expect(readyCondition.Reason).To(Equal("DomainActive"))
 
-				certCondition := meta.FindStatusCondition(d.Status.Conditions, "CertificateReady")
+				certCondition := conditions.FindCondition(d.Status.Conditions, ingressv1alpha1.DomainConditionCertificateReady)
 				g.Expect(certCondition).ToNot(BeNil())
 				g.Expect(certCondition.Status).To(Equal(metav1.ConditionTrue))
 				g.Expect(certCondition.Reason).To(Equal("NgrokManaged"))

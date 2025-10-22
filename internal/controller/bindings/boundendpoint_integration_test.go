@@ -106,7 +106,7 @@ var _ = Describe("BoundEndpoint Controller", func() {
 				g.Expect(err).NotTo(HaveOccurred())
 
 				// Check ServicesCreated condition
-				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, ConditionTypeServicesCreated)
+				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, string(bindingsv1alpha1.BoundEndpointConditionServicesCreated))
 				g.Expect(servicesCreatedCond).NotTo(BeNil(), "ServicesCreated condition should exist")
 				g.Expect(servicesCreatedCond.Status).To(Equal(metav1.ConditionTrue), "ServicesCreated should be True")
 
@@ -121,7 +121,7 @@ var _ = Describe("BoundEndpoint Controller", func() {
 
 				// NOTE: Ready condition will be False in test env because connectivity check fails
 				// (no actual service to dial). We just verify the condition exists and services were created.
-				readyCond := testutils.FindCondition(be.Status.Conditions, ConditionTypeReady)
+				readyCond := testutils.FindCondition(be.Status.Conditions, string(bindingsv1alpha1.BoundEndpointConditionReady))
 				g.Expect(readyCond).NotTo(BeNil(), "Ready condition should exist")
 			}, timeout, interval).Should(Succeed())
 
@@ -219,7 +219,7 @@ var _ = Describe("BoundEndpoint Controller", func() {
 				be := list.Items[0]
 
 				// Check ServicesCreated condition
-				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, ConditionTypeServicesCreated)
+				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, string(bindingsv1alpha1.BoundEndpointConditionServicesCreated))
 				g.Expect(servicesCreatedCond).NotTo(BeNil())
 				g.Expect(servicesCreatedCond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
@@ -268,7 +268,7 @@ var _ = Describe("BoundEndpoint Controller", func() {
 				be := list.Items[0]
 				boundEndpointName = be.Name
 
-				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, ConditionTypeServicesCreated)
+				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, string(bindingsv1alpha1.BoundEndpointConditionServicesCreated))
 				g.Expect(servicesCreatedCond).NotTo(BeNil())
 				g.Expect(servicesCreatedCond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
@@ -309,7 +309,7 @@ var _ = Describe("BoundEndpoint Controller", func() {
 				g.Expect(be.Status.EndpointsSummary).To(Equal("2 endpoints"))
 
 				// KEY TEST: ServicesCreated condition should remain True
-				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, ConditionTypeServicesCreated)
+				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, string(bindingsv1alpha1.BoundEndpointConditionServicesCreated))
 				g.Expect(servicesCreatedCond).NotTo(BeNil())
 				g.Expect(servicesCreatedCond.Status).To(Equal(metav1.ConditionTrue),
 					"ServicesCreated should stay True after adding endpoint")
@@ -357,14 +357,14 @@ var _ = Describe("BoundEndpoint Controller", func() {
 				}, be)
 				g.Expect(err).NotTo(HaveOccurred())
 
-				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, ConditionTypeServicesCreated)
+				servicesCreatedCond := testutils.FindCondition(be.Status.Conditions, string(bindingsv1alpha1.BoundEndpointConditionServicesCreated))
 				g.Expect(servicesCreatedCond).NotTo(BeNil())
 				g.Expect(servicesCreatedCond.Status).To(Equal(metav1.ConditionFalse))
-				g.Expect(servicesCreatedCond.Reason).To(Equal(ReasonServiceCreationFailed))
+				g.Expect(servicesCreatedCond.Reason).To(Equal(string(bindingsv1alpha1.BoundEndpointReasonServiceCreationFailed)))
 				g.Expect(servicesCreatedCond.Message).To(ContainSubstring("namespace"))
 
 				// Ready should also be False
-				readyCond := testutils.FindCondition(be.Status.Conditions, ConditionTypeReady)
+				readyCond := testutils.FindCondition(be.Status.Conditions, string(bindingsv1alpha1.BoundEndpointConditionReady))
 				g.Expect(readyCond).NotTo(BeNil())
 				g.Expect(readyCond.Status).To(Equal(metav1.ConditionFalse))
 			}, timeout, interval).Should(Succeed())

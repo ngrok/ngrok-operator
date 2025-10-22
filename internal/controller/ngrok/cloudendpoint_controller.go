@@ -190,12 +190,12 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 
 	ngrokClep, err := r.NgrokClientset.Endpoints().Create(ctx, createParams)
 	if err != nil {
-		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to create cloud endpoint: %v", err))
+		setCloudEndpointCreatedCondition(clep, false, ngrokv1alpha1.CloudEndpointReasonCreationFailed, fmt.Sprintf("Failed to create cloud endpoint: %v", err))
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	// Set success condition
-	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint created successfully")
+	setCloudEndpointCreatedCondition(clep, true, ngrokv1alpha1.CloudEndpointReasonCreated, "CloudEndpoint created successfully")
 
 	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
@@ -232,12 +232,12 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return r.create(ctx, clep)
 	}
 	if err != nil {
-		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to update cloud endpoint: %v", err))
+		setCloudEndpointCreatedCondition(clep, false, ngrokv1alpha1.CloudEndpointReasonCreationFailed, fmt.Sprintf("Failed to update cloud endpoint: %v", err))
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
 	// Set success condition
-	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint updated successfully")
+	setCloudEndpointCreatedCondition(clep, true, ngrokv1alpha1.CloudEndpointReasonCreated, "CloudEndpoint updated successfully")
 
 	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }

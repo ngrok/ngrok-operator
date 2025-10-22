@@ -7,32 +7,17 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 )
 
-const (
-	// condition types for IPPolicy
-	ConditionIPPolicyReady           = "Ready"
-	ConditionIPPolicyCreated         = "IPPolicyCreated"
-	ConditionIPPolicyRulesConfigured = "RulesConfigured"
-
-	// condition reasons for IPPolicy
-	ReasonIPPolicyActive                  = "IPPolicyActive"
-	ReasonIPPolicyCreated                 = "IPPolicyCreated"
-	ReasonIPPolicyRulesConfigured         = "IPPolicyRulesConfigured"
-	ReasonIPPolicyRulesConfigurationError = "IPPolicyRulesConfigurationError"
-	ReasonIPPolicyInvalidCIDR             = "IPPolicyInvalidCIDR"
-	ReasonIPPolicyCreationFailed          = "IPPolicyCreationFailed"
-)
-
 // setIPPolicyReadyCondition sets the Ready condition based on the overall IP policy state
-func setIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy, ready bool, reason, message string) {
+func setIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy, ready bool, reason ingressv1alpha1.IPPolicyConditionReadyReason, message string) {
 	status := metav1.ConditionTrue
 	if !ready {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionIPPolicyReady,
+		Type:               string(ingressv1alpha1.IPPolicyConditionReady),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: ipPolicy.Generation,
 	}
@@ -41,16 +26,16 @@ func setIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy, ready bool, r
 }
 
 // setIPPolicyCreatedCondition sets the IPPolicyCreated condition
-func setIPPolicyCreatedCondition(ipPolicy *ingressv1alpha1.IPPolicy, created bool, reason, message string) {
+func setIPPolicyCreatedCondition(ipPolicy *ingressv1alpha1.IPPolicy, created bool, reason ingressv1alpha1.IPPolicyConditionCreatedReason, message string) {
 	status := metav1.ConditionTrue
 	if !created {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionIPPolicyCreated,
+		Type:               string(ingressv1alpha1.IPPolicyConditionCreated),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: ipPolicy.Generation,
 	}
@@ -59,16 +44,16 @@ func setIPPolicyCreatedCondition(ipPolicy *ingressv1alpha1.IPPolicy, created boo
 }
 
 // setIPPolicyRulesConfiguredCondition sets the RulesConfigured condition
-func setIPPolicyRulesConfiguredCondition(ipPolicy *ingressv1alpha1.IPPolicy, configured bool, reason, message string) {
+func setIPPolicyRulesConfiguredCondition(ipPolicy *ingressv1alpha1.IPPolicy, configured bool, reason ingressv1alpha1.IPPolicyConditionRulesConfiguredReason, message string) {
 	status := metav1.ConditionTrue
 	if !configured {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionIPPolicyRulesConfigured,
+		Type:               string(ingressv1alpha1.IPPolicyConditionRulesConfigured),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: ipPolicy.Generation,
 	}
@@ -80,25 +65,25 @@ func setIPPolicyRulesConfiguredCondition(ipPolicy *ingressv1alpha1.IPPolicy, con
 func calculateIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy) {
 	// check IP Policy created condition
 	ipPolicyCreated := false
-	createdCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
+	createdCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, string(ingressv1alpha1.IPPolicyConditionCreated))
 	if createdCondition != nil && createdCondition.Status == metav1.ConditionTrue {
 		ipPolicyCreated = true
 	}
 
 	// check IP Policy rules configured condition
 	ipPolicyRulesConfigured := false
-	rulesConfiguredCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured)
+	rulesConfiguredCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, string(ingressv1alpha1.IPPolicyConditionRulesConfigured))
 	if rulesConfiguredCondition != nil && rulesConfiguredCondition.Status == metav1.ConditionTrue {
 		ipPolicyRulesConfigured = true
 	}
 
 	switch {
 	case ipPolicyCreated && ipPolicyRulesConfigured:
-		setIPPolicyReadyCondition(ipPolicy, true, ReasonIPPolicyActive, "IP Policy is active")
+		setIPPolicyReadyCondition(ipPolicy, true, ingressv1alpha1.IPPolicyReasonActive, "IP Policy is active")
 	case ipPolicyCreated && !ipPolicyRulesConfigured:
-		setIPPolicyReadyCondition(ipPolicy, false, ReasonIPPolicyRulesConfigurationError, "IP Policy rules are not configured")
+		setIPPolicyReadyCondition(ipPolicy, false, ingressv1alpha1.IPPolicyReasonRulesConfigurationError, "IP Policy rules are not configured")
 	default:
-		setIPPolicyReadyCondition(ipPolicy, false, ReasonIPPolicyCreationFailed, "IP Policy is not ready")
+		setIPPolicyReadyCondition(ipPolicy, false, ingressv1alpha1.IPPolicyReasonCreationFailed, "IP Policy is not ready")
 	}
 
 }

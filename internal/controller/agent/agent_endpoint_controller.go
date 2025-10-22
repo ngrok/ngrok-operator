@@ -211,7 +211,7 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 
 	clientCerts, err := r.getClientCerts(ctx, endpoint)
 	if err != nil {
-		setEndpointCreatedCondition(endpoint, false, ReasonConfigError, fmt.Sprintf("Failed to get client certificates: %v", err))
+		setEndpointCreatedCondition(endpoint, false, ngrokv1alpha1.AgentEndpointReasonConfigError, fmt.Sprintf("Failed to get client certificates: %v", err))
 		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 
@@ -220,18 +220,18 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	result, err := r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts)
 	if err != nil {
 		// Mark the endpoint as failed creation
-		setEndpointCreatedCondition(endpoint, false, ReasonNgrokAPIError, fmt.Sprintf("Failed to create endpoint: %v", err))
+		setEndpointCreatedCondition(endpoint, false, ngrokv1alpha1.AgentEndpointReasonNgrokAPIError, fmt.Sprintf("Failed to create endpoint: %v", err))
 		// If error indicates traffic policy issue, also set that condition
 		if trafficPolicy != "" && ngrokapi.IsTrafficPolicyError(err.Error()) {
-			setTrafficPolicyCondition(endpoint, false, ReasonTrafficPolicyError, ngrokapi.SanitizeErrorMessage(err.Error()))
+			setTrafficPolicyCondition(endpoint, false, ngrokv1alpha1.AgentEndpointReasonTrafficPolicyError, ngrokapi.SanitizeErrorMessage(err.Error()))
 		}
 		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 
 	// Mark the endpoint as successfully created
-	setEndpointCreatedCondition(endpoint, true, ReasonEndpointCreated, "Endpoint successfully created")
+	setEndpointCreatedCondition(endpoint, true, ngrokv1alpha1.AgentEndpointReasonEndpointCreated, "Endpoint successfully created")
 	if trafficPolicy != "" {
-		setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
+		setTrafficPolicyCondition(endpoint, true, ngrokv1alpha1.AgentEndpointReasonTrafficPolicyApplied, "Traffic policy successfully applied")
 	}
 
 	return r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil)
@@ -319,7 +319,7 @@ func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngr
 
 	// Ensure mutually exclusive fields are not both set
 	if aep.Spec.TrafficPolicy.Reference != nil && aep.Spec.TrafficPolicy.Inline != nil {
-		setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, ErrInvalidTrafficPolicyConfig.Error())
+		setTrafficPolicyCondition(aep, false, ngrokv1alpha1.AgentEndpointReasonTrafficPolicyError, ErrInvalidTrafficPolicyConfig.Error())
 		return "", ErrInvalidTrafficPolicyConfig
 	}
 
@@ -331,7 +331,7 @@ func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngr
 		policyBytes, err := aep.Spec.TrafficPolicy.Inline.MarshalJSON()
 		if err != nil {
 			errMsg := fmt.Sprintf("failed to marshal inline TrafficPolicy: %v", err)
-			setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, errMsg)
+			setTrafficPolicyCondition(aep, false, ngrokv1alpha1.AgentEndpointReasonTrafficPolicyError, errMsg)
 			return "", errors.New(errMsg)
 		}
 		policy = string(policyBytes)
@@ -339,7 +339,7 @@ func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngr
 		// Right now, we only support traffic policies that are in the same namespace as the agent endpoint
 		policy, err = r.findTrafficPolicyByName(ctx, aep.Spec.TrafficPolicy.Reference.Name, aep.Namespace)
 		if err != nil {
-			setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, err.Error())
+			setTrafficPolicyCondition(aep, false, ngrokv1alpha1.AgentEndpointReasonTrafficPolicyError, err.Error())
 			return "", err
 		}
 	}

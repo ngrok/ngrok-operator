@@ -7,35 +7,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Standard condition types for AgentEndpoint
-const (
-	ConditionReady           = "Ready"
-	ConditionEndpointCreated = "EndpointCreated"
-	ConditionTrafficPolicy   = "TrafficPolicyApplied"
-)
-
-// Standard condition reasons
-const (
-	ReasonEndpointActive     = "EndpointActive"
-	ReasonTrafficPolicyError = "TrafficPolicyError"
-	ReasonNgrokAPIError      = "NgrokAPIError"
-	ReasonUpstreamError      = "UpstreamError"
-	ReasonEndpointCreated    = "EndpointCreated"
-	ReasonConfigError        = "ConfigurationError"
-	ReasonReconciling        = "Reconciling"
-)
-
 // setReadyCondition sets the Ready condition based on the overall endpoint state
-func setReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, reason, message string) {
+func setReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, reason ngrokv1alpha1.AgentEndpointConditionReadyReason, message string) {
 	status := metav1.ConditionTrue
 	if !ready {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionReady,
+		Type:               string(ngrokv1alpha1.AgentEndpointConditionReady),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: endpoint.Generation,
 	}
@@ -44,16 +26,16 @@ func setReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, reason
 }
 
 // setEndpointCreatedCondition sets the EndpointCreated condition
-func setEndpointCreatedCondition(endpoint *ngrokv1alpha1.AgentEndpoint, created bool, reason, message string) {
+func setEndpointCreatedCondition(endpoint *ngrokv1alpha1.AgentEndpoint, created bool, reason ngrokv1alpha1.AgentEndpointConditionEndpointCreatedReason, message string) {
 	status := metav1.ConditionTrue
 	if !created {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionEndpointCreated,
+		Type:               string(ngrokv1alpha1.AgentEndpointConditionEndpointCreated),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: endpoint.Generation,
 	}
@@ -62,16 +44,16 @@ func setEndpointCreatedCondition(endpoint *ngrokv1alpha1.AgentEndpoint, created 
 }
 
 // setTrafficPolicyCondition sets the TrafficPolicyApplied condition
-func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bool, reason, message string) {
+func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bool, reason ngrokv1alpha1.AgentEndpointConditionTrafficPolicyReason, message string) {
 	status := metav1.ConditionTrue
 	if !applied {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionTrafficPolicy,
+		Type:               string(ngrokv1alpha1.AgentEndpointConditionTrafficPolicy),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: endpoint.Generation,
 	}
@@ -81,16 +63,16 @@ func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bo
 
 // setReconcilingCondition sets a temporary reconciling condition
 func setReconcilingCondition(endpoint *ngrokv1alpha1.AgentEndpoint, message string) {
-	setReadyCondition(endpoint, false, ReasonReconciling, message)
+	setReadyCondition(endpoint, false, ngrokv1alpha1.AgentEndpointReasonReconciling, message)
 }
 
 // calculateAgentEndpointReadyCondition calculates the overall Ready condition based on other conditions and domain status
 func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, domainResult *domainpkg.DomainResult) {
 	// Check all required conditions
-	endpointCreatedCondition := meta.FindStatusCondition(aep.Status.Conditions, ConditionEndpointCreated)
+	endpointCreatedCondition := meta.FindStatusCondition(aep.Status.Conditions, string(ngrokv1alpha1.AgentEndpointConditionEndpointCreated))
 	endpointCreated := endpointCreatedCondition != nil && endpointCreatedCondition.Status == metav1.ConditionTrue
 
-	trafficPolicyCondition := meta.FindStatusCondition(aep.Status.Conditions, ConditionTrafficPolicy)
+	trafficPolicyCondition := meta.FindStatusCondition(aep.Status.Conditions, string(ngrokv1alpha1.AgentEndpointConditionTrafficPolicy))
 	trafficPolicyReady := true
 	// If traffic policy condition exists and is False, it's not ready
 	if trafficPolicyCondition != nil && trafficPolicyCondition.Status == metav1.ConditionFalse {
@@ -104,35 +86,36 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 	ready := endpointCreated && trafficPolicyReady && domainReady
 
 	// Determine reason and message based on state
-	var reason, message string
+	var reason ngrokv1alpha1.AgentEndpointConditionReadyReason
+	var message string
 	switch {
 	case ready:
-		reason = ReasonEndpointActive
+		reason = ngrokv1alpha1.AgentEndpointReasonActive
 		message = "AgentEndpoint is active and ready"
 	case !domainReady:
 		// Use the domain's Ready condition reason/message for better context
 		if domainResult.ReadyReason != "" {
-			reason = domainResult.ReadyReason
+			reason = ngrokv1alpha1.AgentEndpointConditionReadyReason(domainResult.ReadyReason)
 			message = domainResult.ReadyMessage
 		} else {
-			reason = "DomainNotReady"
+			reason = ngrokv1alpha1.AgentEndpointReasonDomainNotReady
 			message = "Domain is not ready"
 		}
 	case !endpointCreated:
 		// If EndpointCreated condition exists and is False, use its reason/message
 		if endpointCreatedCondition != nil && endpointCreatedCondition.Status == metav1.ConditionFalse {
-			reason = endpointCreatedCondition.Reason
+			reason = ngrokv1alpha1.AgentEndpointConditionReadyReason(endpointCreatedCondition.Reason)
 			message = endpointCreatedCondition.Message
 		} else {
-			reason = "Pending"
+			reason = ngrokv1alpha1.AgentEndpointReasonPending
 			message = "Waiting for endpoint creation"
 		}
 	case !trafficPolicyReady:
 		// Use the traffic policy's condition reason/message
-		reason = trafficPolicyCondition.Reason
+		reason = ngrokv1alpha1.AgentEndpointConditionReadyReason(trafficPolicyCondition.Reason)
 		message = trafficPolicyCondition.Message
 	default:
-		reason = "Unknown"
+		reason = ngrokv1alpha1.AgentEndpointReasonUnknown
 		message = "AgentEndpoint is not ready"
 	}
 
