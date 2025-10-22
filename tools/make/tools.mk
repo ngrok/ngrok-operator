@@ -21,7 +21,7 @@ preflight: ## Verifies required things like the go version
 
 
 .PHONY: bootstrap-tools
-bootstrap-tools: controller-gen envtest golangci-lint kind helm helm-unittest-plugin ## Install common local tooling.
+bootstrap-tools: controller-gen envtest golangci-lint kind helm helm-unittest-plugin crdoc yq ## Install common local tooling.
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
@@ -67,3 +67,19 @@ helm-unittest-plugin: helm ## Install helm-unittest plugin if needed.
 .PHONY: _helm_setup
 _helm_setup: helm ## Setup helm chart dependencies
 	HELM="$(HELM)" HELM_PLUGINS="$(HELM_PLUGIN_HOME)" $(MAKE) -C $(HELM_CHART_DIR) setup
+
+.PHONY: crdoc
+crdoc: $(CRDOC) ## Download crdoc locally if necessary.
+$(CRDOC): $(LOCALBIN)
+	@[ -f $(CRDOC) ] || { \
+	set -e; \
+	package=fybrik.io/crdoc@$(CRDOC_VERSION) ;\
+	echo "Downloading $${package}" ;\
+	GOINSECURE=fybrik.io GOBIN=$(LOCALBIN) go install $${package} ;\
+	mv "$(LOCALBIN)/crdoc" $(CRDOC) ;\
+	}
+
+.PHONY: yq
+yq: $(YQ) ## Download yq locally if necessary.
+$(YQ): $(LOCALBIN)
+	$(call go-install-tool,$(YQ),github.com/mikefarah/yq/v4,$(YQ_VERSION))

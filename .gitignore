@@ -34,3 +34,6 @@ e2e-fixtures/*/config*.yaml
 
 # Ignore local scripts and utilities
 local/*
+
+# Generated documentation
+docs/generated/

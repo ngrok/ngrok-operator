@@ -1,0 +1,33 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: KubernetesOperator
+metadata:
+  name: example-kubernetesoperator
+  namespace: ngrok-operator
+spec:
+  # Features to enable for this operator
+  enabledFeatures:
+    - bindings
+  
+  # Region for the operator ingress endpoint
+  region: us
+  
+  # Binding configuration
+  binding:
+    # Name of the k8s secret containing TLS keys
+    tlsSecretName: default-tls
+    
+    # Public ingress endpoint for kubernetes-bound endpoints
+    ingressEndpoint: https://k8s.example.ngrok.io
+    
+    # CEL expressions to filter which endpoints are created
+    endpointSelectors:
+      - "metadata.labels.expose == 'true'"
+  
+  # Deployment information
+  deployment:
+    name: ngrok-operator
+    namespace: ngrok-operator
+    version: "0.14.0"
+  
+  # Description for the ngrok API/Dashboard
+  description: "Production Kubernetes Operator"

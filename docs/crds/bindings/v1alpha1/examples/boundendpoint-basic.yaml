@@ -1,0 +1,27 @@
+apiVersion: bindings.k8s.ngrok.com/v1alpha1
+kind: BoundEndpoint
+metadata:
+  name: example-boundendpoint
+  namespace: ngrok-operator
+spec:
+  # Unique identifier for the endpoint
+  # Format: <scheme>://<service>.<namespace>:<port>
+  endpointURI: https://myapp.default:8080
+  
+  # Port for internal communication with the upstream service
+  port: 8080
+  
+  # Scheme for data packet framing
+  scheme: https
+  
+  # Target service configuration
+  target:
+    metadata:
+      labels:
+        app: myapp
+      annotations:
+        description: "BoundEndpoint for myapp service"
+    
+    # Service configuration
+    service:
+      type: ClusterIP

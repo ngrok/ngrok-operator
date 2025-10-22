@@ -1,0 +1,27 @@
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: IPPolicy
+metadata:
+  name: example-ippolicy
+  namespace: ngrok-operator
+spec:
+  # Description for the ngrok API/Dashboard
+  description: "IP policy for production traffic"
+  
+  # Rules defining allowed/denied IP ranges
+  rules:
+    # Allow traffic from office network
+    - action: allow
+      cidr: "203.0.113.0/24"
+      description: "Office network"
+      metadata: '{"location":"headquarters"}'
+    
+    # Allow traffic from specific IPs
+    - action: allow
+      cidr: "198.51.100.42/32"
+      description: "CI/CD pipeline"
+      metadata: '{"service":"github-actions"}'
+    
+    # Deny traffic from known bad actor
+    - action: deny
+      cidr: "192.0.2.0/24"
+      description: "Blocked network"

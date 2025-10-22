@@ -1,0 +1,22 @@
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: Domain
+metadata:
+  name: example-domain
+  namespace: ngrok-operator
+spec:
+  # Domain name to reserve
+  domain: myapp.example.com
+  
+  # Region where the domain will be served
+  region: us
+  
+  # What to do when this resource is deleted
+  # "Delete" removes the domain from ngrok
+  # "Retain" keeps the domain in ngrok
+  reclaimPolicy: Delete
+  
+  # Description for the ngrok API/Dashboard
+  description: "Production domain for myapp"
+  
+  # Optional metadata
+  metadata: '{"team":"platform","app":"myapp"}'

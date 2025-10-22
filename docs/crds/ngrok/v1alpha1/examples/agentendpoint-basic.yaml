@@ -1,0 +1,25 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: example-agentendpoint
+  namespace: ngrok-operator
+spec:
+  # URL for accessing this endpoint
+  url: https://myapp.ngrok.io
+  
+  # List of bindings - "public" for internet, "kubernetes" for in-cluster
+  bindings:
+    - public
+  
+  # Destination for incoming traffic
+  upstream:
+    # URL of the backend service
+    url: http://myapp-service.default.svc.cluster.local:8080
+    # Protocol to use (http1 or http2)
+    protocol: http1
+  
+  # Human-readable description
+  description: "Agent endpoint for myapp service"
+  
+  # Optional metadata for the ngrok API/Dashboard
+  metadata: '{"team":"platform","env":"production"}'

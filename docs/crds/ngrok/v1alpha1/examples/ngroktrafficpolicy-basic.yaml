@@ -1,0 +1,26 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: NgrokTrafficPolicy
+metadata:
+  name: example-traffic-policy
+  namespace: ngrok-operator
+spec:
+  # Traffic policy in JSON format
+  # This example adds security headers and rate limiting
+  policy:
+    inbound:
+      - name: "Add security headers"
+        actions:
+          - type: "add-headers"
+            config:
+              headers:
+                X-Frame-Options: "DENY"
+                X-Content-Type-Options: "nosniff"
+                Strict-Transport-Security: "max-age=31536000"
+      - name: "Rate limiting"
+        actions:
+          - type: "rate-limit"
+            config:
+              name: "api-rate-limit"
+              algorithm: "sliding_window"
+              capacity: 100
+              rate: "60/m"

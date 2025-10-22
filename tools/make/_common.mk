@@ -58,6 +58,8 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 KIND ?= $(LOCALBIN)/kind-$(KIND_VERSION)
 HELM ?= $(LOCALBIN)/helm-$(HELM_VERSION)
+CRDOC ?= $(LOCALBIN)/crdoc-$(CRDOC_VERSION)
+YQ ?= $(LOCALBIN)/yq-$(YQ_VERSION)
 
 
 ## Tool Versions
@@ -66,6 +68,8 @@ ENVTEST_VERSION ?= release-0.20
 GOLANGCI_LINT_VERSION ?= v1.64.6
 KIND_VERSION ?= v0.26.0
 HELM_VERSION ?= v3.15.4
+CRDOC_VERSION ?= v0.6.4
+YQ_VERSION ?= v4.35.1
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.33.0
 

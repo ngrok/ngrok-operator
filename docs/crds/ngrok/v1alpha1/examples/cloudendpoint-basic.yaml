@@ -1,0 +1,24 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: CloudEndpoint
+metadata:
+  name: example-cloudendpoint
+  namespace: ngrok-operator
+spec:
+  # URL for the cloud endpoint
+  url: https://myapp.example.ngrok.io
+  
+  # List of bindings - "public" for internet, "internal" for private
+  bindings:
+    - public
+  
+  # Enable pooling to share URL across multiple endpoints
+  poolingEnabled: false
+  
+  # Human-readable description
+  description: "Cloud endpoint for myapp service"
+  
+  # Optional metadata for the ngrok API/Dashboard
+  metadata: '{"team":"platform","env":"production"}'
+  
+  # Optional traffic policy reference
+  # trafficPolicyName: example-traffic-policy
