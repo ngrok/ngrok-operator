@@ -8,28 +8,17 @@ import (
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 )
 
-const (
-	// condition types for CloudEndpoint
-	ConditionCloudEndpointReady   = "Ready"
-	ConditionCloudEndpointCreated = "CloudEndpointCreated"
-
-	// condition reasons for CloudEndpoint
-	ReasonCloudEndpointActive         = "CloudEndpointActive"
-	ReasonCloudEndpointCreated        = "CloudEndpointCreated"
-	ReasonCloudEndpointCreationFailed = "CloudEndpointCreationFailed"
-)
-
 // setCloudEndpointReadyCondition sets the Ready condition
-func setCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, ready bool, reason, message string) {
+func setCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, ready bool, reason ngrokv1alpha1.CloudEndpointConditionReadyReason, message string) {
 	status := metav1.ConditionTrue
 	if !ready {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionCloudEndpointReady,
+		Type:               string(ngrokv1alpha1.CloudEndpointConditionReady),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: clep.Generation,
 	}
@@ -38,16 +27,16 @@ func setCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, ready boo
 }
 
 // setCloudEndpointCreatedCondition sets the CloudEndpointCreated condition
-func setCloudEndpointCreatedCondition(clep *ngrokv1alpha1.CloudEndpoint, created bool, reason, message string) {
+func setCloudEndpointCreatedCondition(clep *ngrokv1alpha1.CloudEndpoint, created bool, reason ngrokv1alpha1.CloudEndpointConditionCreatedReason, message string) {
 	status := metav1.ConditionTrue
 	if !created {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionCloudEndpointCreated,
+		Type:               string(ngrokv1alpha1.CloudEndpointConditionCreated),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: clep.Generation,
 	}
@@ -59,7 +48,7 @@ func setCloudEndpointCreatedCondition(clep *ngrokv1alpha1.CloudEndpoint, created
 func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult) {
 	// Check CloudEndpoint created condition
 	cloudEndpointCreated := false
-	createdCondition := meta.FindStatusCondition(clep.Status.Conditions, ConditionCloudEndpointCreated)
+	createdCondition := meta.FindStatusCondition(clep.Status.Conditions, string(ngrokv1alpha1.CloudEndpointConditionCreated))
 	if createdCondition != nil && createdCondition.Status == metav1.ConditionTrue {
 		cloudEndpointCreated = true
 	}
@@ -71,31 +60,32 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 	ready := cloudEndpointCreated && domainReady
 
 	// Determine reason and message based on state
-	var reason, message string
+	var reason ngrokv1alpha1.CloudEndpointConditionReadyReason
+	var message string
 	switch {
 	case ready:
-		reason = ReasonCloudEndpointActive
+		reason = ngrokv1alpha1.CloudEndpointReasonActive
 		message = "CloudEndpoint is active and ready"
 	case !domainReady:
 		// Use the domain's Ready condition reason/message for better context
 		if domainResult.ReadyReason != "" {
-			reason = domainResult.ReadyReason
+			reason = ngrokv1alpha1.CloudEndpointConditionReadyReason(domainResult.ReadyReason)
 			message = domainResult.ReadyMessage
 		} else {
-			reason = "DomainNotReady"
+			reason = ngrokv1alpha1.CloudEndpointReasonDomainNotReady
 			message = "Domain is not ready"
 		}
 	case !cloudEndpointCreated:
 		// If CloudEndpointCreated condition exists and is False, use its reason/message
 		if createdCondition != nil && createdCondition.Status == metav1.ConditionFalse {
-			reason = createdCondition.Reason
+			reason = ngrokv1alpha1.CloudEndpointConditionReadyReason(createdCondition.Reason)
 			message = createdCondition.Message
 		} else {
-			reason = "Pending"
+			reason = ngrokv1alpha1.CloudEndpointReasonPending
 			message = "Waiting for CloudEndpoint to be ready"
 		}
 	default:
-		reason = "Unknown"
+		reason = ngrokv1alpha1.CloudEndpointReasonUnknown
 		message = "CloudEndpoint is not ready"
 	}
 

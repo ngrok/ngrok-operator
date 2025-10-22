@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 )
 
@@ -53,35 +53,35 @@ func createNotReadyDomainResult(reason, message string) *domainpkg.DomainResult 
 func TestCalculateCloudEndpointReadyCondition_AllReady(t *testing.T) {
 	endpoint := createTestCloudEndpointWithConditions("test-endpoint", "default", []metav1.Condition{
 		{
-			Type:   ConditionCloudEndpointCreated,
+			Type:   string(ngrokv1alpha1.CloudEndpointConditionCreated),
 			Status: metav1.ConditionTrue,
-			Reason: ReasonCloudEndpointCreated,
+			Reason: string(ngrokv1alpha1.CloudEndpointReasonCreated),
 		},
 	})
 	domainResult := createReadyDomainResult()
 
 	calculateCloudEndpointReadyCondition(endpoint, domainResult)
 
-	readyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionCloudEndpointReady)
+	readyCondition := conditions.FindCondition(endpoint.Status.Conditions, ngrokv1alpha1.CloudEndpointConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionTrue, readyCondition.Status)
-	assert.Equal(t, ReasonCloudEndpointActive, readyCondition.Reason)
+	assert.Equal(t, string(ngrokv1alpha1.CloudEndpointReasonActive), readyCondition.Reason)
 	assert.Equal(t, "CloudEndpoint is active and ready", readyCondition.Message)
 }
 
 func TestCalculateCloudEndpointReadyCondition_DomainNotReady(t *testing.T) {
 	endpoint := createTestCloudEndpointWithConditions("test-endpoint", "default", []metav1.Condition{
 		{
-			Type:   ConditionCloudEndpointCreated,
+			Type:   string(ngrokv1alpha1.CloudEndpointConditionCreated),
 			Status: metav1.ConditionTrue,
-			Reason: ReasonCloudEndpointCreated,
+			Reason: string(ngrokv1alpha1.CloudEndpointReasonCreated),
 		},
 	})
 	domainResult := createNotReadyDomainResult("ProvisioningError", "Certificate provisioning in progress")
 
 	calculateCloudEndpointReadyCondition(endpoint, domainResult)
 
-	readyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionCloudEndpointReady)
+	readyCondition := conditions.FindCondition(endpoint.Status.Conditions, ngrokv1alpha1.CloudEndpointConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
 	assert.Equal(t, "ProvisioningError", readyCondition.Reason)
@@ -91,9 +91,9 @@ func TestCalculateCloudEndpointReadyCondition_DomainNotReady(t *testing.T) {
 func TestCalculateCloudEndpointReadyCondition_DomainNotReadyNoReason(t *testing.T) {
 	endpoint := createTestCloudEndpointWithConditions("test-endpoint", "default", []metav1.Condition{
 		{
-			Type:   ConditionCloudEndpointCreated,
+			Type:   string(ngrokv1alpha1.CloudEndpointConditionCreated),
 			Status: metav1.ConditionTrue,
-			Reason: ReasonCloudEndpointCreated,
+			Reason: string(ngrokv1alpha1.CloudEndpointReasonCreated),
 		},
 	})
 	domainResult := &domainpkg.DomainResult{
@@ -103,19 +103,19 @@ func TestCalculateCloudEndpointReadyCondition_DomainNotReadyNoReason(t *testing.
 
 	calculateCloudEndpointReadyCondition(endpoint, domainResult)
 
-	readyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionCloudEndpointReady)
+	readyCondition := conditions.FindCondition(endpoint.Status.Conditions, ngrokv1alpha1.CloudEndpointConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
-	assert.Equal(t, "DomainNotReady", readyCondition.Reason)
+	assert.Equal(t, string(ngrokv1alpha1.CloudEndpointReasonDomainNotReady), readyCondition.Reason)
 	assert.Equal(t, "Domain is not ready", readyCondition.Message)
 }
 
 func TestCalculateCloudEndpointReadyCondition_CloudEndpointNotCreated(t *testing.T) {
 	endpoint := createTestCloudEndpointWithConditions("test-endpoint", "default", []metav1.Condition{
 		{
-			Type:    ConditionCloudEndpointCreated,
+			Type:    string(ngrokv1alpha1.CloudEndpointConditionCreated),
 			Status:  metav1.ConditionFalse,
-			Reason:  ReasonCloudEndpointCreationFailed,
+			Reason:  string(ngrokv1alpha1.CloudEndpointReasonCreationFailed),
 			Message: "Failed to create CloudEndpoint",
 		},
 	})
@@ -123,10 +123,10 @@ func TestCalculateCloudEndpointReadyCondition_CloudEndpointNotCreated(t *testing
 
 	calculateCloudEndpointReadyCondition(endpoint, domainResult)
 
-	readyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionCloudEndpointReady)
+	readyCondition := conditions.FindCondition(endpoint.Status.Conditions, ngrokv1alpha1.CloudEndpointConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
-	assert.Equal(t, ReasonCloudEndpointCreationFailed, readyCondition.Reason)
+	assert.Equal(t, string(ngrokv1alpha1.CloudEndpointReasonCreationFailed), readyCondition.Reason)
 	assert.Equal(t, "Failed to create CloudEndpoint", readyCondition.Message)
 }
 
@@ -138,10 +138,10 @@ func TestCalculateCloudEndpointReadyCondition_CloudEndpointNotCreatedNoCondition
 
 	calculateCloudEndpointReadyCondition(endpoint, domainResult)
 
-	readyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionCloudEndpointReady)
+	readyCondition := conditions.FindCondition(endpoint.Status.Conditions, ngrokv1alpha1.CloudEndpointConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
-	assert.Equal(t, "Pending", readyCondition.Reason)
+	assert.Equal(t, string(ngrokv1alpha1.CloudEndpointReasonPending), readyCondition.Reason)
 	assert.Equal(t, "Waiting for CloudEndpoint to be ready", readyCondition.Message)
 }
 
@@ -149,9 +149,9 @@ func TestCalculateCloudEndpointReadyCondition_MultipleIssues(t *testing.T) {
 	// Domain not ready should take precedence over other issues
 	endpoint := createTestCloudEndpointWithConditions("test-endpoint", "default", []metav1.Condition{
 		{
-			Type:    ConditionCloudEndpointCreated,
+			Type:    string(ngrokv1alpha1.CloudEndpointConditionCreated),
 			Status:  metav1.ConditionFalse,
-			Reason:  ReasonCloudEndpointCreationFailed,
+			Reason:  string(ngrokv1alpha1.CloudEndpointReasonCreationFailed),
 			Message: "Failed to create CloudEndpoint",
 		},
 	})
@@ -159,7 +159,7 @@ func TestCalculateCloudEndpointReadyCondition_MultipleIssues(t *testing.T) {
 
 	calculateCloudEndpointReadyCondition(endpoint, domainResult)
 
-	readyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionCloudEndpointReady)
+	readyCondition := conditions.FindCondition(endpoint.Status.Conditions, ngrokv1alpha1.CloudEndpointConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
 	assert.Equal(t, "ProvisioningError", readyCondition.Reason)
@@ -170,9 +170,9 @@ func TestCalculateCloudEndpointReadyCondition_UnknownState(t *testing.T) {
 	// This should not happen in practice, but test the default case
 	endpoint := createTestCloudEndpointWithConditions("test-endpoint", "default", []metav1.Condition{
 		{
-			Type:   ConditionCloudEndpointCreated,
+			Type:   string(ngrokv1alpha1.CloudEndpointConditionCreated),
 			Status: metav1.ConditionTrue,
-			Reason: ReasonCloudEndpointCreated,
+			Reason: string(ngrokv1alpha1.CloudEndpointReasonCreated),
 		},
 	})
 	domainResult := createReadyDomainResult()
@@ -181,9 +181,9 @@ func TestCalculateCloudEndpointReadyCondition_UnknownState(t *testing.T) {
 	// This is a bit artificial but tests the default branch
 	calculateCloudEndpointReadyCondition(endpoint, domainResult)
 
-	readyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionCloudEndpointReady)
+	readyCondition := conditions.FindCondition(endpoint.Status.Conditions, ngrokv1alpha1.CloudEndpointConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionTrue, readyCondition.Status)
-	assert.Equal(t, ReasonCloudEndpointActive, readyCondition.Reason)
+	assert.Equal(t, string(ngrokv1alpha1.CloudEndpointReasonActive), readyCondition.Reason)
 	assert.Equal(t, "CloudEndpoint is active and ready", readyCondition.Message)
 }
