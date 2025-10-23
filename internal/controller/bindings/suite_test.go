@@ -65,9 +65,7 @@ var (
 	k8sManager       ctrl.Manager
 	pollerController *BoundEndpointPoller
 
-	// Test helper closures
-	expectCreateNs func(string)
-	expectDeleteNs func(string)
+	kginkgo *testutils.KGinkgo
 )
 
 func TestControllers(t *testing.T) {
@@ -105,8 +103,7 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient).NotTo(BeNil())
 
 	// Initialize test helper closures
-	expectCreateNs = testutils.ExpectCreateNamespace(k8sClient)
-	expectDeleteNs = testutils.ExpectDeleteNamespace(k8sClient)
+	kginkgo = testutils.NewKGinkgo(k8sClient)
 
 	// Create the operator namespace that the poller will use
 	operatorNs := &v1.Namespace{
