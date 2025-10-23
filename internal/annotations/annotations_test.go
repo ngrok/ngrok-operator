@@ -37,7 +37,7 @@ func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
 		{
 			name: "Valid traffic policy",
 			annotations: map[string]string{
-				"k8s.ngrok.com/traffic-policy": "policy1",
+				annotations.TrafficPolicyAnnotation: "policy1",
 			},
 			expected:    "policy1",
 			expectedErr: nil,
@@ -51,7 +51,7 @@ func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
 		{
 			name: "Multiple traffic policies (invalid)",
 			annotations: map[string]string{
-				"k8s.ngrok.com/traffic-policy": "policy1,policy2",
+				annotations.TrafficPolicyAnnotation: "policy1,policy2",
 			},
 			expected:    "",
 			expectedErr: errors.New("multiple traffic policies are not supported: [policy1 policy2]"),

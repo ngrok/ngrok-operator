@@ -48,6 +48,9 @@ const (
 	EndpointPoolingAnnotation    = "k8s.ngrok.com/pooling-enabled"
 	EndpointPoolingAnnotationKey = "pooling-enabled"
 
+	TrafficPolicyAnnotation    = "k8s.ngrok.com/traffic-policy"
+	TrafficPolicyAnnotationKey = "traffic-policy"
+
 	// This annotation can be used on a service to control whether the endpoint is a TCP or TLS endpoint.
 	// Examples:
 	//   * tcp://1.tcp.ngrok.io:12345
@@ -70,7 +73,7 @@ const (
 // Extracts a single traffic policy str from the annotation
 // k8s.ngrok.com/traffic-policy: "module1"
 func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error) {
-	policies, err := parser.GetStringSliceAnnotation("traffic-policy", obj)
+	policies, err := parser.GetStringSliceAnnotation(TrafficPolicyAnnotationKey, obj)
 
 	if err != nil {
 		return "", err

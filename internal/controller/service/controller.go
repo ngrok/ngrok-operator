@@ -55,6 +55,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -110,8 +111,7 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	controller := ctrl.NewControllerManagedBy(mgr).
-		For(&corev1.Service{}).
-		WithEventFilter(predicate.Funcs{
+		For(&corev1.Service{}, builder.WithPredicates(predicate.Funcs{
 			// Only handle services that are of type LoadBalancer and have the correct load balancer class
 			CreateFunc: func(e event.CreateEvent) bool {
 				svc, ok := e.Object.(*corev1.Service)
@@ -120,7 +120,7 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 				return shouldHandleService(svc)
 			},
-		}).
+		})).
 		// Watch traffic policies for changes
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
@@ -246,7 +246,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if len(svc.Spec.Ports) < 1 {
-		log.Info("Service has no ports, skipping")
+		r.Recorder.Event(svc, corev1.EventTypeWarning, "NoPorts", "Unable to handle service with no ports")
 		return ctrl.Result{}, nil
 	}
 
@@ -655,6 +655,7 @@ func (r *baseSubresourceReconciler[T, PT]) GetOwnedResources(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
+
 	ptrs := make([]PT, len(owned))
 	objects := make([]client.Object, len(owned))
 
@@ -762,69 +763,7 @@ func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
 			existing.Spec = desired.Spec
 		},
 		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1alpha1.CloudEndpoint) error {
-			clearIngressStatus := func(svc *corev1.Service) error {
-				svc.Status.LoadBalancer.Ingress = nil
-				return c.Status().Update(ctx, svc)
-			}
-
-			hostname := ""
-			port := int32(443)
-
-			// Check if the computed URL is set, if so, let's parse and use it
-			computedURL, err := annotations.ExtractComputedURL(svc)
-			switch {
-			case err == nil:
-				// Let's parse out the host and port
-				targetURL, err := url.Parse(computedURL)
-				if err != nil {
-					return err
-				}
-				hostname = targetURL.Hostname()
-				if p := targetURL.Port(); p != "" {
-					x, err := strconv.ParseInt(p, 10, 32)
-					if err != nil {
-						return err
-					}
-					port = int32(x)
-				}
-			case !errors.IsMissingAnnotations(err): // Some other error
-				return err
-			default: // computedURL not present, fallback to the domain annotation
-				domain, err := parser.GetStringAnnotation("domain", svc)
-				if err != nil {
-					if errors.IsMissingAnnotations(err) {
-						return clearIngressStatus(svc)
-					}
-					return err
-				}
-
-				// Use this domain temporarily, but also check if there is a
-				// more specific CNAME value on the domain to use
-				hostname = domain
-				if endpoint.Status.DomainRef != nil {
-					// Lookup the domain
-					domain := &ingressv1alpha1.Domain{}
-					if err := c.Get(ctx, client.ObjectKey{Namespace: *endpoint.Status.DomainRef.Namespace, Name: endpoint.Status.DomainRef.Name}, domain); err != nil {
-						return err
-					}
-					if domain.Status.CNAMETarget != nil {
-						hostname = *domain.Status.CNAMETarget
-					}
-				}
-			}
-
-			svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
-				{
-					Hostname: hostname,
-					Ports: []corev1.PortStatus{
-						{
-							Port:     port,
-							Protocol: corev1.ProtocolTCP,
-						},
-					},
-				},
-			}
-			return c.Status().Update(ctx, svc)
+			return updateStatus(ctx, c, svc, endpoint)
 		},
 	}
 }
@@ -844,9 +783,8 @@ func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
 		mergeExisting: func(desired ngrokv1alpha1.AgentEndpoint, existing *ngrokv1alpha1.AgentEndpoint) {
 			existing.Spec = desired.Spec
 		},
-		updateStatus: func(_ context.Context, _ client.Client, _ *corev1.Service, _ *ngrokv1alpha1.AgentEndpoint) error {
-			// AgentEndpoints don't interact with the service status
-			return nil
+		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1alpha1.AgentEndpoint) error {
+			return updateStatus(ctx, c, svc, endpoint)
 		},
 	}
 }
@@ -863,4 +801,72 @@ func getNgrokTrafficPolicyForService(ctx context.Context, c client.Client, svc *
 	policy := &ngrokv1alpha1.NgrokTrafficPolicy{}
 	err = c.Get(ctx, client.ObjectKey{Namespace: svc.Namespace, Name: policyName}, policy)
 	return policy, err
+}
+
+func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, endpoint ngrokv1alpha1.EndpointWithDomain) error {
+	clearIngressStatus := func(svc *corev1.Service) error {
+		svc.Status.LoadBalancer.Ingress = nil
+		return c.Status().Update(ctx, svc)
+	}
+
+	hostname := ""
+	port := int32(443)
+
+	// Check if the computed URL is set, if so, let's parse and use it
+	computedURL, err := annotations.ExtractComputedURL(svc)
+	switch {
+	case err == nil:
+		// Let's parse out the host and port
+		targetURL, err := url.Parse(computedURL)
+		if err != nil {
+			return err
+		}
+		hostname = targetURL.Hostname()
+		if p := targetURL.Port(); p != "" {
+			x, err := strconv.ParseInt(p, 10, 32)
+			if err != nil {
+				return err
+			}
+			port = int32(x)
+		}
+	case !errors.IsMissingAnnotations(err): // Some other error
+		return err
+	default: // computedURL not present, fallback to the domain annotation
+		domain, err := parser.GetStringAnnotation("domain", svc)
+		if err != nil {
+			if errors.IsMissingAnnotations(err) {
+				return clearIngressStatus(svc)
+			}
+			return err
+		}
+
+		// Use this domain temporarily, but also check if there is a
+		// more specific CNAME value on the domain to use
+		hostname = domain
+
+		dr := endpoint.GetDomainRef()
+		if dr != nil {
+			// Lookup the domain
+			domain := &ingressv1alpha1.Domain{}
+			if err := c.Get(ctx, client.ObjectKey{Namespace: *dr.Namespace, Name: dr.Name}, domain); err != nil {
+				return err
+			}
+			if domain.Status.CNAMETarget != nil {
+				hostname = *domain.Status.CNAMETarget
+			}
+		}
+	}
+
+	svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
+		{
+			Hostname: hostname,
+			Ports: []corev1.PortStatus{
+				{
+					Port:     port,
+					Protocol: corev1.ProtocolTCP,
+				},
+			},
+		},
+	}
+	return c.Status().Update(ctx, svc)
 }
