@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.19.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.18.0...ngrok-operator-0.19.0
+
+### Added
+
+- Add status and conditions to AgentEndpoint CRD by @alex-bezek in [#673](https://github.com/ngrok/ngrok-operator/pull/673)
+- Configure status and conditions for Domain CRD to track provisioning process by @alex-bezek in [#678](https://github.com/ngrok/ngrok-operator/pull/678)
+- Add status and conditions to CloudEndpoint CRD by @alex-bezek in [#682](https://github.com/ngrok/ngrok-operator/pull/682)
+- Add status and conditions to IPPolicy CRD by @sabrina-ngrok in [#684](https://github.com/ngrok/ngrok-operator/pull/684)
+- Add status and conditions to BoundEndpoint CRD by @alex-bezek in [#688](https://github.com/ngrok/ngrok-operator/pull/688)
+
+### Changed
+
+- Use domain ref in statuses by @alex-bezek in [#679](https://github.com/ngrok/ngrok-operator/pull/679)
+- Reload certs on any changes and handle symlinks to certs by @kmvachhani in [#670](https://github.com/ngrok/ngrok-operator/pull/670)
+- chore(deps): Update Go to 1.24.9 by @jonstacks in [#683](https://github.com/ngrok/ngrok-operator/pull/683)
+- chore(deps): Dependency updates by @jonstacks in [#672](https://github.com/ngrok/ngrok-operator/pull/672)
+- chore: Clean up test pointer functions by @jonstacks in [#690](https://github.com/ngrok/ngrok-operator/pull/690)
+
+### Fixed
+
+- fix: Load Balancer service status not working when using default mapping strategy by @jonstacks in [#693](https://github.com/ngrok/ngrok-operator/pull/693)
+- fix: Agent endpoint controller watch to find endpoints based on secret changes by @alex-bezek in [#674](https://github.com/ngrok/ngrok-operator/pull/674)
+- fix: Wait for gateway to be deleted before continuing the test to solve race condition by @alex-bezek in [#675](https://github.com/ngrok/ngrok-operator/pull/675)
+- fix: Too frequent reconciles for lb-services by @jonstacks in [#694](https://github.com/ngrok/ngrok-operator/pull/694)
+
 ## 0.18.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.17.0...ngrok-operator-0.18.0
 
