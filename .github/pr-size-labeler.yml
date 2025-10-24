@@ -1,0 +1,25 @@
+labels:
+- name: size/XS
+  color: '009900'
+  min-lines: 0
+  description: 'Denotes a PR that changes 0-9 lines'
+- name: size/S
+  color: '0077bb'
+  min-lines: 10
+  description: 'Denotes a PR that changes 10-29 lines'
+- name: size/M
+  color: 'eebb00'
+  min-lines: 30
+  description: 'Denotes a PR that changes 30-99 lines'
+- name: size/L
+  color: 'ee9900'
+  min-lines: 100
+  description: 'Denotes a PR that changes 100-499 lines'
+- name: size/XL
+  color: 'ee5500'
+  min-lines: 500
+  description: 'Denotes a PR that changes 500-999 lines'
+- name: size/XXL
+  color: 'ee0000'
+  min-lines: 1000
+  description: 'Denotes a PR that changes 1000+ lines'
