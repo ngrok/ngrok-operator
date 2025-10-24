@@ -50,6 +50,59 @@ func WithInterval(interval time.Duration) KGinkgoOpt {
 	}
 }
 
+// ConsistentlyWithCloudEndpoints continually fetches the CloudEndpoints in the given namespace and invokes the inner function with the list.
+// The function uses Gomega's Consistently internally, so it should only be used in Ginkgo tests.
+// You can pass optional KGinkgoOpt parameters to customize the timeout and polling interval.
+//
+// Example usage:
+//
+//	    check := func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+//	        g.Expect(len(cleps)).To(Equal(2))
+//		}
+//
+//		kginkgo := testutils.NewKGinkgo(k8sClient)
+//	    kginkgo.ConsistentlyWithCloudEndpoints(ctx, "test-namespace", check)
+func (k *KGinkgo) ConsistentlyWithCloudEndpoints(ctx context.Context, namespace string, inner func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint), opts ...KGinkgoOpt) {
+	GinkgoHelper()
+	eo := makeKGinkgoOptions(opts...)
+
+	Consistently(func(g Gomega) {
+		// List CloudEndpoints in the namespace
+		cleps, err := k.getCloudEndpoints(ctx, namespace)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		inner(g, cleps)
+	}).WithTimeout(eo.timeout).WithPolling(eo.interval).Should(Succeed())
+}
+
+// ConsistentlyExpectResourceVersionNotToChange asserts that the resource version of the given Kubernetes object does not change over time.
+// The function uses Gomega's Consistently internally, so it should only be used in Ginkgo tests.
+// You can pass optional KGinkgoOpt parameters to customize the timeout and polling interval.
+//
+// Example usage:
+//
+//		kginkgo := testutils.NewKGinkgo(k8sClient)
+//	    kginkgo.ConsistentlyExpectResourceVersionNotToChange(ctx, myObject)
+func (k *KGinkgo) ConsistentlyExpectResourceVersionNotToChange(ctx context.Context, obj client.Object, opts ...KGinkgoOpt) {
+	GinkgoHelper()
+
+	eo := makeKGinkgoOptions(opts...)
+	objKey := client.ObjectKeyFromObject(obj)
+
+	initialResourceVersion := ""
+
+	Consistently(func(g Gomega) {
+		fetched := obj.DeepCopyObject().(client.Object)
+		g.Expect(k.client.Get(ctx, objKey, fetched)).NotTo(HaveOccurred())
+
+		if initialResourceVersion == "" {
+			initialResourceVersion = fetched.GetResourceVersion()
+		}
+
+		g.Expect(fetched.GetResourceVersion()).To(Equal(initialResourceVersion))
+	}).WithTimeout(eo.timeout).WithPolling(eo.interval).Should(Succeed())
+}
+
 // ExpectCreateNamespace creates a namespace with the given name.
 // The function uses Gomega's Expect internally, so it should only be used in Ginkgo tests.
 //
@@ -230,31 +283,6 @@ func (k *KGinkgo) EventuallyWithCloudEndpoints(ctx context.Context, namespace st
 	eo := makeKGinkgoOptions(opts...)
 
 	Eventually(func(g Gomega) {
-		// List CloudEndpoints in the namespace
-		cleps, err := k.getCloudEndpoints(ctx, namespace)
-		g.Expect(err).NotTo(HaveOccurred())
-
-		inner(g, cleps)
-	}).WithTimeout(eo.timeout).WithPolling(eo.interval).Should(Succeed())
-}
-
-// ConsistentlyWithCloudEndpoints continually fetches the CloudEndpoints in the given namespace and invokes the inner function with the list.
-// The function uses Gomega's Consistently internally, so it should only be used in Ginkgo tests.
-// You can pass optional KGinkgoOpt parameters to customize the timeout and polling interval.
-//
-// Example usage:
-//
-//	    check := func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
-//	        g.Expect(len(cleps)).To(Equal(2))
-//		}
-//
-//		kginkgo := testutils.NewKGinkgo(k8sClient)
-//	    kginkgo.ConsistentlyWithCloudEndpoints(ctx, "test-namespace", check)
-func (k *KGinkgo) ConsistentlyWithCloudEndpoints(ctx context.Context, namespace string, inner func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint), opts ...KGinkgoOpt) {
-	GinkgoHelper()
-	eo := makeKGinkgoOptions(opts...)
-
-	Consistently(func(g Gomega) {
 		// List CloudEndpoints in the namespace
 		cleps, err := k.getCloudEndpoints(ctx, namespace)
 		g.Expect(err).NotTo(HaveOccurred())

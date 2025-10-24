@@ -32,6 +32,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -260,9 +261,12 @@ var _ = Describe("ServiceController", func() {
 						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
 						g.Expect(err).NotTo(HaveOccurred())
 
-						By("By checking the service status is updated")
+						By("checking the service status is updated")
 						g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
 						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).NotTo(BeEmpty())
+
+						By("verifying the resource version does not change unnecessarily")
+						kginkgo.ConsistentlyExpectResourceVersionNotToChange(ctx, svc, testutils.WithTimeout(10*time.Second))
 					}, timeout, interval).Should(Succeed())
 				})
 
