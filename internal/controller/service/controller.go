@@ -88,6 +88,34 @@ type ServiceReconciler struct {
 	TCPAddresses     ngrokapi.TCPAddressesClient
 }
 
+type ShouldHandleServicePredicate = TypedShouldHandleServicePredicate[client.Object]
+
+type TypedShouldHandleServicePredicate[object client.Object] struct {
+	predicate.TypedFuncs[object]
+}
+
+func (p TypedShouldHandleServicePredicate[object]) Create(e event.CreateEvent) bool {
+	svc, ok := e.Object.(*corev1.Service)
+	if !ok {
+		return false
+	}
+	return shouldHandleService(svc)
+}
+
+func (p TypedShouldHandleServicePredicate[object]) Update(e event.UpdateEvent) bool {
+	if e.ObjectOld == nil || e.ObjectNew == nil {
+		return false
+	}
+
+	oldSvc, ok1 := e.ObjectOld.(*corev1.Service)
+	newSvc, ok2 := e.ObjectNew.(*corev1.Service)
+	if !ok1 || !ok2 {
+		return false
+	}
+	// We need to reconcile if either the old or new service should be handled
+	return shouldHandleService(oldSvc) || shouldHandleService(newSvc)
+}
+
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.ClusterDomain == "" {
 		r.ClusterDomain = common.DefaultClusterDomain
@@ -111,16 +139,12 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	controller := ctrl.NewControllerManagedBy(mgr).
-		For(&corev1.Service{}, builder.WithPredicates(predicate.Funcs{
-			// Only handle services that are of type LoadBalancer and have the correct load balancer class
-			CreateFunc: func(e event.CreateEvent) bool {
-				svc, ok := e.Object.(*corev1.Service)
-				if !ok {
-					return false
-				}
-				return shouldHandleService(svc)
-			},
-		})).
+		For(&corev1.Service{}, builder.WithPredicates(
+			predicate.And(
+				ShouldHandleServicePredicate{},
+				predicate.ResourceVersionChangedPredicate{},
+			),
+		)).
 		// Watch traffic policies for changes
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
@@ -129,7 +153,12 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Index the subresources by their owner references
 	for _, o := range owns {
-		controller = controller.Owns(o)
+		controller = controller.Owns(o, builder.WithPredicates(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
+			),
+		))
 		err := mgr.GetFieldIndexer().IndexField(context.Background(), o, OwnerReferencePath, func(obj client.Object) []string {
 			owner := metav1.GetControllerOf(obj)
 			if owner == nil {
@@ -283,13 +312,19 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.Error(err, "Failed to get owned resources")
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
-	for _, o := range ownedResources {
-		if err := subResourceReconcilers.UpdateServiceStatus(ctx, r.Client, svc, o); err != nil {
-			log.Error(err, "Failed to update service status")
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-		}
+
+	// Determine which object to use for updating the service status based on mapping strategy
+	statusObject, err := r.getObjectForStatusUpdate(mappingStrategy, ownedResources)
+	if err != nil {
+		log.Error(err, "Failed to determine object for status update")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	if err := subResourceReconcilers.UpdateServiceStatus(ctx, r.Client, svc, statusObject); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update service status: %w", err)
+	}
+
+	r.Recorder.Event(svc, corev1.EventTypeNormal, "Reconciled", "Successfully reconciled service and its ngrok resources")
 	return ctrl.Result{}, nil
 }
 
@@ -587,6 +622,30 @@ func (r *ServiceReconciler) getListenerURL(svc *corev1.Service) (string, error) 
 	return "tcp://", nil
 }
 
+func (r *ServiceReconciler) getObjectForStatusUpdate(mappingStrategy ir.IRMappingStrategy, ownedResources []client.Object) (client.Object, error) {
+	switch mappingStrategy {
+	case ir.IRMappingStrategy_EndpointsCollapsed:
+		// We should only have 1 owned resource (the AgentEndpoint)
+		if len(ownedResources) != 1 {
+			return nil, fmt.Errorf("expected 1 owned resource, got %d", len(ownedResources))
+		}
+		return ownedResources[0], nil
+	case ir.IRMappingStrategy_EndpointsVerbose:
+		// We should have 2 owned resources (the CloudEndpoint and AgentEndpoint)
+		if len(ownedResources) != 2 {
+			return nil, fmt.Errorf("expected 2 owned resources, got %d", len(ownedResources))
+		}
+		for _, owned := range ownedResources {
+			if _, ok := owned.(*ngrokv1alpha1.CloudEndpoint); ok {
+				return owned, nil
+			}
+		}
+		return nil, errors.New("could not find CloudEndpoint among owned resources")
+	default:
+		return nil, fmt.Errorf("unknown mapping strategy: %s", mappingStrategy)
+	}
+}
+
 func shouldHandleService(svc *corev1.Service) bool {
 	return svc.Spec.Type == corev1.ServiceTypeLoadBalancer &&
 		ptr.Deref(svc.Spec.LoadBalancerClass, "") == NgrokLoadBalancerClass
@@ -711,6 +770,11 @@ func (r *baseSubresourceReconciler[T, PT]) Reconcile(ctx context.Context, c clie
 		// Fetch the existing resource as it may have been updated
 		if err := c.Get(ctx, client.ObjectKeyFromObject(e), e); err != nil {
 			return err
+		}
+
+		if r.matches(*d, *e) {
+			log.V(5).Info(fmt.Sprintf("%T matches desired state, no update needed", e))
+			return nil
 		}
 
 		r.mergeExisting(*d, e)
@@ -857,7 +921,7 @@ func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, end
 		}
 	}
 
-	svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
+	newIngressStatus := []corev1.LoadBalancerIngress{
 		{
 			Hostname: hostname,
 			Ports: []corev1.PortStatus{
@@ -868,5 +932,13 @@ func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, end
 			},
 		},
 	}
+
+	// If the status is already set correctly, do nothing
+	if reflect.DeepEqual(svc.Status.LoadBalancer.Ingress, newIngressStatus) {
+		return nil
+	}
+
+	// Update the service status
+	svc.Status.LoadBalancer.Ingress = newIngressStatus
 	return c.Status().Update(ctx, svc)
 }
