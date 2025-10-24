@@ -26,6 +26,7 @@ package v1alpha1
 
 import (
 	v6 "github.com/ngrok/ngrok-api-go/v7"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -61,19 +62,35 @@ type BoundEndpointSpec struct {
 
 // BoundEndpointStatus defines the observed state of BoundEndpoint
 type BoundEndpointStatus struct {
-	// Endpoints is the list of BindingEndpoints that are created for this BoundEndpoint
-	//
-	// Note: The collection of Endpoints per Binding are Many-to-One
-	//       The uniqueness of each Endpoint is not ID, but rather the 4-tuple <scheme,service-name,namespace,port>
-	//       All Endpoints bound to a BoundEndpoint will share the same 4-tuple, statuses, errors, etc...
-	//       this is because BoundEndpoint represents 1 Service, yet many Endpoints
-	//
-	// +kubebuilder:validation:Required
-	Endpoints []BindingEndpoint `json:"endpoints"`
+	// Endpoints is the list of ngrok API endpoint references bound to this BoundEndpoint
+	// All endpoints share the same underlying Kubernetes services
+	// +kubebuilder:validation:Optional
+	Endpoints []BindingEndpoint `json:"endpoints,omitempty"`
 
 	// HashName is the hashed output of the TargetService and TargetNamespace for unique identification
-	// +kubebuilder:validation:Required
-	HashedName string `json:"hashedName"`
+	// +kubebuilder:validation:Optional
+	HashedName string `json:"hashedName,omitempty"`
+
+	// EndpointsSummary provides a human-readable count of bound endpoints
+	// Format: "N endpoint" or "N endpoints"
+	// Examples: "1 endpoint", "2 endpoints"
+	// +kubebuilder:validation:Optional
+	EndpointsSummary string `json:"endpointsSummary,omitempty"`
+
+	// Conditions represent the latest available observations of the BoundEndpoint's state
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:MaxItems=8
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// TargetServiceRef references the created ExternalName Service in the target namespace
+	// +kubebuilder:validation:Optional
+	TargetServiceRef *ngrokv1alpha1.K8sObjectRefOptionalNamespace `json:"targetServiceRef,omitempty"`
+
+	// UpstreamServiceRef references the created ClusterIP Service pointing to pod forwarders
+	// +kubebuilder:validation:Optional
+	UpstreamServiceRef *ngrokv1alpha1.K8sObjectRef `json:"upstreamServiceRef,omitempty"`
 }
 
 // EndpointTarget hold the data for the projected Service that binds the endpoint to the k8s cluster resource
@@ -120,36 +137,11 @@ type TargetMetadata struct {
 }
 
 // BindingEndpoint is a reference to an Endpoint object in the ngrok API that is attached to the kubernetes operator binding
+// All endpoints in a BoundEndpoint share the same underlying Kubernetes services
 type BindingEndpoint struct {
 	// Ref is the ngrok API reference to the Endpoint object (id, uri)
 	v6.Ref `json:",inline"`
-
-	// +kubebuilder:validation:Required
-	// +kube:validation:Enum=provisioning;bound;denied;error;unknown
-	// +kubebuilder:default="unknown"
-	Status BindingEndpointStatus `json:"status"`
-
-	// ErrorCode is the ngrok API error code if the status is error
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^ERR_NGROK_\d+$`
-	ErrorCode string `json:"errorCode,omitempty"`
-
-	// ErrorMessage is a free-form error message if the status is error
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:MaxLength=4096
-	ErrorMessage string `json:"errorMessage,omitempty"`
 }
-
-// BindingEndpointStatus is an enum that represents the status of a BindingEndpoint
-// +kubebuilder:validation:Enum=unknown;provisioning;bound;error
-type BindingEndpointStatus string
-
-const (
-	StatusUnknown      BindingEndpointStatus = "unknown"
-	StatusProvisioning BindingEndpointStatus = "provisioning"
-	StatusBound        BindingEndpointStatus = "bound"
-	StatusError        BindingEndpointStatus = "error"
-)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -157,7 +149,9 @@ const (
 // BoundEndpoint is the Schema for the boundendpoints API
 // +kubebuilder:printcolumn:name="URI",type="string",JSONPath=".spec.endpointURI"
 // +kubebuilder:printcolumn:name="Port",type="string",JSONPath=".spec.port"
-// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.endpoints[0].status"
+// +kubebuilder:printcolumn:name="Endpoints",type="string",JSONPath=".status.endpointsSummary"
+// +kubebuilder:printcolumn:name="Services",type="string",JSONPath=".status.conditions[?(@.type==\"ServicesCreated\")].status"
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 type BoundEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`

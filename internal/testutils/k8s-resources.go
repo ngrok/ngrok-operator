@@ -308,3 +308,14 @@ func NewAgentEndpoint(opts ...AgentEndpointOpt) *ngrokv1alpha1.AgentEndpoint {
 	}
 	return aep
 }
+
+// FindCondition finds a condition by type in a list of conditions.
+// Returns nil if the condition is not found.
+func FindCondition(conditions []metav1.Condition, condType string) *metav1.Condition {
+	for i := range conditions {
+		if conditions[i].Type == condType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}

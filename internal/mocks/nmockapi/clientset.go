@@ -6,18 +6,20 @@ import (
 
 // Clientset implements ngrokapi.Clientset for testing
 type Clientset struct {
-	domainsClient       *DomainClient
-	endpointsClient     *EndpointsClient
-	ipPoliciesClient    *IPPolicyClient
-	ipPolicyRulesClient *IPPolicyRuleClient
+	domainsClient             *DomainClient
+	endpointsClient           *EndpointsClient
+	ipPoliciesClient          *IPPolicyClient
+	ipPolicyRulesClient       *IPPolicyRuleClient
+	kubernetesOperatorsClient *KubernetesOperatorsClient
 }
 
 func NewClientset() *Clientset {
 	return &Clientset{
-		domainsClient:       NewDomainClient(),
-		endpointsClient:     NewEndpointsClient(),
-		ipPoliciesClient:    NewIPPolicyClient(),
-		ipPolicyRulesClient: NewIPPolicyRuleClient(NewIPPolicyClient()),
+		domainsClient:             NewDomainClient(),
+		endpointsClient:           NewEndpointsClient(),
+		ipPoliciesClient:          NewIPPolicyClient(),
+		ipPolicyRulesClient:       NewIPPolicyRuleClient(NewIPPolicyClient()),
+		kubernetesOperatorsClient: NewKubernetesOperatorsClient(),
 	}
 }
 
@@ -38,7 +40,7 @@ func (m *Clientset) IPPolicyRules() ngrokapi.IPPolicyRulesClient {
 }
 
 func (m *Clientset) KubernetesOperators() ngrokapi.KubernetesOperatorsClient {
-	return nil
+	return m.kubernetesOperatorsClient
 }
 
 func (m *Clientset) TCPAddresses() ngrokapi.TCPAddressesClient {

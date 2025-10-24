@@ -183,10 +183,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
-					Status:       bindingsv1alpha1.StatusProvisioning,
-					ErrorCode:    "",
-					ErrorMessage: "",
+					Ref: ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
 				},
 			},
 		},
@@ -217,10 +214,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
-					Status:       bindingsv1alpha1.StatusProvisioning,
-					ErrorCode:    "",
-					ErrorMessage: "",
+					Ref: ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
 				},
 			},
 		},
@@ -247,10 +241,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
-					Status:       bindingsv1alpha1.StatusProvisioning,
-					ErrorCode:    "",
-					ErrorMessage: "",
+					Ref: ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
 				},
 			},
 		},
@@ -274,10 +265,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample2),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          ngrok.Ref{ID: "ep_def456", URI: "example-uri"},
-					Status:       bindingsv1alpha1.StatusProvisioning,
-					ErrorCode:    "",
-					ErrorMessage: "",
+					Ref: ngrok.Ref{ID: "ep_def456", URI: "example-uri"},
 				},
 			},
 		},
@@ -300,22 +288,13 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			HashedName: hashURI(uriExample2),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
-					Ref:          ngrok.Ref{ID: "ep_def456", URI: "example-uri"},
-					Status:       bindingsv1alpha1.StatusProvisioning,
-					ErrorCode:    "",
-					ErrorMessage: "",
+					Ref: ngrok.Ref{ID: "ep_def456", URI: "example-uri"},
 				},
 				{
-					Ref:          ngrok.Ref{ID: "ep_xyz999", URI: "example-uri"},
-					Status:       bindingsv1alpha1.StatusProvisioning,
-					ErrorCode:    "",
-					ErrorMessage: "",
+					Ref: ngrok.Ref{ID: "ep_xyz999", URI: "example-uri"},
 				},
 				{
-					Ref:          ngrok.Ref{ID: "ep_www000", URI: "example-uri"},
-					Status:       bindingsv1alpha1.StatusProvisioning,
-					ErrorCode:    "",
-					ErrorMessage: "",
+					Ref: ngrok.Ref{ID: "ep_www000", URI: "example-uri"},
 				},
 			},
 		},
@@ -476,6 +455,47 @@ func Test_BoundEndpointPoller_targetMetadataIsEqual(t *testing.T) {
 			assert := assert.New(t)
 
 			got := targetMetadataIsEqual(test.a, test.b)
+			assert.Equal(test.want, got)
+		})
+	}
+}
+
+func Test_computeEndpointsSummary(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		count int
+		want  string
+	}{
+		{
+			name:  "zero endpoints",
+			count: 0,
+			want:  "0 endpoints",
+		},
+		{
+			name:  "one endpoint",
+			count: 1,
+			want:  "1 endpoint",
+		},
+		{
+			name:  "two endpoints",
+			count: 2,
+			want:  "2 endpoints",
+		},
+		{
+			name:  "many endpoints",
+			count: 10,
+			want:  "10 endpoints",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			assert := assert.New(t)
+
+			got := computeEndpointsSummary(test.count)
 			assert.Equal(test.want, got)
 		})
 	}

@@ -407,15 +407,15 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 		Endpoints:  []bindingsv1alpha1.BindingEndpoint{}, // empty for now, will be filled in just below
 	}
 
-	// attach the endpoints to the status
+	// attach the endpoints to the status (poller owns Endpoints and EndpointsSummary)
 	for _, desiredEndpoint := range desired.Status.Endpoints {
-		endpoint := desiredEndpoint
-		endpoint.Status = bindingsv1alpha1.StatusProvisioning
-		endpoint.ErrorCode = ""
-		endpoint.ErrorMessage = ""
-
-		toCreateStatus.Endpoints = append(toCreateStatus.Endpoints, endpoint)
+		toCreateStatus.Endpoints = append(toCreateStatus.Endpoints, bindingsv1alpha1.BindingEndpoint{
+			Ref: desiredEndpoint.Ref,
+		})
 	}
+
+	// compute the endpoints summary
+	toCreateStatus.EndpointsSummary = computeEndpointsSummary(len(toCreateStatus.Endpoints))
 
 	toCreate.Status = toCreateStatus
 
@@ -476,15 +476,15 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 		Endpoints:  []bindingsv1alpha1.BindingEndpoint{}, // empty for now, will be filled in just below
 	}
 
-	// attach the endpoints to the status
+	// attach the endpoints to the status (poller owns Endpoints and EndpointsSummary)
 	for _, desiredEndpoint := range desired.Status.Endpoints {
-		endpoint := desiredEndpoint
-		endpoint.Status = bindingsv1alpha1.StatusProvisioning
-		endpoint.ErrorCode = ""
-		endpoint.ErrorMessage = ""
-
-		toUpdateStatus.Endpoints = append(toUpdateStatus.Endpoints, endpoint)
+		toUpdateStatus.Endpoints = append(toUpdateStatus.Endpoints, bindingsv1alpha1.BindingEndpoint{
+			Ref: desiredEndpoint.Ref,
+		})
 	}
+
+	// compute the endpoints summary
+	toUpdateStatus.EndpointsSummary = computeEndpointsSummary(len(toUpdateStatus.Endpoints))
 
 	toUpdate.Status = toUpdateStatus
 
@@ -514,15 +514,25 @@ func (r *BoundEndpointPoller) deleteBinding(ctx context.Context, boundEndpoint b
 func (r *BoundEndpointPoller) updateBindingStatus(ctx context.Context, desired *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	toUpdate := desired
-	toUpdate.Status = desired.Status
-
-	if err := r.Status().Update(ctx, toUpdate); err != nil {
-		log.Error(err, "Failed to update BoundEndpoint status", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
+	// Get the current version to preserve controller-owned fields
+	current := &bindingsv1alpha1.BoundEndpoint{}
+	if err := r.Get(ctx, client.ObjectKeyFromObject(desired), current); err != nil {
+		log.Error(err, "Failed to get current BoundEndpoint for status update", "name", desired.Name)
 		return err
 	}
 
-	log.Info("Updated BoundEndpoint status", "name", toUpdate.Name, "uri", toUpdate.Spec.EndpointURI)
+	// Preserve controller-owned fields (Conditions and service refs)
+	// Poller only updates Endpoints and EndpointsSummary
+	current.Status.Endpoints = desired.Status.Endpoints
+	current.Status.EndpointsSummary = desired.Status.EndpointsSummary
+	current.Status.HashedName = desired.Status.HashedName
+
+	if err := r.Status().Update(ctx, current); err != nil {
+		log.Error(err, "Failed to update BoundEndpoint status", "name", current.Name, "uri", current.Spec.EndpointURI)
+		return err
+	}
+
+	log.Info("Updated BoundEndpoint status", "name", current.Name, "uri", current.Spec.EndpointURI)
 	return nil
 }
 
@@ -563,6 +573,14 @@ func targetMetadataIsEqual(a bindingsv1alpha1.TargetMetadata, b bindingsv1alpha1
 	}
 
 	return true
+}
+
+// computeEndpointsSummary returns "N endpoint" or "N endpoints" string
+func computeEndpointsSummary(count int) string {
+	if count == 1 {
+		return "1 endpoint"
+	}
+	return fmt.Sprintf("%d endpoints", count)
 }
 
 // boundEndpointNeedsUpdate returns true if the data in desired does not match existing, and therefore existing needs updating to match desired

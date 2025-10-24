@@ -29,6 +29,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -130,6 +132,23 @@ func (in *BoundEndpointStatus) DeepCopyInto(out *BoundEndpointStatus) {
 		in, out := &in.Endpoints, &out.Endpoints
 		*out = make([]BindingEndpoint, len(*in))
 		copy(*out, *in)
+	}
+	if in.Conditions != nil {
+		in, out := &in.Conditions, &out.Conditions
+		*out = make([]v1.Condition, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.TargetServiceRef != nil {
+		in, out := &in.TargetServiceRef, &out.TargetServiceRef
+		*out = new(ngrokv1alpha1.K8sObjectRefOptionalNamespace)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.UpstreamServiceRef != nil {
+		in, out := &in.UpstreamServiceRef, &out.UpstreamServiceRef
+		*out = new(ngrokv1alpha1.K8sObjectRef)
+		**out = **in
 	}
 }
 

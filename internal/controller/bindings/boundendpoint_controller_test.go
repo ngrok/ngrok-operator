@@ -29,15 +29,9 @@ import (
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-func Test_BoundEndpoint(t *testing.T) {
-	assert := assert.New(t)
-
-	// TODO(hkatz) implement me
-	assert.True(true)
-}
 
 func Test_convertBoundEndpointToServices(t *testing.T) {
 	assert := assert.New(t)
@@ -77,87 +71,82 @@ func Test_convertBoundEndpointToServices(t *testing.T) {
 	assert.Equal(upstreamService.Spec.Ports[0].Name, "https")
 }
 
-func Test_setEndpointsStatus(t *testing.T) {
-	t.Parallel()
+func Test_convertBoundEndpointToServices_HTTP(t *testing.T) {
+	assert := assert.New(t)
 
-	tests := []struct {
-		name          string
-		boundEndpoint *bindingsv1alpha1.BoundEndpoint
-		desired       *bindingsv1alpha1.BindingEndpoint
-	}{
-		{
-			name: "Set provisioning status",
-			boundEndpoint: &bindingsv1alpha1.BoundEndpoint{
-				Status: bindingsv1alpha1.BoundEndpointStatus{
-					Endpoints: []bindingsv1alpha1.BindingEndpoint{
-						{
-							Status:       bindingsv1alpha1.StatusUnknown,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-					},
-				},
-			},
-			desired: &bindingsv1alpha1.BindingEndpoint{
-				Status:       bindingsv1alpha1.StatusProvisioning,
-				ErrorCode:    "",
-				ErrorMessage: "",
+	controller := &BoundEndpointReconciler{
+		ClusterDomain: "svc.cluster.local",
+	}
+
+	boundEndpoint := &bindingsv1alpha1.BoundEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-http",
+			Namespace: "ngrok-op",
+		},
+		Spec: bindingsv1alpha1.BoundEndpointSpec{
+			Scheme: "http",
+			Target: bindingsv1alpha1.EndpointTarget{
+				Service:   "web-service",
+				Namespace: "default",
+				Protocol:  "TCP",
+				Port:      80,
 			},
 		},
-		{
-			name: "Set error status",
-			boundEndpoint: &bindingsv1alpha1.BoundEndpoint{
-				Status: bindingsv1alpha1.BoundEndpointStatus{
-					Endpoints: []bindingsv1alpha1.BindingEndpoint{
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-						{
-							Status:       bindingsv1alpha1.StatusProvisioning,
-							ErrorCode:    "",
-							ErrorMessage: "",
-						},
-					},
-				},
-			},
-			desired: &bindingsv1alpha1.BindingEndpoint{
-				Status:       bindingsv1alpha1.StatusError,
-				ErrorCode:    "ERR_NGROK_1234",
-				ErrorMessage: "Example Error Message",
-			},
+		Status: bindingsv1alpha1.BoundEndpointStatus{
+			HashedName: "test-http",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			assert := assert.New(t)
+	targetService, upstreamService := controller.convertBoundEndpointToServices(boundEndpoint)
 
-			setEndpointsStatus(test.boundEndpoint, test.desired)
+	assert.Equal(targetService.Name, "web-service")
+	assert.Equal(targetService.Namespace, "default")
+	assert.Equal(targetService.Spec.Ports[0].Port, int32(80))
+	assert.Equal(targetService.Spec.Ports[0].Name, "http")
+	assert.Equal(targetService.Spec.ExternalName, "test-http.ngrok-op.svc.cluster.local")
 
-			for _, endpoint := range test.boundEndpoint.Status.Endpoints {
-				assert.Equal(endpoint.Status, test.desired.Status)
-				assert.Equal(endpoint.ErrorCode, test.desired.ErrorCode)
-				assert.Equal(endpoint.ErrorMessage, test.desired.ErrorMessage)
-			}
-		})
+	assert.Equal(upstreamService.Name, "test-http")
+	assert.Equal(upstreamService.Namespace, "ngrok-op")
+	assert.Equal(upstreamService.Spec.Ports[0].Name, "http")
+}
+
+func Test_convertBoundEndpointToServices_TCP(t *testing.T) {
+	assert := assert.New(t)
+
+	controller := &BoundEndpointReconciler{
+		ClusterDomain: "cluster.local",
 	}
 
+	boundEndpoint := &bindingsv1alpha1.BoundEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-tcp",
+			Namespace: "ngrok-op",
+		},
+		Spec: bindingsv1alpha1.BoundEndpointSpec{
+			Scheme: "tcp",
+			Target: bindingsv1alpha1.EndpointTarget{
+				Service:   "db-service",
+				Namespace: "databases",
+				Protocol:  "TCP",
+				Port:      5432,
+			},
+		},
+		Status: bindingsv1alpha1.BoundEndpointStatus{
+			HashedName: "test-tcp",
+		},
+	}
+
+	targetService, upstreamService := controller.convertBoundEndpointToServices(boundEndpoint)
+
+	assert.Equal(targetService.Name, "db-service")
+	assert.Equal(targetService.Namespace, "databases")
+	assert.Equal(targetService.Spec.Ports[0].Port, int32(5432))
+	assert.Equal(targetService.Spec.Ports[0].Name, "tcp")
+	assert.Equal(targetService.Spec.Type, v1.ServiceTypeExternalName)
+	assert.Equal(targetService.Spec.ExternalName, "test-tcp.ngrok-op.cluster.local")
+
+	assert.Equal(upstreamService.Name, "test-tcp")
+	assert.Equal(upstreamService.Spec.Type, v1.ServiceTypeClusterIP)
+	assert.Equal(upstreamService.Spec.Ports[0].Name, "tcp")
+	assert.Equal(upstreamService.Spec.Ports[0].Port, int32(5432))
 }
