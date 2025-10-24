@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	finalizerName = "k8s.ngrok.com/finalizer"
+	FinalizerName = "k8s.ngrok.com/finalizer"
 )
 
 func IsUpsert(o client.Object) bool {
@@ -20,15 +20,15 @@ func IsDelete(o client.Object) bool {
 }
 
 func HasFinalizer(o client.Object) bool {
-	return controllerutil.ContainsFinalizer(o, finalizerName)
+	return controllerutil.ContainsFinalizer(o, FinalizerName)
 }
 
 func AddFinalizer(o client.Object) bool {
-	return controllerutil.AddFinalizer(o, finalizerName)
+	return controllerutil.AddFinalizer(o, FinalizerName)
 }
 
 func RemoveFinalizer(o client.Object) bool {
-	return controllerutil.RemoveFinalizer(o, finalizerName)
+	return controllerutil.RemoveFinalizer(o, FinalizerName)
 }
 
 func RegisterAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
