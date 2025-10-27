@@ -123,7 +123,7 @@ var _ = Describe("ServiceController", func() {
 	)
 
 	var (
-		namespace string = "default"
+		namespace string
 		svc       *corev1.Service
 
 		modifiers *ServiceModifiers
@@ -133,6 +133,9 @@ var _ = Describe("ServiceController", func() {
 		modifiers = &ServiceModifiers{
 			mods: []ServiceModifier{},
 		}
+
+		namespace = fmt.Sprintf("test-namespace-%d", rand.IntN(100000))
+		kginkgo.ExpectCreateNamespace(ctx, namespace)
 	})
 
 	JustBeforeEach(func() {
@@ -157,23 +160,8 @@ var _ = Describe("ServiceController", func() {
 		Expect(k8sClient.Create(ctx, svc)).To(Succeed())
 	})
 
-	AfterEach(func() {
-		// Cleanup all services. For some reason, DeleteAllOf is not working for services and gives
-		// a “the server does not allow this method on the requested resource.” error.
-		var svcList corev1.ServiceList
-		Expect(k8sClient.List(ctx, &svcList, client.InNamespace(namespace))).To(Succeed())
-		for _, s := range svcList.Items {
-			err := k8sClient.Delete(ctx, &s, client.PropagationPolicy(metav1.DeletePropagationForeground))
-			Expect(client.IgnoreNotFound(err)).To(Succeed())
-		}
-
-		deleteAllOpts := []client.DeleteAllOfOption{
-			client.InNamespace(namespace),
-			client.PropagationPolicy(metav1.DeletePropagationForeground),
-		}
-		Expect(k8sClient.DeleteAllOf(ctx, &ngrokv1alpha1.AgentEndpoint{}, deleteAllOpts...)).To(Succeed())
-		Expect(k8sClient.DeleteAllOf(ctx, &ngrokv1alpha1.CloudEndpoint{}, deleteAllOpts...)).To(Succeed())
-		Expect(k8sClient.DeleteAllOf(ctx, &ngrokv1alpha1.NgrokTrafficPolicy{}, deleteAllOpts...)).To(Succeed())
+	AfterEach(func(ctx SpecContext) {
+		kginkgo.ExpectDeleteNamespace(ctx, namespace)
 	})
 
 	When("the service type is not a LoadBalancer", func() {
