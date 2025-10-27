@@ -5,6 +5,24 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.21.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.20.0...helm-chart-0.21.0
+
+- Update ngrok-operator image version to `0.19.0`
+- Update Helm chart version to `0.21.0`
+
+### Added
+
+- Add status and conditions to AgentEndpoint CRD by @alex-bezek in [#673](https://github.com/ngrok/ngrok-operator/pull/673)
+- Configure status and conditions for Domain CRD to track provisioning process by @alex-bezek in [#678](https://github.com/ngrok/ngrok-operator/pull/678)
+- Add status and conditions to CloudEndpoint CRD by @alex-bezek in [#682](https://github.com/ngrok/ngrok-operator/pull/682)
+- Add status and conditions to IPPolicy CRD by @sabrina-ngrok in [#684](https://github.com/ngrok/ngrok-operator/pull/684)
+- Add status and conditions to BoundEndpoint CRD by @alex-bezek in [#688](https://github.com/ngrok/ngrok-operator/pull/688)
+
+### Changed
+
+- chore(helm): Migrate to bitnami OCI library chart by @jonstacks in [#676](https://github.com/ngrok/ngrok-operator/pull/676)
+
 ## 0.20.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.20.0-rc.1...helm-chart-0.20.0
 
