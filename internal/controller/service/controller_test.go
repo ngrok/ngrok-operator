@@ -187,7 +187,7 @@ var _ = Describe("ServiceController", func() {
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
 				g.Expect(err).NotTo(HaveOccurred())
 
-				By("By checking the service is not modified")
+				By("checking the service is not modified")
 				g.Expect(fetched.Finalizers).To(BeEmpty())
 			}, duration, interval).Should(Succeed())
 		})
@@ -205,7 +205,7 @@ var _ = Describe("ServiceController", func() {
 					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					By("By checking the service is not modified")
+					By("checking the service is not modified")
 					g.Expect(fetched.Finalizers).To(BeEmpty())
 				}, duration, interval).Should(Succeed())
 			})
@@ -222,7 +222,7 @@ var _ = Describe("ServiceController", func() {
 					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					By("By checking the service has a finalizer added")
+					By("checking the service has a finalizer added")
 					g.Expect(fetched.Finalizers).To(ContainElement(FinalizerName))
 				}, timeout, interval).Should(Succeed())
 			})
@@ -230,7 +230,7 @@ var _ = Describe("ServiceController", func() {
 			When("the service does not have a URL annotation", func() {
 				It("Should reserve a TCP address", func() {
 					kginkgo.EventuallyWithObject(ctx, svc, func(g Gomega, fetched client.Object) {
-						By("By checking the service has a URL annotation")
+						By("checking the service has a URL annotation")
 						GinkgoLogr.Info("Got service", "fetched", fetched)
 
 						a := fetched.GetAnnotations()
@@ -275,7 +275,7 @@ var _ = Describe("ServiceController", func() {
 						aeps, err := getAgentEndpoints(k8sClient, namespace)
 						g.Expect(err).NotTo(HaveOccurred())
 
-						By("By checking an agent endpoint exists")
+						By("checking an agent endpoint exists")
 						g.Expect(aeps.Items).To(HaveLen(1))
 					}, timeout, interval).Should(Succeed())
 				})
@@ -342,7 +342,7 @@ var _ = Describe("ServiceController", func() {
 						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
 						g.Expect(err).NotTo(HaveOccurred())
 
-						By("By checking the service status is updated")
+						By("checking the service status is updated")
 						g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
 						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).NotTo(BeEmpty())
 					}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
@@ -426,7 +426,7 @@ var _ = Describe("ServiceController", func() {
 						g.Expect(cleps).To(HaveLen(1))
 					})
 
-					// Change service type to ClusterIP
+					By("changing service type from LoadBalancer to ClusterIP")
 					Eventually(func() error {
 						fetched := &corev1.Service{}
 						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
@@ -449,18 +449,17 @@ var _ = Describe("ServiceController", func() {
 						cleps, err := getCloudEndpoints(k8sClient, namespace)
 						g.Expect(err).NotTo(HaveOccurred())
 
-						By("By verifying cloud endpoint was created initially")
+						By("verifying cloud endpoint was created initially")
 						g.Expect(cleps.Items).To(HaveLen(1))
 
 						aeps, err := getAgentEndpoints(k8sClient, namespace)
 						g.Expect(err).NotTo(HaveOccurred())
 
-						By("By verifying agent endpoint was created initially")
+						By("verifying agent endpoint was created initially")
 						g.Expect(aeps.Items).To(HaveLen(1))
 					}, timeout, interval).Should(Succeed())
 
-					// Change service type from LoadBalancer to ClusterIP
-					By("By changing service type from LoadBalancer to ClusterIP")
+					By("changing service type from LoadBalancer to ClusterIP")
 					Eventually(func() error {
 						fetched := &corev1.Service{}
 						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
@@ -604,7 +603,7 @@ var _ = Describe("ServiceController", func() {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 
-						By("By checking the cloud endpoint has the correct URL with domain")
+						By("checking the cloud endpoint has the correct URL with domain")
 						clep := cleps[0]
 						g.Expect(clep.Spec.URL).To(ContainSubstring("test.ngrok.app"))
 					})
@@ -616,7 +615,7 @@ var _ = Describe("ServiceController", func() {
 						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
 						g.Expect(err).NotTo(HaveOccurred())
 
-						By("By checking the service status uses the domain")
+						By("checking the service status uses the domain")
 						g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
 						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(ContainSubstring("test.ngrok.app"))
 					}, timeout, interval).Should(Succeed())
@@ -651,7 +650,7 @@ var _ = Describe("ServiceController", func() {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 
-						By("By checking the cloud endpoint has the traffic policy")
+						By("checking the cloud endpoint has the traffic policy")
 						clep := cleps[0]
 						g.Expect(clep.Spec.TrafficPolicy).NotTo(BeNil())
 					})
