@@ -20,7 +20,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Apply size label
-      uses: ngrok/pr-size-labeler@d5a95a01bbe2eca3f692d0809edb0aeb56c3bd18
+      uses: ngrok/pr-size-labeler@2f0ca4123093ab52c80e6fd65c4282be0b55b5fd
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
