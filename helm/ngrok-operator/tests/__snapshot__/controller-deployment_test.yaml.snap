@@ -113,6 +113,7 @@ Should match all-options snapshot:
                 - mountPath: /test-volume
                   name: test-volume
           serviceAccountName: RELEASE-NAME-ngrok-operator
+          terminationGracePeriodSeconds: 30
           volumes:
             - emptyDir: {}
               name: test-volume
@@ -703,6 +704,7 @@ Should match default snapshot:
               securityContext:
                 allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-ngrok-operator
+          terminationGracePeriodSeconds: 30
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role

@@ -93,3 +93,4 @@ Should match snapshot:
               securityContext:
                 allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-ngrok-operator-bindings-forwarder
+          terminationGracePeriodSeconds: 30
