@@ -175,88 +175,6 @@ func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[str
 	return string(jsonString), nil
 }
 
-func listObjectsForType(ctx context.Context, client client.Reader, v interface{}) ([]client.Object, error) {
-	switch v.(type) {
-
-	// ----------------------------------------------------------------------------
-	// Kubernetes Core API Support
-	// ----------------------------------------------------------------------------
-	case *corev1.Service:
-		services := &corev1.ServiceList{}
-		err := client.List(ctx, services)
-		return util.ToClientObjects(services.Items), err
-	case *corev1.Secret:
-		secrets := &corev1.SecretList{}
-		err := client.List(ctx, secrets)
-		return util.ToClientObjects(secrets.Items), err
-	case *corev1.ConfigMap:
-		configmaps := &corev1.ConfigMapList{}
-		err := client.List(ctx, configmaps)
-		return util.ToClientObjects(configmaps.Items), err
-	case *corev1.Namespace:
-		namespaces := &corev1.NamespaceList{}
-		err := client.List(ctx, namespaces)
-		return util.ToClientObjects(namespaces.Items), err
-	case *netv1.Ingress:
-		ingresses := &netv1.IngressList{}
-		err := client.List(ctx, ingresses)
-		return util.ToClientObjects(ingresses.Items), err
-	case *netv1.IngressClass:
-		ingressClasses := &netv1.IngressClassList{}
-		err := client.List(ctx, ingressClasses)
-		return util.ToClientObjects(ingressClasses.Items), err
-
-	// ----------------------------------------------------------------------------
-	// Kubernetes Gateway API Support
-	// ----------------------------------------------------------------------------
-	case *gatewayv1.GatewayClass:
-		gatewayClasses := &gatewayv1.GatewayClassList{}
-		err := client.List(ctx, gatewayClasses)
-		return util.ToClientObjects(gatewayClasses.Items), err
-	case *gatewayv1.Gateway:
-		gateways := &gatewayv1.GatewayList{}
-		err := client.List(ctx, gateways)
-		return util.ToClientObjects(gateways.Items), err
-	case *gatewayv1.HTTPRoute:
-		httproutes := &gatewayv1.HTTPRouteList{}
-		err := client.List(ctx, httproutes)
-		return util.ToClientObjects(httproutes.Items), err
-	case *gatewayv1alpha2.TCPRoute:
-		tcpRoutes := &gatewayv1alpha2.TCPRouteList{}
-		err := client.List(ctx, tcpRoutes)
-		return util.ToClientObjects(tcpRoutes.Items), err
-	case *gatewayv1alpha2.TLSRoute:
-		tlsRoutes := &gatewayv1alpha2.TLSRouteList{}
-		err := client.List(ctx, tlsRoutes)
-		return util.ToClientObjects(tlsRoutes.Items), err
-	case *gatewayv1beta1.ReferenceGrant:
-		referenceGrants := &gatewayv1beta1.ReferenceGrantList{}
-		err := client.List(ctx, referenceGrants)
-		return util.ToClientObjects(referenceGrants.Items), err
-
-	// ----------------------------------------------------------------------------
-	// Ngrok API Support
-	// ----------------------------------------------------------------------------
-	case *ingressv1alpha1.Domain:
-		domains := &ingressv1alpha1.DomainList{}
-		err := client.List(ctx, domains)
-		return util.ToClientObjects(domains.Items), err
-	case *ngrokv1alpha1.NgrokTrafficPolicy:
-		policies := &ngrokv1alpha1.NgrokTrafficPolicyList{}
-		err := client.List(ctx, policies)
-		return util.ToClientObjects(policies.Items), err
-	case *ngrokv1alpha1.AgentEndpoint:
-		agentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
-		err := client.List(ctx, agentEndpoints)
-		return util.ToClientObjects(agentEndpoints.Items), err
-	case *ngrokv1alpha1.CloudEndpoint:
-		cloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
-		err := client.List(ctx, cloudEndpoints)
-		return util.ToClientObjects(cloudEndpoints.Items), err
-	}
-	return nil, fmt.Errorf("unsupported type %T", v)
-}
-
 // Seed fetches all the upfront information the driver needs to operate
 // It needs to be seeded fully before it can be used to make calculations otherwise
 // each calculation will be based on an incomplete state of the world. It currently relies on:
@@ -312,7 +230,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	}
 
 	for _, v := range typesToSeed {
-		objects, err := listObjectsForType(ctx, c, v)
+		objects, err := util.ListObjectsForType(ctx, c, v)
 		if err != nil {
 			return err
 		}
@@ -1246,7 +1164,7 @@ func (d *Driver) MigrateKubernetesIngressControllerLabelsToNgrokOperator(ctx con
 	}
 
 	for _, t := range typesToMigrate {
-		objs, err := listObjectsForType(ctx, k8sClient, t)
+		objs, err := util.ListObjectsForType(ctx, k8sClient, t)
 		if err != nil {
 			return err
 		}
