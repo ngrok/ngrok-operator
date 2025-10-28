@@ -376,6 +376,22 @@ tests:
   - equal:
       path: spec.template.spec.priorityClassName
       value: high-priority
+- it: Sets terminationGracePeriodSeconds by default
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - equal:
+      path: spec.template.spec.terminationGracePeriodSeconds
+      value: 30
+- it: Allows overriding terminationGracePeriodSeconds
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  set:
+    terminationGracePeriodSeconds: 120
+  asserts:
+  - equal:
+      path: spec.template.spec.terminationGracePeriodSeconds
+      value: 120
 - it: Adds .Values.podLabels to the controller deployment podspec
   set:
     podLabels:
