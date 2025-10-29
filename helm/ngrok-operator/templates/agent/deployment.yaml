@@ -39,6 +39,9 @@ spec:
       {{- if $agent.priorityClassName }}
       priorityClassName: {{ $agent.priorityClassName | quote }}
       {{- end }}
+      {{- if $agent.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ $agent.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- if .Values.affinity }}
       affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
       {{- else }}

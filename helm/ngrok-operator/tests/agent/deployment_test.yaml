@@ -90,6 +90,21 @@ tests:
   - equal:
       path: spec.template.spec.containers[0].resources
       value: *resources
+- it: Sets terminationGracePeriodSeconds by default
+  template: agent/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.terminationGracePeriodSeconds
+      value: 30
+- it: Allows overriding terminationGracePeriodSeconds for the agent
+  set:
+    agent:
+      terminationGracePeriodSeconds: 45
+  template: agent/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.terminationGracePeriodSeconds
+      value: 45
 - it: Should set the default domain reclaim policy arg
   set:
     defaultDomainReclaimPolicy: "Retain"

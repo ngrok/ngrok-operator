@@ -121,6 +121,12 @@ topologySpreadConstraints: []
 ##
 priorityClassName: ""
 
+## @param terminationGracePeriodSeconds The amount of time to wait for the pod to gracefully terminate
+## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
+## Increase this value to give the operator more time to clean up finalizers during shutdown
+##
+terminationGracePeriodSeconds: 30
+
 ## @param lifecycle an object containing lifecycle configuration
 ## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
 ##
@@ -292,6 +298,12 @@ agent:
     name: ""
     annotations: {}
 
+  ## @param agent.terminationGracePeriodSeconds The amount of time to wait for the agent pod to gracefully terminate
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
+  ## Increase this value to give the operator more time to clean up finalizers during shutdown
+  ##
+  terminationGracePeriodSeconds: 30
+
   ## @param agent.tolerations Tolerations for the agent pod(s)
   tolerations: []
 
@@ -366,6 +378,12 @@ bindings:
       create: true
       name: ""
       annotations: {}
+
+    ## @param bindings.forwarder.terminationGracePeriodSeconds The amount of time to wait for the bindings forwarder pod to gracefully terminate
+    ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
+    ## Increase this value to give the operator more time to clean up finalizers during shutdown
+    ##
+    terminationGracePeriodSeconds: 30
 
     ## @param bindings.forwarder.tolerations Tolerations for the bindings forwarder pod(s)
     tolerations: []

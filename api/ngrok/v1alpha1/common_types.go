@@ -55,3 +55,16 @@ type EndpointWithDomain interface {
 	GetDomainRef() *K8sObjectRefOptionalNamespace
 	SetDomainRef(*K8sObjectRefOptionalNamespace)
 }
+
+// ToClientObjectKey converts the K8sObjectRefOptionalNamespace to a client.ObjectKey,
+// using the provided defaultNamespace if Namespace is nil
+func (ref *K8sObjectRefOptionalNamespace) ToClientObjectKey(defaultNamespace string) client.ObjectKey {
+	namespace := defaultNamespace
+	if ref.Namespace != nil {
+		namespace = *ref.Namespace
+	}
+	return client.ObjectKey{
+		Name:      ref.Name,
+		Namespace: namespace,
+	}
+}

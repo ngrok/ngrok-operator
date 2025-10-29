@@ -64,7 +64,7 @@ var _ = Describe("GatewayClass controller", func() {
 		})
 
 		It("Should not accept the new GatewayClass", func(ctx SpecContext) {
-			By("By checking the GatewayClass status is not accepted")
+			By("checking the GatewayClass status is not accepted")
 			Consistently(func(g Gomega) {
 				obj := &gatewayv1.GatewayClass{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gatewayClass), obj)).To(Succeed())
@@ -79,17 +79,17 @@ var _ = Describe("GatewayClass controller", func() {
 		})
 
 		It("Should validate and accept the new GatewayClass", func(ctx SpecContext) {
-			By("By checking the GatewayClass status has an accepted condition")
+			By("checking the GatewayClass status has an accepted condition")
 			ExpectGatewayClassAccepted(ctx, gatewayClass, timeout, interval)
 		})
 
 		It("Should correctly set the finalizer on the GatewayClass", func(ctx SpecContext) {
 			// Create the initial GatewayClass. There should be no gateways that exist, so the finalizer should not be set.
-			By("By creating a new GatewayClass")
+			By("creating a new GatewayClass")
 			Expect(controllerutil.ContainsFinalizer(gatewayClass, gatewayv1.GatewayClassFinalizerGatewaysExist)).To(BeFalse())
 
 			// Create a Gateway that references the GatewayClass. This should cause the finalizer to be set.
-			By("By creating a new Gateway")
+			By("creating a new Gateway")
 			gateway := &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gateway",
@@ -108,17 +108,17 @@ var _ = Describe("GatewayClass controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, gateway)).To(Succeed())
 
-			By("By checking the GatewayClass has the finalizer set")
+			By("checking the GatewayClass has the finalizer set")
 			Eventually(func(g Gomega) {
 				obj := &gatewayv1.GatewayClass{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gatewayClass), obj)).To(Succeed())
 				g.Expect(controllerutil.ContainsFinalizer(obj, gatewayv1.GatewayClassFinalizerGatewaysExist)).To(BeTrue())
 			}, timeout, interval).Should(Succeed())
 
-			By("By deleting the Gateway")
+			By("deleting the Gateway")
 			Expect(k8sClient.Delete(ctx, gateway)).To(Succeed())
 
-			By("By checking the GatewayClass has the finalizer removed")
+			By("checking the GatewayClass has the finalizer removed")
 			Eventually(func(g Gomega) {
 				obj := &gatewayv1.GatewayClass{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gatewayClass), obj)).To(Succeed())

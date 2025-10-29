@@ -56,10 +56,10 @@ var _ = Describe("BoundEndpoint Controller", func() {
 	})
 
 	Context("Single endpoint", func() {
-		It("should create services and set conditions", func() {
+		It("should create services and set conditions", func(ctx SpecContext) {
 			By("Creating target namespace")
-			expectCreateNs("test-namespace")
-			defer expectDeleteNs("test-namespace")
+			kginkgo.ExpectCreateNamespace(ctx, "test-namespace")
+			defer kginkgo.ExpectDeleteNamespace(ctx, "test-namespace")
 
 			By("Setting up mock API with one endpoint")
 			setMockEndpoints([]ngrok.Endpoint{
@@ -153,10 +153,10 @@ var _ = Describe("BoundEndpoint Controller", func() {
 	})
 
 	Context("Multiple endpoints", func() {
-		It("should aggregate endpoints targeting the same service", func() {
+		It("should aggregate endpoints targeting the same service", func(ctx SpecContext) {
 			By("Creating target namespace")
-			expectCreateNs("multi-namespace")
-			defer expectDeleteNs("multi-namespace")
+			kginkgo.ExpectCreateNamespace(ctx, "multi-namespace")
+			defer kginkgo.ExpectDeleteNamespace(ctx, "multi-namespace")
 
 			By("Setting up mock API with two endpoints pointing to same service")
 			setMockEndpoints([]ngrok.Endpoint{
@@ -235,10 +235,10 @@ var _ = Describe("BoundEndpoint Controller", func() {
 	})
 
 	Context("Status updates", func() {
-		It("should not get stuck in provisioning when adding endpoints", func() {
+		It("should not get stuck in provisioning when adding endpoints", func(ctx SpecContext) {
 			By("Creating target namespace")
-			expectCreateNs("status-namespace")
-			defer expectDeleteNs("status-namespace")
+			kginkgo.ExpectCreateNamespace(ctx, "status-namespace")
+			defer kginkgo.ExpectDeleteNamespace(ctx, "status-namespace")
 
 			By("Setting up mock API with one endpoint initially")
 			setMockEndpoints([]ngrok.Endpoint{

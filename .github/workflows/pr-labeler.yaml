@@ -1,0 +1,26 @@
+name: Pull Request Labeler
+on:
+  pull_request_target:
+    types:
+    - opened
+    - edited
+    - reopened
+    - synchronize
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  size-labeler:
+    name: Size
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v5
+    - name: Apply size label
+      uses: ngrok/pr-size-labeler@77827af3431595c474d738acf7cfcee30c86edc1 # v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+

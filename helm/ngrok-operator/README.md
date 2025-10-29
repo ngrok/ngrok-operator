@@ -83,6 +83,7 @@ To uninstall the chart:
 | `tolerations`                        | Tolerations for manager pod(s)                                                                                                                 | `[]`     |
 | `topologySpreadConstraints`          | Topology Spread Constraints for manager pod(s)                                                                                                 | `[]`     |
 | `priorityClassName`                  | Priority class for pod scheduling                                                                                                              | `""`     |
+| `terminationGracePeriodSeconds`      | The amount of time to wait for the pod to gracefully terminate                                                                                 | `30`     |
 | `lifecycle`                          | an object containing lifecycle configuration                                                                                                   | `{}`     |
 | `podDisruptionBudget.create`         | Enable a Pod Disruption Budget creation                                                                                                        | `false`  |
 | `podDisruptionBudget.maxUnavailable` | Maximum number/percentage of pods that may be made unavailable                                                                                 | `""`     |
@@ -131,18 +132,19 @@ To uninstall the chart:
 
 ### Agent configuration
 
-| Name                               | Description                                                         | Value  |
-| ---------------------------------- | ------------------------------------------------------------------- | ------ |
-| `agent.priorityClassName`          | Priority class for pod scheduling.                                  | `""`   |
-| `agent.replicaCount`               | The number of agents to run.                                        | `1`    |
-| `agent.serviceAccount.create`      | Specifies whether a ServiceAccount should be created for the agent. | `true` |
-| `agent.serviceAccount.name`        | The name of the ServiceAccount to use for the agent.                | `""`   |
-| `agent.serviceAccount.annotations` | Additional annotations to add to the agent ServiceAccount           | `{}`   |
-| `agent.resources.limits`           | The resources limits for the container                              | `{}`   |
-| `agent.resources.requests`         | The requested resources for the container                           | `{}`   |
-| `agent.tolerations`                | Tolerations for the agent pod(s)                                    | `[]`   |
-| `agent.nodeSelector`               | Node labels for the agent pod(s)                                    | `{}`   |
-| `agent.topologySpreadConstraints`  | Topology Spread Constraints for the agent pod(s)                    | `[]`   |
+| Name                                  | Description                                                          | Value  |
+| ------------------------------------- | -------------------------------------------------------------------- | ------ |
+| `agent.priorityClassName`             | Priority class for pod scheduling.                                   | `""`   |
+| `agent.replicaCount`                  | The number of agents to run.                                         | `1`    |
+| `agent.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the agent.  | `true` |
+| `agent.serviceAccount.name`           | The name of the ServiceAccount to use for the agent.                 | `""`   |
+| `agent.serviceAccount.annotations`    | Additional annotations to add to the agent ServiceAccount            | `{}`   |
+| `agent.resources.limits`              | The resources limits for the container                               | `{}`   |
+| `agent.resources.requests`            | The requested resources for the container                            | `{}`   |
+| `agent.terminationGracePeriodSeconds` | The amount of time to wait for the agent pod to gracefully terminate | `30`   |
+| `agent.tolerations`                   | Tolerations for the agent pod(s)                                     | `[]`   |
+| `agent.nodeSelector`                  | Node labels for the agent pod(s)                                     | `{}`   |
+| `agent.topologySpreadConstraints`     | Topology Spread Constraints for the agent pod(s)                     | `[]`   |
 
 ### Kubernetes Gateway feature configuration
 
@@ -154,19 +156,20 @@ To uninstall the chart:
 
 ### Kubernetes Bindings feature configuration
 
-| Name                                            | Description                                                                                                   | Value                                     |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `bindings.enabled`                              | Whether to enable the Endpoint Bindings feature                                                               | `false`                                   |
-| `bindings.endpointSelectors`                    | List of cel expressions used to filter which kubernetes-bound endpoints should be projected into this cluster | `["true"]`                                |
-| `bindings.serviceAnnotations`                   | Annotations to add to projected services bound to an endpoint                                                 | `{}`                                      |
-| `bindings.serviceLabels`                        | Labels to add to projected services bound to an endpoint                                                      | `{}`                                      |
-| `bindings.ingressEndpoint`                      | The hostname of the ingress endpoint for the bindings                                                         | `kubernetes-binding-ingress.ngrok.io:443` |
-| `bindings.forwarder.replicaCount`               | The number of bindings forwarders to run.                                                                     | `1`                                       |
-| `bindings.forwarder.resources.limits`           | The resources limits for the container                                                                        | `{}`                                      |
-| `bindings.forwarder.resources.requests`         | The requested resources for the container                                                                     | `{}`                                      |
-| `bindings.forwarder.serviceAccount.create`      | Specifies whether a ServiceAccount should be created for the bindings forwarder pod(s).                       | `true`                                    |
-| `bindings.forwarder.serviceAccount.name`        | The name of the ServiceAccount to use for the bindings forwarder pod(s).                                      | `""`                                      |
-| `bindings.forwarder.serviceAccount.annotations` | Additional annotations to add to the bindings-forwarder ServiceAccount                                        | `{}`                                      |
-| `bindings.forwarder.tolerations`                | Tolerations for the bindings forwarder pod(s)                                                                 | `[]`                                      |
-| `bindings.forwarder.nodeSelector`               | Node labels for the bindings forwarder pod(s)                                                                 | `{}`                                      |
-| `bindings.forwarder.topologySpreadConstraints`  | Topology Spread Constraints for the bindings forwarder pod(s)                                                 | `[]`                                      |
+| Name                                               | Description                                                                                                   | Value                                     |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `bindings.enabled`                                 | Whether to enable the Endpoint Bindings feature                                                               | `false`                                   |
+| `bindings.endpointSelectors`                       | List of cel expressions used to filter which kubernetes-bound endpoints should be projected into this cluster | `["true"]`                                |
+| `bindings.serviceAnnotations`                      | Annotations to add to projected services bound to an endpoint                                                 | `{}`                                      |
+| `bindings.serviceLabels`                           | Labels to add to projected services bound to an endpoint                                                      | `{}`                                      |
+| `bindings.ingressEndpoint`                         | The hostname of the ingress endpoint for the bindings                                                         | `kubernetes-binding-ingress.ngrok.io:443` |
+| `bindings.forwarder.replicaCount`                  | The number of bindings forwarders to run.                                                                     | `1`                                       |
+| `bindings.forwarder.resources.limits`              | The resources limits for the container                                                                        | `{}`                                      |
+| `bindings.forwarder.resources.requests`            | The requested resources for the container                                                                     | `{}`                                      |
+| `bindings.forwarder.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the bindings forwarder pod(s).                       | `true`                                    |
+| `bindings.forwarder.serviceAccount.name`           | The name of the ServiceAccount to use for the bindings forwarder pod(s).                                      | `""`                                      |
+| `bindings.forwarder.serviceAccount.annotations`    | Additional annotations to add to the bindings-forwarder ServiceAccount                                        | `{}`                                      |
+| `bindings.forwarder.terminationGracePeriodSeconds` | The amount of time to wait for the bindings forwarder pod to gracefully terminate                             | `30`                                      |
+| `bindings.forwarder.tolerations`                   | Tolerations for the bindings forwarder pod(s)                                                                 | `[]`                                      |
+| `bindings.forwarder.nodeSelector`                  | Node labels for the bindings forwarder pod(s)                                                                 | `{}`                                      |
+| `bindings.forwarder.topologySpreadConstraints`     | Topology Spread Constraints for the bindings forwarder pod(s)                                                 | `[]`                                      |

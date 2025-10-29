@@ -5,10 +5,9 @@ import (
 	"testing"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 )
 
 func createTestBoundEndpoint(name, namespace string) *bindingsv1alpha1.BoundEndpoint {

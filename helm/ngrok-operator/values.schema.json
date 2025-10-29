@@ -166,6 +166,11 @@
             "description": "Priority class for pod scheduling",
             "default": ""
         },
+        "terminationGracePeriodSeconds": {
+            "type": "number",
+            "description": "The amount of time to wait for the pod to gracefully terminate",
+            "default": 30
+        },
         "lifecycle": {
             "type": "object",
             "description": "an object containing lifecycle configuration",
@@ -381,6 +386,11 @@
                         }
                     }
                 },
+                "terminationGracePeriodSeconds": {
+                    "type": "number",
+                    "description": "The amount of time to wait for the agent pod to gracefully terminate",
+                    "default": 30
+                },
                 "tolerations": {
                     "type": "array",
                     "description": "Tolerations for the agent pod(s)",
@@ -490,6 +500,11 @@
                                     "default": {}
                                 }
                             }
+                        },
+                        "terminationGracePeriodSeconds": {
+                            "type": "number",
+                            "description": "The amount of time to wait for the bindings forwarder pod to gracefully terminate",
+                            "default": 30
                         },
                         "tolerations": {
                             "type": "array",
