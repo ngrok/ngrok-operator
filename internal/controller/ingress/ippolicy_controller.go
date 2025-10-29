@@ -106,12 +106,12 @@ func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1
 		Metadata:    policy.Spec.Metadata,
 	})
 	if err != nil {
-		setIPPolicyCreatedCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
+		setIPPolicyCreatedCondition(policy, false, ingressv1alpha1.IPPolicyCreatedReasonCreationFailed, err.Error())
 		return err
 	}
 
 	policy.Status.ID = remotePolicy.ID
-	setIPPolicyCreatedCondition(policy, true, ReasonIPPolicyCreated, "IP Policy successfully created")
+	setIPPolicyCreatedCondition(policy, true, ingressv1alpha1.IPPolicyCreatedReasonCreated, "IP Policy successfully created")
 
 	err = r.createOrUpdateIPPolicyRules(ctx, policy)
 
@@ -128,9 +128,9 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 			return r.Status().Update(ctx, policy)
 		}
 
-		setIPPolicyCreatedCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
-		setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
-		setIPPolicyReadyCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
+		setIPPolicyCreatedCondition(policy, false, ingressv1alpha1.IPPolicyCreatedReasonCreationFailed, err.Error())
+		setIPPolicyRulesConfiguredCondition(policy, false, ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigurationError, err.Error())
+		setIPPolicyReadyCondition(policy, false, ingressv1alpha1.IPPolicyReasonCreationFailed, err.Error())
 
 		return r.controller.ReconcileStatus(ctx, policy, err)
 	}
@@ -144,7 +144,7 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 			Metadata:    ptr.To(policy.Spec.Metadata),
 		})
 		if err != nil {
-			setIPPolicyReadyCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
+			setIPPolicyReadyCondition(policy, false, ingressv1alpha1.IPPolicyReasonCreationFailed, err.Error())
 			return err
 		}
 		r.Recorder.Event(policy, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated IPPolicy %s", policy.Name))
@@ -174,7 +174,7 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 	}
 
 	if len(remoteRules) == 0 {
-		setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyRulesConfigurationError, "No rules configured for IP Policy")
+		setIPPolicyRulesConfiguredCondition(policy, false, ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigurationError, "No rules configured for IP Policy")
 	}
 
 	iter := newIPPolicyDiff(policy.Status.ID, remoteRules, policy.Spec.Rules)
@@ -193,14 +193,14 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 			rule, err := r.IPPolicyRulesClient.Create(ctx, c)
 			if err != nil {
 				if ngrok.IsErrorCode(err, ngrokapi.NgrokOpErrInvalidCIDR.Code) {
-					setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
-					setIPPolicyReadyCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
+					setIPPolicyRulesConfiguredCondition(policy, false, ingressv1alpha1.IPPolicyRulesConfiguredReasonInvalidCIDR, err.Error())
+					setIPPolicyReadyCondition(policy, false, ingressv1alpha1.IPPolicyReasonInvalidCIDR, err.Error())
 				} else {
-					setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
-					setIPPolicyReadyCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
+					setIPPolicyRulesConfiguredCondition(policy, false, ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigurationError, err.Error())
+					setIPPolicyReadyCondition(policy, false, ingressv1alpha1.IPPolicyReasonRulesConfigurationError, err.Error())
 				}
 			}
-			setIPPolicyRulesConfiguredCondition(policy, true, ReasonIPPolicyRulesConfigured, "All rules configured for IP Policy")
+			setIPPolicyRulesConfiguredCondition(policy, true, ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigured, "All rules configured for IP Policy")
 			log.V(3).Info("Created IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID, "cidr", rule.CIDR, "action", rule.Action)
 		}
 
@@ -209,15 +209,15 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 			rule, err := r.IPPolicyRulesClient.Update(ctx, u)
 			if err != nil {
 				if ngrok.IsErrorCode(err, ngrokapi.NgrokOpErrInvalidCIDR.Code) {
-					setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
-					setIPPolicyReadyCondition(policy, false, ReasonIPPolicyInvalidCIDR, err.Error())
+					setIPPolicyRulesConfiguredCondition(policy, false, ingressv1alpha1.IPPolicyRulesConfiguredReasonInvalidCIDR, err.Error())
+					setIPPolicyReadyCondition(policy, false, ingressv1alpha1.IPPolicyReasonInvalidCIDR, err.Error())
 				} else {
-					setIPPolicyRulesConfiguredCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
-					setIPPolicyReadyCondition(policy, false, ReasonIPPolicyRulesConfigurationError, err.Error())
+					setIPPolicyRulesConfiguredCondition(policy, false, ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigurationError, err.Error())
+					setIPPolicyReadyCondition(policy, false, ingressv1alpha1.IPPolicyReasonRulesConfigurationError, err.Error())
 				}
 				return err
 			}
-			setIPPolicyRulesConfiguredCondition(policy, true, ReasonIPPolicyRulesConfigured, "All rules configured for IP Policy")
+			setIPPolicyRulesConfiguredCondition(policy, true, ingressv1alpha1.IPPolicyRulesConfiguredReasonConfigured, "All rules configured for IP Policy")
 			log.V(3).Info("Updated IP Policy Rule", "id", rule.ID, "policy.id", policy.Status.ID)
 		}
 	}

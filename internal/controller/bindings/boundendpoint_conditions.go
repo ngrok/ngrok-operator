@@ -8,39 +8,17 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
-const (
-	// Condition types for BoundEndpoint
-	ConditionTypeReady                = "Ready"
-	ConditionTypeServicesCreated      = "ServicesCreated"
-	ConditionTypeConnectivityVerified = "ConnectivityVerified"
-)
-
-const (
-	// Reasons for Ready condition
-	ReasonBoundEndpointReady      = "BoundEndpointReady"
-	ReasonServicesNotCreated      = "ServicesNotCreated"
-	ReasonConnectivityNotVerified = "ConnectivityNotVerified"
-
-	// Reasons for ServicesCreated condition
-	ReasonServicesCreated       = "ServicesCreated"
-	ReasonServiceCreationFailed = "ServiceCreationFailed"
-
-	// Reasons for ConnectivityVerified condition
-	ReasonConnectivityVerified = "ConnectivityVerified"
-	ReasonConnectivityFailed   = "ConnectivityFailed"
-)
-
 // setServicesCreatedCondition sets the ServicesCreated condition
-func setServicesCreatedCondition(be *bindingsv1alpha1.BoundEndpoint, created bool, reason, message string) {
+func setServicesCreatedCondition(be *bindingsv1alpha1.BoundEndpoint, created bool, reason bindingsv1alpha1.BoundEndpointConditionServicesCreatedReason, message string) {
 	status := metav1.ConditionTrue
 	if !created {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionTypeServicesCreated,
+		Type:               string(bindingsv1alpha1.BoundEndpointConditionServicesCreated),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: be.Generation,
 	}
@@ -51,19 +29,19 @@ func setServicesCreatedCondition(be *bindingsv1alpha1.BoundEndpoint, created boo
 // setConnectivityVerifiedCondition sets the ConnectivityVerified condition
 func setConnectivityVerifiedCondition(be *bindingsv1alpha1.BoundEndpoint, verified bool, err error) {
 	status := metav1.ConditionTrue
-	reason := ReasonConnectivityVerified
+	reason := bindingsv1alpha1.BoundEndpointReasonConnectivityVerified
 	message := "Successfully connected to upstream service"
 
 	if !verified {
 		status = metav1.ConditionFalse
-		reason = ReasonConnectivityFailed
+		reason = bindingsv1alpha1.BoundEndpointReasonConnectivityFailed
 		message = ngrokapi.SanitizeErrorMessage(err.Error())
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionTypeConnectivityVerified,
+		Type:               string(bindingsv1alpha1.BoundEndpointConditionConnectivityVerified),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: be.Generation,
 	}
@@ -74,36 +52,37 @@ func setConnectivityVerifiedCondition(be *bindingsv1alpha1.BoundEndpoint, verifi
 // calculateReadyCondition calculates the overall Ready condition based on other conditions
 func calculateReadyCondition(be *bindingsv1alpha1.BoundEndpoint) {
 	// Check if services were created
-	servicesCreatedCondition := meta.FindStatusCondition(be.Status.Conditions, ConditionTypeServicesCreated)
+	servicesCreatedCondition := meta.FindStatusCondition(be.Status.Conditions, string(bindingsv1alpha1.BoundEndpointConditionServicesCreated))
 	servicesCreated := servicesCreatedCondition != nil && servicesCreatedCondition.Status == metav1.ConditionTrue
 
 	// Check if connectivity was verified
-	connectivityCondition := meta.FindStatusCondition(be.Status.Conditions, ConditionTypeConnectivityVerified)
+	connectivityCondition := meta.FindStatusCondition(be.Status.Conditions, string(bindingsv1alpha1.BoundEndpointConditionConnectivityVerified))
 	connectivityVerified := connectivityCondition != nil && connectivityCondition.Status == metav1.ConditionTrue
 
 	// Overall ready status
 	ready := servicesCreated && connectivityVerified
 
 	// Determine reason and message based on state
-	var reason, message string
+	var reason bindingsv1alpha1.BoundEndpointConditionReadyReason
+	var message string
 	switch {
 	case ready:
-		reason = ReasonBoundEndpointReady
+		reason = bindingsv1alpha1.BoundEndpointReasonReady
 		message = "BoundEndpoint is ready"
 	case !servicesCreated:
 		if servicesCreatedCondition != nil {
-			reason = servicesCreatedCondition.Reason
+			reason = bindingsv1alpha1.BoundEndpointConditionReadyReason(servicesCreatedCondition.Reason)
 			message = servicesCreatedCondition.Message
 		} else {
-			reason = ReasonServicesNotCreated
+			reason = bindingsv1alpha1.BoundEndpointReasonServicesNotCreated
 			message = "Services not yet created"
 		}
 	case !connectivityVerified:
 		if connectivityCondition != nil {
-			reason = connectivityCondition.Reason
+			reason = bindingsv1alpha1.BoundEndpointConditionReadyReason(connectivityCondition.Reason)
 			message = connectivityCondition.Message
 		} else {
-			reason = ReasonConnectivityNotVerified
+			reason = bindingsv1alpha1.BoundEndpointReasonConnectivityNotVerified
 			message = "Connectivity not yet verified"
 		}
 	default:
@@ -115,16 +94,16 @@ func calculateReadyCondition(be *bindingsv1alpha1.BoundEndpoint) {
 }
 
 // setReadyCondition sets the Ready condition
-func setReadyCondition(be *bindingsv1alpha1.BoundEndpoint, ready bool, reason, message string) {
+func setReadyCondition(be *bindingsv1alpha1.BoundEndpoint, ready bool, reason bindingsv1alpha1.BoundEndpointConditionReadyReason, message string) {
 	status := metav1.ConditionTrue
 	if !ready {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionTypeReady,
+		Type:               string(bindingsv1alpha1.BoundEndpointConditionReady),
 		Status:             status,
-		Reason:             reason,
+		Reason:             string(reason),
 		Message:            message,
 		ObservedGeneration: be.Generation,
 	}

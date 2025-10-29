@@ -129,7 +129,7 @@ func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain,
 	endpoint.SetDomainRef(domainRef)
 
 	// Get domain's Ready condition to propagate reason/message to endpoint
-	readyCondition := meta.FindStatusCondition(domainObj.Status.Conditions, ingress.ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domainObj.Status.Conditions, string(ingressv1alpha1.DomainConditionReady))
 	readyReason := ReasonDomainCreating
 	readyMessage := "Domain is being created"
 	if readyCondition != nil {
