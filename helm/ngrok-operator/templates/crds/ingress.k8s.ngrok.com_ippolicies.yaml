@@ -19,6 +19,10 @@ spec:
       jsonPath: .status.id
       name: ID
       type: string
+    - description: IPPolicy Ready
+      jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
     - description: Age
       jsonPath: .metadata.creationTimestamp
       name: Age

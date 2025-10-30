@@ -79,11 +79,7 @@ func setIPPolicyRulesConfiguredCondition(ipPolicy *ingressv1alpha1.IPPolicy, con
 // sets the Ready condition based on the other conditions
 func calculateIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy) {
 	// check IP Policy created condition
-	ipPolicyCreated := false
-	createdCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
-	if createdCondition != nil && createdCondition.Status == metav1.ConditionTrue {
-		ipPolicyCreated = true
-	}
+	ipPolicyCreated := hasIPPolicyCreatedCondition(ipPolicy)
 
 	// check IP Policy rules configured condition
 	ipPolicyRulesConfigured := false
@@ -100,5 +96,12 @@ func calculateIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy) {
 	default:
 		setIPPolicyReadyCondition(ipPolicy, false, ReasonIPPolicyCreationFailed, "IP Policy is not ready")
 	}
+}
 
+func hasIPPolicyCreatedCondition(ipPolicy *ingressv1alpha1.IPPolicy) bool {
+	if ipPolicy == nil {
+		return false
+	}
+	createdCondition := meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyCreated)
+	return createdCondition != nil && createdCondition.Status == metav1.ConditionTrue
 }
