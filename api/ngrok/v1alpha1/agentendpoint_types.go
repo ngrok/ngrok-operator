@@ -237,12 +237,17 @@ func (a *AgentEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
 
 // HasKubernetesBinding returns true if the endpoint has a Kubernetes binding
 func (a *AgentEndpoint) HasKubernetesBinding() bool {
+	hasKubernetes := false
 	for _, binding := range a.Spec.Bindings {
 		if binding == "kubernetes" {
-			return true
+			hasKubernetes = true
+		} else if binding == "public" || binding == "internal" {
+			// Mixed bindings: has kubernetes plus other bindings
+			// Should NOT skip domain creation
+			return false
 		}
 	}
-	return false
+	return hasKubernetes
 }
 
 func init() {

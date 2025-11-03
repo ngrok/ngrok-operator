@@ -1132,6 +1132,250 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			}, 5*time.Second, interval).Should(BeTrue())
 		})
 	})
+
+	Context("Domain handling", func() {
+		It("should skip domain creation for Kubernetes-bound endpoint", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "k8s-bound-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "http://aws.demo",
+					Bindings: []string{"kubernetes"},
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://hello-aws.demo:80",
+					},
+				},
+			}
+
+			// Setup mock driver to return success
+			envMockDriver.SetEndpointResult(namespace+"/k8s-bound-endpoint", &agent.EndpointResult{
+				URL: "http://aws.demo",
+			})
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Verifying endpoint becomes ready without domain creation")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// Endpoint should be created
+				g.Expect(obj.Status.AssignedURL).To(Equal("http://aws.demo"))
+
+				// No domain ref should be set (kubernetes binding skips domain)
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+
+				// DomainReady condition should be True (no domain reservation needed)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(domainCond.Message).To(ContainSubstring("Kubernetes binding"))
+
+				// Ready condition should be True (all conditions satisfied)
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+
+				// Verify no Domain CRD was created
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(BeEmpty())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying mock driver was called to create endpoint")
+			Eventually(func() bool {
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name == namespace+"/k8s-bound-endpoint" {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+		})
+
+		It("should create endpoint even when domain is not ready", func(ctx SpecContext) {
+			// Create not-ready domain first
+			notReadyDomain := &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "example-com",
+					Namespace: namespace,
+				},
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: "example.com",
+				},
+				Status: ingressv1alpha1.DomainStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:               "Ready",
+							Status:             metav1.ConditionFalse,
+							Reason:             "Provisioning",
+							Message:            "Domain is being provisioned",
+							LastTransitionTime: metav1.Now(),
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, notReadyDomain)).To(Succeed())
+
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "http://example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			envMockDriver.SetEndpointResult(namespace+"/test-endpoint", &agent.EndpointResult{
+				URL: "http://example.com",
+			})
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Waiting for endpoint to be created but not ready")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// Endpoint should be created
+				g.Expect(obj.Status.AssignedURL).To(Equal("http://example.com"))
+
+				// DomainReady should be False (domain exists but not ready)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
+				// Reason could be "DomainCreating" or the reason from the Domain's Ready condition
+				g.Expect(domainCond.Reason).NotTo(BeEmpty())
+
+				// Ready should be False
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+
+			By("Making the domain ready")
+			domain := &ingressv1alpha1.Domain{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "example-com", Namespace: namespace}, domain)).To(Succeed())
+
+			// Update domain to be ready
+			domain.Status.ID = "dom_123"
+			domain.Status.Conditions = []metav1.Condition{
+				{
+					Type:               "Ready",
+					Status:             metav1.ConditionTrue,
+					Reason:             "DomainActive",
+					Message:            "Domain is active",
+					LastTransitionTime: metav1.Now(),
+					ObservedGeneration: domain.Generation,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, domain)).To(Succeed())
+
+			By("Verifying endpoint becomes ready after domain is ready")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// DomainReady should be True
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
+
+				// Ready should be True
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			}, 45*time.Second, interval).Should(Succeed())
+
+			By("Verifying mock driver was called to create endpoint")
+			Eventually(func() bool {
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name == namespace+"/test-endpoint" {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+		})
+
+		It("should handle multiple Kubernetes-bound endpoints with same domain", func(ctx SpecContext) {
+			endpoints := []*ngrokv1alpha1.AgentEndpoint{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "k8s-endpoint-1",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.AgentEndpointSpec{
+						URL:      "http://aws.demo",
+						Bindings: []string{"kubernetes"},
+						Upstream: ngrokv1alpha1.EndpointUpstream{
+							URL: "http://service-1:80",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "k8s-endpoint-2",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.AgentEndpointSpec{
+						URL:      "http://aws.demo",
+						Bindings: []string{"kubernetes"},
+						Upstream: ngrokv1alpha1.EndpointUpstream{
+							URL: "http://service-2:80",
+						},
+					},
+				},
+			}
+
+			// Setup mock results
+			envMockDriver.SetEndpointResult(namespace+"/k8s-endpoint-1", &agent.EndpointResult{URL: "http://aws.demo"})
+			envMockDriver.SetEndpointResult(namespace+"/k8s-endpoint-2", &agent.EndpointResult{URL: "http://aws.demo"})
+
+			By("Creating multiple endpoints with same domain")
+			for _, ep := range endpoints {
+				Expect(k8sClient.Create(ctx, ep)).To(Succeed())
+			}
+
+			By("Verifying all endpoints become ready without domain conflicts")
+			for _, ep := range endpoints {
+				Eventually(func(g Gomega) {
+					obj := &ngrokv1alpha1.AgentEndpoint{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ep), obj)).To(Succeed())
+
+					readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+					g.Expect(readyCond).NotTo(BeNil())
+					g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+				}, timeout, interval).Should(Succeed())
+			}
+
+			By("Verifying no Domain CRD was created")
+			Eventually(func(g Gomega) {
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(BeEmpty())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying mock driver was called for both endpoints")
+			Eventually(func() int {
+				count := 0
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name == namespace+"/k8s-endpoint-1" || call.Name == namespace+"/k8s-endpoint-2" {
+						count++
+					}
+				}
+				return count
+			}, timeout, interval).Should(Equal(2))
+		})
+	})
 })
 
 // findCondition finds a condition by type in a slice of conditions

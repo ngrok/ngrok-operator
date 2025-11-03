@@ -349,6 +349,254 @@ func TestManager_setDomainCondition(t *testing.T) {
 	assert.Equal(t, "Test message 2", (*conditions)[0].Message)
 }
 
+// TestManager_EnsureDomainExists_SkipsKubernetesBinding_AgentEndpoint tests that endpoints with kubernetes binding skip domain creation
+func TestManager_EnsureDomainExists_SkipsKubernetesBinding_AgentEndpoint(t *testing.T) {
+	scheme := setupScheme()
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+	manager := createTestManager(client)
+
+	endpoint := &ngrokv1alpha1.AgentEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "k8s-bound-endpoint",
+			Namespace: "default",
+		},
+		Spec: ngrokv1alpha1.AgentEndpointSpec{
+			URL:      "http://aws.demo",
+			Bindings: []string{"kubernetes"},
+		},
+		Status: ngrokv1alpha1.AgentEndpointStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+
+	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, endpoint.Spec.URL)
+
+	// Kubernetes-bound endpoints should skip domain creation and be marked as ready
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, result.IsReady)
+	assert.Nil(t, result.Domain)
+	assert.Nil(t, endpoint.GetDomainRef())
+
+	// Should set ready condition with Kubernetes binding message
+	conditions := endpoint.GetConditions()
+	assert.Len(t, *conditions, 1)
+	assert.Equal(t, ConditionDomainReady, (*conditions)[0].Type)
+	assert.Equal(t, metav1.ConditionTrue, (*conditions)[0].Status)
+	assert.Contains(t, (*conditions)[0].Message, "Kubernetes binding")
+
+	// Verify no Domain CRD was created
+	var domains ingressv1alpha1.DomainList
+	err = client.List(context.TODO(), &domains)
+	assert.NoError(t, err)
+	assert.Empty(t, domains.Items)
+}
+
+// TestManager_EnsureDomainExists_SkipsKubernetesBinding_CloudEndpoint tests that CloudEndpoints with kubernetes binding skip domain creation
+func TestManager_EnsureDomainExists_SkipsKubernetesBinding_CloudEndpoint(t *testing.T) {
+	scheme := setupScheme()
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+	manager := createTestManager(client)
+
+	endpoint := &ngrokv1alpha1.CloudEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "k8s-bound-endpoint",
+			Namespace: "default",
+		},
+		Spec: ngrokv1alpha1.CloudEndpointSpec{
+			URL:      "http://aws.demo",
+			Bindings: []string{"kubernetes"},
+		},
+		Status: ngrokv1alpha1.CloudEndpointStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+
+	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, endpoint.Spec.URL)
+
+	// Kubernetes-bound endpoints should skip domain creation and be marked as ready
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, result.IsReady)
+	assert.Nil(t, result.Domain)
+	assert.Nil(t, endpoint.GetDomainRef())
+
+	// Should set ready condition with Kubernetes binding message
+	conditions := endpoint.GetConditions()
+	assert.Len(t, *conditions, 1)
+	assert.Equal(t, ConditionDomainReady, (*conditions)[0].Type)
+	assert.Equal(t, metav1.ConditionTrue, (*conditions)[0].Status)
+	assert.Contains(t, (*conditions)[0].Message, "Kubernetes binding")
+
+	// Verify no Domain CRD was created
+	var domains ingressv1alpha1.DomainList
+	err = client.List(context.TODO(), &domains)
+	assert.NoError(t, err)
+	assert.Empty(t, domains.Items)
+}
+
+// TestManager_EnsureDomainExists_MixedBindings_CreatesDomain tests that endpoints with mixed bindings still create domains
+func TestManager_EnsureDomainExists_MixedBindings_CreatesDomain(t *testing.T) {
+	scheme := setupScheme()
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+	manager := createTestManager(client)
+
+	endpoint := createTestEndpoint("mixed-binding-endpoint", "default", "https://example.com")
+	endpoint.Spec.Bindings = []string{"kubernetes", "public"}
+
+	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, endpoint.Spec.URL)
+
+	// Mixed bindings should NOT skip domain creation
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.False(t, result.IsReady) // Domain was just created, not ready yet
+	assert.NotNil(t, result.Domain)
+	assert.Equal(t, "example-com", result.Domain.Name)
+
+	// Should set domain ref
+	domainRef := endpoint.GetDomainRef()
+	assert.NotNil(t, domainRef)
+	assert.Equal(t, "example-com", domainRef.Name)
+
+	// Should set creating condition
+	conditions := endpoint.GetConditions()
+	assert.Len(t, *conditions, 1)
+	assert.Equal(t, ConditionDomainReady, (*conditions)[0].Type)
+	assert.Equal(t, metav1.ConditionFalse, (*conditions)[0].Status)
+
+	// Verify domain was created in the client
+	var domains ingressv1alpha1.DomainList
+	err = client.List(context.TODO(), &domains)
+	assert.NoError(t, err)
+	assert.Len(t, domains.Items, 1)
+	assert.Equal(t, "example.com", domains.Items[0].Spec.Domain)
+}
+
+// TestEndpointReferencesDomain tests the EndpointReferencesDomain helper function
+func TestEndpointReferencesDomain(t *testing.T) {
+	testCases := []struct {
+		name           string
+		endpoint       func() *ngrokv1alpha1.AgentEndpoint
+		domain         *ingressv1alpha1.Domain
+		expectedResult bool
+	}{
+		{
+			name: "matching name and namespace",
+			endpoint: func() *ngrokv1alpha1.AgentEndpoint {
+				ep := createTestEndpoint("test-endpoint", "default", "https://example.com")
+				ns := "default"
+				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					Name:      "example-com",
+					Namespace: &ns,
+				}
+				return ep
+			},
+			domain: &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "example-com",
+					Namespace: "default",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "matching name with nil namespace (defaults to same namespace)",
+			endpoint: func() *ngrokv1alpha1.AgentEndpoint {
+				ep := createTestEndpoint("test-endpoint", "default", "https://example.com")
+				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					Name:      "example-com",
+					Namespace: nil,
+				}
+				return ep
+			},
+			domain: &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "example-com",
+					Namespace: "default",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "matching name with empty namespace (defaults to same namespace)",
+			endpoint: func() *ngrokv1alpha1.AgentEndpoint {
+				ep := createTestEndpoint("test-endpoint", "default", "https://example.com")
+				emptyNs := ""
+				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					Name:      "example-com",
+					Namespace: &emptyNs,
+				}
+				return ep
+			},
+			domain: &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "example-com",
+					Namespace: "default",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "different namespace",
+			endpoint: func() *ngrokv1alpha1.AgentEndpoint {
+				ep := createTestEndpoint("test-endpoint", "default", "https://example.com")
+				ns := "other-namespace"
+				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					Name:      "example-com",
+					Namespace: &ns,
+				}
+				return ep
+			},
+			domain: &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "example-com",
+					Namespace: "default",
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "different name",
+			endpoint: func() *ngrokv1alpha1.AgentEndpoint {
+				ep := createTestEndpoint("test-endpoint", "default", "https://example.com")
+				ns := "default"
+				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					Name:      "different-domain",
+					Namespace: &ns,
+				}
+				return ep
+			},
+			domain: &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "example-com",
+					Namespace: "default",
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "nil domain ref",
+			endpoint: func() *ngrokv1alpha1.AgentEndpoint {
+				return createTestEndpoint("test-endpoint", "default", "https://example.com")
+			},
+			domain: &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "example-com",
+					Namespace: "default",
+				},
+			},
+			expectedResult: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := EndpointReferencesDomain(tc.endpoint(), tc.domain)
+			assert.Equal(t, tc.expectedResult, result)
+		})
+	}
+}
+
 func setupScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	_ = ngrokv1alpha1.AddToScheme(scheme)

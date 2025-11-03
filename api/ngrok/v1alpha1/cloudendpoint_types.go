@@ -184,12 +184,17 @@ func (c *CloudEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
 
 // HasKubernetesBinding returns true if the endpoint has a Kubernetes binding
 func (c *CloudEndpoint) HasKubernetesBinding() bool {
+	hasKubernetes := false
 	for _, binding := range c.Spec.Bindings {
 		if binding == "kubernetes" {
-			return true
+			hasKubernetes = true
+		} else if binding == "public" || binding == "internal" {
+			// Mixed bindings: has kubernetes plus other bindings
+			// Should NOT skip domain creation
+			return false
 		}
 	}
-	return false
+	return hasKubernetes
 }
 
 func init() {
