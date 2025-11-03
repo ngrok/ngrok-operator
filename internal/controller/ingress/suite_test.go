@@ -65,6 +65,8 @@ var (
 	ipPolicyClient     *nmockapi.IPPolicyClient
 	ipPolicyRuleClient *nmockapi.IPPolicyRuleClient
 
+	kginkgo *testutils.KGinkgo
+
 	ctx    context.Context
 	cancel context.CancelFunc
 )
@@ -108,6 +110,8 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+
+	kginkgo = testutils.NewKGinkgo(k8sClient)
 
 	driver = managerdriver.NewDriver(
 		logr.New(logr.Discard().GetSink()),

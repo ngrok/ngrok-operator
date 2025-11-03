@@ -123,6 +123,67 @@ var _ = Describe("IPPolicyReconciler", func() {
 			return count
 		}, timeout, interval).Should(Equal(0))
 	})
+
+	It("sets Created condition for existing IP Policy", func() {
+		By("creating an IP Policy")
+		ip := &ingressv1alpha1.IPPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-existing-policy", Namespace: "default"},
+			Spec:       ingressv1alpha1.IPPolicySpec{},
+		}
+		ip.Spec.Description = "test-existing"
+		ip.Spec.Metadata = "test"
+		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
+
+		By("waiting for the IP Policy to be created")
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
+
+		By("clearning the status conditions to simulate existing ip policy")
+		Eventually(func(g Gomega) {
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(ip), ip)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			ip.Status.Conditions = []metav1.Condition{}
+			err = k8sClient.Status().Update(ctx, ip)
+			g.Expect(err).NotTo(HaveOccurred())
+		}, timeout, interval).Should(Succeed())
+
+		By("verifying the created and ready conditions are set again")
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
+	})
+
+	It("sets Created condition for existing IP Policy with rules", func() {
+		By("creating an IPPolicy resource with rules")
+		ip := &ingressv1alpha1.IPPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-existing-policy-rules", Namespace: "default"},
+			Spec:       ingressv1alpha1.IPPolicySpec{},
+		}
+		ip.Spec.Description = "test-with-rules"
+		ip.Spec.Metadata = "test"
+		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "allow"}}
+		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
+
+		By("waiting for the IP Policy to be created")
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyRulesConfigured, metav1.ConditionTrue)
+
+		By("clearing the status conditions to simulate an existing ip policy")
+		Eventually(func(g Gomega) {
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(ip), ip)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			ip.Status.Conditions = []metav1.Condition{}
+			err = k8sClient.Status().Update(ctx, ip)
+			g.Expect(err).NotTo(HaveOccurred())
+		}, timeout, interval).Should(Succeed())
+
+		By("verifying the created, rules configured, and ready conditions are set again")
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyRulesConfigured, metav1.ConditionTrue)
+	})
 })
 
 var _ = Describe("IPPolicyDiff", func() {

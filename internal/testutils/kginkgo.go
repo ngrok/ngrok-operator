@@ -4,11 +4,13 @@ import (
 	"context"
 	"time"
 
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -289,6 +291,26 @@ func (k *KGinkgo) EventuallyWithCloudEndpoints(ctx context.Context, namespace st
 
 		inner(g, cleps)
 	}).WithTimeout(eo.timeout).WithPolling(eo.interval).Should(Succeed())
+}
+
+// EventuallyIPPolicyHasCondition asserts that the given IPPolicy eventually has the specified condition type with the expected status.
+// It will continually update the IPPolicy from the client to check for the condition.
+// The function uses Gomega's Eventually internally, so it should only be used in Ginkgo tests.
+//
+// Example usage:
+//
+//		kginkgo := testutils.NewKGinkgo(k8sClient)
+//	    kginkgo.EventuallyIPPolicyHasCondition(ctx, myIPPolicy, "Created", metav1.ConditionTrue)
+func (k *KGinkgo) EventuallyIPPolicyHasCondition(ctx context.Context, ipPolicy *ingressv1alpha1.IPPolicy, conditionType string, status metav1.ConditionStatus) {
+	GinkgoHelper()
+
+	k.EventuallyWithObject(ctx, ipPolicy, func(g Gomega, obj client.Object) {
+		p := obj.(*ingressv1alpha1.IPPolicy)
+
+		cond := meta.FindStatusCondition(p.Status.Conditions, conditionType)
+		g.Expect(cond).NotTo(BeNil())
+		g.Expect(cond.Status).To(Equal(status))
+	})
 }
 
 // EventuallyWithAgentEndpoints continually fetches the AgentEndpoints in the given namespace and invokes the inner function with the list.
