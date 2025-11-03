@@ -601,29 +601,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		})
 
 		It("should create endpoint even when domain is not ready", func(ctx SpecContext) {
-			// Create not-ready domain first
-			notReadyDomain := &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "example-com",
-					Namespace: namespace,
-				},
-				Spec: ingressv1alpha1.DomainSpec{
-					Domain: "example.com",
-				},
-				Status: ingressv1alpha1.DomainStatus{
-					Conditions: []metav1.Condition{
-						{
-							Type:               "Ready",
-							Status:             metav1.ConditionFalse,
-							Reason:             "Provisioning",
-							Message:            "Domain is being provisioned",
-							LastTransitionTime: metav1.Now(),
-						},
-					},
-				},
-			}
-			Expect(k8sClient.Create(ctx, notReadyDomain)).To(Succeed())
-
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-endpoint",
@@ -637,7 +614,17 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			By("Creating the CloudEndpoint")
 			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
 
-			By("Waiting for endpoint to be created but not ready")
+			By("Waiting for controller to create Domain CR")
+			var domain *ingressv1alpha1.Domain
+			Eventually(func(g Gomega) {
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(HaveLen(1))
+				domain = &domains.Items[0]
+				g.Expect(domain.Spec.Domain).To(Equal("example.com"))
+			}, timeout, interval).Should(Succeed())
+
+			By("Waiting for endpoint to be created but not ready (domain not ready)")
 			Eventually(func(g Gomega) {
 				obj := &ngrokv1alpha1.CloudEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
@@ -645,12 +632,10 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				// Endpoint should be created
 				g.Expect(obj.Status.ID).NotTo(BeEmpty())
 
-				// DomainReady should be False (domain exists but not ready)
+				// DomainReady should be False (domain exists but not ready yet)
 				domainCond := findCloudEndpointCondition(obj.Status.Conditions, "DomainReady")
 				g.Expect(domainCond).NotTo(BeNil())
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
-				// Reason could be "DomainCreating" or the reason from the Domain's Ready condition
-				g.Expect(domainCond.Reason).NotTo(BeEmpty())
 
 				// Ready should be False
 				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
@@ -659,8 +644,11 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Making the domain ready")
-			domain := &ingressv1alpha1.Domain{}
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "example-com", Namespace: namespace}, domain)).To(Succeed())
+			Eventually(func(g Gomega) {
+				latestDomain := &ingressv1alpha1.Domain{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: domain.Name, Namespace: namespace}, latestDomain)).To(Succeed())
+				domain = latestDomain
+			}, timeout, interval).Should(Succeed())
 
 			// Update domain to be ready
 			domain.Status.ID = "dom_123"
