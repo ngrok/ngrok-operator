@@ -73,26 +73,37 @@ func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain,
 	return parsedURL, nil
 }
 
-// checkSkippedDomains checks if the domain should be skipped (TCP or internal)
+// checkSkippedDomains checks if the domain should be skipped (TCP, internal, or Kubernetes bindings)
 func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL) *DomainResult {
-	// Skip TCP ngrok URLs
-	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
-		m.setDomainCondition(endpoint, true, "DomainReady", "Domain is ready")
+	// Skip Kubernetes-bound endpoints (no domain reservation needed)
+	if endpoint.HasKubernetesBinding() {
+		m.setDomainCondition(endpoint, true, ReasonDomainReady, "Domain is ready (Kubernetes binding - no domain reservation needed)")
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
 			IsReady:      true,
-			ReadyReason:  "DomainReady",
+			ReadyReason:  ReasonDomainReady,
+			ReadyMessage: "Domain is ready (Kubernetes binding - no domain reservation needed)",
+		}
+	}
+
+	// Skip TCP ngrok URLs
+	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
+		m.setDomainCondition(endpoint, true, ReasonDomainReady, "Domain is ready")
+		endpoint.SetDomainRef(nil)
+		return &DomainResult{
+			IsReady:      true,
+			ReadyReason:  ReasonDomainReady,
 			ReadyMessage: "Domain is ready",
 		}
 	}
 
 	// Skip internal domains
 	if strings.HasSuffix(parsedURL.Hostname(), ".internal") {
-		m.setDomainCondition(endpoint, true, "DomainReady", "Domain is ready")
+		m.setDomainCondition(endpoint, true, ReasonDomainReady, "Domain is ready")
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
 			IsReady:      true,
-			ReadyReason:  "DomainReady",
+			ReadyReason:  ReasonDomainReady,
 			ReadyMessage: "Domain is ready",
 		}
 	}
@@ -138,24 +149,14 @@ func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain,
 	}
 
 	isReady := ingress.IsDomainReady(domainObj)
-	if isReady {
-		m.setDomainCondition(endpoint, true, readyReason, readyMessage)
-		return &DomainResult{
-			Domain:       domainObj,
-			IsReady:      true,
-			ReadyReason:  readyReason,
-			ReadyMessage: readyMessage,
-		}, nil
-	}
+	m.setDomainCondition(endpoint, isReady, readyReason, readyMessage)
 
-	m.setDomainCondition(endpoint, false, readyReason, readyMessage)
 	return &DomainResult{
 		Domain:       domainObj,
-		IsReady:      false,
+		IsReady:      isReady,
 		ReadyReason:  readyReason,
 		ReadyMessage: readyMessage,
-	}, ErrDomainCreating
-
+	}, nil
 }
 
 // createNewDomain creates a new Domain CRD
@@ -191,7 +192,7 @@ func (m *Manager) createNewDomain(ctx context.Context, endpoint ngrokv1alpha1.En
 		IsReady:      false,
 		ReadyReason:  ReasonDomainCreating,
 		ReadyMessage: "Domain is being created",
-	}, ErrDomainCreating
+	}, nil
 }
 
 // setDomainCondition sets the DomainReady condition on the endpoint
@@ -210,4 +211,24 @@ func (m *Manager) setDomainCondition(endpoint ngrokv1alpha1.EndpointWithDomain, 
 	}
 
 	meta.SetStatusCondition(endpoint.GetConditions(), condition)
+}
+
+// EndpointReferencesDomain checks if an endpoint has a domain reference that matches the given domain.
+// This checks both the domain name and namespace to determine if they match.
+func EndpointReferencesDomain(endpoint ngrokv1alpha1.EndpointWithDomain, domain *ingressv1alpha1.Domain) bool {
+	domainRef := endpoint.GetDomainRef()
+	if domainRef == nil {
+		return false
+	}
+
+	if domainRef.Name != domain.Name {
+		return false
+	}
+
+	// Check namespace match (nil or empty means same namespace)
+	if domainRef.Namespace != nil && *domainRef.Namespace != "" && *domainRef.Namespace != domain.Namespace {
+		return false
+	}
+
+	return true
 }

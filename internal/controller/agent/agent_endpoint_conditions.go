@@ -97,8 +97,11 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 		trafficPolicyReady = false
 	}
 
-	// Check if domain is ready
-	domainReady := domainResult.IsReady
+	// Check if domain is ready (default to false for safety)
+	domainReady := false
+	if domainResult != nil {
+		domainReady = domainResult.IsReady
+	}
 
 	// Overall ready status - all conditions must be true
 	ready := endpointCreated && trafficPolicyReady && domainReady
@@ -111,7 +114,7 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 		message = "AgentEndpoint is active and ready"
 	case !domainReady:
 		// Use the domain's Ready condition reason/message for better context
-		if domainResult.ReadyReason != "" {
+		if domainResult != nil && domainResult.ReadyReason != "" {
 			reason = domainResult.ReadyReason
 			message = domainResult.ReadyMessage
 		} else {

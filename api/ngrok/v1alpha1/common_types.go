@@ -54,6 +54,7 @@ type EndpointWithDomain interface {
 	GetGeneration() int64
 	GetDomainRef() *K8sObjectRefOptionalNamespace
 	SetDomainRef(*K8sObjectRefOptionalNamespace)
+	HasKubernetesBinding() bool
 }
 
 // ToClientObjectKey converts the K8sObjectRefOptionalNamespace to a client.ObjectKey,

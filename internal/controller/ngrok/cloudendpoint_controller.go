@@ -67,7 +67,10 @@ type CloudEndpointReconciler struct {
 }
 
 // Define a custom error types to catch and handle requeuing logic for
-var ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both TrafficPolicyName and TrafficPolicy are set")
+var (
+	ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both TrafficPolicyName and TrafficPolicy are set")
+	ErrDomainNotReady             = errors.New("domain is not ready yet")
+)
 
 // SetupWithManager sets up the controller with the Manager.
 // It also sets up a Field Indexer to index Cloud Endpoints by their Traffic Policy name
@@ -111,8 +114,9 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if ngrok.IsErrorCode(err, retryableErrors...) {
 				return ctrl.Result{}, err
 			}
-			if errors.Is(err, domainpkg.ErrDomainCreating) {
-				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			if errors.Is(err, ErrDomainNotReady) {
+				// Domain not ready - requeue to check again later (fallback to watch)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
 				r.Recorder.Event(cr, v1.EventTypeWarning, "ConfigError", err.Error())
@@ -145,6 +149,10 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return false
 				},
 			}),
+		).
+		Watches(
+			&ingressv1alpha1.Domain{},
+			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointsForDomain),
 		).
 		WithEventFilter(
 			predicate.Or(
@@ -197,7 +205,17 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 	// Set success condition
 	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint created successfully")
 
-	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
+	// Update status
+	if err := r.updateStatus(ctx, clep, ngrokClep, domainResult, nil); err != nil {
+		return err
+	}
+
+	// Requeue if domain is not ready (fallback to watch for convergence)
+	if domainResult != nil && !domainResult.IsReady {
+		return ErrDomainNotReady
+	}
+
+	return nil
 }
 
 // Update is called when we have a status ID and want to update the resource in the ngrok API
@@ -239,7 +257,17 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	// Set success condition
 	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint updated successfully")
 
-	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
+	// Update status
+	if err := r.updateStatus(ctx, clep, ngrokClep, domainResult, nil); err != nil {
+		return err
+	}
+
+	// Requeue if domain is not ready (fallback to watch for convergence)
+	if domainResult != nil && !domainResult.IsReady {
+		return ErrDomainNotReady
+	}
+
+	return nil
 }
 
 // Simply attempt to delete it. The base controller handles not found errors
@@ -296,6 +324,29 @@ func (r *CloudEndpointReconciler) findCloudEndpointForTrafficPolicy(ctx context.
 		})
 	}
 
+	return requests
+}
+
+// findCloudEndpointsForDomain searches for any CloudEndpoint CRs that reference a particular Domain
+func (r *CloudEndpointReconciler) findCloudEndpointsForDomain(ctx context.Context, o client.Object) []ctrl.Request {
+	domain, ok := o.(*ingressv1alpha1.Domain)
+	if !ok {
+		return nil
+	}
+
+	var endpoints ngrokv1alpha1.CloudEndpointList
+	if err := r.Client.List(ctx, &endpoints, client.InNamespace(domain.Namespace)); err != nil {
+		return nil
+	}
+
+	var requests []ctrl.Request
+	for _, ep := range endpoints.Items {
+		if domainpkg.EndpointReferencesDomain(&ep, domain) {
+			requests = append(requests, ctrl.Request{
+				NamespacedName: client.ObjectKeyFromObject(&ep),
+			})
+		}
+	}
 	return requests
 }
 

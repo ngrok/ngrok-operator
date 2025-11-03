@@ -73,6 +73,7 @@ func indexClientCertificateRefs(o client.Object) []string {
 
 var (
 	ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both targetRef and inline are set")
+	ErrDomainNotReady             = errors.New("domain is not ready yet")
 )
 
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints,verbs=get;list;watch;create;update;patch;delete
@@ -122,8 +123,9 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Delete:   r.delete,
 		StatusID: r.statusID,
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
-			if errors.Is(err, domainpkg.ErrDomainCreating) {
-				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			if errors.Is(err, ErrDomainNotReady) {
+				// Domain not ready - requeue to check again later (fallback to watch)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
 				r.Recorder.Event(cr, v1.EventTypeWarning, "ConfigError", err.Error())
@@ -174,6 +176,10 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return false
 				},
 			}),
+		).
+		Watches(
+			&ingressv1alpha1.Domain{},
+			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointsForDomain),
 		).
 		WithEventFilter(
 			predicate.Or(
@@ -234,7 +240,17 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 		setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
 	}
 
-	return r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil)
+	// Update status
+	if err := r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil); err != nil {
+		return err
+	}
+
+	// Requeue if domain is not ready (fallback to watch for convergence)
+	if domainResult != nil && !domainResult.IsReady {
+		return ErrDomainNotReady
+	}
+
+	return nil
 }
 
 func (r *AgentEndpointReconciler) delete(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
@@ -307,6 +323,29 @@ func (r *AgentEndpointReconciler) findAgentEndpointForSecret(ctx context.Context
 		})
 	}
 
+	return requests
+}
+
+// findAgentEndpointsForDomain searches for any AgentEndpoint CRs that reference a particular Domain
+func (r *AgentEndpointReconciler) findAgentEndpointsForDomain(ctx context.Context, o client.Object) []ctrl.Request {
+	domain, ok := o.(*ingressv1alpha1.Domain)
+	if !ok {
+		return nil
+	}
+
+	var endpoints ngrokv1alpha1.AgentEndpointList
+	if err := r.Client.List(ctx, &endpoints, client.InNamespace(domain.Namespace)); err != nil {
+		return nil
+	}
+
+	var requests []ctrl.Request
+	for _, ep := range endpoints.Items {
+		if domainpkg.EndpointReferencesDomain(&ep, domain) {
+			requests = append(requests, ctrl.Request{
+				NamespacedName: client.ObjectKeyFromObject(&ep),
+			})
+		}
+	}
 	return requests
 }
 

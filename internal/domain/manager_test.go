@@ -195,9 +195,9 @@ func TestManager_EnsureDomainExists_ExistingDomainNotReady(t *testing.T) {
 
 	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, endpoint.Spec.URL)
 
-	// Should find existing domain but return not ready
-	assert.Error(t, err)
-	assert.Equal(t, ErrDomainCreating, err)
+	// Should find existing domain but return not ready (no error)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
 	assert.False(t, result.IsReady)
 	assert.NotNil(t, result.Domain)
 	assert.Equal(t, existingDomain.Name, result.Domain.Name)
@@ -237,9 +237,9 @@ func TestManager_EnsureDomainExists_ExistingDomainNoReadyCondition(t *testing.T)
 
 	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, endpoint.Spec.URL)
 
-	// Should find existing domain but return not ready (no Ready condition)
-	assert.Error(t, err)
-	assert.Equal(t, ErrDomainCreating, err)
+	// Should find existing domain but return not ready (no Ready condition, no error)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
 	assert.False(t, result.IsReady)
 	assert.NotNil(t, result.Domain)
 	assert.Equal(t, existingDomain.Name, result.Domain.Name)
@@ -267,9 +267,9 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 
 	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, endpoint.Spec.URL)
 
-	// Should create new domain and return not ready
-	assert.Error(t, err)
-	assert.Equal(t, ErrDomainCreating, err)
+	// Should create new domain and return not ready (no error)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
 	assert.False(t, result.IsReady)
 	assert.NotNil(t, result.Domain)
 	assert.Equal(t, "example-com", result.Domain.Name)
@@ -309,9 +309,9 @@ func TestManager_EnsureDomainExists_CreateNewDomainWithReclaimPolicy(t *testing.
 
 	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, endpoint.Spec.URL)
 
-	// Should create domain and return not ready
-	assert.Error(t, err)
-	assert.Equal(t, ErrDomainCreating, err)
+	// Should create domain and return not ready (no error)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
 	assert.False(t, result.IsReady)
 	assert.NotNil(t, result.Domain)
 
