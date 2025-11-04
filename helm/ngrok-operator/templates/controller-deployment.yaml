@@ -150,6 +150,8 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: {{ .Release.Name | quote }}
+        - name: DEPLOYMENT_NAME
+          value: {{ include "ngrok-operator.fullname" . }}-manager
         {{- range $key, $value := .Values.extraEnv }}
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}

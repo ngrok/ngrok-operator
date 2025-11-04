@@ -35,6 +35,10 @@ func InKubernetes() bool {
 	return err == nil && hasServiceHost
 }
 
+const (
+	serviceAccountNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+)
+
 // GetCurrentNamespace returns the namespace of the current pod if running in Kubernetes,
 // or "" if not running in Kubernetes.
 func GetCurrentNamespace() string {
@@ -42,22 +46,23 @@ func GetCurrentNamespace() string {
 		return ""
 	}
 
-	const serviceAccountNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 	data, err := os.ReadFile(serviceAccountNamespacePath)
 	if err != nil {
-		setupLog.Error(err, "failed to read namespace from service account, defaulting to ''")
 		return ""
 	}
 
 	return string(data)
 }
 
+const (
+	deploymentNameEnvVar = "DEPLOYMENT_NAME"
+)
+
 // GetDeploymentName returns the name of the current deployment from the DEPLOYMENT_NAME environment variable,
 // or "" if not set.
 func GetDeploymentName() string {
-	deploymentName, exists := os.LookupEnv("DEPLOYMENT_NAME")
+	deploymentName, exists := os.LookupEnv(deploymentNameEnvVar)
 	if !exists {
-		setupLog.Info("DEPLOYMENT_NAME environment variable not set, defaulting to ''")
 		return ""
 	}
 

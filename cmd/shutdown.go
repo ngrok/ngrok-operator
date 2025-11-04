@@ -64,8 +64,13 @@ func OnDeploymentTerminating(ctx context.Context, mgr manager.Manager, f func())
 
 	namespace := GetCurrentNamespace()
 	deploymentName := GetDeploymentName()
-	if namespace == "" || deploymentName == "" {
-		setupLog.Info("skipping deployment termination watcher: namespace or deploymentName is empty")
+	if deploymentName == "" {
+		setupLog.Info("skipping deployment termination watcher: DEPLOYMENT_NAME environment variable was not set")
+		return ctx, func() {}
+	}
+
+	if namespace == "" {
+		setupLog.Info(fmt.Sprintf("skipping deployment termination watcher: unable to read namespace from file %s", serviceAccountNamespacePath))
 		return ctx, func() {}
 	}
 
