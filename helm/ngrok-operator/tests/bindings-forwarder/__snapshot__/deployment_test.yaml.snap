@@ -72,6 +72,8 @@ Should match snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: DEPLOYMENT_NAME
+                  value: RELEASE-NAME-ngrok-operator-bindings-forwarder
               image: docker.io/ngrok/ngrok-operator:0.19.0
               imagePullPolicy: IfNotPresent
               livenessProbe:

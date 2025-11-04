@@ -5,7 +5,7 @@ Should match all-options snapshot:
     metadata:
       annotations:
         checksum/controller-role: e108215aa508729e0a9d9a12bed3b67d1fef8007aecee1e86b8d3ea8f872b829
-        checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
+        checksum/rbac: fb8e6fedf026dc93ef6df273abe75b05c8839b1b79f2fff0f46382fc0e0a39e0
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
@@ -27,7 +27,7 @@ Should match all-options snapshot:
         metadata:
           annotations:
             checksum/controller-role: e108215aa508729e0a9d9a12bed3b67d1fef8007aecee1e86b8d3ea8f872b829
-            checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
+            checksum/rbac: fb8e6fedf026dc93ef6df273abe75b05c8839b1b79f2fff0f46382fc0e0a39e0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -82,6 +82,8 @@ Should match all-options snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: DEPLOYMENT_NAME
+                  value: RELEASE-NAME-ngrok-operator-manager
                 - name: SECRET_ENV_VAR
                   value:
                     secretKeyRef:
@@ -606,7 +608,7 @@ Should match default snapshot:
     metadata:
       annotations:
         checksum/controller-role: e108215aa508729e0a9d9a12bed3b67d1fef8007aecee1e86b8d3ea8f872b829
-        checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
+        checksum/rbac: fb8e6fedf026dc93ef6df273abe75b05c8839b1b79f2fff0f46382fc0e0a39e0
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
@@ -628,7 +630,7 @@ Should match default snapshot:
         metadata:
           annotations:
             checksum/controller-role: e108215aa508729e0a9d9a12bed3b67d1fef8007aecee1e86b8d3ea8f872b829
-            checksum/rbac: 5d27f1783f54a2ab8e69f9bfce35eef2348fda3f6455526619973781d9549322
+            checksum/rbac: fb8e6fedf026dc93ef6df273abe75b05c8839b1b79f2fff0f46382fc0e0a39e0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -683,6 +685,8 @@ Should match default snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: DEPLOYMENT_NAME
+                  value: RELEASE-NAME-ngrok-operator-manager
               image: docker.io/ngrok/ngrok-operator:0.19.0
               imagePullPolicy: IfNotPresent
               livenessProbe:

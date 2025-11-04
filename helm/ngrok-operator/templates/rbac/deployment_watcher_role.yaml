@@ -1,0 +1,35 @@
+{{- if .Values.deploymentTerminationWatcher.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-deployment-watcher
+  namespace: {{ .Release.Namespace }}
+## Give permissions to watch deployments
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-deployment-watcher-rolebinding
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ngrok-operator.fullname" . }}-deployment-watcher
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.agent.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.bindings.enabled }}
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.bindings.forwarder.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

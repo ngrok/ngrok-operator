@@ -526,6 +526,16 @@
                     }
                 }
             }
+        },
+        "deploymentTerminationWatcher": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "When true, the operator will watch for its own deployment(s) being terminated and will begin shutdown procedures when detected",
+                    "default": false
+                }
+            }
         }
     }
 }

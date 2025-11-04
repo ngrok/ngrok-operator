@@ -1,0 +1,68 @@
+suite: test rbac
+templates:
+- rbac/deployment_watcher_role.yaml
+set:
+  deploymentTerminationWatcher.enabled: true
+tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}
+- it: should not create a role or role binding if deploymentTerminationWatcher.enabled is false
+  set:
+    deploymentTerminationWatcher.enabled: false
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: should create a role if deploymentTerminationWatcher.enabled is true
+  documentIndex: 0 # Document 0 is the Role
+  asserts:
+  - isKind:
+      of: Role
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-deployment-watcher
+- it: should create a rolebinding if deploymentTerminationWatcher.enabled is true
+  documentIndex: 1 # Document 1 is the RoleBinding
+  asserts:
+  - isKind:
+      of: RoleBinding
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-deployment-watcher-rolebinding
+  - equal:
+      path: subjects
+      value: 
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator
+        namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-agent
+        namespace: NAMESPACE
+- it: should include bindings forwarder service account in rolebinding if bindings.enabled is true
+  set:
+    bindings.enabled: true
+  documentIndex: 1 # Document 1 is the RoleBinding
+  asserts:
+  - isKind:
+      of: RoleBinding
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-deployment-watcher-rolebinding
+  - equal:
+      path: subjects
+      value: 
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator
+        namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-agent
+        namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-bindings-forwarder
+        namespace: NAMESPACE

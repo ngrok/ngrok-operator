@@ -73,6 +73,8 @@ Should match snapshot:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
+                - name: DEPLOYMENT_NAME
+                  value: RELEASE-NAME-ngrok-operator-agent
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
               image: docker.io/ngrok/ngrok-operator:0.19.0
