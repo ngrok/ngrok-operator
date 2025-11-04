@@ -600,6 +600,40 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 		})
 
+		It("should clear stale domainRef for internal domain endpoint", func(ctx SpecContext) {
+			staleDomainName := "stale-domain-ref"
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "internal-with-stale-ref",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "http://test.internal",
+				},
+				Status: ngrokv1alpha1.CloudEndpointStatus{
+					DomainRef: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						Name:      staleDomainName,
+						Namespace: &namespace,
+					},
+				},
+			}
+
+			By("Creating the CloudEndpoint with stale domainRef")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Verifying controller clears the stale domainRef")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+		})
+
 		It("should create endpoint even when domain is not ready", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
 				ObjectMeta: metav1.ObjectMeta{

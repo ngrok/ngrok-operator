@@ -94,7 +94,9 @@ type CloudEndpointStatus struct {
 
 	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.
-	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Nullable
+	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
 
 	// Conditions describe the current conditions of the AgentEndpoint.
 	//
