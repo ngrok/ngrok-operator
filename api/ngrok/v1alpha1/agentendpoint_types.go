@@ -235,18 +235,6 @@ func (a *AgentEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
 	a.Status.DomainRef = ref
 }
 
-// HasKubernetesBinding returns true if the endpoint has a Kubernetes binding
-func (a *AgentEndpoint) HasKubernetesBinding() bool {
-	hasKubernetes := false
-	for _, binding := range a.Spec.Bindings {
-		if binding == "kubernetes" {
-			hasKubernetes = true
-			break
-		}
-	}
-	return hasKubernetes
-}
-
 func init() {
 	SchemeBuilder.Register(&AgentEndpoint{}, &AgentEndpointList{})
 }

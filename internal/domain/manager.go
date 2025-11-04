@@ -33,6 +33,12 @@ var (
 	ErrDomainNotReady = errors.New("domain is not ready yet")
 )
 
+// DomainCheckParams contains parameters for domain checks
+type DomainCheckParams struct {
+	URL      string
+	Bindings []string
+}
+
 // DomainResult contains the result of domain operations
 type DomainResult struct {
 	Domain       *ingressv1alpha1.Domain
@@ -49,13 +55,13 @@ type Manager struct {
 }
 
 // EnsureDomainExists checks if the Domain CRD exists, creates it if needed, and sets conditions/domainRef
-func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, url string) (*DomainResult, error) {
-	parsedURL, err := m.parseAndValidateURL(endpoint, url)
+func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, params DomainCheckParams) (*DomainResult, error) {
+	parsedURL, err := m.parseAndValidateURL(endpoint, params.URL)
 	if err != nil {
 		return nil, err
 	}
 
-	if result := m.checkSkippedDomains(endpoint, parsedURL); result != nil {
+	if result := m.checkSkippedDomains(endpoint, parsedURL, params.Bindings); result != nil {
 		return result, nil
 	}
 
@@ -74,9 +80,9 @@ func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain,
 }
 
 // checkSkippedDomains checks if the domain should be skipped (TCP, internal, or Kubernetes bindings)
-func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL) *DomainResult {
+func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL, bindings []string) *DomainResult {
 	// Skip Kubernetes-bound endpoints (no domain reservation needed)
-	if endpoint.HasKubernetesBinding() {
+	if hasKubernetesBinding(bindings) {
 		msg := "No domain reservation needed for Kubernetes binding"
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
@@ -234,4 +240,14 @@ func EndpointReferencesDomain(endpoint ngrokv1alpha1.EndpointWithDomain, domain 
 	}
 
 	return true
+}
+
+// hasKubernetesBinding checks if the bindings list contains a Kubernetes binding
+func hasKubernetesBinding(bindings []string) bool {
+	for _, binding := range bindings {
+		if binding == "kubernetes" {
+			return true
+		}
+	}
+	return false
 }

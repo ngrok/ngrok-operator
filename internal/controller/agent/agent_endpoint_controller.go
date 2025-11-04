@@ -202,7 +202,10 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	setReconcilingCondition(endpoint, "Reconciling AgentEndpoint")
 
 	// EnsureDomainExists checks if the domain exists, creates it if needed, and sets conditions/domainRef
-	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint, endpoint.Spec.URL)
+	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint, domainpkg.DomainCheckParams{
+		URL:      endpoint.Spec.URL,
+		Bindings: endpoint.Spec.Bindings,
+	})
 	if err != nil {
 		return r.updateStatus(ctx, endpoint, nil, "", domainResult, err)
 	}

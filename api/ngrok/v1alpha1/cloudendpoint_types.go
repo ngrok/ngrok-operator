@@ -182,18 +182,6 @@ func (c *CloudEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
 	c.Status.DomainRef = ref
 }
 
-// HasKubernetesBinding returns true if the endpoint has a Kubernetes binding
-func (c *CloudEndpoint) HasKubernetesBinding() bool {
-	hasKubernetes := false
-	for _, binding := range c.Spec.Bindings {
-		if binding == "kubernetes" {
-			hasKubernetes = true
-			break
-		}
-	}
-	return hasKubernetes
-}
-
 func init() {
 	SchemeBuilder.Register(&CloudEndpoint{}, &CloudEndpointList{})
 }
