@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	ErrDomainCreating = errors.New("waiting while domain is being created")
+	ErrDomainNotReady = errors.New("domain is not ready yet")
 )
 
 // DomainResult contains the result of domain operations
@@ -77,34 +77,37 @@ func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain,
 func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL) *DomainResult {
 	// Skip Kubernetes-bound endpoints (no domain reservation needed)
 	if endpoint.HasKubernetesBinding() {
-		m.setDomainCondition(endpoint, true, ReasonDomainReady, "Domain is ready (Kubernetes binding - no domain reservation needed)")
+		msg := "No domain reservation needed for Kubernetes binding"
+		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
 			IsReady:      true,
 			ReadyReason:  ReasonDomainReady,
-			ReadyMessage: "Domain is ready (Kubernetes binding - no domain reservation needed)",
+			ReadyMessage: msg,
 		}
 	}
 
 	// Skip TCP ngrok URLs
 	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
-		m.setDomainCondition(endpoint, true, ReasonDomainReady, "Domain is ready")
+		msg := "No domain reservation needed for TCP ngrok URL"
+		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
 			IsReady:      true,
 			ReadyReason:  ReasonDomainReady,
-			ReadyMessage: "Domain is ready",
+			ReadyMessage: msg,
 		}
 	}
 
 	// Skip internal domains
 	if strings.HasSuffix(parsedURL.Hostname(), ".internal") {
-		m.setDomainCondition(endpoint, true, ReasonDomainReady, "Domain is ready")
+		msg := "No domain reservation needed for internal domain"
+		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
 			IsReady:      true,
 			ReadyReason:  ReasonDomainReady,
-			ReadyMessage: "Domain is ready",
+			ReadyMessage: msg,
 		}
 	}
 

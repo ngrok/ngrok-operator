@@ -69,7 +69,6 @@ type CloudEndpointReconciler struct {
 // Define a custom error types to catch and handle requeuing logic for
 var (
 	ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both TrafficPolicyName and TrafficPolicy are set")
-	ErrDomainNotReady             = errors.New("domain is not ready yet")
 )
 
 // SetupWithManager sets up the controller with the Manager.
@@ -114,9 +113,8 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if ngrok.IsErrorCode(err, retryableErrors...) {
 				return ctrl.Result{}, err
 			}
-			if errors.Is(err, ErrDomainNotReady) {
-				// Domain not ready - requeue to check again later (fallback to watch)
-				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			if errors.Is(err, domainpkg.ErrDomainNotReady) {
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
 				r.Recorder.Event(cr, v1.EventTypeWarning, "ConfigError", err.Error())
@@ -212,7 +210,7 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 
 	// Requeue if domain is not ready (fallback to watch for convergence)
 	if domainResult != nil && !domainResult.IsReady {
-		return ErrDomainNotReady
+		return domainpkg.ErrDomainNotReady
 	}
 
 	return nil
@@ -264,7 +262,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 
 	// Requeue if domain is not ready (fallback to watch for convergence)
 	if domainResult != nil && !domainResult.IsReady {
-		return ErrDomainNotReady
+		return domainpkg.ErrDomainNotReady
 	}
 
 	return nil
