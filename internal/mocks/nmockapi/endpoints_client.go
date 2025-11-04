@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/ngrok/ngrok-api-go/v7"
+	"k8s.io/utils/ptr"
 )
 
 // EndpointsClient is a mock implementation of the ngrok API client for managing endpoints.
@@ -34,19 +35,14 @@ func (m *EndpointsClient) Create(_ context.Context, item *ngrok.EndpointCreate) 
 
 	id := m.newID()
 	newEndpoint := &ngrok.Endpoint{
+		Description:   ptr.Deref(item.Description, ""),
+		Metadata:      ptr.Deref(item.Metadata, ""),
 		ID:            id,
 		URL:           item.URL,
 		Type:          item.Type,
 		TrafficPolicy: item.TrafficPolicy,
 		CreatedAt:     m.createdAt(),
 		URI:           fmt.Sprintf("https://mock-api.ngrok.com/endpoints/%s", id),
-	}
-
-	if item.Description != nil {
-		newEndpoint.Description = *item.Description
-	}
-	if item.Metadata != nil {
-		newEndpoint.Metadata = *item.Metadata
 	}
 
 	m.items[id] = newEndpoint

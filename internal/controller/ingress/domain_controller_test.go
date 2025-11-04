@@ -278,11 +278,11 @@ var _ = Describe("DomainReconciler", func() {
 					Namespace: namespace,
 				},
 				Spec: ingressv1alpha1.DomainSpec{
-					Domain: domainName,
+					Description: "starting description",
+					Metadata:    "starting metadata",
+					Domain:      domainName,
 				},
 			}
-			domain.Spec.Metadata = "starting metadata"
-			domain.Spec.Description = "starting description"
 
 			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 		})
