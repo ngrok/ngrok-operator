@@ -33,10 +33,10 @@ func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomai
 				Namespace: in.Namespace,
 			},
 			Spec: ingressv1alpha1.DomainSpec{
-				Domain: domainName,
+				Domain:   domainName,
+				Metadata: newDomainMetadata,
 			},
 		}
-		domain.Spec.Metadata = newDomainMetadata
 		endpointDomains[domainName] = domain
 	}
 	return endpointDomains
@@ -66,10 +66,10 @@ func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingD
 				Namespace: in.Namespace,
 			},
 			Spec: ingressv1alpha1.DomainSpec{
-				Domain: domainName,
+				Domain:   domainName,
+				Metadata: newDomainMetadata,
 			},
 		}
-		domain.Spec.Metadata = newDomainMetadata
 
 		endpointDomains[domainName] = domain
 

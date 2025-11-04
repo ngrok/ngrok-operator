@@ -34,14 +34,14 @@ var _ = Describe("IPPolicyReconciler", func() {
 	It("creates IPPolicy and configures rules", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy", Namespace: "default"},
-			Spec:       ingressv1alpha1.IPPolicySpec{},
+			Spec: ingressv1alpha1.IPPolicySpec{
+				Metadata: "test",
+			},
 		}
-		ip.Spec.Metadata = "test"
-		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "allow"}, {CIDR: "192.168.1.0/24", Action: "deny"}}
-
-		// set descriptions after literal construction
-		ip.Spec.Rules[0].Description = "desc1"
-		ip.Spec.Rules[1].Description = "desc2"
+		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{
+			{CIDR: "10.0.0.0/8", Action: "allow", Description: "desc1"},
+			{CIDR: "192.168.1.0/24", Action: "deny", Description: "desc2"},
+		}
 
 		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
@@ -58,11 +58,13 @@ var _ = Describe("IPPolicyReconciler", func() {
 	It("updates existing rule descriptions", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy-update", Namespace: "default"},
-			Spec:       ingressv1alpha1.IPPolicySpec{},
+			Spec: ingressv1alpha1.IPPolicySpec{
+				Metadata: "test",
+			},
 		}
-		ip.Spec.Metadata = "test"
-		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "allow"}}
-		ip.Spec.Rules[0].Description = "orig"
+		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{
+			{CIDR: "10.0.0.0/8", Action: "allow", Description: "orig"},
+		}
 
 		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
@@ -92,11 +94,13 @@ var _ = Describe("IPPolicyReconciler", func() {
 	It("deletes obsolete rules", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy-del", Namespace: "default"},
-			Spec:       ingressv1alpha1.IPPolicySpec{},
+			Spec: ingressv1alpha1.IPPolicySpec{
+				Metadata: "test",
+			},
 		}
-		ip.Spec.Metadata = "test"
-		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "allow"}}
-		ip.Spec.Rules[0].Description = "orig"
+		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{
+			{CIDR: "10.0.0.0/8", Action: "allow", Description: "orig"},
+		}
 
 		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
@@ -128,10 +132,11 @@ var _ = Describe("IPPolicyReconciler", func() {
 		By("creating an IP Policy")
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-existing-policy", Namespace: "default"},
-			Spec:       ingressv1alpha1.IPPolicySpec{},
+			Spec: ingressv1alpha1.IPPolicySpec{
+				Metadata: "test",
+			},
 		}
 		ip.Spec.Description = "test-existing"
-		ip.Spec.Metadata = "test"
 		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
 		By("waiting for the IP Policy to be created")
@@ -157,10 +162,11 @@ var _ = Describe("IPPolicyReconciler", func() {
 		By("creating an IPPolicy resource with rules")
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-existing-policy-rules", Namespace: "default"},
-			Spec:       ingressv1alpha1.IPPolicySpec{},
+			Spec: ingressv1alpha1.IPPolicySpec{
+				Metadata: "test",
+			},
 		}
 		ip.Spec.Description = "test-with-rules"
-		ip.Spec.Metadata = "test"
 		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "allow"}}
 		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
@@ -196,8 +202,9 @@ var _ = Describe("IPPolicyDiff", func() {
 			{ID: "5", CIDR: "172.19.0.0/16", Action: IPPolicyRuleActionAllow, Description: "aaaaa"},
 		}
 
-		changedDescriptionRule := ingressv1alpha1.IPPolicyRule{CIDR: "172.19.0.0/16", Action: IPPolicyRuleActionAllow}
-		changedDescriptionRule.Description = "b"
+		changedDescriptionRule := ingressv1alpha1.IPPolicyRule{
+			CIDR: "172.19.0.0/16", Action: IPPolicyRuleActionAllow, Description: "b",
+		}
 
 		specRules := []ingressv1alpha1.IPPolicyRule{
 			{CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionDeny},
