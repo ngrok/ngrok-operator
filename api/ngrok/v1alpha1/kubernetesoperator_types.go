@@ -28,16 +28,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// common ngrok API/Dashboard fields
-type ngrokAPICommon struct {
-	// Description is a human-readable description of the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`Created by ngrok-operator`
-	Description string `json:"description,omitempty"`
-	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata string `json:"metadata,omitempty"`
-}
-
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -114,7 +104,13 @@ type KubernetesOperatorSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	ngrokAPICommon `json:",inline"`
+	// Description is a human-readable description of the object in the ngrok API/Dashboard
+	// +kubebuilder:default:=`Created by ngrok-operator`
+	Description string `json:"description,omitempty"`
+
+	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
+	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
+	Metadata string `json:"metadata,omitempty"`
 
 	// Features enabled for this Kubernetes Operator
 	// +kubebuilder:validation:Optional
