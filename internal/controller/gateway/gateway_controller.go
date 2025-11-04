@@ -55,6 +55,7 @@ const (
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
 	client.Client
+	controller.Terminating
 
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
@@ -99,7 +100,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// If the gateway is being deleted, remove the finalizer, delete it from the store and
 	// return early.
-	if controller.IsDelete(gw) {
+	if controller.IsDelete(gw) || r.IsTerminating() {
 		log.Info("Deleting gateway from store")
 		if controller.HasFinalizer(gw) {
 			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
@@ -368,6 +369,10 @@ func (r *GatewayReconciler) updateGatewayStatus(ctx context.Context, gw *gateway
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.Terminating == nil {
+		r.Terminating = controller.NewNoOpTerminating()
+	}
+
 	storedResources := []client.Object{
 		&gatewayv1.GatewayClass{},
 		&gatewayv1.HTTPRoute{},

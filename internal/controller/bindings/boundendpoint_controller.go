@@ -75,6 +75,8 @@ var (
 // BoundEndpointReconciler reconciles a BoundEndpoint object
 type BoundEndpointReconciler struct {
 	client.Client
+	controller.Terminating
+
 	Scheme     *runtime.Scheme
 	controller *controller.BaseController[*bindingsv1alpha1.BoundEndpoint]
 
@@ -97,9 +99,10 @@ type BoundEndpointReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *BoundEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.controller = &controller.BaseController[*bindingsv1alpha1.BoundEndpoint]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:        r.Client,
+		Log:         r.Log,
+		Recorder:    r.Recorder,
+		Terminating: r.Terminating,
 
 		StatusID:  func(obj *bindingsv1alpha1.BoundEndpoint) string { return obj.Name },
 		Create:    r.create,

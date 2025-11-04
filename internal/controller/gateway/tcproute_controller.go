@@ -41,6 +41,7 @@ import (
 // TCPRouteReconciler reconciles a TCPRoute object
 type TCPRouteReconciler struct {
 	client.Client
+	controller.Terminating
 
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
@@ -82,7 +83,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	if controller.IsUpsert(tcpRoute) {
+	if controller.IsUpsert(tcpRoute) && !r.IsTerminating() {
 		// The object is not being deleted, so register and sync finalizer
 		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
 			log.Error(err, "Failed to register finalizer")
@@ -113,5 +114,9 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TCPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.Terminating == nil {
+		r.Terminating = controller.NewNoOpTerminating()
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).For(&gatewayv1alpha2.TCPRoute{}).Complete(r)
 }

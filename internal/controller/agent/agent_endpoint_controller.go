@@ -85,6 +85,7 @@ var (
 // AgentEndpointReconciler reconciles an AgentEndpoint object
 type AgentEndpointReconciler struct {
 	client.Client
+	controller.Terminating
 
 	Log         logr.Logger
 	Scheme      *runtime.Scheme
@@ -115,12 +116,13 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.AgentEndpoint]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
-		Update:   r.update,
-		Delete:   r.delete,
-		StatusID: r.statusID,
+		Kube:        r.Client,
+		Log:         r.Log,
+		Recorder:    r.Recorder,
+		Terminating: r.Terminating,
+		Update:      r.update,
+		Delete:      r.delete,
+		StatusID:    r.statusID,
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
 			if errors.Is(err, domainpkg.ErrDomainCreating) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil

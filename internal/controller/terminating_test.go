@@ -24,8 +24,7 @@ func TestChannelTerminationPair(t *testing.T) {
 }
 
 func TestNoOpTerminating(t *testing.T) {
-	var nt Terminating
-	nt = NewNoOpTerminating()
+	var nt Terminating = NewNoOpTerminating()
 
 	assert.False(t, nt.IsTerminating(), "NoopTerminating should always return false")
 	assert.False(t, nt.IsTerminating(), "NoopTerminating should always return false on multiple calls")

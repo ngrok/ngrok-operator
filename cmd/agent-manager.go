@@ -45,6 +45,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	agentcontroller "github.com/ngrok/ngrok-operator/internal/controller/agent"
 	"github.com/ngrok/ngrok-operator/internal/healthcheck"
+	"github.com/ngrok/ngrok-operator/internal/reaper"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	// +kubebuilder:scaffold:imports
@@ -119,7 +120,7 @@ func agentCmd() *cobra.Command {
 	return c
 }
 
-func runAgentController(_ context.Context, opts agentManagerOpts) error {
+func runAgentController(ctx context.Context, opts agentManagerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
 	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
@@ -179,6 +180,7 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		Recorder:                   mgr.GetEventRecorderFor("agentendpoint-controller"),
 		AgentDriver:                ad,
 		DefaultDomainReclaimPolicy: defaultDomainReclaimPolicy,
+		Terminating:                terminating,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")
 		os.Exit(1)
@@ -196,8 +198,21 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		return fmt.Errorf("error setting up health check: %w", err)
 	}
 
+	mgrCtx, mgrCancel := OnDeploymentTerminating(ctx, mgr, func() {
+		terminator.StartTermination()
+
+		r := reaper.New(mgr.GetClient())
+		typesToCleanup := []any{
+			&ngrokv1alpha1.AgentEndpoint{},
+		}
+		if err := r.Cleanup(ctx, typesToCleanup...); err != nil {
+			shutdownLog.Error(err, "error performing pre-shutdown cleanup")
+		}
+	})
+	defer mgrCancel()
+
 	setupLog.Info("starting agent-manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(mgrCtx); err != nil {
 		return fmt.Errorf("error starting agent-manager: %w", err)
 	}
 

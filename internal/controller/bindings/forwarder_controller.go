@@ -59,6 +59,7 @@ import (
 
 type ForwarderReconciler struct {
 	client.Client
+	controller.Terminating
 
 	controller *controller.BaseController[*bindingsv1alpha1.BoundEndpoint]
 	Log        logr.Logger
@@ -80,9 +81,10 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	}
 
 	r.controller = &controller.BaseController[*bindingsv1alpha1.BoundEndpoint]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:        r.Client,
+		Log:         r.Log,
+		Recorder:    r.Recorder,
+		Terminating: r.Terminating,
 
 		Update:   r.update,
 		Delete:   r.delete,

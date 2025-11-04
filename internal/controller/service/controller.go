@@ -76,6 +76,8 @@ var (
 
 type ServiceReconciler struct {
 	client.Client
+	controller.Terminating
+
 	Log       logr.Logger
 	Scheme    *runtime.Scheme
 	Recorder  record.EventRecorder
@@ -117,6 +119,10 @@ func (p TypedShouldHandleServicePredicate[object]) Update(e event.UpdateEvent) b
 }
 
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.Terminating == nil {
+		r.Terminating = controller.NewNoOpTerminating()
+	}
+
 	if r.ClusterDomain == "" {
 		r.ClusterDomain = common.DefaultClusterDomain
 	}
@@ -225,7 +231,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// If the service is being deleted, we need to clean up any resources that are owned by it
-	if controller.IsDelete(svc) {
+	if controller.IsDelete(svc) || r.IsTerminating() {
 		if err := subResourceReconcilers.Reconcile(ctx, r.Client, nil); err != nil {
 			log.Error(err, "Failed to cleanup owned resources")
 			return ctrl.Result{}, err

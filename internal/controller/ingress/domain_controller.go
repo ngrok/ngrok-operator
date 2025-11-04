@@ -49,6 +49,7 @@ import (
 // DomainReconciler reconciles a Domain object
 type DomainReconciler struct {
 	client.Client
+	basecontroller.Terminating
 
 	Log           logr.Logger
 	Scheme        *runtime.Scheme
@@ -65,9 +66,10 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	r.controller = &basecontroller.BaseController[*v1alpha1.Domain]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:        r.Client,
+		Log:         r.Log,
+		Recorder:    r.Recorder,
+		Terminating: r.Terminating,
 
 		StatusID: func(cr *v1alpha1.Domain) string { return cr.Status.ID },
 		Create:   r.create,

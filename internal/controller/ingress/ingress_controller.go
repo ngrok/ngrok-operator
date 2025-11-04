@@ -21,6 +21,8 @@ import (
 // https://pkg.go.dev/sigs.k8s.io/controller-runtime#section-readme
 type IngressReconciler struct {
 	client.Client
+	controller.Terminating
+
 	Log       logr.Logger
 	Scheme    *runtime.Scheme
 	Recorder  record.EventRecorder
@@ -29,6 +31,10 @@ type IngressReconciler struct {
 }
 
 func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.Terminating == nil {
+		r.Terminating = controller.NewNoOpTerminating()
+	}
+
 	storedResources := []client.Object{
 		&netv1.IngressClass{},
 		&corev1.Service{},
@@ -109,7 +115,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if controller.IsUpsert(ingress) {
+	if controller.IsUpsert(ingress) && !r.IsTerminating() {
 		// The object is not being deleted, so register and sync finalizer
 		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
 			log.Error(err, "Failed to register finalizer")

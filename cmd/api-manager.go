@@ -38,6 +38,8 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -66,6 +68,7 @@ import (
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/reaper"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
@@ -289,10 +292,12 @@ func runOneClickDemoMode(ctx context.Context, mgr ctrl.Manager) error {
 	// start a ticker to print demo log messages
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
-				break
+				return
 			case <-ticker.C:
 				setupLog.Error(errors.New("Running in one-click-demo mode"), "Ready even if required fields are missing!")
 				setupLog.Info("The ngrok-operator is running in one-click-demo mode which means the operator is not actually reconciling resources.")
@@ -391,6 +396,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		Recorder:       mgr.GetEventRecorderFor("kubernetes-operator-controller"),
 		Namespace:      opts.namespace,
 		NgrokClientset: ngrokClientset,
+		Terminating:    terminating,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KubernetesOperator")
 		os.Exit(1)
@@ -404,8 +410,48 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		return fmt.Errorf("error setting up health check: %w", err)
 	}
 
+	mgrCtx, mgrCancel := OnDeploymentTerminating(ctx, mgr, func() {
+		r := reaper.New(mgr.GetClient(), reaper.WithAPIGroupConcurrency(4))
+
+		typesToCleanup := []any{}
+		if opts.enableFeatureGateway {
+			typesToCleanup = append(typesToCleanup,
+				&gatewayv1.Gateway{},
+				&gatewayv1.HTTPRoute{},
+				&gatewayv1alpha2.TLSRoute{},
+				&gatewayv1alpha2.TCPRoute{},
+			)
+		}
+
+		if opts.enableFeatureIngress {
+			typesToCleanup = append(typesToCleanup,
+				// core types
+				&netv1.Ingress{},
+			)
+		}
+
+		typesToCleanup = append(typesToCleanup, []any{
+			// core types
+			&corev1.Service{},
+
+			// ngrokv1alpha1 resources
+			&ngrokv1alpha1.KubernetesOperator{},
+			&ngrokv1alpha1.NgrokTrafficPolicy{},
+			&ngrokv1alpha1.CloudEndpoint{},
+
+			// ingressv1alpha1 resources
+			&ingressv1alpha1.Domain{},
+			&ingressv1alpha1.IPPolicy{},
+		})
+
+		if err := r.Cleanup(ctx, typesToCleanup...); err != nil {
+			shutdownLog.Error(err, "error performing pre-shutdown cleanup")
+		}
+	})
+	defer mgrCancel()
+
 	setupLog.Info("starting api-manager in normal mode")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(mgrCtx); err != nil {
 		return fmt.Errorf("error starting api-manager: %w", err)
 	}
 
@@ -526,12 +572,13 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 // enableIngressFeatureSet enables the Ingress feature set for the operator
 func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy) error {
 	if err := (&ingresscontroller.IngressReconciler{
-		Client:    mgr.GetClient(),
-		Log:       ctrl.Log.WithName("controllers").WithName("ingress"),
-		Scheme:    mgr.GetScheme(),
-		Recorder:  mgr.GetEventRecorderFor("ingress-controller"),
-		Namespace: opts.namespace,
-		Driver:    driver,
+		Client:      mgr.GetClient(),
+		Log:         ctrl.Log.WithName("controllers").WithName("ingress"),
+		Scheme:      mgr.GetScheme(),
+		Recorder:    mgr.GetEventRecorderFor("ingress-controller"),
+		Namespace:   opts.namespace,
+		Driver:      driver,
+		Terminating: terminating,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
@@ -547,6 +594,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		// we can remove this. It feels weird to have this here since the ServiceReconciler should only be performing translations
 		// and not dependent on the ngrok API.
 		TCPAddresses: ngrokClientset.TCPAddresses(),
+		Terminating:  terminating,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Service")
 		os.Exit(1)
@@ -558,6 +606,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Scheme:        mgr.GetScheme(),
 		Recorder:      mgr.GetEventRecorderFor("domain-controller"),
 		DomainsClient: ngrokClientset.Domains(),
+		Terminating:   terminating,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Domain")
 		os.Exit(1)
@@ -570,6 +619,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Recorder:            mgr.GetEventRecorderFor("ip-policy-controller"),
 		IPPoliciesClient:    ngrokClientset.IPPolicies(),
 		IPPolicyRulesClient: ngrokClientset.IPPolicyRules(),
+		Terminating:         terminating,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IPPolicy")
 		os.Exit(1)
@@ -593,6 +643,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Recorder:                   mgr.GetEventRecorderFor("cloud-endpoint-controller"),
 		NgrokClientset:             ngrokClientset,
 		DefaultDomainReclaimPolicy: ptr.To(defaultDomainReclaimPolicy),
+		Terminating:                terminating,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudEndpoint")
 		os.Exit(1)
@@ -614,22 +665,24 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 	}
 
 	if err := (&gatewaycontroller.GatewayReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("gateway-controller"),
-		Driver:   driver,
+		Client:      mgr.GetClient(),
+		Log:         ctrl.Log.WithName("controllers").WithName("Gateway"),
+		Scheme:      mgr.GetScheme(),
+		Recorder:    mgr.GetEventRecorderFor("gateway-controller"),
+		Driver:      driver,
+		Terminating: terminating,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)
 	}
 
 	if err := (&gatewaycontroller.HTTPRouteReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("gateway-controller"),
-		Driver:   driver,
+		Client:      mgr.GetClient(),
+		Log:         ctrl.Log.WithName("controllers").WithName("Gateway"),
+		Scheme:      mgr.GetScheme(),
+		Recorder:    mgr.GetEventRecorderFor("gateway-controller"),
+		Driver:      driver,
+		Terminating: terminating,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
 		os.Exit(1)
@@ -637,11 +690,12 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 
 	if tcpRouteCRDInstalled {
 		if err := (&gatewaycontroller.TCPRouteReconciler{
-			Client:   mgr.GetClient(),
-			Log:      ctrl.Log.WithName("controllers").WithName("TCPRoute"),
-			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("tcp-route"),
-			Driver:   driver,
+			Client:      mgr.GetClient(),
+			Log:         ctrl.Log.WithName("controllers").WithName("TCPRoute"),
+			Scheme:      mgr.GetScheme(),
+			Recorder:    mgr.GetEventRecorderFor("tcp-route"),
+			Driver:      driver,
+			Terminating: terminating,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "TCPRoute")
 			os.Exit(1)
@@ -650,11 +704,12 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 
 	if tlsRouteCRDInstalled {
 		if err := (&gatewaycontroller.TLSRouteReconciler{
-			Client:   mgr.GetClient(),
-			Log:      ctrl.Log.WithName("controllers").WithName("TLSRoute"),
-			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("tls-route"),
-			Driver:   driver,
+			Client:      mgr.GetClient(),
+			Log:         ctrl.Log.WithName("controllers").WithName("TLSRoute"),
+			Scheme:      mgr.GetScheme(),
+			Recorder:    mgr.GetEventRecorderFor("tls-route"),
+			Driver:      driver,
+			Terminating: terminating,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "TLSRoute")
 			os.Exit(1)
@@ -715,6 +770,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 			"app.kubernetes.io/component": "bindings-forwarder",
 		},
 		RefreshDuration: time.Minute * 10,
+		Terminating:     terminating,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BoundEndpoint")
 		os.Exit(1)
@@ -732,7 +788,8 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 		PollingInterval:              10 * time.Second,
 		NgrokClientset:               ngrokClientset,
 		// NOTE: This range must stay static for the current implementation.
-		PortRange: bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},
+		PortRange:   bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},
+		Terminating: terminating,
 	}); err != nil {
 		return err
 	}

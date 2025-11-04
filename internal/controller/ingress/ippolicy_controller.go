@@ -51,6 +51,7 @@ const (
 // IPPolicyReconciler reconciles a IPPolicy object
 type IPPolicyReconciler struct {
 	client.Client
+	controller.Terminating
 
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
@@ -72,9 +73,10 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	r.controller = &controller.BaseController[*ingressv1alpha1.IPPolicy]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:        r.Client,
+		Log:         r.Log,
+		Recorder:    r.Recorder,
+		Terminating: r.Terminating,
 
 		StatusID: func(cr *ingressv1alpha1.IPPolicy) string { return cr.Status.ID },
 		Create:   r.create,

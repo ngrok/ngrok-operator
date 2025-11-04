@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"k8s.io/utils/ptr"
@@ -22,4 +23,43 @@ func validateDomainReclaimPolicy(policy string) (*ingressv1alpha1.DomainReclaimP
 			},
 		)
 	}
+}
+
+func InKubernetes() bool {
+	// The presence of the service account token file indicates we are running in Kubernetes
+	const serviceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+	_, hasServiceHost := os.LookupEnv("KUBERNETES_SERVICE_HOST")
+
+	_, err := os.Stat(serviceAccountTokenPath)
+	return err == nil && hasServiceHost
+}
+
+// GetCurrentNamespace returns the namespace of the current pod if running in Kubernetes,
+// or "" if not running in Kubernetes.
+func GetCurrentNamespace() string {
+	if !InKubernetes() {
+		return ""
+	}
+
+	const serviceAccountNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	data, err := os.ReadFile(serviceAccountNamespacePath)
+	if err != nil {
+		setupLog.Error(err, "failed to read namespace from service account, defaulting to ''")
+		return ""
+	}
+
+	return string(data)
+}
+
+// GetDeploymentName returns the name of the current deployment from the DEPLOYMENT_NAME environment variable,
+// or "" if not set.
+func GetDeploymentName() string {
+	deploymentName, exists := os.LookupEnv("DEPLOYMENT_NAME")
+	if !exists {
+		setupLog.Info("DEPLOYMENT_NAME environment variable not set, defaulting to ''")
+		return ""
+	}
+
+	return deploymentName
 }

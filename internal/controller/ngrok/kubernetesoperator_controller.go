@@ -68,6 +68,8 @@ const (
 // KubernetesOperatorReconciler reconciles a KubernetesOperator object
 type KubernetesOperatorReconciler struct {
 	client.Client
+	controller.Terminating
+
 	Scheme     *runtime.Scheme
 	controller *controller.BaseController[*ngrokv1alpha1.KubernetesOperator]
 
@@ -87,9 +89,10 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.KubernetesOperator]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:        r.Client,
+		Log:         r.Log,
+		Recorder:    r.Recorder,
+		Terminating: r.Terminating,
 
 		Namespace: &r.Namespace,
 

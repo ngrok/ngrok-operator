@@ -54,6 +54,7 @@ import (
 // HTTPRouteReconciler reconciles a HTTPRoute object
 type HTTPRouteReconciler struct {
 	client.Client
+	controller.Terminating
 
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
@@ -91,7 +92,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	if controller.IsDelete(httproute) {
+	if controller.IsDelete(httproute) || r.IsTerminating() {
 		log.Info("Deleting httproute from store")
 		if controller.HasFinalizer(httproute) {
 			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
@@ -129,6 +130,10 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.Terminating == nil {
+		r.Terminating = controller.NewNoOpTerminating()
+	}
+
 	storedResources := []client.Object{
 		&gatewayv1.GatewayClass{},
 		&corev1.Service{},

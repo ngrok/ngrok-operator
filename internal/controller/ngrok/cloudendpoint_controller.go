@@ -55,6 +55,8 @@ const (
 // CloudEndpointReconciler reconciles a CloudEndpoint object
 type CloudEndpointReconciler struct {
 	client.Client
+	controller.Terminating
+
 	Scheme     *runtime.Scheme
 	controller *controller.BaseController[*ngrokv1alpha1.CloudEndpoint]
 
@@ -87,9 +89,10 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.CloudEndpoint]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:        r.Client,
+		Log:         r.Log,
+		Recorder:    r.Recorder,
+		Terminating: r.Terminating,
 
 		StatusID: func(clep *ngrokv1alpha1.CloudEndpoint) string { return clep.Status.ID },
 		Create:   r.create,

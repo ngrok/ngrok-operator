@@ -11,6 +11,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v7"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +33,8 @@ type PortRangeConfig struct {
 // BoundEndpointPoller is a process to poll the ngrok API for binding_endpoints and reconcile the desired state with the cluster state of BoundEndpoints
 type BoundEndpointPoller struct {
 	client.Client
+	controller.Terminating
+
 	Log      logr.Logger
 	Recorder record.EventRecorder
 
@@ -148,6 +151,10 @@ func (r *BoundEndpointPoller) startPollingAPI(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
+			if r.IsTerminating() {
+				log.Info("Terminating signal received, stopping API polling")
+				return
+			}
 			log.V(9).Info("Polling API for binding_endpoints")
 			if err := r.reconcileBoundEndpointsFromAPI(ctx); err != nil {
 				log.Error(err, "Failed to update binding_endpoints from API")

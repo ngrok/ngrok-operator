@@ -49,6 +49,8 @@ type BaseController[T client.Object] struct {
 	// Namespace is optional for controllers
 	Namespace *string
 
+	Terminating
+
 	StatusID  func(obj T) string
 	Create    func(ctx context.Context, obj T) error
 	Update    func(ctx context.Context, obj T) error
@@ -73,7 +75,12 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 
 	log.V(1).Info("Reconciling Resource", "ID", self.StatusID(obj))
 
-	if IsUpsert(obj) {
+	terminating := false
+	if self.Terminating != nil {
+		terminating = self.IsTerminating()
+	}
+
+	if IsUpsert(obj) || terminating {
 		if err := RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
 			return ctrl.Result{}, err
 		}
