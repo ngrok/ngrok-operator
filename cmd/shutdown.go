@@ -6,6 +6,9 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -17,27 +20,36 @@ var (
 	terminating, terminator = controller.NewChannelTerminationPair()
 )
 
-// WatchDeploymentTermination sets up a watcher on the specified Deployment to
-// notify when it is terminating (deletion timestamp is set). It sends a signal
-// on the provided channel when termination is detected.
+// WatchDeploymentTermination sets up a namespace-scoped watcher on the specified
+// Deployment to notify when it is terminating (deletion timestamp is set).
+// It sends a signal on the provided channel when termination is detected.
 func WatchDeploymentTermination(mgr manager.Manager, namespace, name string, terminating chan<- bool) error {
-	ctx := context.Background()
-
-	// Get the shared informer for Deployments from controller-runtime’s cache.
-	inf, err := mgr.GetCache().GetInformer(ctx, &appsv1.Deployment{})
+	// Create a Kubernetes clientset for direct API access
+	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
-		return fmt.Errorf("failed to get informer for Deployment: %w", err)
+		return fmt.Errorf("failed to create Kubernetes clientset: %w", err)
 	}
 
-	_, err = inf.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	// Create a ListWatch for the specific deployment in the namespace
+	listWatch := cache.NewFilteredListWatchFromClient(
+		clientset.AppsV1().RESTClient(),
+		"deployments",
+		namespace,
+		func(options *metav1.ListOptions) {
+			options.FieldSelector = fields.OneTermEqualSelector("metadata.name", name).String()
+		},
+	)
+
+	informer := cache.NewSharedInformer(
+		listWatch,
+		&appsv1.Deployment{},
+		0, // no resync
+	)
+
+	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj any) {
 			oldDep := oldObj.(*appsv1.Deployment)
 			newDep := newObj.(*appsv1.Deployment)
-
-			// Only the target Deployment
-			if newDep.Namespace != namespace || newDep.Name != name {
-				return
-			}
 
 			oldDT := oldDep.GetDeletionTimestamp()
 			newDT := newDep.GetDeletionTimestamp()
@@ -49,8 +61,14 @@ func WatchDeploymentTermination(mgr manager.Manager, namespace, name string, ter
 			}
 		},
 	})
+	if err != nil {
+		return fmt.Errorf("failed to add event handler: %w", err)
+	}
 
-	return err
+	// Start the informer
+	go informer.Run(make(chan struct{}))
+
+	return nil
 }
 
 // OnDeploymentTerminating sets up a watcher for deployment termination and executes
