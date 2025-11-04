@@ -124,6 +124,73 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 		})
 
+		It("should not update LastTransitionTime on re-reconcile when ready state unchanged", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "stable-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "tcp://1.tcp.ngrok.io:12345",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			envMockDriver.SetEndpointResult(namespace+"/stable-endpoint", &agent.EndpointResult{
+				URL: "tcp://1.tcp.ngrok.io:12345",
+			})
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			var initialTransitionTime metav1.Time
+
+			By("Waiting for controller to reconcile and become ready")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(cond.Reason).To(Equal(ReasonEndpointActive))
+
+				initialTransitionTime = cond.LastTransitionTime
+			}, timeout, interval).Should(Succeed())
+
+			By("Sleeping to ensure time passes")
+			time.Sleep(2 * time.Second)
+
+			By("Triggering a re-reconcile by updating an annotation")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				if obj.Annotations == nil {
+					obj.Annotations = make(map[string]string)
+				}
+				obj.Annotations["test-annotation"] = "trigger-reconcile"
+				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Waiting for re-reconcile to complete")
+			time.Sleep(1 * time.Second)
+
+			By("Verifying LastTransitionTime has NOT changed")
+			obj := &ngrokv1alpha1.AgentEndpoint{}
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+			cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+			Expect(cond.Reason).To(Equal(ReasonEndpointActive))
+
+			Expect(cond.LastTransitionTime).To(Equal(initialTransitionTime),
+				"LastTransitionTime should not change when ready state remains True")
+		})
+
 		It("should handle internal endpoints without domain creation", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
