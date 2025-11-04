@@ -241,17 +241,8 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 		setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
 	}
 
-	// Update status
-	if err := r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil); err != nil {
-		return err
-	}
-
-	// Requeue if domain is not ready (fallback to watch for convergence)
-	if domainResult != nil && !domainResult.IsReady {
-		return domainpkg.ErrDomainNotReady
-	}
-
-	return nil
+	// Update status (includes requeue check for domain readiness)
+	return r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil)
 }
 
 func (r *AgentEndpointReconciler) delete(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
@@ -473,5 +464,13 @@ func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ng
 	calculateAgentEndpointReadyCondition(endpoint, domainResult)
 
 	// Write status to k8s API
-	return r.controller.ReconcileStatus(ctx, endpoint, statusErr)
+	if err := r.controller.ReconcileStatus(ctx, endpoint, statusErr); err != nil {
+		return err
+	}
+
+	// Requeue if domain is not ready (fallback to watch for convergence)
+	if domainResult != nil {
+		return domainResult.RequeueError()
+	}
+	return nil
 }

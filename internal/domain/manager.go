@@ -47,6 +47,14 @@ type DomainResult struct {
 	ReadyMessage string // Message from domain's Ready condition
 }
 
+// RequeueError returns ErrDomainNotReady if the domain is not ready, otherwise nil
+func (r *DomainResult) RequeueError() error {
+	if !r.IsReady {
+		return ErrDomainNotReady
+	}
+	return nil
+}
+
 // Manager handles domain creation and condition management
 type Manager struct {
 	Client                     client.Client
@@ -83,7 +91,7 @@ func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain,
 func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL, bindings []string) *DomainResult {
 	// Skip Kubernetes-bound endpoints (no domain reservation needed)
 	if hasKubernetesBinding(bindings) {
-		msg := "No domain reservation needed for Kubernetes binding"
+		msg := "Domain ready (Kubernetes binding - no domain reservation needed)"
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
@@ -95,7 +103,7 @@ func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain,
 
 	// Skip TCP ngrok URLs
 	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
-		msg := "No domain reservation needed for TCP ngrok URL"
+		msg := "Domain ready (TCP ngrok URL - no domain reservation needed)"
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
@@ -107,7 +115,7 @@ func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain,
 
 	// Skip internal domains
 	if strings.HasSuffix(parsedURL.Hostname(), ".internal") {
-		msg := "No domain reservation needed for internal domain"
+		msg := "Domain ready (internal domain - no domain reservation needed)"
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{

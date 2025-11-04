@@ -206,17 +206,8 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 	// Set success condition
 	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint created successfully")
 
-	// Update status
-	if err := r.updateStatus(ctx, clep, ngrokClep, domainResult, nil); err != nil {
-		return err
-	}
-
-	// Requeue if domain is not ready (fallback to watch for convergence)
-	if domainResult != nil && !domainResult.IsReady {
-		return domainpkg.ErrDomainNotReady
-	}
-
-	return nil
+	// Update status (includes requeue check for domain readiness)
+	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
 
 // Update is called when we have a status ID and want to update the resource in the ngrok API
@@ -261,17 +252,8 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	// Set success condition
 	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint updated successfully")
 
-	// Update status
-	if err := r.updateStatus(ctx, clep, ngrokClep, domainResult, nil); err != nil {
-		return err
-	}
-
-	// Requeue if domain is not ready (fallback to watch for convergence)
-	if domainResult != nil && !domainResult.IsReady {
-		return domainpkg.ErrDomainNotReady
-	}
-
-	return nil
+	// Update status (includes requeue check for domain readiness)
+	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
 
 // Simply attempt to delete it. The base controller handles not found errors
@@ -296,7 +278,15 @@ func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv
 	calculateCloudEndpointReadyCondition(clep, domainResult)
 
 	// Write status to k8s API
-	return r.controller.ReconcileStatus(ctx, clep, statusErr)
+	if err := r.controller.ReconcileStatus(ctx, clep, statusErr); err != nil {
+		return err
+	}
+
+	// Requeue if domain is not ready (fallback to watch for convergence)
+	if domainResult != nil {
+		return domainResult.RequeueError()
+	}
+	return nil
 }
 
 // #region Helper Functions
