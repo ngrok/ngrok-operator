@@ -80,7 +80,7 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 		terminating = self.IsTerminating()
 	}
 
-	if IsUpsert(obj) || terminating {
+	if IsUpsert(obj) && !terminating {
 		if err := RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
 			return ctrl.Result{}, err
 		}
