@@ -435,8 +435,8 @@ func TestManager_EnsureDomainExists_SkipsKubernetesBinding_CloudEndpoint(t *test
 	assert.Empty(t, domains.Items)
 }
 
-// TestManager_EnsureDomainExists_MixedBindings_CreatesDomain tests that endpoints with mixed bindings still create domains
-func TestManager_EnsureDomainExists_MixedBindings_CreatesDomain(t *testing.T) {
+// TestManager_EnsureDomainExists_MixedBindings_SkipsDomain tests that endpoints with mixed bindings (including kubernetes) skip domain creation
+func TestManager_EnsureDomainExists_MixedBindings_SkipsDomain(t *testing.T) {
 	scheme := setupScheme()
 	client := fake.NewClientBuilder().WithScheme(scheme).Build()
 	manager := createTestManager(client)
@@ -446,30 +446,28 @@ func TestManager_EnsureDomainExists_MixedBindings_CreatesDomain(t *testing.T) {
 
 	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, endpoint.Spec.URL)
 
-	// Mixed bindings should NOT skip domain creation
+	// Mixed bindings should skip domain creation since it has a Kubernetes binding
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.False(t, result.IsReady) // Domain was just created, not ready yet
-	assert.NotNil(t, result.Domain)
-	assert.Equal(t, "example-com", result.Domain.Name)
+	assert.True(t, result.IsReady)
+	assert.Nil(t, result.Domain)
 
-	// Should set domain ref
+	// Should NOT set domain ref (nil when kubernetes binding is present)
 	domainRef := endpoint.GetDomainRef()
-	assert.NotNil(t, domainRef)
-	assert.Equal(t, "example-com", domainRef.Name)
+	assert.Nil(t, domainRef)
 
-	// Should set creating condition
+	// Should set ready condition with Kubernetes binding message
 	conditions := endpoint.GetConditions()
 	assert.Len(t, *conditions, 1)
 	assert.Equal(t, ConditionDomainReady, (*conditions)[0].Type)
-	assert.Equal(t, metav1.ConditionFalse, (*conditions)[0].Status)
+	assert.Equal(t, metav1.ConditionTrue, (*conditions)[0].Status)
+	assert.Contains(t, (*conditions)[0].Message, "Kubernetes binding")
 
-	// Verify domain was created in the client
+	// Verify no Domain CRD was created
 	var domains ingressv1alpha1.DomainList
 	err = client.List(context.TODO(), &domains)
 	assert.NoError(t, err)
-	assert.Len(t, domains.Items, 1)
-	assert.Equal(t, "example.com", domains.Items[0].Spec.Domain)
+	assert.Empty(t, domains.Items)
 }
 
 // TestEndpointReferencesDomain tests the EndpointReferencesDomain helper function

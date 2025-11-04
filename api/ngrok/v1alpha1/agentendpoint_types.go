@@ -241,10 +241,7 @@ func (a *AgentEndpoint) HasKubernetesBinding() bool {
 	for _, binding := range a.Spec.Bindings {
 		if binding == "kubernetes" {
 			hasKubernetes = true
-		} else if binding == "public" || binding == "internal" {
-			// Mixed bindings: has kubernetes plus other bindings
-			// Should NOT skip domain creation
-			return false
+			break
 		}
 	}
 	return hasKubernetes
