@@ -6,6 +6,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -217,6 +218,26 @@ func (k *KGinkgo) ExpectHasAnnotation(ctx context.Context, obj client.Object, ke
 		g.Expect(annotations).NotTo(BeEmpty())
 
 		g.Expect(annotations).To(HaveKey(key))
+	}, opts...)
+}
+
+// ExpectAddAnnotations adds the given annotations to the specified Kubernetes object.
+// It will continually update the object from the client to add the annotations.
+// The function uses Gomega's Eventually internally, so it should only be used in Ginkgo tests.
+// You can pass optional KGinkgoOpt parameters to customize the timeout and polling interval.
+//
+// Example usage:
+//
+// kginkgo := testutils.NewKGinkgo(k8sClient)
+// annotations := map[string]string{"my.annotation/key": "value"}
+// kginkgo.ExpectAddAnnotations(ctx, myObject, annotations)
+func (k *KGinkgo) ExpectAddAnnotations(ctx context.Context, obj client.Object, annotations map[string]string, opts ...KGinkgoOpt) {
+	GinkgoHelper()
+
+	k.EventuallyWithObject(ctx, obj, func(g Gomega, fetched client.Object) {
+		controller.AddAnnotations(fetched, annotations)
+		g.Expect(k.client.Update(ctx, fetched)).To(Succeed())
+
 	}, opts...)
 }
 
