@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -555,6 +556,50 @@ func TestManager_EnsureDomainExists_SkipsInternalBinding_CloudEndpoint(t *testin
 	err = client.List(context.TODO(), &domains)
 	assert.NoError(t, err)
 	assert.Empty(t, domains.Items)
+}
+
+// TestManager_EnsureDomainExists_KubernetesBinding_DeletesStaleDomain tests that kubernetes binding cleans up existing domains
+func TestManager_EnsureDomainExists_KubernetesBinding_DeletesStaleDomain(t *testing.T) {
+	scheme := setupScheme()
+
+	// Create an existing domain that should be cleaned up
+	existingDomain := createReadyDomain("example-com", "default", "example.com")
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existingDomain).Build()
+	manager := createTestManager(client)
+
+	// Create endpoint with kubernetes binding but with a stale domainRef
+	endpoint := &ngrokv1alpha1.AgentEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-endpoint",
+			Namespace: "default",
+		},
+		Spec: ngrokv1alpha1.AgentEndpointSpec{
+			URL:      "http://example.com",
+			Bindings: []string{"kubernetes"},
+		},
+		Status: ngrokv1alpha1.AgentEndpointStatus{
+			DomainRef: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+				Name: "example-com",
+			},
+			Conditions: []metav1.Condition{},
+		},
+	}
+
+	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
+		URL:      endpoint.Spec.URL,
+		Bindings: endpoint.Spec.Bindings,
+	})
+
+	// Should skip domain creation and mark as ready
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, result.IsReady)
+	assert.Nil(t, endpoint.GetDomainRef())
+
+	// Domain should have been deleted
+	var domain ingressv1alpha1.Domain
+	err = client.Get(context.TODO(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &domain)
+	assert.True(t, errors.IsNotFound(err), "Domain should have been deleted")
 }
 
 // TestManager_EnsureDomainExists_MixedBindings_SkipsDomain tests that endpoints with mixed bindings (including kubernetes) skip domain creation

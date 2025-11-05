@@ -69,7 +69,7 @@ func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint ngrokv1alpha1
 		return nil, err
 	}
 
-	if result := m.checkSkippedDomains(endpoint, parsedURL, params.Bindings); result != nil {
+	if result := m.checkSkippedDomains(ctx, endpoint, parsedURL, params.Bindings); result != nil {
 		return result, nil
 	}
 
@@ -88,10 +88,11 @@ func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain,
 }
 
 // checkSkippedDomains checks if the domain should be skipped (TCP, internal, or Kubernetes bindings)
-func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL, bindings []string) *DomainResult {
+func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL, bindings []string) *DomainResult {
 	// Skip Kubernetes-bound endpoints (no domain reservation needed)
 	if hasKubernetesBinding(bindings) {
 		msg := "Domain ready (Kubernetes binding - no domain reservation needed)"
+		m.deleteStaleBindingDomain(ctx, endpoint)
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
@@ -280,4 +281,36 @@ func hasInternalBinding(bindings []string) bool {
 		}
 	}
 	return false
+}
+
+// deleteStaleBindingDomain deletes a domain if it exists for an endpoint that now has kubernetes or internal bindings.
+// This cleans up domains that were created before bindings were added to the endpoint.
+func (m *Manager) deleteStaleBindingDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain) {
+	log := ctrl.LoggerFrom(ctx)
+
+	domainRef := endpoint.GetDomainRef()
+	if domainRef == nil {
+		// No domain ref, nothing to clean up
+		return
+	}
+
+	// Get the domain to delete
+	domain := &ingressv1alpha1.Domain{}
+	domainKey := domainRef.ToClientObjectKey(endpoint.GetNamespace())
+
+	if err := m.Client.Get(ctx, domainKey, domain); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			log.Error(err, "Failed to get domain for cleanup", "domain", domainKey)
+		}
+		// Domain doesn't exist or error getting it, nothing to clean up
+		return
+	}
+
+	// Delete the domain
+	log.Info("Deleting stale domain for binding-based endpoint", "domain", domainKey, "endpoint", client.ObjectKeyFromObject(endpoint))
+	if err := m.Client.Delete(ctx, domain); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			log.Error(err, "Failed to delete stale domain", "domain", domainKey)
+		}
+	}
 }
