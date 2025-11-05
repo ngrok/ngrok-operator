@@ -101,11 +101,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// return early.
 	if controller.IsDelete(gw) {
 		log.Info("Deleting gateway from store")
-		if controller.HasFinalizer(gw) {
-			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
-				log.Error(err, "Failed to remove finalizer")
-				return ctrl.Result{}, err
-			}
+		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+			log.Error(err, "Failed to remove finalizer")
+			return ctrl.Result{}, err
 		}
 
 		return ctrl.Result{}, r.Driver.DeleteGateway(gw)

@@ -117,11 +117,9 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	} else {
 		log.Info("Deleting ingress from store")
-		if controller.HasFinalizer(ingress) {
-			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
-				log.Error(err, "Failed to remove finalizer")
-				return ctrl.Result{}, err
-			}
+		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+			log.Error(err, "Failed to remove finalizer")
+			return ctrl.Result{}, err
 		}
 
 		// Remove it from the store

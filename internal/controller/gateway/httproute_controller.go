@@ -93,11 +93,9 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	if controller.IsDelete(httproute) {
 		log.Info("Deleting httproute from store")
-		if controller.HasFinalizer(httproute) {
-			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
-				log.Error(err, "Failed to remove finalizer")
-				return ctrl.Result{}, err
-			}
+		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
+			log.Error(err, "Failed to remove finalizer")
+			return ctrl.Result{}, err
 		}
 
 		// Remove it from the store
