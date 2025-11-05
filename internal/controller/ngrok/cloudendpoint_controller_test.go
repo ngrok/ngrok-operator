@@ -787,6 +787,53 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}
 		})
 	})
+
+	Context("Bindings validation", func() {
+		It("should reject endpoint with multiple bindings", func() {
+			// This should be caught by k8s validation (MaxItems=1), so we expect the Create to fail
+			cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-multiple-bindings",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:      "http://test.demo",
+					Bindings: []string{"public", "kubernetes"}, // Multiple bindings should be rejected
+				},
+			}
+
+			err := k8sClient.Create(context.Background(), cloudEndpoint)
+			Expect(err).To(HaveOccurred()) // Should be rejected by validation
+			Expect(err.Error()).To(Or(
+				ContainSubstring("must have at most 1 items"),
+				ContainSubstring("maxItems"),
+			))
+		})
+
+		It("should accept endpoint with single binding", func(ctx SpecContext) {
+			cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "valid-single-binding",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:      "http://test-internal.demo",
+					Bindings: []string{"internal"}, // Single binding is valid
+				},
+			}
+
+			By("Creating the CloudEndpoint with single binding")
+			err := k8sClient.Create(ctx, cloudEndpoint)
+			Expect(err).NotTo(HaveOccurred()) // Should be accepted
+
+			By("Verifying endpoint is created successfully")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Spec.Bindings).To(Equal([]string{"internal"}))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
 })
 
 // Helper function to find condition by type

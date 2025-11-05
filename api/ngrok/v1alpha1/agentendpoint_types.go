@@ -136,6 +136,7 @@ type AgentEndpointSpec struct {
 	// Accepted values are "public", "internal", or "kubernetes"
 	//
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=1
 	// +kubebuilder:validation:Items=pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 

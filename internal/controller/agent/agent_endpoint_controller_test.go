@@ -1406,6 +1406,64 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			}, timeout, interval).Should(Equal(2))
 		})
 	})
+
+	Context("Bindings validation", func() {
+		It("should reject endpoint with multiple bindings", func() {
+			// This should be caught by k8s validation (MaxItems=1), so we expect the Create to fail
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-multiple-bindings",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "http://test.demo",
+					Bindings: []string{"public", "internal"}, // Multiple bindings should be rejected
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			err := k8sClient.Create(context.Background(), agentEndpoint)
+			Expect(err).To(HaveOccurred()) // Should be rejected by validation
+			Expect(err.Error()).To(Or(
+				ContainSubstring("must have at most 1 items"),
+				ContainSubstring("maxItems"),
+			))
+		})
+
+		It("should accept endpoint with single binding", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "valid-single-binding",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "http://test.demo",
+					Bindings: []string{"internal"}, // Single binding is valid
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			// Setup mock driver to return success
+			envMockDriver.SetEndpointResult(namespace+"/valid-single-binding", &agent.EndpointResult{
+				URL: "http://test.demo",
+			})
+
+			By("Creating the AgentEndpoint with single binding")
+			err := k8sClient.Create(ctx, agentEndpoint)
+			Expect(err).NotTo(HaveOccurred()) // Should be accepted
+
+			By("Verifying endpoint is created successfully")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Spec.Bindings).To(Equal([]string{"internal"}))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
 })
 
 // findCondition finds a condition by type in a slice of conditions

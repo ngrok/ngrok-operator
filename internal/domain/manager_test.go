@@ -465,6 +465,98 @@ func TestManager_EnsureDomainExists_SkipsKubernetesBinding_CloudEndpoint(t *test
 	assert.Empty(t, domains.Items)
 }
 
+// TestManager_EnsureDomainExists_SkipsInternalBinding_AgentEndpoint tests that endpoints with internal binding skip domain creation
+func TestManager_EnsureDomainExists_SkipsInternalBinding_AgentEndpoint(t *testing.T) {
+	scheme := setupScheme()
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+	manager := createTestManager(client)
+
+	endpoint := &ngrokv1alpha1.AgentEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "internal-bound-endpoint",
+			Namespace: "default",
+		},
+		Spec: ngrokv1alpha1.AgentEndpointSpec{
+			URL:      "http://internal.demo",
+			Bindings: []string{"internal"},
+		},
+		Status: ngrokv1alpha1.AgentEndpointStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+
+	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
+		URL:      endpoint.Spec.URL,
+		Bindings: endpoint.Spec.Bindings,
+	})
+
+	// Internal-bound endpoints should skip domain creation and be marked as ready
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, result.IsReady)
+	assert.Nil(t, result.Domain)
+	assert.Nil(t, endpoint.GetDomainRef())
+
+	// Should set ready condition with internal binding message
+	conditions := endpoint.GetConditions()
+	assert.Len(t, *conditions, 1)
+	assert.Equal(t, ConditionDomainReady, (*conditions)[0].Type)
+	assert.Equal(t, metav1.ConditionTrue, (*conditions)[0].Status)
+	assert.Contains(t, (*conditions)[0].Message, "internal binding")
+
+	// Verify no Domain CRD was created
+	var domains ingressv1alpha1.DomainList
+	err = client.List(context.TODO(), &domains)
+	assert.NoError(t, err)
+	assert.Empty(t, domains.Items)
+}
+
+// TestManager_EnsureDomainExists_SkipsInternalBinding_CloudEndpoint tests that CloudEndpoints with internal binding skip domain creation
+func TestManager_EnsureDomainExists_SkipsInternalBinding_CloudEndpoint(t *testing.T) {
+	scheme := setupScheme()
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+	manager := createTestManager(client)
+
+	endpoint := &ngrokv1alpha1.CloudEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "internal-bound-endpoint",
+			Namespace: "default",
+		},
+		Spec: ngrokv1alpha1.CloudEndpointSpec{
+			URL:      "http://internal.demo",
+			Bindings: []string{"internal"},
+		},
+		Status: ngrokv1alpha1.CloudEndpointStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+
+	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
+		URL:      endpoint.Spec.URL,
+		Bindings: endpoint.Spec.Bindings,
+	})
+
+	// Internal-bound endpoints should skip domain creation and be marked as ready
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, result.IsReady)
+	assert.Nil(t, result.Domain)
+	assert.Nil(t, endpoint.GetDomainRef())
+
+	// Should set ready condition with internal binding message
+	conditions := endpoint.GetConditions()
+	assert.Len(t, *conditions, 1)
+	assert.Equal(t, ConditionDomainReady, (*conditions)[0].Type)
+	assert.Equal(t, metav1.ConditionTrue, (*conditions)[0].Status)
+	assert.Contains(t, (*conditions)[0].Message, "internal binding")
+
+	// Verify no Domain CRD was created
+	var domains ingressv1alpha1.DomainList
+	err = client.List(context.TODO(), &domains)
+	assert.NoError(t, err)
+	assert.Empty(t, domains.Items)
+}
+
 // TestManager_EnsureDomainExists_MixedBindings_SkipsDomain tests that endpoints with mixed bindings (including kubernetes) skip domain creation
 func TestManager_EnsureDomainExists_MixedBindings_SkipsDomain(t *testing.T) {
 	scheme := setupScheme()

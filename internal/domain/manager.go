@@ -101,6 +101,18 @@ func (m *Manager) checkSkippedDomains(endpoint ngrokv1alpha1.EndpointWithDomain,
 		}
 	}
 
+	// Skip internal-bound endpoints (no domain reservation needed)
+	if hasInternalBinding(bindings) {
+		msg := "Domain ready (internal binding - no domain reservation needed)"
+		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
+		endpoint.SetDomainRef(nil)
+		return &DomainResult{
+			IsReady:      true,
+			ReadyReason:  ReasonDomainReady,
+			ReadyMessage: msg,
+		}
+	}
+
 	// Skip TCP ngrok URLs
 	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
 		msg := "Domain ready (TCP ngrok URL - no domain reservation needed)"
@@ -254,6 +266,16 @@ func EndpointReferencesDomain(endpoint ngrokv1alpha1.EndpointWithDomain, domain 
 func hasKubernetesBinding(bindings []string) bool {
 	for _, binding := range bindings {
 		if binding == "kubernetes" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasInternalBinding checks if the bindings list contains an internal binding
+func hasInternalBinding(bindings []string) bool {
+	for _, binding := range bindings {
+		if binding == "internal" {
 			return true
 		}
 	}
