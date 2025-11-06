@@ -101,7 +101,10 @@ func (r *BoundEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		StatusID:  func(obj *bindingsv1alpha1.BoundEndpoint) string { return obj.Name },
+		StatusID: func(obj *bindingsv1alpha1.BoundEndpoint) string { return obj.Name },
+		ClearStatus: func(obj *bindingsv1alpha1.BoundEndpoint) {
+			obj.Status = bindingsv1alpha1.BoundEndpointStatus{}
+		},
 		Create:    r.create,
 		Update:    r.update,
 		Delete:    r.delete,
