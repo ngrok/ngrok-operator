@@ -217,7 +217,7 @@ var _ = Describe("ServiceController", func() {
 
 			When("the service does not have a URL annotation", func() {
 				It("Should reserve a TCP address", func() {
-					kginkgo.EventuallyWithObject(ctx, svc, func(g Gomega, fetched client.Object) {
+					kginkgo.EventuallyWithObject(ctx, svc.DeepCopy(), func(g Gomega, fetched client.Object) {
 						By("checking the service has a URL annotation")
 						GinkgoLogr.Info("Got service", "fetched", fetched)
 

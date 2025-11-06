@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -13,11 +14,13 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	DefaultTimeout  = 20 * time.Second
+	DefaultTimeout  = 10 * time.Second
 	DefaultInterval = 500 * time.Millisecond
 )
 
@@ -91,12 +94,16 @@ func (k *KGinkgo) ConsistentlyExpectResourceVersionNotToChange(ctx context.Conte
 
 	eo := makeKGinkgoOptions(opts...)
 	objKey := client.ObjectKeyFromObject(obj)
+	gvk := k.getGVKForObject(obj)
 
 	initialResourceVersion := ""
 
 	Consistently(func(g Gomega) {
-		fetched := obj.DeepCopyObject().(client.Object)
-		g.Expect(k.client.Get(ctx, objKey, fetched)).NotTo(HaveOccurred())
+		fetched := &unstructured.Unstructured{}
+		fetched.SetGroupVersionKind(gvk)
+
+		err := k.client.Get(ctx, objKey, fetched)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		if initialResourceVersion == "" {
 			initialResourceVersion = fetched.GetResourceVersion()
@@ -163,9 +170,13 @@ func (k *KGinkgo) ExpectFinalizerToBeAdded(ctx context.Context, obj client.Objec
 
 	eo := makeKGinkgoOptions(opts...)
 	key := client.ObjectKeyFromObject(obj)
+	gvk := k.getGVKForObject(obj)
 
+	By(fmt.Sprintf("expecting finalizer %s to be added to %s/%s", finalizer, obj.GetNamespace(), obj.GetName()))
 	Eventually(func(g Gomega) {
-		fetched := &corev1.Service{}
+		fetched := &unstructured.Unstructured{}
+		fetched.SetGroupVersionKind(gvk)
+
 		err := k.client.Get(ctx, key, fetched)
 
 		g.Expect(err).NotTo(HaveOccurred())
@@ -187,9 +198,12 @@ func (k *KGinkgo) ExpectFinalizerToBeRemoved(ctx context.Context, obj client.Obj
 
 	eo := makeKGinkgoOptions(opts...)
 	key := client.ObjectKeyFromObject(obj)
+	gvk := k.getGVKForObject(obj)
 
+	By(fmt.Sprintf("expecting finalizer %s to be removed from %s/%s", finalizer, obj.GetNamespace(), obj.GetName()))
 	Eventually(func(g Gomega) {
-		fetched := &corev1.Service{}
+		fetched := &unstructured.Unstructured{}
+		fetched.SetGroupVersionKind(gvk)
 		err := k.client.Get(ctx, key, fetched)
 
 		// If the object is not found, the finalizer has been removed and the object deleted
@@ -213,12 +227,20 @@ func (k *KGinkgo) ExpectFinalizerToBeRemoved(ctx context.Context, obj client.Obj
 func (k *KGinkgo) ExpectHasAnnotation(ctx context.Context, obj client.Object, key string, opts ...KGinkgoOpt) {
 	GinkgoHelper()
 
-	k.EventuallyWithObject(ctx, obj, func(g Gomega, fetched client.Object) {
+	eo := makeKGinkgoOptions(opts...)
+	gvk := k.getGVKForObject(obj)
+
+	By(fmt.Sprintf("expecting annotation %q to be present", key))
+	Eventually(func(g Gomega) {
+		fetched := &unstructured.Unstructured{}
+		fetched.SetGroupVersionKind(gvk)
+		err := k.client.Get(ctx, client.ObjectKeyFromObject(obj), fetched)
+		g.Expect(err).NotTo(HaveOccurred())
+
 		annotations := fetched.GetAnnotations()
 		g.Expect(annotations).NotTo(BeEmpty())
-
 		g.Expect(annotations).To(HaveKey(key))
-	}, opts...)
+	}).WithTimeout(eo.timeout).WithPolling(eo.interval).Should(Succeed())
 }
 
 // ExpectAddAnnotations adds the given annotations to the specified Kubernetes object.
@@ -253,17 +275,26 @@ func (k *KGinkgo) ExpectAddAnnotations(ctx context.Context, obj client.Object, a
 func (k *KGinkgo) ExpectAnnotationValue(ctx context.Context, obj client.Object, key, expectedValue string, opts ...KGinkgoOpt) {
 	GinkgoHelper()
 
-	k.EventuallyWithObject(ctx, obj, func(g Gomega, fetched client.Object) {
+	eo := makeKGinkgoOptions(opts...)
+	gvk := k.getGVKForObject(obj)
+
+	By(fmt.Sprintf("expecting annotation %q to have value %q", key, expectedValue))
+	Eventually(func(g Gomega) {
+		fetched := &unstructured.Unstructured{}
+		fetched.SetGroupVersionKind(gvk)
+		err := k.client.Get(ctx, client.ObjectKeyFromObject(obj), fetched)
+		g.Expect(err).NotTo(HaveOccurred())
+
 		annotations := fetched.GetAnnotations()
 		g.Expect(annotations).NotTo(BeEmpty())
-
 		actualValue, exists := annotations[key]
-		g.Expect(exists).To(BeTrue(), "expected annotation %q to exist", key)
-		g.Expect(actualValue).To(Equal(expectedValue), "expected annotation %q to have value %q but got %q", key, expectedValue, actualValue)
-	}, opts...)
+		g.Expect(exists).To(BeTrue(), fmt.Sprintf("expected annotation %q to exist", key))
+		g.Expect(actualValue).To(Equal(expectedValue), fmt.Sprintf("expected annotation %q to have value %q", key, expectedValue))
+	}).WithTimeout(eo.timeout).WithPolling(eo.interval).Should(Succeed())
 }
 
 // EventuallyWithObject continually fetches the given Kubernetes object and invokes the inner function with the fetched object.
+// If you don't want to modify the original object, be sure to pass a DeepCopy of it.
 // The function uses Gomega's Eventually internally, so it should only be used in Ginkgo tests.
 // You can pass optional KGinkgoOpt parameters to customize the timeout and polling interval.
 //
@@ -274,19 +305,35 @@ func (k *KGinkgo) ExpectAnnotationValue(ctx context.Context, obj client.Object, 
 //	    }
 //
 //		kginkgo := testutils.NewKGinkgo(k8sClient)
-//		kginkgo.EventuallyWithObject(ctx, myObject, check)
+//		kginkgo.EventuallyWithObject(ctx, myObject.DeepCopy(), check)
 func (k *KGinkgo) EventuallyWithObject(ctx context.Context, obj client.Object, inner func(g Gomega, fetched client.Object), opts ...KGinkgoOpt) {
 	GinkgoHelper()
 
 	eo := makeKGinkgoOptions(opts...)
 	objKey := client.ObjectKeyFromObject(obj)
 
+	gvk := k.getGVKForObject(obj)
+
 	Eventually(func(g Gomega) {
-		fetched := obj.DeepCopyObject().(client.Object)
-		g.Expect(k.client.Get(ctx, objKey, fetched)).NotTo(HaveOccurred())
+		By(fmt.Sprintf("fetching %s %s/%s", gvk.Kind, objKey.Namespace, objKey.Name))
+		g.Expect(k.client.Get(ctx, objKey, obj)).NotTo(HaveOccurred())
+
+		inner(g, obj)
+	}).WithTimeout(eo.timeout).WithPolling(eo.interval).Should(Succeed())
+}
+
+// EventuallyWithCloudEndpoint continually fetches the specified CloudEndpoint and invokes the inner function with the fetched object.
+// The function uses Gomega's Eventually internally, so it should only be used in Ginkgo tests.
+// You can pass optional KGinkgoOpt parameters to customize the timeout and polling interval.
+func (k *KGinkgo) EventuallyWithCloudEndpoint(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, inner func(g Gomega, fetched *ngrokv1alpha1.CloudEndpoint), opts ...KGinkgoOpt) {
+	GinkgoHelper()
+
+	k.EventuallyWithObject(ctx, clep.DeepCopy(), func(g Gomega, obj client.Object) {
+		fetched, ok := obj.(*ngrokv1alpha1.CloudEndpoint)
+		g.Expect(ok).To(BeTrue(), "expected object to be an CloudEndpoint")
 
 		inner(g, fetched)
-	}).WithTimeout(eo.timeout).WithPolling(eo.interval).Should(Succeed())
+	}, opts...)
 }
 
 // EventuallyWithCloudEndpoints continually fetches the CloudEndpoints in the given namespace and invokes the inner function with the list.
@@ -325,8 +372,9 @@ func (k *KGinkgo) EventuallyWithCloudEndpoints(ctx context.Context, namespace st
 func (k *KGinkgo) EventuallyIPPolicyHasCondition(ctx context.Context, ipPolicy *ingressv1alpha1.IPPolicy, conditionType string, status metav1.ConditionStatus) {
 	GinkgoHelper()
 
-	k.EventuallyWithObject(ctx, ipPolicy, func(g Gomega, obj client.Object) {
-		p := obj.(*ingressv1alpha1.IPPolicy)
+	k.EventuallyWithObject(ctx, ipPolicy.DeepCopy(), func(g Gomega, obj client.Object) {
+		p, ok := obj.(*ingressv1alpha1.IPPolicy)
+		g.Expect(ok).To(BeTrue(), "expected object to be an IPPolicy")
 
 		cond := meta.FindStatusCondition(p.Status.Conditions, conditionType)
 		g.Expect(cond).NotTo(BeNil())
@@ -409,6 +457,13 @@ func (k *KGinkgo) EventuallyExpectNoEndpoints(ctx context.Context, namespace str
 		By("verifying no agent endpoints remain")
 		g.Expect(aeps).To(BeEmpty())
 	}, opts...)
+}
+
+func (k *KGinkgo) getGVKForObject(obj client.Object) schema.GroupVersionKind {
+	gvks, _, err := k.client.Scheme().ObjectKinds(obj)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(len(gvks)).To(BeNumerically(">", 0), "expected at least one GVK for object")
+	return gvks[0]
 }
 
 func (k *KGinkgo) getCloudEndpoints(ctx context.Context, namespace string) ([]ngrokv1alpha1.CloudEndpoint, error) {
