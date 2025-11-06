@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -90,7 +91,7 @@ func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain,
 // checkSkippedDomains checks if the domain should be skipped (TCP, internal, or Kubernetes bindings)
 func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL, bindings []string) *DomainResult {
 	// Skip Kubernetes-bound endpoints (no domain reservation needed)
-	if hasKubernetesBinding(bindings) {
+	if slices.Contains(bindings, "kubernetes") {
 		msg := "Domain ready (Kubernetes binding - no domain reservation needed)"
 		m.deleteStaleBindingDomain(ctx, endpoint)
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
@@ -103,7 +104,7 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 	}
 
 	// Skip internal-bound endpoints (no domain reservation needed)
-	if hasInternalBinding(bindings) {
+	if slices.Contains(bindings, "internal") {
 		msg := "Domain ready (internal binding - no domain reservation needed)"
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
@@ -241,26 +242,6 @@ func (m *Manager) setDomainCondition(endpoint ngrokv1alpha1.EndpointWithDomain, 
 	}
 
 	meta.SetStatusCondition(endpoint.GetConditions(), condition)
-}
-
-// hasKubernetesBinding checks if the bindings list contains a Kubernetes binding
-func hasKubernetesBinding(bindings []string) bool {
-	for _, binding := range bindings {
-		if binding == "kubernetes" {
-			return true
-		}
-	}
-	return false
-}
-
-// hasInternalBinding checks if the bindings list contains an internal binding
-func hasInternalBinding(bindings []string) bool {
-	for _, binding := range bindings {
-		if binding == "internal" {
-			return true
-		}
-	}
-	return false
 }
 
 // deleteStaleBindingDomain deletes a domain if it exists for an endpoint that now has kubernetes or internal bindings.
