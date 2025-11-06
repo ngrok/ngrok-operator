@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
@@ -205,6 +206,64 @@ func TestExtractUseBindings(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tc.expected, binding)
 			}
+		})
+	}
+}
+
+func TestHasCleanupAnnotation(t *testing.T) {
+	tests := []struct {
+		name     string
+		obj      client.Object
+		expected bool
+	}{
+		{
+			name: "Has cleanup annotation",
+			obj: &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						annotations.CleanupAnnotation: "true",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "Has cleanup annotation set to false",
+			obj: &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						annotations.CleanupAnnotation: "false",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Does not have cleanup annotation",
+			obj: &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"some-other-annotation": "value",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "No annotations",
+			obj: &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: nil,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := annotations.HasCleanupAnnotation(tc.obj)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
