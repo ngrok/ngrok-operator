@@ -38,8 +38,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -1196,46 +1198,68 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			}, timeout, interval).Should(BeTrue())
 		})
 
-		It("should clear stale domainRef for kubernetes-bound endpoint", func(ctx SpecContext) {
-			staleDomainName := "stale-domain-ref"
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "k8s-binding-with-stale-ref",
-					Namespace: namespace,
-				},
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
-					URL:      "http://test.example.com",
-					Bindings: []string{"kubernetes"},
-					Upstream: ngrokv1alpha1.EndpointUpstream{
-						URL: "http://test-service:80",
+		When("the domainRef for kubernetes-bound endpoint is stale", func() {
+			var staleDomain *ingressv1alpha1.Domain
+			BeforeEach(func(ctx SpecContext) {
+				By("Creating a domain that would be stale")
+				staleDomain = &ingressv1alpha1.Domain{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "stale-domain-ref",
+						Namespace: namespace,
 					},
-				},
-				Status: ngrokv1alpha1.AgentEndpointStatus{
-					DomainRef: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-						Name:      staleDomainName,
-						Namespace: &namespace,
+					Spec: ingressv1alpha1.DomainSpec{
+						Domain: "test.default",
 					},
-				},
-			}
+				}
+				Expect(k8sClient.Create(ctx, staleDomain)).To(Succeed())
 
-			envMockDriver.SetEndpointResult(namespace+"/k8s-binding-with-stale-ref", &agent.EndpointResult{
-				URL: "http://test.example.com",
+				agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "k8s-binding-with-stale-ref",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.AgentEndpointSpec{
+						URL:      "http://test.default",
+						Bindings: []string{"kubernetes"},
+						Upstream: ngrokv1alpha1.EndpointUpstream{
+							URL: "http://test-service:80",
+						},
+					},
+					Status: ngrokv1alpha1.AgentEndpointStatus{
+						DomainRef: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+							Name:      staleDomain.GetName(),
+							Namespace: ptr.To(staleDomain.GetNamespace()),
+						},
+					},
+				}
+				envMockDriver.SetEndpointResult(namespace+"/k8s-binding-with-stale-ref", &agent.EndpointResult{
+					URL: "http://test.default",
+				})
+
+				By("Creating the AgentEndpoint with stale domainRef")
+				Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
 			})
 
-			By("Creating the AgentEndpoint with stale domainRef")
-			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+			It("should clear the stale domainRef", func(ctx SpecContext) {
+				Eventually(func(g Gomega) {
+					obj := &ngrokv1alpha1.AgentEndpoint{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
-			By("Verifying controller clears the stale domainRef")
-			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
-				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+					g.Expect(obj.Status.DomainRef).To(BeNil())
 
-				g.Expect(obj.Status.DomainRef).To(BeNil())
+					readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+					g.Expect(readyCond).NotTo(BeNil())
+					g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+				}, timeout, interval).Should(Succeed())
+			})
 
-				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
-				g.Expect(readyCond).NotTo(BeNil())
-				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
-			}, timeout, interval).Should(Succeed())
+			It("should delete the stale Domain CR", func(ctx SpecContext) {
+				Eventually(func(g Gomega) {
+					fetched := &ingressv1alpha1.Domain{}
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: staleDomain.Name, Namespace: namespace}, fetched)
+					g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+				}, timeout, interval).Should(Succeed())
+			})
 		})
 
 		It("should create endpoint even when domain is not ready", func(ctx SpecContext) {
