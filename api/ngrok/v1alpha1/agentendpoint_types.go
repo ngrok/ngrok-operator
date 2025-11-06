@@ -238,6 +238,14 @@ func (a *AgentEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
 	a.Status.DomainRef = ref
 }
 
+func (a *AgentEndpoint) GetURL() string {
+	return a.Spec.URL
+}
+
+func (a *AgentEndpoint) GetBindings() []string {
+	return a.Spec.Bindings
+}
+
 func init() {
 	SchemeBuilder.Register(&AgentEndpoint{}, &AgentEndpointList{})
 }

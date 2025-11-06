@@ -50,6 +50,8 @@ type K8sObjectRefOptionalNamespace struct {
 // EndpointWithDomain represents an endpoint resource that has domain conditions and references
 type EndpointWithDomain interface {
 	client.Object
+	GetURL() string
+	GetBindings() []string
 	GetConditions() *[]metav1.Condition
 	GetGeneration() int64
 	GetDomainRef() *K8sObjectRefOptionalNamespace

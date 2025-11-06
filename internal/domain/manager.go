@@ -34,12 +34,6 @@ var (
 	ErrDomainNotReady = errors.New("domain is not ready yet")
 )
 
-// DomainCheckParams contains parameters for domain checks
-type DomainCheckParams struct {
-	URL      string
-	Bindings []string
-}
-
 // DomainResult contains the result of domain operations
 type DomainResult struct {
 	Domain       *ingressv1alpha1.Domain
@@ -64,13 +58,13 @@ type Manager struct {
 }
 
 // EnsureDomainExists checks if the Domain CRD exists, creates it if needed, and sets conditions/domainRef
-func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, params DomainCheckParams) (*DomainResult, error) {
-	parsedURL, err := m.parseAndValidateURL(endpoint, params.URL)
+func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain) (*DomainResult, error) {
+	parsedURL, err := m.parseAndValidateURL(endpoint, endpoint.GetURL())
 	if err != nil {
 		return nil, err
 	}
 
-	if result := m.checkSkippedDomains(ctx, endpoint, parsedURL, params.Bindings); result != nil {
+	if result := m.checkSkippedDomains(ctx, endpoint, parsedURL, endpoint.GetBindings()); result != nil {
 		return result, nil
 	}
 
