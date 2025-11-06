@@ -243,26 +243,6 @@ func (m *Manager) setDomainCondition(endpoint ngrokv1alpha1.EndpointWithDomain, 
 	meta.SetStatusCondition(endpoint.GetConditions(), condition)
 }
 
-// EndpointReferencesDomain checks if an endpoint has a domain reference that matches the given domain.
-// This checks both the domain name and namespace to determine if they match.
-func EndpointReferencesDomain(endpoint ngrokv1alpha1.EndpointWithDomain, domain *ingressv1alpha1.Domain) bool {
-	domainRef := endpoint.GetDomainRef()
-	if domainRef == nil {
-		return false
-	}
-
-	if domainRef.Name != domain.Name {
-		return false
-	}
-
-	// Check namespace match (nil or empty means same namespace)
-	if domainRef.Namespace != nil && *domainRef.Namespace != "" && *domainRef.Namespace != domain.Namespace {
-		return false
-	}
-
-	return true
-}
-
 // hasKubernetesBinding checks if the bindings list contains a Kubernetes binding
 func hasKubernetesBinding(bindings []string) bool {
 	for _, binding := range bindings {

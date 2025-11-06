@@ -335,7 +335,7 @@ func (r *CloudEndpointReconciler) findCloudEndpointsForDomain(ctx context.Contex
 
 	var requests []ctrl.Request
 	for _, ep := range endpoints.Items {
-		if domainpkg.EndpointReferencesDomain(&ep, domain) {
+		if ep.GetDomainRef().Matches(domain) {
 			requests = append(requests, ctrl.Request{
 				NamespacedName: client.ObjectKeyFromObject(&ep),
 			})

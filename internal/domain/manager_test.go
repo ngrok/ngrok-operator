@@ -759,7 +759,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := EndpointReferencesDomain(tc.endpoint(), tc.domain)
+			result := tc.endpoint().GetDomainRef().Matches(tc.domain)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}

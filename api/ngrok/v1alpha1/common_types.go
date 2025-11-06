@@ -68,3 +68,22 @@ func (ref *K8sObjectRefOptionalNamespace) ToClientObjectKey(defaultNamespace str
 		Namespace: namespace,
 	}
 }
+
+// Matches returns true if this reference points to the given Kubernetes object.
+// A nil or empty namespace in the reference means it matches any namespace.
+func (ref *K8sObjectRefOptionalNamespace) Matches(obj client.Object) bool {
+	if ref == nil {
+		return false
+	}
+
+	if ref.Name != obj.GetName() {
+		return false
+	}
+
+	// nil or empty namespace means same namespace as the object
+	if ref.Namespace != nil && *ref.Namespace != "" && *ref.Namespace != obj.GetNamespace() {
+		return false
+	}
+
+	return true
+}
