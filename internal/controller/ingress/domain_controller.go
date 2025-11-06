@@ -70,9 +70,12 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Recorder: r.Recorder,
 
 		StatusID: func(cr *v1alpha1.Domain) string { return cr.Status.ID },
-		Create:   r.create,
-		Update:   r.update,
-		Delete:   r.delete,
+		ClearStatus: func(cr *v1alpha1.Domain) {
+			cr.Status = v1alpha1.DomainStatus{}
+		},
+		Create: r.create,
+		Update: r.update,
+		Delete: r.delete,
 		ErrResult: func(_ basecontroller.BaseControllerOp, _ *v1alpha1.Domain, err error) (reconcile.Result, error) {
 			retryableErrors := []int{
 				// Domain still attached to an edge, probably a race condition.
@@ -196,11 +199,7 @@ func (r *DomainReconciler) delete(ctx context.Context, domain *v1alpha1.Domain) 
 		return nil
 	}
 
-	err := r.DomainsClient.Delete(ctx, domain.Status.ID)
-	if err == nil || ngrok.IsNotFound(err) {
-		domain.Status.ID = ""
-	}
-	return err
+	return r.DomainsClient.Delete(ctx, domain.Status.ID)
 }
 
 // finds the reserved domain by the hostname. If it doesn't exist, returns nil
