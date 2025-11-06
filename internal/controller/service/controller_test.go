@@ -47,7 +47,8 @@ const (
 	LoadBalancer = corev1.ServiceTypeLoadBalancer
 	ClusterIP    = corev1.ServiceTypeClusterIP
 
-	FinalizerName = controller.FinalizerName
+	FinalizerName     = controller.FinalizerName
+	CleanupAnnotation = controller.CleanupAnnotation
 
 	Annotation_URL             = annotations.URLAnnotation
 	Annotation_MappingStrategy = annotations.MappingStrategyAnnotation
@@ -206,14 +207,7 @@ var _ = Describe("ServiceController", func() {
 			})
 
 			It("should have a finalizer added", func() {
-				Eventually(func(g Gomega) {
-					fetched := &corev1.Service{}
-					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
-					g.Expect(err).NotTo(HaveOccurred())
-
-					By("checking the service has a finalizer added")
-					g.Expect(fetched.Finalizers).To(ContainElement(FinalizerName))
-				}, timeout, interval).Should(Succeed())
+				kginkgo.ExpectFinalizerToBeAdded(ctx, svc, FinalizerName)
 			})
 
 			When("the service does not have a URL annotation", func() {
@@ -228,6 +222,46 @@ var _ = Describe("ServiceController", func() {
 						urlAnnotation, exists := a[annotations.ComputedURLAnnotation]
 						g.Expect(exists).To(BeTrue())
 						g.Expect(urlAnnotation).To(MatchRegexp(`^tcp://[a-zA-Z0-9\-\.]+:\d+$`))
+					})
+				})
+			})
+
+			When("the cleanup annotation is added", func() {
+				JustBeforeEach(func() {
+					// Wait for resources to be created
+					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+						By("checking a cloud endpoint exists")
+						g.Expect(aeps).To(HaveLen(1))
+					})
+					kginkgo.ExpectHasAnnotation(ctx, svc, annotations.ComputedURLAnnotation)
+
+					kginkgo.ExpectAddAnnotations(ctx, svc, map[string]string{
+						CleanupAnnotation: "true",
+					})
+				})
+
+				It("should remove the finalizer", func() {
+					kginkgo.ExpectFinalizerToBeRemoved(ctx, svc, FinalizerName)
+				})
+
+				It("should clean up all owned resources", func() {
+					// Verify all owned resources are cleaned up
+					kginkgo.EventuallyExpectNoEndpoints(ctx, namespace)
+				})
+
+				It("should clear the status", func() {
+					kginkgo.EventuallyWithObject(ctx, svc.DeepCopy(), func(g Gomega, obj client.Object) {
+						fetched, ok := obj.(*corev1.Service)
+						g.Expect(ok).To(BeTrue())
+						g.Expect(fetched.Status.LoadBalancer.Ingress).To(BeEmpty())
+					})
+				})
+
+				It("should remove the computed URL annotation", func() {
+					kginkgo.EventuallyWithObject(ctx, svc.DeepCopy(), func(g Gomega, obj client.Object) {
+						fetched, ok := obj.(*corev1.Service)
+						g.Expect(ok).To(BeTrue())
+						g.Expect(fetched.GetAnnotations()).NotTo((HaveKey(annotations.ComputedURLAnnotation)))
 					})
 				})
 			})
@@ -255,7 +289,7 @@ var _ = Describe("ServiceController", func() {
 						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).NotTo(BeEmpty())
 
 						By("verifying the resource version does not change unnecessarily")
-						kginkgo.ConsistentlyExpectResourceVersionNotToChange(ctx, svc, testutils.WithTimeout(10*time.Second))
+						kginkgo.ConsistentlyExpectResourceVersionNotToChange(ctx, svc)
 					}, timeout, interval).Should(Succeed())
 				})
 
@@ -508,7 +542,7 @@ var _ = Describe("ServiceController", func() {
 					kginkgo.ConsistentlyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
 						By("checking no cloud endpoints exist")
 						g.Expect(cleps).To(BeEmpty())
-					})
+					}, testutils.WithTimeout(10*time.Second))
 				})
 
 				It("should have owner reference pointing to the service", func() {
