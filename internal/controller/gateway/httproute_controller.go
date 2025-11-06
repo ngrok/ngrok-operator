@@ -91,25 +91,39 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	if controller.IsDelete(httproute) {
+	if controller.IsCleanedUp(httproute) {
+		log.V(3).Info("Finalizer not present, skipping cleanup as already done")
+		return ctrl.Result{}, nil
+	}
+
+	if controller.IsDelete(httproute) || controller.HasCleanupAnnotation(httproute) {
 		log.Info("Deleting httproute from store")
+		if err := r.Driver.DeleteHTTPRoute(httproute); err != nil {
+			log.Error(err, "Failed to delete httproute from store")
+			return ctrl.Result{}, err
+		}
+
 		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
 
-		// Remove it from the store
-		return ctrl.Result{}, r.Driver.DeleteHTTPRoute(httproute)
+		if err := r.Driver.Sync(ctx, r.Client); err != nil {
+			log.Error(err, "Failed to sync after deleting httproute from store")
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{}, nil
 	}
+
+	// Validate the HTTPRoute before updating the store
+	_ = r.validateHTTPRoute(ctx, httproute)
 
 	// The object is not being deleted, so register and sync finalizer
 	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, httproute); err != nil {
 		log.Error(err, "Failed to register finalizer")
 		return ctrl.Result{}, err
 	}
-
-	// Validate the HTTPRoute before updating the store
-	_ = r.validateHTTPRoute(ctx, httproute)
 
 	// Update the HTTPRoute in the store if it passes validation
 	_, err = r.Driver.UpdateHTTPRoute(httproute)

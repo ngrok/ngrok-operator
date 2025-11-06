@@ -77,28 +77,45 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	tcpRoute, err = r.Driver.UpdateTLSRoute(tcpRoute)
-	if err != nil {
-		return ctrl.Result{}, err
+	if controller.IsCleanedUp(tcpRoute) {
+		log.V(3).Info("Finalizer not present, skipping cleanup as already done")
+		return ctrl.Result{}, nil
 	}
 
-	if controller.IsUpsert(tcpRoute) {
-		// The object is not being deleted, so register and sync finalizer
-		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
-			log.Error(err, "Failed to register finalizer")
+	if controller.IsDelete(tcpRoute) || controller.HasCleanupAnnotation(tcpRoute) {
+		log.Info("deleting TLSRoute from store")
+		if err := r.Driver.DeleteTLSRoute(tcpRoute); err != nil {
 			return ctrl.Result{}, err
 		}
-	} else {
-		log.Info("deleting TLSRoute from store")
+
+		tcpRoute.Status = gatewayv1alpha2.TLSRouteStatus{
+			RouteStatus: gatewayv1alpha2.RouteStatus{
+				Parents: []gatewayv1alpha2.RouteParentStatus{},
+			},
+		}
+
+		if err := r.Client.Status().Update(ctx, tcpRoute); err != nil {
+			log.Error(err, "Failed to update TLSRoute status")
+			return ctrl.Result{}, err
+		}
+
 		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
 
-		// Remove it from the store
-		if err := r.Driver.DeleteTLSRoute(tcpRoute); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, nil
+	}
+
+	tcpRoute, err = r.Driver.UpdateTLSRoute(tcpRoute)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// The object is not being deleted, so register and sync finalizer
+	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
+		log.Error(err, "Failed to register finalizer")
+		return ctrl.Result{}, err
 	}
 
 	if err := r.Driver.Sync(ctx, r.Client); err != nil {
