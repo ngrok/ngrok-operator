@@ -54,6 +54,9 @@ var (
 
 	// Mock clients for testing
 	mockClientset *nmockapi.Clientset
+	mockEndpoints *nmockapi.EndpointsClient
+
+	kginkgo *testutils.KGinkgo
 )
 
 func TestControllers(t *testing.T) {
@@ -88,9 +91,11 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+	kginkgo = testutils.NewKGinkgo(k8sClient)
 
 	// Create mock clientset
 	mockClientset = nmockapi.NewClientset()
+	mockEndpoints = mockClientset.Endpoints().(*nmockapi.EndpointsClient)
 
 	// Create manager for controller runtime tests
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
