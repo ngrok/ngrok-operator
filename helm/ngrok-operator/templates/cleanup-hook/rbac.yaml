@@ -1,0 +1,111 @@
+{{- if .Values.cleanupHook.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup-hook
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-cleanup
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup-hook
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+# Permissions for core Kubernetes resources
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - update
+  - patch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - update
+  - patch
+# Permissions for Gateway API resources
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  - httproutes
+  - tcproutes
+  - tlsroutes
+  verbs:
+  - get
+  - list
+  - update
+  - patch
+# Permissions for ngrok CRDs
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  - ippolicies
+  verbs:
+  - get
+  - list
+  - update
+  - patch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints
+  - cloudendpoints
+  - kubernetesoperators
+  - ngroktrafficpolicies
+  verbs:
+  - get
+  - list
+  - update
+  - patch
+# Permissions to check if CRDs exist
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-cleanup
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup-hook
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ngrok-operator.fullname" . }}-cleanup
+subjects:
+- kind: ServiceAccount
+  name: {{ include "ngrok-operator.fullname" . }}-cleanup
+  namespace: {{ .Release.Namespace }}
+{{- end }}

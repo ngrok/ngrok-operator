@@ -1,0 +1,66 @@
+{{- if .Values.cleanupHook.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup-hook
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0  # We handle retries internally
+  ttlSecondsAfterFinished: 600  # Clean up after 10 minutes
+  template:
+    metadata:
+      name: {{ include "ngrok-operator.fullname" . }}-cleanup
+      labels:
+        {{- include "ngrok-operator.labels" . | nindent 8 }}
+        app.kubernetes.io/component: cleanup-hook
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "ngrok-operator.fullname" . }}-cleanup
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: cleanup
+        # Use kubectl image for running the cleanup script
+        image: bitnami/kubectl:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/bash
+        - /scripts/cleanup.sh
+        env:
+        - name: CLEANUP_TIMEOUT
+          value: {{ .Values.cleanupHook.timeout | quote }}
+        - name: CLEANUP_RETRIES
+          value: {{ .Values.cleanupHook.retries | quote }}
+        - name: CLEANUP_RETRY_INTERVAL
+          value: {{ .Values.cleanupHook.retryInterval | quote }}
+        volumeMounts:
+        - name: cleanup-script
+          mountPath: /scripts
+          readOnly: true
+        resources:
+          {{- toYaml .Values.cleanupHook.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          seccompProfile:
+            type: RuntimeDefault
+      volumes:
+      - name: cleanup-script
+        configMap:
+          name: {{ include "ngrok-operator.fullname" . }}-cleanup-script
+          defaultMode: 0755
+{{- end }}

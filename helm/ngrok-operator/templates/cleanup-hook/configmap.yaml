@@ -1,0 +1,17 @@
+{{- if .Values.cleanupHook.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-cleanup-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup-hook
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+data:
+  cleanup.sh: |
+{{ .Files.Get "scripts/cleanup.sh" | indent 4 }}
+{{- end }}

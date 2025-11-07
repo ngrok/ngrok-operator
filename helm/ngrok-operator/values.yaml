@@ -428,3 +428,40 @@ bindings:
 
 ## @param installCRDs When true, the ngrok CRDs will be installed alongside the operator
 installCRDs: true
+
+##
+## @section Cleanup Hook Configuration
+##
+## Configuration for the helm pre-delete hook that cleans up ngrok resources before uninstall
+## @param cleanupHook.enabled Enable the pre-delete cleanup hook
+## @param cleanupHook.timeout Maximum time to wait (in seconds) for cleanup to complete
+## @param cleanupHook.retries Number of times to retry on failure
+## @param cleanupHook.retryInterval Time to wait (in seconds) between retries
+##
+cleanupHook:
+  enabled: false
+  timeout: 300 # Timeout in seconds
+  retries: 3
+  retryInterval: 10 # Retry interval in seconds
+
+  ## Cleanup Hook container resource requests and limits
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ## We usually recommend not to specify default resources and to leave this as a conscious
+  ## choice for the user. This also increases chances charts run on environments with little
+  ## resources, such as Minikube. If you do want to specify resources, uncomment the following
+  ## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  ## @param cleanupHook.resources.limits The resources limits for the container
+  ## @param cleanupHook.resources.requests The requested resources for the container
+  resources:
+    ## Example:
+    ## limits:
+    ##    cpu: 100m
+    ##    memory: 128Mi
+    ##
+    limits: {}
+    ## Examples:
+    ## requests:
+    ##    cpu: 100m
+    ##    memory: 128Mi
+    ##
+    requests: {}

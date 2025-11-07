@@ -566,6 +566,46 @@
             "type": "boolean",
             "description": "When true, the ngrok CRDs will be installed alongside the operator",
             "default": true
+        },
+        "cleanupHook": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the pre-delete cleanup hook",
+                    "default": false
+                },
+                "timeout": {
+                    "type": "number",
+                    "description": "Maximum time to wait (in seconds) for cleanup to complete",
+                    "default": 300
+                },
+                "retries": {
+                    "type": "number",
+                    "description": "Number of times to retry on failure",
+                    "default": 3
+                },
+                "retryInterval": {
+                    "type": "number",
+                    "description": "Time to wait (in seconds) between retries",
+                    "default": 10
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "limits": {
+                            "type": "object",
+                            "description": "The resources limits for the container",
+                            "default": {}
+                        },
+                        "requests": {
+                            "type": "object",
+                            "description": "The requested resources for the container",
+                            "default": {}
+                        }
+                    }
+                }
+            }
         }
     }
 }
