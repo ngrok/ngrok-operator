@@ -526,6 +526,46 @@
                     }
                 }
             }
+        },
+        "cleanupHook": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the pre-delete cleanup hook",
+                    "default": false
+                },
+                "timeout": {
+                    "type": "string",
+                    "description": "Maximum time to wait for cleanup to complete",
+                    "default": "300"
+                },
+                "retries": {
+                    "type": "string",
+                    "description": "Number of times to retry on failure",
+                    "default": "3"
+                },
+                "retryInterval": {
+                    "type": "string",
+                    "description": "Time to wait between retries",
+                    "default": "10"
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "limits": {
+                            "type": "object",
+                            "description": "The resources limits for the container",
+                            "default": {}
+                        },
+                        "requests": {
+                            "type": "object",
+                            "description": "The requested resources for the container",
+                            "default": {}
+                        }
+                    }
+                }
+            }
         }
     }
 }
