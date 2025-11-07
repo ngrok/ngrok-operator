@@ -137,9 +137,6 @@ func (t *translator) findMatchingVHostsForXRoute(
 			gatewayAddressHostnames = appendStringUnique(gatewayAddressHostnames, gatewayAddress.Value)
 		}
 
-		// We currently require this annotation to be present for an Ingress to be translated into CloudEndpoints/AgentEndpoints, otherwise the default behaviour is to
-		// translate it into HTTPSEdges (legacy). A future version will remove support for HTTPSEdges and translation into CloudEndpoints/AgentEndpoints will become the new
-		// default behaviour.
 		mappingStrategy, err := MappingStrategyAnnotationToIR(gateway)
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
