@@ -1,1 +1,0 @@
-We have moved the deployment guide to our [docs page](https://ngrok.com/docs/k8s/deployment-guide/)
