@@ -1,5 +1,9 @@
 ##@ Deploying
 
+ifneq ($(CODESPACE_NAME),)
+CODESPACE_FLAG = --set description="codespace: $(CODESPACE_NAME)"
+endif
+
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/api/main.go
@@ -19,7 +23,8 @@ deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-imag
 		--set log.format=console \
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile
+		--set metaData.env=local,metaData.from=makefile \
+		$(CODESPACE_FLAG)
 
 .PHONY: deploy_gateway
 deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
@@ -36,7 +41,8 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set useExperimentalGatewayApi=true
+		--set useExperimentalGatewayApi=true \
+		$(CODESPACE_FLAG)
 
 .PHONY: deploy_with_bindings
 deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
@@ -53,7 +59,8 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup 
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=true
+		--set bindings.enabled=true \
+		$(CODESPACE_FLAG)
 
 .PHONY: deploy_for_e2e
 deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube.config.
