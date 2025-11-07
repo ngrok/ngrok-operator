@@ -90,11 +90,9 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}
 	} else {
 		log.Info("deleting TCPRoute from store")
-		if controller.HasFinalizer(tcpRoute) {
-			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
-				log.Error(err, "Failed to remove finalizer")
-				return ctrl.Result{}, err
-			}
+		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
+			log.Error(err, "Failed to remove finalizer")
+			return ctrl.Result{}, err
 		}
 
 		// Remove it from the store

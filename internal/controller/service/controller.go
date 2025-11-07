@@ -244,11 +244,9 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		log.Info("Removing and syncing finalizer")
-		if controller.HasFinalizer(svc) {
-			if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
-				log.Error(err, "Failed to remove finalizer")
-				return ctrl.Result{}, err
-			}
+		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
+			log.Error(err, "Failed to remove finalizer")
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
