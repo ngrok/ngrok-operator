@@ -51,7 +51,7 @@ Should match snapshot:
             - args:
                 - bindings-forwarder-manager
                 - --release-name=RELEASE-NAME
-                - --description="The official ngrok Kubernetes Operator."
+                - --description=The official ngrok Kubernetes Operator.
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json

@@ -53,7 +53,7 @@ Should match snapshot:
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=true
                 - --disable-reference-grants=false
-                - --description="The official ngrok Kubernetes Operator."
+                - --description=The official ngrok Kubernetes Operator.
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
                 - --zap-encoder=json

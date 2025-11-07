@@ -77,7 +77,7 @@ spec:
         - agent-manager
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
         {{- if .Values.description }}
-        - --description={{ .Values.description | quote }}
+        - {{ printf "--description=%s" .Values.description | quote }}
         {{- end }}
         {{- if .Values.region }}
         - --region={{ .Values.region }}
