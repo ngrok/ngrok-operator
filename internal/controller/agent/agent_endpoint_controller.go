@@ -37,6 +37,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -154,7 +155,12 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ngrokv1alpha1.AgentEndpoint{}).
+		For(&ngrokv1alpha1.AgentEndpoint{}, builder.WithPredicates(
+			predicate.Or(
+				predicate.AnnotationChangedPredicate{},
+				predicate.GenerationChangedPredicate{},
+			),
+		)).
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForTrafficPolicy),
@@ -179,12 +185,6 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&ingressv1alpha1.Domain{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointsForDomain),
 		).
-		WithEventFilter(
-			predicate.Or(
-				predicate.AnnotationChangedPredicate{},
-				predicate.GenerationChangedPredicate{},
-			),
-		).
 		Complete(r)
 }
 
@@ -202,10 +202,7 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	setReconcilingCondition(endpoint, "Reconciling AgentEndpoint")
 
 	// EnsureDomainExists checks if the domain exists, creates it if needed, and sets conditions/domainRef
-	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint, domainpkg.DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint)
 	if err != nil {
 		return r.updateStatus(ctx, endpoint, nil, "", domainResult, err)
 	}
@@ -330,12 +327,29 @@ func (r *AgentEndpointReconciler) findAgentEndpointsForDomain(ctx context.Contex
 		return nil
 	}
 
+	// Get the domain name from the Domain CR
+	domainName := domain.Spec.Domain
+	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domainName)
+
 	var requests []ctrl.Request
+	// First match by domainRef
 	for _, ep := range endpoints.Items {
 		if ep.GetDomainRef().Matches(domain) {
 			requests = append(requests, ctrl.Request{
 				NamespacedName: client.ObjectKeyFromObject(&ep),
 			})
+			continue
+		}
+
+		// ALSO match by URL - critical for catching domains created by old pods during rolling updates
+		// When old pod creates domain, domainRef might not be set yet in the cached view
+		if ep.Spec.URL != "" {
+			parsedURL, err := util.ParseAndSanitizeEndpointURL(ep.Spec.URL, true)
+			if err == nil && ingressv1alpha1.HyphenatedDomainNameFromURL(parsedURL.Hostname()) == hyphenatedDomain {
+				requests = append(requests, ctrl.Request{
+					NamespacedName: client.ObjectKeyFromObject(&ep),
+				})
+			}
 		}
 	}
 	return requests

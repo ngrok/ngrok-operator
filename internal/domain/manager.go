@@ -34,12 +34,6 @@ var (
 	ErrDomainNotReady = errors.New("domain is not ready yet")
 )
 
-// DomainCheckParams contains parameters for domain checks
-type DomainCheckParams struct {
-	URL      string
-	Bindings []string
-}
-
 // DomainResult contains the result of domain operations
 type DomainResult struct {
 	Domain       *ingressv1alpha1.Domain
@@ -64,14 +58,14 @@ type Manager struct {
 }
 
 // EnsureDomainExists checks if the Domain CRD exists, creates it if needed, and sets conditions/domainRef
-func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, params DomainCheckParams) (*DomainResult, error) {
-	parsedURL, err := m.parseAndValidateURL(endpoint, params.URL)
+func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain) (*DomainResult, error) {
+	parsedURL, err := m.parseAndValidateURL(endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	if result := m.checkSkippedDomains(ctx, endpoint, parsedURL, params.Bindings); result != nil {
-		return result, nil
+	if result, err := m.checkSkippedDomains(ctx, endpoint, parsedURL); result != nil || err != nil {
+		return result, err
 	}
 
 	domain := parsedURL.Hostname()
@@ -79,7 +73,8 @@ func (m *Manager) EnsureDomainExists(ctx context.Context, endpoint ngrokv1alpha1
 }
 
 // parseAndValidateURL parses and validates the endpoint URL
-func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain, urlStr string) (*url.URL, error) {
+func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain) (*url.URL, error) {
+	urlStr := endpoint.GetURL()
 	parsedURL, err := util.ParseAndSanitizeEndpointURL(urlStr, true)
 	if err != nil {
 		m.setDomainCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
@@ -89,18 +84,21 @@ func (m *Manager) parseAndValidateURL(endpoint ngrokv1alpha1.EndpointWithDomain,
 }
 
 // checkSkippedDomains checks if the domain should be skipped (TCP, internal, or Kubernetes bindings)
-func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL, bindings []string) *DomainResult {
+func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, parsedURL *url.URL) (*DomainResult, error) {
+	bindings := endpoint.GetBindings()
 	// Skip Kubernetes-bound endpoints (no domain reservation needed)
 	if slices.Contains(bindings, "kubernetes") {
 		msg := "Domain ready (Kubernetes binding - no domain reservation needed)"
-		m.deleteStaleBindingDomain(ctx, endpoint)
+		if err := m.deleteStaleBindingDomain(ctx, endpoint); err != nil {
+			return nil, err
+		}
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
 		return &DomainResult{
 			IsReady:      true,
 			ReadyReason:  ReasonDomainReady,
 			ReadyMessage: msg,
-		}
+		}, nil
 	}
 
 	// Skip internal-bound endpoints (no domain reservation needed)
@@ -112,7 +110,7 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 			IsReady:      true,
 			ReadyReason:  ReasonDomainReady,
 			ReadyMessage: msg,
-		}
+		}, nil
 	}
 
 	// Skip TCP ngrok URLs
@@ -124,7 +122,7 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 			IsReady:      true,
 			ReadyReason:  ReasonDomainReady,
 			ReadyMessage: msg,
-		}
+		}, nil
 	}
 
 	// Skip internal domains
@@ -136,10 +134,10 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 			IsReady:      true,
 			ReadyReason:  ReasonDomainReady,
 			ReadyMessage: msg,
-		}
+		}, nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 // getOrCreateDomain gets an existing domain or creates a new one
@@ -246,32 +244,21 @@ func (m *Manager) setDomainCondition(endpoint ngrokv1alpha1.EndpointWithDomain, 
 
 // deleteStaleBindingDomain deletes a domain if it exists for an endpoint that now has kubernetes or internal bindings.
 // This cleans up domains that were created before bindings were added to the endpoint.
-func (m *Manager) deleteStaleBindingDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain) {
+func (m *Manager) deleteStaleBindingDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	domainRef := endpoint.GetDomainRef()
 	if domainRef == nil {
-		// No domain ref, nothing to clean up
-		return
+		return nil
 	}
 
-	// Get the domain to delete
 	domain := &ingressv1alpha1.Domain{}
-	domainKey := domainRef.ToClientObjectKey(endpoint.GetNamespace())
+	domain.SetNamespace(endpoint.GetNamespace())
+	domain.SetName(domainRef.Name)
 
-	if err := m.Client.Get(ctx, domainKey, domain); err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, "Failed to get domain for cleanup", "domain", domainKey)
-		}
-		// Domain doesn't exist or error getting it, nothing to clean up
-		return
+	log.Info("Deleting stale domain for binding-based endpoint", "domain", client.ObjectKeyFromObject(domain), "endpoint", client.ObjectKeyFromObject(endpoint))
+	if err := m.Client.Delete(ctx, domain); client.IgnoreNotFound(err) != nil {
+		return err
 	}
-
-	// Delete the domain
-	log.Info("Deleting stale domain for binding-based endpoint", "domain", domainKey, "endpoint", client.ObjectKeyFromObject(endpoint))
-	if err := m.Client.Delete(ctx, domain); err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, "Failed to delete stale domain", "domain", domainKey)
-		}
-	}
+	return nil
 }

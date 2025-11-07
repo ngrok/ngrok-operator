@@ -136,7 +136,9 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ngrokv1alpha1.CloudEndpoint{}).
+		For(&ngrokv1alpha1.CloudEndpoint{}, builder.WithPredicates(
+			predicate.GenerationChangedPredicate{},
+		)).
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointForTrafficPolicy),
@@ -151,11 +153,6 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&ingressv1alpha1.Domain{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointsForDomain),
-		).
-		WithEventFilter(
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-			),
 		).
 		Complete(r)
 }
@@ -174,10 +171,7 @@ func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // It also looks up the Traffic Policy and creates the Cloud Endpoint using this Traffic Policy JSON
 func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
 	// EnsureDomainExists handles its own domain-related status
-	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep, domainpkg.DomainCheckParams{
-		URL:      clep.Spec.URL,
-		Bindings: clep.Spec.Bindings,
-	})
+	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep)
 	if err != nil {
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
@@ -213,10 +207,7 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 // Update is called when we have a status ID and want to update the resource in the ngrok API
 // If it fails to find the resource by ID, create a new one instead
 func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
-	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep, domainpkg.DomainCheckParams{
-		URL:      clep.Spec.URL,
-		Bindings: clep.Spec.Bindings,
-	})
+	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep)
 	if err != nil {
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}

@@ -26,6 +26,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -50,6 +51,8 @@ type K8sObjectRefOptionalNamespace struct {
 // EndpointWithDomain represents an endpoint resource that has domain conditions and references
 type EndpointWithDomain interface {
 	client.Object
+	GetURL() string
+	GetBindings() []string
 	GetConditions() *[]metav1.Condition
 	GetGeneration() int64
 	GetDomainRef() *K8sObjectRefOptionalNamespace
@@ -80,10 +83,7 @@ func (ref *K8sObjectRefOptionalNamespace) Matches(obj client.Object) bool {
 		return false
 	}
 
-	// nil or empty namespace means same namespace as the object
-	if ref.Namespace != nil && *ref.Namespace != "" && *ref.Namespace != obj.GetNamespace() {
-		return false
-	}
-
-	return true
+	// return true
+	ns := ptr.Deref(ref.Namespace, "")
+	return ns == "" || ns == obj.GetNamespace()
 }

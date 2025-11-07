@@ -185,6 +185,16 @@ func (c *CloudEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
 	c.Status.DomainRef = ref
 }
 
+// GetURL returns the URL for the CloudEndpoint
+func (c *CloudEndpoint) GetURL() string {
+	return c.Spec.URL
+}
+
+// GetBindings returns the bindings for the CloudEndpoint
+func (c *CloudEndpoint) GetBindings() []string {
+	return c.Spec.Bindings
+}
+
 func init() {
 	SchemeBuilder.Register(&CloudEndpoint{}, &CloudEndpointList{})
 }

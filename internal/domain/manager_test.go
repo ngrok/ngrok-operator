@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,10 +95,7 @@ func TestManager_EnsureDomainExists_SkipsTCPDomains(t *testing.T) {
 
 	endpoint := createTestEndpoint("test-endpoint", "default", "tcp://1.tcp.ngrok.io:12345")
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// TCP domains should be skipped and marked as ready
 	assert.NoError(t, err)
@@ -121,10 +117,7 @@ func TestManager_EnsureDomainExists_SkipsInternalDomains(t *testing.T) {
 
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://api.service.internal")
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Internal domains should be skipped and marked as ready
 	assert.NoError(t, err)
@@ -147,10 +140,7 @@ func TestManager_EnsureDomainExists_InvalidURL(t *testing.T) {
 
 	endpoint := createTestEndpoint("test-endpoint", "default", "://invalid-url")
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Should return error for invalid URL
 	assert.Error(t, err)
@@ -173,10 +163,7 @@ func TestManager_EnsureDomainExists_ExistingDomainReady(t *testing.T) {
 
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Should find existing domain and return ready
 	assert.NoError(t, err)
@@ -206,10 +193,7 @@ func TestManager_EnsureDomainExists_ExistingDomainNotReady(t *testing.T) {
 
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Should find existing domain but return not ready (no error)
 	assert.NoError(t, err)
@@ -251,10 +235,7 @@ func TestManager_EnsureDomainExists_ExistingDomainNoReadyCondition(t *testing.T)
 
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Should find existing domain but return not ready (no Ready condition, no error)
 	assert.NoError(t, err)
@@ -284,10 +265,7 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Should create new domain and return not ready (no error)
 	assert.NoError(t, err)
@@ -311,7 +289,7 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 
 	// Verify domain was created in the client
 	var createdDomain ingressv1alpha1.Domain
-	err = client.Get(context.TODO(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &createdDomain)
+	err = client.Get(t.Context(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &createdDomain)
 	assert.NoError(t, err)
 	assert.Equal(t, "example.com", createdDomain.Spec.Domain)
 }
@@ -329,10 +307,7 @@ func TestManager_EnsureDomainExists_CreateNewDomainWithReclaimPolicy(t *testing.
 
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Should create domain and return not ready (no error)
 	assert.NoError(t, err)
@@ -342,7 +317,7 @@ func TestManager_EnsureDomainExists_CreateNewDomainWithReclaimPolicy(t *testing.
 
 	// Verify domain was created with reclaim policy
 	var createdDomain ingressv1alpha1.Domain
-	err = client.Get(context.TODO(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &createdDomain)
+	err = client.Get(t.Context(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &createdDomain)
 	assert.NoError(t, err)
 	assert.Equal(t, ingressv1alpha1.DomainReclaimPolicyRetain, createdDomain.Spec.ReclaimPolicy)
 }
@@ -394,10 +369,7 @@ func TestManager_EnsureDomainExists_SkipsKubernetesBinding_AgentEndpoint(t *test
 		},
 	}
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Kubernetes-bound endpoints should skip domain creation and be marked as ready
 	assert.NoError(t, err)
@@ -415,7 +387,7 @@ func TestManager_EnsureDomainExists_SkipsKubernetesBinding_AgentEndpoint(t *test
 
 	// Verify no Domain CRD was created
 	var domains ingressv1alpha1.DomainList
-	err = client.List(context.TODO(), &domains)
+	err = client.List(t.Context(), &domains)
 	assert.NoError(t, err)
 	assert.Empty(t, domains.Items)
 }
@@ -440,10 +412,7 @@ func TestManager_EnsureDomainExists_SkipsKubernetesBinding_CloudEndpoint(t *test
 		},
 	}
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Kubernetes-bound endpoints should skip domain creation and be marked as ready
 	assert.NoError(t, err)
@@ -461,7 +430,7 @@ func TestManager_EnsureDomainExists_SkipsKubernetesBinding_CloudEndpoint(t *test
 
 	// Verify no Domain CRD was created
 	var domains ingressv1alpha1.DomainList
-	err = client.List(context.TODO(), &domains)
+	err = client.List(t.Context(), &domains)
 	assert.NoError(t, err)
 	assert.Empty(t, domains.Items)
 }
@@ -486,10 +455,7 @@ func TestManager_EnsureDomainExists_SkipsInternalBinding_AgentEndpoint(t *testin
 		},
 	}
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Internal-bound endpoints should skip domain creation and be marked as ready
 	assert.NoError(t, err)
@@ -507,7 +473,7 @@ func TestManager_EnsureDomainExists_SkipsInternalBinding_AgentEndpoint(t *testin
 
 	// Verify no Domain CRD was created
 	var domains ingressv1alpha1.DomainList
-	err = client.List(context.TODO(), &domains)
+	err = client.List(t.Context(), &domains)
 	assert.NoError(t, err)
 	assert.Empty(t, domains.Items)
 }
@@ -532,10 +498,7 @@ func TestManager_EnsureDomainExists_SkipsInternalBinding_CloudEndpoint(t *testin
 		},
 	}
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Internal-bound endpoints should skip domain creation and be marked as ready
 	assert.NoError(t, err)
@@ -553,7 +516,7 @@ func TestManager_EnsureDomainExists_SkipsInternalBinding_CloudEndpoint(t *testin
 
 	// Verify no Domain CRD was created
 	var domains ingressv1alpha1.DomainList
-	err = client.List(context.TODO(), &domains)
+	err = client.List(t.Context(), &domains)
 	assert.NoError(t, err)
 	assert.Empty(t, domains.Items)
 }
@@ -585,10 +548,7 @@ func TestManager_EnsureDomainExists_KubernetesBinding_DeletesStaleDomain(t *test
 		},
 	}
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Should skip domain creation and mark as ready
 	assert.NoError(t, err)
@@ -598,7 +558,7 @@ func TestManager_EnsureDomainExists_KubernetesBinding_DeletesStaleDomain(t *test
 
 	// Domain should have been deleted
 	var domain ingressv1alpha1.Domain
-	err = client.Get(context.TODO(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &domain)
+	err = client.Get(t.Context(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &domain)
 	assert.True(t, errors.IsNotFound(err), "Domain should have been deleted")
 }
 
@@ -611,10 +571,7 @@ func TestManager_EnsureDomainExists_MixedBindings_SkipsDomain(t *testing.T) {
 	endpoint := createTestEndpoint("mixed-binding-endpoint", "default", "https://example.com")
 	endpoint.Spec.Bindings = []string{"kubernetes", "public"}
 
-	result, err := manager.EnsureDomainExists(context.TODO(), endpoint, DomainCheckParams{
-		URL:      endpoint.Spec.URL,
-		Bindings: endpoint.Spec.Bindings,
-	})
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 
 	// Mixed bindings should skip domain creation since it has a Kubernetes binding
 	assert.NoError(t, err)
@@ -635,7 +592,7 @@ func TestManager_EnsureDomainExists_MixedBindings_SkipsDomain(t *testing.T) {
 
 	// Verify no Domain CRD was created
 	var domains ingressv1alpha1.DomainList
-	err = client.List(context.TODO(), &domains)
+	err = client.List(t.Context(), &domains)
 	assert.NoError(t, err)
 	assert.Empty(t, domains.Items)
 }
