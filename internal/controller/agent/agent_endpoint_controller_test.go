@@ -28,10 +28,12 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"slices"
 	"time"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
@@ -44,6 +46,55 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+func getKey(endpoint *ngrokv1alpha1.AgentEndpoint) string {
+	name := endpoint.GetName()
+	ns := endpoint.GetNamespace()
+	return ns + "/" + name
+}
+
+// AgentDriverDeletedEndpoint returns a function that checks if the mock driver has deleted the given endpoint.
+// It is meant to be used with Eventually in tests.
+//
+// Example usage:
+//
+//	Eventually(AgentDriverDeletedEndpoint(myEndpoint), timeout, interval).Should(BeTrue())
+func AgentDriverDeletedEndpoint(endpoint *ngrokv1alpha1.AgentEndpoint) func() bool {
+	key := getKey(endpoint)
+	return func() bool {
+		return slices.ContainsFunc(envMockDriver.DeleteCalls, func(call agent.DeleteCall) bool {
+			return call.Name == key
+		})
+	}
+}
+
+// AgentDriverCreatedEndpoint returns a function that checks if the mock driver has created the given endpoint.
+// It is meant to be used with Eventually in tests.
+//
+// Example usage:
+//
+//	Eventually(AgentDriverCreatedEndpoint(myEndpoint), timeout, interval).Should(BeTrue())
+func AgentDriverCreatedEndpoint(endpoint *ngrokv1alpha1.AgentEndpoint) func() bool {
+	key := getKey(endpoint)
+	return func() bool {
+		return slices.ContainsFunc(envMockDriver.CreateCalls, func(call agent.CreateCall) bool {
+			return call.Name == key
+		})
+	}
+}
+
+func AgentDriverCreatedEndpointWithTrafficPolicy(endpoint *ngrokv1alpha1.AgentEndpoint, policySubstring string) func() bool {
+	key := getKey(endpoint)
+	return func() bool {
+		return slices.ContainsFunc(envMockDriver.CreateCalls, func(call agent.CreateCall) bool {
+			if call.Name != key {
+				return false
+			}
+			matched, _ := ContainSubstring(policySubstring).Match(call.TrafficPolicy)
+			return matched
+		})
+	}
+}
+
 var _ = Describe("AgentEndpoint Controller", func() {
 	const (
 		timeout  = 15 * time.Second
@@ -55,33 +106,16 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		agentEndpoint *ngrokv1alpha1.AgentEndpoint
 	)
 
-	BeforeEach(func() {
-		namespace = "test-" + RandomString(8)
-
-		// Create namespace for testing
-		ns := &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-			},
-		}
-		Expect(k8sClient.Create(context.Background(), ns)).To(Succeed())
+	BeforeEach(func(ctx SpecContext) {
+		namespace = testutils.RandomName("aep-namespace")
+		kginkgo.ExpectCreateNamespace(ctx, namespace)
 
 		// Reset the shared mock driver for each test
 		envMockDriver.Reset()
-
 	})
 
-	AfterEach(func() {
-		// Clean up namespace
-		if namespace != "" {
-			ns := &v1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			err := k8sClient.Delete(context.Background(), ns)
-			Expect(err).NotTo(HaveOccurred())
-		}
+	AfterEach(func(ctx SpecContext) {
+		kginkgo.ExpectDeleteNamespace(ctx, namespace)
 	})
 
 	Context("Basic endpoint operations", func() {
@@ -248,27 +282,13 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
 
 			By("Waiting for controller to create the endpoint")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/delete-endpoint" {
-						return true
-					}
-				}
-				return false
-			}, timeout, interval).Should(BeTrue())
+			Eventually(AgentDriverCreatedEndpoint(agentEndpoint), timeout, interval).Should(BeTrue())
 
 			By("Deleting the AgentEndpoint")
 			Expect(k8sClient.Delete(ctx, agentEndpoint)).To(Succeed())
 
 			By("Waiting for controller to call delete on the driver")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.DeleteCalls {
-					if call.Name == namespace+"/delete-endpoint" {
-						return true
-					}
-				}
-				return false
-			}, timeout, interval).Should(BeTrue())
+			Eventually(AgentDriverDeletedEndpoint(agentEndpoint), timeout, interval).Should(BeTrue())
 		})
 	})
 
@@ -310,15 +330,9 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Verifying the controller passed correct policy to mock driver")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/inline-policy-endpoint" &&
-						call.TrafficPolicy == `{"on_http_request":[]}` {
-						return true
-					}
-				}
-				return false
-			}, 5*time.Second, interval).Should(BeTrue())
+			Eventually(
+				AgentDriverCreatedEndpointWithTrafficPolicy(agentEndpoint, `{"on_http_request":[]}`),
+				5*time.Second, interval).Should(BeTrue())
 		})
 
 		It("should resolve traffic policy reference", func(ctx SpecContext) {
@@ -372,15 +386,9 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Verifying the controller resolved and passed the traffic policy")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/ref-policy-endpoint" {
-						matched, _ := ContainSubstring(`"name":"rate-limit"`).Match(call.TrafficPolicy)
-						return matched
-					}
-				}
-				return false
-			}, 5*time.Second, interval).Should(BeTrue())
+			Eventually(
+				AgentDriverCreatedEndpointWithTrafficPolicy(agentEndpoint, `"name":"rate-limit"`),
+				5*time.Second, interval).Should(BeTrue())
 		})
 
 		It("should handle missing traffic policy reference", func(ctx SpecContext) {
@@ -497,15 +505,9 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Verifying the mock driver received the traffic policy")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/test-endpoint-with-policy" {
-						matched, _ := ContainSubstring(`"inbound":[{"type":"deny"}]`).Match(call.TrafficPolicy)
-						return matched
-					}
-				}
-				return false
-			}, 5*time.Second, interval).Should(BeTrue())
+			Eventually(
+				AgentDriverCreatedEndpointWithTrafficPolicy(agentEndpoint, `"inbound":[{"type":"deny"}]`),
+				5*time.Second, interval).Should(BeTrue())
 		})
 
 		It("should reconcile when traffic policy is updated", func(ctx SpecContext) {
@@ -548,14 +550,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
 
 			By("Waiting for initial reconciliation")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/update-policy-endpoint" {
-						return true
-					}
-				}
-				return false
-			}, timeout, interval).Should(BeTrue())
+			Eventually(AgentDriverCreatedEndpoint(agentEndpoint), timeout, interval).Should(BeTrue())
 
 			By("Updating the traffic policy")
 			Eventually(func() error {
@@ -570,17 +565,9 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}, 2*time.Second, 100*time.Millisecond).Should(Succeed())
 
 			By("Verifying the updated policy is applied")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/update-policy-endpoint" {
-						matched, _ := ContainSubstring(`"inbound":[{"type":"allow"}]`).Match(call.TrafficPolicy)
-						if matched {
-							return true
-						}
-					}
-				}
-				return false
-			}, timeout, interval).Should(BeTrue())
+			Eventually(
+				AgentDriverCreatedEndpointWithTrafficPolicy(agentEndpoint, `"inbound":[{"type":"allow"}]`),
+				5*time.Second, interval).Should(BeTrue())
 		})
 	})
 
@@ -618,14 +605,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Verifying the mock driver was called for this specific endpoint")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/failing-endpoint" {
-						return true
-					}
-				}
-				return false
-			}, 5*time.Second, interval).Should(BeTrue())
+			Eventually(AgentDriverCreatedEndpoint(agentEndpoint), 5*time.Second, interval).Should(BeTrue())
 		})
 	})
 
@@ -653,27 +633,55 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
 
 			By("Waiting for creation")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/delete-test-endpoint" {
-						return true
-					}
-				}
-				return false
-			}, timeout, interval).Should(BeTrue())
+			Eventually(AgentDriverCreatedEndpoint(agentEndpoint), timeout, interval).Should(BeTrue())
 
 			By("Deleting the AgentEndpoint")
 			Expect(k8sClient.Delete(ctx, agentEndpoint)).To(Succeed())
 
 			By("Verifying delete was called on the driver")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.DeleteCalls {
-					if call.Name == namespace+"/delete-test-endpoint" {
-						return true
-					}
-				}
-				return false
-			}, timeout, interval).Should(BeTrue())
+			Eventually(AgentDriverDeletedEndpoint(agentEndpoint), timeout, interval).Should(BeTrue())
+		})
+	})
+
+	When("annotated with the cleanup annotation", func() {
+		BeforeEach(func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cleanup-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "tcp://14.tcp.ngrok.io:14141",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			kginkgo.ExpectFinalizerToBeAdded(ctx, agentEndpoint, controller.FinalizerName)
+			kginkgo.ExpectAddAnnotations(ctx, agentEndpoint, map[string]string{
+				controller.CleanupAnnotation: "true",
+			})
+		})
+
+		It("should remove the finalizer", func(ctx SpecContext) {
+			kginkgo.ExpectFinalizerToBeRemoved(ctx, agentEndpoint, controller.FinalizerName)
+		})
+
+		It("should call delete on the mock driver", func() {
+			Eventually(AgentDriverDeletedEndpoint(agentEndpoint), timeout, interval).Should(BeTrue())
+		})
+
+		It("should clear the status fields", func(ctx SpecContext) {
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				g.Expect(obj.Status.AssignedURL).To(BeEmpty())
+				g.Expect(obj.Status.AttachedTrafficPolicy).To(BeEmpty())
+				g.Expect(len(obj.Status.Conditions)).To(Equal(0))
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 
@@ -910,29 +918,13 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
 
 			By("Waiting for creation to complete")
-			Eventually(func() bool {
-				// Check that this specific endpoint was created
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/delete-runtime-auto" {
-						return true
-					}
-				}
-				return false
-			}, timeout, interval).Should(BeTrue())
+			Eventually(AgentDriverCreatedEndpoint(agentEndpoint), timeout, interval).Should(BeTrue())
 
 			By("Deleting the AgentEndpoint")
 			Expect(k8sClient.Delete(ctx, agentEndpoint)).To(Succeed())
 
 			By("Waiting for controller to call delete on the driver")
-			Eventually(func() bool {
-				// Check that this specific endpoint was deleted
-				for _, call := range envMockDriver.DeleteCalls {
-					if call.Name == namespace+"/delete-runtime-auto" {
-						return true
-					}
-				}
-				return false
-			}, timeout, interval).Should(BeTrue())
+			Eventually(AgentDriverDeletedEndpoint(agentEndpoint), timeout, interval).Should(BeTrue())
 		})
 
 		It("should reconcile traffic policy reference with runtime controller", func(ctx SpecContext) {
@@ -989,18 +981,9 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Verifying the mock driver received the traffic policy for this endpoint")
-			var foundCall *agent.CreateCall
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/policy-runtime-auto" {
-						foundCall = &call
-						return true
-					}
-				}
-				return false
-			}, 5*time.Second, interval).Should(BeTrue())
-
-			Expect(foundCall.TrafficPolicy).To(ContainSubstring("rate-limit"))
+			Eventually(
+				AgentDriverCreatedEndpointWithTrafficPolicy(agentEndpoint, `"rate-limit"`),
+				5*time.Second, interval).Should(BeTrue())
 		})
 	})
 
@@ -1122,14 +1105,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			}, timeout, interval).Should(Succeed())
 
 			By("Verifying that the controller was triggered to create the endpoint")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/cert-watch-endpoint" {
-						return true
-					}
-				}
-				return false
-			}, 5*time.Second, interval).Should(BeTrue())
+			Eventually(AgentDriverCreatedEndpoint(agentEndpoint), 5*time.Second, interval).Should(BeTrue())
 		})
 	})
 })

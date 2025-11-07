@@ -30,12 +30,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
-	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -53,31 +54,16 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		cloudEndpoint *ngrokv1alpha1.CloudEndpoint
 	)
 
-	BeforeEach(func() {
-		namespace = "test-" + rand.String(8)
-
-		// Create namespace for testing
-		ns := &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-			},
-		}
-		Expect(k8sClient.Create(context.Background(), ns)).To(Succeed())
+	BeforeEach(func(ctx SpecContext) {
+		namespace = testutils.RandomName("clep-test-namespace")
+		kginkgo.ExpectCreateNamespace(ctx, namespace)
 
 		// Reset mock endpoints client for each test
-		mockClientset.Endpoints().(*nmockapi.EndpointsClient).Reset()
+		mockEndpoints.Reset()
 	})
 
-	AfterEach(func() {
-		// Clean up namespace
-		if namespace != "" {
-			ns := &v1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			_ = k8sClient.Delete(context.Background(), ns)
-		}
+	AfterEach(func(ctx SpecContext) {
+		kginkgo.ExpectDeleteNamespace(ctx, namespace)
 	})
 
 	Context("Basic endpoint operations", func() {
@@ -112,30 +98,73 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 		})
 
-		It("should successfully create a cloud endpoint with TCP URL", func(ctx SpecContext) {
-			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tcp-endpoint",
-					Namespace: namespace,
-				},
-				Spec: ngrokv1alpha1.CloudEndpointSpec{
-					URL:         "tcp://1.tcp.ngrok.io:12345",
-					Description: "TCP test endpoint",
-					Metadata:    "{}",
-				},
-			}
+		Context("TCP URL", func() {
+			BeforeEach(func(ctx SpecContext) {
+				cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "tcp-endpoint",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.CloudEndpointSpec{
+						URL:         "tcp://1.tcp.ngrok.io:12345",
+						Description: "TCP test endpoint",
+						Metadata:    "{}",
+					},
+				}
 
-			By("Creating the CloudEndpoint")
-			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+				By("Creating the CloudEndpoint")
+				Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+			})
 
-			By("Waiting for controller to reconcile")
-			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.CloudEndpoint{}
-				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+			It("should successfully assign the clep an ID", func(ctx SpecContext) {
+				By("Waiting for controller to reconcile")
+				kginkgo.EventuallyWithCloudEndpoint(ctx, cloudEndpoint, func(g Gomega, clep *ngrokv1alpha1.CloudEndpoint) {
+					g.Expect(clep.Status.ID).NotTo(BeEmpty())
+				})
 
-				// Check that endpoint was created
-				g.Expect(obj.Status.ID).NotTo(BeEmpty())
-			}, timeout, interval).Should(Succeed())
+				By("Verifying the endpoint was created in ngrok")
+				Eventually(func(g Gomega) {
+					ep, err := mockEndpoints.Get(ctx, cloudEndpoint.Status.ID)
+					g.Expect(ep).NotTo(BeNil())
+					g.Expect(err).To(BeNil())
+				})
+			})
+
+			When("the cleanup annotation is added", func() {
+				var (
+					id string
+				)
+
+				BeforeEach(func(ctx SpecContext) {
+					By("waiting for the CloudEndpoint to have an ID")
+					kginkgo.EventuallyWithCloudEndpoint(ctx, cloudEndpoint, func(g Gomega, clep *ngrokv1alpha1.CloudEndpoint) {
+						id = clep.Status.ID
+						g.Expect(id).NotTo(BeEmpty())
+					})
+					By("Annotating the CloudEndpoint for cleanup")
+					kginkgo.ExpectAddAnnotations(ctx, cloudEndpoint, map[string]string{
+						controller.CleanupAnnotation: "true",
+					})
+				})
+
+				It("should remove the finalizer", func(ctx SpecContext) {
+					kginkgo.ExpectFinalizerToBeRemoved(ctx, cloudEndpoint, controller.FinalizerName)
+				})
+
+				It("should clear the status", func(ctx SpecContext) {
+					kginkgo.EventuallyWithCloudEndpoint(ctx, cloudEndpoint, func(g Gomega, clep *ngrokv1alpha1.CloudEndpoint) {
+						g.Expect(clep.Status).To(Equal(ngrokv1alpha1.CloudEndpointStatus{}))
+					})
+				})
+
+				It("should delete the CloudEndpoint in ngrok", func(ctx SpecContext) {
+					Eventually(func(g Gomega) {
+						ep, err := mockEndpoints.Get(ctx, id)
+						g.Expect(ep).To(BeNil())
+						g.Expect(ngrok.IsNotFound(err)).To(BeTrue())
+					})
+				})
+			})
 		})
 
 		It("should handle endpoint with traffic policy reference", func(ctx SpecContext) {
@@ -213,13 +242,13 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			// Verify endpoint was deleted from mock
-			_, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+			_, err := mockEndpoints.Get(context.Background(), endpointID)
 			Expect(err).To(HaveOccurred())
 		})
 
 		It("should handle API errors gracefully", func(ctx SpecContext) {
 			// Set the mock to return an error
-			mockClientset.Endpoints().(*nmockapi.EndpointsClient).SetCreateError(errors.New("API error"))
+			mockEndpoints.SetCreateError(errors.New("API error"))
 
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
@@ -248,7 +277,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			// Clear the error for cleanup
-			mockClientset.Endpoints().(*nmockapi.EndpointsClient).SetCreateError(nil)
+			mockEndpoints.SetCreateError(nil)
 		})
 	})
 
@@ -323,7 +352,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			By("Verifying the update was applied")
 			Eventually(func(g Gomega) {
 				// Check in mock client
-				endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+				endpoint, err := mockEndpoints.Get(context.Background(), endpointID)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(endpoint.Description).To(Equal("Updated description"))
 				g.Expect(endpoint.Metadata).To(Equal(`{"key":"updated","new":"field"}`))
@@ -391,7 +420,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 			By("Verifying the policy was updated")
 			Eventually(func(g Gomega) {
-				endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+				endpoint, err := mockEndpoints.Get(context.Background(), endpointID)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(endpoint.TrafficPolicy).To(ContainSubstring("rate-limit"))
 			}, timeout, interval).Should(Succeed())
@@ -423,7 +452,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Manually deleting the endpoint from mock to simulate 404")
-			err := mockClientset.Endpoints().Delete(context.Background(), originalID)
+			err := mockEndpoints.Delete(context.Background(), originalID)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Updating the CloudEndpoint spec to trigger reconcile")
@@ -444,7 +473,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(obj.Status.ID).NotTo(BeEmpty())
 
 				// Verify the new endpoint exists in mock
-				endpoint, err := mockClientset.Endpoints().Get(context.Background(), obj.Status.ID)
+				endpoint, err := mockEndpoints.Get(context.Background(), obj.Status.ID)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(endpoint.Description).To(Equal("Updated after deletion"))
 			}, timeout, interval).Should(Succeed())
@@ -486,7 +515,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 			By("Verifying the URL was updated")
 			Eventually(func(g Gomega) {
-				endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+				endpoint, err := mockEndpoints.Get(context.Background(), endpointID)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(endpoint.URL).To(Equal("https://updated-url.internal"))
 			}, timeout, interval).Should(Succeed())
@@ -516,7 +545,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Setting mock to return error on update")
-			mockClientset.Endpoints().(*nmockapi.EndpointsClient).SetUpdateError(errors.New("API update error"))
+			mockEndpoints.SetUpdateError(errors.New("API update error"))
 
 			By("Updating the CloudEndpoint")
 			Eventually(func(g Gomega) {
@@ -539,7 +568,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			// Clean up error for other tests
-			mockClientset.Endpoints().(*nmockapi.EndpointsClient).SetUpdateError(nil)
+			mockEndpoints.SetUpdateError(nil)
 		})
 	})
 })

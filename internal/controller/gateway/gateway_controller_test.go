@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -82,6 +84,50 @@ var _ = Describe("Gateway controller", Ordered, func() {
 						g.Expect(obj.Status.Addresses).To(HaveLen(1))
 						g.Expect(obj.Status.Addresses[0].Type).To(Equal(gatewayv1.HostnameAddressType))
 						g.Expect(obj.Status.Addresses[0].Value).To(Equal(domain))
+					})
+				})
+
+				When("the gateway is annoated for cleanup", func() {
+					JustBeforeEach(func(ctx SpecContext) {
+						By("waiting for the gateway to be accepted")
+						ExpectGatewayAccepted(ctx, gw, timeout, interval)
+
+						By("waiting for the gateway to be added to the store")
+						Eventually(func(g Gomega) {
+							store := driver.GetStore()
+							fetched, err := store.GetGateway(gw.GetName(), gw.GetNamespace())
+							g.Expect(fetched).NotTo(BeNil())
+							g.Expect(err).To(BeNil())
+						}, timeout, interval).Should(Succeed())
+
+						By("annotating the gateway for cleanup")
+						kginkgo.ExpectAddAnnotations(ctx, gw, map[string]string{
+							controller.CleanupAnnotation: "true",
+						})
+					})
+
+					It("should remove the gateway from the store", func(_ SpecContext) {
+						Eventually(func(g Gomega) {
+							store := driver.GetStore()
+							fetched, err := store.GetGateway(gw.GetName(), gw.GetNamespace())
+							g.Expect(fetched).To(BeNil())
+							g.Expect(err).NotTo(BeNil())
+							g.Expect(errors.IsErrorNotFound(err)).To(BeTrue())
+						}, timeout, interval).Should(Succeed())
+					})
+
+					It("Should remove the finalizer from the gateway", func(ctx SpecContext) {
+						kginkgo.ExpectFinalizerToBeRemoved(ctx, gw, controller.FinalizerName)
+					})
+
+					It("should clear the gateway's addresses", func(ctx SpecContext) {
+						Eventually(func(g Gomega) {
+							obj := &gatewayv1.Gateway{}
+							g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), obj)).To(Succeed())
+
+							By("Checking the gateway has no addresses")
+							g.Expect(obj.Status.Addresses).To(HaveLen(0))
+						}, timeout, interval).Should(Succeed())
 					})
 				})
 			})

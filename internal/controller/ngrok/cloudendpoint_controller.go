@@ -92,9 +92,12 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Recorder: r.Recorder,
 
 		StatusID: func(clep *ngrokv1alpha1.CloudEndpoint) string { return clep.Status.ID },
-		Create:   r.create,
-		Update:   r.update,
-		Delete:   r.delete,
+		ClearStatus: func(clep *ngrokv1alpha1.CloudEndpoint) {
+			clep.Status = ngrokv1alpha1.CloudEndpointStatus{}
+		},
+		Create: r.create,
+		Update: r.update,
+		Delete: r.delete,
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.CloudEndpoint, err error) (ctrl.Result, error) {
 			retryableErrors := []int{
 				// 18016 and 18017 are state based errors that can happen when endpoint pooling for a given URL
@@ -149,6 +152,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
 			),
 		).
 		Complete(r)

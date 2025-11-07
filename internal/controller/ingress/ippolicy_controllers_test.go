@@ -6,6 +6,8 @@ import (
 
 	ngrok "github.com/ngrok/ngrok-api-go/v7"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -183,6 +185,52 @@ var _ = Describe("IPPolicyReconciler", func() {
 		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
 		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
 		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyRulesConfigured, metav1.ConditionTrue)
+	})
+
+	When("the IPPolicy is annotated for cleanup", func() {
+		var (
+			ip *ingressv1alpha1.IPPolicy
+		)
+		BeforeEach(func(ctx SpecContext) {
+			ip = &ingressv1alpha1.IPPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testutils.RandomName("test-ip-policy-cleanup"),
+					Namespace: "default",
+				},
+				Spec: ingressv1alpha1.IPPolicySpec{},
+			}
+			ip.Spec.Metadata = "test"
+			Expect(k8sClient.Create(ctx, ip)).To(Succeed())
+
+			By("waiting for the IPPolicy to be created")
+			kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
+			kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
+
+			By("annotating the IPPolicy for cleanup")
+			kginkgo.ExpectAddAnnotations(ctx, ip, map[string]string{
+				controller.CleanupAnnotation: "true",
+			})
+		})
+
+		It("should remove the IPPolicy from the ngrok account", func(ctx SpecContext) {
+			By("verifying the IPPolicy is deleted from ngrok")
+			Eventually(func(g Gomega) {
+				_, err := ipPolicyClient.Get(ctx, ip.Status.ID)
+				g.Expect(err).To(HaveOccurred())
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should remove the finalizer from the IPPolicy", func(ctx SpecContext) {
+			kginkgo.ExpectFinalizerToBeRemoved(ctx, ip, controller.FinalizerName)
+		})
+
+		It("should clear the IPPolicy's status", func(ctx SpecContext) {
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(ip), ip)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(ip.Status.ID).To(BeEmpty())
+			}, timeout, interval).Should(Succeed())
+		})
 	})
 })
 

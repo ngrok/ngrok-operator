@@ -30,7 +30,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -68,8 +67,9 @@ var (
 	driver       *managerdriver.Driver
 	domainClient *nmockapi.DomainClient
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	kginkgo *testutils.KGinkgo
+	ctx     context.Context
+	cancel  context.CancelFunc
 )
 
 func TestControllers(t *testing.T) {
@@ -119,8 +119,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	kginkgo = testutils.NewKGinkgo(k8sClient)
+
 	driver = managerdriver.NewDriver(
-		logr.New(logr.Discard().GetSink()),
+		GinkgoLogr,
 		scheme.Scheme,
 		testutils.DefaultControllerName,
 		types.NamespacedName{

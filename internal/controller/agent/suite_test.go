@@ -8,6 +8,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -21,15 +22,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
-var cfg *rest.Config
-var k8sClient client.Client
-var testEnv *envtest.Environment
+var (
+	cfg       *rest.Config
+	k8sClient client.Client
+	testEnv   *envtest.Environment
 
-// Env test manager and mock driver for controller runtime tests
-var envMgr ctrl.Manager
-var envCtx context.Context
-var envCancel context.CancelFunc
-var envMockDriver *agent.MockAgentDriver
+	// Env test manager and mock driver for controller runtime tests
+	envMgr        ctrl.Manager
+	envCtx        context.Context
+	envCancel     context.CancelFunc
+	envMockDriver *agent.MockAgentDriver
+
+	kginkgo *testutils.KGinkgo
+)
 
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -37,7 +42,12 @@ func TestControllers(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	logf.SetLogger(
+		zap.New(
+			zap.WriteTo(GinkgoWriter),
+			zap.UseDevMode(true),
+		),
+	)
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
@@ -59,6 +69,7 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+	kginkgo = testutils.NewKGinkgo(k8sClient)
 
 	// Set up environment test manager for controller runtime tests
 	envCtx, envCancel = context.WithCancel(context.Background())
