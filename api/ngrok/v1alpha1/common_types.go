@@ -83,7 +83,6 @@ func (ref *K8sObjectRefOptionalNamespace) Matches(obj client.Object) bool {
 		return false
 	}
 
-	// return true
 	ns := ptr.Deref(ref.Namespace, "")
 	return ns == "" || ns == obj.GetNamespace()
 }

@@ -257,8 +257,5 @@ func (m *Manager) deleteStaleBindingDomain(ctx context.Context, endpoint ngrokv1
 	domain.SetName(domainRef.Name)
 
 	log.Info("Deleting stale domain for binding-based endpoint", "domain", client.ObjectKeyFromObject(domain), "endpoint", client.ObjectKeyFromObject(endpoint))
-	if err := m.Client.Delete(ctx, domain); client.IgnoreNotFound(err) != nil {
-		return err
-	}
-	return nil
+	return client.IgnoreNotFound(m.Client.Delete(ctx, domain))
 }

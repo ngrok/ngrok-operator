@@ -200,7 +200,6 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 	// Set success condition
 	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint created successfully")
 
-	// Update status (includes requeue check for domain readiness)
 	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
 
@@ -243,7 +242,6 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	// Set success condition
 	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint updated successfully")
 
-	// Update status (includes requeue check for domain readiness)
 	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
 }
 

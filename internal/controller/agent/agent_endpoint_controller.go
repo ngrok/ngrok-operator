@@ -238,7 +238,6 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 		setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
 	}
 
-	// Update status (includes requeue check for domain readiness)
 	return r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil)
 }
 
