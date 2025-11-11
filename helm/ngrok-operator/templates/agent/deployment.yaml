@@ -15,6 +15,11 @@ metadata:
     checksum/rbac: {{ $rbacChecksum }}
 spec:
   replicas: {{ $agent.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
@@ -117,9 +122,9 @@ spec:
         volumeMounts:
         {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
         {{- end }}
-        {{- if .Values.lifecycle }}
+        {{- if or .Values.lifecycle $agent.lifecycle }}
         lifecycle:
-        {{ toYaml .Values.lifecycle | nindent 10 }}
+        {{ toYaml (default $agent.lifecycle .Values.lifecycle) | nindent 10 }}
         {{- end }}
         livenessProbe:
           httpGet:

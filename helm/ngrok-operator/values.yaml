@@ -304,6 +304,15 @@ agent:
   ##
   terminationGracePeriodSeconds: 30
 
+  ## @param agent.lifecycle Lifecycle hooks for the agent container
+  ## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
+  ## PreStop hook gives the agent time to gracefully disconnect from ngrok before termination
+  ##
+  lifecycle:
+    preStop:
+      exec:
+        command: ["/bin/sh", "-c", "sleep 15"]
+
   ## @param agent.tolerations Tolerations for the agent pod(s)
   tolerations: []
 
