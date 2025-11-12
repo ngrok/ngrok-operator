@@ -40,6 +40,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -1130,6 +1131,579 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				}
 				return false
 			}, 5*time.Second, interval).Should(BeTrue())
+		})
+	})
+
+	Context("Domain handling", func() {
+		It("should skip domain creation for Kubernetes-bound endpoint", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "k8s-bound-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "http://aws.demo",
+					Bindings: []string{"kubernetes"},
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://hello-aws.demo:80",
+					},
+				},
+			}
+
+			// Setup mock driver to return success
+			envMockDriver.SetEndpointResult(namespace+"/k8s-bound-endpoint", &agent.EndpointResult{
+				URL: "http://aws.demo",
+			})
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Verifying endpoint becomes ready without domain creation")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// Endpoint should be created
+				g.Expect(obj.Status.AssignedURL).To(Equal("http://aws.demo"))
+
+				// No domain ref should be set (kubernetes binding skips domain)
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+
+				// DomainReady condition should be True (no domain reservation needed)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(domainCond.Message).To(ContainSubstring("Kubernetes binding"))
+
+				// Ready condition should be True (all conditions satisfied)
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+
+				// Verify no Domain CRD was created
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(BeEmpty())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying mock driver was called to create endpoint")
+			Eventually(func() bool {
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name == namespace+"/k8s-bound-endpoint" {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+		})
+
+		When("the domainRef for kubernetes-bound endpoint is stale", func() {
+			var staleDomain *ingressv1alpha1.Domain
+			BeforeEach(func(ctx SpecContext) {
+				By("Creating a domain that would be stale")
+				staleDomain = &ingressv1alpha1.Domain{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "stale-domain-ref",
+						Namespace: namespace,
+					},
+					Spec: ingressv1alpha1.DomainSpec{
+						Domain: "test.default",
+					},
+				}
+				Expect(k8sClient.Create(ctx, staleDomain)).To(Succeed())
+
+				agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "k8s-binding-with-stale-ref",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.AgentEndpointSpec{
+						URL:      "http://test.default",
+						Bindings: []string{"kubernetes"},
+						Upstream: ngrokv1alpha1.EndpointUpstream{
+							URL: "http://test-service:80",
+						},
+					},
+					Status: ngrokv1alpha1.AgentEndpointStatus{
+						DomainRef: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+							Name:      staleDomain.GetName(),
+							Namespace: ptr.To(staleDomain.GetNamespace()),
+						},
+					},
+				}
+				envMockDriver.SetEndpointResult(namespace+"/k8s-binding-with-stale-ref", &agent.EndpointResult{
+					URL: "http://test.default",
+				})
+
+				By("Creating the AgentEndpoint with stale domainRef")
+				Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+			})
+
+			It("should clear the stale domainRef", func(ctx SpecContext) {
+				Eventually(func(g Gomega) {
+					obj := &ngrokv1alpha1.AgentEndpoint{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+					g.Expect(obj.Status.DomainRef).To(BeNil())
+
+					readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+					g.Expect(readyCond).NotTo(BeNil())
+					g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
+		It("should create endpoint even when domain is not ready", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "http://example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			envMockDriver.SetEndpointResult(namespace+"/test-endpoint", &agent.EndpointResult{
+				URL: "http://example.com",
+			})
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Waiting for controller to create Domain CR")
+			var domain *ingressv1alpha1.Domain
+			Eventually(func(g Gomega) {
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(HaveLen(1))
+				domain = &domains.Items[0]
+				g.Expect(domain.Spec.Domain).To(Equal("example.com"))
+			}, timeout, interval).Should(Succeed())
+
+			By("Waiting for endpoint to be created but not ready (domain not ready)")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// Endpoint should be created
+				g.Expect(obj.Status.AssignedURL).To(Equal("http://example.com"))
+
+				// DomainReady should be False (domain exists but not ready yet)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
+
+				// Ready should be False
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+
+			By("Making the domain ready")
+			Eventually(func(g Gomega) {
+				latestDomain := &ingressv1alpha1.Domain{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: domain.Name, Namespace: namespace}, latestDomain)).To(Succeed())
+				domain = latestDomain
+			}, timeout, interval).Should(Succeed())
+
+			// Update domain to be ready
+			domain.Status.ID = "dom_123"
+			domain.Status.Conditions = []metav1.Condition{
+				{
+					Type:               "Ready",
+					Status:             metav1.ConditionTrue,
+					Reason:             "DomainActive",
+					Message:            "Domain is active",
+					LastTransitionTime: metav1.Now(),
+					ObservedGeneration: domain.Generation,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, domain)).To(Succeed())
+
+			By("Verifying endpoint becomes ready after domain is ready")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// DomainReady should be True
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
+
+				// Ready should be True
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			}, 45*time.Second, interval).Should(Succeed())
+
+			By("Verifying mock driver was called to create endpoint")
+			Eventually(func() bool {
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name == namespace+"/test-endpoint" {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+		})
+
+		It("should reconcile endpoint when domain status becomes ready", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-domain-reconcile",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "https://test-reconcile.example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			envMockDriver.SetEndpointResult(namespace+"/test-domain-reconcile", &agent.EndpointResult{
+				URL: "https://test-reconcile.example.com",
+			})
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Waiting for Domain to be created")
+			var domain *ingressv1alpha1.Domain
+			Eventually(func(g Gomega) {
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(HaveLen(1))
+				domain = &domains.Items[0]
+				g.Expect(domain.Spec.Domain).To(Equal("test-reconcile.example.com"))
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying endpoint is not ready (domain not ready)")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+
+			By("Updating domain status to ready")
+			Eventually(func(g Gomega) {
+				latestDomain := &ingressv1alpha1.Domain{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), latestDomain)).To(Succeed())
+				latestDomain.Status.ID = "dom_456"
+				latestDomain.Status.CNAMETarget = ptr.To("test.ngrok-cname.com")
+				latestDomain.Status.Conditions = []metav1.Condition{
+					{
+						Type:               "Ready",
+						Status:             metav1.ConditionTrue,
+						Reason:             "DomainActive",
+						Message:            "Domain is active",
+						LastTransitionTime: metav1.Now(),
+						ObservedGeneration: latestDomain.Generation,
+					},
+				}
+				g.Expect(k8sClient.Status().Update(ctx, latestDomain)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying endpoint becomes ready after domain status update")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// DomainReady should be True
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
+
+				// Ready should be True
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			}, 45*time.Second, interval).Should(Succeed())
+		})
+
+		It("should clear stale domainRef when endpoint has kubernetes binding", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "endpoint-with-stale-ref",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "http://stale.example.com",
+					Bindings: []string{"kubernetes"},
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			envMockDriver.SetEndpointResult(namespace+"/endpoint-with-stale-ref", &agent.EndpointResult{
+				URL: "http://stale.example.com",
+			})
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Waiting for endpoint to be created and ready (no domain needed for k8s binding)")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+
+			By("Simulating a stale domainRef by updating status")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				obj.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					Name:      "stale-example-com",
+					Namespace: ptr.To(namespace),
+				}
+				g.Expect(k8sClient.Status().Update(ctx, obj)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying stale domainRef is cleared on next reconcile")
+			// Touch the endpoint to trigger reconcile
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				if obj.Annotations == nil {
+					obj.Annotations = map[string]string{}
+				}
+				obj.Annotations["test.trigger"] = "reconcile"
+				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should delete stale domain when endpoint has kubernetes binding and domainRef", func(ctx SpecContext) {
+			// Create domain first
+			staleDomain := &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "stale-to-delete-example-com",
+					Namespace: namespace,
+				},
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: "stale-to-delete.example.com",
+				},
+			}
+			Expect(k8sClient.Create(ctx, staleDomain)).To(Succeed())
+
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "endpoint-triggers-domain-delete",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "https://stale-to-delete.example.com",
+					Bindings: []string{"kubernetes"},
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			envMockDriver.SetEndpointResult(namespace+"/endpoint-triggers-domain-delete", &agent.EndpointResult{
+				URL: "https://stale-to-delete.example.com",
+			})
+
+			By("Creating the AgentEndpoint with kubernetes binding")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Waiting for endpoint to become ready initially")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+
+			By("Simulating stale domainRef by setting it (as if domain was created before binding was added)")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				obj.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					Name:      staleDomain.Name,
+					Namespace: ptr.To(namespace),
+				}
+				g.Expect(k8sClient.Status().Update(ctx, obj)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Triggering reconcile by updating annotation")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				if obj.Annotations == nil {
+					obj.Annotations = map[string]string{}
+				}
+				obj.Annotations["test.trigger"] = "reconcile-domain-delete"
+				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying domain has deletion timestamp or is deleted")
+			Eventually(func(g Gomega) {
+				latestDomain := &ingressv1alpha1.Domain{}
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(staleDomain), latestDomain)
+				if err != nil {
+					// Domain deleted if there's no finalizer
+					g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+				} else {
+					// Domain exists but should have DeletionTimestamp set
+					g.Expect(latestDomain.DeletionTimestamp).NotTo(BeNil(), "Domain should be marked for deletion")
+				}
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying domainRef is cleared after reconciliation")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should handle multiple Kubernetes-bound endpoints with same domain", func(ctx SpecContext) {
+			endpoints := []*ngrokv1alpha1.AgentEndpoint{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "k8s-endpoint-1",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.AgentEndpointSpec{
+						URL:      "http://aws.demo",
+						Bindings: []string{"kubernetes"},
+						Upstream: ngrokv1alpha1.EndpointUpstream{
+							URL: "http://service-1:80",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "k8s-endpoint-2",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.AgentEndpointSpec{
+						URL:      "http://aws.demo",
+						Bindings: []string{"kubernetes"},
+						Upstream: ngrokv1alpha1.EndpointUpstream{
+							URL: "http://service-2:80",
+						},
+					},
+				},
+			}
+
+			// Setup mock results
+			envMockDriver.SetEndpointResult(namespace+"/k8s-endpoint-1", &agent.EndpointResult{URL: "http://aws.demo"})
+			envMockDriver.SetEndpointResult(namespace+"/k8s-endpoint-2", &agent.EndpointResult{URL: "http://aws.demo"})
+
+			By("Creating multiple endpoints with same domain")
+			for _, ep := range endpoints {
+				Expect(k8sClient.Create(ctx, ep)).To(Succeed())
+			}
+
+			By("Verifying all endpoints become ready without domain conflicts")
+			for _, ep := range endpoints {
+				Eventually(func(g Gomega) {
+					obj := &ngrokv1alpha1.AgentEndpoint{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ep), obj)).To(Succeed())
+
+					readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+					g.Expect(readyCond).NotTo(BeNil())
+					g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+				}, timeout, interval).Should(Succeed())
+			}
+
+			By("Verifying no Domain CRD was created")
+			Eventually(func(g Gomega) {
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(BeEmpty())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying mock driver was called for both endpoints")
+			Eventually(func() int {
+				count := 0
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name == namespace+"/k8s-endpoint-1" || call.Name == namespace+"/k8s-endpoint-2" {
+						count++
+					}
+				}
+				return count
+			}, timeout, interval).Should(Equal(2))
+		})
+	})
+
+	Context("Bindings validation", func() {
+		It("should reject endpoint with multiple bindings", func() {
+			// This should be caught by k8s validation (MaxItems=1), so we expect the Create to fail
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-multiple-bindings",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "http://test.demo",
+					Bindings: []string{"public", "internal"}, // Multiple bindings should be rejected
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			err := k8sClient.Create(context.Background(), agentEndpoint)
+			Expect(err).To(HaveOccurred()) // Should be rejected by validation
+			Expect(err.Error()).To(Or(
+				ContainSubstring("must have at most 1 items"),
+				ContainSubstring("maxItems"),
+			))
+		})
+
+		It("should accept endpoint with single binding", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "valid-single-binding",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "http://test.demo",
+					Bindings: []string{"internal"}, // Single binding is valid
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			// Setup mock driver to return success
+			envMockDriver.SetEndpointResult(namespace+"/valid-single-binding", &agent.EndpointResult{
+				URL: "http://test.demo",
+			})
+
+			By("Creating the AgentEndpoint with single binding")
+			err := k8sClient.Create(ctx, agentEndpoint)
+			Expect(err).NotTo(HaveOccurred()) // Should be accepted
+
+			By("Verifying endpoint is created successfully")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Spec.Bindings).To(Equal([]string{"internal"}))
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 })

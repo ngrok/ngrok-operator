@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"time"
 
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
@@ -540,6 +541,297 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 			// Clean up error for other tests
 			mockClientset.Endpoints().(*nmockapi.EndpointsClient).SetUpdateError(nil)
+		})
+	})
+
+	Context("Domain handling", func() {
+		It("should skip domain creation for Kubernetes-bound endpoint", func(ctx SpecContext) {
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "k8s-bound-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:      "http://aws.demo",
+					Bindings: []string{"kubernetes"},
+				},
+			}
+
+			By("Creating the CloudEndpoint")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Verifying endpoint becomes ready without domain creation")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+
+				// Endpoint should be created
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+				// No domain ref should be set (kubernetes binding skips domain)
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+
+				// DomainReady condition should be True (no domain reservation needed)
+				domainCond := findCloudEndpointCondition(obj.Status.Conditions, "DomainReady")
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(domainCond.Message).To(ContainSubstring("Kubernetes binding"))
+
+				// Ready condition should be True (all conditions satisfied)
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no Domain CRD was created")
+			domains := &ingressv1alpha1.DomainList{}
+			Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+			Expect(domains.Items).To(BeEmpty())
+
+			By("Verifying endpoint was created in mock client")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+				endpoint, err := mockClientset.Endpoints().Get(ctx, obj.Status.ID)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(endpoint.URL).To(Equal("http://aws.demo"))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should clear stale domainRef for internal domain endpoint", func(ctx SpecContext) {
+			staleDomainName := "stale-domain-ref"
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "internal-with-stale-ref",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "http://test.internal",
+				},
+				Status: ngrokv1alpha1.CloudEndpointStatus{
+					DomainRef: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						Name:      staleDomainName,
+						Namespace: &namespace,
+					},
+				},
+			}
+
+			By("Creating the CloudEndpoint with stale domainRef")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Verifying controller clears the stale domainRef")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should create endpoint even when domain is not ready", func(ctx SpecContext) {
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "http://example.com",
+				},
+			}
+
+			By("Creating the CloudEndpoint")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Waiting for controller to create Domain CR")
+			var domain *ingressv1alpha1.Domain
+			Eventually(func(g Gomega) {
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(HaveLen(1))
+				domain = &domains.Items[0]
+				g.Expect(domain.Spec.Domain).To(Equal("example.com"))
+			}, timeout, interval).Should(Succeed())
+
+			By("Waiting for endpoint to be created but not ready (domain not ready)")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+
+				// Endpoint should be created
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+				// DomainReady should be False (domain exists but not ready yet)
+				domainCond := findCloudEndpointCondition(obj.Status.Conditions, "DomainReady")
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
+
+				// Ready should be False
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+
+			By("Making the domain ready")
+			Eventually(func(g Gomega) {
+				latestDomain := &ingressv1alpha1.Domain{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: domain.Name, Namespace: namespace}, latestDomain)).To(Succeed())
+				domain = latestDomain
+			}, timeout, interval).Should(Succeed())
+
+			// Update domain to be ready
+			domain.Status.ID = "dom_123"
+			domain.Status.Conditions = []metav1.Condition{
+				{
+					Type:               "Ready",
+					Status:             metav1.ConditionTrue,
+					Reason:             "DomainActive",
+					Message:            "Domain is active",
+					LastTransitionTime: metav1.Now(),
+					ObservedGeneration: domain.Generation,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, domain)).To(Succeed())
+
+			By("Verifying endpoint becomes ready after domain is ready")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+
+				// DomainReady should be True
+				domainCond := findCloudEndpointCondition(obj.Status.Conditions, "DomainReady")
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
+
+				// Ready should be True
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			}, 45*time.Second, interval).Should(Succeed())
+
+			By("Verifying endpoint was created in mock client")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+				endpoint, err := mockClientset.Endpoints().Get(ctx, obj.Status.ID)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(endpoint.URL).To(Equal("http://example.com"))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should handle multiple Kubernetes-bound endpoints with different domains", func(ctx SpecContext) {
+			// Use different URLs to avoid pooling issues in mock
+			endpoints := []*ngrokv1alpha1.CloudEndpoint{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "k8s-endpoint-1",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.CloudEndpointSpec{
+						URL:      "http://aws1.demo",
+						Bindings: []string{"kubernetes"},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "k8s-endpoint-2",
+						Namespace: namespace,
+					},
+					Spec: ngrokv1alpha1.CloudEndpointSpec{
+						URL:      "http://aws2.demo",
+						Bindings: []string{"kubernetes"},
+					},
+				},
+			}
+
+			By("Creating multiple endpoints with same domain")
+			for _, ep := range endpoints {
+				Expect(k8sClient.Create(ctx, ep)).To(Succeed())
+			}
+
+			By("Verifying all endpoints become ready without domain conflicts")
+			for _, ep := range endpoints {
+				Eventually(func(g Gomega) {
+					obj := &ngrokv1alpha1.CloudEndpoint{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ep), obj)).To(Succeed())
+
+					readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+					g.Expect(readyCond).NotTo(BeNil())
+					g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+				}, timeout, interval).Should(Succeed())
+			}
+
+			By("Verifying no Domain CRD was created")
+			domains := &ingressv1alpha1.DomainList{}
+			Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+			Expect(domains.Items).To(BeEmpty())
+
+			By("Verifying both endpoints were created in mock client")
+			for _, ep := range endpoints {
+				Eventually(func(g Gomega) {
+					obj := &ngrokv1alpha1.CloudEndpoint{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ep), obj)).To(Succeed())
+					g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+					endpoint, err := mockClientset.Endpoints().Get(ctx, obj.Status.ID)
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(endpoint.URL).To(Or(Equal("http://aws1.demo"), Equal("http://aws2.demo")))
+				}, timeout, interval).Should(Succeed())
+			}
+		})
+	})
+
+	Context("Bindings validation", func() {
+		It("should reject endpoint with multiple bindings", func() {
+			// This should be caught by k8s validation (MaxItems=1), so we expect the Create to fail
+			cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-multiple-bindings",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:      "http://test.demo",
+					Bindings: []string{"public", "kubernetes"}, // Multiple bindings should be rejected
+				},
+			}
+
+			err := k8sClient.Create(context.Background(), cloudEndpoint)
+			Expect(err).To(HaveOccurred()) // Should be rejected by validation
+			Expect(err.Error()).To(Or(
+				ContainSubstring("must have at most 1 items"),
+				ContainSubstring("maxItems"),
+			))
+		})
+
+		It("should accept endpoint with single binding", func(ctx SpecContext) {
+			cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "valid-single-binding",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:      "http://test-internal.demo",
+					Bindings: []string{"internal"}, // Single binding is valid
+				},
+			}
+
+			By("Creating the CloudEndpoint with single binding")
+			err := k8sClient.Create(ctx, cloudEndpoint)
+			Expect(err).NotTo(HaveOccurred()) // Should be accepted
+
+			By("Verifying endpoint is created successfully")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Spec.Bindings).To(Equal([]string{"internal"}))
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 })

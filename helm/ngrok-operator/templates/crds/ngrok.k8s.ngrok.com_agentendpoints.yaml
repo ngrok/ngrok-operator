@@ -63,6 +63,7 @@ spec:
                   Accepted values are "public", "internal", or "kubernetes"
                 items:
                   type: string
+                maxItems: 1
                 type: array
               clientCertificateRefs:
                 description: List of client certificates to present to the upstream

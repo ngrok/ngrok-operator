@@ -37,6 +37,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -122,7 +123,7 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Delete:   r.delete,
 		StatusID: r.statusID,
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
-			if errors.Is(err, domainpkg.ErrDomainCreating) {
+			if errors.Is(err, domainpkg.ErrDomainNotReady) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
@@ -154,7 +155,12 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ngrokv1alpha1.AgentEndpoint{}).
+		For(&ngrokv1alpha1.AgentEndpoint{}, builder.WithPredicates(
+			predicate.Or(
+				predicate.AnnotationChangedPredicate{},
+				predicate.GenerationChangedPredicate{},
+			),
+		)).
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForTrafficPolicy),
@@ -175,11 +181,9 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				},
 			}),
 		).
-		WithEventFilter(
-			predicate.Or(
-				predicate.AnnotationChangedPredicate{},
-				predicate.GenerationChangedPredicate{},
-			),
+		Watches(
+			&ingressv1alpha1.Domain{},
+			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointsForDomain),
 		).
 		Complete(r)
 }
@@ -198,7 +202,7 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	setReconcilingCondition(endpoint, "Reconciling AgentEndpoint")
 
 	// EnsureDomainExists checks if the domain exists, creates it if needed, and sets conditions/domainRef
-	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint, endpoint.Spec.URL)
+	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint)
 	if err != nil {
 		return r.updateStatus(ctx, endpoint, nil, "", domainResult, err)
 	}
@@ -307,6 +311,46 @@ func (r *AgentEndpointReconciler) findAgentEndpointForSecret(ctx context.Context
 		})
 	}
 
+	return requests
+}
+
+// findAgentEndpointsForDomain searches for any AgentEndpoint CRs that reference a particular Domain
+func (r *AgentEndpointReconciler) findAgentEndpointsForDomain(ctx context.Context, o client.Object) []ctrl.Request {
+	domain, ok := o.(*ingressv1alpha1.Domain)
+	if !ok {
+		return nil
+	}
+
+	var endpoints ngrokv1alpha1.AgentEndpointList
+	if err := r.Client.List(ctx, &endpoints, client.InNamespace(domain.Namespace)); err != nil {
+		return nil
+	}
+
+	// Get the domain name from the Domain CR
+	domainName := domain.Spec.Domain
+	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domainName)
+
+	var requests []ctrl.Request
+	// First match by domainRef
+	for _, ep := range endpoints.Items {
+		if ep.GetDomainRef().Matches(domain) {
+			requests = append(requests, ctrl.Request{
+				NamespacedName: client.ObjectKeyFromObject(&ep),
+			})
+			continue
+		}
+
+		// ALSO match by URL - critical for catching domains created by old pods during rolling updates
+		// When old pod creates domain, domainRef might not be set yet in the cached view
+		if ep.Spec.URL != "" {
+			parsedURL, err := util.ParseAndSanitizeEndpointURL(ep.Spec.URL, true)
+			if err == nil && ingressv1alpha1.HyphenatedDomainNameFromURL(parsedURL.Hostname()) == hyphenatedDomain {
+				requests = append(requests, ctrl.Request{
+					NamespacedName: client.ObjectKeyFromObject(&ep),
+				})
+			}
+		}
+	}
 	return requests
 }
 
@@ -433,5 +477,13 @@ func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ng
 	calculateAgentEndpointReadyCondition(endpoint, domainResult)
 
 	// Write status to k8s API
-	return r.controller.ReconcileStatus(ctx, endpoint, statusErr)
+	if err := r.controller.ReconcileStatus(ctx, endpoint, statusErr); err != nil {
+		return err
+	}
+
+	// Requeue if domain is not ready (fallback to watch for convergence)
+	if domainResult != nil {
+		return domainResult.RequeueError()
+	}
+	return nil
 }
