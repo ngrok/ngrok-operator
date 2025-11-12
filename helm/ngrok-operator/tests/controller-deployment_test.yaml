@@ -163,7 +163,16 @@ tests:
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
-      content: --description="test description"
+      content: --description=test description
+- it: Should pass description when description has special characters
+  set:
+    description: 'lets-go: with spaces'
+  template: controller-deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: '--description=lets-go: with spaces'
 - it: Should support deprecated metaData to the deployment
   set:
     metaData:
