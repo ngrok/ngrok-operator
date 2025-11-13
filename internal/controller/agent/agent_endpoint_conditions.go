@@ -22,7 +22,6 @@ const (
 	ReasonUpstreamError      = "UpstreamError"
 	ReasonEndpointCreated    = "EndpointCreated"
 	ReasonConfigError        = "ConfigurationError"
-	ReasonReconciling        = "Reconciling"
 )
 
 // setReadyCondition sets the Ready condition based on the overall endpoint state
@@ -77,11 +76,6 @@ func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bo
 	}
 
 	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
-}
-
-// setReconcilingCondition sets a temporary reconciling condition
-func setReconcilingCondition(endpoint *ngrokv1alpha1.AgentEndpoint, message string) {
-	setReadyCondition(endpoint, false, ReasonReconciling, message)
 }
 
 // calculateAgentEndpointReadyCondition calculates the overall Ready condition based on other conditions and domain status
