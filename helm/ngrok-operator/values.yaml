@@ -302,22 +302,20 @@ agent:
   ## @param agent.strategy.rollingUpdate.maxSurge Maximum number of pods that can be created over the desired number during updates
   ## @param agent.strategy.rollingUpdate.maxUnavailable Maximum number of pods that can be unavailable during updates
   ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
-  ## Setting maxSurge to 0 prevents session limit issues during rolling updates
   ##
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+  strategy: {}
+  #  type: RollingUpdate
+  #  rollingUpdate:
+  #    maxUnavailable: 0
+  #    maxSurge: 1
+  # Or use Recreate to avoid running multiple instances:
+  #  type: Recreate
 
   ## @param agent.terminationGracePeriodSeconds The amount of time to wait for the agent pod to gracefully terminate
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
   ## Increase this value to give the operator more time to clean up finalizers during shutdown
   ##
   terminationGracePeriodSeconds: 30
-
-  ## @param agent.lifecycle Lifecycle hooks for the agent container
-  ## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
 
   ## @param agent.tolerations Tolerations for the agent pod(s)
   tolerations: []
@@ -393,6 +391,19 @@ bindings:
       create: true
       name: ""
       annotations: {}
+
+    ## @param bindings.forwarder.strategy.type Deployment strategy type (RollingUpdate or Recreate)
+    ## @param bindings.forwarder.strategy.rollingUpdate.maxSurge Maximum number of pods that can be created over the desired number during updates
+    ## @param bindings.forwarder.strategy.rollingUpdate.maxUnavailable Maximum number of pods that can be unavailable during updates
+    ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+    ##
+    strategy: {}
+    #  type: RollingUpdate
+    #  rollingUpdate:
+    #    maxUnavailable: 0
+    #    maxSurge: 1
+    # Or use Recreate to avoid running multiple instances:
+    #  type: Recreate
 
     ## @param bindings.forwarder.terminationGracePeriodSeconds The amount of time to wait for the bindings forwarder pod to gracefully terminate
     ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
