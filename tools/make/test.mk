@@ -24,8 +24,10 @@ validate: build test lint manifests helm-update-snapshots ## Validate the codeba
 
 .PHONY: e2e-tests
 e2e-tests: ## Run e2e tests
-	chainsaw test ./tests/chainsaw --exclude-test-regex 'chainsaw/_skip_*.yaml'
-
+	chainsaw test ./tests/chainsaw \
+		--exclude-test-regex 'chainsaw/_skip_*.yaml' \
+		--namespace e2e \
+		--cleanup-timeout 2m
 
 .PHONY: e2e-clean
 e2e-clean: ## Clean up e2e tests
