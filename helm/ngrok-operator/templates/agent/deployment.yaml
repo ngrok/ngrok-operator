@@ -15,11 +15,10 @@ metadata:
     checksum/rbac: {{ $rbacChecksum }}
 spec:
   replicas: {{ $agent.replicaCount }}
+  {{- if $agent.strategy }}
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+    {{- toYaml $agent.strategy | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}

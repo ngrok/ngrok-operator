@@ -82,13 +82,6 @@ Should match snapshot:
                   value: RELEASE-NAME
               image: docker.io/ngrok/ngrok-operator:0.19.0
               imagePullPolicy: IfNotPresent
-              lifecycle:
-                preStop:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - sleep 15
               livenessProbe:
                 httpGet:
                   path: /healthz

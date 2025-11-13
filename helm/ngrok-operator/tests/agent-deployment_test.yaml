@@ -4,7 +4,7 @@ templates:
 - agent/rbac.yaml
 - credentials-secret.yaml
 tests:
-- it: Should have rolling update strategy with maxSurge 0 and maxUnavailable 1
+- it: Should have default rolling update strategy with maxSurge 0 and maxUnavailable 1
   set:
     ingress.enabled: true
     credentials.apiKey: test-api-key
@@ -22,33 +22,39 @@ tests:
       path: spec.strategy.rollingUpdate.maxUnavailable
       value: 1
 
-- it: Should have default lifecycle preStop hook from agent.lifecycle
+- it: Should allow overriding strategy type to Recreate
   set:
     ingress.enabled: true
     credentials.apiKey: test-api-key
     credentials.authtoken: test-authtoken
+    agent.strategy:
+      type: Recreate
   template: agent/deployment.yaml
   documentIndex: 0
   asserts:
   - equal:
-      path: spec.template.spec.containers[0].lifecycle.preStop.exec.command
-      value: ["/bin/sh", "-c", "sleep 15"]
+      path: spec.strategy.type
+      value: Recreate
 
-- it: Should override agent.lifecycle with global lifecycle when both are set
+- it: Should allow custom rollingUpdate values
   set:
     ingress.enabled: true
     credentials.apiKey: test-api-key
     credentials.authtoken: test-authtoken
-    lifecycle:
-      preStop:
-        exec:
-          command: ["/bin/sh", "-c", "sleep 30"]
+    agent.strategy.rollingUpdate.maxSurge: 1
+    agent.strategy.rollingUpdate.maxUnavailable: 0
   template: agent/deployment.yaml
   documentIndex: 0
   asserts:
   - equal:
-      path: spec.template.spec.containers[0].lifecycle.preStop.exec.command
-      value: ["/bin/sh", "-c", "sleep 30"]
+      path: spec.strategy.type
+      value: RollingUpdate
+  - equal:
+      path: spec.strategy.rollingUpdate.maxSurge
+      value: 1
+  - equal:
+      path: spec.strategy.rollingUpdate.maxUnavailable
+      value: 0
 
 - it: Should have default terminationGracePeriodSeconds of 30
   set:

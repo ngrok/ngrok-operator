@@ -298,6 +298,18 @@ agent:
     name: ""
     annotations: {}
 
+  ## @param agent.strategy.type Deployment strategy type (RollingUpdate or Recreate)
+  ## @param agent.strategy.rollingUpdate.maxSurge Maximum number of pods that can be created over the desired number during updates
+  ## @param agent.strategy.rollingUpdate.maxUnavailable Maximum number of pods that can be unavailable during updates
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+  ## Setting maxSurge to 0 prevents session limit issues during rolling updates
+  ##
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+
   ## @param agent.terminationGracePeriodSeconds The amount of time to wait for the agent pod to gracefully terminate
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
   ## Increase this value to give the operator more time to clean up finalizers during shutdown
@@ -306,12 +318,6 @@ agent:
 
   ## @param agent.lifecycle Lifecycle hooks for the agent container
   ## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
-  ## PreStop hook gives the agent time to gracefully disconnect from ngrok before termination
-  ##
-  lifecycle:
-    preStop:
-      exec:
-        command: ["/bin/sh", "-c", "sleep 15"]
 
   ## @param agent.tolerations Tolerations for the agent pod(s)
   tolerations: []
