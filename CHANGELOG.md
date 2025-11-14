@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.19.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.19.0...ngrok-operator-0.19.1
+
+### Added
+
+- feat: Add util documentation and tests by @jonstacks in [#707](https://github.com/ngrok/ngrok-operator/pull/707)
+
+### Fixed
+
+- Don't create domains for k8s bound endpoints by @alex-bezek in [#705](https://github.com/ngrok/ngrok-operator/pull/705)
+- Remove the setting the ready reason to reconciling by @alex-bezek in [#712](https://github.com/ngrok/ngrok-operator/pull/712)
+- fix: Created condition on existing IP Policy Rules by @jonstacks in [#702](https://github.com/ngrok/ngrok-operator/pull/702)
+
 ## 0.19.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.18.0...ngrok-operator-0.19.0
 
