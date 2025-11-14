@@ -121,9 +121,9 @@ spec:
         volumeMounts:
         {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
         {{- end }}
-        {{- if or .Values.lifecycle $agent.lifecycle }}
+        {{- if .Values.lifecycle }}
         lifecycle:
-        {{ toYaml (default $agent.lifecycle .Values.lifecycle) | nindent 10 }}
+        {{ toYaml .Values.lifecycle | nindent 10 }}
         {{- end }}
         livenessProbe:
           httpGet:
