@@ -596,6 +596,31 @@ entries:
   ngrok-operator:
   - apiVersion: v2
     appVersion: 0.19.1
+    created: "2025-11-17T22:35:41.407263116Z"
+    dependencies:
+    - name: common
+      repository: oci://registry-1.docker.io/bitnamicharts
+      tags:
+      - bitnami-common
+      version: 2.x.x
+    description: The official ngrok Kubernetes Operator.
+    digest: a164623c286c567d325f618ecfc587ce85e4fadd2c89caf666c2f932b55b753c
+    home: https://ngrok.com
+    icon: https://charts.ngrok.com/assets/ngrok-favicon.svg
+    keywords:
+    - ngrok
+    - networking
+    - ingress
+    - edge
+    - api gateway
+    name: ngrok-operator
+    sources:
+    - https://github.com/ngrok/ngrok-operator
+    urls:
+    - https://github.com/ngrok/ngrok-operator/releases/download/helm-chart-0.21.1/ngrok-operator-0.21.1.tgz
+    version: 0.21.1
+  - apiVersion: v2
+    appVersion: 0.19.1
     created: "2025-11-14T16:42:07.477814344Z"
     dependencies:
     - name: common
@@ -1019,4 +1044,4 @@ entries:
     urls:
     - https://github.com/ngrok/ngrok-operator/releases/download/helm-chart-0.16.0/ngrok-operator-0.16.0.tgz
     version: 0.16.0
-generated: "2025-11-14T16:42:07.478055395Z"
+generated: "2025-11-17T22:35:41.40744776Z"
