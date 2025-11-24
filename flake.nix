@@ -19,6 +19,21 @@
           };
         };
 
+        readmeGeneratorForHelm = pkgs.buildNpmPackage {
+          pname = "readme-generator-for-helm";
+          version = "2.6.1";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "bitnami";
+            repo = "readme-generator-for-helm";
+            rev = "2.6.1";
+            hash = "sha256-hgVSiYOM33MMxVlt36aEc0uBWIG/OS0l7X7ZYNESO6A=";
+          };
+
+          npmDepsHash = "sha256-baRBchp4dBruLg0DoGq7GsgqXkI/mBBDowtAljC2Ckk=";
+          dontNpmBuild = true;
+        };
+
         mkScript = name: text: let
           script = pkgs.writeShellScriptBin name text;
         in script;
@@ -55,6 +70,8 @@ EOF
         ];
       in
       {
+        packages.readme-generator-for-helm = readmeGeneratorForHelm;
+
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             go_1_24
@@ -71,6 +88,7 @@ EOF
             nixfmt-rfc-style
             tilt
             yq
+            readmeGeneratorForHelm
           ] ++ scripts;
 
           CGO_ENABLED = "0";
