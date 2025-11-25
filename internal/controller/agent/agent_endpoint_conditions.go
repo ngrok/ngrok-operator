@@ -22,7 +22,6 @@ const (
 	ReasonUpstreamError      = "UpstreamError"
 	ReasonEndpointCreated    = "EndpointCreated"
 	ReasonConfigError        = "ConfigurationError"
-	ReasonReconciling        = "Reconciling"
 )
 
 // setReadyCondition sets the Ready condition based on the overall endpoint state
@@ -79,11 +78,6 @@ func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bo
 	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
 }
 
-// setReconcilingCondition sets a temporary reconciling condition
-func setReconcilingCondition(endpoint *ngrokv1alpha1.AgentEndpoint, message string) {
-	setReadyCondition(endpoint, false, ReasonReconciling, message)
-}
-
 // calculateAgentEndpointReadyCondition calculates the overall Ready condition based on other conditions and domain status
 func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, domainResult *domainpkg.DomainResult) {
 	// Check all required conditions
@@ -97,8 +91,11 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 		trafficPolicyReady = false
 	}
 
-	// Check if domain is ready
-	domainReady := domainResult.IsReady
+	// Check if domain is ready (default to false for safety)
+	domainReady := false
+	if domainResult != nil {
+		domainReady = domainResult.IsReady
+	}
 
 	// Overall ready status - all conditions must be true
 	ready := endpointCreated && trafficPolicyReady && domainReady
@@ -111,7 +108,7 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 		message = "AgentEndpoint is active and ready"
 	case !domainReady:
 		// Use the domain's Ready condition reason/message for better context
-		if domainResult.ReadyReason != "" {
+		if domainResult != nil && domainResult.ReadyReason != "" {
 			reason = domainResult.ReadyReason
 			message = domainResult.ReadyMessage
 		} else {

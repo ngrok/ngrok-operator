@@ -79,6 +79,7 @@ type CloudEndpointSpec struct {
 	// Accepted values are "public", "internal", or "kubernetes"
 	//
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=1
 	// +kubebuilder:validation:Items=pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 }
@@ -94,7 +95,9 @@ type CloudEndpointStatus struct {
 
 	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.
-	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Nullable
+	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
 
 	// Conditions describe the current conditions of the AgentEndpoint.
 	//
@@ -180,6 +183,16 @@ func (c *CloudEndpoint) GetDomainRef() *K8sObjectRefOptionalNamespace {
 // SetDomainRef sets the domain reference for CloudEndpoint
 func (c *CloudEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
 	c.Status.DomainRef = ref
+}
+
+// GetURL returns the URL for the CloudEndpoint
+func (c *CloudEndpoint) GetURL() string {
+	return c.Spec.URL
+}
+
+// GetBindings returns the bindings for the CloudEndpoint
+func (c *CloudEndpoint) GetBindings() []string {
+	return c.Spec.Bindings
 }
 
 func init() {

@@ -136,6 +136,7 @@ type AgentEndpointSpec struct {
 	// Accepted values are "public", "internal", or "kubernetes"
 	//
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=1
 	// +kubebuilder:validation:Items=pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 
@@ -192,7 +193,9 @@ type AgentEndpointStatus struct {
 
 	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.
-	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Nullable
+	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
 
 	// Conditions describe the current conditions of the AgentEndpoint.
 	//
@@ -233,6 +236,16 @@ func (a *AgentEndpoint) GetDomainRef() *K8sObjectRefOptionalNamespace {
 // SetDomainRef sets the domain reference for AgentEndpoint
 func (a *AgentEndpoint) SetDomainRef(ref *K8sObjectRefOptionalNamespace) {
 	a.Status.DomainRef = ref
+}
+
+// GetURL returns the URL for the AgentEndpoint
+func (a *AgentEndpoint) GetURL() string {
+	return a.Spec.URL
+}
+
+// GetBindings returns the bindings for the AgentEndpoint
+func (a *AgentEndpoint) GetBindings() []string {
+	return a.Spec.Bindings
 }
 
 func init() {

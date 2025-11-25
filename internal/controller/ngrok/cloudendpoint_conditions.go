@@ -64,8 +64,11 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 		cloudEndpointCreated = true
 	}
 
-	// Check if domain is ready
-	domainReady := domainResult.IsReady
+	// Check if domain is ready (default to false for safety)
+	domainReady := false
+	if domainResult != nil {
+		domainReady = domainResult.IsReady
+	}
 
 	// Overall ready status
 	ready := cloudEndpointCreated && domainReady
@@ -78,7 +81,7 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 		message = "CloudEndpoint is active and ready"
 	case !domainReady:
 		// Use the domain's Ready condition reason/message for better context
-		if domainResult.ReadyReason != "" {
+		if domainResult != nil && domainResult.ReadyReason != "" {
 			reason = domainResult.ReadyReason
 			message = domainResult.ReadyMessage
 		} else {
