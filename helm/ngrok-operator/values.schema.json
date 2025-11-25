@@ -513,8 +513,13 @@
                         },
                         "updateStrategy": {
                             "type": "object",
-                            "description": "Bindings Forwarder update strategy",
-                            "default": {}
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Bindings Forwarder update strategy type",
+                                    "default": "RollingUpdate"
+                                }
+                            }
                         },
                         "terminationGracePeriodSeconds": {
                             "type": "number",

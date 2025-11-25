@@ -170,7 +170,7 @@ To uninstall the chart:
 | `bindings.forwarder.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the bindings forwarder pod(s).                       | `true`                                    |
 | `bindings.forwarder.serviceAccount.name`           | The name of the ServiceAccount to use for the bindings forwarder pod(s).                                      | `""`                                      |
 | `bindings.forwarder.serviceAccount.annotations`    | Additional annotations to add to the bindings-forwarder ServiceAccount                                        | `{}`                                      |
-| `bindings.forwarder.updateStrategy`                | Bindings Forwarder update strategy                                                                            | `{}`                                      |
+| `bindings.forwarder.updateStrategy.type`           | Bindings Forwarder update strategy type                                                                       | `RollingUpdate`                           |
 | `bindings.forwarder.terminationGracePeriodSeconds` | The amount of time to wait for the bindings forwarder pod to gracefully terminate                             | `30`                                      |
 | `bindings.forwarder.tolerations`                   | Tolerations for the bindings forwarder pod(s)                                                                 | `[]`                                      |
 | `bindings.forwarder.nodeSelector`                  | Node labels for the bindings forwarder pod(s)                                                                 | `{}`                                      |
