@@ -298,18 +298,15 @@ agent:
     name: ""
     annotations: {}
 
-  ## @param agent.strategy.type Deployment strategy type (RollingUpdate or Recreate)
-  ## @param agent.strategy.rollingUpdate.maxSurge Maximum number of pods that can be created over the desired number during updates
-  ## @param agent.strategy.rollingUpdate.maxUnavailable Maximum number of pods that can be unavailable during updates
-  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+  ## @param agent.updateStrategy.type Agent update strategy
+  ## @skip agent.updateStrategy.rollingUpdate
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
   ##
-  strategy: {}
-  #  type: RollingUpdate
-  #  rollingUpdate:
-  #    maxUnavailable: 0
-  #    maxSurge: 1
-  # Or use Recreate to avoid running multiple instances:
-  #  type: Recreate
+  updateStrategy:
+    ## StrategyType
+    ## Can be set to RollingUpdate, OnDelete (statefulset), Recreate (deployment)
+    ##
+    type: RollingUpdate
 
   ## @param agent.terminationGracePeriodSeconds The amount of time to wait for the agent pod to gracefully terminate
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
@@ -392,12 +389,10 @@ bindings:
       name: ""
       annotations: {}
 
-    ## @param bindings.forwarder.strategy.type Deployment strategy type (RollingUpdate or Recreate)
-    ## @param bindings.forwarder.strategy.rollingUpdate.maxSurge Maximum number of pods that can be created over the desired number during updates
-    ## @param bindings.forwarder.strategy.rollingUpdate.maxUnavailable Maximum number of pods that can be unavailable during updates
+    ## @param bindings.forwarder.updateStrategy Bindings Forwarder update strategy
     ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
     ##
-    strategy: {}
+    updateStrategy: {}
     #  type: RollingUpdate
     #  rollingUpdate:
     #    maxUnavailable: 0

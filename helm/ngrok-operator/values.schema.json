@@ -386,6 +386,16 @@
                         }
                     }
                 },
+                "updateStrategy": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Agent update strategy",
+                            "default": "RollingUpdate"
+                        }
+                    }
+                },
                 "terminationGracePeriodSeconds": {
                     "type": "number",
                     "description": "The amount of time to wait for the agent pod to gracefully terminate",
@@ -500,6 +510,11 @@
                                     "default": {}
                                 }
                             }
+                        },
+                        "updateStrategy": {
+                            "type": "object",
+                            "description": "Bindings Forwarder update strategy",
+                            "default": {}
                         },
                         "terminationGracePeriodSeconds": {
                             "type": "number",
