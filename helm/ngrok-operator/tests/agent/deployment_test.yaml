@@ -6,6 +6,9 @@ set:
   ingress:
     enabled: true
 tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}
 - it: Adds .Values.podLabels to the controller deployment podspec
   set:
     podLabels:
