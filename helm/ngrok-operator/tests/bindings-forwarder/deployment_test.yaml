@@ -18,7 +18,7 @@ tests:
   template: bindings-forwarder/deployment.yaml
   asserts:
   - equal:
-      path: spec.updateStrategy.type
+      path: spec.strategy.type
       value: RollingUpdate
 - it: should create a deployment if bindings.enabled is true
   template: bindings-forwarder/deployment.yaml

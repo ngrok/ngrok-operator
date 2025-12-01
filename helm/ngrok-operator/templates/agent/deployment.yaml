@@ -16,7 +16,7 @@ metadata:
 spec:
   replicas: {{ $agent.replicaCount }}
   {{- if $agent.updateStrategy }}
-  updateStrategy:
+  strategy:
     {{- toYaml $agent.updateStrategy | nindent 4 }}
   {{- end }}
   selector:

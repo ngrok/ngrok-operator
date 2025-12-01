@@ -17,7 +17,7 @@ tests:
   template: agent/deployment.yaml
   asserts:
   - equal:
-      path: spec.updateStrategy.type
+      path: spec.strategy.type
       value: RollingUpdate
 - it: Adds .Values.podLabels to the controller deployment podspec
   set:

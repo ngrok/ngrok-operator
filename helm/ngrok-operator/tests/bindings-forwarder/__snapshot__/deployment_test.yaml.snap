@@ -22,6 +22,8 @@ Should match snapshot:
           app.kubernetes.io/component: bindings-forwarder
           app.kubernetes.io/instance: RELEASE-NAME
           app.kubernetes.io/name: ngrok-operator
+      strategy:
+        type: RollingUpdate
       template:
         metadata:
           annotations:
@@ -94,5 +96,3 @@ Should match snapshot:
                 allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-ngrok-operator-bindings-forwarder
           terminationGracePeriodSeconds: 30
-      updateStrategy:
-        type: RollingUpdate
