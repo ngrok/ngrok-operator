@@ -139,6 +139,86 @@ func TestContainsAction(t *testing.T) {
 	assert.False(t, tp.ContainsAction(ActionType_Log))
 }
 
+func TestNewTrafficPolicyFromJSON(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "valid policy with on_http_request",
+			input:       `{"on_http_request": [{"name": "test", "actions": [{"type": "deny"}]}]}`,
+			expectError: false,
+		},
+		{
+			name:        "valid policy with all phases",
+			input:       `{"on_http_request": [], "on_http_response": [], "on_tcp_connect": []}`,
+			expectError: false,
+		},
+		{
+			name:        "empty policy",
+			input:       `{}`,
+			expectError: false,
+		},
+		{
+			name:        "empty input",
+			input:       ``,
+			expectError: false,
+		},
+		{
+			name:        "legacy inbound phase should error",
+			input:       `{"inbound": [{"name": "block", "actions": [{"type": "deny"}]}]}`,
+			expectError: true,
+			errContains: "unknown keys",
+		},
+		{
+			name:        "legacy outbound phase should error",
+			input:       `{"outbound": [{"name": "log", "actions": [{"type": "log"}]}]}`,
+			expectError: true,
+			errContains: "unknown keys",
+		},
+		{
+			name:        "typo in phase name should error",
+			input:       `{"on_http_requests": [{"name": "test", "actions": [{"type": "deny"}]}]}`,
+			expectError: true,
+			errContains: "unknown keys",
+		},
+		{
+			name:        "multiple unknown keys should all be reported",
+			input:       `{"inbound": [], "outbound": [], "custom_phase": []}`,
+			expectError: true,
+			errContains: "custom_phase",
+		},
+		{
+			name:        "mix of valid and invalid keys should error",
+			input:       `{"on_http_request": [], "inbound": []}`,
+			expectError: true,
+			errContains: "inbound",
+		},
+		{
+			name:        "invalid JSON should error",
+			input:       `{invalid}`,
+			expectError: true,
+			errContains: "failed to parse",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tp, err := NewTrafficPolicyFromJSON([]byte(tc.input))
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errContains)
+				assert.Nil(t, tp)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, tp)
+			}
+		})
+	}
+}
+
 func TestTrafficPolicyDeepCopy(t *testing.T) {
 	testCases := []struct {
 		name          string

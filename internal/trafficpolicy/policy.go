@@ -2,6 +2,9 @@ package trafficpolicy
 
 import (
 	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -78,11 +81,48 @@ func NewTrafficPolicy() *TrafficPolicy {
 	}
 }
 
+// validTrafficPolicyKeys are the only keys allowed at the top level of a traffic policy document.
+// Any other keys indicate a malformed policy that could lead to security issues if silently ignored.
+var validTrafficPolicyKeys = map[string]bool{
+	"on_http_request":  true,
+	"on_http_response": true,
+	"on_tcp_connect":   true,
+}
+
 // NewTrafficPolicyFromJSON creates a new TrafficPolicy from a JSON byte array.
+// It validates that all top-level keys are known phase names and returns an error
+// if unknown keys are present (which would otherwise be silently ignored).
 func NewTrafficPolicyFromJSON(data []byte) (*TrafficPolicy, error) {
+	if len(data) == 0 {
+		return NewTrafficPolicy(), nil
+	}
+
+	// First unmarshal to a map to detect unknown keys
+	var rawPolicy map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawPolicy); err != nil {
+		return nil, fmt.Errorf("failed to parse traffic policy: %w", err)
+	}
+
+	// Check for unknown keys that would be silently dropped
+	var unknownKeys []string
+	for key := range rawPolicy {
+		if !validTrafficPolicyKeys[key] {
+			unknownKeys = append(unknownKeys, key)
+		}
+	}
+
+	if len(unknownKeys) > 0 {
+		sort.Strings(unknownKeys)
+		return nil, fmt.Errorf("traffic policy contains unknown keys that would be ignored: %s; valid keys are: on_http_request, on_http_response, on_tcp_connect",
+			strings.Join(unknownKeys, ", "))
+	}
+
+	// Now unmarshal into the typed struct
 	tp := NewTrafficPolicy()
-	err := json.Unmarshal(data, tp)
-	return tp, err
+	if err := json.Unmarshal(data, tp); err != nil {
+		return nil, fmt.Errorf("failed to parse traffic policy: %w", err)
+	}
+	return tp, nil
 }
 
 // AddRuleOnHTTPRequest adds a rule to the OnHTTPRequest phase of the TrafficPolicy.
