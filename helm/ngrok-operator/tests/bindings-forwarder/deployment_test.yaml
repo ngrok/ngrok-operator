@@ -11,9 +11,10 @@ tests:
   - matchSnapshot: {}
 - it: Should set default forwarder.updateStrategy.type to RollingUpdate in values.yaml
   set:
-    agent:
-      updateStrategy:
-        type: RollingUpdate
+    bindings:
+      forwarder:
+        updateStrategy:
+          type: RollingUpdate
   template: bindings-forwarder/deployment.yaml
   asserts:
   - equal:
