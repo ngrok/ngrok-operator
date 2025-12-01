@@ -15,9 +15,9 @@ metadata:
     checksum/rbac: {{ $rbacChecksum }}
 spec:
   replicas: {{ $agent.replicaCount }}
-  {{- if $agent.strategy }}
-  strategy:
-    {{- toYaml $agent.strategy | nindent 4 }}
+  {{- if $agent.updateStrategy }}
+  updateStrategy:
+    {{- toYaml $agent.updateStrategy | nindent 4 }}
   {{- end }}
   selector:
     matchLabels:

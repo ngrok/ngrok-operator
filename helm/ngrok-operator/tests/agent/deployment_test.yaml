@@ -9,6 +9,16 @@ tests:
 - it: Should match snapshot
   asserts:
   - matchSnapshot: {}
+- it: Should set default agent.updateStrategy.type to RollingUpdate in values.yaml
+  set:
+    agent:
+      updateStrategy:
+        type: RollingUpdate
+  template: agent/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.updateStrategy.type
+      value: RollingUpdate
 - it: Adds .Values.podLabels to the controller deployment podspec
   set:
     podLabels:

@@ -94,3 +94,5 @@ Should match snapshot:
                 allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-ngrok-operator-bindings-forwarder
           terminationGracePeriodSeconds: 30
+      updateStrategy:
+        type: RollingUpdate

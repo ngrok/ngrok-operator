@@ -9,6 +9,16 @@ tests:
   template: bindings-forwarder/deployment.yaml
   asserts:
   - matchSnapshot: {}
+- it: Should set default forwarder.updateStrategy.type to RollingUpdate in values.yaml
+  set:
+    agent:
+      updateStrategy:
+        type: RollingUpdate
+  template: bindings-forwarder/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.updateStrategy.type
+      value: RollingUpdate
 - it: should create a deployment if bindings.enabled is true
   template: bindings-forwarder/deployment.yaml
   asserts:
