@@ -132,19 +132,20 @@ To uninstall the chart:
 
 ### Agent configuration
 
-| Name                                  | Description                                                          | Value  |
-| ------------------------------------- | -------------------------------------------------------------------- | ------ |
-| `agent.priorityClassName`             | Priority class for pod scheduling.                                   | `""`   |
-| `agent.replicaCount`                  | The number of agents to run.                                         | `1`    |
-| `agent.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the agent.  | `true` |
-| `agent.serviceAccount.name`           | The name of the ServiceAccount to use for the agent.                 | `""`   |
-| `agent.serviceAccount.annotations`    | Additional annotations to add to the agent ServiceAccount            | `{}`   |
-| `agent.resources.limits`              | The resources limits for the container                               | `{}`   |
-| `agent.resources.requests`            | The requested resources for the container                            | `{}`   |
-| `agent.terminationGracePeriodSeconds` | The amount of time to wait for the agent pod to gracefully terminate | `30`   |
-| `agent.tolerations`                   | Tolerations for the agent pod(s)                                     | `[]`   |
-| `agent.nodeSelector`                  | Node labels for the agent pod(s)                                     | `{}`   |
-| `agent.topologySpreadConstraints`     | Topology Spread Constraints for the agent pod(s)                     | `[]`   |
+| Name                                  | Description                                                          | Value           |
+| ------------------------------------- | -------------------------------------------------------------------- | --------------- |
+| `agent.priorityClassName`             | Priority class for pod scheduling.                                   | `""`            |
+| `agent.replicaCount`                  | The number of agents to run.                                         | `1`             |
+| `agent.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the agent.  | `true`          |
+| `agent.serviceAccount.name`           | The name of the ServiceAccount to use for the agent.                 | `""`            |
+| `agent.serviceAccount.annotations`    | Additional annotations to add to the agent ServiceAccount            | `{}`            |
+| `agent.resources.limits`              | The resources limits for the container                               | `{}`            |
+| `agent.resources.requests`            | The requested resources for the container                            | `{}`            |
+| `agent.updateStrategy.type`           | Agent update strategy                                                | `RollingUpdate` |
+| `agent.terminationGracePeriodSeconds` | The amount of time to wait for the agent pod to gracefully terminate | `30`            |
+| `agent.tolerations`                   | Tolerations for the agent pod(s)                                     | `[]`            |
+| `agent.nodeSelector`                  | Node labels for the agent pod(s)                                     | `{}`            |
+| `agent.topologySpreadConstraints`     | Topology Spread Constraints for the agent pod(s)                     | `[]`            |
 
 ### Kubernetes Gateway feature configuration
 
@@ -169,6 +170,7 @@ To uninstall the chart:
 | `bindings.forwarder.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the bindings forwarder pod(s).                       | `true`                                    |
 | `bindings.forwarder.serviceAccount.name`           | The name of the ServiceAccount to use for the bindings forwarder pod(s).                                      | `""`                                      |
 | `bindings.forwarder.serviceAccount.annotations`    | Additional annotations to add to the bindings-forwarder ServiceAccount                                        | `{}`                                      |
+| `bindings.forwarder.updateStrategy.type`           | Bindings Forwarder update strategy type                                                                       | `RollingUpdate`                           |
 | `bindings.forwarder.terminationGracePeriodSeconds` | The amount of time to wait for the bindings forwarder pod to gracefully terminate                             | `30`                                      |
 | `bindings.forwarder.tolerations`                   | Tolerations for the bindings forwarder pod(s)                                                                 | `[]`                                      |
 | `bindings.forwarder.nodeSelector`                  | Node labels for the bindings forwarder pod(s)                                                                 | `{}`                                      |

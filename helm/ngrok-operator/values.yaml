@@ -298,6 +298,16 @@ agent:
     name: ""
     annotations: {}
 
+  ## @param agent.updateStrategy.type Agent update strategy
+  ## @skip agent.updateStrategy.rollingUpdate
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
+  ##
+  updateStrategy:
+    ## StrategyType
+    ## Can be set to RollingUpdate, OnDelete (statefulset), Recreate (deployment)
+    ##
+    type: RollingUpdate
+
   ## @param agent.terminationGracePeriodSeconds The amount of time to wait for the agent pod to gracefully terminate
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
   ## Increase this value to give the operator more time to clean up finalizers during shutdown
@@ -378,6 +388,16 @@ bindings:
       create: true
       name: ""
       annotations: {}
+
+    ## @param bindings.forwarder.updateStrategy.type Bindings Forwarder update strategy type
+    ## @skip bindings.forwarder.updateStrategy.rollingUpdate
+    ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
+    ##
+    updateStrategy:
+      ## StrategyType
+      ## Can be set to RollingUpdate, OnDelete (statefulset), Recreate (deployment)
+      ##
+      type: RollingUpdate
 
     ## @param bindings.forwarder.terminationGracePeriodSeconds The amount of time to wait for the bindings forwarder pod to gracefully terminate
     ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
