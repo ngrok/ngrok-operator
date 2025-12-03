@@ -749,6 +749,7 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
+			Description: opts.description,
 			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
 				Name:      opts.releaseName,
 				Namespace: opts.namespace,
@@ -756,10 +757,6 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 			},
 			Region: opts.region,
 		}
-
-		// Set the description to whatever the user input
-		// in values.yaml
-		k8sOperator.Spec.Description = opts.description
 
 		features := []string{}
 		if opts.enableFeatureIngress {
