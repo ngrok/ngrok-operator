@@ -120,7 +120,7 @@ func NewTrafficPolicyFromJSON(data []byte) (*TrafficPolicy, error) {
 	// Now unmarshal into the typed struct
 	tp := NewTrafficPolicy()
 	if err := json.Unmarshal(data, tp); err != nil {
-		return nil, fmt.Errorf("failed to parse traffic policy: %w", err)
+		return nil, fmt.Errorf("failed to parse traffic policy: %w. traffic policy: %v", err, tp)
 	}
 	return tp, nil
 }
