@@ -90,10 +90,12 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(GinkgoT().Context())
 
 	By("bootstrapping test environment")
-	operatorAPIs := filepath.Join("..", "..", "..", "helm", "ngrok-operator", "templates", "crds")
 	gwAPIs := filepath.Join(".", "testdata", "gatewayapi-crds.yaml")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{operatorAPIs, gwAPIs},
+		CRDDirectoryPaths: []string{
+			testutils.OperatorCRDPath("..", "..", ".."),
+			gwAPIs,
+		},
 	}
 
 	var err error

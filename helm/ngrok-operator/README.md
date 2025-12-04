@@ -30,6 +30,31 @@ To uninstall the chart:
 
 `helm delete my-ngrok-operator`
 
+## Multi-Instance Installations
+
+To run multiple ngrok-operator instances in the same cluster (e.g., in different namespaces), install the CRDs once and disable CRD installation for each operator instance:
+
+1. Install CRDs once per cluster:
+
+   ```bash
+   helm install ngrok-crds ngrok/ngrok-crds
+   ```
+
+2. Install operator instances with `installCRDs=false`:
+
+   ```bash
+   helm install ngrok-operator-ns1 ngrok/ngrok-operator \
+     --namespace ns1 \
+     --set installCRDs=false
+
+   helm install ngrok-operator-ns2 ngrok/ngrok-operator \
+     --namespace ns2 \
+     --set installCRDs=false
+   ```
+
+> **Important:** Do not set `installCRDs=true` if CRDs are already managed by another Helm release. Helm will fail with ownership conflicts if multiple releases attempt to manage the same CRDs.
+
+
 <!-- Parameters are auto generated via @bitnami/readme-generator-for-helm -->
 ## Parameters
 
@@ -176,3 +201,9 @@ To uninstall the chart:
 | `bindings.forwarder.tolerations`                   | Tolerations for the bindings forwarder pod(s)                                                                 | `[]`                                      |
 | `bindings.forwarder.nodeSelector`                  | Node labels for the bindings forwarder pod(s)                                                                 | `{}`                                      |
 | `bindings.forwarder.topologySpreadConstraints`     | Topology Spread Constraints for the bindings forwarder pod(s)                                                 | `[]`                                      |
+
+### Custom Resource Definitions installation
+
+| Name          | Description                                                        | Value  |
+| ------------- | ------------------------------------------------------------------ | ------ |
+| `installCRDs` | When true, the ngrok CRDs will be installed alongside the operator | `true` |

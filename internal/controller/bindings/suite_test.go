@@ -26,7 +26,6 @@ package bindings
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -80,7 +79,9 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "helm", "ngrok-operator", "templates", "crds")},
+		CRDDirectoryPaths: []string{
+			testutils.OperatorCRDPath("..", "..", ".."),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
 
