@@ -8,7 +8,7 @@ metadata:
   name: {{ include "ngrok-operator.fullname" . }}-manager
   namespace: {{ .Release.Namespace }}
   annotations:
-    checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/role.yaml") . | sha256sum }}
+    checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/cluster-role.yaml") . | sha256sum }}
     checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
 spec:
   replicas: {{.Values.replicaCount}}
@@ -25,7 +25,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/role.yaml") . | sha256sum }}
+        checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/cluster-role.yaml") . | sha256sum }}
         checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
       labels:

@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}
+rules:
+{{- /*
+     Pull in the generated ClusterRole rules and only keep the "rules" node.
+     This assumes the generated file is a single ClusterRole YAML doc.
+*/ -}}
+{{- $gen := .Files.Get "generated/rbac/role.yaml" -}}
+{{- $obj := fromYaml $gen -}}
+{{- toYaml $obj.rules | nindent 2 -}}
