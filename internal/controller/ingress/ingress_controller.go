@@ -40,7 +40,8 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	for _, obj := range storedResources {
 		builder = builder.Watches(
 			obj,
-			managerdriver.NewControllerEventHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver, r.Client))
+			managerdriver.NewControllerEventHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver, r.Client,
+				managerdriver.WithEventRecorder(r.Recorder)))
 	}
 
 	return builder.Complete(r)
