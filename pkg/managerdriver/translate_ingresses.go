@@ -258,7 +258,7 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 
 		routeTrafficPolicy, err := trafficpolicy.NewTrafficPolicyFromJSON(routePolicyCfg.Spec.Policy)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse traffic policy: %w", err)
+			return nil, fmt.Errorf("failed to unmarshal traffic policy: %w. raw traffic policy: %v", err, routePolicyCfg.Spec.Policy)
 		}
 
 		if len(routeTrafficPolicy.OnTCPConnect) != 0 {
