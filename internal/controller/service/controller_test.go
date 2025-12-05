@@ -541,19 +541,16 @@ var _ = Describe("ServiceController", func() {
 					})
 				})
 
-				It("should NOT update service status (known divergence from spec)", func() {
-					// This test documents a known divergence between the spec and implementation.
-					// The spec says tls:// URLs should update status, but the implementation only
-					// uses computed-url or domain annotations for status updates.
-					// The controller does NOT currently parse k8s.ngrok.com/url for status.
-					Consistently(func(g Gomega) {
+				It("should update service status with the domain from URL annotation", func() {
+					Eventually(func(g Gomega) {
 						fetched := &corev1.Service{}
 						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
 						g.Expect(err).NotTo(HaveOccurred())
 
-						By("checking the service status is empty (not populated from url annotation)")
-						g.Expect(fetched.Status.LoadBalancer.Ingress).To(BeEmpty())
-					}, duration, interval).Should(Succeed())
+						By("checking the service status is populated from url annotation")
+						g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
+						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(Equal("example.ngrok.app"))
+					}, timeout, interval).Should(Succeed())
 				})
 
 				When("with endpoints-verbose mapping", func() {
@@ -576,36 +573,18 @@ var _ = Describe("ServiceController", func() {
 							g.Expect(aeps[0].Spec.URL).To(ContainSubstring(".internal"))
 						})
 					})
-				})
-			})
 
-			When("service has URL annotation with TLS domain", func() {
-				BeforeEach(func() {
-					modifiers.Add(AddAnnotation(annotations.MappingStrategyAnnotation, string(annotations.MappingStrategy_EndpointsVerbose)))
-					modifiers.Add(AddAnnotation(annotations.URLAnnotation, "tls://test.ngrok.app:443"))
-				})
+					It("should update service status with the domain from URL annotation", func() {
+						Eventually(func(g Gomega) {
+							fetched := &corev1.Service{}
+							err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
+							g.Expect(err).NotTo(HaveOccurred())
 
-				It("should create a cloud endpoint with the specified domain", func() {
-					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
-						By("checking a cloud endpoint exists")
-						g.Expect(cleps).To(HaveLen(1))
-
-						By("checking the cloud endpoint has the correct URL with domain")
-						clep := cleps[0]
-						g.Expect(clep.Spec.URL).To(ContainSubstring("test.ngrok.app"))
+							By("checking the service status is populated from url annotation")
+							g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
+							g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(Equal("example.ngrok.app"))
+						}, timeout, interval).Should(Succeed())
 					})
-				})
-
-				It("should update service status with the domain", func() {
-					Eventually(func(g Gomega) {
-						fetched := &corev1.Service{}
-						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
-						g.Expect(err).NotTo(HaveOccurred())
-
-						By("checking the service status uses the domain")
-						g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
-						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(ContainSubstring("test.ngrok.app"))
-					}, timeout, interval).Should(Succeed())
 				})
 			})
 

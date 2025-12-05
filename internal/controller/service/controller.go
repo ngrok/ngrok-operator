@@ -38,13 +38,13 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
-	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
@@ -872,8 +872,8 @@ func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, end
 		}
 	case !errors.IsMissingAnnotations(err): // Some other error
 		return err
-	default: // computedURL not present, fallback to the domain annotation
-		domain, err := parser.GetStringAnnotation("domain", svc)
+	default: // computedURL not present, fallback to parsing the URL annotation
+		urlAnnotation, err := annotations.ExtractURL(svc)
 		if err != nil {
 			if errors.IsMissingAnnotations(err) {
 				return clearIngressStatus(svc)
@@ -881,9 +881,10 @@ func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, end
 			return err
 		}
 
-		// Use this domain temporarily, but also check if there is a
-		// more specific CNAME value on the domain to use
-		hostname = domain
+		hostname, port, err = util.ParseEndpointHostPort(urlAnnotation)
+		if err != nil {
+			return clearIngressStatus(svc)
+		}
 
 		dr := endpoint.GetDomainRef()
 		if dr != nil {
