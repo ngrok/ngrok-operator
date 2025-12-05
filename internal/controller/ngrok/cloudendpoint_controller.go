@@ -256,13 +256,6 @@ func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv
 		clep.Status.ID = ngrokClep.ID
 	}
 
-	// Update domain status fields
-	if domainResult != nil && domainResult.Domain != nil {
-		// Set the deprecated domain status for backwards compatibility
-		//nolint:staticcheck
-		clep.Status.Domain = ngrokv1alpha1.ConvertDomainStatusToDeprecatedDomainStatus(&domainResult.Domain.Status)
-	}
-
 	// Calculate overall Ready condition based on other conditions and domain status
 	calculateCloudEndpointReadyCondition(clep, domainResult)
 
