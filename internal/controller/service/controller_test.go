@@ -48,7 +48,6 @@ const (
 	FinalizerName = controller.FinalizerName
 
 	Annotation_URL             = annotations.URLAnnotation
-	Annotation_Domain          = annotations.DomainAnnotation
 	Annotation_MappingStrategy = annotations.MappingStrategyAnnotation
 	Annotation_TrafficPolicy   = annotations.TrafficPolicyAnnotation
 )
@@ -580,10 +579,10 @@ var _ = Describe("ServiceController", func() {
 				})
 			})
 
-			When("service has domain annotation", func() {
+			When("service has URL annotation with TLS domain", func() {
 				BeforeEach(func() {
 					modifiers.Add(AddAnnotation(annotations.MappingStrategyAnnotation, string(annotations.MappingStrategy_EndpointsVerbose)))
-					modifiers.Add(AddAnnotation("k8s.ngrok.com/domain", "test.ngrok.app"))
+					modifiers.Add(AddAnnotation(annotations.URLAnnotation, "tls://test.ngrok.app:443"))
 				})
 
 				It("should create a cloud endpoint with the specified domain", func() {

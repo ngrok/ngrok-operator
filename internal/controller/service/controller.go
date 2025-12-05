@@ -595,28 +595,7 @@ func (r *ServiceReconciler) getListenerURL(svc *corev1.Service) (string, error) 
 		return "", err
 	}
 
-	// Fallback to the using the deprecated domain annotation if the URL annotation is not present
-	domain, err := annotations.ExtractDomain(svc)
-	if err == nil {
-		msg := fmt.Sprintf(
-			"The '%s' annotation is deprecated and will be removed in a future release. Use the '%s' annotation instead",
-			annotations.DomainAnnotation,
-			annotations.URLAnnotation,
-		)
-		r.Recorder.Event(
-			svc,
-			corev1.EventTypeWarning,
-			"DeprecatedDomainAnnotation",
-			msg,
-		)
-		return fmt.Sprintf("tls://%s:443", domain), nil
-	}
-
-	if !errors.IsMissingAnnotations(err) {
-		return "", err
-	}
-
-	// No URL or domain annotation, assume TCP as the default
+	// No URL annotation, assume TCP as the default
 	return "tcp://", nil
 }
 

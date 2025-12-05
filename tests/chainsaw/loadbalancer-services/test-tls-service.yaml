@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: test-tls-lb
   annotations:
-    k8s.ngrok.com/domain: test-loadbalancer.ngrok.app
+    k8s.ngrok.com/url: tls://test-loadbalancer.ngrok.app:443
     k8s.ngrok.com/mapping-strategy: endpoints-verbose
   labels:
     app.kubernetes.io/name: test-server

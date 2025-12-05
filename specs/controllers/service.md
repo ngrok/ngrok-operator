@@ -23,7 +23,7 @@ When managing a qualifying Service, the controller will:
 
 ### TCP Load Balancers
 
-TCP Load Balancer is the default behavior. When the domain annotation is not specified, or the `k8s.ngrok.com/url` annotation specifies a `tcp://` scheme,
+TCP Load Balancer is the default behavior. When the `k8s.ngrok.com/url` annotation is not specified, or it specifies a `tcp://` scheme,
 the controller will create a TCP Load Balancer.
 
 ### TLS Termination
@@ -32,10 +32,6 @@ When a Service specifies a domain or url with the `tls://` scheme, the controlle
 
 
 ### Annotations
-
-#### `k8s.ngrok.com/domain` (deprecated)
-
-Signifies intent to create a TLS-terminated load balancer with the specified domain.
 
 #### `k8s.ngrok.com/mapping-strategy`
 
@@ -46,8 +42,6 @@ When unspecified, it defaults to `endpoints` and only an `AgentEndpoint` will be
 When set to `endpoints-verbose`, both a `CloudEndpoint` and an internal `AgentEndpoint`, an endpoint with a url ending in `.internal` will be created for the Service.
 
 #### `k8s.ngrok.com/url`
-
-This replaces the deprecated `k8s.ngrok.com/domain` annotation.
 
 Examples:
 * `k8s.ngrok.com/url: "tcp://1.tcp.ngrok.io:12345"` - Creates a TCP load balancer using the specified ngrok TCP address. It must be reserved in the ngrok dashboard/API first.
