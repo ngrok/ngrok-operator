@@ -23,6 +23,16 @@ if ! pidof nix-daemon > /dev/null 2>&1; then
     fi
 fi
 
+# Wait for nix-daemon to be ready (up to 30 seconds)
+echo "Waiting for nix-daemon to be ready..."
+for i in $(seq 1 30); do
+    if nix --version > /dev/null 2>&1; then
+        echo "nix-daemon is ready"
+        break
+    fi
+    sleep 1
+done
+
 set -e
 
 direnv allow
