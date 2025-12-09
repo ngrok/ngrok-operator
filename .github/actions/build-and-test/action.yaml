@@ -42,7 +42,7 @@ runs:
 
     - name: Build
       shell: bash
-      run: make build
+      run: nix develop --command make build
 
     - name: Lint
       shell: bash
@@ -54,7 +54,7 @@ runs:
 
     - name: Test
       shell: bash
-      run: make test
+      run: nix develop --command make test
 
     - name: Build the Docker image
       shell: bash

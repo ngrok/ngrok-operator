@@ -36,13 +36,10 @@ jobs:
     name: Kubebuilder Diff
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: ${{ env.GO_VERSION }}
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
     - name: Generate manifests
-      run: make manifests
+      run: nix develop --command make manifests
     - name: Fail if there are uncommited manifest changes
       run: |
         git diff --exit-code
