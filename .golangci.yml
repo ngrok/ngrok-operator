@@ -1,45 +1,65 @@
+version: "2"
 linters:
   enable:
-  - gofmt           # Format enforcement
-  - gocritic        # Code pattern analysis
-  - govet           # Built-in static checks
-  - staticcheck     # Strong static analysis
-  - errcheck        # Enforce checking errors
-  - ineffassign     # Find assignments never used
-  - gosimple        # Recommend simplified code
-  - unused          # Detect unused functions/types/vars
-  - typecheck       # Catch unresolved symbols/types
-  - unconvert       # Remove needless type casts
-  - misspell        # Find spelling mistakes
-  - revive          # Modern replacement for golint
-
+    - gocritic
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - unconvert
+    - misspell
+    - revive
+  settings:
+    staticcheck:
+      checks:
+        - "all"
+        - "-ST*"
+        - "-QF*"
+    revive:
+      rules:
+        - name: atomic
+        - name: blank-imports
+        - name: comment-spacings
+        - name: confusing-naming
+        - name: confusing-results
+        - name: constant-logical-expr
+        - name: datarace
+        - name: defer
+        - name: duplicated-imports
+        - name: early-return
+        - name: empty-block
+        - name: identical-branches
+        - name: if-return
+        - name: indent-error-flow
+        - name: unconditional-recursion
+        - name: unhandled-error
+          arguments:
+            - fmt.Printf
+        - name: unnecessary-stmt
+        - name: unreachable-code
+        - name: unused-parameter
+        - name: use-errors-new
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  # Show the complete output
   max-issues-per-linter: 0
   max-same-issues: 0
-
-linters-settings:
-  revive:
-    ignore-generated-header: true
-    rules:
-    - name: atomic                  # Check for common mistaken usages of the sync/atomic package
-    - name: blank-imports           # Disallows blank imports
-    - name: comment-spacings        # Warns on malformed comments
-    - name: confusing-naming        # Warns on methods with names that differ only by capitalization
-    - name: confusing-results       # Suggests to name potentially confusing function results
-    - name: constant-logical-expr   # Warns on constant logical expressions
-    - name: datarace                # Spots potential dataraces
-    - name: defer                   # Warns on some defer gotchas
-    - name: duplicated-imports      # Looks for packages that are imported two or more times
-    - name: early-return            # Spots if-then-else statements where the predicate may be inverted to reduce nesting
-    - name: empty-block             # Warns on empty code blocks
-    - name: identical-branches      # Spots if-then-else statements with identical then and else branches
-    - name: if-return               # Redundant if when returning an error
-    - name: indent-error-flow       # Prevents redundant else statements
-    - name: unconditional-recursion # Warns on function calls that will lead to (direct) infinite recursion
-    - name: unhandled-error         # Warns on unhandled errors returned by function calls
-      arguments : ["fmt.Printf"]
-    - name: unnecessary-stmt        # Suggests removing or simplifying unnecessary statements
-    - name: unreachable-code        # Warns on unreachable code
-    - name: unused-parameter        # Suggests to rename or remove unused function parameters
-    - name: use-errors-new          # identifies calls to fmt.Errorf that can be safely replaced by, the more efficient, errors.New.
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

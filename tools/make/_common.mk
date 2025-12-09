@@ -55,7 +55,6 @@ HELM_TEMPLATES_DIR = $(HELM_CHART_DIR)/templates
 KUBECTL ?= kubectl
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen-$(CONTROLLER_TOOLS_VERSION)
 ENVTEST ?= $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
-GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 KIND ?= $(LOCALBIN)/kind-$(KIND_VERSION)
 HELM ?= $(LOCALBIN)/helm-$(HELM_VERSION)
 
@@ -63,7 +62,6 @@ HELM ?= $(LOCALBIN)/helm-$(HELM_VERSION)
 ## Tool Versions
 CONTROLLER_TOOLS_VERSION ?= v0.14.0
 ENVTEST_VERSION ?= release-0.20
-GOLANGCI_LINT_VERSION ?= v1.64.6
 KIND_VERSION ?= v0.26.0
 HELM_VERSION ?= v3.15.4
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.

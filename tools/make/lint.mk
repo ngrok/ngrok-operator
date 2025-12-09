@@ -1,13 +1,13 @@
 ##@ Linting/Formatting
 
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint linter & yamllint
-	$(GOLANGCI_LINT) run
+lint: ## Run golangci-lint linter & yamllint
+	golangci-lint run
 
 
 .PHONY: lint-fix
-lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
-	$(GOLANGCI_LINT) run --fix
+lint-fix: ## Run golangci-lint linter and perform fixes
+	golangci-lint run --fix
 
 
 .PHONY: fmt
