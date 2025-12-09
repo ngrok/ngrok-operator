@@ -21,13 +21,7 @@ preflight: ## Verifies required things like the go version
 
 
 .PHONY: bootstrap-tools
-bootstrap-tools: controller-gen envtest kind helm helm-unittest-plugin ## Install common local tooling.
-
-.PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
-$(CONTROLLER_GEN): $(LOCALBIN)
-	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
-
+bootstrap-tools: envtest kind helm helm-unittest-plugin ## Install common local tooling.
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.

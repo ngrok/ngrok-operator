@@ -51,7 +51,7 @@ type DomainSpec struct {
 	Domain string `json:"domain"`
 
 	// Region is the region in which to reserve the domain
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	Region string `json:"region,omitempty"`
 
 	// DomainReclaimPolicy is the policy to use when the domain is deleted

@@ -8,6 +8,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - services
   verbs:
   - create
   - delete
@@ -38,15 +39,6 @@ rules:
   verbs:
   - get
   - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - get
-  - list
-  - update
   - watch
 - apiGroups:
   - ""
@@ -85,20 +77,10 @@ rules:
   - patch
   - update
 - apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
   - gateway.networking.k8s.io
   resources:
   - gatewayclasses
+  - gatewayclasses/status
   verbs:
   - get
   - list
@@ -115,44 +97,14 @@ rules:
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
-  - gatewayclasses/status
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
   - gateways
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
   - gateways/status
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
   - httproutes
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
   - httproutes/status
+  - tcproutes
+  - tcproutes/status
+  - tlsroutes
+  - tlsroutes/status
   verbs:
   - get
   - list
@@ -167,70 +119,9 @@ rules:
   - list
   - watch
 - apiGroups:
-  - gateway.networking.k8s.io
-  resources:
-  - tcproutes
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
-  - tcproutes/status
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
-  - tlsroutes
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
-  - tlsroutes/status
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - domains
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - domains/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - domains/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
   - ippolicies
   verbs:
   - create
@@ -243,12 +134,14 @@ rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
+  - domains/finalizers
   - ippolicies/finalizers
   verbs:
   - update
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
+  - domains/status
   - ippolicies/status
   verbs:
   - get
@@ -266,14 +159,6 @@ rules:
   - networking.k8s.io
   resources:
   - ingresses
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
   - ingresses/status
   verbs:
   - get
@@ -284,83 +169,8 @@ rules:
   - ngrok.k8s.ngrok.com
   resources:
   - agentendpoints
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - agentendpoints/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - agentendpoints/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
   - cloudendpoints
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - cloudendpoints/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - cloudendpoints/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
   - kubernetesoperators
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
   - ngroktrafficpolicies
   verbs:
   - create
@@ -373,12 +183,18 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
+  - agentendpoints/finalizers
+  - cloudendpoints/finalizers
+  - kubernetesoperators/finalizers
   - ngroktrafficpolicies/finalizers
   verbs:
   - update
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
+  - agentendpoints/status
+  - cloudendpoints/status
+  - kubernetesoperators/status
   - ngroktrafficpolicies/status
   verbs:
   - get
