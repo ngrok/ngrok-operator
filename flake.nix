@@ -96,6 +96,7 @@
               kyverno-chainsaw
               ngrok
               nixfmt-rfc-style
+              setup-envtest
               tilt
               yq
               readmeGeneratorForHelm
@@ -107,7 +108,10 @@
           # go via nix, so we need to unset it to avoid conflicts. See also: https://dave.cheney.net/2013/06/14/you-dont-need-to-set-goroot-really
           GOROOT = "";
 
+          ENVTEST_K8S_VERSION = "1.34.1";
+
           shellHook = ''
+            export KUBEBUILDER_ASSETS="$(setup-envtest use $ENVTEST_K8S_VERSION -p path)"
             devhelp
           '';
         };

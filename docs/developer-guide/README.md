@@ -72,14 +72,6 @@ use in our codespaces devcontainer.
 
 If you prefer declarative environments, the repository includes a `.envrc` that works with [nix-direnv](https://github.com/nix-community/nix-direnv); run `direnv allow` after installing it and the tooling above will be provided automatically.
 
-#### Bootstrap repo-managed tools
-
-```sh
-make bootstrap-tools
-```
-
-This downloads the Go-based utilities the repo expects (kind, Helm, controller-gen, envtest, golangci-lint) into `./bin`. Make targets always invoke those exact binaries, so you don’t need to add `./bin` to your global `$PATH`; stick with the provided make commands. Install `helm`/`kubectl` separately if you want them available for manual use.
-
 #### Create a local kind cluster
 
 By default we create a cluster named `ngrok-operator` and our CI and Makefiles are configured to load images into this specific cluster.

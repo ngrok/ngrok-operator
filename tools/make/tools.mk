@@ -19,20 +19,6 @@ endef
 preflight: ## Verifies required things like the go version
 	scripts/preflight.sh
 
-
-.PHONY: bootstrap-tools
-bootstrap-tools: envtest kind ## Install common local tooling (helm provided by nix).
-
-.PHONY: envtest
-envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
-$(ENVTEST): $(LOCALBIN)
-	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
-
-.PHONY: kind
-kind: $(KIND) ## Download kind locally if necessary.
-$(KIND): $(LOCALBIN)
-	$(call go-install-tool,$(KIND),sigs.k8s.io/kind,$(KIND_VERSION))
-
 .PHONY: _helm_setup
 _helm_setup: ## Setup helm chart dependencies
 	$(MAKE) -C $(HELM_CHART_DIR) setup

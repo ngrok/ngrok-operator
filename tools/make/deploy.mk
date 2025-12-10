@@ -85,8 +85,8 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set bindings.serviceLabels.label1="val1"
 
 .PHONY: kind-load-image
-kind-load-image: kind ## Load the locally built image into the kind cluster.
-	$(KIND) load docker-image $(IMG) --name $(KIND_CLUSTER_NAME)
+kind-load-image: ## Load the locally built image into the kind cluster.
+	kind load docker-image $(IMG) --name $(KIND_CLUSTER_NAME)
 
 .PHONY: _deploy-check-env-vars
 _deploy-check-env-vars:

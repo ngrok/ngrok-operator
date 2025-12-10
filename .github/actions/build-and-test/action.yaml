@@ -48,10 +48,6 @@ runs:
       shell: bash
       run: nix develop --command make lint
 
-    - name: Setup Envtest
-      shell: bash
-      run: make envtest
-
     - name: Test
       shell: bash
       run: nix develop --command make test

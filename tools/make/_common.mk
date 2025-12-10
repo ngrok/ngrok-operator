@@ -51,21 +51,9 @@ HELM_CHART_DIR = ./helm/ngrok-operator
 HELM_TEMPLATES_DIR = $(HELM_CHART_DIR)/templates
 
 
-## Tool Binaries
-KUBECTL ?= kubectl
-ENVTEST ?= $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
-KIND ?= $(LOCALBIN)/kind-$(KIND_VERSION)
-# helm is provided by nixpkgs (kubernetes-helm); use 'nix develop'
-HELM ?= helm
-
 
 ## Tool Versions
-# controller-gen and helm are provided by nixpkgs; use 'nix develop'
-ENVTEST_VERSION ?= release-0.20
-KIND_VERSION ?= v0.26.0
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.33.0
-
+# controller-gen, setup-envtest, helm, kind are provided by nixpkgs; use 'nix develop'
 
 # ==============================================
 # Includes:

@@ -2,7 +2,8 @@
 
 .PHONY: test
 test: manifests generate fmt vet ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(if $(PACKAGE),$(PACKAGE),./...) -coverprofile cover.out -timeout 120s
+	setup-envtest use $$ENVTEST_K8S_VERSION
+	go test $(if $(PACKAGE),$(PACKAGE),./...) -coverprofile cover.out -timeout 120s
 
 .PHONY: test-coverage
 test-coverage: test ## Run tests and open coverage report. Usage: make test-coverage PACKAGE=./internal/domain
