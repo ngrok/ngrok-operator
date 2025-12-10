@@ -21,7 +21,7 @@ preflight: ## Verifies required things like the go version
 
 
 .PHONY: bootstrap-tools
-bootstrap-tools: envtest kind helm helm-unittest-plugin ## Install common local tooling.
+bootstrap-tools: envtest kind ## Install common local tooling (helm provided by nix).
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -33,24 +33,6 @@ kind: $(KIND) ## Download kind locally if necessary.
 $(KIND): $(LOCALBIN)
 	$(call go-install-tool,$(KIND),sigs.k8s.io/kind,$(KIND_VERSION))
 
-
-.PHONY: helm
-helm: $(HELM) ## Download helm locally if necessary.
-$(HELM): $(LOCALBIN)
-	$(call go-install-tool,$(HELM),helm.sh/helm/v3/cmd/helm,$(HELM_VERSION))
-
-HELM_PLUGIN_HOME ?= $(LOCALBIN)/helm-plugins
-
-.PHONY: helm-unittest-plugin
-helm-unittest-plugin: helm ## Install helm-unittest plugin if needed.
-	@mkdir -p "$(HELM_PLUGIN_HOME)"
-	@if [ ! -d "$(HELM_PLUGIN_HOME)/helm-unittest" ]; then \
-		echo "Installing helm-unittest plugin"; \
-		HELM_PLUGINS="$(HELM_PLUGIN_HOME)" "$(HELM)" plugin install https://github.com/helm-unittest/helm-unittest --version 0.6.1; \
-	else \
-		echo "helm-unittest plugin already present"; \
-	fi
-
 .PHONY: _helm_setup
-_helm_setup: helm ## Setup helm chart dependencies
-	HELM="$(HELM)" HELM_PLUGINS="$(HELM_PLUGIN_HOME)" $(MAKE) -C $(HELM_CHART_DIR) setup
+_helm_setup: ## Setup helm chart dependencies
+	$(MAKE) -C $(HELM_CHART_DIR) setup

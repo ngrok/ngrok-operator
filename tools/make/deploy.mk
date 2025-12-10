@@ -11,7 +11,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: deploy
 deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(HELM) upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set image.repository=$(IMG) \
@@ -28,7 +28,7 @@ deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-imag
 
 .PHONY: deploy_gateway
 deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(HELM) upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set image.repository=$(IMG) \
@@ -46,7 +46,7 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 
 .PHONY: deploy_with_bindings
 deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(HELM) upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set image.repository=$(IMG) \
@@ -64,7 +64,7 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup 
 
 .PHONY: deploy_for_e2e
 deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube.config.
-	$(HELM) upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
 		--set oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
@@ -100,4 +100,4 @@ endif
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
-	$(HELM) uninstall ngrok-operator
+	helm uninstall ngrok-operator

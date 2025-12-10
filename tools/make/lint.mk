@@ -22,4 +22,4 @@ vet: ## Run go vet against code.
 
 .PHONY: helm-lint
 helm-lint: _helm_setup ## Lint the helm chart
-	HELM="$(HELM)" HELM_PLUGINS="$(HELM_PLUGIN_HOME)" $(MAKE) -C $(HELM_CHART_DIR) lint
+	$(MAKE) -C $(HELM_CHART_DIR) lint

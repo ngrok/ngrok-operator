@@ -88,7 +88,11 @@
               kubebuilder
               kubectl
               kubernetes-controller-tools
-              kubernetes-helm
+              (pkgs.wrapHelm pkgs.kubernetes-helm {
+                plugins = [
+                  pkgs.kubernetes-helmPlugins.helm-unittest
+                ];
+              })
               kyverno-chainsaw
               ngrok
               nixfmt-rfc-style

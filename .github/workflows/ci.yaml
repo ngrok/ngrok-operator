@@ -38,6 +38,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
     - name: Generate manifests
       run: nix develop --command make manifests
     - name: Fail if there are uncommited manifest changes
@@ -109,6 +110,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
     - uses: "./.github/actions/build-and-test"
       with:
         # this workflow is for incoming PRs, so we want to skip e2e tests
@@ -129,13 +131,12 @@ jobs:
     if: needs.changes.outputs.charts == 'true'
     steps:
     - uses: actions/checkout@v3
-    - uses: azure/setup-helm@v3
-      with:
-        version: v3.10.0
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
     - name: Lint Helm Chart
-      run: make helm-lint
+      run: nix develop --command make helm-lint
     - name: Helm Unit Tests
-      run: make helm-test
+      run: nix develop --command make helm-test
 
   e2e:
     runs-on: ubuntu-latest
@@ -165,6 +166,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
     - uses: "./.github/actions/build-and-test"
       with:
         run-e2e: true

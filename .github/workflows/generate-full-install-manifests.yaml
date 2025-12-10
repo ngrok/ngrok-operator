@@ -21,18 +21,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: v3.10.0
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           ref: ${{github.event.pull_request.head.ref}}
           repository: ${{github.event.pull_request.head.repo.full_name}}
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v34
+      - name: Setup Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
       - name: Run helm template
-        run: make manifest-bundle
+        run: nix develop --command make manifest-bundle
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:

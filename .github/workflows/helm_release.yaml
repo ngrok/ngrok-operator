@@ -56,13 +56,14 @@ jobs:
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --dearmor --output keyring.gpg
           echo "${{ secrets.GPG_PASSWORD }}" > gpg-password.txt
 
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: v3.10.0
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v34
+
+      - name: Setup Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c # main commit
 
       - name: Setup Helm
-        run: make _helm_setup
+        run: nix develop --command make _helm_setup
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.5.0
