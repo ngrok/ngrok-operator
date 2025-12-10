@@ -21,7 +21,7 @@ preflight: ## Verifies required things like the go version
 
 
 .PHONY: bootstrap-tools
-bootstrap-tools: controller-gen envtest golangci-lint kind helm helm-unittest-plugin ## Install common local tooling.
+bootstrap-tools: controller-gen envtest kind helm helm-unittest-plugin ## Install common local tooling.
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
@@ -33,13 +33,6 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
-
-
-.PHONY: golangci-lint
-golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
-$(GOLANGCI_LINT): $(LOCALBIN)
-	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
-
 
 .PHONY: kind
 kind: $(KIND) ## Download kind locally if necessary.
