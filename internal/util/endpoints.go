@@ -91,27 +91,3 @@ func ParseAndSanitizeEndpointURL(input string, isIngressURL bool) (*url.URL, err
 
 	return parsedURL, nil
 }
-
-// ParseEndpointHostPort parses an endpoint URL and returns the hostname and port.
-// Returns an error if the URL cannot be parsed or has no hostname.
-func ParseEndpointHostPort(input string) (hostname string, port int32, err error) {
-	parsedURL, err := ParseAndSanitizeEndpointURL(input, true)
-	if err != nil {
-		return "", 0, err
-	}
-
-	hostname = parsedURL.Hostname()
-	if hostname == "" {
-		return "", 0, fmt.Errorf("URL %q has no hostname", input)
-	}
-
-	if p := parsedURL.Port(); p != "" {
-		portInt, err := strconv.ParseInt(p, 10, 32)
-		if err != nil {
-			return "", 0, fmt.Errorf("invalid port in URL %q: %w", input, err)
-		}
-		port = int32(portInt)
-	}
-
-	return hostname, port, nil
-}

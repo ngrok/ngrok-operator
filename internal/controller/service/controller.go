@@ -35,7 +35,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
@@ -44,7 +43,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
-	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
@@ -844,8 +842,11 @@ func getNgrokTrafficPolicyForService(ctx context.Context, c client.Client, svc *
 	return policy, err
 }
 
-func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, endpoint ngrokv1alpha1.EndpointWithDomain) error {
+func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, _ ngrokv1alpha1.EndpointWithDomain) error {
 	clearIngressStatus := func(svc *corev1.Service) error {
+		if len(svc.Status.LoadBalancer.Ingress) == 0 {
+			return nil
+		}
 		svc.Status.LoadBalancer.Ingress = nil
 		return c.Status().Update(ctx, svc)
 	}
@@ -872,31 +873,8 @@ func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, end
 		}
 	case !errors.IsMissingAnnotations(err): // Some other error
 		return err
-	default: // computedURL not present, fallback to parsing the URL annotation
-		urlAnnotation, err := annotations.ExtractURL(svc)
-		if err != nil {
-			if errors.IsMissingAnnotations(err) {
-				return clearIngressStatus(svc)
-			}
-			return err
-		}
-
-		hostname, port, err = util.ParseEndpointHostPort(urlAnnotation)
-		if err != nil {
-			return clearIngressStatus(svc)
-		}
-
-		dr := endpoint.GetDomainRef()
-		if dr != nil {
-			// Lookup the domain
-			domain := &ingressv1alpha1.Domain{}
-			if err := c.Get(ctx, client.ObjectKey{Namespace: *dr.Namespace, Name: dr.Name}, domain); err != nil {
-				return err
-			}
-			if domain.Status.CNAMETarget != nil {
-				hostname = *domain.Status.CNAMETarget
-			}
-		}
+	default: // computedURL not present, clear status until endpoint is ready
+		return clearIngressStatus(svc)
 	}
 
 	newIngressStatus := []corev1.LoadBalancerIngress{
