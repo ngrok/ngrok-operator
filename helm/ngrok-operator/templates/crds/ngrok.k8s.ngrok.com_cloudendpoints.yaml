@@ -179,24 +179,6 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              domain:
-                description: |-
-                  Deprecated: This is here for backwards compatibility with the old DomainStatus object.
-                  This will be removed in a future version. Use DomainRef instead.
-                properties:
-                  cnameTarget:
-                    description: CNAMETarget is the CNAME target for the domain
-                    type: string
-                  domain:
-                    description: Domain is the domain that was reserved
-                    type: string
-                  id:
-                    description: ID is the unique identifier of the domain
-                    type: string
-                  region:
-                    description: Region is the region in which the domain was created
-                    type: string
-                type: object
               domainRef:
                 description: |-
                   DomainRef is a reference to the Domain resource associated with this endpoint.
