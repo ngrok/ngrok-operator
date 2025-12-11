@@ -46,7 +46,7 @@ runs:
 
     - name: Lint
       shell: bash
-      run: make lint
+      run: nix develop --command make lint
 
     - name: Setup Envtest
       shell: bash
