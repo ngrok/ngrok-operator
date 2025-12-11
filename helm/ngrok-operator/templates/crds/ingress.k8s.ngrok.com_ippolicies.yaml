@@ -149,7 +149,11 @@ spec:
                   - status
                   - type
                   type: object
+                maxItems: 8
                 type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
               id:
                 description: |-
                   INSERT ADDITIONAL STATUS FIELD - define observed state of cluster

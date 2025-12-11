@@ -71,6 +71,9 @@ type IPPolicyStatus struct {
 	ID string `json:"id,omitempty"`
 
 	// Conditions represent the latest available observations of the IP policy's state
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:MaxItems=8
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	Rules []IPPolicyRuleStatus `json:"rules,omitempty"`

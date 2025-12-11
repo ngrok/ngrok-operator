@@ -88,6 +88,9 @@ type DomainStatus struct {
 	CertificateManagementStatus *DomainStatusCertificateManagementStatus `json:"certificateManagementStatus,omitempty"`
 
 	// Conditions represent the latest available observations of the domain's state
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:MaxItems=8
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
