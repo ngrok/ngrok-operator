@@ -541,6 +541,23 @@ var _ = Describe("ServiceController", func() {
 					})
 				})
 
+				It("should set computed-url annotation and update service status", func() {
+					Eventually(func(g Gomega) {
+						fetched := &corev1.Service{}
+						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
+						g.Expect(err).NotTo(HaveOccurred())
+
+						By("checking the computed-url annotation is set")
+						computedURL, exists := fetched.GetAnnotations()[annotations.ComputedURLAnnotation]
+						g.Expect(exists).To(BeTrue())
+						g.Expect(computedURL).To(Equal("tls://example.ngrok.app"))
+
+						By("checking the service status is populated from computed-url")
+						g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
+						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(Equal("example.ngrok.app"))
+					}, timeout, interval).Should(Succeed())
+				})
+
 				When("with endpoints-verbose mapping", func() {
 					BeforeEach(func() {
 						modifiers.Add(SetMappingStrategy(annotations.MappingStrategy_EndpointsVerbose))

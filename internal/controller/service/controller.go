@@ -364,6 +364,20 @@ func (r *ServiceReconciler) clearComputedURLAnnotation(ctx context.Context, svc 
 	return r.Client.Update(ctx, svc)
 }
 
+func (r *ServiceReconciler) setComputedURLAnnotation(ctx context.Context, svc *corev1.Service, computedURL string) error {
+	a := svc.GetAnnotations()
+	if a == nil {
+		a = make(map[string]string)
+	}
+	// Only update if the value has changed
+	if a[annotations.ComputedURLAnnotation] == computedURL {
+		return nil
+	}
+	a[annotations.ComputedURLAnnotation] = computedURL
+	svc.SetAnnotations(a)
+	return r.Client.Update(ctx, svc)
+}
+
 func (r *ServiceReconciler) tcpAddressIsReserved(ctx context.Context, hostport string) (bool, error) {
 	iter := r.TCPAddresses.List(&ngrok.Paging{})
 	for iter.Next(ctx) {
@@ -456,13 +470,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 
 			// Update the service with the computed URL
 			computedEndpointURL = fmt.Sprintf("tcp://%s", addr.Addr)
-			a := svc.GetAnnotations()
-			if a == nil {
-				a = make(map[string]string)
-			}
-			a[annotations.ComputedURLAnnotation] = computedEndpointURL
-			svc.SetAnnotations(a)
-			if err := r.Client.Update(ctx, svc); err != nil {
+			if err := r.setComputedURLAnnotation(ctx, svc, computedEndpointURL); err != nil {
 				return objects, err
 			}
 		} else {
@@ -499,10 +507,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 			}
 		}
 	} else {
-		// We only store computed URLs for TCP endpoints right now, so we should clear it if it exists
-		if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+		// For non-TCP endpoints (e.g., TLS), set the computed URL to the listener URL
+		// so that updateStatus can use it as the single source of truth
+		if err := r.setComputedURLAnnotation(ctx, svc, listenerEndpointURL); err != nil {
 			return objects, err
 		}
+		computedEndpointURL = listenerEndpointURL
 	}
 
 	switch mappingStrategy {
