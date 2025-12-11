@@ -123,3 +123,41 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --default-domain-reclaim-policy=Retain
+- it: Falls back to global podAnnotations when agent.podAnnotations is not set
+  set:
+    podAnnotations:
+      global-annotation: global-value
+  template: agent/deployment.yaml
+  asserts:
+  - isSubset:
+      path: spec.template.metadata.annotations
+      content:
+        global-annotation: global-value
+- it: Uses agent.podAnnotations when set instead of global podAnnotations
+  set:
+    podAnnotations:
+      global-annotation: global-value
+    agent:
+      podAnnotations:
+        agent-annotation: agent-value
+  template: agent/deployment.yaml
+  asserts:
+  - isSubset:
+      path: spec.template.metadata.annotations
+      content:
+        agent-annotation: agent-value
+  - isNotSubset:
+      path: spec.template.metadata.annotations
+      content:
+        global-annotation: global-value
+- it: Supports Datadog autodiscovery annotations on agent pods
+  set:
+    agent:
+      podAnnotations:
+        ad.datadoghq.com/agent.logs: '[{"service":"ngrok-agent","source":"ngrok-agent"}]'
+  template: agent/deployment.yaml
+  asserts:
+  - isSubset:
+      path: spec.template.metadata.annotations
+      content:
+        ad.datadoghq.com/agent.logs: '[{"service":"ngrok-agent","source":"ngrok-agent"}]'

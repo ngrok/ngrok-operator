@@ -132,20 +132,21 @@ To uninstall the chart:
 
 ### Agent configuration
 
-| Name                                  | Description                                                          | Value           |
-| ------------------------------------- | -------------------------------------------------------------------- | --------------- |
-| `agent.priorityClassName`             | Priority class for pod scheduling.                                   | `""`            |
-| `agent.replicaCount`                  | The number of agents to run.                                         | `1`             |
-| `agent.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the agent.  | `true`          |
-| `agent.serviceAccount.name`           | The name of the ServiceAccount to use for the agent.                 | `""`            |
-| `agent.serviceAccount.annotations`    | Additional annotations to add to the agent ServiceAccount            | `{}`            |
-| `agent.resources.limits`              | The resources limits for the container                               | `{}`            |
-| `agent.resources.requests`            | The requested resources for the container                            | `{}`            |
-| `agent.updateStrategy.type`           | Agent update strategy                                                | `RollingUpdate` |
-| `agent.terminationGracePeriodSeconds` | The amount of time to wait for the agent pod to gracefully terminate | `30`            |
-| `agent.tolerations`                   | Tolerations for the agent pod(s)                                     | `[]`            |
-| `agent.nodeSelector`                  | Node labels for the agent pod(s)                                     | `{}`            |
-| `agent.topologySpreadConstraints`     | Topology Spread Constraints for the agent pod(s)                     | `[]`            |
+| Name                                  | Description                                                                              | Value           |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- | --------------- |
+| `agent.podAnnotations`                | Custom pod annotations to apply to agent pods. If not set, falls back to podAnnotations. | `{}`            |
+| `agent.priorityClassName`             | Priority class for pod scheduling.                                                       | `""`            |
+| `agent.replicaCount`                  | The number of agents to run.                                                             | `1`             |
+| `agent.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the agent.                      | `true`          |
+| `agent.serviceAccount.name`           | The name of the ServiceAccount to use for the agent.                                     | `""`            |
+| `agent.serviceAccount.annotations`    | Additional annotations to add to the agent ServiceAccount                                | `{}`            |
+| `agent.resources.limits`              | The resources limits for the container                                                   | `{}`            |
+| `agent.resources.requests`            | The requested resources for the container                                                | `{}`            |
+| `agent.updateStrategy.type`           | Agent update strategy                                                                    | `RollingUpdate` |
+| `agent.terminationGracePeriodSeconds` | The amount of time to wait for the agent pod to gracefully terminate                     | `30`            |
+| `agent.tolerations`                   | Tolerations for the agent pod(s)                                                         | `[]`            |
+| `agent.nodeSelector`                  | Node labels for the agent pod(s)                                                         | `{}`            |
+| `agent.topologySpreadConstraints`     | Topology Spread Constraints for the agent pod(s)                                         | `[]`            |
 
 ### Kubernetes Gateway feature configuration
 

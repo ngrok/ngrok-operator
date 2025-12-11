@@ -341,6 +341,11 @@
         "agent": {
             "type": "object",
             "properties": {
+                "podAnnotations": {
+                    "type": "object",
+                    "description": "Custom pod annotations to apply to agent pods. If not set, falls back to podAnnotations.",
+                    "default": {}
+                },
                 "priorityClassName": {
                     "type": "string",
                     "description": "Priority class for pod scheduling.",
