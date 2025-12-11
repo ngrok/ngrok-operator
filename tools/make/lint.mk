@@ -1,8 +1,13 @@
 ##@ Linting/Formatting
 
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint linter & yamllint
+lint: golangci-lint lint-markers ## Run golangci-lint linter & marker validation
 	$(GOLANGCI_LINT) run
+
+
+.PHONY: lint-markers
+lint-markers: ## Check for invalid kubebuilder marker prefixes
+	@$(SCRIPT_DIR)/lint-markers.sh
 
 
 .PHONY: lint-fix

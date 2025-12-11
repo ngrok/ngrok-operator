@@ -114,7 +114,7 @@ type EndpointTarget struct {
 	Port int32 `json:"port"`
 
 	// Metadata is a subset of metav1.ObjectMeta that is added to the Service
-	// +kube:validation:Optional
+	// +kubebuilder:validation:Optional
 	Metadata TargetMetadata `json:"metadata,omitempty"`
 }
 
