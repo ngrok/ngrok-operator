@@ -26,7 +26,9 @@ spec:
   template:
     metadata:
       annotations:
-        {{- if .Values.podAnnotations }}
+        {{- if $agent.podAnnotations }}
+          {{- toYaml $agent.podAnnotations | nindent 8 }}
+        {{- else if .Values.podAnnotations }}
           {{- toYaml .Values.podAnnotations | nindent 8 }}
         {{- end }}
         prometheus.io/path: /metrics
