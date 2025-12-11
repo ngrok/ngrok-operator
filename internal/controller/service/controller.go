@@ -444,9 +444,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		return objects, err
 	}
 
-	// Default to the listener endpoint URL, we'll compute this but only for tcp:// endpoints
-	// currently.
-	computedEndpointURL := listenerEndpointURL
+	var computedEndpointURL string
 
 	if listenerEndpointURL == "tcp://" {
 		// The user has either not set a 'url' or 'domain' annotation, and desires a TCP endpoint.
