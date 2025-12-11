@@ -381,6 +381,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				obj.GetObjectKind().GroupVersionKind().Kind,
 				r.Driver,
 				r.Client,
+				managerdriver.WithEventRecorder(r.Recorder),
 			),
 		)
 	}
