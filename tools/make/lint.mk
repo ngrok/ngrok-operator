@@ -5,6 +5,11 @@ lint: ## Run golangci-lint linter & yamllint
 	golangci-lint run
 
 
+.PHONY: lint-markers
+lint-markers: ## Check for invalid kubebuilder marker prefixes
+	@$(SCRIPT_DIR)/lint-markers.sh
+
+
 .PHONY: lint-fix
 lint-fix: ## Run golangci-lint linter and perform fixes
 	golangci-lint run --fix

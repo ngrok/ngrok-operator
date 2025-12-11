@@ -65,12 +65,12 @@ type KubernetesOperatorStatus struct {
 
 	// RegistrationStatus is the status of the registration of this Kubernetes Operator with the ngrok API
 	// +kubebuilder:validation:Required
-	// +kube:validation:Enum=registered;error;pending
+	// +kubebuilder:validation:Enum=registered;error;pending
 	// +kubebuilder:default="pending"
 	RegistrationStatus string `json:"registrationStatus,omitempty"`
 
 	// RegistrationErrorCode is the returned ngrok error code
-	// +kube:validation:Optional
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^ERR_NGROK_\d+$`
 	RegistrationErrorCode string `json:"registrationErrorCode,omitempty"`
 

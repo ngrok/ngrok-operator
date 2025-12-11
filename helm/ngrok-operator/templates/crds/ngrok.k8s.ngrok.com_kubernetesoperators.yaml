@@ -147,6 +147,10 @@ spec:
                 default: pending
                 description: RegistrationStatus is the status of the registration
                   of this Kubernetes Operator with the ngrok API
+                enum:
+                - registered
+                - error
+                - pending
                 type: string
               uri:
                 description: URI is the URI for this Kubernetes Operator
