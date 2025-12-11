@@ -21,7 +21,7 @@ jobs:
     if: github.repository == 'ngrok/ngrok-operator'
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
       - name: Check for changes
         id: filter
         uses: dorny/paths-filter@v2.11.1
@@ -44,7 +44,7 @@ jobs:
       github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
       - name: Extract Version tag
         id: extract_tag
         run: |

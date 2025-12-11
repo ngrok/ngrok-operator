@@ -805,7 +805,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			err := k8sClient.Create(context.Background(), cloudEndpoint)
 			Expect(err).To(HaveOccurred()) // Should be rejected by validation
 			Expect(err.Error()).To(Or(
-				ContainSubstring("must have at most 1 items"),
+				ContainSubstring("must have at most 1 item"),
 				ContainSubstring("maxItems"),
 			))
 		})

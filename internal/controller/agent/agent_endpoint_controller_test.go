@@ -1736,7 +1736,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			err := k8sClient.Create(context.Background(), agentEndpoint)
 			Expect(err).To(HaveOccurred()) // Should be rejected by validation
 			Expect(err.Error()).To(Or(
-				ContainSubstring("must have at most 1 items"),
+				ContainSubstring("must have at most 1 item"),
 				ContainSubstring("maxItems"),
 			))
 		})

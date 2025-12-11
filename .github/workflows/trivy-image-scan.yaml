@@ -8,7 +8,6 @@ on:
   - cron: '0 16 * * 1' # Run every Monday at 8:00 Pacific (16:00 UTC)
 
 env:
-  GO_VERSION: '1.24'
   DOCKER_BUILDX_PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
@@ -20,7 +19,7 @@ jobs:
       security-events: write   # so SARIF can appear in “Code scanning”
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
     - id: buildx-setup

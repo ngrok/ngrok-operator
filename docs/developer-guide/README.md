@@ -67,17 +67,10 @@ use in our codespaces devcontainer.
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or any other container runtime that can run kind)
 - [Go](https://go.dev/dl/)
 - [golangci-lint](https://github.com/golangci/golangci-lint)
+- [controller-gen from controller-tools](https://github.com/kubernetes-sigs/controller-tools)
 - Optional but useful on your `$PATH`: [kubectl](https://kubernetes.io/docs/tasks/tools/) and [Helm](https://helm.sh/docs/intro/install/)
 
 If you prefer declarative environments, the repository includes a `.envrc` that works with [nix-direnv](https://github.com/nix-community/nix-direnv); run `direnv allow` after installing it and the tooling above will be provided automatically.
-
-#### Bootstrap repo-managed tools
-
-```sh
-make bootstrap-tools
-```
-
-This downloads the Go-based utilities the repo expects (kind, Helm, controller-gen, envtest, golangci-lint) into `./bin`. Make targets always invoke those exact binaries, so you don’t need to add `./bin` to your global `$PATH`; stick with the provided make commands. Install `helm`/`kubectl` separately if you want them available for manual use.
 
 #### Create a local kind cluster
 

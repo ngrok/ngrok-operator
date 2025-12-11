@@ -1,9 +1,9 @@
 ##@ Kind
 
 .PHONY: kind-create
-kind-create: kind ## Create a local kind cluster for development.
-	"$(KIND)" create cluster --name "$(KIND_CLUSTER_NAME)";
+kind-create: ## Create a local kind cluster for development.
+	kind create cluster --name "$(KIND_CLUSTER_NAME)";
 
 .PHONY: kind-delete
-kind-delete: kind ## Delete the local kind cluster.
-	"$(KIND)" delete cluster --name "$(KIND_CLUSTER_NAME)"
+kind-delete: ## Delete the local kind cluster.
+	kind delete cluster --name "$(KIND_CLUSTER_NAME)"

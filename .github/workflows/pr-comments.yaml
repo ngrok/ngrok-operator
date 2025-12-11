@@ -21,7 +21,7 @@ jobs:
       pull-requests: read
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v6
     - id: filter
       uses: dorny/paths-filter@v2.11.1
       with:

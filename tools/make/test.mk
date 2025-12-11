@@ -2,7 +2,8 @@
 
 .PHONY: test
 test: manifests generate fmt vet ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(if $(PACKAGE),$(PACKAGE),./...) -coverprofile cover.out -timeout 120s
+	setup-envtest use $$ENVTEST_K8S_VERSION
+	go test $(if $(PACKAGE),$(PACKAGE),./...) -coverprofile cover.out -timeout 120s
 
 .PHONY: test-coverage
 test-coverage: test ## Run tests and open coverage report. Usage: make test-coverage PACKAGE=./internal/domain
@@ -39,5 +40,5 @@ e2e-clean: ## Clean up e2e tests
 
 
 .PHONY: helm-test
-helm-test: _helm_setup helm-unittest-plugin ## Run helm unittest plugin
-	HELM="$(HELM)" HELM_PLUGINS="$(HELM_PLUGIN_HOME)" $(MAKE) -C $(HELM_CHART_DIR) test
+helm-test: _helm_setup ## Run helm unittest plugin
+	$(MAKE) -C $(HELM_CHART_DIR) test

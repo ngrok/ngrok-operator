@@ -18,9 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Apply size label
       uses: ngrok/pr-size-labeler@77827af3431595c474d738acf7cfcee30c86edc1 # v1
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
-

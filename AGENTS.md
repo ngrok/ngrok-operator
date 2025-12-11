@@ -57,10 +57,23 @@ helm/ngrok-operator/         # Helm chart
 - **Store** ([internal/store/](internal/store/)) - State and caching across reconcilers
 - **Drivers** ([pkg/managerdriver/](pkg/managerdriver/), [pkg/bindingsdriver/](pkg/bindingsdriver/)) - Abstracts operational modes
 
+## Development Environment
+
+Use the Nix devShell for a consistent development environment:
+
+```bash
+nix develop                 # Enter devShell with all tools (recommended)
+```
+
+Users with [direnv](https://direnv.net/) configured will automatically enter the devShell via `.envrc`.
+
+Run `make preflight` to verify your environment is configured correctly.
+
 ## Development Workflow
 
 ```bash
 make help                   # List all available targets
+make preflight              # Verify environment (Go version, controller-gen)
 make generate               # Generate DeepCopy methods
 make manifests              # Generate CRDs, RBAC, webhooks
 make build                  # Build binaries

@@ -8,7 +8,6 @@ on:
     types: [checks_requested]
 
 env:
-  GO_VERSION: '1.24'
   DOCKER_BUILDX_PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
@@ -27,7 +26,7 @@ jobs:
       tests: ${{ steps.changes.outputs.tests }}
       make: ${{ steps.changes.outputs.make }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - uses: "./.github/actions/changes"
       id: changes
 
@@ -36,13 +35,11 @@ jobs:
     name: Kubebuilder Diff
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: ${{ env.GO_VERSION }}
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
     - name: Generate manifests
-      run: make manifests
+      run: nix develop --command make manifests
     - name: Fail if there are uncommited manifest changes
       run: |
         git diff --exit-code
@@ -57,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
     - id: buildx-setup
@@ -81,11 +78,9 @@ jobs:
     if: |
       (needs.changes.outputs.go == 'true')
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: ${{ env.GO_VERSION }}
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
     - run: go mod tidy
     - run: git diff --exit-code go.mod
     - run: git diff --exit-code go.sum
@@ -112,13 +107,13 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
     - uses: "./.github/actions/build-and-test"
       with:
         # this workflow is for incoming PRs, so we want to skip e2e tests
         # and deploy the demo mode because our api keys are not available
         # on contributor's forks
         run-e2e: false
-        go-version: ${{ env.GO_VERSION }}
     - if: github.repository == 'ngrok/ngrok-operator'
       name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
@@ -131,14 +126,13 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.charts == 'true'
     steps:
-    - uses: actions/checkout@v3
-    - uses: azure/setup-helm@v3
-      with:
-        version: v3.10.0
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
     - name: Lint Helm Chart
-      run: make helm-lint
+      run: nix develop --command make helm-lint
     - name: Helm Unit Tests
-      run: make helm-test
+      run: nix develop --command make helm-test
 
   e2e:
     runs-on: ubuntu-latest
@@ -168,9 +162,9 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
     - uses: "./.github/actions/build-and-test"
       with:
         run-e2e: true
-        go-version: ${{ env.GO_VERSION }}
         ngrok-api-key: ${{ secrets.NGROK_CI_API_KEY }}
         ngrok-authtoken: ${{ secrets.NGROK_CI_AUTHTOKEN }}
