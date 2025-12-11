@@ -79,7 +79,7 @@
           buildInputs =
             with pkgs;
             [
-              go_1_24
+              go
               go-tools
               golangci-lint
               gotools
