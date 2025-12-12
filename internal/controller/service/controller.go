@@ -35,6 +35,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
@@ -155,6 +156,8 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				predicate.AnnotationChangedPredicate{},
+				// Watch for status changes (e.g., when CloudEndpoint gets its domainRef updated)
+				predicate.ResourceVersionChangedPredicate{},
 			),
 		))
 		err := mgr.GetFieldIndexer().IndexField(context.Background(), o, OwnerReferencePath, func(obj client.Object) []string {
@@ -850,7 +853,7 @@ func getNgrokTrafficPolicyForService(ctx context.Context, c client.Client, svc *
 	return policy, err
 }
 
-func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, _ ngrokv1alpha1.EndpointWithDomain) error {
+func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, endpoint ngrokv1alpha1.EndpointWithDomain) error {
 	clearIngressStatus := func(svc *corev1.Service) error {
 		if len(svc.Status.LoadBalancer.Ingress) == 0 {
 			return nil
@@ -878,6 +881,31 @@ func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, _ n
 				return err
 			}
 			port = int32(x)
+		}
+
+		// For TLS endpoints, we need to wait for the domainRef to be set on the endpoint
+		// so we can look up the CNAME target from the Domain CRD. This applies to both
+		// ngrok domains (*.ngrok.app) and custom domains - all TLS endpoints get a domainRef.
+		// TCP endpoints don't have domains, so they can use the hostname directly.
+		if targetURL.Scheme == "tls" {
+			dr := endpoint.GetDomainRef()
+			if dr == nil {
+				// domainRef not yet set by the CloudEndpoint/AgentEndpoint controller.
+				// Clear the status and wait for it to be populated.
+				return clearIngressStatus(svc)
+			}
+
+			domain := &ingressv1alpha1.Domain{}
+			if err := c.Get(ctx, dr.ToClientObjectKey(svc.Namespace), domain); err != nil {
+				// If we can't fetch the domain, we can't determine the CNAME target.
+				// Clear the status until the domain is available.
+				return clearIngressStatus(svc)
+			}
+
+			// Use CNAME target if available (for custom domains), otherwise use the domain itself
+			if domain.Status.CNAMETarget != nil && *domain.Status.CNAMETarget != "" {
+				hostname = *domain.Status.CNAMETarget
+			}
 		}
 	case !errors.IsMissingAnnotations(err): // Some other error
 		return err

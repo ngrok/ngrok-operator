@@ -58,8 +58,89 @@ When the mapping strategy is `endpoints`, the traffic policy will be applied to 
 
 #### `k8s.ngrok.com/computed-url` (internal)
 
-This annotation is set by the controller to reflect the actual externally reachable URL of the load balancer.
-In the case of TCP load balancers with dynamically assigned addresses, this annotation will contain the assigned ngrok TCP address.
+This annotation is set by the controller and serves as the single source of truth for the externally reachable URL of the load balancer. The controller uses this annotation to populate the Service's `status.loadBalancer.ingress` field.
+
+**TCP Load Balancers:**
+- When the URL annotation is unset or `tcp://`, the controller reserves a TCP address via the ngrok API and sets the computed-url to the assigned address (e.g., `tcp://5.tcp.ngrok.io:12345`).
+- When the URL annotation specifies a pre-reserved TCP address (e.g., `tcp://1.tcp.ngrok.io:12345`), the computed-url is set to that address.
+
+**TLS Load Balancers:**
+- The computed-url is set to the value from the `k8s.ngrok.com/url` annotation (e.g., `tls://example.ngrok.app:443` or `tls://custom.example.com:443`).
+
+### Service Status
+
+The controller updates the Service's `status.loadBalancer.ingress` field to provide users with the externally reachable address for their load balancer.
+
+#### TCP Load Balancers
+
+For TCP load balancers, the status hostname and port are extracted directly from the `computed-url` annotation:
+
+```yaml
+status:
+  loadBalancer:
+    ingress:
+    - hostname: 5.tcp.ngrok.io
+      ports:
+      - port: 12345
+        protocol: TCP
+```
+
+#### TLS Load Balancers
+
+For TLS load balancers, the controller **must wait** for the endpoint's `status.domainRef` to be populated before setting the Service status. This is because TLS endpoints are associated with a Domain CRD that contains the authoritative hostname information.
+
+The flow is:
+1. Service controller creates CloudEndpoint/AgentEndpoint with the TLS URL
+2. CloudEndpoint/AgentEndpoint controller reconciles, creates/references the Domain, and sets `status.domainRef`
+3. Service controller watches for status changes on owned endpoints (via `ResourceVersionChangedPredicate`)
+4. When `domainRef` is set, Service controller looks up the Domain CRD to determine the correct hostname
+
+**While waiting for domainRef:** The Service status remains empty (no ingress entries).
+
+**Once domainRef is available:**
+
+For **ngrok-managed domains** (e.g., `*.ngrok.app`, `*.ngrok.io`), the Domain CRD will not have a `cnameTarget`, so the hostname is taken directly from the domain:
+
+```yaml
+# With annotation: k8s.ngrok.com/url: "tls://myapp.ngrok.app:443"
+# Domain CRD has: status.domain: "myapp.ngrok.app", status.cnameTarget: null
+status:
+  loadBalancer:
+    ingress:
+    - hostname: myapp.ngrok.app
+      ports:
+      - port: 443
+        protocol: TCP
+```
+
+For **custom domains** (e.g., `app.example.com`), the Domain CRD will have a `cnameTarget` that users must configure in their DNS. The status hostname is set to this CNAME target, not the custom domain itself:
+
+```yaml
+# With annotation: k8s.ngrok.com/url: "tls://app.example.com:443"
+# Domain CRD has: status.domain: "app.example.com", status.cnameTarget: "abc123.ngrok-cname.com"
+status:
+  loadBalancer:
+    ingress:
+    - hostname: abc123.ngrok-cname.com  # CNAME target, NOT app.example.com
+      ports:
+      - port: 443
+        protocol: TCP
+```
+
+This allows users to:
+1. See the CNAME target they need to configure in their DNS provider
+2. Create a CNAME record: `app.example.com -> abc123.ngrok-cname.com`
+
+#### domainRef Dependency
+
+The `domainRef` field on CloudEndpoint/AgentEndpoint status is critical for TLS endpoints:
+
+| Endpoint Type | domainRef Required | Status Behavior |
+|--------------|-------------------|-----------------|
+| TCP (`tcp://`) | No | Hostname from computed-url directly |
+| TLS (`tls://`) | Yes | Wait for domainRef, then use Domain's cnameTarget or domain |
+
+The Service controller watches for status changes on owned CloudEndpoint/AgentEndpoint resources. When the endpoint controller sets `status.domainRef`, the Service controller re-reconciles and populates the Service status with the correct hostname.
 
 ### Special Cases
 

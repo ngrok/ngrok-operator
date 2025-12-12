@@ -27,8 +27,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"strings"
 	"time"
 
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
@@ -526,8 +528,13 @@ var _ = Describe("ServiceController", func() {
 			})
 
 			When("service has tls:// URL annotation", func() {
+				const (
+					tlsDomain  = "example.ngrok.app"
+					domainName = "example-ngrok-app"
+				)
+
 				BeforeEach(func() {
-					modifiers.Add(AddAnnotation(Annotation_URL, "tls://example.ngrok.app"))
+					modifiers.Add(AddAnnotation(Annotation_URL, "tls://"+tlsDomain))
 				})
 
 				It("should create an agent endpoint with the TLS URL", func() {
@@ -537,11 +544,58 @@ var _ = Describe("ServiceController", func() {
 
 						By("checking the agent endpoint has the TLS URL")
 						aep := aeps[0]
-						g.Expect(aep.Spec.URL).To(Equal("tls://example.ngrok.app"))
+						g.Expect(aep.Spec.URL).To(Equal("tls://" + tlsDomain))
 					})
 				})
 
-				It("should set computed-url annotation and update service status", func() {
+				It("should set computed-url annotation and update service status after domainRef is set", func() {
+					var agentEndpoint *ngrokv1alpha1.AgentEndpoint
+
+					By("waiting for agent endpoint to be created")
+					Eventually(func(g Gomega) {
+						aeps, err := getAgentEndpoints(k8sClient, namespace)
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(aeps.Items).To(HaveLen(1))
+						agentEndpoint = &aeps.Items[0]
+					}, timeout, interval).Should(Succeed())
+
+					By("creating a Domain CRD for the ngrok domain")
+					domain := &ingressv1alpha1.Domain{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      domainName,
+							Namespace: namespace,
+						},
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: tlsDomain,
+						},
+					}
+					Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+					By("updating the Domain status (ngrok domains don't have CNAME target)")
+					Eventually(func(_ Gomega) error {
+						fetchedDomain := &ingressv1alpha1.Domain{}
+						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), fetchedDomain); err != nil {
+							return err
+						}
+						fetchedDomain.Status.Domain = tlsDomain
+						fetchedDomain.Status.ID = "rd_test123"
+						// ngrok domains (*.ngrok.app) don't have a CNAME target
+						return k8sClient.Status().Update(ctx, fetchedDomain)
+					}, timeout, interval).Should(Succeed())
+
+					By("updating the AgentEndpoint status with domainRef")
+					Eventually(func(_ Gomega) error {
+						fetchedAep := &ngrokv1alpha1.AgentEndpoint{}
+						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), fetchedAep); err != nil {
+							return err
+						}
+						fetchedAep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+							Name:      domainName,
+							Namespace: ptr.To(namespace),
+						}
+						return k8sClient.Status().Update(ctx, fetchedAep)
+					}, timeout, interval).Should(Succeed())
+
 					Eventually(func(g Gomega) {
 						fetched := &corev1.Service{}
 						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
@@ -550,11 +604,11 @@ var _ = Describe("ServiceController", func() {
 						By("checking the computed-url annotation is set")
 						computedURL, exists := fetched.GetAnnotations()[annotations.ComputedURLAnnotation]
 						g.Expect(exists).To(BeTrue())
-						g.Expect(computedURL).To(Equal("tls://example.ngrok.app"))
+						g.Expect(computedURL).To(Equal("tls://" + tlsDomain))
 
-						By("checking the service status is populated from computed-url")
+						By("checking the service status is populated with the domain (no CNAME for ngrok domains)")
 						g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
-						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(Equal("example.ngrok.app"))
+						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(Equal(tlsDomain))
 					}, timeout, interval).Should(Succeed())
 				})
 
@@ -572,12 +626,101 @@ var _ = Describe("ServiceController", func() {
 							g.Expect(aeps).To(HaveLen(1))
 
 							By("checking the cloud endpoint has the TLS URL")
-							g.Expect(cleps[0].Spec.URL).To(Equal("tls://example.ngrok.app"))
+							g.Expect(cleps[0].Spec.URL).To(Equal("tls://" + tlsDomain))
 
 							By("checking the agent endpoint URL has .internal suffix")
 							g.Expect(aeps[0].Spec.URL).To(ContainSubstring(".internal"))
 						})
 					})
+				})
+			})
+
+			When("service has tls:// URL with custom domain (not *.ngrok.app)", func() {
+				const (
+					customDomain = "service-test-custom-domain.example.com"
+					cnameTarget  = "abc123xyz.ngrok-cname.com"
+				)
+
+				BeforeEach(func() {
+					modifiers.Add(AddAnnotation(Annotation_URL, "tls://"+customDomain))
+					modifiers.Add(SetMappingStrategy(annotations.MappingStrategy_EndpointsVerbose))
+				})
+
+				It("should create cloud and agent endpoints", func() {
+					kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1alpha1.AgentEndpoint) {
+						By("checking a cloud endpoint exists")
+						g.Expect(cleps).To(HaveLen(1))
+
+						By("checking an agent endpoint exists")
+						g.Expect(aeps).To(HaveLen(1))
+
+						By("checking the cloud endpoint has the custom domain URL")
+						g.Expect(cleps[0].Spec.URL).To(Equal("tls://" + customDomain))
+					})
+				})
+
+				It("should use CNAME target from Domain status for service hostname", func() {
+					var cloudEndpoint *ngrokv1alpha1.CloudEndpoint
+
+					By("waiting for cloud endpoint to be created")
+					Eventually(func(g Gomega) {
+						cleps, err := getCloudEndpoints(k8sClient, namespace)
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(cleps.Items).To(HaveLen(1))
+						cloudEndpoint = &cleps.Items[0]
+					}, timeout, interval).Should(Succeed())
+
+					By("creating a Domain CRD with CNAME target in status")
+					domainName := strings.ReplaceAll(customDomain, ".", "-")
+					domain := &ingressv1alpha1.Domain{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      domainName,
+							Namespace: namespace,
+						},
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: customDomain,
+						},
+					}
+					Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+					By("updating the Domain status with CNAME target")
+					Eventually(func(_ Gomega) error {
+						fetchedDomain := &ingressv1alpha1.Domain{}
+						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), fetchedDomain); err != nil {
+							return err
+						}
+						fetchedDomain.Status.CNAMETarget = ptr.To(cnameTarget)
+						fetchedDomain.Status.Domain = customDomain
+						fetchedDomain.Status.ID = "rd_test123"
+						return k8sClient.Status().Update(ctx, fetchedDomain)
+					}, timeout, interval).Should(Succeed())
+
+					By("updating the CloudEndpoint status with domainRef")
+					Eventually(func(_ Gomega) error {
+						fetchedClep := &ngrokv1alpha1.CloudEndpoint{}
+						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), fetchedClep); err != nil {
+							return err
+						}
+						fetchedClep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+							Name:      domainName,
+							Namespace: ptr.To(namespace),
+						}
+						return k8sClient.Status().Update(ctx, fetchedClep)
+					}, timeout, interval).Should(Succeed())
+
+					By("checking the service status hostname is the CNAME target, not the custom domain")
+					Eventually(func(g Gomega) {
+						fetched := &corev1.Service{}
+						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
+						g.Expect(err).NotTo(HaveOccurred())
+
+						g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty(), "expected ingress status to be populated")
+						hostname := fetched.Status.LoadBalancer.Ingress[0].Hostname
+
+						By("hostname should be CNAME target ending in ngrok-cname.com, not the custom domain")
+						g.Expect(hostname).To(Equal(cnameTarget), "expected hostname to be CNAME target %q but got %q", cnameTarget, hostname)
+						g.Expect(hostname).NotTo(Equal(customDomain), "hostname should NOT be the custom domain directly")
+					}, timeout, interval).Should(Succeed())
 				})
 			})
 
