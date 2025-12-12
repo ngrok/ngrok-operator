@@ -38,7 +38,6 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
-	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
@@ -157,6 +156,8 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				predicate.AnnotationChangedPredicate{},
+				// Watch for status changes (e.g., when CloudEndpoint gets its domainRef updated)
+				predicate.ResourceVersionChangedPredicate{},
 			),
 		))
 		err := mgr.GetFieldIndexer().IndexField(context.Background(), o, OwnerReferencePath, func(obj client.Object) []string {
@@ -366,6 +367,20 @@ func (r *ServiceReconciler) clearComputedURLAnnotation(ctx context.Context, svc 
 	return r.Client.Update(ctx, svc)
 }
 
+func (r *ServiceReconciler) setComputedURLAnnotation(ctx context.Context, svc *corev1.Service, computedURL string) error {
+	a := svc.GetAnnotations()
+	if a == nil {
+		a = make(map[string]string)
+	}
+	// Only update if the value has changed
+	if a[annotations.ComputedURLAnnotation] == computedURL {
+		return nil
+	}
+	a[annotations.ComputedURLAnnotation] = computedURL
+	svc.SetAnnotations(a)
+	return r.Client.Update(ctx, svc)
+}
+
 func (r *ServiceReconciler) tcpAddressIsReserved(ctx context.Context, hostport string) (bool, error) {
 	iter := r.TCPAddresses.List(&ngrok.Paging{})
 	for iter.Next(ctx) {
@@ -432,9 +447,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		return objects, err
 	}
 
-	// Default to the listener endpoint URL, we'll compute this but only for tcp:// endpoints
-	// currently.
-	computedEndpointURL := listenerEndpointURL
+	var computedEndpointURL string
 
 	if listenerEndpointURL == "tcp://" {
 		// The user has either not set a 'url' or 'domain' annotation, and desires a TCP endpoint.
@@ -458,13 +471,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 
 			// Update the service with the computed URL
 			computedEndpointURL = fmt.Sprintf("tcp://%s", addr.Addr)
-			a := svc.GetAnnotations()
-			if a == nil {
-				a = make(map[string]string)
-			}
-			a[annotations.ComputedURLAnnotation] = computedEndpointURL
-			svc.SetAnnotations(a)
-			if err := r.Client.Update(ctx, svc); err != nil {
+			if err := r.setComputedURLAnnotation(ctx, svc, computedEndpointURL); err != nil {
 				return objects, err
 			}
 		} else {
@@ -501,10 +508,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 			}
 		}
 	} else {
-		// We only store computed URLs for TCP endpoints right now, so we should clear it if it exists
-		if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+		// For non-TCP endpoints (e.g., TLS), set the computed URL to the listener URL
+		// so that updateStatus can use it as the single source of truth
+		if err := r.setComputedURLAnnotation(ctx, svc, listenerEndpointURL); err != nil {
 			return objects, err
 		}
+		computedEndpointURL = listenerEndpointURL
 	}
 
 	switch mappingStrategy {
@@ -595,28 +604,7 @@ func (r *ServiceReconciler) getListenerURL(svc *corev1.Service) (string, error) 
 		return "", err
 	}
 
-	// Fallback to the using the deprecated domain annotation if the URL annotation is not present
-	domain, err := annotations.ExtractDomain(svc)
-	if err == nil {
-		msg := fmt.Sprintf(
-			"The '%s' annotation is deprecated and will be removed in a future release. Use the '%s' annotation instead",
-			annotations.DomainAnnotation,
-			annotations.URLAnnotation,
-		)
-		r.Recorder.Event(
-			svc,
-			corev1.EventTypeWarning,
-			"DeprecatedDomainAnnotation",
-			msg,
-		)
-		return fmt.Sprintf("tls://%s:443", domain), nil
-	}
-
-	if !errors.IsMissingAnnotations(err) {
-		return "", err
-	}
-
-	// No URL or domain annotation, assume TCP as the default
+	// No URL annotation, assume TCP as the default
 	return "tcp://", nil
 }
 
@@ -867,6 +855,9 @@ func getNgrokTrafficPolicyForService(ctx context.Context, c client.Client, svc *
 
 func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, endpoint ngrokv1alpha1.EndpointWithDomain) error {
 	clearIngressStatus := func(svc *corev1.Service) error {
+		if len(svc.Status.LoadBalancer.Ingress) == 0 {
+			return nil
+		}
 		svc.Status.LoadBalancer.Ingress = nil
 		return c.Status().Update(ctx, svc)
 	}
@@ -891,32 +882,35 @@ func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, end
 			}
 			port = int32(x)
 		}
-	case !errors.IsMissingAnnotations(err): // Some other error
-		return err
-	default: // computedURL not present, fallback to the domain annotation
-		domain, err := parser.GetStringAnnotation("domain", svc)
-		if err != nil {
-			if errors.IsMissingAnnotations(err) {
+
+		// For TLS endpoints, we need to wait for the domainRef to be set on the endpoint
+		// so we can look up the CNAME target from the Domain CRD. This applies to both
+		// ngrok domains (*.ngrok.app) and custom domains - all TLS endpoints get a domainRef.
+		// TCP endpoints don't have domains, so they can use the hostname directly.
+		if targetURL.Scheme == "tls" {
+			dr := endpoint.GetDomainRef()
+			if dr == nil {
+				// domainRef not yet set by the CloudEndpoint/AgentEndpoint controller.
+				// Clear the status and wait for it to be populated.
 				return clearIngressStatus(svc)
 			}
-			return err
-		}
 
-		// Use this domain temporarily, but also check if there is a
-		// more specific CNAME value on the domain to use
-		hostname = domain
-
-		dr := endpoint.GetDomainRef()
-		if dr != nil {
-			// Lookup the domain
 			domain := &ingressv1alpha1.Domain{}
-			if err := c.Get(ctx, client.ObjectKey{Namespace: *dr.Namespace, Name: dr.Name}, domain); err != nil {
-				return err
+			if err := c.Get(ctx, dr.ToClientObjectKey(svc.Namespace), domain); err != nil {
+				// If we can't fetch the domain, we can't determine the CNAME target.
+				// Clear the status until the domain is available.
+				return clearIngressStatus(svc)
 			}
-			if domain.Status.CNAMETarget != nil {
+
+			// Use CNAME target if available (for custom domains), otherwise use the domain itself
+			if domain.Status.CNAMETarget != nil && *domain.Status.CNAMETarget != "" {
 				hostname = *domain.Status.CNAMETarget
 			}
 		}
+	case !errors.IsMissingAnnotations(err): // Some other error
+		return err
+	default: // computedURL not present, clear status until endpoint is ready
+		return clearIngressStatus(svc)
 	}
 
 	newIngressStatus := []corev1.LoadBalancerIngress{

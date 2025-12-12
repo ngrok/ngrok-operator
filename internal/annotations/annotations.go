@@ -36,11 +36,6 @@ const (
 	// DeniedKeyName name of the key that contains the reason to deny a location
 	DeniedKeyName = "Denied"
 
-	// This annotation can be used on services to listen on a specific domain(i.e. a TLS endpoint)
-	// Deprecated: Use the URL annotation instead
-	DomainAnnotation = "k8s.ngrok.com/domain"
-	DomainKey        = "domain"
-
 	// This annotation can be used on ingress/gateway resources to control which ngrok resources (endpoints/edges) get created from it
 	MappingStrategyAnnotation    = "k8s.ngrok.com/mapping-strategy"
 	MappingStrategyAnnotationKey = "mapping-strategy"
@@ -130,12 +125,6 @@ func ExtractUseBindings(obj client.Object) ([]string, error) {
 // an error.
 func ExtractURL(obj client.Object) (string, error) {
 	return parser.GetStringAnnotation(URLKey, obj)
-}
-
-// ExtractDomain extracts the domain from the annotation "k8s.ngrok.com/domain" if it is present. Otherwise, it returns
-// an error.
-func ExtractDomain(obj client.Object) (string, error) {
-	return parser.GetStringAnnotation(DomainKey, obj)
 }
 
 // ExtractComputedURL extracts the computed URL from the annotation "k8s.ngrok.com/computed-url" if it is present. Otherwise, it returns

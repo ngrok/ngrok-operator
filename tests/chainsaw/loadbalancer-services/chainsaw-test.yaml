@@ -10,6 +10,7 @@ spec:
     - create: { file: ./test-deployment.yaml }
     - create: { file: ./test-tcp-service.yaml }
     - create: { file: ./test-tls-service.yaml }
+    - create: { file: ./test-tls-custom-domain-service.yaml }
 
   - name: verify TCP LoadBalancer service gets status
     try:
@@ -40,5 +41,22 @@ spec:
             "(length(to_array(loadBalancer.ingress)[?hostname]) > `0`)": true
             # Hostname ends with either ngrok.app or ngrok-cname.com (no direct indexing)
             "(length(to_array(loadBalancer.ingress)[? hostname && (pattern_match('*.ngrok.app', hostname) || pattern_match('*.ngrok-cname.com', hostname)) ]) > `0`)": true
+            # Positive port present (null-safe)
+            "(length(to_array(loadBalancer.ingress)[? length(to_array(ports)) > `0` && to_number(to_array(ports)[0].port) > `0`]) > `0`)": true
+
+  - name: verify TLS LoadBalancer with custom domain gets CNAME target in status
+    try:
+    - assert:
+        resource:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: test-tls-custom-domain-lb
+          status:
+            # Ingress entry exists with a hostname (null-safe)
+            "(length(to_array(loadBalancer.ingress)[?hostname]) > `0`)": true
+            # For custom domains, hostname MUST be the CNAME target (*.ngrok-cname.com), NOT the custom domain itself
+            # This ensures users can configure their DNS properly
+            "(length(to_array(loadBalancer.ingress)[? hostname && pattern_match('*.ngrok-cname.com', hostname) ]) > `0`)": true
             # Positive port present (null-safe)
             "(length(to_array(loadBalancer.ingress)[? length(to_array(ports)) > `0` && to_number(to_array(ports)[0].port) > `0`]) > `0`)": true
