@@ -10,7 +10,8 @@ spec:
     - create: { file: ./test-deployment.yaml }
     - create: { file: ./test-tcp-service.yaml }
     - create: { file: ./test-tls-service.yaml }
-    - create: { file: ./test-tls-custom-domain-service.yaml }
+    # Disabled for now as the domain reservation conflicts between users and CI accounts.
+    # - create: { file: ./test-tls-custom-domain-service.yaml }
 
   - name: verify TCP LoadBalancer service gets status
     try:
@@ -47,6 +48,8 @@ spec:
   - name: verify TLS LoadBalancer with custom domain gets CNAME target in status
     try:
     - assert:
+        # Custom domain reservation can take longer on first run (needs ngrok API call to reserve)
+        timeout: 60s
         resource:
           apiVersion: v1
           kind: Service
