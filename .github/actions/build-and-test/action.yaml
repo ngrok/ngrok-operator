@@ -36,10 +36,6 @@ runs:
       shell: bash
       run: nix develop --command make build
 
-    - name: Lint
-      shell: bash
-      run: nix develop --command make lint
-
     - name: Test
       shell: bash
       run: nix develop --command make test

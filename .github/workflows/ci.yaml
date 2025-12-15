@@ -45,11 +45,23 @@ jobs:
         git diff --exit-code
         git diff --cached --exit-code
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Lint
+      run: nix develop --command make lint
+
   build-images:
     name: Build Images
     needs:
     - changes
     - kubebuilder-diff
+    - lint
     if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -90,6 +102,7 @@ jobs:
     needs:
     - changes
     - kubebuilder-diff
+    - lint
     if: |
       (github.event_name == 'push' && github.ref_name == 'main')
       ||
@@ -139,6 +152,7 @@ jobs:
     needs:
     - changes
     - kubebuilder-diff
+    - lint
     # Only run one e2e test at a time to avoid stomping on each other
     concurrency:
       group: e2e
