@@ -43,7 +43,6 @@ type K8sObjectRefOptionalNamespace struct {
 	Name string `json:"name"`
 
 	// The namespace of the Kubernetes resource being referenced
-	// +kubebuilder:validation:Optional
 	Namespace *string `json:"namespace,omitempty"`
 }
 
