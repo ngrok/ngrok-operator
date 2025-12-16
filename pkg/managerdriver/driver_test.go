@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -1249,3 +1250,109 @@ func TestExtractPolicy(t *testing.T) {
 		})
 	}
 }
+
+var _ = Describe("RecordDomainEventsForIngress", func() {
+	var driver *Driver
+	var fakeRecorder *record.FakeRecorder
+	var scheme = runtime.NewScheme()
+
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
+
+	BeforeEach(func() {
+		fakeRecorder = record.NewFakeRecorder(10)
+		driver = NewDriver(
+			GinkgoLogr,
+			scheme,
+			testutils.DefaultControllerName,
+			types.NamespacedName{Name: defaultManagerName},
+			WithEventRecorder(fakeRecorder),
+		)
+	})
+
+	It("Should record warning event when domain Ready condition is false", func() {
+		ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "default", "example.com")
+		domains := testutils.NewDomainMap(
+			testutils.NewDomainV1("example.com", "default",
+				testutils.WithDomainReadyCondition(metav1.ConditionFalse, "domain not available on free plan")),
+		)
+
+		driver.recordDomainEventsForIngress(ingress, domains)
+
+		Expect(fakeRecorder.Events).To(Receive(Equal(
+			"Warning DomainNotReady Domain \"example.com\" is not ready: domain not available on free plan",
+		)))
+	})
+
+	It("Should not record event when domain Ready condition is true", func() {
+		ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "default", "valid.ngrok.io")
+		domains := testutils.NewDomainMap(
+			testutils.NewDomainV1("valid.ngrok.io", "default",
+				testutils.WithDomainReadyCondition(metav1.ConditionTrue, "")),
+		)
+
+		driver.recordDomainEventsForIngress(ingress, domains)
+
+		Expect(fakeRecorder.Events).ToNot(Receive())
+	})
+
+	It("Should not record event when domain not found", func() {
+		ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "default", "unknown.com")
+		domains := testutils.NewDomainMap()
+
+		driver.recordDomainEventsForIngress(ingress, domains)
+
+		Expect(fakeRecorder.Events).ToNot(Receive())
+	})
+
+	It("Should not record event when domain has no Ready condition", func() {
+		ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "default", "pending.com")
+		domains := testutils.NewDomainMap(
+			testutils.NewDomainV1("pending.com", "default"),
+		)
+
+		driver.recordDomainEventsForIngress(ingress, domains)
+
+		Expect(fakeRecorder.Events).ToNot(Receive())
+	})
+
+	It("Should record events for multiple failing domains", func() {
+		ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "default", "fail1.com", "fail2.com")
+		domains := testutils.NewDomainMap(
+			testutils.NewDomainV1("fail1.com", "default",
+				testutils.WithDomainReadyCondition(metav1.ConditionFalse, "error 1")),
+			testutils.NewDomainV1("fail2.com", "default",
+				testutils.WithDomainReadyCondition(metav1.ConditionFalse, "error 2")),
+		)
+
+		driver.recordDomainEventsForIngress(ingress, domains)
+
+		var events []string
+		for i := 0; i < 2; i++ {
+			var event string
+			Expect(fakeRecorder.Events).To(Receive(&event))
+			events = append(events, event)
+		}
+		Expect(events).To(ContainElement("Warning DomainNotReady Domain \"fail1.com\" is not ready: error 1"))
+		Expect(events).To(ContainElement("Warning DomainNotReady Domain \"fail2.com\" is not ready: error 2"))
+	})
+
+	It("Should not panic when recorder is nil", func() {
+		driverNoRecorder := NewDriver(
+			GinkgoLogr,
+			scheme,
+			testutils.DefaultControllerName,
+			types.NamespacedName{Name: defaultManagerName},
+		)
+
+		ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "default", "example.com")
+		domains := testutils.NewDomainMap(
+			testutils.NewDomainV1("example.com", "default",
+				testutils.WithDomainReadyCondition(metav1.ConditionFalse, "some error")),
+		)
+
+		Expect(func() {
+			driverNoRecorder.recordDomainEventsForIngress(ingress, domains)
+		}).ToNot(Panic())
+	})
+})

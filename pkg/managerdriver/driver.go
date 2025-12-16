@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -67,6 +68,8 @@ type Driver struct {
 	disableGatewayReferenceGrants bool
 
 	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+
+	recorder record.EventRecorder
 }
 
 type DriverOpt func(*Driver)
@@ -110,6 +113,12 @@ func WithGatewayTLSRouteEnabled(enabled bool) DriverOpt {
 func WithDefaultDomainReclaimPolicy(policy ingressv1alpha1.DomainReclaimPolicy) DriverOpt {
 	return func(d *Driver) {
 		d.defaultDomainReclaimPolicy = &policy
+	}
+}
+
+func WithEventRecorder(recorder record.EventRecorder) DriverOpt {
+	return func(d *Driver) {
+		d.recorder = recorder
 	}
 }
 
@@ -648,6 +657,8 @@ func (d *Driver) updateStatuses(ctx context.Context, c client.Client) error {
 // updateIngressesStatuses iterates over all ingresses and updates their statuses if
 // they need it. It does this by calculating the domains for each ingress and checking
 // against the DomainCRs CNAMETargets to propery set the LoadBalancer.Ingress status.
+// It also records events to ingresses based on domain Ready conditions to help users
+// understand domain-related issues without needing to inspect the Domain CRs directly.
 func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) error {
 	domains, err := getDomainsByDomain(ctx, c)
 	if err != nil {
@@ -661,6 +672,9 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 		if ingress == nil {
 			continue
 		}
+
+		// Record events from domain Ready conditions to help users understand domain issues
+		d.recordDomainEventsForIngress(ingress, domains)
 
 		newLBIPStatus := calculateIngressLoadBalancerIPStatus(ingress, domains)
 		if reflect.DeepEqual(ingress.Status.LoadBalancer.Ingress, newLBIPStatus) {
@@ -689,6 +703,38 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 	}
 
 	return g.Wait()
+}
+
+// recordDomainEventsForIngress records events to the ingress based on the Ready condition
+// of its associated domains. This helps users understand domain-related issues (e.g., using
+// an invalid domain on a free account) without needing to inspect Domain CRs directly.
+func (d *Driver) recordDomainEventsForIngress(ingress *netv1.Ingress, domains map[string]ingressv1alpha1.Domain) {
+	if d.recorder == nil {
+		return
+	}
+
+	for _, rule := range ingress.Spec.Rules {
+		domain, ok := domains[rule.Host]
+		if !ok {
+			continue
+		}
+
+		readyCondition := meta.FindStatusCondition(domain.Status.Conditions, "Ready")
+		if readyCondition == nil {
+			continue
+		}
+
+		if readyCondition.Status == metav1.ConditionFalse {
+			d.recorder.Eventf(
+				ingress,
+				corev1.EventTypeWarning,
+				"DomainNotReady",
+				"Domain %q is not ready: %s",
+				rule.Host,
+				readyCondition.Message,
+			)
+		}
+	}
 }
 
 func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) error {

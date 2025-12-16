@@ -48,28 +48,22 @@ func NewTestIngressV1WithClass(name string, namespace string, ingressClass strin
 	return i
 }
 
-func NewTestIngressV1(name string, namespace string) *netv1.Ingress {
-	return &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: netv1.IngressSpec{
-			Rules: []netv1.IngressRule{
-				{
-					Host: "example.com",
-					IngressRuleValue: netv1.IngressRuleValue{
-						HTTP: &netv1.HTTPIngressRuleValue{
-							Paths: []netv1.HTTPIngressPath{
-								{
-									Path: "/",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "example",
-											Port: netv1.ServiceBackendPort{
-												Number: 80,
-											},
-										},
+// NewTestIngressV1WithHosts creates an ingress with the specified hosts.
+func NewTestIngressV1WithHosts(name string, namespace string, hosts ...string) *netv1.Ingress {
+	rules := make([]netv1.IngressRule, 0, len(hosts))
+	for _, host := range hosts {
+		rules = append(rules, netv1.IngressRule{
+			Host: host,
+			IngressRuleValue: netv1.IngressRuleValue{
+				HTTP: &netv1.HTTPIngressRuleValue{
+					Paths: []netv1.HTTPIngressPath{
+						{
+							Path: "/",
+							Backend: netv1.IngressBackend{
+								Service: &netv1.IngressServiceBackend{
+									Name: "example",
+									Port: netv1.ServiceBackendPort{
+										Number: 80,
 									},
 								},
 							},
@@ -77,8 +71,21 @@ func NewTestIngressV1(name string, namespace string) *netv1.Ingress {
 					},
 				},
 			},
+		})
+	}
+	return &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: netv1.IngressSpec{
+			Rules: rules,
 		},
 	}
+}
+
+func NewTestIngressV1(name string, namespace string) *netv1.Ingress {
+	return NewTestIngressV1WithHosts(name, namespace, "example.com")
 }
 
 func NewTestServiceV1(name string, namespace string) *corev1.Service {
@@ -100,8 +107,26 @@ func NewTestServiceV1(name string, namespace string) *corev1.Service {
 	}
 }
 
-func NewDomainV1(name string, namespace string) *ingressv1alpha1.Domain {
-	return &ingressv1alpha1.Domain{
+type DomainOpt func(*ingressv1alpha1.Domain)
+
+// WithDomainStatusCondition adds a condition to the domain's status.
+func WithDomainStatusCondition(condition metav1.Condition) DomainOpt {
+	return func(d *ingressv1alpha1.Domain) {
+		d.Status.Conditions = append(d.Status.Conditions, condition)
+	}
+}
+
+// WithDomainReadyCondition is a convenience helper that sets the Ready condition.
+func WithDomainReadyCondition(status metav1.ConditionStatus, message string) DomainOpt {
+	return WithDomainStatusCondition(metav1.Condition{
+		Type:    "Ready",
+		Status:  status,
+		Message: message,
+	})
+}
+
+func NewDomainV1(name string, namespace string, opts ...DomainOpt) *ingressv1alpha1.Domain {
+	d := &ingressv1alpha1.Domain{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(name),
 			Namespace: namespace,
@@ -110,6 +135,10 @@ func NewDomainV1(name string, namespace string) *ingressv1alpha1.Domain {
 			Domain: name,
 		},
 	}
+	for _, opt := range opts {
+		opt(d)
+	}
+	return d
 }
 
 // RandomName generates a random name with the given prefix. The random part is 5 characters long.
@@ -318,4 +347,14 @@ func FindCondition(conditions []metav1.Condition, condType string) *metav1.Condi
 		}
 	}
 	return nil
+}
+
+// NewDomainMap creates a map of domain name to Domain objects, useful for testing
+// functions that operate on domain lookups.
+func NewDomainMap(domains ...*ingressv1alpha1.Domain) map[string]ingressv1alpha1.Domain {
+	result := make(map[string]ingressv1alpha1.Domain, len(domains))
+	for _, d := range domains {
+		result[d.Spec.Domain] = *d
+	}
+	return result
 }
