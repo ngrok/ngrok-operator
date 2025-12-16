@@ -62,7 +62,6 @@ spec:
                   List of Binding IDs to associate with the endpoint
                   Accepted values are "public", "internal", or "kubernetes"
                 items:
-                  pattern: ^(public|internal|kubernetes)$
                   type: string
                 maxItems: 1
                 type: array
@@ -258,7 +257,6 @@ spec:
                 description: |-
                   DomainRef is a reference to the Domain resource associated with this endpoint.
                   For internal endpoints, this will be nil.
-                nullable: true
                 properties:
                   name:
                     description: The name of the Kubernetes resource being referenced
