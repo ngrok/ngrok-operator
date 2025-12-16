@@ -3,7 +3,7 @@ Should match snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
-      name: ngrok-operator-leader-election-role
+      name: RELEASE-NAME-ngrok-operator-leader-election-role
       namespace: NAMESPACE
     rules:
       - apiGroups:
@@ -41,7 +41,7 @@ Should match snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
-      name: ngrok-operator-proxy-role
+      name: RELEASE-NAME-ngrok-operator-proxy-role
     rules:
       - apiGroups:
           - authentication.k8s.io
@@ -59,12 +59,12 @@ Should match snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
-      name: ngrok-operator-leader-election-rolebinding
+      name: RELEASE-NAME-ngrok-operator-leader-election-rolebinding
       namespace: NAMESPACE
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role
-      name: ngrok-operator-leader-election-role
+      name: RELEASE-NAME-ngrok-operator-leader-election-role
     subjects:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
@@ -73,11 +73,11 @@ Should match snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: ngrok-operator-manager-rolebinding
+      name: RELEASE-NAME-ngrok-operator-manager-rolebinding
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: ngrok-operator-manager-role
+      name: RELEASE-NAME-ngrok-operator-manager-role
     subjects:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
@@ -86,11 +86,11 @@ Should match snapshot:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: ngrok-operator-proxy-rolebinding
+      name: RELEASE-NAME-ngrok-operator-proxy-rolebinding
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: ngrok-operator-proxy-role
+      name: RELEASE-NAME-ngrok-operator-proxy-role
     subjects:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
