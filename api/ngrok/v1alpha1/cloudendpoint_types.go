@@ -79,7 +79,7 @@ type CloudEndpointSpec struct {
 	//
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxItems=1
-	// +kubebuilder:validation:Items=pattern=`^(public|internal|kubernetes)$`
+	// +kubebuilder:validation:items:Pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 }
 
@@ -91,7 +91,7 @@ type CloudEndpointStatus struct {
 	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Nullable
+	// +nullable
 	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
 
 	// Conditions describe the current conditions of the AgentEndpoint.

@@ -137,7 +137,7 @@ type AgentEndpointSpec struct {
 	//
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxItems=1
-	// +kubebuilder:validation:Items=pattern=`^(public|internal|kubernetes)$`
+	// +kubebuilder:validation:items:Pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 
 	// List of client certificates to present to the upstream when performing a TLS handshake
@@ -194,7 +194,7 @@ type AgentEndpointStatus struct {
 	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Nullable
+	// +nullable
 	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
 
 	// Conditions describe the current conditions of the AgentEndpoint.
