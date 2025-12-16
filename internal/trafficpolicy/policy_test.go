@@ -200,7 +200,7 @@ func TestNewTrafficPolicyFromJSON(t *testing.T) {
 			name:        "invalid JSON should error",
 			input:       `{invalid}`,
 			expectError: true,
-			errContains: "failed to unmarshal traffic policy: invalid character 'i' looking for beginning of object key string. raw traffic policy: map[]",
+			errContains: "failed to unmarshal traffic policy: invalid character 'i' looking for beginning of object key string. raw traffic policy: {invalid}",
 		},
 	}
 

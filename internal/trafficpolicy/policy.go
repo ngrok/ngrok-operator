@@ -100,7 +100,7 @@ func NewTrafficPolicyFromJSON(data []byte) (*TrafficPolicy, error) {
 	// First unmarshal to a map to detect unknown keys
 	var rawPolicy map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawPolicy); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal traffic policy: %w. raw traffic policy: %v", err, rawPolicy)
+		return nil, fmt.Errorf("failed to unmarshal traffic policy: %w. raw traffic policy: %v", err, string(data))
 	}
 
 	// Check for unknown keys that would be silently dropped
