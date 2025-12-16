@@ -1,7 +1,7 @@
 apiVersion: v2
 name: ngrok-operator
 description: The official ngrok Kubernetes Operator.
-version: 0.21.1
+version: 0.22.0-rc.1
 appVersion: 0.19.1
 keywords:
   - ngrok
@@ -19,3 +19,9 @@ dependencies:
     tags:
       - bitnami-common
     version: 2.x.x
+  - name: ngrok-crds
+    repository: file://../ngrok-crds
+    version: 0.1.0
+    condition: installCRDs
+    tags:
+      - install-crds

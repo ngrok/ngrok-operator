@@ -1,0 +1,15 @@
+apiVersion: v2
+name: ngrok-crds
+description: ngrok Custom Resource Definitions for Kubernetes.
+version: 0.1.0
+appVersion: 0.1.0
+keywords:
+  - ngrok
+  - networking
+  - ingress
+  - edge
+  - api gateway
+home: https://ngrok.com
+sources:
+  - https://github.com/ngrok/ngrok-operator
+icon: https://charts.ngrok.com/assets/ngrok-favicon.svg

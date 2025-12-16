@@ -2,12 +2,12 @@ package agent
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -41,7 +41,9 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "helm", "ngrok-operator", "templates", "crds")},
+		CRDDirectoryPaths: []string{
+			testutils.OperatorCRDPath("..", "..", ".."),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
 

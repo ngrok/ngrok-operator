@@ -415,3 +415,9 @@ bindings:
 
     ## @param bindings.forwarder.topologySpreadConstraints Topology Spread Constraints for the bindings forwarder pod(s)
     topologySpreadConstraints: []
+
+## @section Custom Resource Definitions installation
+##
+
+## @param installCRDs When true, the ngrok CRDs will be installed alongside the operator
+installCRDs: true

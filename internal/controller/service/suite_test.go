@@ -79,7 +79,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(GinkgoT().Context())
 
 	By("bootstrapping test environment")
-	operatorAPIs := filepath.Join("..", "..", "..", "helm", "ngrok-operator", "templates", "crds")
+	operatorAPIs := filepath.Join("..", "..", "..", "helm", "ngrok-crds", "templates")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{operatorAPIs},
 	}
