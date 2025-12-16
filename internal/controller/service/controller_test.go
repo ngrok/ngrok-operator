@@ -660,14 +660,11 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should use CNAME target from Domain status for service hostname", func() {
-					var cloudEndpoint *ngrokv1alpha1.CloudEndpoint
-
 					By("waiting for cloud endpoint to be created")
 					Eventually(func(g Gomega) {
 						cleps, err := getCloudEndpoints(k8sClient, namespace)
 						g.Expect(err).NotTo(HaveOccurred())
 						g.Expect(cleps.Items).To(HaveLen(1))
-						cloudEndpoint = &cleps.Items[0]
 					}, timeout, interval).Should(Succeed())
 
 					By("creating a Domain CRD with CNAME target in status")
@@ -697,10 +694,14 @@ var _ = Describe("ServiceController", func() {
 
 					By("updating the CloudEndpoint status with domainRef")
 					Eventually(func(_ Gomega) error {
-						fetchedClep := &ngrokv1alpha1.CloudEndpoint{}
-						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), fetchedClep); err != nil {
+						cleps, err := getCloudEndpoints(k8sClient, namespace)
+						if err != nil {
 							return err
 						}
+						if len(cleps.Items) != 1 {
+							return fmt.Errorf("expected 1 CloudEndpoint, got %d", len(cleps.Items))
+						}
+						fetchedClep := &cleps.Items[0]
 						fetchedClep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 							Name:      domainName,
 							Namespace: ptr.To(namespace),
