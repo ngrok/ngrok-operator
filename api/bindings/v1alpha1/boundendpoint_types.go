@@ -64,32 +64,26 @@ type BoundEndpointSpec struct {
 type BoundEndpointStatus struct {
 	// Endpoints is the list of ngrok API endpoint references bound to this BoundEndpoint
 	// All endpoints share the same underlying Kubernetes services
-	// +kubebuilder:validation:Optional
 	Endpoints []BindingEndpoint `json:"endpoints,omitempty"`
 
 	// HashName is the hashed output of the TargetService and TargetNamespace for unique identification
-	// +kubebuilder:validation:Optional
 	HashedName string `json:"hashedName,omitempty"`
 
 	// EndpointsSummary provides a human-readable count of bound endpoints
 	// Format: "N endpoint" or "N endpoints"
 	// Examples: "1 endpoint", "2 endpoints"
-	// +kubebuilder:validation:Optional
 	EndpointsSummary string `json:"endpointsSummary,omitempty"`
 
 	// Conditions represent the latest available observations of the BoundEndpoint's state
-	// +kubebuilder:validation:Optional
 	// +listType=map
 	// +listMapKey=type
 	// +kubebuilder:validation:MaxItems=8
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// TargetServiceRef references the created ExternalName Service in the target namespace
-	// +kubebuilder:validation:Optional
 	TargetServiceRef *ngrokv1alpha1.K8sObjectRefOptionalNamespace `json:"targetServiceRef,omitempty"`
 
 	// UpstreamServiceRef references the created ClusterIP Service pointing to pod forwarders
-	// +kubebuilder:validation:Optional
 	UpstreamServiceRef *ngrokv1alpha1.K8sObjectRef `json:"upstreamServiceRef,omitempty"`
 }
 
@@ -114,7 +108,6 @@ type EndpointTarget struct {
 	Port int32 `json:"port"`
 
 	// Metadata is a subset of metav1.ObjectMeta that is added to the Service
-	// +kubebuilder:validation:Optional
 	Metadata TargetMetadata `json:"metadata,omitempty"`
 }
 
@@ -125,14 +118,12 @@ type TargetMetadata struct {
 	// (scope and select) objects. May match selectors of replication controllers
 	// and services.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
-	// +kubebuilder:validation:Optional
 	Labels map[string]string `json:"labels,omitempty"`
 
 	// Annotations is an unstructured key value map stored with a resource that may be
 	// set by external tools to store and retrieve arbitrary metadata. They are not
 	// queryable and should be preserved when modifying objects.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
-	// +kubebuilder:validation:Optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
