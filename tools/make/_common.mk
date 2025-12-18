@@ -48,8 +48,9 @@ KIND_CLUSTER_NAME ?= ngrok-operator
 
 HELM_RELEASE_NAME ?= ngrok-operator
 HELM_CHART_DIR = ./helm/ngrok-operator
+CRD_CHART_DIR = ./helm/ngrok-crds
 HELM_TEMPLATES_DIR = $(HELM_CHART_DIR)/templates
-
+CRD_TEMPLATES_DIR = $(CRD_CHART_DIR)/templates
 
 
 ## Tool Versions

@@ -37,8 +37,10 @@ runs:
             - '.github/actions/**'
           chartyaml:
             - 'helm/ngrok-operator/Chart.yaml'
+            - 'helm/ngrok-crds/Chart.yaml'
           charts:
             - 'helm/ngrok-operator/**'
+            - 'helm/ngrok-crds/**'
             - 'scripts/e2e.sh'
           go:
             - '**.go'

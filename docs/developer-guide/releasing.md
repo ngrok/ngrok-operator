@@ -3,10 +3,12 @@
 - [Artifacts](#artifacts)
   - [Docker Image](#docker-image)
   - [Helm Chart](#helm-chart)
+  - [CRDs Helm Chart](#crds-helm-chart)
 - [Semantic Versioning](#semantic-versioning)
 - [Release Process](#release-process)
   - [Tagging](#tagging)
     - [Helm Chart](#helm-chart-1)
+    - [CRDs Helm Chart](#crds-helm-chart-1)
     - [Controller](#controller)
 
 # Release Steps
@@ -55,6 +57,13 @@ support `amd64` and `arm64` architectures, with future plans to build for other 
 The helm chart is packaged and published to its own [helm repository](https://charts.ngrok.com/index.yaml)
 and can be installed by following the instructions in the chart's [README](../helm/ingress-operator/README.md).
 
+### CRDs Helm Chart
+
+The `ngrok-crds` helm chart contains the Custom Resource Definitions (CRDs) for the ngrok operator.
+This chart is published to the same [helm repository](https://charts.ngrok.com/index.yaml) as the
+main operator chart. It allows users to manage CRD lifecycle separately from the operator, which
+is useful for GitOps workflows and when multiple operators share the same CRDs.
+
 ## Semantic Versioning
 
 This project uses [semantic versioning](https://semver.org/) for both the the docker image
@@ -79,8 +88,8 @@ There is a different git tag pattern for each artifact.
 #### Helm Chart
 
 Releases of the helm chart will be tagged with a prefix of `helm-chart-`. For example, version `1.2.0`
-of the helm chart will have a git tag of `helm-chart-1.2.0` which contains the code used to package
-and publish version `1.2.0` of the helm chart.
+of the helm chart will have a git tag of `helm-chart-1.2.0` or `helm-chart-ngrok-operator-1.2.0` which
+contains the code used to package and publish version `1.2.0` of the helm chart.
 
 When changes are made to the helm chart's `Chart.yaml` file, a github workflow will trigger upon
 merging the PR to the `main` branch. The workflow will package and publish the helm chart for
@@ -88,6 +97,16 @@ consumption. The workflow will also create a git tag as described above.
 
 When changing `version` in the helm chart's `Chart.yaml` file, the version should be bumped according
 to the semantic versioning spec as described above.
+
+#### CRDs Helm Chart
+
+Releases of the CRDs helm chart will be tagged with a prefix of `helm-chart-`. For example, version `0.1.0`
+of the CRDs helm chart will have a git tag of `helm-chart-ngrok-crds-0.1.0` which contains the code used to package
+and publish version `0.1.0` of the CRDs helm chart.
+
+When changes are made to the CRDs helm chart's `Chart.yaml` file in `helm/ngrok-crds/`, a github workflow
+will trigger upon merging the PR to the `main` branch. The workflow will package and publish the CRDs
+helm chart for consumption. The workflow will also create a git tag as described above.
 
 #### Controller
 

@@ -84,6 +84,9 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set bindings.serviceAnnotations.annotation2="val2" \
 		--set bindings.serviceLabels.label1="val1"
 
+.PHONY: deploy_multi_namespace
+deploy_multi_namespace: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy multiple copies of the controller to the K8s cluster specified in ~/.kube/config.
+
 .PHONY: kind-load-image
 kind-load-image: ## Load the locally built image into the kind cluster.
 	kind load docker-image $(IMG) --name $(KIND_CLUSTER_NAME)

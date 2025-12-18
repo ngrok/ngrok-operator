@@ -486,6 +486,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 		managerdriver.WithClusterDomain(options.clusterDomain),
 		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
 		managerdriver.WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),
+		managerdriver.WithEventRecorder(mgr.GetEventRecorderFor("k8s-resource-driver")),
 	}
 
 	if tcpRouteCRDInstalled {
