@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: ngrok-operator-leader-election-role
+  name: {{ include "ngrok-operator.fullname" . }}-leader-election-role
   namespace: {{ .Release.Namespace }}
 rules:
 - apiGroups:
@@ -40,7 +40,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ngrok-operator-proxy-role
+  name: {{ include "ngrok-operator.fullname" . }}-proxy-role
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -58,12 +58,12 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: ngrok-operator-leader-election-rolebinding
+  name: {{ include "ngrok-operator.fullname" . }}-leader-election-rolebinding
   namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: ngrok-operator-leader-election-role
+  name: {{ include "ngrok-operator.fullname" . }}-leader-election-role
 subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.serviceAccountName" . }}
@@ -72,11 +72,11 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ngrok-operator-manager-rolebinding
+  name: {{ include "ngrok-operator.fullname" . }}-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ngrok-operator-manager-role
+  name: {{ include "ngrok-operator.fullname" . }}-manager-role
 subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.serviceAccountName" . }}
@@ -85,11 +85,11 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ngrok-operator-proxy-rolebinding
+  name: {{ include "ngrok-operator.fullname" . }}-proxy-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ngrok-operator-proxy-role
+  name: {{ include "ngrok-operator.fullname" . }}-proxy-role
 subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.serviceAccountName" . }}
