@@ -17,7 +17,7 @@ inputs:
   kind-version:
     description: "KIND version to use"
     required: false
-    default: "v0.26.0"
+    default: "v0.30.0"
 
 runs:
   using: "composite"

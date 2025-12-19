@@ -30,6 +30,12 @@ e2e-tests: ## Run e2e tests
 		--namespace e2e \
 		--cleanup-timeout 2m
 
+.PHONY: e2e-tests-multi-ns
+e2e-tests-multi-ns: ## Run multi-namespace e2e tests
+	chainsaw test ./tests/chainsaw-multi-ns \
+		--namespace namespace-a \
+		--cleanup-timeout 2m
+
 .PHONY: e2e-clean
 e2e-clean: ## Clean up e2e tests
 	kubectl delete ns e2e
