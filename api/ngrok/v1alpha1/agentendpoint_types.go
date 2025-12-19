@@ -88,8 +88,8 @@ type EndpointUpstream struct {
 
 	// Optionally specify the version of proxy protocol to use if the upstream requires it
 	//
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum=1;2
+	// +kubebuilder:validation:Optional
 	ProxyProtocolVersion *commonv1alpha1.ProxyProtocolVersion `json:"proxyProtocolVersion"`
 }
 
@@ -118,8 +118,6 @@ type AgentEndpointSpec struct {
 
 	// Allows configuring a TrafficPolicy to be used with this AgentEndpoint
 	// When configured, the traffic policy is provided inline or as a reference to an NgrokTrafficPolicy resource
-	//
-	// +kubebuilder:validation:Optional
 	TrafficPolicy *TrafficPolicyCfg `json:"trafficPolicy,omitempty"`
 
 	// Human-readable description of this agent endpoint
@@ -135,14 +133,11 @@ type AgentEndpointSpec struct {
 	// List of Binding IDs to associate with the endpoint
 	// Accepted values are "public", "internal", or "kubernetes"
 	//
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxItems=1
-	// +kubebuilder:validation:Items=pattern=`^(public|internal|kubernetes)$`
+	// +kubebuilder:validation:items:Pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 
 	// List of client certificates to present to the upstream when performing a TLS handshake
-	//
-	// +kubebuilder:validation:Optional
 	ClientCertificateRefs []K8sObjectRefOptionalNamespace `json:"clientCertificateRefs,omitempty"`
 }
 
@@ -159,15 +154,12 @@ type TrafficPolicyCfg struct {
 	// Inline definition of a TrafficPolicy to attach to the agent Endpoint
 	// The raw JSON-encoded policy that was applied to the ngrok API
 	//
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object
 	Inline json.RawMessage `json:"inline,omitempty"`
 
 	// Reference to a TrafficPolicy resource to attach to the Agent Endpoint
-	//
-	// +kubebuilder:validation:Optional
 	Reference *K8sObjectRef `json:"targetRef,omitempty"`
 }
 
@@ -182,24 +174,19 @@ func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {
 type AgentEndpointStatus struct {
 	// The assigned URL. This will either be the user-supplied url, or the generated assigned url
 	// depending on the configuration of spec.url
-	//
-	// +kubebuilder:validation:Optional
 	AssignedURL string `json:"assignedURL,omitempty"`
 
 	// Identifies any traffic policies attached to the AgentEndpoint ("inline", "none", or reference name).
-	//
-	// +kubebuilder:validation:Optional
 	AttachedTrafficPolicy string `json:"trafficPolicy,omitempty"`
 
 	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Nullable
+	// +nullable
 	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
 
 	// Conditions describe the current conditions of the AgentEndpoint.
 	//
-	// +kubebuilder:validation:Optional
 	// +listType=map
 	// +listMapKey=type
 	// +kubebuilder:validation:MaxItems=8

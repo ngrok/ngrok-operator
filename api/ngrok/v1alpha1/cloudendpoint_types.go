@@ -47,8 +47,6 @@ type CloudEndpointSpec struct {
 	URL string `json:"url"`
 
 	// Reference to the TrafficPolicy resource to attach to the Cloud Endpoint
-	//
-	// +kubebuilder:validation:Optional
 	TrafficPolicyName string `json:"trafficPolicyName,omitempty"`
 
 	// Controls whether or not the Cloud Endpoint should allow pooling with other
@@ -60,8 +58,6 @@ type CloudEndpointSpec struct {
 	PoolingEnabled bool `json:"poolingEnabled"`
 
 	// Allows inline definition of a TrafficPolicy object
-	//
-	// +kubebuilder:validation:Optional
 	TrafficPolicy *NgrokTrafficPolicySpec `json:"trafficPolicy,omitempty"`
 
 	// Human-readable description of this cloud endpoint
@@ -77,9 +73,8 @@ type CloudEndpointSpec struct {
 	// Bindings is the list of Binding IDs to associate with the endpoint
 	// Accepted values are "public", "internal", or "kubernetes"
 	//
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxItems=1
-	// +kubebuilder:validation:Items=pattern=`^(public|internal|kubernetes)$`
+	// +kubebuilder:validation:items:Pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 }
 
@@ -91,12 +86,11 @@ type CloudEndpointStatus struct {
 	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Nullable
+	// +nullable
 	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
 
 	// Conditions describe the current conditions of the AgentEndpoint.
 	//
-	// +kubebuilder:validation:Optional
 	// +listType=map
 	// +listMapKey=type
 	// +kubebuilder:validation:MaxItems=8

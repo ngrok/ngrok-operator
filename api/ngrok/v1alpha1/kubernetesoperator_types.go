@@ -46,7 +46,6 @@ type KubernetesOperatorBinding struct {
 	EndpointSelectors []string `json:"endpointSelectors,omitempty"`
 
 	// The public ingress endpoint for this Kubernetes Operator
-	// +kubebuilder:validation:Optional
 	IngressEndpoint *string `json:"ingressEndpoint,omitempty"`
 
 	// TlsSecretName is the name of the k8s secret that contains the TLS private/public keys to use for the ngrok forwarding endpoint
@@ -64,22 +63,19 @@ type KubernetesOperatorStatus struct {
 	URI string `json:"uri,omitempty"`
 
 	// RegistrationStatus is the status of the registration of this Kubernetes Operator with the ngrok API
-	// +kube:validation:Enum=registered;error;pending
+	// +kubebuilder:validation:Enum=registered;error;pending
 	// +kubebuilder:default="pending"
 	RegistrationStatus string `json:"registrationStatus,omitempty"`
 
 	// RegistrationErrorCode is the returned ngrok error code
-	// +kube:validation:Optional
 	// +kubebuilder:validation:Pattern=`^ERR_NGROK_\d+$`
 	RegistrationErrorCode string `json:"registrationErrorCode,omitempty"`
 
 	// RegistrationErrorMessage is a free-form error message if the status is error
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxLength=4096
 	RegistrationErrorMessage string `json:"errorMessage,omitempty"`
 
 	// EnabledFeatures is the string representation of the features enabled for this Kubernetes Operator
-	// +kubebuilder:validation:Optional
 	EnabledFeatures string `json:"enabledFeatures,omitempty"`
 
 	// BindingsIngressEndpoint is the URL that the operator will use to talk
@@ -112,7 +108,6 @@ type KubernetesOperatorSpec struct {
 	Metadata string `json:"metadata,omitempty"`
 
 	// Features enabled for this Kubernetes Operator
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:items:Enum=ingress;gateway;bindings
 	EnabledFeatures []string `json:"enabledFeatures,omitempty"`
 
