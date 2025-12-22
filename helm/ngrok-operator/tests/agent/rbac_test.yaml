@@ -19,3 +19,18 @@ tests:
       of: ClusterRoleBinding
   - isAPIVersion:
       of: rbac.authorization.k8s.io/v1
+- it: should add annotations to agent ClusterRole when clusterRole.annotations is set
+  documentIndex: 0
+  set:
+    clusterRole:
+      annotations:
+        rbac.authorization.k8s.io/aggregate-to-admin: "true"
+        rbac.authorization.k8s.io/aggregate-to-edit: "true"
+  asserts:
+  - isKind:
+      of: ClusterRole
+  - equal:
+      path: metadata.annotations
+      value:
+        rbac.authorization.k8s.io/aggregate-to-admin: "true"
+        rbac.authorization.k8s.io/aggregate-to-edit: "true"

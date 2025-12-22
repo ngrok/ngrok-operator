@@ -29,3 +29,18 @@ tests:
   - equal:
       path: metadata.name
       value: RELEASE-NAME-ngrok-operator-secret-manager-rolebinding
+- it: should add annotations to proxy-role ClusterRole when clusterRole.annotations is set
+  documentIndex: 1
+  set:
+    clusterRole:
+      annotations:
+        rbac.authorization.k8s.io/aggregate-to-admin: "true"
+        rbac.authorization.k8s.io/aggregate-to-edit: "true"
+  asserts:
+  - isKind:
+      of: ClusterRole
+  - equal:
+      path: metadata.annotations
+      value:
+        rbac.authorization.k8s.io/aggregate-to-admin: "true"
+        rbac.authorization.k8s.io/aggregate-to-edit: "true"
