@@ -1,7 +1,6 @@
 package managerdriver
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -257,11 +256,9 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 			return nil, fmt.Errorf("unable to resolve traffic policy backend for ingress rule: %w", err)
 		}
 
-		var routeTrafficPolicy trafficpolicy.TrafficPolicy
-		if len(routePolicyCfg.Spec.Policy) > 0 {
-			if err := json.Unmarshal(routePolicyCfg.Spec.Policy, &routeTrafficPolicy); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal traffic policy: %w. raw traffic policy: %v", err, routePolicyCfg.Spec.Policy)
-			}
+		routeTrafficPolicy, err := trafficpolicy.NewTrafficPolicyFromJSON(routePolicyCfg.Spec.Policy)
+		if err != nil {
+			return nil, err
 		}
 
 		if len(routeTrafficPolicy.OnTCPConnect) != 0 {
@@ -269,7 +266,7 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 		}
 
 		return &ir.IRDestination{
-			TrafficPolicies: []*trafficpolicy.TrafficPolicy{&routeTrafficPolicy},
+			TrafficPolicies: []*trafficpolicy.TrafficPolicy{routeTrafficPolicy},
 		}, nil
 	}
 
@@ -366,13 +363,12 @@ func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *tra
 		)
 	}
 
-	trafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
-	if err := json.Unmarshal(tpObj.Spec.Policy, trafficPolicyCfg); err != nil {
-		return nil, nil, fmt.Errorf("%w, failed to unmarshal traffic policy for %s %q , traffic policy config: %v",
-			err,
+	trafficPolicyCfg, err := trafficpolicy.NewTrafficPolicyFromJSON(tpObj.Spec.Policy)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse traffic policy for %s %q: %w",
 			obj.GetObjectKind().GroupVersionKind().Kind,
 			fmt.Sprintf("%s.%s", obj.GetName(), obj.GetNamespace()),
-			tpObj.Spec.Policy,
+			err,
 		)
 	}
 	return trafficPolicyCfg, &ir.OwningResource{
