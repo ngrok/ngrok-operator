@@ -202,6 +202,12 @@ func TestNewTrafficPolicyFromJSON(t *testing.T) {
 			expectError: true,
 			errContains: "failed to unmarshal traffic policy: invalid character 'i' looking for beginning of object key string. raw traffic policy: {invalid}",
 		},
+		{
+			name:        "valid JSON with invalid structure should error on parse including original traffic policy",
+			input:       `{"on_http_request": "not-an-array"}`,
+			expectError: true,
+			errContains: "failed to parse traffic policy: json: cannot unmarshal string into Go struct field TrafficPolicy.on_http_request of type []trafficpolicy.Rule. traffic policy: {\"on_http_request\": \"not-an-array\"}",
+		},
 	}
 
 	for _, tc := range tests {
