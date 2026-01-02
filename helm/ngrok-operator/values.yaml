@@ -205,7 +205,8 @@ serviceAccount:
   annotations: {}
 
 ## Cluster Role Settings
-## @param clusterRole.annotations Additional annotations to add to all ClusterRoles
+## @param clusterRole.annotations Additional annotations to add to all ClusterRoles.
+## Commonly used for RBAC role aggregation (e.g., aggregate this ClusterRole into the built-in `admin`/`edit` roles) to grant CRD access without relying on `system:masters`.
 ##
 clusterRole:
   annotations: {}

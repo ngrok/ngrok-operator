@@ -253,7 +253,7 @@
             "properties": {
                 "annotations": {
                     "type": "object",
-                    "description": "Additional annotations to add to all ClusterRoles",
+                    "description": "Additional annotations to add to all ClusterRoles.",
                     "default": {}
                 }
             }
