@@ -121,6 +121,7 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `serviceAccount.create`              | Specifies whether a ServiceAccount should be created                                                                                           | `true`   |
 | `serviceAccount.name`                | The name of the ServiceAccount to use.                                                                                                         | `""`     |
 | `serviceAccount.annotations`         | Additional annotations to add to the ServiceAccount                                                                                            | `{}`     |
+| `clusterRole.annotations`            | Additional annotations to add to all ClusterRoles.                                                                                             | `{}`     |
 | `defaultDomainReclaimPolicy`         | The default domain reclaim policy to use for domains created by the operator. Valid values are "Delete" and "Retain". The default is "Delete". | `Delete` |
 
 ### Logging configuration
