@@ -1,0 +1,18 @@
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: ingress-b
+  namespace: namespace-b
+spec:
+  ingressClassName: ngrok-b
+  rules:
+    - host: test-ngrok-operator-ingress-b.ngrok.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: service-b
+                port:
+                  number: 80
