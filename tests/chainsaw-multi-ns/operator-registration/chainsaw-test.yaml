@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: multi-ns-operator-registration
+spec:
+  steps:
+  - name: assert KubernetesOperator/ngrok-operator-a is registered in namespace-a
+    try:
+    - assert:
+        resource:
+          apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+          kind: KubernetesOperator
+          metadata:
+            name: ngrok-operator-a
+            namespace: namespace-a
+          spec:
+            deployment:
+              name: ngrok-operator-a
+              namespace: namespace-a
+          status:
+            registrationStatus: registered
+            (id != null && starts_with(id, 'k8sop_')): true
+            (uri != null): true
+
+  - name: assert KubernetesOperator/ngrok-operator-b is registered in namespace-b
+    try:
+    - assert:
+        resource:
+          apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+          kind: KubernetesOperator
+          metadata:
+            name: ngrok-operator-b
+            namespace: namespace-b
+          spec:
+            deployment:
+              name: ngrok-operator-b
+              namespace: namespace-b
+          status:
+            registrationStatus: registered
+            (id != null && starts_with(id, 'k8sop_')): true
+            (uri != null): true

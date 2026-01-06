@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: multi-ns-ingresses
+spec:
+  steps:
+  - name: create resources in namespace-a
+    try:
+    - create: { file: ./namespace-a/deployment.yaml }
+    - create: { file: ./namespace-a/service.yaml }
+    - create: { file: ./namespace-a/ingress.yaml }
+
+  - name: create resources in namespace-b
+    try:
+    - create: { file: ./namespace-b/deployment.yaml }
+    - create: { file: ./namespace-b/service.yaml }
+    - create: { file: ./namespace-b/ingress.yaml }
+
+  - name: verify ingress in namespace-a gets created
+    try:
+    - assert:
+        resource:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: ingress-a
+            namespace: namespace-a
+          status:
+            # At least one ingress object with a hostname (null-safe; no [0] until it exists)
+            "(length(to_array(loadBalancer.ingress)[?hostname]) > `0`)": true
+            # At least one hostname matches "test-ngrok-operator-ingress-a.ngrok.app"
+            "(length(to_array(loadBalancer.ingress)[? hostname && regex_match('^test-ngrok-operator-ingress-a\\.ngrok\\.app$', hostname)]) > `0`)": true
+
+  - name: verify ingress in namespace-b gets created
+    try:
+    - assert:
+        resource:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: ingress-b
+            namespace: namespace-b
+          status:
+            # At least one ingress object with a hostname (null-safe; no [0] until it exists)
+            "(length(to_array(loadBalancer.ingress)[?hostname]) > `0`)": true
+            # At least one hostname matches "test-ngrok-operator-ingress-b.ngrok.app"
+            "(length(to_array(loadBalancer.ingress)[? hostname && regex_match('^test-ngrok-operator-ingress-b\\.ngrok\\.app$', hostname)]) > `0`)": true
