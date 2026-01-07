@@ -55,8 +55,8 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	log := ctrl.LoggerFrom(ctx).WithValues("TLSRoute", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)
 
-	tcpRoute := new(gatewayv1alpha2.TLSRoute)
-	err := r.Client.Get(ctx, req.NamespacedName, tcpRoute)
+	tlsRoute := new(gatewayv1alpha2.TLSRoute)
+	err := r.Client.Get(ctx, req.NamespacedName, tlsRoute)
 	switch {
 	case err == nil:
 		// all good, continue
@@ -77,26 +77,26 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	tcpRoute, err = r.Driver.UpdateTLSRoute(tcpRoute)
+	tlsRoute, err = r.Driver.UpdateTLSRoute(tlsRoute)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if controller.IsUpsert(tcpRoute) {
+	if controller.IsUpsert(tlsRoute) {
 		// The object is not being deleted, so register and sync finalizer
-		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
+		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, tlsRoute); err != nil {
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
 	} else {
 		log.Info("deleting TLSRoute from store")
-		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
+		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, tlsRoute); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
 
 		// Remove it from the store
-		if err := r.Driver.DeleteTLSRoute(tcpRoute); err != nil {
+		if err := r.Driver.DeleteTLSRoute(tlsRoute); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
