@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: multi-ns-agent-endpoints
+spec:
+  description: |
+    Tests that agent-manager pods respect the watchNamespace filter.
+    Each operator should only reconcile AgentEndpoints in its configured namespace.
+  steps:
+  - name: create agentendpoint in namespace-a
+    try:
+    - create: { file: ./namespace-a/agentendpoint.yaml }
+
+  - name: create agentendpoint in namespace-b
+    try:
+    - create: { file: ./namespace-b/agentendpoint.yaml }
+
+  - name: create agentendpoint in unwatched namespace
+    description: |
+      Create an AgentEndpoint in 'default' namespace which is not watched by either operator.
+      This resource should NOT be reconciled by any operator.
+    try:
+    - create: { file: ./namespace-unwatched/agentendpoint.yaml }
+
+  - name: verify agentendpoint in namespace-a is ready
+    try:
+    - assert:
+        timeout: 60s
+        resource:
+          apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+          kind: AgentEndpoint
+          metadata:
+            name: aep-ns-a
+            namespace: namespace-a
+          status:
+            "(length(to_array(conditions)[? type == 'Ready' && status == 'True']) > `0`)": true
+
+  - name: verify agentendpoint in namespace-b is ready
+    try:
+    - assert:
+        timeout: 60s
+        resource:
+          apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+          kind: AgentEndpoint
+          metadata:
+            name: aep-ns-b
+            namespace: namespace-b
+          status:
+            "(length(to_array(conditions)[? type == 'Ready' && status == 'True']) > `0`)": true
+
+  - name: verify agentendpoint in unwatched namespace is NOT ready
+    description: |
+      The AgentEndpoint in 'default' namespace should NOT become Ready because
+      no operator is configured to watch that namespace.
+    try:
+    - assert:
+        resource:
+          apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+          kind: AgentEndpoint
+          metadata:
+            name: aep-unwatched
+            namespace: default
+          # status may not exist at all if never reconciled, or may exist with no Ready=True condition
+          "(status == null || length(to_array(status.conditions)[? type == 'Ready' && status == 'True']) == `0`)": true
+
+  - name: verify operator-a agent only reconciled namespace-a resources
+    description: |
+      The operator-a agent should NOT have any logs about reconciling resources in namespace-b.
+      This verifies the watchNamespace filter is working correctly.
+    try:
+    - script:
+        timeout: 10s
+        content: |
+          #!/bin/bash
+          set -e
+          # Check if operator-a's agent reconciled resources in namespace-b (it should NOT)
+          CROSS_RECONCILE=$(kubectl logs -n namespace-a -l app.kubernetes.io/component=agent --tail=100 2>/dev/null | grep -c '"namespace":"namespace-b"' || true)
+          if [ "$CROSS_RECONCILE" -gt 0 ]; then
+            echo "ERROR: operator-a agent reconciled $CROSS_RECONCILE resources in namespace-b (should be 0)"
+            exit 1
+          fi
+          echo "SUCCESS: operator-a agent only reconciled resources in namespace-a"
+
+  - name: verify operator-b agent only reconciled namespace-b resources
+    description: |
+      The operator-b agent should NOT have any logs about reconciling resources in namespace-a.
+      This verifies the watchNamespace filter is working correctly.
+    try:
+    - script:
+        timeout: 10s
+        content: |
+          #!/bin/bash
+          set -e
+          # Check if operator-b's agent reconciled resources in namespace-a (it should NOT)
+          CROSS_RECONCILE=$(kubectl logs -n namespace-b -l app.kubernetes.io/component=agent --tail=100 2>/dev/null | grep -c '"namespace":"namespace-a"' || true)
+          if [ "$CROSS_RECONCILE" -gt 0 ]; then
+            echo "ERROR: operator-b agent reconciled $CROSS_RECONCILE resources in namespace-a (should be 0)"
+            exit 1
+          fi
+          echo "SUCCESS: operator-b agent only reconciled resources in namespace-b"

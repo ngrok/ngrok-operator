@@ -4,6 +4,9 @@ kind: Test
 metadata:
   name: multi-ns-ingresses
 spec:
+  description: |
+    Tests that operators only reconcile Ingresses in their configured watchNamespace.
+    Ingresses in unwatched namespaces should NOT be reconciled.
   steps:
   - name: create resources in namespace-a
     try:
@@ -16,6 +19,15 @@ spec:
     - create: { file: ./namespace-b/deployment.yaml }
     - create: { file: ./namespace-b/service.yaml }
     - create: { file: ./namespace-b/ingress.yaml }
+
+  - name: create resources in unwatched namespace
+    description: |
+      Create an Ingress in 'default' namespace which is not watched by either operator.
+      This Ingress should NOT be reconciled and should NOT get a loadBalancer hostname.
+    try:
+    - create: { file: ./namespace-unwatched/deployment.yaml }
+    - create: { file: ./namespace-unwatched/service.yaml }
+    - create: { file: ./namespace-unwatched/ingress.yaml }
 
   - name: verify ingress in namespace-a gets created
     try:
@@ -46,3 +58,18 @@ spec:
             "(length(to_array(loadBalancer.ingress)[?hostname]) > `0`)": true
             # At least one hostname matches "test-ngrok-operator-ingress-b.ngrok.app"
             "(length(to_array(loadBalancer.ingress)[? hostname && regex_match('^test-ngrok-operator-ingress-b\\.ngrok\\.app$', hostname)]) > `0`)": true
+
+  - name: verify ingress in unwatched namespace is NOT reconciled
+    description: |
+      The Ingress in 'default' namespace should NOT have any loadBalancer status
+      because no operator is configured to watch that namespace.
+    try:
+    - assert:
+        resource:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: ingress-unwatched
+            namespace: default
+          status:
+            "(length(to_array(loadBalancer.ingress)[?hostname]) == `0`)": true

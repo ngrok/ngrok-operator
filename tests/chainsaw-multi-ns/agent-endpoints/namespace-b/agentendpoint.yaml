@@ -1,0 +1,10 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: aep-ns-b
+  namespace: namespace-b
+spec:
+  url: http://aep-ns-b.internal
+  bindings: [internal]
+  upstream:
+    url: http://test-svc:80

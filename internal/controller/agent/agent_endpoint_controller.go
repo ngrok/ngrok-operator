@@ -102,6 +102,12 @@ type AgentEndpointReconciler struct {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return r.SetupWithManagerNamed(mgr, "agentendpoint")
+}
+
+// SetupWithManagerNamed sets up the controller with the Manager using a custom controller name.
+// This is useful for tests that need to run multiple controllers.
+func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, controllerName string) error {
 	if r.AgentDriver == nil {
 		return errors.New("AgentDriver is nil")
 	}
@@ -155,6 +161,7 @@ func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
+		Named(controllerName).
 		For(&ngrokv1alpha1.AgentEndpoint{}, builder.WithPredicates(
 			predicate.Or(
 				predicate.AnnotationChangedPredicate{},

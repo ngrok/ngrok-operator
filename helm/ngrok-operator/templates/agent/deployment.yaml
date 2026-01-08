@@ -101,6 +101,9 @@ spec:
         - --metrics-bind-address=:8080
         - --manager-name={{ include "ngrok-operator.fullname" . }}-agent-manager
         - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
+        {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
+        - --watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
         env:

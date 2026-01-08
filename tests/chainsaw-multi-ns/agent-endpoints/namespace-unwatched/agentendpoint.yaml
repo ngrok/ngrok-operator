@@ -1,0 +1,10 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: aep-unwatched
+  namespace: default
+spec:
+  url: http://aep-unwatched.internal
+  bindings: [internal]
+  upstream:
+    url: http://test-svc:80

@@ -35,6 +35,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -63,12 +64,13 @@ func init() {
 
 type agentManagerOpts struct {
 	// flags
-	metricsAddr string
-	probeAddr   string
-	serverAddr  string
-	description string
-	managerName string
-	zapOpts     *zap.Options
+	metricsAddr    string
+	probeAddr      string
+	serverAddr     string
+	description    string
+	managerName    string
+	watchNamespace string
+	zapOpts        *zap.Options
 
 	// feature flags
 	enableFeatureIngress          bool
@@ -97,6 +99,7 @@ func agentCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
+	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for AgentEndpoint resources. Defaults to all namespaces.")
 
 	// agent(tunnel driver) flags
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
@@ -138,6 +141,15 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         false,
+	}
+
+	if opts.watchNamespace != "" {
+		setupLog.Info("watching namespace", "namespace", opts.watchNamespace)
+		options.Cache = cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				opts.watchNamespace: {},
+			},
+		}
 	}
 
 	// create default config and clientset for use outside the mgr.Start() blocking loop
