@@ -67,6 +67,8 @@ const (
 	ModuleSetPath          = "metadata.annotations.k8s.ngrok.com/module-set"
 	TrafficPolicyPath      = "metadata.annotations.k8s.ngrok.com/traffic-policy"
 	NgrokLoadBalancerClass = "ngrok"
+
+	EventReasonResourcesCleanedUp = "ResourcesCleanedUp"
 )
 
 var (
@@ -214,6 +216,11 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if controller.IsCleanedUp(svc) {
+		log.V(3).Info("Finalizer not present, skipping cleanup as already done")
+		return ctrl.Result{}, nil
+	}
+
 	subResourceReconcilers := serviceSubresourceReconcilers{
 		newServiceCloudEndpointReconciler(),
 		newServiceAgentEndpointReconciler(),
@@ -226,7 +233,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// If the service is being deleted, we need to clean up any resources that are owned by it
-	if controller.IsDelete(svc) {
+	if controller.IsDelete(svc) || controller.HasCleanupAnnotation(svc) {
 		if err := subResourceReconcilers.Reconcile(ctx, r.Client, nil); err != nil {
 			log.Error(err, "Failed to cleanup owned resources")
 			return ctrl.Result{}, err
@@ -242,6 +249,18 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if len(ownedResources) > 0 {
 			log.Info("Service still owns ngrok resources, waiting for deletion...")
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+
+		r.Recorder.Event(svc, corev1.EventTypeNormal, EventReasonResourcesCleanedUp, "All owned ngrok resources have been cleaned up")
+		// Clear the status
+		svc.Status = corev1.ServiceStatus{}
+		anns := svc.GetAnnotations()
+		delete(anns, annotations.ComputedURLAnnotation)
+		svc.SetAnnotations(anns)
+
+		if err := r.Client.Status().Update(ctx, svc); err != nil {
+			log.Error(err, "Failed to clear service status after cleanup")
+			return ctrl.Result{}, err
 		}
 
 		log.Info("Removing and syncing finalizer")

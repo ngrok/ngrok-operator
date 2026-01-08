@@ -427,6 +427,34 @@ var _ = Describe("DomainReconciler", func() {
 				}, timeout, interval).Should(Succeed())
 			})
 		})
+
+		When("the domain is annotated for cleanup", func() {
+			BeforeEach(func(ctx SpecContext) {
+				kginkgo.ExpectAddAnnotations(ctx, domain, map[string]string{
+					controller.CleanupAnnotation: "true",
+				})
+			})
+
+			It("should remove the finalizer from the domain", func(ctx SpecContext) {
+				kginkgo.ExpectFinalizerToBeRemoved(ctx, domain, controller.FinalizerName)
+			})
+
+			It("should delete the domain in ngrok", func(ctx SpecContext) {
+				Eventually(func(g Gomega) {
+					iter := domainClient.List(&ngrok.Paging{})
+					found := false
+					for iter.Next(ctx) {
+						d := iter.Item()
+						if d.Domain == domainName {
+							found = true
+							break
+						}
+					}
+					g.Expect(iter.Err()).To(BeNil())
+					g.Expect(found).To(BeFalse())
+				}, timeout, interval).Should(Succeed())
+			})
+		})
 	})
 
 	Describe("DeleteDomain", func() {

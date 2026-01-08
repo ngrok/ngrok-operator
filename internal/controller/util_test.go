@@ -424,3 +424,57 @@ func TestRemoveAndSyncFinalizer(t *testing.T) {
 		})
 	}
 }
+
+func TestIsCleanedUp(t *testing.T) {
+	tests := []struct {
+		name string
+		obj  client.Object
+		want bool
+	}{
+		{
+			name: "no annotations, no finalizer",
+			obj:  &netv1.Ingress{},
+			want: false,
+		},
+		{
+			name: "cleanup annotation false, no finalizer",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						CleanupAnnotation: "false",
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "cleanup annotation true, has finalizer",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						CleanupAnnotation: "true",
+					},
+					Finalizers: []string{FinalizerName},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "cleanup annotation true, no finalizer",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						CleanupAnnotation: "true",
+					},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsCleanedUp(tt.obj))
+		})
+	}
+}

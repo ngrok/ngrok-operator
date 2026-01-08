@@ -128,6 +128,9 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 		Update:   r.update,
 		Delete:   r.delete,
 		StatusID: r.statusID,
+		ClearStatus: func(obj *ngrokv1alpha1.AgentEndpoint) {
+			obj.Status = ngrokv1alpha1.AgentEndpointStatus{}
+		},
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
 			if errors.Is(err, domainpkg.ErrDomainNotReady) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
