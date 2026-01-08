@@ -61,8 +61,8 @@ spec:
           metadata:
             name: aep-unwatched
             namespace: default
-          status:
-            "(length(to_array(conditions)[? type == 'Ready' && status == 'True']) == `0`)": true
+          # status may not exist at all if never reconciled, or may exist with no Ready=True condition
+          "(status == null || length(to_array(status.conditions)[? type == 'Ready' && status == 'True']) == `0`)": true
 
   - name: verify operator-a agent only reconciled namespace-a resources
     description: |
