@@ -11,9 +11,12 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -30,6 +33,17 @@ var envMgr ctrl.Manager
 var envCtx context.Context
 var envCancel context.CancelFunc
 var envMockDriver *agent.MockAgentDriver
+
+// Namespace filter test manager - tests namespace filtering behavior
+var nsMgr ctrl.Manager
+var nsMgrCtx context.Context
+var nsMgrCancel context.CancelFunc
+var nsMockDriver *agent.MockAgentDriver
+
+const (
+	watchedNamespace   = "test-watched"
+	unwatchedNamespace = "test-unwatched"
+)
 
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -105,9 +119,76 @@ var _ = BeforeSuite(func() {
 		defer cancel()
 		return envMgr.GetCache().WaitForCacheSync(testCtx)
 	}, 30*time.Second, 100*time.Millisecond).Should(BeTrue())
+
+	// Set up namespace filter test manager
+	By("setting up namespace filter test manager")
+
+	// Create namespaces for namespace filtering tests
+	for _, ns := range []string{watchedNamespace, unwatchedNamespace} {
+		namespace := &v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
+		}
+		err = k8sClient.Create(context.Background(), namespace)
+		if err != nil {
+			Expect(client.IgnoreAlreadyExists(err)).To(Succeed())
+		}
+	}
+
+	// Initialize mock driver for namespace filter tests
+	nsMockDriver = agent.NewMockAgentDriver()
+
+	// Create a manager with namespace filtering
+	nsMgr, err = ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:         scheme.Scheme,
+		LeaderElection: false,
+		Metrics: server.Options{
+			BindAddress: "0",
+		},
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				watchedNamespace: {},
+			},
+		},
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	// Setup reconciler with mock driver for namespace filter tests
+	nsReconciler := &AgentEndpointReconciler{
+		Client:      nsMgr.GetClient(),
+		Log:         logf.Log.WithName("ns-filter-test-controller"),
+		Scheme:      nsMgr.GetScheme(),
+		Recorder:    nsMgr.GetEventRecorderFor("ns-filter-test-controller"),
+		AgentDriver: nsMockDriver,
+	}
+
+	Expect(nsReconciler.SetupWithManagerNamed(nsMgr, "ns-filter-agentendpoint")).To(Succeed())
+
+	// Start the namespace filter manager
+	nsMgrCtx, nsMgrCancel = context.WithCancel(context.Background())
+	go func() {
+		defer GinkgoRecover()
+		err := nsMgr.Start(nsMgrCtx)
+		if err != nil && nsMgrCtx.Err() == nil {
+			logf.Log.Error(err, "Namespace filter test manager failed to start")
+		}
+	}()
+
+	// Wait for namespace filter manager to be ready
+	Eventually(func() bool {
+		testCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		return nsMgr.GetCache().WaitForCacheSync(testCtx)
+	}, 30*time.Second, 100*time.Millisecond).Should(BeTrue())
 })
 
 var _ = AfterSuite(func() {
+	By("stopping namespace filter test manager")
+	if nsMgrCancel != nil {
+		nsMgrCancel()
+	}
+
 	By("stopping env test manager")
 	if envCancel != nil {
 		envCancel()

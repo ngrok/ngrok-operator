@@ -148,4 +148,4 @@ endif
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
-	helm uninstall ngrok-operator
+	helm uninstall ngrok-operator --namespace $(KUBE_NAMESPACE)

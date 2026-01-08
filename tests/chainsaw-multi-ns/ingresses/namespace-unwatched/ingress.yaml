@@ -1,0 +1,19 @@
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: ingress-unwatched
+  namespace: default
+spec:
+  # Use ngrok-a class - but since it watches namespace-a, it should NOT reconcile this
+  ingressClassName: ngrok-a
+  rules:
+    - host: test-ngrok-operator-ingress-unwatched.ngrok.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: service-unwatched
+                port:
+                  number: 80
