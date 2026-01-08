@@ -17,6 +17,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/ingress"
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -55,6 +56,7 @@ type Manager struct {
 	Client                     client.Client
 	Recorder                   record.EventRecorder
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+	ControllerLabels           labels.ControllerLabelValues
 }
 
 // EnsureDomainExists checks if the Domain CRD exists, creates it if needed, and sets conditions/domainRef
@@ -148,6 +150,19 @@ func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.
 	domainObj := &ingressv1alpha1.Domain{}
 	err := m.Client.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: endpoint.GetNamespace()}, domainObj)
 	if err == nil {
+		// If the domain exists and it doesn't have controller labels, add them
+		l := domainObj.GetLabels()
+		_, hasControllerNameLabel := l[labels.ControllerName]
+		_, hasControllerNamespaceLabel := l[labels.ControllerNamespace]
+		if !hasControllerNameLabel || !hasControllerNamespaceLabel {
+			if m.ControllerLabels.EnsureLabels(domainObj) {
+				log.Info("Adding controller labels to existing Domain CRD", "domain", client.ObjectKeyFromObject(domainObj))
+				if err := m.Client.Update(ctx, domainObj); err != nil {
+					log.Error(err, "failed to add controller labels to existing Domain CRD", "domain", client.ObjectKeyFromObject(domainObj))
+					return nil, err
+				}
+			}
+		}
 		return m.checkExistingDomain(endpoint, domainObj)
 	}
 
@@ -194,6 +209,7 @@ func (m *Manager) createNewDomain(ctx context.Context, endpoint ngrokv1alpha1.En
 		ObjectMeta: ctrl.ObjectMeta{
 			Name:      hyphenatedDomain,
 			Namespace: endpoint.GetNamespace(),
+			Labels:    m.ControllerLabels.Labels(),
 		},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: domain,

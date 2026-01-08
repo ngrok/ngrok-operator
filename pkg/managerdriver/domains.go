@@ -87,6 +87,7 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      desiredDomain.Name,
 					Namespace: desiredDomain.Namespace,
+					Labels:    d.controllerLabels.Labels(),
 				},
 			}
 

@@ -23,7 +23,7 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 	translator := NewTranslator(
 		d.log,
 		d.store,
-		d.defaultManagedResourceLabels(),
+		d.controllerLabels.Labels(),
 		d.ingressNgrokMetadata,
 		d.gatewayNgrokMetadata,
 		d.clusterDomain,
@@ -34,18 +34,14 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 	currentAgentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
 	currentCloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
 
-	if err := c.List(ctx, currentAgentEndpoints, client.MatchingLabels{
-		labelControllerNamespace: d.managerName.Namespace,
-		labelControllerName:      d.managerName.Name,
-	}); err != nil {
+	matchLabels := d.controllerLabels.Selector()
+
+	if err := c.List(ctx, currentAgentEndpoints, matchLabels); err != nil {
 		d.log.Error(err, "error listing agent endpoints")
 		return err
 	}
 
-	if err := c.List(ctx, currentCloudEndpoints, client.MatchingLabels{
-		labelControllerNamespace: d.managerName.Namespace,
-		labelControllerName:      d.managerName.Name,
-	}); err != nil {
+	if err := c.List(ctx, currentCloudEndpoints, matchLabels); err != nil {
 		d.log.Error(err, "error listing cloud endpoints")
 		return err
 	}
@@ -67,7 +63,7 @@ func (d *Driver) applyAgentEndpoints(ctx context.Context, c client.Client, desir
 	for _, currAEP := range current {
 
 		// If this AgentEndpoint is created by the user and not owned/managed by the operator then ignore it
-		if !hasDefaultManagedResourceLabels(currAEP.Labels, d.managerName.Name, d.managerName.Namespace) {
+		if !d.controllerLabels.HasLabels(&currAEP) {
 			continue
 		}
 
@@ -125,7 +121,7 @@ func (d *Driver) applyCloudEndpoints(ctx context.Context, c client.Client, desir
 	for _, currCLEP := range current {
 
 		// If this CloudEndpoint is created by the user and not owned/managed by the operator then ignore it
-		if !hasDefaultManagedResourceLabels(currCLEP.Labels, d.managerName.Name, d.managerName.Namespace) {
+		if !d.controllerLabels.HasLabels(&currCLEP) {
 			continue
 		}
 
