@@ -20,22 +20,6 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-// hasDefaultManagedResourceLabels takes input labels and the manager name/namespace to see if the label map contains
-// the labels that indicate that the resource the labels are on is managed or user-created
-func hasDefaultManagedResourceLabels(labels map[string]string, managerName, managerNamespace string) bool {
-	val, exists := labels[labelControllerNamespace]
-	if !exists || val != managerNamespace {
-		return false
-	}
-
-	val, exists = labels[labelControllerName]
-	if !exists || val != managerName {
-		return false
-	}
-
-	return true
-}
-
 // internalAgentEndpointName builds a string for the name of an internal AgentEndpoint
 func internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain string, upstreamPort int32, clientCertRefs []ir.IRObjectRef) string {
 	uidHash := sha256.Sum256([]byte(serviceUID))

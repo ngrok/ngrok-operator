@@ -39,6 +39,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -75,10 +76,11 @@ var (
 
 type ServiceReconciler struct {
 	client.Client
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
-	Recorder  record.EventRecorder
-	Namespace string
+	Log      logr.Logger
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
+
+	ControllerLabels labels.ControllerLabelValues
 
 	ClusterDomain string
 
@@ -116,6 +118,10 @@ func (p TypedShouldHandleServicePredicate[object]) Update(e event.UpdateEvent) b
 }
 
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.ControllerLabels.Namespace == "" || r.ControllerLabels.Name == "" {
+		return errors.New("ControllerLabels namespace and name are required")
+	}
+
 	if r.ClusterDomain == "" {
 		r.ClusterDomain = common.DefaultClusterDomain
 	}
@@ -526,6 +532,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				OwnerReferences: []metav1.OwnerReference{
 					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 				},
+				Labels: r.ControllerLabels.Labels(),
 			},
 			Spec: ngrokv1alpha1.AgentEndpointSpec{
 				URL:      computedEndpointURL,
@@ -561,6 +568,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				OwnerReferences: []metav1.OwnerReference{
 					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 				},
+				Labels: r.ControllerLabels.Labels(),
 			},
 			Spec: ngrokv1alpha1.CloudEndpointSpec{
 				URL:            computedEndpointURL,
@@ -580,6 +588,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				OwnerReferences: []metav1.OwnerReference{
 					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 				},
+				Labels: r.ControllerLabels.Labels(),
 			},
 			Spec: ngrokv1alpha1.AgentEndpointSpec{
 				URL: internalURL,
@@ -807,10 +816,12 @@ func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
 			return endpoints.Items, nil
 		},
 		matches: func(desired, existing ngrokv1alpha1.CloudEndpoint) bool {
-			return reflect.DeepEqual(existing.Spec, desired.Spec)
+			return reflect.DeepEqual(existing.Spec, desired.Spec) &&
+				reflect.DeepEqual(existing.Labels, desired.Labels)
 		},
 		mergeExisting: func(desired ngrokv1alpha1.CloudEndpoint, existing *ngrokv1alpha1.CloudEndpoint) {
 			existing.Spec = desired.Spec
+			existing.Labels = desired.Labels
 		},
 		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1alpha1.CloudEndpoint) error {
 			return updateStatus(ctx, c, svc, endpoint)
@@ -828,10 +839,12 @@ func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
 			return endpoints.Items, nil
 		},
 		matches: func(desired, existing ngrokv1alpha1.AgentEndpoint) bool {
-			return reflect.DeepEqual(existing.Spec, desired.Spec)
+			return reflect.DeepEqual(existing.Spec, desired.Spec) &&
+				reflect.DeepEqual(existing.Labels, desired.Labels)
 		},
 		mergeExisting: func(desired ngrokv1alpha1.AgentEndpoint, existing *ngrokv1alpha1.AgentEndpoint) {
 			existing.Spec = desired.Spec
+			existing.Labels = desired.Labels
 		},
 		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1alpha1.AgentEndpoint) error {
 			return updateStatus(ctx, c, svc, endpoint)

@@ -29,18 +29,10 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/util"
-)
-
-const (
-	labelControllerNamespace = "k8s.ngrok.com/controller-namespace"
-	labelControllerName      = "k8s.ngrok.com/controller-name"
-	labelNamespace           = "k8s.ngrok.com/namespace"
-	labelServiceUID          = "k8s.ngrok.com/service-uid"
-	labelService             = "k8s.ngrok.com/service"
-	labelPort                = "k8s.ngrok.com/port"
 )
 
 // Driver maintains the store of information, can derive new information from the store, and can
@@ -53,8 +45,9 @@ type Driver struct {
 	scheme               *runtime.Scheme
 	ingressNgrokMetadata string
 	gatewayNgrokMetadata string
-	managerName          types.NamespacedName
-	clusterDomain        string
+	// controller labels to identify resources managed by the driver
+	controllerLabels labels.ControllerLabelValues
+	clusterDomain    string
 
 	syncMu              sync.Mutex
 	syncRunning         bool
@@ -131,9 +124,12 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 		cacheStores:    cacheStores,
 		log:            logger,
 		scheme:         scheme,
-		managerName:    managerName,
 		gatewayEnabled: false,
 		clusterDomain:  common.DefaultClusterDomain,
+		controllerLabels: labels.ControllerLabelValues{
+			Namespace: managerName.Namespace,
+			Name:      managerName.Name,
+		},
 	}
 
 	for _, opt := range opts {
@@ -576,7 +572,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	translator := NewTranslator(
 		d.log,
 		d.store,
-		d.defaultManagedResourceLabels(),
+		d.controllerLabels.Labels(),
 		d.ingressNgrokMetadata,
 		d.gatewayNgrokMetadata,
 		d.clusterDomain,
@@ -587,17 +583,13 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	currAgentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
 	currCloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
 
-	if err := c.List(ctx, currAgentEndpoints, client.MatchingLabels{
-		labelControllerNamespace: d.managerName.Namespace,
-		labelControllerName:      d.managerName.Name,
-	}); err != nil {
+	matchLabels := d.controllerLabels.Selector()
+
+	if err := c.List(ctx, currAgentEndpoints, matchLabels); err != nil {
 		d.log.Error(err, "error listing agent endpoints")
 		return err
 	}
-	if err := c.List(ctx, currCloudEndpoints, client.MatchingLabels{
-		labelControllerNamespace: d.managerName.Namespace,
-		labelControllerName:      d.managerName.Name,
-	}); err != nil {
+	if err := c.List(ctx, currCloudEndpoints, matchLabels); err != nil {
 		d.log.Error(err, "error listing cloud endpoints")
 		return err
 	}
@@ -1281,72 +1273,4 @@ func (d *Driver) handleRequestRedirectFilter(filter *gatewayv1.HTTPRequestRedire
 		return nil
 	}
 	return nil
-}
-
-// MigrateKubernetesIngressControllerLabelsToNgrokOperator migrates the labels from the old Kubernetes Ingress Controller to the new ngrok operator labels
-// so that the ngrok operator can take over management of items previously managed by the Kubernetes Ingress Controller.
-// TODO: Delete this function after users have migrated from the ngrok Kubernetes Ingress Controller to the ngrok Operator.
-func (d *Driver) MigrateKubernetesIngressControllerLabelsToNgrokOperator(ctx context.Context, k8sClient client.Client) error {
-	typesToMigrate := []interface{}{
-		&ingressv1alpha1.Domain{},
-	}
-
-	for _, t := range typesToMigrate {
-		objs, err := listObjectsForType(ctx, k8sClient, t)
-		if err != nil {
-			return err
-		}
-
-		for _, obj := range objs {
-
-			name := obj.GetName()
-			namespace := obj.GetNamespace()
-			kind := obj.GetObjectKind().GroupVersionKind().Kind
-
-			log := d.log.WithValues("name", name, "namespace", namespace, "kind", kind)
-
-			labels := obj.GetLabels()
-
-			controllerName, controllerNameOk := labels[labelControllerName]
-			controllerNamespace, controllerNamespaceOk := labels[labelControllerNamespace]
-
-			// If it doesn't have both of the controller name and namespace labels, skip it
-			if !controllerNameOk || !controllerNamespaceOk {
-				log.V(1).Info("Skipping object without controller name and namespace labels")
-				continue
-			}
-
-			// If the controller name and namespace are the same as the current controller name and namespace, skip it
-			if controllerName == d.managerName.Name && controllerNamespace == d.managerName.Namespace {
-				log.V(1).Info("Skipping object with matching controller name and namespace labels")
-				continue
-			}
-
-			// Deep copy the object so we can modify it.
-			// We must also re-assign the labels to the new object so that
-			// we don't modify the original object's labels.
-			newObj := obj.DeepCopyObject().(client.Object)
-			labels = newObj.GetLabels()
-
-			// Now we know it has both labels and at least one of the two labels doesn't match
-			// so we can update the labels to match what the new operator expects.
-			labels[labelControllerName] = d.managerName.Name
-			labels[labelControllerNamespace] = d.managerName.Namespace
-
-			newObj.SetLabels(labels)
-
-			if err := k8sClient.Patch(ctx, newObj, client.MergeFrom(obj)); err != nil {
-				return err
-			}
-			log.V(1).Info("Migrated labels")
-		}
-	}
-	return nil
-}
-
-func (d *Driver) defaultManagedResourceLabels() map[string]string {
-	return map[string]string{
-		labelControllerNamespace: d.managerName.Namespace,
-		labelControllerName:      d.managerName.Name,
-	}
 }

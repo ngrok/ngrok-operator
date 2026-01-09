@@ -34,6 +34,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -241,6 +242,17 @@ var _ = Describe("ServiceController", func() {
 					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
+
+						clep := cleps[0]
+
+						By("verifying the cloud endpoint has the controller labels added")
+						g.Expect(
+							labels.HasControllerLabels(
+								&clep,
+								controllerLabelNamespace,
+								controllerLabelName,
+							),
+						).To(BeTrue())
 					})
 				})
 
@@ -266,6 +278,16 @@ var _ = Describe("ServiceController", func() {
 
 						By("checking an agent endpoint exists")
 						g.Expect(aeps.Items).To(HaveLen(1))
+
+						aep := aeps.Items[0]
+						By("verifying the agent endpoint has the controller labels added")
+						g.Expect(
+							labels.HasControllerLabels(
+								&aep,
+								controllerLabelNamespace,
+								controllerLabelName,
+							),
+						).To(BeTrue())
 					}, timeout, interval).Should(Succeed())
 				})
 
@@ -322,6 +344,16 @@ var _ = Describe("ServiceController", func() {
 					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
 						By("checking an agent endpoint exists")
 						g.Expect(aeps).To(HaveLen(1))
+
+						aep := aeps[0]
+						By("verifying the agent endpoint has the controller labels added")
+						g.Expect(
+							labels.HasControllerLabels(
+								&aep,
+								controllerLabelNamespace,
+								controllerLabelName,
+							),
+						).To(BeTrue())
 					})
 				})
 
