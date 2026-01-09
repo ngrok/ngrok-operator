@@ -63,6 +63,7 @@ import (
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -530,12 +531,12 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 	}
 
 	if err := (&servicecontroller.ServiceReconciler{
-		Client:        mgr.GetClient(),
-		Log:           ctrl.Log.WithName("controllers").WithName("service"),
-		Scheme:        mgr.GetScheme(),
-		Recorder:      mgr.GetEventRecorderFor("service-controller"),
-		Namespace:     opts.namespace,
-		ClusterDomain: opts.clusterDomain,
+		Client:           mgr.GetClient(),
+		Log:              ctrl.Log.WithName("controllers").WithName("service"),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("service-controller"),
+		ControllerLabels: labels.NewControllerLabelValues(opts.namespace, opts.managerName),
+		ClusterDomain:    opts.clusterDomain,
 		// TODO(stacks): Once we have a way to support unqualified tcp addresses(i.e. 'tcp://') in the Cloud & Agent Endpoint CRs,
 		// we can remove this. It feels weird to have this here since the ServiceReconciler should only be performing translations
 		// and not dependent on the ngrok API.
