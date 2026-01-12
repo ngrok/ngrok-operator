@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
@@ -59,6 +60,9 @@ var (
 	cancel context.CancelFunc
 
 	kginkgo *testutils.KGinkgo
+
+	controllerLabelName      = "test-controller-name"
+	controllerLabelNamespace = "test-controller-namespace"
 )
 
 func TestControllers(t *testing.T) {
@@ -118,11 +122,12 @@ var _ = BeforeSuite(func() {
 
 	tcpAddrsClient = nmockapi.NewTCPAddressClient()
 	err = (&ServiceReconciler{
-		Client:       k8sManager.GetClient(),
-		Log:          logf.Log.WithName("controllers").WithName("Service"),
-		Recorder:     k8sManager.GetEventRecorderFor("service-controller"),
-		Scheme:       k8sManager.GetScheme(),
-		TCPAddresses: tcpAddrsClient,
+		Client:           k8sManager.GetClient(),
+		Log:              logf.Log.WithName("controllers").WithName("Service"),
+		Recorder:         k8sManager.GetEventRecorderFor("service-controller"),
+		Scheme:           k8sManager.GetScheme(),
+		TCPAddresses:     tcpAddrsClient,
+		ControllerLabels: labels.NewControllerLabelValues(controllerLabelNamespace, controllerLabelName),
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 

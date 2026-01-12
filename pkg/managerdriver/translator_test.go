@@ -545,7 +545,7 @@ func TestTranslate(t *testing.T) {
 			translator := NewTranslator(
 				driver.log,
 				driver.store,
-				driver.defaultManagedResourceLabels(),
+				driver.controllerLabels.Labels(),
 				driver.ingressNgrokMetadata,
 				driver.gatewayNgrokMetadata,
 				"svc.cluster.local",
@@ -648,7 +648,7 @@ func TestTranslate(t *testing.T) {
 			translator := NewTranslator(
 				driver.log,
 				driver.store,
-				driver.defaultManagedResourceLabels(),
+				driver.controllerLabels.Labels(),
 				driver.ingressNgrokMetadata,
 				driver.gatewayNgrokMetadata,
 				"svc.cluster.local",

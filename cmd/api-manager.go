@@ -63,6 +63,7 @@ import (
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -336,14 +337,6 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		if err != nil {
 			return fmt.Errorf("unable to create Driver: %w", err)
 		}
-
-		// Run a migration for migrating from the old ingress controller to the operator
-		// TODO: Delete me after the initial releae of the ngrok-operator
-		setupLog.Info("Migrating Kubernetes Ingress Controller labels to ngrok operator")
-		if err := k8sResourceDriver.MigrateKubernetesIngressControllerLabelsToNgrokOperator(ctx, k8sClient); err != nil {
-			return fmt.Errorf("unable to migrate Kubernetes Ingress Controller labels to ngrok operator: %w", err)
-		}
-		setupLog.Info("Kubernetes Ingress controller labels migrated to ngrok operator")
 	}
 
 	if opts.enableFeatureIngress {
@@ -526,6 +519,8 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 
 // enableIngressFeatureSet enables the Ingress feature set for the operator
 func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy) error {
+	controllerLabels := labels.NewControllerLabelValues(opts.namespace, opts.managerName)
+
 	if err := (&ingresscontroller.IngressReconciler{
 		Client:    mgr.GetClient(),
 		Log:       ctrl.Log.WithName("controllers").WithName("ingress"),
@@ -538,12 +533,12 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 	}
 
 	if err := (&servicecontroller.ServiceReconciler{
-		Client:        mgr.GetClient(),
-		Log:           ctrl.Log.WithName("controllers").WithName("service"),
-		Scheme:        mgr.GetScheme(),
-		Recorder:      mgr.GetEventRecorderFor("service-controller"),
-		Namespace:     opts.namespace,
-		ClusterDomain: opts.clusterDomain,
+		Client:           mgr.GetClient(),
+		Log:              ctrl.Log.WithName("controllers").WithName("service"),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("service-controller"),
+		ControllerLabels: controllerLabels,
+		ClusterDomain:    opts.clusterDomain,
 		// TODO(stacks): Once we have a way to support unqualified tcp addresses(i.e. 'tcp://') in the Cloud & Agent Endpoint CRs,
 		// we can remove this. It feels weird to have this here since the ServiceReconciler should only be performing translations
 		// and not dependent on the ngrok API.
@@ -594,6 +589,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Recorder:                   mgr.GetEventRecorderFor("cloud-endpoint-controller"),
 		NgrokClientset:             ngrokClientset,
 		DefaultDomainReclaimPolicy: ptr.To(defaultDomainReclaimPolicy),
+		ControllerLabels:           controllerLabels,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudEndpoint")
 		os.Exit(1)

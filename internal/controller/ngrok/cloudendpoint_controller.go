@@ -44,6 +44,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
@@ -62,6 +63,7 @@ type CloudEndpointReconciler struct {
 	Recorder       record.EventRecorder
 	NgrokClientset ngrokapi.Clientset
 
+	ControllerLabels           labels.ControllerLabelValues
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 	DomainManager              *domainpkg.Manager
 }
@@ -81,11 +83,23 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Initialize domain manager if not already set
 	if r.DomainManager == nil {
-		r.DomainManager = &domainpkg.Manager{
-			Client:                     r.Client,
-			Recorder:                   r.Recorder,
-			DefaultDomainReclaimPolicy: r.DefaultDomainReclaimPolicy,
+		if err := labels.ValidateControllerLabelValues(r.ControllerLabels); err != nil {
+			return err
 		}
+
+		opts := []domainpkg.ManagerOption{
+			domainpkg.WithControllerLabels(r.ControllerLabels),
+		}
+
+		if r.DefaultDomainReclaimPolicy != nil {
+			opts = append(opts, domainpkg.WithDefaultDomainReclaimPolicy(*r.DefaultDomainReclaimPolicy))
+		}
+
+		dm, err := domainpkg.NewManager(r.Client, r.Recorder, opts...)
+		if err != nil {
+			return err
+		}
+		r.DomainManager = dm
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.CloudEndpoint]{

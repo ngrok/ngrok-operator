@@ -30,6 +30,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
@@ -54,6 +55,11 @@ var (
 
 	// Mock clients for testing
 	mockClientset *nmockapi.Clientset
+)
+
+const (
+	controllerNamespace = "test-controller-namespace"
+	controllerName      = "test-controller"
 )
 
 func TestControllers(t *testing.T) {
@@ -112,7 +118,8 @@ var _ = BeforeSuite(func() {
 		NgrokClientset: mockClientset,
 		// Let SetupWithManager create the default domain manager
 		// We'll use internal domains in tests to bypass actual domain creation
-		DomainManager: nil,
+		DomainManager:    nil,
+		ControllerLabels: labels.NewControllerLabelValues(controllerNamespace, controllerName),
 	}
 
 	err = reconciler.SetupWithManager(k8sManager)
