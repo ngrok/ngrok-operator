@@ -1,6 +1,10 @@
 package labels
 
-import "sigs.k8s.io/controller-runtime/pkg/client"
+import (
+	"errors"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
 
 const (
 	// ControllerName identifies the name of the operator deployment managing a resource
@@ -8,6 +12,8 @@ const (
 
 	// ControllerNamespace identifies the namespace of the operator instance managing a resource
 	ControllerNamespace = prefix + "controller-namespace"
+
+	ErrControllerLabelsNameAndNamespaceRequired = "both controller name and namespace are required"
 )
 
 // ControllerLabels returns the standard labels identifying which operator instance manages a resource
@@ -93,4 +99,12 @@ func (c ControllerLabelValues) EnsureLabels(obj client.Object) bool {
 // Selector returns a client.MatchingLabels for listing resources managed by the operator instance.
 func (c ControllerLabelValues) Selector() client.MatchingLabels {
 	return ControllerLabelSelector(c.Namespace, c.Name)
+}
+
+// ValidateControllerLabelValues checks that both name and namespace are set.
+func ValidateControllerLabelValues(clv ControllerLabelValues) error {
+	if clv.Name == "" || clv.Namespace == "" {
+		return errors.New(ErrControllerLabelsNameAndNamespaceRequired)
+	}
+	return nil
 }

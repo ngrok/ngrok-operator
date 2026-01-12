@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -45,6 +46,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	agentcontroller "github.com/ngrok/ngrok-operator/internal/controller/agent"
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/healthcheck"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
@@ -83,6 +85,9 @@ type agentManagerOpts struct {
 	rootCAs string
 
 	defaultDomainReclaimPolicy string
+
+	// env vars
+	namespace string
 }
 
 func agentCmd() *cobra.Command {
@@ -132,6 +137,12 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 
 	buildInfo := version.Get()
 	setupLog.Info("starting agent-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
+
+	var ok bool
+	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
+	if !ok {
+		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
+	}
 
 	options := ctrl.Options{
 		Scheme: scheme,
@@ -191,6 +202,7 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		Recorder:                   mgr.GetEventRecorderFor("agentendpoint-controller"),
 		AgentDriver:                ad,
 		DefaultDomainReclaimPolicy: defaultDomainReclaimPolicy,
+		ControllerLabels:           labels.NewControllerLabelValues(opts.namespace, opts.managerName),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")
 		os.Exit(1)

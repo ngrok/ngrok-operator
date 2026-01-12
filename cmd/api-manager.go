@@ -519,6 +519,8 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 
 // enableIngressFeatureSet enables the Ingress feature set for the operator
 func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy) error {
+	controllerLabels := labels.NewControllerLabelValues(opts.namespace, opts.managerName)
+
 	if err := (&ingresscontroller.IngressReconciler{
 		Client:    mgr.GetClient(),
 		Log:       ctrl.Log.WithName("controllers").WithName("ingress"),
@@ -535,7 +537,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Log:              ctrl.Log.WithName("controllers").WithName("service"),
 		Scheme:           mgr.GetScheme(),
 		Recorder:         mgr.GetEventRecorderFor("service-controller"),
-		ControllerLabels: labels.NewControllerLabelValues(opts.namespace, opts.managerName),
+		ControllerLabels: controllerLabels,
 		ClusterDomain:    opts.clusterDomain,
 		// TODO(stacks): Once we have a way to support unqualified tcp addresses(i.e. 'tcp://') in the Cloud & Agent Endpoint CRs,
 		// we can remove this. It feels weird to have this here since the ServiceReconciler should only be performing translations
@@ -587,6 +589,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Recorder:                   mgr.GetEventRecorderFor("cloud-endpoint-controller"),
 		NgrokClientset:             ngrokClientset,
 		DefaultDomainReclaimPolicy: ptr.To(defaultDomainReclaimPolicy),
+		ControllerLabels:           controllerLabels,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudEndpoint")
 		os.Exit(1)

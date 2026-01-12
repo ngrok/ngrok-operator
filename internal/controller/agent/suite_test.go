@@ -7,6 +7,7 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	. "github.com/onsi/ginkgo/v2"
@@ -41,8 +42,10 @@ var nsMgrCancel context.CancelFunc
 var nsMockDriver *agent.MockAgentDriver
 
 const (
-	watchedNamespace   = "test-watched"
-	unwatchedNamespace = "test-unwatched"
+	watchedNamespace    = "test-watched"
+	unwatchedNamespace  = "test-unwatched"
+	controllerNamespace = "test-controller-namespace"
+	controllerName      = "test-agent-controller"
 )
 
 func TestControllers(t *testing.T) {
@@ -94,11 +97,12 @@ var _ = BeforeSuite(func() {
 
 	// Setup reconciler with mock driver and different controller name
 	envReconciler := &AgentEndpointReconciler{
-		Client:      envMgr.GetClient(),
-		Log:         logf.Log.WithName("env-agent-endpoint-controller"),
-		Scheme:      envMgr.GetScheme(),
-		Recorder:    envMgr.GetEventRecorderFor("env-agent-endpoint-controller"),
-		AgentDriver: envMockDriver,
+		Client:           envMgr.GetClient(),
+		Log:              logf.Log.WithName("env-agent-endpoint-controller"),
+		Scheme:           envMgr.GetScheme(),
+		Recorder:         envMgr.GetEventRecorderFor("env-agent-endpoint-controller"),
+		AgentDriver:      envMockDriver,
+		ControllerLabels: labels.NewControllerLabelValues(controllerNamespace, controllerName),
 	}
 
 	// Register controller with manager
@@ -156,11 +160,12 @@ var _ = BeforeSuite(func() {
 
 	// Setup reconciler with mock driver for namespace filter tests
 	nsReconciler := &AgentEndpointReconciler{
-		Client:      nsMgr.GetClient(),
-		Log:         logf.Log.WithName("ns-filter-test-controller"),
-		Scheme:      nsMgr.GetScheme(),
-		Recorder:    nsMgr.GetEventRecorderFor("ns-filter-test-controller"),
-		AgentDriver: nsMockDriver,
+		Client:           nsMgr.GetClient(),
+		Log:              logf.Log.WithName("ns-filter-test-controller"),
+		Scheme:           nsMgr.GetScheme(),
+		Recorder:         nsMgr.GetEventRecorderFor("ns-filter-test-controller"),
+		AgentDriver:      nsMockDriver,
+		ControllerLabels: labels.NewControllerLabelValues(controllerNamespace, controllerName),
 	}
 
 	Expect(nsReconciler.SetupWithManagerNamed(nsMgr, "ns-filter-agentendpoint")).To(Succeed())

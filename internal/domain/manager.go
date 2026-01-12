@@ -11,9 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/ingress"
@@ -51,12 +53,47 @@ func (r *DomainResult) RequeueError() error {
 	return nil
 }
 
+// ManagerOption is a functional option for configuring the Domain Manager
+type ManagerOption func(*Manager)
+
+// WithDefaultDomainReclaimPolicy sets the default domain reclaim policy for the Domain Manager
+func WithDefaultDomainReclaimPolicy(policy ingressv1alpha1.DomainReclaimPolicy) ManagerOption {
+	return func(m *Manager) {
+		m.defaultDomainReclaimPolicy = &policy
+	}
+}
+
+// WithControllerLabels sets the controller labels for the Domain Manager
+func WithControllerLabels(clv labels.ControllerLabelValues) ManagerOption {
+	return func(m *Manager) {
+		m.controllerLabels = &clv
+	}
+}
+
 // Manager handles domain creation and condition management
 type Manager struct {
 	Client                     client.Client
 	Recorder                   record.EventRecorder
-	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
-	ControllerLabels           labels.ControllerLabelValues
+	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+	controllerLabels           *labels.ControllerLabelValues
+}
+
+func NewManager(client client.Client, recorder record.EventRecorder, opts ...ManagerOption) (*Manager, error) {
+	m := &Manager{
+		Client:   client,
+		Recorder: recorder,
+	}
+
+	for _, opt := range opts {
+		opt(m)
+	}
+
+	if m.controllerLabels != nil {
+		if err := labels.ValidateControllerLabelValues(*m.controllerLabels); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
 }
 
 // EnsureDomainExists checks if the Domain CRD exists, creates it if needed, and sets conditions/domainRef
@@ -146,22 +183,13 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, domain string) (*DomainResult, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain)
 	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domain)
+	domainKey := client.ObjectKey{Name: hyphenatedDomain, Namespace: endpoint.GetNamespace()}
 
 	domainObj := &ingressv1alpha1.Domain{}
-	err := m.Client.Get(ctx, client.ObjectKey{Name: hyphenatedDomain, Namespace: endpoint.GetNamespace()}, domainObj)
+	err := m.Client.Get(ctx, domainKey, domainObj)
 	if err == nil {
-		// If the domain exists and it doesn't have controller labels, add them
-		l := domainObj.GetLabels()
-		_, hasControllerNameLabel := l[labels.ControllerName]
-		_, hasControllerNamespaceLabel := l[labels.ControllerNamespace]
-		if !hasControllerNameLabel || !hasControllerNamespaceLabel {
-			if m.ControllerLabels.EnsureLabels(domainObj) {
-				log.Info("Adding controller labels to existing Domain CRD", "domain", client.ObjectKeyFromObject(domainObj))
-				if err := m.Client.Update(ctx, domainObj); err != nil {
-					log.Error(err, "failed to add controller labels to existing Domain CRD", "domain", client.ObjectKeyFromObject(domainObj))
-					return nil, err
-				}
-			}
+		if err := m.ensureControllerLabels(ctx, log, domainObj); err != nil {
+			return nil, err
 		}
 		return m.checkExistingDomain(endpoint, domainObj)
 	}
@@ -173,6 +201,34 @@ func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.
 	}
 
 	return m.createNewDomain(ctx, endpoint, domain, hyphenatedDomain)
+}
+
+func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, domainObj *ingressv1alpha1.Domain) error {
+	if m.controllerLabels == nil {
+		return nil
+	}
+
+	l := domainObj.GetLabels()
+	_, hasControllerNameLabel := l[labels.ControllerName]
+	_, hasControllerNamespaceLabel := l[labels.ControllerNamespace]
+
+	if hasControllerNameLabel && hasControllerNamespaceLabel {
+		return nil
+	}
+
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		// Re-fetch the domain to get the latest version
+		if err := m.Client.Get(ctx, client.ObjectKeyFromObject(domainObj), domainObj); err != nil {
+			return err
+		}
+
+		if !m.controllerLabels.EnsureLabels(domainObj) {
+			return nil
+		}
+
+		log.Info("Adding controller labels to existing Domain CRD", "domain", client.ObjectKeyFromObject(domainObj))
+		return m.Client.Update(ctx, domainObj)
+	})
 }
 
 // checkExistingDomain checks the status of an existing domain
@@ -209,15 +265,18 @@ func (m *Manager) createNewDomain(ctx context.Context, endpoint ngrokv1alpha1.En
 		ObjectMeta: ctrl.ObjectMeta{
 			Name:      hyphenatedDomain,
 			Namespace: endpoint.GetNamespace(),
-			Labels:    m.ControllerLabels.Labels(),
 		},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: domain,
 		},
 	}
 
-	if m.DefaultDomainReclaimPolicy != nil {
-		newDomain.Spec.ReclaimPolicy = *m.DefaultDomainReclaimPolicy
+	if m.controllerLabels != nil {
+		m.controllerLabels.EnsureLabels(newDomain)
+	}
+
+	if m.defaultDomainReclaimPolicy != nil {
+		newDomain.Spec.ReclaimPolicy = *m.defaultDomainReclaimPolicy
 	}
 
 	if err := m.Client.Create(ctx, newDomain); err != nil {

@@ -27,30 +27,23 @@ func setupScheme() *runtime.Scheme {
 	return scheme
 }
 
-type testManagerOpt func(*Manager)
-
-func withDefaultDomainReclaimPolicy(policy ingressv1alpha1.DomainReclaimPolicy) testManagerOpt {
-	return func(m *Manager) {
-		m.DefaultDomainReclaimPolicy = &policy
-	}
-}
-
 func newTestManager(t *testing.T, objs ...client.Object) (*Manager, client.Client) {
 	t.Helper()
 	scheme := setupScheme()
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
-	m := &Manager{
-		Client:   c,
-		Recorder: record.NewFakeRecorder(10),
-		ControllerLabels: labels.ControllerLabelValues{
-			Namespace: "test-namespace",
-			Name:      "test-controller",
-		},
-	}
+	m, err := NewManager(c, record.NewFakeRecorder(10),
+		WithControllerLabels(
+			labels.ControllerLabelValues{
+				Namespace: "test-namespace",
+				Name:      "test-controller",
+			},
+		),
+	)
+	require.NoError(t, err)
 	return m, c
 }
 
-func newTestManagerWithOpts(t *testing.T, opts []testManagerOpt, objs ...client.Object) (*Manager, client.Client) {
+func newTestManagerWithOpts(t *testing.T, opts []ManagerOption, objs ...client.Object) (*Manager, client.Client) {
 	t.Helper()
 	m, c := newTestManager(t, objs...)
 	for _, opt := range opts {
@@ -307,7 +300,7 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 
 func TestManager_EnsureDomainExists_CreateNewDomainWithReclaimPolicy(t *testing.T) {
 	reclaimPolicy := ingressv1alpha1.DomainReclaimPolicyRetain
-	manager, c := newTestManagerWithOpts(t, []testManagerOpt{withDefaultDomainReclaimPolicy(reclaimPolicy)})
+	manager, c := newTestManagerWithOpts(t, []ManagerOption{WithDefaultDomainReclaimPolicy(reclaimPolicy)})
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
 
 	result, err := manager.EnsureDomainExists(t.Context(), endpoint)

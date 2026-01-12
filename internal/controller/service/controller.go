@@ -118,8 +118,8 @@ func (p TypedShouldHandleServicePredicate[object]) Update(e event.UpdateEvent) b
 }
 
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if r.ControllerLabels.Namespace == "" || r.ControllerLabels.Name == "" {
-		return errors.New("ControllerLabels namespace and name are required")
+	if err := labels.ValidateControllerLabelValues(r.ControllerLabels); err != nil {
+		return err
 	}
 
 	if r.ClusterDomain == "" {
