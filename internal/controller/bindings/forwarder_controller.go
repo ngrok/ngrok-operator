@@ -44,6 +44,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/mux"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 	"golang.org/x/sync/errgroup"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -110,6 +111,19 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 		),
 	)); err != nil {
 		return
+	}
+
+	// Register field indexer for IP-based pod lookup
+	err = mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Pod{}, "status.podIP", func(obj client.Object) []string {
+		pod := obj.(*corev1.Pod)
+		if pod.Status.PodIP == "" {
+			return nil
+		}
+		return []string{pod.Status.PodIP}
+	})
+
+	if err != nil {
+		return fmt.Errorf("unable to create pod IP index: %w", err)
 	}
 
 	err = mgr.Add(cont)
