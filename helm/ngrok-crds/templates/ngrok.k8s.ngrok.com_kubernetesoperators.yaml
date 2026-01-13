@@ -103,6 +103,13 @@ spec:
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
+              drainMode:
+                default: false
+                description: |-
+                  DrainMode when set to true, triggers cleanup of all resources managed by this operator instance.
+                  The operator will delete ngrok API resources and remove finalizers from Kubernetes resources.
+                  Once drain is complete, the operator will remove its own finalizer and allow deletion.
+                type: boolean
               enabledFeatures:
                 description: Features enabled for this Kubernetes Operator
                 items:
@@ -131,6 +138,24 @@ spec:
                 description: |-
                   BindingsIngressEndpoint is the URL that the operator will use to talk
                   to the ngrok edge when forwarding traffic for k8s-bound endpoints
+                type: string
+              drainMessage:
+                description: DrainMessage provides additional information about the
+                  drain status
+                type: string
+              drainProgress:
+                description: |-
+                  DrainProgress indicates how many resources have been drained vs total
+                  Format: "X/Y" where X is completed and Y is total
+                type: string
+              drainStatus:
+                description: DrainStatus indicates the current state of the drain
+                  process
+                enum:
+                - pending
+                - draining
+                - completed
+                - failed
                 type: string
               enabledFeatures:
                 description: EnabledFeatures is the string representation of the features

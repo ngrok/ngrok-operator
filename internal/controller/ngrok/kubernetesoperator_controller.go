@@ -34,8 +34,10 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -52,6 +54,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
@@ -77,6 +80,9 @@ type KubernetesOperatorReconciler struct {
 
 	// Namespace where the ngrok-operator is managing its resources
 	Namespace string
+
+	// ControllerName is the name of the controller deployment
+	ControllerName string
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -113,11 +119,117 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints,verbs=get;list;watch;update;patch;delete
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints,verbs=get;list;watch;update;patch;delete
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch;update;patch;delete
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;update;patch;delete
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=ippolicies,verbs=get;list;watch;update;patch;delete
+// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints,verbs=get;list;watch;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tcproutes,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tlsroutes,verbs=get;list;watch;update;patch
 
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log.WithValues("kubernetesoperator", req.NamespacedName)
+
+	ko := &ngrokv1alpha1.KubernetesOperator{}
+	if err := r.Client.Get(ctx, req.NamespacedName, ko); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if r.shouldDrain(ko) {
+		return r.handleDrain(ctx, ko, log)
+	}
+
 	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.KubernetesOperator))
+}
+
+func (r *KubernetesOperatorReconciler) shouldDrain(ko *ngrokv1alpha1.KubernetesOperator) bool {
+	return ko.Spec.DrainMode || !ko.DeletionTimestamp.IsZero()
+}
+
+func (r *KubernetesOperatorReconciler) handleDrain(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, log logr.Logger) (ctrl.Result, error) {
+	log.Info("Starting drain process")
+
+	if ko.Status.DrainStatus != ngrokv1alpha1.DrainStatusDraining {
+		ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusDraining
+		ko.Status.DrainMessage = "Drain in progress"
+		if err := r.Client.Status().Update(ctx, ko); err != nil {
+			return ctrl.Result{}, err
+		}
+		r.Recorder.Event(ko, v1.EventTypeNormal, "DrainStarted", "Starting drain of all managed resources")
+	}
+
+	drainer := &drain.Drainer{
+		Client:              r.Client,
+		NgrokClientset:      r.NgrokClientset,
+		Log:                 log,
+		ControllerNamespace: r.Namespace,
+		ControllerName:      r.ControllerName,
+	}
+
+	result, err := drainer.DrainAll(ctx)
+	if err != nil {
+		ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusFailed
+		ko.Status.DrainMessage = fmt.Sprintf("Drain failed: %v", err)
+		ko.Status.DrainProgress = result.Progress()
+		if statusErr := r.Client.Status().Update(ctx, ko); statusErr != nil {
+			log.Error(statusErr, "Failed to update drain status")
+		}
+		r.Recorder.Event(ko, v1.EventTypeWarning, "DrainFailed", fmt.Sprintf("Drain failed: %v", err))
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, err
+	}
+
+	ko.Status.DrainProgress = result.Progress()
+
+	if result.HasErrors() {
+		ko.Status.DrainMessage = fmt.Sprintf("Drain completed with %d errors", result.Failed)
+		if statusErr := r.Client.Status().Update(ctx, ko); statusErr != nil {
+			log.Error(statusErr, "Failed to update drain status")
+		}
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+
+	if !result.IsComplete() {
+		ko.Status.DrainMessage = "Drain in progress"
+		if statusErr := r.Client.Status().Update(ctx, ko); statusErr != nil {
+			log.Error(statusErr, "Failed to update drain status")
+		}
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
+	ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusCompleted
+	ko.Status.DrainMessage = "Drain completed successfully"
+	if err := r.Client.Status().Update(ctx, ko); err != nil {
+		return ctrl.Result{}, err
+	}
+	r.Recorder.Event(ko, v1.EventTypeNormal, "DrainCompleted", "All managed resources have been drained")
+	log.Info("Drain completed successfully", "progress", result.Progress())
+
+	if !ko.DeletionTimestamp.IsZero() {
+		log.Info("Deleting KubernetesOperator from ngrok API")
+		if ko.Status.ID != "" {
+			if err := r.NgrokClientset.KubernetesOperators().Delete(ctx, ko.Status.ID); err != nil {
+				if !ngrok.IsNotFound(err) {
+					return ctrl.Result{}, err
+				}
+			}
+		}
+
+		if controller.RemoveFinalizer(ko) {
+			if err := r.Client.Update(ctx, ko); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		log.Info("Finalizer removed, KubernetesOperator will be deleted")
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (err error) {

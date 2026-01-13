@@ -81,6 +81,17 @@ type KubernetesOperatorStatus struct {
 	// BindingsIngressEndpoint is the URL that the operator will use to talk
 	// to the ngrok edge when forwarding traffic for k8s-bound endpoints
 	BindingsIngressEndpoint string `json:"bindingsIngressEndpoint,omitempty"`
+
+	// DrainStatus indicates the current state of the drain process
+	// +kubebuilder:validation:Enum=pending;draining;completed;failed
+	DrainStatus string `json:"drainStatus,omitempty"`
+
+	// DrainMessage provides additional information about the drain status
+	DrainMessage string `json:"drainMessage,omitempty"`
+
+	// DrainProgress indicates how many resources have been drained vs total
+	// Format: "X/Y" where X is completed and Y is total
+	DrainProgress string `json:"drainProgress,omitempty"`
 }
 
 const (
@@ -93,6 +104,13 @@ const (
 	KubernetesOperatorFeatureIngress  = "ingress"
 	KubernetesOperatorFeatureGateway  = "gateway"
 	KubernetesOperatorFeatureBindings = "bindings"
+)
+
+const (
+	DrainStatusPending   = "pending"
+	DrainStatusDraining  = "draining"
+	DrainStatusCompleted = "completed"
+	DrainStatusFailed    = "failed"
 )
 
 type KubernetesOperatorSpec struct {
@@ -121,6 +139,12 @@ type KubernetesOperatorSpec struct {
 
 	// Configuration for the binding feature of this Kubernetes Operator
 	Binding *KubernetesOperatorBinding `json:"binding,omitempty"`
+
+	// DrainMode when set to true, triggers cleanup of all resources managed by this operator instance.
+	// The operator will delete ngrok API resources and remove finalizers from Kubernetes resources.
+	// Once drain is complete, the operator will remove its own finalizer and allow deletion.
+	// +kubebuilder:default=false
+	DrainMode bool `json:"drainMode,omitempty"`
 }
 
 // +kubebuilder:object:root=true

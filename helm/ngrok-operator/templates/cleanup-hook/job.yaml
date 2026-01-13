@@ -1,0 +1,53 @@
+{{- if .Values.cleanupHook.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: cleanup
+    spec:
+      serviceAccountName: {{ include "ngrok-operator.fullname" . }}-cleanup
+      restartPolicy: OnFailure
+      containers:
+        - name: cleanup
+          image: "{{ .Values.cleanupHook.image.repository }}:{{ .Values.cleanupHook.image.tag }}"
+          imagePullPolicy: {{ .Values.cleanupHook.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Starting cleanup of ngrok-operator resources..."
+              
+              # Get the KubernetesOperator CR name
+              KO_NAME=$(kubectl get kubernetesoperators -n {{ .Release.Namespace }} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+              
+              if [ -z "$KO_NAME" ]; then
+                echo "No KubernetesOperator CR found, skipping cleanup"
+                exit 0
+              fi
+              
+              echo "Found KubernetesOperator: $KO_NAME"
+              
+              # Delete the KubernetesOperator CR and wait for it to be removed
+              # This triggers the drain process in the operator
+              echo "Deleting KubernetesOperator CR to trigger drain..."
+              kubectl delete kubernetesoperator "$KO_NAME" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.cleanupHook.timeout }}s || true
+              
+              echo "Cleanup completed successfully"
+          resources:
+            {{- toYaml .Values.cleanupHook.resources | nindent 12 }}
+{{- end }}

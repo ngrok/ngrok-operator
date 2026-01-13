@@ -108,6 +108,10 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 
 The full documentation for the ngrok Kubernetes Operator can be found on our [k8s docs](https://ngrok.com/docs/k8s/)
 
+### Uninstalling
+
+For guidance on safely uninstalling the operator, including cleanup of ngrok API resources and finalizers, see the [Uninstall Guide](./docs/uninstall.md).
+
 ## Known Issues
 
 > **Note**
