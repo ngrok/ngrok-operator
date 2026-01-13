@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -93,26 +93,26 @@ var _ = Describe("ForwarderReconciler field indexer integration", func() {
 		}, 10*time.Second, 100*time.Millisecond).Should(BeTrue())
 
 		// create namespace and pod via mgr client so the manager's cache can observe them
-		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace-" + rand.String(6)}}
+		ns := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace-" + rand.String(6)}}
 		Expect(mgr.GetClient().Create(ctx, ns)).To(Succeed())
 
-		pod := &corev1.Pod{
+		pod := &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-pod-" + rand.String(6), Namespace: ns.Name},
-			Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "test-container", Image: "nginx"}}},
+			Spec:       v1.PodSpec{Containers: []v1.Container{{Name: "test-container", Image: "nginx"}}},
 		}
 		Expect(mgr.GetClient().Create(ctx, pod)).To(Succeed())
 
 		// set Pod status explicitly so the field indexer (which indexes pod.Status.PodIP)
 		// can observe the IP.
-		got := &corev1.Pod{}
+		got := &v1.Pod{}
 		// Use API reader to avoid cached client NotFound races immediately after Create
 		Expect(mgr.GetAPIReader().Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, got)).To(Succeed())
-		got.Status = corev1.PodStatus{PodIP: ip}
+		got.Status = v1.PodStatus{PodIP: ip}
 		Expect(mgr.GetClient().Status().Update(ctx, got)).To(Succeed())
 
 		// Wait until the manager cache/indexer exposes the pod via the field index
 		Eventually(func() bool {
-			list := &corev1.PodList{}
+			list := &v1.PodList{}
 			if err := mgr.GetClient().List(ctx, list, client.MatchingFields{"status.podIP": ip}); err != nil {
 				return false
 			}

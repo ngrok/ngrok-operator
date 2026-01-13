@@ -32,7 +32,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -115,7 +115,7 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 				opts.namespace: {},
 			},
 			ByObject: map[client.Object]cache.ByObject{
-				&corev1.Pod{}: {},
+				&v1.Pod{}: {},
 			},
 		},
 		Metrics: server.Options{
