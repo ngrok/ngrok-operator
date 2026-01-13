@@ -23,7 +23,7 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 	translator := NewTranslator(
 		d.log,
 		d.store,
-		d.defaultManagedResourceLabels(),
+		d.controllerLabels.Labels(),
 		d.ingressNgrokMetadata,
 		d.gatewayNgrokMetadata,
 		d.clusterDomain,
@@ -34,18 +34,14 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 	currentAgentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
 	currentCloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
 
-	if err := c.List(ctx, currentAgentEndpoints, client.MatchingLabels{
-		labelControllerNamespace: d.managerName.Namespace,
-		labelControllerName:      d.managerName.Name,
-	}); err != nil {
+	matchLabels := d.controllerLabels.Selector()
+
+	if err := c.List(ctx, currentAgentEndpoints, matchLabels); err != nil {
 		d.log.Error(err, "error listing agent endpoints")
 		return err
 	}
 
-	if err := c.List(ctx, currentCloudEndpoints, client.MatchingLabels{
-		labelControllerNamespace: d.managerName.Namespace,
-		labelControllerName:      d.managerName.Name,
-	}); err != nil {
+	if err := c.List(ctx, currentCloudEndpoints, matchLabels); err != nil {
 		d.log.Error(err, "error listing cloud endpoints")
 		return err
 	}
@@ -67,7 +63,7 @@ func (d *Driver) applyAgentEndpoints(ctx context.Context, c client.Client, desir
 	for _, currAEP := range current {
 
 		// If this AgentEndpoint is created by the user and not owned/managed by the operator then ignore it
-		if !hasDefaultManagedResourceLabels(currAEP.Labels, d.managerName.Name, d.managerName.Namespace) {
+		if d.shouldBeSkippedInApply(&currAEP) {
 			continue
 		}
 
@@ -120,12 +116,31 @@ func (d *Driver) applyAgentEndpoints(ctx context.Context, c client.Client, desir
 	return nil
 }
 
+// Returns true if the object should be skipped during apply. This is for one of the following reasons:
+//  1. The object was manually created by the user and is not managed by the operator
+//  2. The object is owned by the LoadBalancer controller and modifications by the managerdriver would cause it
+//     to play battle bots.
+func (d *Driver) shouldBeSkippedInApply(obj client.Object) bool {
+	if !d.controllerLabels.HasLabels(obj) {
+		return true
+	}
+
+	for _, ownerRef := range obj.GetOwnerReferences() {
+		if ownerRef.Kind == "Service" {
+			// Owned by LoadBalancer controller, skip it
+			return true
+		}
+	}
+
+	return false
+}
+
 func (d *Driver) applyCloudEndpoints(ctx context.Context, c client.Client, desired map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint, current []ngrokv1alpha1.CloudEndpoint) error {
 	// update or delete cloud endpoints we don't need anymore
 	for _, currCLEP := range current {
 
 		// If this CloudEndpoint is created by the user and not owned/managed by the operator then ignore it
-		if !hasDefaultManagedResourceLabels(currCLEP.Labels, d.managerName.Name, d.managerName.Namespace) {
+		if d.shouldBeSkippedInApply(&currCLEP) {
 			continue
 		}
 

@@ -53,7 +53,7 @@ type BoundEndpointPoller struct {
 	// TargetServiceAnnotations is a map of key/value pairs to attach to the BoundEndpoint's Target Service
 	TargetServiceAnnotations map[string]string
 
-	// TargetServiceAnnotations is a map of key/value pairs to attach to the BoundEndpoint's Target Service
+	// TargetServiceLabels is a map of key/value pairs to attach to the BoundEndpoint's Target Service
 	TargetServiceLabels map[string]string
 
 	// portAllocator manages the unique port allocations
