@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -640,6 +641,141 @@ var _ = Describe("Driver", func() {
 						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ingressv1alpha1.DomainReclaimPolicyDelete))
 					})
 				})
+			})
+		})
+
+		When("An ingress has internal domain hostnames", func() {
+			It("Should not create Domain CRDs for internal domains", func(ctx SpecContext) {
+				// Create an ingress with both a regular and internal domain
+				ingress := testutils.NewTestIngressV1("test-ingress", "test-namespace")
+				ingress.Spec.Rules = []netv1.IngressRule{
+					{
+						Host: "app.example.com",
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "example",
+												Port: netv1.ServiceBackendPort{Number: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Host: "service.namespace.internal",
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "example",
+												Port: netv1.ServiceBackendPort{Number: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+
+				ic := testutils.NewTestIngressClass("test-ingress-class", true, true)
+				s := testutils.NewTestServiceV1("example", "test-namespace")
+				objs := []runtime.Object{ic, ingress, s}
+
+				c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+				Expect(driver.Seed(ctx, c)).To(Succeed())
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+
+				// Verify only the non-internal domain was created
+				domains := &ingressv1alpha1.DomainList{}
+				Expect(c.List(ctx, domains)).To(Succeed())
+				Expect(domains.Items).To(HaveLen(1))
+				Expect(domains.Items[0].Spec.Domain).To(Equal("app.example.com"))
+
+				// Verify no domain was created for the internal hostname
+				internalDomain := &ingressv1alpha1.Domain{}
+				err := c.Get(ctx, types.NamespacedName{
+					Namespace: "test-namespace",
+					Name:      "service-namespace-internal",
+				}, internalDomain)
+				Expect(err).To(HaveOccurred())
+				Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			})
+
+			It("Should not create Domain CRDs when all hosts are internal domains", func(ctx SpecContext) {
+				// Create an ingress with only internal domains
+				ingress := testutils.NewTestIngressV1("test-ingress", "test-namespace")
+				ingress.Spec.Rules = []netv1.IngressRule{
+					{
+						Host: "foo.internal",
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "example",
+												Port: netv1.ServiceBackendPort{Number: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Host: "bar.internal",
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "example",
+												Port: netv1.ServiceBackendPort{Number: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+
+				ic := testutils.NewTestIngressClass("test-ingress-class", true, true)
+				s := testutils.NewTestServiceV1("example", "test-namespace")
+				objs := []runtime.Object{ic, ingress, s}
+
+				c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+
+				// Reset driver to clear any state from previous tests
+				driver = NewDriver(
+					GinkgoLogr,
+					scheme,
+					testutils.DefaultControllerName,
+					types.NamespacedName{Name: defaultManagerName},
+					WithGatewayEnabled(false),
+					WithSyncAllowConcurrent(true),
+				)
+
+				Expect(driver.Seed(ctx, c)).To(Succeed())
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+
+				// Verify no domains were created
+				domains := &ingressv1alpha1.DomainList{}
+				Expect(c.List(ctx, domains)).To(Succeed())
+				Expect(domains.Items).To(HaveLen(0))
 			})
 		})
 	})

@@ -119,7 +119,7 @@ func assertDomainCondition(t *testing.T, ep ngrokv1alpha1.EndpointWithDomain, st
 	conds := ep.GetConditions()
 	require.Len(t, *conds, 1)
 	c := (*conds)[0]
-	assert.Equal(t, ConditionDomainReady, c.Type)
+	assert.Equal(t, ConditionEndpointDomainReady, c.Type)
 	assert.Equal(t, status, c.Status)
 	if msgContains != "" {
 		assert.Contains(t, c.Message, msgContains)
@@ -323,7 +323,7 @@ func TestManager_setDomainCondition(t *testing.T) {
 	conditions := endpoint.GetConditions()
 	require.Len(t, *conditions, 1)
 	c := (*conditions)[0]
-	assert.Equal(t, ConditionDomainReady, c.Type)
+	assert.Equal(t, ConditionEndpointDomainReady, c.Type)
 	assert.Equal(t, metav1.ConditionTrue, c.Status)
 	assert.Equal(t, "TestReason", c.Reason)
 	assert.Equal(t, "Test message", c.Message)
@@ -414,6 +414,68 @@ func TestManager_EnsureDomainExists_SkipsInternalBinding(t *testing.T) {
 			assert.Nil(t, result.Domain)
 			assertNoDomainRef(t, tt.endpoint)
 			assertDomainCondition(t, tt.endpoint, metav1.ConditionTrue, "internal binding")
+			assertNoDomainCreated(t, c)
+		})
+	}
+}
+
+func TestManager_CheckSkippedDomains_InternalDomain(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint ngrokv1alpha1.EndpointWithDomain
+	}{
+		{
+			name: "AgentEndpoint with internal TLD",
+			endpoint: &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "internal-domain-endpoint", Namespace: "default"},
+				Spec:       ngrokv1alpha1.AgentEndpointSpec{URL: "https://api.service.internal"},
+				Status:     ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
+			},
+		},
+		{
+			name: "CloudEndpoint with internal TLD",
+			endpoint: &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "internal-domain-endpoint", Namespace: "default"},
+				Spec:       ngrokv1alpha1.CloudEndpointSpec{URL: "https://api.service.internal"},
+				Status:     ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
+			},
+		},
+		{
+			name: "AgentEndpoint with nested internal TLD",
+			endpoint: &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "nested-internal-endpoint", Namespace: "default"},
+				Spec:       ngrokv1alpha1.AgentEndpointSpec{URL: "https://deep.nested.service.internal"},
+				Status:     ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			manager, c := newTestManager(t)
+
+			result, err := manager.EnsureDomainExists(t.Context(), tt.endpoint)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			// Verify IsReady is true
+			assert.True(t, result.IsReady, "internal domain should be immediately ready")
+			assert.Nil(t, result.Domain, "no Domain CRD should be returned")
+
+			// Verify SetDomainRef(nil) was called
+			assertNoDomainRef(t, tt.endpoint)
+
+			// Verify condition is set to True with expected message
+			conds := tt.endpoint.GetConditions()
+			require.Len(t, *conds, 1)
+			cond := (*conds)[0]
+			assert.Equal(t, ConditionEndpointDomainReady, cond.Type)
+			assert.Equal(t, metav1.ConditionTrue, cond.Status)
+			assert.Equal(t, ReasonDomainReady, cond.Reason)
+			assert.Contains(t, cond.Message, "internal domain")
+
+			// Verify no Domain CRD was created
 			assertNoDomainCreated(t, c)
 		})
 	}

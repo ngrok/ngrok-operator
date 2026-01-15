@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/domain"
 )
 
 // Helper function to create a test domain
@@ -48,131 +49,131 @@ func createTestDomainWithCertManagement(name, domainName, id string, job *ingres
 }
 
 func TestUpdateDomainConditions_CreationError(t *testing.T) {
-	domain := createTestDomain("test-domain", "test.example.com", "rd_123")
+	d := createTestDomain("test-domain", "test.example.com", "rd_123")
 	createErr := errors.New("domain creation failed")
 
-	updateDomainConditions(domain, nil, createErr)
+	updateDomainConditions(d, nil, createErr)
 
 	// All conditions should be false with creation failed reason
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDomainReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
-	assert.Equal(t, ReasonDomainCreationFailed, readyCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainCreationFailed, readyCondition.Reason)
 
-	createdCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainCreated)
+	createdCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDomainCreated)
 	assert.NotNil(t, createdCondition)
 	assert.Equal(t, metav1.ConditionFalse, createdCondition.Status)
-	assert.Equal(t, ReasonDomainCreationFailed, createdCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainCreationFailed, createdCondition.Reason)
 
-	certCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionCertificateReady)
+	certCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionCertificateReady)
 	assert.NotNil(t, certCondition)
 	assert.Equal(t, metav1.ConditionFalse, certCondition.Status)
-	assert.Equal(t, ReasonDomainCreationFailed, certCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainCreationFailed, certCondition.Reason)
 
-	dnsCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDNSConfigured)
+	dnsCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDNSConfigured)
 	assert.NotNil(t, dnsCondition)
 	assert.Equal(t, metav1.ConditionFalse, dnsCondition.Status)
-	assert.Equal(t, ReasonDomainCreationFailed, dnsCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainCreationFailed, dnsCondition.Reason)
 }
 
 func TestUpdateDomainConditions_NoID(t *testing.T) {
-	domain := createTestDomain("test-domain", "test.example.com", "")
+	d := createTestDomain("test-domain", "test.example.com", "")
 
-	updateDomainConditions(domain, nil, nil)
+	updateDomainConditions(d, nil, nil)
 
 	// All conditions should be false with invalid reason
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDomainReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
-	assert.Equal(t, ReasonDomainInvalid, readyCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainInvalid, readyCondition.Reason)
 }
 
 func TestUpdateDomainConditions_NgrokManagedDomain(t *testing.T) {
-	domain := createTestDomain("test-domain", "test.ngrok.app", "rd_123")
+	d := createTestDomain("test-domain", "test.ngrok.app", "rd_123")
 	ngrokDomain := &ngrok.ReservedDomain{
 		ID:     "rd_123",
 		Domain: "test.ngrok.app",
 		// No CertificateManagementPolicy = ngrok managed
 	}
 
-	updateDomainConditions(domain, ngrokDomain, nil)
+	updateDomainConditions(d, ngrokDomain, nil)
 
 	// All conditions should be true for ngrok managed domains
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDomainReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionTrue, readyCondition.Status)
-	assert.Equal(t, ReasonDomainActive, readyCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainActive, readyCondition.Reason)
 
-	createdCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainCreated)
+	createdCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDomainCreated)
 	assert.NotNil(t, createdCondition)
 	assert.Equal(t, metav1.ConditionTrue, createdCondition.Status)
-	assert.Equal(t, ReasonDomainCreated, createdCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainCreated, createdCondition.Reason)
 
-	certCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionCertificateReady)
+	certCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionCertificateReady)
 	assert.NotNil(t, certCondition)
 	assert.Equal(t, metav1.ConditionTrue, certCondition.Status)
-	assert.Equal(t, ReasonNgrokManaged, certCondition.Reason)
+	assert.Equal(t, domain.ReasonNgrokManaged, certCondition.Reason)
 
-	dnsCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDNSConfigured)
+	dnsCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDNSConfigured)
 	assert.NotNil(t, dnsCondition)
 	assert.Equal(t, metav1.ConditionTrue, dnsCondition.Status)
-	assert.Equal(t, ReasonNgrokManaged, dnsCondition.Reason)
+	assert.Equal(t, domain.ReasonNgrokManaged, dnsCondition.Reason)
 }
 
 func TestUpdateDomainConditions_CustomDomainWithCertificate(t *testing.T) {
-	domain := createTestDomainWithCertificate("test-domain", "test.example.com", "rd_123")
+	d := createTestDomainWithCertificate("test-domain", "test.example.com", "rd_123")
 	ngrokDomain := &ngrok.ReservedDomain{
 		ID:                          "rd_123",
 		Domain:                      "test.example.com",
 		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
 	}
 
-	updateDomainConditions(domain, ngrokDomain, nil)
+	updateDomainConditions(d, ngrokDomain, nil)
 
 	// All conditions should be true when certificate is provisioned
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDomainReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionTrue, readyCondition.Status)
-	assert.Equal(t, ReasonDomainActive, readyCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainActive, readyCondition.Reason)
 
-	certCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionCertificateReady)
+	certCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionCertificateReady)
 	assert.NotNil(t, certCondition)
 	assert.Equal(t, metav1.ConditionTrue, certCondition.Status)
-	assert.Equal(t, ReasonCertificateReady, certCondition.Reason)
+	assert.Equal(t, domain.ReasonCertificateReady, certCondition.Reason)
 
-	dnsCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDNSConfigured)
+	dnsCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDNSConfigured)
 	assert.NotNil(t, dnsCondition)
 	assert.Equal(t, metav1.ConditionTrue, dnsCondition.Status)
-	assert.Equal(t, ReasonDomainCreated, dnsCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainCreated, dnsCondition.Reason)
 }
 
 func TestUpdateDomainConditions_CustomDomainProvisioning(t *testing.T) {
-	domain := createTestDomain("test-domain", "test.example.com", "rd_123")
+	d := createTestDomain("test-domain", "test.example.com", "rd_123")
 	ngrokDomain := &ngrok.ReservedDomain{
 		ID:                          "rd_123",
 		Domain:                      "test.example.com",
 		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
 	}
 
-	updateDomainConditions(domain, ngrokDomain, nil)
+	updateDomainConditions(d, ngrokDomain, nil)
 
 	// Domain should be created but not ready
-	createdCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainCreated)
+	createdCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDomainCreated)
 	assert.NotNil(t, createdCondition)
 	assert.Equal(t, metav1.ConditionTrue, createdCondition.Status)
-	assert.Equal(t, ReasonDomainCreated, createdCondition.Reason)
+	assert.Equal(t, domain.ReasonDomainCreated, createdCondition.Reason)
 
 	// But not ready due to provisioning
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDomainReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
-	assert.Equal(t, ReasonProvisioningError, readyCondition.Reason)
+	assert.Equal(t, domain.ReasonProvisioningError, readyCondition.Reason)
 
 	// Progressing should be true
-	progressingCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionProgressing)
+	progressingCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionProgressing)
 	assert.NotNil(t, progressingCondition)
 	assert.Equal(t, metav1.ConditionTrue, progressingCondition.Status)
-	assert.Equal(t, ReasonProvisioning, progressingCondition.Reason)
+	assert.Equal(t, domain.ReasonProvisioning, progressingCondition.Reason)
 }
 
 func TestUpdateDomainConditions_CustomDomainWithProvisioningJob(t *testing.T) {
@@ -184,17 +185,17 @@ func TestUpdateDomainConditions_CustomDomainWithProvisioningJob(t *testing.T) {
 		StartedAt: &startTime,
 		RetriesAt: &retryTime,
 	}
-	domain := createTestDomainWithCertManagement("test-domain", "test.example.com", "rd_123", job)
+	d := createTestDomainWithCertManagement("test-domain", "test.example.com", "rd_123", job)
 	ngrokDomain := &ngrok.ReservedDomain{
 		ID:                          "rd_123",
 		Domain:                      "test.example.com",
 		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
 	}
 
-	updateDomainConditions(domain, ngrokDomain, nil)
+	updateDomainConditions(d, ngrokDomain, nil)
 
 	// Should include job details in message
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(d.Status.Conditions, domain.ConditionDomainReady)
 	assert.NotNil(t, readyCondition)
 	assert.Contains(t, readyCondition.Message, "DNS_ERROR")
 	assert.Contains(t, readyCondition.Message, "DNS records not configured")
@@ -275,73 +276,6 @@ func TestCurrentProvisioningJob(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := currentProvisioningJob(tt.status)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestIsDomainReady(t *testing.T) {
-	tests := []struct {
-		name     string
-		domain   *ingressv1alpha1.Domain
-		expected bool
-	}{
-		{
-			name: "domain with no ID",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
-					ID: "",
-				},
-			},
-			expected: false,
-		},
-		{
-			name: "domain with ID but no Ready condition",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
-					ID:         "rd_123",
-					Conditions: []metav1.Condition{},
-				},
-			},
-			expected: false,
-		},
-		{
-			name: "domain with ID and Ready condition false",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
-					ID: "rd_123",
-					Conditions: []metav1.Condition{
-						{
-							Type:   ConditionDomainReady,
-							Status: metav1.ConditionFalse,
-							Reason: ReasonProvisioningError,
-						},
-					},
-				},
-			},
-			expected: false,
-		},
-		{
-			name: "domain with ID and Ready condition true",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
-					ID: "rd_123",
-					Conditions: []metav1.Condition{
-						{
-							Type:   ConditionDomainReady,
-							Status: metav1.ConditionTrue,
-							Reason: ReasonDomainActive,
-						},
-					},
-				},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := IsDomainReady(tt.domain)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

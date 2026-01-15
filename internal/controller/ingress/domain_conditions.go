@@ -8,166 +8,142 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v7"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
-const (
-	// condition types for Domain
-	ConditionDomainReady      = "Ready"
-	ConditionDomainCreated    = "DomainCreated"
-	ConditionCertificateReady = "CertificateReady"
-	ConditionDNSConfigured    = "DNSConfigured"
-	ConditionProgressing      = "Progressing"
-
-	// condition reasons for Domain
-	ReasonDomainActive            = "DomainActive"
-	ReasonDomainCreated           = "DomainCreated"
-	ReasonDomainInvalid           = "DomainInvalid"
-	ReasonCertificateProvisioning = "CertificateProvisioning"
-	ReasonCertificateReady        = "CertificateReady"
-	ReasonDNSError                = "DNSError"
-	ReasonACMEChallengeRequired   = "ACMEChallengeRequired"
-	ReasonNgrokManaged            = "NgrokManaged"
-	ReasonProvisioningError       = "ProvisioningError"
-	ReasonWaitingForCertificate   = "WaitingForCertificate"
-	ReasonDanglingDNSRecord       = "DanglingDNSRecord"
-	ReasonProtectedDomain         = "ProtectedDomain"
-	ReasonDomainCreationFailed    = "DomainCreationFailed"
-	ReasonProvisioning            = "Provisioning"
-)
-
 // setReadyCondition sets the Ready condition based on the overall domain state
-func setDomainReadyCondition(domain *ingressv1alpha1.Domain, ready bool, reason, message string) {
+func setDomainReadyCondition(d *ingressv1alpha1.Domain, ready bool, reason, message string) {
 	status := metav1.ConditionTrue
 	if !ready {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionDomainReady,
+		Type:               domain.ConditionDomainReady,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		ObservedGeneration: domain.Generation,
+		ObservedGeneration: d.Generation,
 	}
 
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	meta.SetStatusCondition(&d.Status.Conditions, condition)
 }
 
 // setProgressingCondition sets the Progressing condition
-func setProgressingCondition(domain *ingressv1alpha1.Domain, progressing bool, reason, message string) {
+func setProgressingCondition(d *ingressv1alpha1.Domain, progressing bool, reason, message string) {
 	status := metav1.ConditionTrue
 	if !progressing {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionProgressing,
+		Type:               domain.ConditionProgressing,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		ObservedGeneration: domain.Generation,
+		ObservedGeneration: d.Generation,
 	}
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	meta.SetStatusCondition(&d.Status.Conditions, condition)
 }
 
 // setDomainCreatedCondition sets the DomainCreated condition
-func setDomainCreatedCondition(domain *ingressv1alpha1.Domain, created bool, reason, message string) {
+func setDomainCreatedCondition(d *ingressv1alpha1.Domain, created bool, reason, message string) {
 	status := metav1.ConditionTrue
 	if !created {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionDomainCreated,
+		Type:               domain.ConditionDomainCreated,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		ObservedGeneration: domain.Generation,
+		ObservedGeneration: d.Generation,
 	}
 
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	meta.SetStatusCondition(&d.Status.Conditions, condition)
 }
 
 // setCertificateReadyCondition sets the CertificateReady condition
-func setCertificateReadyCondition(domain *ingressv1alpha1.Domain, ready bool, reason, message string) {
+func setCertificateReadyCondition(d *ingressv1alpha1.Domain, ready bool, reason, message string) {
 	status := metav1.ConditionTrue
 	if !ready {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionCertificateReady,
+		Type:               domain.ConditionCertificateReady,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		ObservedGeneration: domain.Generation,
+		ObservedGeneration: d.Generation,
 	}
 
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	meta.SetStatusCondition(&d.Status.Conditions, condition)
 }
 
 // setDNSConfiguredCondition sets the DNSConfigured condition
-func setDNSConfiguredCondition(domain *ingressv1alpha1.Domain, configured bool, reason, message string) {
+func setDNSConfiguredCondition(d *ingressv1alpha1.Domain, configured bool, reason, message string) {
 	status := metav1.ConditionTrue
 	if !configured {
 		status = metav1.ConditionFalse
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionDNSConfigured,
+		Type:               domain.ConditionDNSConfigured,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		ObservedGeneration: domain.Generation,
+		ObservedGeneration: d.Generation,
 	}
 
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	meta.SetStatusCondition(&d.Status.Conditions, condition)
 }
 
 // updateDomainConditions updates all domain conditions based on the ngrok domain state and any creation errors
-func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain, createErr error) {
+func updateDomainConditions(d *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain, createErr error) {
 	// Handle creation errors first
 	if createErr != nil {
 		message := ngrokapi.SanitizeErrorMessage(createErr.Error())
-		setDomainCreatedCondition(domain, false, ReasonDomainCreationFailed, message)
-		setCertificateReadyCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
-		setDNSConfiguredCondition(domain, false, ReasonDomainCreationFailed, "Domain creation failed")
-		setDomainReadyCondition(domain, false, ReasonDomainCreationFailed, message)
+		setDomainCreatedCondition(d, false, domain.ReasonDomainCreationFailed, message)
+		setCertificateReadyCondition(d, false, domain.ReasonDomainCreationFailed, "Domain creation failed")
+		setDNSConfiguredCondition(d, false, domain.ReasonDomainCreationFailed, "Domain creation failed")
+		setDomainReadyCondition(d, false, domain.ReasonDomainCreationFailed, message)
 		return
 	}
 
-	if domain.Status.ID == "" {
+	if d.Status.ID == "" {
 		message := "Domain could not be reserved"
-		setDomainCreatedCondition(domain, false, ReasonDomainInvalid, message)
-		setCertificateReadyCondition(domain, false, ReasonDomainInvalid, message)
-		setDNSConfiguredCondition(domain, false, ReasonDomainInvalid, message)
-		setDomainReadyCondition(domain, false, ReasonDomainInvalid, message)
+		setDomainCreatedCondition(d, false, domain.ReasonDomainInvalid, message)
+		setCertificateReadyCondition(d, false, domain.ReasonDomainInvalid, message)
+		setDNSConfiguredCondition(d, false, domain.ReasonDomainInvalid, message)
+		setDomainReadyCondition(d, false, domain.ReasonDomainInvalid, message)
 		return
 	}
 
-	setDomainCreatedCondition(domain, true, ReasonDomainCreated, "Domain successfully reserved")
+	setDomainCreatedCondition(d, true, domain.ReasonDomainCreated, "Domain successfully reserved")
 
 	// Check if its an ngrok domain. If so the DNS and certs are managed by ngrok
 	// and already setup so the domain is ready.
 	if isNgrokManagedDomain(ngrokDomain) {
-		setCertificateReadyCondition(domain, true, ReasonNgrokManaged, "Certificate managed by ngrok")
-		setDNSConfiguredCondition(domain, true, ReasonNgrokManaged, "DNS managed by ngrok")
-		setDomainReadyCondition(domain, true, ReasonDomainActive, "Domain ready for use")
+		setCertificateReadyCondition(d, true, domain.ReasonNgrokManaged, "Certificate managed by ngrok")
+		setDNSConfiguredCondition(d, true, domain.ReasonNgrokManaged, "DNS managed by ngrok")
+		setDomainReadyCondition(d, true, domain.ReasonDomainActive, "Domain ready for use")
 		return
 	}
 
 	// If the certificate is not null, then the certificate is provisioned and the domain is ready.
-	if domain.Status.Certificate != nil {
-		setCertificateReadyCondition(domain, true, ReasonCertificateReady, "Certificate provisioned successfully")
-		setDNSConfiguredCondition(domain, true, ReasonDomainCreated, "DNS records configured")
-		setDomainReadyCondition(domain, true, ReasonDomainActive, "Domain ready for use")
+	if d.Status.Certificate != nil {
+		setCertificateReadyCondition(d, true, domain.ReasonCertificateReady, "Certificate provisioned successfully")
+		setDNSConfiguredCondition(d, true, domain.ReasonDomainCreated, "DNS records configured")
+		setDomainReadyCondition(d, true, domain.ReasonDomainActive, "Domain ready for use")
 		return
 	}
 
 	// Otherwise for custom domains, check the certificate management status
 	message := "Certificate provisioning in progress"
-	job := currentProvisioningJob(domain.Status.CertificateManagementStatus)
+	job := currentProvisioningJob(d.Status.CertificateManagementStatus)
 	if job != nil {
 		// Check for errors
 		if job.ErrorCode != "" {
@@ -188,10 +164,10 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 		}
 	}
 
-	setCertificateReadyCondition(domain, false, ReasonProvisioningError, message)
-	setDNSConfiguredCondition(domain, false, ReasonProvisioningError, message)
-	setDomainReadyCondition(domain, false, ReasonProvisioningError, message)
-	setProgressingCondition(domain, true, ReasonProvisioning, message)
+	setCertificateReadyCondition(d, false, domain.ReasonProvisioningError, message)
+	setDNSConfiguredCondition(d, false, domain.ReasonProvisioningError, message)
+	setDomainReadyCondition(d, false, domain.ReasonProvisioningError, message)
+	setProgressingCondition(d, true, domain.ReasonProvisioning, message)
 }
 
 // Helper functions to determine domain and certificate status
@@ -211,21 +187,4 @@ func currentProvisioningJob(status *ingressv1alpha1.DomainStatusCertificateManag
 		return nil
 	}
 	return status.ProvisioningJob
-}
-
-// IsDomainReady checks if a domain is ready by examining both Status.ID and Ready condition
-func IsDomainReady(domain *ingressv1alpha1.Domain) bool {
-	// First check if domain has an ID (basic requirement)
-	if domain.Status.ID == "" {
-		return false
-	}
-
-	// Then check the Ready condition for more detailed status
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
-	if readyCondition == nil {
-		// No ready condition set yet, so it's not ready
-		return false
-	}
-
-	return readyCondition.Status == metav1.ConditionTrue
 }

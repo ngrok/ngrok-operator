@@ -18,19 +18,8 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/util"
-)
-
-const (
-	ConditionDomainReady = "DomainReady"
-)
-
-const (
-	ReasonDomainReady    = "DomainReady"
-	ReasonDomainCreating = "DomainCreating"
-	ReasonNgrokAPIError  = "NgrokAPIError"
 )
 
 var (
@@ -165,7 +154,7 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 	}
 
 	// Skip internal domains
-	if strings.HasSuffix(parsedURL.Hostname(), ".internal") {
+	if IsInternalDomain(parsedURL.Hostname()) {
 		msg := "Domain ready (internal domain - no domain reservation needed)"
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
@@ -240,7 +229,7 @@ func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain,
 	endpoint.SetDomainRef(domainRef)
 
 	// Get domain's Ready condition to propagate reason/message to endpoint
-	readyCondition := meta.FindStatusCondition(domainObj.Status.Conditions, ingress.ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domainObj.Status.Conditions, ConditionDomainReady)
 	readyReason := ReasonDomainCreating
 	readyMessage := "Domain is being created"
 	if readyCondition != nil {
@@ -248,7 +237,7 @@ func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain,
 		readyMessage = readyCondition.Message
 	}
 
-	isReady := ingress.IsDomainReady(domainObj)
+	isReady := IsDomainReady(domainObj)
 	m.setDomainCondition(endpoint, isReady, readyReason, readyMessage)
 
 	return &DomainResult{
@@ -307,7 +296,7 @@ func (m *Manager) setDomainCondition(endpoint ngrokv1alpha1.EndpointWithDomain, 
 	}
 
 	condition := metav1.Condition{
-		Type:               ConditionDomainReady,
+		Type:               ConditionEndpointDomainReady,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,

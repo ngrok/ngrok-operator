@@ -247,7 +247,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check domain creation condition
-				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionEndpointDomainReady)
 				g.Expect(domainCond).NotTo(BeNil())
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(domainCond.Reason).To(Equal(domainpkg.ReasonDomainCreating))
@@ -1237,7 +1237,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(obj.Status.DomainRef).To(BeNil())
 
 				// DomainReady condition should be True (no domain reservation needed)
-				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionEndpointDomainReady)
 				g.Expect(domainCond).NotTo(BeNil())
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
 				g.Expect(domainCond.Message).To(ContainSubstring("Kubernetes binding"))
@@ -1360,7 +1360,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(obj.Status.AssignedURL).To(Equal("http://example.com"))
 
 				// DomainReady should be False (domain exists but not ready yet)
-				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionEndpointDomainReady)
 				g.Expect(domainCond).NotTo(BeNil())
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
 
@@ -1397,7 +1397,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// DomainReady should be True
-				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionEndpointDomainReady)
 				g.Expect(domainCond).NotTo(BeNil())
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
 
@@ -1454,7 +1454,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				obj := &ngrokv1alpha1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
-				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionEndpointDomainReady)
 				g.Expect(domainCond).NotTo(BeNil())
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
 			}, timeout, interval).Should(Succeed())
@@ -1484,7 +1484,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// DomainReady should be True
-				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionEndpointDomainReady)
 				g.Expect(domainCond).NotTo(BeNil())
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
 

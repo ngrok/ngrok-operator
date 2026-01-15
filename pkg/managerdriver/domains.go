@@ -4,6 +4,7 @@ import (
 	"context"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/domain"
 	"golang.org/x/sync/errgroup"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,6 +20,10 @@ func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomai
 	for _, rule := range in.Spec.Rules {
 		domainName := rule.Host
 		if domainName == "" {
+			continue
+		}
+		// Skip internal domains - they cannot be reserved via the ngrok API
+		if domain.IsInternalDomain(domainName) {
 			continue
 		}
 		if _, found := existingDomains[domainName]; found {
@@ -51,12 +56,16 @@ func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingD
 		}
 
 		domainName := string(*listener.Hostname)
+		if domainName == "" {
+			continue
+		}
+		// Skip internal domains - they cannot be reserved via the ngrok API
+		if domain.IsInternalDomain(domainName) {
+			continue
+		}
 		if _, found := existingDomains[domainName]; found {
 			// TODO update gateway status
 			// also add error to error page
-			continue
-		}
-		if domainName == "" {
 			continue
 		}
 
