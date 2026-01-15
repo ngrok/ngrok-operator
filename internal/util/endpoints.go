@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+// IsInternalDomain returns true if the given hostname ends with ".internal" TLD.
+// Internal domains cannot be reserved via the ngrok API (returns HTTP 400).
+// This function handles case-insensitivity and trailing dots.
+func IsInternalDomain(host string) bool {
+	h := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	return strings.HasSuffix(h, ".internal")
+}
+
 // ParseAndSanitizeEndpointURL parses/sanitizes an input string for an endpoint url and provides a *url.URL following the restrictions for endpoints.
 // when isIngressURL is true, the input string does not require a port (excluding tcp addresses)
 func ParseAndSanitizeEndpointURL(input string, isIngressURL bool) (*url.URL, error) {
