@@ -271,13 +271,18 @@ func (d *Drainer) drainGateways(ctx context.Context, selector client.MatchingLab
 	return
 }
 
-func (d *Drainer) drainCloudEndpoints(ctx context.Context, selector client.MatchingLabels) (completed, total int, errs []error) {
+func (d *Drainer) drainCloudEndpoints(ctx context.Context, _ client.MatchingLabels) (completed, total int, errs []error) {
+	// CloudEndpoints can be user-created (no controller labels) or operator-created (with labels).
+	// List ALL CloudEndpoints and drain those that have our finalizer.
 	list := &ngrokv1alpha1.CloudEndpointList{}
-	if err := d.Client.List(ctx, list, selector); err != nil {
+	if err := d.Client.List(ctx, list); err != nil {
 		return 0, 0, []error{fmt.Errorf("failed to list CloudEndpoints: %w", err)}
 	}
-	total = len(list.Items)
 	for i := range list.Items {
+		if !util.HasFinalizer(&list.Items[i]) {
+			continue
+		}
+		total++
 		if err := d.drainOperatorResource(ctx, &list.Items[i]); err != nil {
 			errs = append(errs, err)
 		} else {
@@ -287,13 +292,18 @@ func (d *Drainer) drainCloudEndpoints(ctx context.Context, selector client.Match
 	return
 }
 
-func (d *Drainer) drainAgentEndpoints(ctx context.Context, selector client.MatchingLabels) (completed, total int, errs []error) {
+func (d *Drainer) drainAgentEndpoints(ctx context.Context, _ client.MatchingLabels) (completed, total int, errs []error) {
+	// AgentEndpoints can be user-created (no controller labels) or operator-created (with labels).
+	// List ALL AgentEndpoints and drain those that have our finalizer.
 	list := &ngrokv1alpha1.AgentEndpointList{}
-	if err := d.Client.List(ctx, list, selector); err != nil {
+	if err := d.Client.List(ctx, list); err != nil {
 		return 0, 0, []error{fmt.Errorf("failed to list AgentEndpoints: %w", err)}
 	}
-	total = len(list.Items)
 	for i := range list.Items {
+		if !util.HasFinalizer(&list.Items[i]) {
+			continue
+		}
+		total++
 		if err := d.drainOperatorResource(ctx, &list.Items[i]); err != nil {
 			errs = append(errs, err)
 		} else {
@@ -319,13 +329,18 @@ func (d *Drainer) drainDomains(ctx context.Context, selector client.MatchingLabe
 	return
 }
 
-func (d *Drainer) drainIPPolicies(ctx context.Context, selector client.MatchingLabels) (completed, total int, errs []error) {
+func (d *Drainer) drainIPPolicies(ctx context.Context, _ client.MatchingLabels) (completed, total int, errs []error) {
+	// IPPolicies are user-created CRDs that don't have controller labels.
+	// List ALL IPPolicies and drain those that have our finalizer.
 	list := &ingressv1alpha1.IPPolicyList{}
-	if err := d.Client.List(ctx, list, selector); err != nil {
+	if err := d.Client.List(ctx, list); err != nil {
 		return 0, 0, []error{fmt.Errorf("failed to list IPPolicies: %w", err)}
 	}
-	total = len(list.Items)
 	for i := range list.Items {
+		if !util.HasFinalizer(&list.Items[i]) {
+			continue
+		}
+		total++
 		if err := d.drainOperatorResource(ctx, &list.Items[i]); err != nil {
 			errs = append(errs, err)
 		} else {

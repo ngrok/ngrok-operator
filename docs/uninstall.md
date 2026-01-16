@@ -395,10 +395,9 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error)
 
 **Note:** In Delete mode, operator-managed resources are deleted *without* removing the finalizer first. This ensures the controller has a chance to clean up ngrok API resources during the delete reconcile.
 
-Uses controller label selector to find resources owned by this operator instance:
-```go
-selector := labels.ControllerLabelSelector(d.ControllerNamespace, d.ControllerName)
-```
+**Resource discovery:**
+- For operator-created resources (HTTPRoute, TCPRoute, TLSRoute, Ingress, Service, Gateway, Domain, BoundEndpoint), uses controller label selector to find resources owned by this operator instance
+- For user-creatable resources (CloudEndpoint, AgentEndpoint, IPPolicy), lists ALL resources and drains those with the operator's finalizer (`k8s.ngrok.com/finalizer`). This ensures user-created CRDs are properly cleaned up regardless of whether they have controller labels.
 
 ### Controller Integration
 
@@ -479,6 +478,22 @@ kubectl delete kubernetesoperator "$KO_NAME" -n {{ .Release.Namespace }} \
 - Permissions: `get`, `list`, `watch`, `patch`, `delete` on `kubernetesoperators`
 
 ### Command-Line Flags
+
+The operator uses several identity-related flags. Understanding their differences is important:
+
+| Flag | Purpose | Helm Value |
+|------|---------|------------|
+| `--release-name` | Name of the `KubernetesOperator` CR (used by `StateChecker` to detect drain mode) | `{{ .Release.Name }}` |
+| `--manager-name` | Unique identifier for the manager deployment, used in `k8s.ngrok.com/controller-name` labels to identify resource ownership | `{{ fullname }}-<suffix>` |
+| `--ingress-controller-name` | Value to match in `IngressClass.spec.controller` (Kubernetes Ingress API concept) | `{{ .Values.ingress.controllerName }}` |
+
+**Why separate flags?**
+
+- `--release-name` identifies the shared `KubernetesOperator` CR that all managers reference for drain detection
+- `--manager-name` is unique per manager deployment (e.g., `ngrok-operator-manager`, `ngrok-operator-agent-manager`) for multi-instance resource ownership tracking
+- These serve different purposes and cannot be consolidated
+
+**Drain-specific flags:**
 
 | Manager | Flag | Default | Purpose |
 |---------|------|---------|---------|

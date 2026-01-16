@@ -31,12 +31,16 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
@@ -237,4 +241,126 @@ func TestDrainer_DrainAll_EmptyCluster(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Completed)
 	assert.True(t, result.IsComplete())
+}
+
+func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
+	require.NoError(t, gatewayv1.Install(scheme))
+	require.NoError(t, gatewayv1alpha2.Install(scheme))
+
+	ipPolicy := &ingressv1alpha1.IPPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "user-created-ippolicy",
+			Namespace:  "default",
+			Finalizers: []string{controller.FinalizerName},
+		},
+		Spec: ingressv1alpha1.IPPolicySpec{
+			Description: "User-created IP Policy without controller labels",
+		},
+	}
+
+	cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "user-created-cloudendpoint",
+			Namespace:  "default",
+			Finalizers: []string{controller.FinalizerName},
+		},
+		Spec: ngrokv1alpha1.CloudEndpointSpec{
+			URL: "https://example.ngrok.io",
+		},
+	}
+
+	agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "user-created-agentendpoint",
+			Namespace:  "default",
+			Finalizers: []string{controller.FinalizerName},
+		},
+		Spec: ngrokv1alpha1.AgentEndpointSpec{
+			URL: "https://example.ngrok.io",
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ipPolicy, cloudEndpoint, agentEndpoint).
+		Build()
+
+	drainer := &Drainer{
+		Client:              fakeClient,
+		Log:                 logr.Discard(),
+		ControllerNamespace: "ngrok-operator",
+		ControllerName:      "ngrok-operator",
+		Policy:              ngrokv1alpha1.DrainPolicyRetain,
+	}
+
+	result, err := drainer.DrainAll(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 3, result.Total, "should find 3 resources to drain")
+	assert.Equal(t, 3, result.Completed, "should drain all 3 resources")
+	assert.False(t, result.HasErrors())
+
+	var fetchedIPPolicy ingressv1alpha1.IPPolicy
+	err = fakeClient.Get(context.Background(), client.ObjectKey{Name: "user-created-ippolicy", Namespace: "default"}, &fetchedIPPolicy)
+	require.NoError(t, err)
+	assert.False(t, controller.HasFinalizer(&fetchedIPPolicy), "IPPolicy finalizer should be removed")
+
+	var fetchedCloudEndpoint ngrokv1alpha1.CloudEndpoint
+	err = fakeClient.Get(context.Background(), client.ObjectKey{Name: "user-created-cloudendpoint", Namespace: "default"}, &fetchedCloudEndpoint)
+	require.NoError(t, err)
+	assert.False(t, controller.HasFinalizer(&fetchedCloudEndpoint), "CloudEndpoint finalizer should be removed")
+
+	var fetchedAgentEndpoint ngrokv1alpha1.AgentEndpoint
+	err = fakeClient.Get(context.Background(), client.ObjectKey{Name: "user-created-agentendpoint", Namespace: "default"}, &fetchedAgentEndpoint)
+	require.NoError(t, err)
+	assert.False(t, controller.HasFinalizer(&fetchedAgentEndpoint), "AgentEndpoint finalizer should be removed")
+}
+
+func TestDrainer_SkipsResourcesWithoutFinalizer(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
+	require.NoError(t, gatewayv1.Install(scheme))
+	require.NoError(t, gatewayv1alpha2.Install(scheme))
+
+	ipPolicyWithFinalizer := &ingressv1alpha1.IPPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "with-finalizer",
+			Namespace:  "default",
+			Finalizers: []string{controller.FinalizerName},
+		},
+	}
+
+	ipPolicyWithoutFinalizer := &ingressv1alpha1.IPPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "without-finalizer",
+			Namespace: "default",
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ipPolicyWithFinalizer, ipPolicyWithoutFinalizer).
+		Build()
+
+	drainer := &Drainer{
+		Client:              fakeClient,
+		Log:                 logr.Discard(),
+		ControllerNamespace: "ngrok-operator",
+		ControllerName:      "ngrok-operator",
+		Policy:              ngrokv1alpha1.DrainPolicyRetain,
+	}
+
+	result, err := drainer.DrainAll(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Total, "should only count resource with finalizer")
+	assert.Equal(t, 1, result.Completed, "should only drain resource with finalizer")
 }
