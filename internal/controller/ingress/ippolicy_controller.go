@@ -58,6 +58,7 @@ type IPPolicyReconciler struct {
 
 	IPPoliciesClient    ngrokapi.IPPoliciesClient
 	IPPolicyRulesClient ngrokapi.IPPolicyRulesClient
+	DrainState          controller.DrainState
 
 	controller *controller.BaseController[*ingressv1alpha1.IPPolicy]
 }
@@ -72,9 +73,10 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	r.controller = &controller.BaseController[*ingressv1alpha1.IPPolicy]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:       r.Client,
+		Log:        r.Log,
+		Recorder:   r.Recorder,
+		DrainState: r.DrainState,
 
 		StatusID: func(cr *ingressv1alpha1.IPPolicy) string { return cr.Status.ID },
 		Create:   r.create,

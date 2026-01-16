@@ -42,6 +42,14 @@ spec:
               
               echo "Found KubernetesOperator: $KO_NAME"
               
+              # First enable drain mode by patching the CR
+              echo "Enabling drain mode..."
+              kubectl patch kubernetesoperator "$KO_NAME" -n {{ .Release.Namespace }} \
+                --type merge -p '{"spec":{"drain":{"enabled":true}}}' || true
+              
+              # Give the operator a moment to start draining
+              sleep 2
+              
               # Delete the KubernetesOperator CR and wait for it to be removed
               # This triggers the drain process in the operator
               echo "Deleting KubernetesOperator CR to trigger drain..."

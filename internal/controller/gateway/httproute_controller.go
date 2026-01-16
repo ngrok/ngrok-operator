@@ -59,6 +59,9 @@ type HTTPRouteReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 	Driver   *managerdriver.Driver
+	// DrainState is used to check if the operator is draining.
+	// If draining, non-delete reconciles are skipped to prevent new finalizers.
+	DrainState controller.DrainState
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;update
@@ -100,6 +103,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		// Remove it from the store
 		return ctrl.Result{}, r.Driver.DeleteHTTPRoute(httproute)
+	}
+
+	// Skip non-delete reconciles during drain to prevent adding new finalizers
+	if controller.IsDraining(ctx, r.DrainState) {
+		log.V(1).Info("Draining, skipping non-delete reconcile")
+		return ctrl.Result{}, nil
 	}
 
 	// The object is not being deleted, so register and sync finalizer

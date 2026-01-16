@@ -83,6 +83,10 @@ type KubernetesOperatorReconciler struct {
 
 	// ControllerName is the name of the controller deployment
 	ControllerName string
+
+	// DrainState is the shared drain state checker. The controller uses IsDraining()
+	// to detect drain mode and SetDraining(true) to trigger it.
+	DrainState *drain.StateChecker
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -142,18 +146,19 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if r.shouldDrain(ko) {
+	// Use the shared DrainState as the single source of truth for drain detection
+	if r.DrainState != nil && r.DrainState.IsDraining(ctx) {
 		return r.handleDrain(ctx, ko, log)
 	}
 
 	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.KubernetesOperator))
 }
 
-func (r *KubernetesOperatorReconciler) shouldDrain(ko *ngrokv1alpha1.KubernetesOperator) bool {
-	return ko.Spec.DrainMode || !ko.DeletionTimestamp.IsZero()
-}
-
 func (r *KubernetesOperatorReconciler) handleDrain(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, log logr.Logger) (ctrl.Result, error) {
+	// Ensure the drain state is set so all other controllers immediately see it
+	if r.DrainState != nil {
+		r.DrainState.SetDraining(true)
+	}
 	log.Info("Starting drain process")
 
 	if ko.Status.DrainStatus != ngrokv1alpha1.DrainStatusDraining {
@@ -165,12 +170,18 @@ func (r *KubernetesOperatorReconciler) handleDrain(ctx context.Context, ko *ngro
 		r.Recorder.Event(ko, v1.EventTypeNormal, "DrainStarted", "Starting drain of all managed resources")
 	}
 
+	// Get drain policy from spec, default to Retain
+	policy := ngrokv1alpha1.DrainPolicyRetain
+	if ko.Spec.Drain != nil && ko.Spec.Drain.Policy != "" {
+		policy = ko.Spec.Drain.Policy
+	}
+
 	drainer := &drain.Drainer{
 		Client:              r.Client,
-		NgrokClientset:      r.NgrokClientset,
 		Log:                 log,
 		ControllerNamespace: r.Namespace,
 		ControllerName:      r.ControllerName,
+		Policy:              policy,
 	}
 
 	result, err := drainer.DrainAll(ctx)
@@ -186,9 +197,13 @@ func (r *KubernetesOperatorReconciler) handleDrain(ctx context.Context, ko *ngro
 	}
 
 	ko.Status.DrainProgress = result.Progress()
+	ko.Status.DrainErrors = result.ErrorStrings()
 
 	if result.HasErrors() {
 		ko.Status.DrainMessage = fmt.Sprintf("Drain completed with %d errors", result.Failed)
+		for _, err := range result.Errors {
+			log.Error(err, "Drain error")
+		}
 		if statusErr := r.Client.Status().Update(ctx, ko); statusErr != nil {
 			log.Error(statusErr, "Failed to update drain status")
 		}
@@ -205,6 +220,7 @@ func (r *KubernetesOperatorReconciler) handleDrain(ctx context.Context, ko *ngro
 
 	ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusCompleted
 	ko.Status.DrainMessage = "Drain completed successfully"
+	ko.Status.DrainErrors = nil
 	if err := r.Client.Status().Update(ctx, ko); err != nil {
 		return ctrl.Result{}, err
 	}

@@ -60,6 +60,9 @@ type GatewayReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 	Driver   *managerdriver.Driver
+	// DrainState is used to check if the operator is draining.
+	// If draining, non-delete reconciles are skipped to prevent new finalizers.
+	DrainState controller.DrainState
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -118,6 +121,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if !ShouldHandleGatewayClass(gwClass) {
 		log.V(1).Info("unsupported gatewayclass controllername, ignoring", "gatewayclass", gwClass.Name, "controllername", gwClass.Spec.ControllerName)
+		return ctrl.Result{}, nil
+	}
+
+	// Skip non-delete reconciles during drain to prevent adding new finalizers
+	if controller.IsDraining(ctx, r.DrainState) {
+		log.V(1).Info("Draining, skipping non-delete reconcile")
 		return ctrl.Result{}, nil
 	}
 

@@ -30,6 +30,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -37,17 +38,17 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
-	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 type Drainer struct {
 	Client              client.Client
-	NgrokClientset      ngrokapi.Clientset
 	Log                 logr.Logger
 	ControllerNamespace string
 	ControllerName      string
+	// Policy determines whether to delete ngrok API resources or just remove finalizers
+	Policy ngrokv1alpha1.DrainPolicy
 }
 
 type DrainResult struct {
@@ -58,7 +59,7 @@ type DrainResult struct {
 }
 
 func (r *DrainResult) Progress() string {
-	return fmt.Sprintf("%d/%d", r.Completed, r.Total)
+	return fmt.Sprintf("%d/%d", r.Completed+r.Failed, r.Total)
 }
 
 func (r *DrainResult) IsComplete() bool {
@@ -67,6 +68,14 @@ func (r *DrainResult) IsComplete() bool {
 
 func (r *DrainResult) HasErrors() bool {
 	return len(r.Errors) > 0
+}
+
+func (r *DrainResult) ErrorStrings() []string {
+	strs := make([]string, len(r.Errors))
+	for i, err := range r.Errors {
+		strs[i] = err.Error()
+	}
+	return strs
 }
 
 type resourceHandler struct {
@@ -97,6 +106,7 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error) {
 		completed, total, errs := h.drainFunc(ctx, selector)
 		result.Completed += completed
 		result.Total += total
+		result.Failed += len(errs)
 		result.Errors = append(result.Errors, errs...)
 		d.Log.Info("Finished draining resource type",
 			"type", h.name,
@@ -110,11 +120,11 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error) {
 }
 
 func (d *Drainer) drainUserResource(ctx context.Context, obj client.Object) error {
-	if !controller.HasFinalizer(obj) {
+	if !util.HasFinalizer(obj) {
 		return nil
 	}
 
-	controller.RemoveFinalizer(obj)
+	util.RemoveFinalizer(obj)
 	if err := d.Client.Update(ctx, obj); err != nil {
 		return fmt.Errorf("failed to remove finalizer from %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 	}
@@ -123,25 +133,39 @@ func (d *Drainer) drainUserResource(ctx context.Context, obj client.Object) erro
 }
 
 func (d *Drainer) drainOperatorResource(ctx context.Context, obj client.Object) error {
-	if controller.HasFinalizer(obj) {
-		controller.RemoveFinalizer(obj)
-		if err := d.Client.Update(ctx, obj); err != nil {
-			return fmt.Errorf("failed to remove finalizer from %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+	switch d.Policy {
+	case ngrokv1alpha1.DrainPolicyDelete:
+		// Delete mode: Delete the CR without removing finalizer first.
+		// The controller will handle ngrok API cleanup during the delete reconcile,
+		// then remove the finalizer itself. This ensures proper cleanup ordering.
+		if err := d.Client.Delete(ctx, obj); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				return fmt.Errorf("failed to delete %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			}
 		}
-	}
+		d.Log.V(1).Info("Deleted operator resource", "namespace", obj.GetNamespace(), "name", obj.GetName())
 
-	if err := d.Client.Delete(ctx, obj); err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			return fmt.Errorf("failed to delete %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+	case ngrokv1alpha1.DrainPolicyRetain:
+		// Retain mode: Only remove finalizer so the CR can be garbage collected
+		// when the CRD is removed. Do not delete to preserve ngrok API resources.
+		if util.HasFinalizer(obj) {
+			util.RemoveFinalizer(obj)
+			if err := d.Client.Update(ctx, obj); err != nil {
+				return fmt.Errorf("failed to remove finalizer from %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			}
+			d.Log.V(1).Info("Removed finalizer from operator resource", "namespace", obj.GetNamespace(), "name", obj.GetName())
 		}
 	}
-	d.Log.V(1).Info("Deleted operator resource", "namespace", obj.GetNamespace(), "name", obj.GetName())
 	return nil
 }
 
 func (d *Drainer) drainHTTPRoutes(ctx context.Context, selector client.MatchingLabels) (completed, total int, errs []error) {
 	list := &gatewayv1.HTTPRouteList{}
 	if err := d.Client.List(ctx, list, selector); err != nil {
+		if meta.IsNoMatchError(err) {
+			d.Log.V(1).Info("HTTPRoute CRD not installed, skipping")
+			return 0, 0, nil
+		}
 		return 0, 0, []error{fmt.Errorf("failed to list HTTPRoutes: %w", err)}
 	}
 	total = len(list.Items)
@@ -158,6 +182,10 @@ func (d *Drainer) drainHTTPRoutes(ctx context.Context, selector client.MatchingL
 func (d *Drainer) drainTCPRoutes(ctx context.Context, selector client.MatchingLabels) (completed, total int, errs []error) {
 	list := &gatewayv1alpha2.TCPRouteList{}
 	if err := d.Client.List(ctx, list, selector); err != nil {
+		if meta.IsNoMatchError(err) {
+			d.Log.V(1).Info("TCPRoute CRD not installed, skipping")
+			return 0, 0, nil
+		}
 		return 0, 0, []error{fmt.Errorf("failed to list TCPRoutes: %w", err)}
 	}
 	total = len(list.Items)
@@ -174,6 +202,10 @@ func (d *Drainer) drainTCPRoutes(ctx context.Context, selector client.MatchingLa
 func (d *Drainer) drainTLSRoutes(ctx context.Context, selector client.MatchingLabels) (completed, total int, errs []error) {
 	list := &gatewayv1alpha2.TLSRouteList{}
 	if err := d.Client.List(ctx, list, selector); err != nil {
+		if meta.IsNoMatchError(err) {
+			d.Log.V(1).Info("TLSRoute CRD not installed, skipping")
+			return 0, 0, nil
+		}
 		return 0, 0, []error{fmt.Errorf("failed to list TLSRoutes: %w", err)}
 	}
 	total = len(list.Items)
@@ -222,6 +254,10 @@ func (d *Drainer) drainServices(ctx context.Context, selector client.MatchingLab
 func (d *Drainer) drainGateways(ctx context.Context, selector client.MatchingLabels) (completed, total int, errs []error) {
 	list := &gatewayv1.GatewayList{}
 	if err := d.Client.List(ctx, list, selector); err != nil {
+		if meta.IsNoMatchError(err) {
+			d.Log.V(1).Info("Gateway CRD not installed, skipping")
+			return 0, 0, nil
+		}
 		return 0, 0, []error{fmt.Errorf("failed to list Gateways: %w", err)}
 	}
 	total = len(list.Items)

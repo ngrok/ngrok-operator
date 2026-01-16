@@ -30,6 +30,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
+	"github.com/ngrok/ngrok-operator/internal/drainstate"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -63,7 +64,14 @@ type Driver struct {
 	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 
 	recorder record.EventRecorder
+
+	// drainState is used to check if the operator is draining.
+	// If draining, Sync() returns early to prevent creating new resources.
+	drainState drainstate.State
 }
+
+// DrainState is an alias for drainstate.State for convenience
+type DrainState = drainstate.State
 
 type DriverOpt func(*Driver)
 
@@ -112,6 +120,12 @@ func WithDefaultDomainReclaimPolicy(policy ingressv1alpha1.DomainReclaimPolicy) 
 func WithEventRecorder(recorder record.EventRecorder) DriverOpt {
 	return func(d *Driver) {
 		d.recorder = recorder
+	}
+}
+
+func WithDrainState(state DrainState) DriverOpt {
+	return func(d *Driver) {
+		d.drainState = state
 	}
 }
 
@@ -551,6 +565,12 @@ func (d *Driver) syncDone() {
 // Sync calculates what the desired state for each of our CRDs should be based on the ingresses and other
 // objects in the store. It then compares that to the actual state of the cluster and updates the cluster
 func (d *Driver) Sync(ctx context.Context, c client.Client) error {
+	// Skip sync during drain to prevent creating new resources
+	if drainstate.IsDraining(ctx, d.drainState) {
+		d.log.V(1).Info("Draining, skipping sync")
+		return nil
+	}
+
 	// This function gets called a lot in the current architecture. At the end it also syncs
 	// resources which in turn triggers more reconcile events. Its all eventually consistent, but
 	// its noisy and can make us hit ngrok api limits. We should probably just change this to be

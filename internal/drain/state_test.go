@@ -35,15 +35,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/drainstate"
 )
 
 func TestNeverDraining(t *testing.T) {
-	nd := NeverDraining{}
+	nd := drainstate.NeverDraining{}
 	assert.False(t, nd.IsDraining(context.Background()))
 }
 
 func TestAlwaysDraining(t *testing.T) {
-	ad := AlwaysDraining{}
+	ad := drainstate.AlwaysDraining{}
 	assert.True(t, ad.IsDraining(context.Background()))
 }
 
@@ -53,16 +54,10 @@ func TestStateChecker_NoDraining(t *testing.T) {
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ko",
+			Name:      "my-release",
 			Namespace: "ngrok-operator",
 		},
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			DrainMode: false,
-			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Name:      "ngrok-operator",
-				Namespace: "ngrok-operator",
-			},
-		},
+		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
 	}
 
 	client := fake.NewClientBuilder().
@@ -70,7 +65,8 @@ func TestStateChecker_NoDraining(t *testing.T) {
 		WithObjects(ko).
 		Build()
 
-	checker := NewStateChecker(client, "ngrok-operator", "ngrok-operator")
+	// StateChecker looks up KubernetesOperator by name (release name)
+	checker := NewStateChecker(client, "ngrok-operator", "my-release")
 	assert.False(t, checker.IsDraining(context.Background()))
 }
 
@@ -80,14 +76,12 @@ func TestStateChecker_DrainModeEnabled(t *testing.T) {
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ko",
+			Name:      "my-release",
 			Namespace: "ngrok-operator",
 		},
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			DrainMode: true,
-			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Name:      "ngrok-operator",
-				Namespace: "ngrok-operator",
+			Drain: &ngrokv1alpha1.DrainConfig{
+				Enabled: true,
 			},
 		},
 	}
@@ -97,7 +91,7 @@ func TestStateChecker_DrainModeEnabled(t *testing.T) {
 		WithObjects(ko).
 		Build()
 
-	checker := NewStateChecker(client, "ngrok-operator", "ngrok-operator")
+	checker := NewStateChecker(client, "ngrok-operator", "my-release")
 	assert.True(t, checker.IsDraining(context.Background()))
 }
 
@@ -108,18 +102,12 @@ func TestStateChecker_DeletionTimestampSet(t *testing.T) {
 	now := metav1.NewTime(time.Now())
 	ko := &ngrokv1alpha1.KubernetesOperator{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:              "test-ko",
+			Name:              "my-release",
 			Namespace:         "ngrok-operator",
 			DeletionTimestamp: &now,
 			Finalizers:        []string{"test-finalizer"},
 		},
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			DrainMode: false,
-			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Name:      "ngrok-operator",
-				Namespace: "ngrok-operator",
-			},
-		},
+		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
 	}
 
 	client := fake.NewClientBuilder().
@@ -127,7 +115,7 @@ func TestStateChecker_DeletionTimestampSet(t *testing.T) {
 		WithObjects(ko).
 		Build()
 
-	checker := NewStateChecker(client, "ngrok-operator", "ngrok-operator")
+	checker := NewStateChecker(client, "ngrok-operator", "my-release")
 	assert.True(t, checker.IsDraining(context.Background()))
 }
 
@@ -139,10 +127,11 @@ func TestStateChecker_SetDraining(t *testing.T) {
 		WithScheme(scheme).
 		Build()
 
-	checker := NewStateChecker(client, "ngrok-operator", "ngrok-operator")
-
+	// When CR doesn't exist, IsDraining returns false
+	checker := NewStateChecker(client, "ngrok-operator", "my-release")
 	assert.False(t, checker.IsDraining(context.Background()))
 
+	// But SetDraining can override this
 	checker.SetDraining(true)
 	assert.True(t, checker.IsDraining(context.Background()))
 }
@@ -153,14 +142,12 @@ func TestStateChecker_CachesDrainingState(t *testing.T) {
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ko",
+			Name:      "my-release",
 			Namespace: "ngrok-operator",
 		},
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			DrainMode: true,
-			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Name:      "ngrok-operator",
-				Namespace: "ngrok-operator",
+			Drain: &ngrokv1alpha1.DrainConfig{
+				Enabled: true,
 			},
 		},
 	}
@@ -170,8 +157,9 @@ func TestStateChecker_CachesDrainingState(t *testing.T) {
 		WithObjects(ko).
 		Build()
 
-	checker := NewStateChecker(client, "ngrok-operator", "ngrok-operator")
+	checker := NewStateChecker(client, "ngrok-operator", "my-release")
 
+	// Once detected as draining, should stay cached
 	assert.True(t, checker.IsDraining(context.Background()))
 	assert.True(t, checker.IsDraining(context.Background()))
 }

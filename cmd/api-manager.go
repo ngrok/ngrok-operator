@@ -60,12 +60,14 @@ import (
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -133,6 +135,7 @@ type apiManagerOpts struct {
 	region string
 
 	defaultDomainReclaimPolicy string
+	drainPolicy                ngrokv1alpha1.DrainPolicy
 }
 
 func apiCmd() *cobra.Command {
@@ -171,6 +174,7 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
 	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
+	c.Flags().StringVar((*string)(&opts.drainPolicy), "drain-policy", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -323,6 +327,9 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
 	}
 
+	// Create drain state checker - all controllers will use this to check if draining
+	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.releaseName)
+
 	// register the k8sop in the ngrok API
 	if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
 		return fmt.Errorf("unable to create KubernetesOperator: %w", err)
@@ -333,7 +340,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	var k8sResourceDriver *managerdriver.Driver
 	if opts.enableFeatureIngress || opts.enableFeatureGateway {
 		// we only need a driver if these features are enabled
-		k8sResourceDriver, err = getK8sResourceDriver(ctx, mgr, opts, tcpRouteCRDInstalled, tlsRouteCRDInstalled, *defaultDomainReclaimPolicy)
+		k8sResourceDriver, err = getK8sResourceDriver(ctx, mgr, opts, tcpRouteCRDInstalled, tlsRouteCRDInstalled, *defaultDomainReclaimPolicy, drainState)
 		if err != nil {
 			return fmt.Errorf("unable to create Driver: %w", err)
 		}
@@ -341,7 +348,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 
 	if opts.enableFeatureIngress {
 		setupLog.Info("Ingress feature set enabled")
-		if err := enableIngressFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, *defaultDomainReclaimPolicy); err != nil {
+		if err := enableIngressFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, *defaultDomainReclaimPolicy, drainState); err != nil {
 			return fmt.Errorf("unable to enable Ingress feature set: %w", err)
 		}
 	} else {
@@ -350,7 +357,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 
 	if opts.enableFeatureGateway {
 		setupLog.Info("Gateway feature set enabled")
-		if err := enableGatewayFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, tcpRouteCRDInstalled, tlsRouteCRDInstalled); err != nil {
+		if err := enableGatewayFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, tcpRouteCRDInstalled, tlsRouteCRDInstalled, drainState); err != nil {
 			return fmt.Errorf("unable to enable Gateway feature set: %w", err)
 		}
 
@@ -365,7 +372,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 
 	if opts.enableFeatureBindings {
 		setupLog.Info("Endpoint Bindings feature set enabled")
-		if err := enableBindingsFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset); err != nil {
+		if err := enableBindingsFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, drainState); err != nil {
 			return fmt.Errorf("unable to enable Bindings feature set: %w", err)
 		}
 	} else {
@@ -383,7 +390,9 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		Scheme:         mgr.GetScheme(),
 		Recorder:       mgr.GetEventRecorderFor("kubernetes-operator-controller"),
 		Namespace:      opts.namespace,
+		ControllerName: opts.managerName,
 		NgrokClientset: ngrokClientset,
+		DrainState:     drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KubernetesOperator")
 		os.Exit(1)
@@ -471,7 +480,7 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiManagerOpts, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy) (*managerdriver.Driver, error) {
+func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiManagerOpts, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy, drainState managerdriver.DrainState) (*managerdriver.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
 
 	driverOpts := []managerdriver.DriverOpt{
@@ -480,6 +489,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
 		managerdriver.WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),
 		managerdriver.WithEventRecorder(mgr.GetEventRecorderFor("k8s-resource-driver")),
+		managerdriver.WithDrainState(drainState),
 	}
 
 	if tcpRouteCRDInstalled {
@@ -518,7 +528,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 }
 
 // enableIngressFeatureSet enables the Ingress feature set for the operator
-func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy) error {
+func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy, drainState controller.DrainState) error {
 	controllerLabels := labels.NewControllerLabelValues(opts.namespace, opts.managerName)
 
 	if err := (&ingresscontroller.IngressReconciler{
@@ -554,6 +564,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Scheme:        mgr.GetScheme(),
 		Recorder:      mgr.GetEventRecorderFor("domain-controller"),
 		DomainsClient: ngrokClientset.Domains(),
+		DrainState:    drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Domain")
 		os.Exit(1)
@@ -566,6 +577,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Recorder:            mgr.GetEventRecorderFor("ip-policy-controller"),
 		IPPoliciesClient:    ngrokClientset.IPPolicies(),
 		IPPolicyRulesClient: ngrokClientset.IPPolicyRules(),
+		DrainState:          drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IPPolicy")
 		os.Exit(1)
@@ -590,6 +602,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		NgrokClientset:             ngrokClientset,
 		DefaultDomainReclaimPolicy: ptr.To(defaultDomainReclaimPolicy),
 		ControllerLabels:           controllerLabels,
+		DrainState:                 drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudEndpoint")
 		os.Exit(1)
@@ -599,7 +612,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 }
 
 // enableGatewayFeatureSet enables the Gateway feature set for the operator
-func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, _ ngrokapi.Clientset, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) error {
+func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, _ ngrokapi.Clientset, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool, drainState controller.DrainState) error {
 	if err := (&gatewaycontroller.GatewayClassReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("GatewayClass"),
@@ -611,22 +624,24 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 	}
 
 	if err := (&gatewaycontroller.GatewayReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("gateway-controller"),
-		Driver:   driver,
+		Client:     mgr.GetClient(),
+		Log:        ctrl.Log.WithName("controllers").WithName("Gateway"),
+		Scheme:     mgr.GetScheme(),
+		Recorder:   mgr.GetEventRecorderFor("gateway-controller"),
+		Driver:     driver,
+		DrainState: drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)
 	}
 
 	if err := (&gatewaycontroller.HTTPRouteReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("gateway-controller"),
-		Driver:   driver,
+		Client:     mgr.GetClient(),
+		Log:        ctrl.Log.WithName("controllers").WithName("Gateway"),
+		Scheme:     mgr.GetScheme(),
+		Recorder:   mgr.GetEventRecorderFor("gateway-controller"),
+		Driver:     driver,
+		DrainState: drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
 		os.Exit(1)
@@ -634,11 +649,12 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 
 	if tcpRouteCRDInstalled {
 		if err := (&gatewaycontroller.TCPRouteReconciler{
-			Client:   mgr.GetClient(),
-			Log:      ctrl.Log.WithName("controllers").WithName("TCPRoute"),
-			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("tcp-route"),
-			Driver:   driver,
+			Client:     mgr.GetClient(),
+			Log:        ctrl.Log.WithName("controllers").WithName("TCPRoute"),
+			Scheme:     mgr.GetScheme(),
+			Recorder:   mgr.GetEventRecorderFor("tcp-route"),
+			Driver:     driver,
+			DrainState: drainState,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "TCPRoute")
 			os.Exit(1)
@@ -647,11 +663,12 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 
 	if tlsRouteCRDInstalled {
 		if err := (&gatewaycontroller.TLSRouteReconciler{
-			Client:   mgr.GetClient(),
-			Log:      ctrl.Log.WithName("controllers").WithName("TLSRoute"),
-			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("tls-route"),
-			Driver:   driver,
+			Client:     mgr.GetClient(),
+			Log:        ctrl.Log.WithName("controllers").WithName("TLSRoute"),
+			Scheme:     mgr.GetScheme(),
+			Recorder:   mgr.GetEventRecorderFor("tls-route"),
+			Driver:     driver,
+			DrainState: drainState,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "TLSRoute")
 			os.Exit(1)
@@ -688,7 +705,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 }
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
-func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset) error {
+func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, drainState *drain.StateChecker) error {
 	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
 	if err != nil {
 		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")
@@ -728,6 +745,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 		TargetServiceLabels:          targetServiceLabels,
 		PollingInterval:              10 * time.Second,
 		NgrokClientset:               ngrokClientset,
+		DrainState:                   drainState,
 		// NOTE: This range must stay static for the current implementation.
 		PortRange: bindingscontroller.PortRangeConfig{Min: 10000, Max: 65535},
 	}); err != nil {
@@ -745,15 +763,13 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 		},
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
-		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
-			Description: opts.description,
-			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Name:      opts.releaseName,
-				Namespace: opts.namespace,
-				Version:   version.GetVersion(),
-			},
-			Region: opts.region,
+		k8sOperator.Spec.Description = opts.description
+		k8sOperator.Spec.Deployment = &ngrokv1alpha1.KubernetesOperatorDeployment{
+			Name:      opts.releaseName,
+			Namespace: opts.namespace,
+			Version:   version.GetVersion(),
 		}
+		k8sOperator.Spec.Region = opts.region
 
 		features := []string{}
 		if opts.enableFeatureIngress {
@@ -775,6 +791,12 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 			}
 		}
 		k8sOperator.Spec.EnabledFeatures = features
+
+		// Set drain policy but preserve Enabled if already set (during drain)
+		if k8sOperator.Spec.Drain == nil {
+			k8sOperator.Spec.Drain = &ngrokv1alpha1.DrainConfig{}
+		}
+		k8sOperator.Spec.Drain.Policy = opts.drainPolicy
 
 		setupLog.Info("created KubernetesOperator", "name", k8sOperator.Name, "namespace", k8sOperator.Namespace, "op", fmt.Sprintf("%+v", k8sOperator.Spec.Binding))
 		return nil

@@ -90,8 +90,12 @@ type KubernetesOperatorStatus struct {
 	DrainMessage string `json:"drainMessage,omitempty"`
 
 	// DrainProgress indicates how many resources have been drained vs total
-	// Format: "X/Y" where X is completed and Y is total
+	// Format: "X/Y" where X is processed (completed + failed) and Y is total
 	DrainProgress string `json:"drainProgress,omitempty"`
+
+	// DrainErrors contains the most recent errors encountered during drain
+	// +optional
+	DrainErrors []string `json:"drainErrors,omitempty"`
 }
 
 const (
@@ -111,6 +115,17 @@ const (
 	DrainStatusDraining  = "draining"
 	DrainStatusCompleted = "completed"
 	DrainStatusFailed    = "failed"
+)
+
+// DrainPolicy determines how ngrok API resources are handled during drain
+// +kubebuilder:validation:Enum=Delete;Retain
+type DrainPolicy string
+
+const (
+	// DrainPolicyDelete deletes the CR, triggering controllers to clean up ngrok API resources
+	DrainPolicyDelete DrainPolicy = "Delete"
+	// DrainPolicyRetain removes finalizers but preserves ngrok API resources
+	DrainPolicyRetain DrainPolicy = "Retain"
 )
 
 type KubernetesOperatorSpec struct {
@@ -140,11 +155,17 @@ type KubernetesOperatorSpec struct {
 	// Configuration for the binding feature of this Kubernetes Operator
 	Binding *KubernetesOperatorBinding `json:"binding,omitempty"`
 
-	// DrainMode when set to true, triggers cleanup of all resources managed by this operator instance.
-	// The operator will delete ngrok API resources and remove finalizers from Kubernetes resources.
-	// Once drain is complete, the operator will remove its own finalizer and allow deletion.
-	// +kubebuilder:default=false
-	DrainMode bool `json:"drainMode,omitempty"`
+	// Drain configures the drain behavior for uninstall
+	Drain *DrainConfig `json:"drain,omitempty"`
+}
+
+// DrainConfig configures the drain behavior during operator uninstall
+type DrainConfig struct {
+	// Enabled triggers drain when set to true
+	Enabled bool `json:"enabled,omitempty"`
+	// Policy determines whether to delete ngrok API resources or just remove finalizers
+	// +kubebuilder:default=Retain
+	Policy DrainPolicy `json:"policy,omitempty"`
 }
 
 // +kubebuilder:object:root=true

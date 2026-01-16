@@ -54,6 +54,7 @@ type DomainReconciler struct {
 	Scheme        *runtime.Scheme
 	Recorder      record.EventRecorder
 	DomainsClient ngrokapi.DomainClient
+	DrainState    basecontroller.DrainState
 
 	controller *basecontroller.BaseController[*v1alpha1.Domain]
 }
@@ -65,9 +66,10 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	r.controller = &basecontroller.BaseController[*v1alpha1.Domain]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:       r.Client,
+		Log:        r.Log,
+		Recorder:   r.Recorder,
+		DrainState: r.DrainState,
 
 		StatusID: func(cr *v1alpha1.Domain) string { return cr.Status.ID },
 		Create:   r.create,

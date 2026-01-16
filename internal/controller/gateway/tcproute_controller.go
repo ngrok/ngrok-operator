@@ -46,6 +46,9 @@ type TCPRouteReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 	Driver   *managerdriver.Driver
+	// DrainState is used to check if the operator is draining.
+	// If draining, non-delete reconciles are skipped to prevent new finalizers.
+	DrainState controller.DrainState
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tcproutes,verbs=get;list;watch;update
@@ -83,6 +86,12 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	if controller.IsUpsert(tcpRoute) {
+		// Skip non-delete reconciles during drain to prevent adding new finalizers
+		if controller.IsDraining(ctx, r.DrainState) {
+			log.V(1).Info("Draining, skipping non-delete reconcile")
+			return ctrl.Result{}, nil
+		}
+
 		// The object is not being deleted, so register and sync finalizer
 		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
 			log.Error(err, "Failed to register finalizer")

@@ -24,14 +24,20 @@ SOFTWARE.
 package controller
 
 import (
-	"context"
-
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const (
-	FinalizerName = "k8s.ngrok.com/finalizer"
+// Re-export finalizer utilities from internal/util for backwards compatibility.
+// New code should import internal/util directly.
+const FinalizerName = util.FinalizerName
+
+var (
+	HasFinalizer             = util.HasFinalizer
+	AddFinalizer             = util.AddFinalizer
+	RemoveFinalizer          = util.RemoveFinalizer
+	RegisterAndSyncFinalizer = util.RegisterAndSyncFinalizer
+	RemoveAndSyncFinalizer   = util.RemoveAndSyncFinalizer
 )
 
 // IsUpsert returns true if the object is being created or updated. That is, if the deletion timestamp is not set.
@@ -42,44 +48,6 @@ func IsUpsert(o client.Object) bool {
 // IsDelete returns true if the object is being deleted. That is, if the deletion timestamp is set and non-zero.
 func IsDelete(o client.Object) bool {
 	return !o.GetDeletionTimestamp().IsZero()
-}
-
-// HasFinalizer returns true if the object has the ngrok finalizer present.
-// It is our wrapper around controllerutil.ContainsFinalizer.
-func HasFinalizer(o client.Object) bool {
-	return controllerutil.ContainsFinalizer(o, FinalizerName)
-}
-
-// AddFinalizer accepts an Object and adds the ngrok finalizer if not already present.
-// It returns an indication of whether it updated the object's list of finalizers.
-// It is our wrapper around controllerutil.AddFinalizer.
-func AddFinalizer(o client.Object) bool {
-	return controllerutil.AddFinalizer(o, FinalizerName)
-}
-
-// RemoveFinalizer accepts an Object and removes the ngrok finalizer if present.
-// It returns an indication of whether it updated the object's list of finalizers.
-// It is our wrapper around controllerutil.RemoveFinalizer.
-func RemoveFinalizer(o client.Object) bool {
-	return controllerutil.RemoveFinalizer(o, FinalizerName)
-}
-
-// RegisterAndSyncFinalizer adds the ngrok finalizer to the object if not already present.
-// If it adds the finalizer, it updates the object in the Kubernetes API.
-func RegisterAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
-	if AddFinalizer(o) {
-		return c.Update(ctx, o)
-	}
-	return nil
-}
-
-// RemoveAndSyncFinalizer removes the ngrok finalizer from the object if present.
-// If it removes the finalizer, it updates the object in the Kubernetes API.
-func RemoveAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
-	if RemoveFinalizer(o) {
-		return c.Update(ctx, o)
-	}
-	return nil
 }
 
 // AddAnnotations adds the given annotations to the object.

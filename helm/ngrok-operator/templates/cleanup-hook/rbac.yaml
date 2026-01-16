@@ -12,9 +12,10 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-cleanup
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
   annotations:
@@ -30,12 +31,14 @@ rules:
       - get
       - list
       - watch
+      - patch
       - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-cleanup
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
   annotations:
@@ -44,7 +47,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: {{ include "ngrok-operator.fullname" . }}-cleanup
 subjects:
   - kind: ServiceAccount

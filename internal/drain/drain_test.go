@@ -25,6 +25,7 @@ package drain
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -33,6 +34,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -45,6 +47,23 @@ func TestDrainResult(t *testing.T) {
 	t.Run("Progress", func(t *testing.T) {
 		r := &DrainResult{Completed: 5, Total: 10}
 		assert.Equal(t, "5/10", r.Progress())
+
+		r = &DrainResult{Completed: 5, Total: 10, Failed: 3}
+		assert.Equal(t, "8/10", r.Progress())
+	})
+
+	t.Run("ErrorStrings", func(t *testing.T) {
+		r := &DrainResult{
+			Errors: []error{
+				fmt.Errorf("error 1"),
+				fmt.Errorf("error 2"),
+			},
+		}
+		strs := r.ErrorStrings()
+		assert.Equal(t, []string{"error 1", "error 2"}, strs)
+
+		r = &DrainResult{}
+		assert.Equal(t, []string{}, r.ErrorStrings())
 	})
 
 	t.Run("IsComplete", func(t *testing.T) {
@@ -147,10 +166,54 @@ func TestDrainer_DrainOperatorResource(t *testing.T) {
 		Log:                 logr.Discard(),
 		ControllerNamespace: "ngrok-operator",
 		ControllerName:      "ngrok-operator",
+		Policy:              ngrokv1alpha1.DrainPolicyDelete,
 	}
 
 	err := drainer.drainOperatorResource(context.Background(), domain)
 	require.NoError(t, err)
+}
+
+func TestDrainer_DrainOperatorResource_RetainMode(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+	domain := &ingressv1alpha1.Domain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-domain",
+			Namespace:  "ngrok-operator",
+			Finalizers: []string{controller.FinalizerName},
+			Labels: map[string]string{
+				labels.ControllerNamespace: "ngrok-operator",
+				labels.ControllerName:      "ngrok-operator",
+			},
+		},
+		Spec: ingressv1alpha1.DomainSpec{
+			Domain: "test.ngrok.io",
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(domain).
+		Build()
+
+	drainer := &Drainer{
+		Client:              fakeClient,
+		Log:                 logr.Discard(),
+		ControllerNamespace: "ngrok-operator",
+		ControllerName:      "ngrok-operator",
+		Policy:              ngrokv1alpha1.DrainPolicyRetain,
+	}
+
+	err := drainer.drainOperatorResource(context.Background(), domain)
+	require.NoError(t, err)
+
+	// In Retain mode, finalizer should be removed but resource should still exist
+	var fetched ingressv1alpha1.Domain
+	err = fakeClient.Get(context.Background(), client.ObjectKey{Name: "test-domain", Namespace: "ngrok-operator"}, &fetched)
+	require.NoError(t, err, "resource should still exist in Retain mode")
+	assert.False(t, controller.HasFinalizer(&fetched), "finalizer should be removed")
 }
 
 func TestDrainer_DrainAll_EmptyCluster(t *testing.T) {

@@ -100,6 +100,7 @@ spec:
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name={{ include "ngrok-operator.fullname" . }}-agent-manager
+        - --release-name={{ include "ngrok-operator.fullname" . }}
         - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
         {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
         - --watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}

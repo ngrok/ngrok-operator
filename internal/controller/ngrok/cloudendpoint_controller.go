@@ -62,6 +62,7 @@ type CloudEndpointReconciler struct {
 	Log            logr.Logger
 	Recorder       record.EventRecorder
 	NgrokClientset ngrokapi.Clientset
+	DrainState     controller.DrainState
 
 	ControllerLabels           labels.ControllerLabelValues
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
@@ -103,9 +104,10 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.CloudEndpoint]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:       r.Client,
+		Log:        r.Log,
+		Recorder:   r.Recorder,
+		DrainState: r.DrainState,
 
 		StatusID: func(clep *ngrokv1alpha1.CloudEndpoint) string { return clep.Status.ID },
 		Create:   r.create,
