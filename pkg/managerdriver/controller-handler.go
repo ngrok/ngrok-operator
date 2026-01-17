@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/store"
 )
 
@@ -40,6 +41,13 @@ func NewControllerEventHandler(resourceName string, d *Driver, client client.Cli
 
 // Create is called in response to an create event - e.g. Edge Creation.
 func (e *ControllerEventHandler) Create(_ context.Context, evt event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+	if annotations.HasCleanupAnnotation(evt.Object) {
+		e.log.V(5).Info("object has cleanup annotation, removing from store", "object", evt.Object)
+		if err := e.store.Delete(evt.Object); err != nil {
+			e.log.Error(err, "error deleting object with cleanup annotation", "object", evt.Object)
+		}
+		return
+	}
 	if err := e.store.Update(evt.Object); err != nil {
 		e.log.Error(err, "error updating object in create", "object", evt.Object)
 		return
@@ -48,6 +56,14 @@ func (e *ControllerEventHandler) Create(_ context.Context, evt event.CreateEvent
 
 // Update is called in response to an update event -  e.g. Edge Updated.
 func (e *ControllerEventHandler) Update(ctx context.Context, evt event.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+	if annotations.HasCleanupAnnotation(evt.ObjectNew) {
+		e.log.V(5).Info("object has cleanup annotation, skipping update", "object", evt.ObjectNew)
+		if err := e.store.Delete(evt.ObjectNew); err != nil {
+			e.log.Error(err, "error deleting object with cleanup annotation", "object", evt.ObjectNew)
+		}
+		return
+	}
+
 	if err := e.store.Update(evt.ObjectNew); err != nil {
 		e.log.Error(err, "error updating object in update", "object", evt.ObjectNew)
 		return

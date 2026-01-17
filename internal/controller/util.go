@@ -26,12 +26,20 @@ package controller
 import (
 	"context"
 
+	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (
-	FinalizerName = "k8s.ngrok.com/finalizer"
+	FinalizerName     = "k8s.ngrok.com/finalizer"
+	CleanupAnnotation = annotations.CleanupAnnotation
+)
+
+var (
+	// HasCleanupAnnotation returns true if the object has the cleanup annotation set to "true".
+	// It is a re-export of the function from the annotations package.
+	HasCleanupAnnotation = annotations.HasCleanupAnnotation
 )
 
 // IsUpsert returns true if the object is being created or updated. That is, if the deletion timestamp is not set.
@@ -98,4 +106,10 @@ func AddAnnotations(o client.Object, annotations map[string]string) {
 	}
 
 	o.SetAnnotations(existing)
+}
+
+// IsCleanedUp returns true if the object has the cleanup annotation and no finalizer
+// indicating that cleanup has been completed.
+func IsCleanedUp(o client.Object) bool {
+	return HasCleanupAnnotation(o) && !HasFinalizer(o)
 }

@@ -94,9 +94,12 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Namespace: &r.Namespace,
 
 		StatusID: func(obj *ngrokv1alpha1.KubernetesOperator) string { return obj.Status.ID },
-		Create:   r.create,
-		Update:   r.update,
-		Delete:   r.delete,
+		ClearStatus: func(obj *ngrokv1alpha1.KubernetesOperator) {
+			obj.Status = ngrokv1alpha1.KubernetesOperatorStatus{}
+		},
+		Create: r.create,
+		Update: r.update,
+		Delete: r.delete,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -191,11 +194,7 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1al
 }
 
 func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
-	err := r.NgrokClientset.KubernetesOperators().Delete(ctx, ko.Status.ID)
-	if err == nil || ngrok.IsNotFound(err) {
-		ko.Status.ID = ""
-	}
-	return err
+	return r.NgrokClientset.KubernetesOperators().Delete(ctx, ko.Status.ID)
 }
 
 // updateStatus fills in the status fields of the KubernetesOperator CRD based on the current state of the ngrok API and updates the status in k8s

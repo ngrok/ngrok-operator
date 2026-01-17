@@ -27,28 +27,37 @@ package gateway
 import (
 	"time"
 
+	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/errors"
+	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 var _ = Describe("TLSRoute controller", func() {
 	const (
-		TLSRouteName = "test-tlsroute"
+		timeout  = 10 * time.Second
+		interval = 250 * time.Millisecond
 	)
 
 	var (
+		namespace    string
 		testTLSroute *gatewayv1alpha2.TLSRoute
 	)
 
-	BeforeEach(func() {
-		ctx := GinkgoT().Context()
+	BeforeEach(func(ctx SpecContext) {
+		namespace = testutils.RandomName("test-namespace")
+		kginkgo.ExpectCreateNamespace(ctx, namespace)
+
 		testTLSroute = &gatewayv1alpha2.TLSRoute{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: TLSRouteName,
+				Name:      testutils.RandomName("test-tlsroute"),
+				Namespace: namespace,
 			},
 			Spec: gatewayv1alpha2.TLSRouteSpec{
 				CommonRouteSpec: gatewayv1.CommonRouteSpec{
@@ -61,6 +70,7 @@ var _ = Describe("TLSRoute controller", func() {
 					BackendRefs: []gatewayv1alpha2.BackendRef{{
 						BackendObjectReference: gatewayv1.BackendObjectReference{
 							Name: gatewayv1.ObjectName("example-svc"),
+							Port: ptr.To(gatewayv1.PortNumber(443)),
 						},
 					}},
 				}},
@@ -69,20 +79,59 @@ var _ = Describe("TLSRoute controller", func() {
 		Expect(k8sClient.Create(ctx, testTLSroute)).To(Succeed())
 	})
 
-	AfterEach(func() {
-		ctx := GinkgoT().Context()
-		hasTLSRoute := false
-		tlsRoutes := driver.GetStore().ListTLSRoutes()
-		for _, tlsRoute := range tlsRoutes {
-			if tlsRoute.Name == "test-tlsroute" {
-				hasTLSRoute = true
-			}
-		}
-		Expect(len(tlsRoutes)).To(Equal(1))
-		Expect(hasTLSRoute).To(Equal(true))
+	It("should add the tlsroute to the store", func(_ SpecContext) {
+		Eventually(func(g Gomega) {
+			store := driver.GetStore()
+			fetched, err := store.GetTLSRoute(testTLSroute.GetName(), testTLSroute.GetNamespace())
+			g.Expect(fetched).NotTo(BeNil())
+			g.Expect(err).To(BeNil())
+		}, timeout, interval).Should(Succeed())
+	})
+
+	When("the tlsroute is annotated for cleanup", func() {
+		BeforeEach(func(ctx SpecContext) {
+			By("annotating the tlsroute for cleanup")
+			kginkgo.ExpectAddAnnotations(ctx, testTLSroute, map[string]string{
+				controller.CleanupAnnotation: "true",
+			})
+		})
+
+		It("should remove the tlsroute from the store", func(_ SpecContext) {
+			Eventually(func(g Gomega) {
+				By("fetching the tlsroute from the store")
+				store := driver.GetStore()
+				fetched, err := store.GetTLSRoute(testTLSroute.GetName(), testTLSroute.GetNamespace())
+				g.Expect(fetched).To(BeNil())
+				g.Expect(err).NotTo(BeNil())
+				g.Expect(errors.IsErrorNotFound(err)).To(BeTrue())
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should remove the finalizer from the tlsroute", func(ctx SpecContext) {
+			kginkgo.ExpectFinalizerToBeRemoved(ctx, testTLSroute, controller.FinalizerName)
+		})
+
+		It("should update the tlsroute status to have no parents", func(ctx SpecContext) {
+			Eventually(func(g Gomega) {
+				By("fetching the tlsroute from k8s")
+				obj := &gatewayv1alpha2.TLSRoute{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(testTLSroute), obj)).To(Succeed())
+
+				g.Expect(obj.Status).To(Equal(gatewayv1alpha2.TLSRouteStatus{
+					RouteStatus: gatewayv1alpha2.RouteStatus{
+						Parents: []gatewayv1alpha2.RouteParentStatus{},
+					},
+				}))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
+	AfterEach(func(ctx SpecContext) {
 		Expect(k8sClient.Delete(ctx, testTLSroute)).To(Succeed())
 		time.Sleep(time.Second * 3)
-		tlsRoutes = driver.GetStore().ListTLSRoutes()
+		tlsRoutes := driver.GetStore().ListTLSRoutes()
 		Expect(len(tlsRoutes)).To(Equal(0))
+
+		kginkgo.ExpectDeleteNamespace(ctx, namespace)
 	})
 })

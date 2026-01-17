@@ -208,3 +208,14 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | Name          | Description                                                        | Value  |
 | ------------- | ------------------------------------------------------------------ | ------ |
 | `installCRDs` | When true, the ngrok CRDs will be installed alongside the operator | `true` |
+
+### Cleanup Hook Configuration
+
+| Name                             | Description                                               | Value   |
+| -------------------------------- | --------------------------------------------------------- | ------- |
+| `cleanupHook.enabled`            | Enable the pre-delete cleanup hook                        | `false` |
+| `cleanupHook.timeout`            | Maximum time to wait (in seconds) for cleanup to complete | `300`   |
+| `cleanupHook.retries`            | Number of times to retry on failure                       | `3`     |
+| `cleanupHook.retryInterval`      | Time to wait (in seconds) between retries                 | `10`    |
+| `cleanupHook.resources.limits`   | The resources limits for the container                    | `{}`    |
+| `cleanupHook.resources.requests` | The requested resources for the container                 | `{}`    |

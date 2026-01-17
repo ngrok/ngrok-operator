@@ -27,6 +27,9 @@ package gateway
 import (
 	"time"
 
+	controller "github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/errors"
+	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,18 +40,23 @@ import (
 
 var _ = Describe("TCPRoute controller", func() {
 	const (
-		TCPRouteName = "test-tcproute"
+		timeout  = 10 * time.Second
+		interval = 250 * time.Millisecond
 	)
 
 	var (
+		namespace    string
 		testTCProute *gatewayv1alpha2.TCPRoute
 	)
 
-	BeforeEach(func() {
-		ctx := GinkgoT().Context()
+	BeforeEach(func(ctx SpecContext) {
+		namespace = testutils.RandomName("test-namespace")
+		kginkgo.ExpectCreateNamespace(ctx, namespace)
+
 		testTCProute = &gatewayv1alpha2.TCPRoute{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: TCPRouteName,
+				Name:      testutils.RandomName("test-tcproute"),
+				Namespace: namespace,
 			},
 			Spec: gatewayv1alpha2.TCPRouteSpec{
 				CommonRouteSpec: gatewayv1.CommonRouteSpec{
@@ -61,6 +69,7 @@ var _ = Describe("TCPRoute controller", func() {
 					BackendRefs: []gatewayv1alpha2.BackendRef{{
 						BackendObjectReference: gatewayv1.BackendObjectReference{
 							Name: gatewayv1.ObjectName("example-svc"),
+							Port: ptr.To(gatewayv1.PortNumber(8080)),
 						},
 					}},
 				}},
@@ -69,20 +78,44 @@ var _ = Describe("TCPRoute controller", func() {
 		Expect(k8sClient.Create(ctx, testTCProute)).To(Succeed())
 	})
 
-	AfterEach(func() {
-		ctx := GinkgoT().Context()
-		hasTCPRoute := false
-		tcpRoutes := driver.GetStore().ListTCPRoutes()
-		for _, tcpRoute := range tcpRoutes {
-			if tcpRoute.Name == "test-tcproute" {
-				hasTCPRoute = true
-			}
-		}
-		Expect(len(tcpRoutes)).To(Equal(1))
-		Expect(hasTCPRoute).To(Equal(true))
+	It("should add the tcproute to the store", func(_ SpecContext) {
+		Eventually(func(g Gomega) {
+			store := driver.GetStore()
+			fetched, err := store.GetTCPRoute(testTCProute.GetName(), testTCProute.GetNamespace())
+			g.Expect(fetched).NotTo(BeNil())
+			g.Expect(err).To(BeNil())
+		}, timeout, interval).Should(Succeed())
+	})
+
+	When("the tcproute is annotated for cleanup", func() {
+		BeforeEach(func() {
+			By("Annotating the tcproute for cleanup")
+			kginkgo.ExpectAddAnnotations(ctx, testTCProute, map[string]string{
+				controller.CleanupAnnotation: "true",
+			})
+		})
+
+		It("should remove the tcproute from the store", func(_ SpecContext) {
+			Eventually(func(g Gomega) {
+				store := driver.GetStore()
+				fetched, err := store.GetTCPRoute(testTCProute.GetName(), testTCProute.GetNamespace())
+				g.Expect(fetched).To(BeNil())
+				g.Expect(err).NotTo(BeNil())
+				g.Expect(errors.IsErrorNotFound(err)).To(BeTrue())
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should remove the finalizer from the tcproute", func(ctx SpecContext) {
+			kginkgo.ExpectFinalizerToBeRemoved(ctx, testTCProute, controller.FinalizerName)
+		})
+	})
+
+	AfterEach(func(ctx SpecContext) {
 		Expect(k8sClient.Delete(ctx, testTCProute)).To(Succeed())
 		time.Sleep(time.Second * 3)
-		tcpRoutes = driver.GetStore().ListTCPRoutes()
+		tcpRoutes := driver.GetStore().ListTCPRoutes()
 		Expect(len(tcpRoutes)).To(Equal(0))
+
+		kginkgo.ExpectDeleteNamespace(ctx, namespace)
 	})
 })
