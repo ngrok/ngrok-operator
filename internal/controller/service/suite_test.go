@@ -85,7 +85,8 @@ var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 	operatorAPIs := filepath.Join("..", "..", "..", "helm", "ngrok-crds", "templates")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{operatorAPIs},
+		CRDDirectoryPaths:     []string{operatorAPIs},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	var err error

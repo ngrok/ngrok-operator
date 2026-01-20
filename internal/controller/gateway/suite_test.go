@@ -96,6 +96,7 @@ var _ = BeforeSuite(func() {
 			testutils.OperatorCRDPath("..", "..", ".."),
 			gwAPIs,
 		},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	var err error
