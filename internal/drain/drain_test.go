@@ -43,8 +43,7 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/controller"
-	"github.com/ngrok/ngrok-operator/internal/controller/labels"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 func TestDrainResult(t *testing.T) {
@@ -114,30 +113,24 @@ func TestDrainer_DrainUserResource(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "test-ingress",
 			Namespace:  "default",
-			Finalizers: []string{controller.FinalizerName},
-			Labels: map[string]string{
-				labels.ControllerNamespace: "ngrok-operator",
-				labels.ControllerName:      "ngrok-operator",
-			},
+			Finalizers: []string{util.FinalizerName},
 		},
 	}
 
-	client := fake.NewClientBuilder().
+	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(ingress).
 		Build()
 
 	drainer := &Drainer{
-		Client:              client,
-		Log:                 logr.Discard(),
-		ControllerNamespace: "ngrok-operator",
-		ControllerName:      "ngrok-operator",
+		Client: c,
+		Log:    logr.Discard(),
 	}
 
 	err := drainer.drainUserResource(context.Background(), ingress)
 	require.NoError(t, err)
 
-	assert.False(t, controller.HasFinalizer(ingress), "finalizer should be removed")
+	assert.False(t, util.HasFinalizer(ingress), "finalizer should be removed")
 }
 
 func TestDrainer_DrainOperatorResource(t *testing.T) {
@@ -149,28 +142,22 @@ func TestDrainer_DrainOperatorResource(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "test-domain",
 			Namespace:  "ngrok-operator",
-			Finalizers: []string{controller.FinalizerName},
-			Labels: map[string]string{
-				labels.ControllerNamespace: "ngrok-operator",
-				labels.ControllerName:      "ngrok-operator",
-			},
+			Finalizers: []string{util.FinalizerName},
 		},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: "test.ngrok.io",
 		},
 	}
 
-	client := fake.NewClientBuilder().
+	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(domain).
 		Build()
 
 	drainer := &Drainer{
-		Client:              client,
-		Log:                 logr.Discard(),
-		ControllerNamespace: "ngrok-operator",
-		ControllerName:      "ngrok-operator",
-		Policy:              ngrokv1alpha1.DrainPolicyDelete,
+		Client: c,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyDelete,
 	}
 
 	err := drainer.drainOperatorResource(context.Background(), domain)
@@ -186,11 +173,7 @@ func TestDrainer_DrainOperatorResource_RetainMode(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "test-domain",
 			Namespace:  "ngrok-operator",
-			Finalizers: []string{controller.FinalizerName},
-			Labels: map[string]string{
-				labels.ControllerNamespace: "ngrok-operator",
-				labels.ControllerName:      "ngrok-operator",
-			},
+			Finalizers: []string{util.FinalizerName},
 		},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: "test.ngrok.io",
@@ -203,11 +186,9 @@ func TestDrainer_DrainOperatorResource_RetainMode(t *testing.T) {
 		Build()
 
 	drainer := &Drainer{
-		Client:              fakeClient,
-		Log:                 logr.Discard(),
-		ControllerNamespace: "ngrok-operator",
-		ControllerName:      "ngrok-operator",
-		Policy:              ngrokv1alpha1.DrainPolicyRetain,
+		Client: fakeClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyRetain,
 	}
 
 	err := drainer.drainOperatorResource(context.Background(), domain)
@@ -217,7 +198,7 @@ func TestDrainer_DrainOperatorResource_RetainMode(t *testing.T) {
 	var fetched ingressv1alpha1.Domain
 	err = fakeClient.Get(context.Background(), client.ObjectKey{Name: "test-domain", Namespace: "ngrok-operator"}, &fetched)
 	require.NoError(t, err, "resource should still exist in Retain mode")
-	assert.False(t, controller.HasFinalizer(&fetched), "finalizer should be removed")
+	assert.False(t, util.HasFinalizer(&fetched), "finalizer should be removed")
 }
 
 func TestDrainer_DrainAll_EmptyCluster(t *testing.T) {
@@ -226,15 +207,13 @@ func TestDrainer_DrainAll_EmptyCluster(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
-	client := fake.NewClientBuilder().
+	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		Build()
 
 	drainer := &Drainer{
-		Client:              client,
-		Log:                 logr.Discard(),
-		ControllerNamespace: "ngrok-operator",
-		ControllerName:      "ngrok-operator",
+		Client: c,
+		Log:    logr.Discard(),
 	}
 
 	result, err := drainer.DrainAll(context.Background())
@@ -257,7 +236,7 @@ func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "user-created-ippolicy",
 			Namespace:  "default",
-			Finalizers: []string{controller.FinalizerName},
+			Finalizers: []string{util.FinalizerName},
 		},
 		Spec: ingressv1alpha1.IPPolicySpec{
 			Description: "User-created IP Policy without controller labels",
@@ -268,7 +247,7 @@ func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "user-created-cloudendpoint",
 			Namespace:  "default",
-			Finalizers: []string{controller.FinalizerName},
+			Finalizers: []string{util.FinalizerName},
 		},
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL: "https://example.ngrok.io",
@@ -279,7 +258,7 @@ func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "user-created-agentendpoint",
 			Namespace:  "default",
-			Finalizers: []string{controller.FinalizerName},
+			Finalizers: []string{util.FinalizerName},
 		},
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
 			URL: "https://example.ngrok.io",
@@ -292,11 +271,9 @@ func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
 		Build()
 
 	drainer := &Drainer{
-		Client:              fakeClient,
-		Log:                 logr.Discard(),
-		ControllerNamespace: "ngrok-operator",
-		ControllerName:      "ngrok-operator",
-		Policy:              ngrokv1alpha1.DrainPolicyRetain,
+		Client: fakeClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyRetain,
 	}
 
 	result, err := drainer.DrainAll(context.Background())
@@ -308,17 +285,17 @@ func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
 	var fetchedIPPolicy ingressv1alpha1.IPPolicy
 	err = fakeClient.Get(context.Background(), client.ObjectKey{Name: "user-created-ippolicy", Namespace: "default"}, &fetchedIPPolicy)
 	require.NoError(t, err)
-	assert.False(t, controller.HasFinalizer(&fetchedIPPolicy), "IPPolicy finalizer should be removed")
+	assert.False(t, util.HasFinalizer(&fetchedIPPolicy), "IPPolicy finalizer should be removed")
 
 	var fetchedCloudEndpoint ngrokv1alpha1.CloudEndpoint
 	err = fakeClient.Get(context.Background(), client.ObjectKey{Name: "user-created-cloudendpoint", Namespace: "default"}, &fetchedCloudEndpoint)
 	require.NoError(t, err)
-	assert.False(t, controller.HasFinalizer(&fetchedCloudEndpoint), "CloudEndpoint finalizer should be removed")
+	assert.False(t, util.HasFinalizer(&fetchedCloudEndpoint), "CloudEndpoint finalizer should be removed")
 
 	var fetchedAgentEndpoint ngrokv1alpha1.AgentEndpoint
 	err = fakeClient.Get(context.Background(), client.ObjectKey{Name: "user-created-agentendpoint", Namespace: "default"}, &fetchedAgentEndpoint)
 	require.NoError(t, err)
-	assert.False(t, controller.HasFinalizer(&fetchedAgentEndpoint), "AgentEndpoint finalizer should be removed")
+	assert.False(t, util.HasFinalizer(&fetchedAgentEndpoint), "AgentEndpoint finalizer should be removed")
 }
 
 func TestDrainer_SkipsResourcesWithoutFinalizer(t *testing.T) {
@@ -335,7 +312,7 @@ func TestDrainer_SkipsResourcesWithoutFinalizer(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "with-finalizer",
 			Namespace:  "default",
-			Finalizers: []string{controller.FinalizerName},
+			Finalizers: []string{util.FinalizerName},
 		},
 	}
 
@@ -352,11 +329,9 @@ func TestDrainer_SkipsResourcesWithoutFinalizer(t *testing.T) {
 		Build()
 
 	drainer := &Drainer{
-		Client:              fakeClient,
-		Log:                 logr.Discard(),
-		ControllerNamespace: "ngrok-operator",
-		ControllerName:      "ngrok-operator",
-		Policy:              ngrokv1alpha1.DrainPolicyRetain,
+		Client: fakeClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyRetain,
 	}
 
 	result, err := drainer.DrainAll(context.Background())

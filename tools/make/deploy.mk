@@ -24,6 +24,7 @@ deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-imag
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
+# 		--set drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: deploy_gateway

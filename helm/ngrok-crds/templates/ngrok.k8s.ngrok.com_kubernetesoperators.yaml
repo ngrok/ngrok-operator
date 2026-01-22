@@ -106,9 +106,6 @@ spec:
               drain:
                 description: Drain configures the drain behavior for uninstall
                 properties:
-                  enabled:
-                    description: Enabled triggers drain when set to true
-                    type: boolean
                   policy:
                     default: Retain
                     description: Policy determines whether to delete ngrok API resources

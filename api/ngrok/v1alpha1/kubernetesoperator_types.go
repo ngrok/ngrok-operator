@@ -161,8 +161,6 @@ type KubernetesOperatorSpec struct {
 
 // DrainConfig configures the drain behavior during operator uninstall
 type DrainConfig struct {
-	// Enabled triggers drain when set to true
-	Enabled bool `json:"enabled,omitempty"`
 	// Policy determines whether to delete ngrok API resources or just remove finalizers
 	// +kubebuilder:default=Retain
 	Policy DrainPolicy `json:"policy,omitempty"`
@@ -193,6 +191,14 @@ type KubernetesOperatorList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []KubernetesOperator `json:"items"`
+}
+
+// GetDrainPolicy returns the configured drain policy, defaulting to Retain if not set.
+func (ko *KubernetesOperator) GetDrainPolicy() DrainPolicy {
+	if ko.Spec.Drain != nil && ko.Spec.Drain.Policy != "" {
+		return ko.Spec.Drain.Policy
+	}
+	return DrainPolicyRetain
 }
 
 func init() {

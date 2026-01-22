@@ -81,12 +81,16 @@ type KubernetesOperatorReconciler struct {
 	// Namespace where the ngrok-operator is managing its resources
 	Namespace string
 
-	// ControllerName is the name of the controller deployment
-	ControllerName string
-
 	// DrainState is the shared drain state checker. The controller uses IsDraining()
 	// to detect drain mode and SetDraining(true) to trigger it.
 	DrainState *drain.StateChecker
+
+	// WatchNamespace limits draining to resources in this namespace (empty = all namespaces)
+	WatchNamespace string
+	// IngressControllerName is used to find IngressClasses managed by this operator
+	IngressControllerName string
+	// GatewayControllerName is used to find GatewayClasses managed by this operator
+	GatewayControllerName string
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -123,18 +127,8 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/finalizers,verbs=update
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints,verbs=get;list;watch;update;patch;delete
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints,verbs=get;list;watch;update;patch;delete
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch;update;patch;delete
-// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;update;patch;delete
-// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=ippolicies,verbs=get;list;watch;update;patch;delete
-// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints,verbs=get;list;watch;update;patch;delete
-// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tcproutes,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tlsroutes,verbs=get;list;watch;update;patch
+// Note: Additional RBAC for resources touched by the Drainer is defined in internal/drain/drain.go
 
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
@@ -170,18 +164,15 @@ func (r *KubernetesOperatorReconciler) handleDrain(ctx context.Context, ko *ngro
 		r.Recorder.Event(ko, v1.EventTypeNormal, "DrainStarted", "Starting drain of all managed resources")
 	}
 
-	// Get drain policy from spec, default to Retain
-	policy := ngrokv1alpha1.DrainPolicyRetain
-	if ko.Spec.Drain != nil && ko.Spec.Drain.Policy != "" {
-		policy = ko.Spec.Drain.Policy
-	}
+	policy := ko.GetDrainPolicy()
 
 	drainer := &drain.Drainer{
-		Client:              r.Client,
-		Log:                 log,
-		ControllerNamespace: r.Namespace,
-		ControllerName:      r.ControllerName,
-		Policy:              policy,
+		Client:                r.Client,
+		Log:                   log,
+		Policy:                policy,
+		WatchNamespace:        r.WatchNamespace,
+		IngressControllerName: r.IngressControllerName,
+		GatewayControllerName: r.GatewayControllerName,
 	}
 
 	result, err := drainer.DrainAll(ctx)

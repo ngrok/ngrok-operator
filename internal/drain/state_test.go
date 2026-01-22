@@ -70,7 +70,7 @@ func TestStateChecker_NoDraining(t *testing.T) {
 	assert.False(t, checker.IsDraining(context.Background()))
 }
 
-func TestStateChecker_DrainModeEnabled(t *testing.T) {
+func TestStateChecker_DrainStatusDraining(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
@@ -79,16 +79,16 @@ func TestStateChecker_DrainModeEnabled(t *testing.T) {
 			Name:      "my-release",
 			Namespace: "ngrok-operator",
 		},
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			Drain: &ngrokv1alpha1.DrainConfig{
-				Enabled: true,
-			},
+		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
+		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+			DrainStatus: ngrokv1alpha1.DrainStatusDraining,
 		},
 	}
 
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(ko).
+		WithStatusSubresource(ko).
 		Build()
 
 	checker := NewStateChecker(client, "ngrok-operator", "my-release")
@@ -145,16 +145,16 @@ func TestStateChecker_CachesDrainingState(t *testing.T) {
 			Name:      "my-release",
 			Namespace: "ngrok-operator",
 		},
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			Drain: &ngrokv1alpha1.DrainConfig{
-				Enabled: true,
-			},
+		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
+		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+			DrainStatus: ngrokv1alpha1.DrainStatusDraining,
 		},
 	}
 
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(ko).
+		WithStatusSubresource(ko).
 		Build()
 
 	checker := NewStateChecker(client, "ngrok-operator", "my-release")

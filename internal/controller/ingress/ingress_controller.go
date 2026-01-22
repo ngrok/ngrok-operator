@@ -26,6 +26,9 @@ type IngressReconciler struct {
 	Recorder  record.EventRecorder
 	Namespace string
 	Driver    *managerdriver.Driver
+	// DrainState is used to check if the operator is draining.
+	// If draining, non-delete reconciles are skipped to prevent new finalizers.
+	DrainState controller.DrainState
 }
 
 func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -109,13 +112,8 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if controller.IsUpsert(ingress) {
-		// The object is not being deleted, so register and sync finalizer
-		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
-			log.Error(err, "Failed to register finalizer")
-			return ctrl.Result{}, err
-		}
-	} else {
+	// If being deleted, remove finalizer and delete from store
+	if controller.IsDelete(ingress) {
 		log.Info("Deleting ingress from store")
 		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
 			log.Error(err, "Failed to remove finalizer")
@@ -126,6 +124,29 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if err := r.Driver.DeleteIngress(ingress); err != nil {
 			return ctrl.Result{}, err
 		}
+
+		err = r.Driver.Sync(ctx, r.Client)
+		if err != nil {
+			log.Error(err, "Failed to sync")
+		}
+		return ctrl.Result{}, err
+	}
+
+	// Skip non-delete reconciles during drain to prevent adding new finalizers
+	if controller.IsDraining(ctx, r.DrainState) {
+		log.V(1).Info("Draining, skipping non-delete reconcile")
+		// Remove from store so no new resources are created for this ingress
+		if err := r.Driver.DeleteIngress(ingress); err != nil {
+			log.Error(err, "Failed to delete ingress from store during drain")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// The object is not being deleted, so register and sync finalizer
+	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+		log.Error(err, "Failed to register finalizer")
+		return ctrl.Result{}, err
 	}
 
 	err = r.Driver.Sync(ctx, r.Client)

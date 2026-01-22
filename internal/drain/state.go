@@ -86,7 +86,6 @@ func (s *StateChecker) IsDraining(ctx context.Context) bool {
 	}
 
 	isDraining := !ko.DeletionTimestamp.IsZero() ||
-		(ko.Spec.Drain != nil && ko.Spec.Drain.Enabled) ||
 		ko.Status.DrainStatus == ngrokv1alpha1.DrainStatusDraining
 
 	if isDraining {

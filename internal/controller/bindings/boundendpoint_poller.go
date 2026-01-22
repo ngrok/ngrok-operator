@@ -78,6 +78,19 @@ type BoundEndpointPoller struct {
 	koId string
 }
 
+// cancelIfDraining checks if drain mode is active and cancels any active reconciliation.
+// Returns true if draining (caller should return early).
+func (r *BoundEndpointPoller) cancelIfDraining(ctx context.Context, log logr.Logger, operation string) bool {
+	if drainstate.IsDraining(ctx, r.DrainState) {
+		log.V(1).Info("Draining, skipping " + operation)
+		if r.reconcilingCancel != nil {
+			r.reconcilingCancel()
+		}
+		return true
+	}
+	return false
+}
+
 // Start implements the manager.Runnable interface.
 func (r *BoundEndpointPoller) Start(ctx context.Context) error {
 	log := ctrl.LoggerFrom(ctx)
@@ -158,12 +171,7 @@ func (r *BoundEndpointPoller) startPollingAPI(ctx context.Context) {
 		case <-ticker.C:
 			// Check drain state and exit loop entirely if draining.
 			// Drain state is cached and never resets, so no point continuing to tick.
-			if drainstate.IsDraining(ctx, r.DrainState) {
-				// Cancel any in-flight reconcile goroutines
-				if r.reconcilingCancel != nil {
-					r.reconcilingCancel()
-				}
-				log.Info("Draining, stopping polling loop")
+			if r.cancelIfDraining(ctx, log, "polling loop") {
 				return
 			}
 			log.V(9).Info("Polling API for binding_endpoints")
@@ -184,11 +192,7 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 
 	// Skip polling during drain to prevent creating new resources.
 	// Also cancel any in-flight reconcile goroutines to stop ongoing mutations.
-	if drainstate.IsDraining(ctx, r.DrainState) {
-		if r.reconcilingCancel != nil {
-			r.reconcilingCancel()
-		}
-		log.V(1).Info("Draining, skipping poll")
+	if r.cancelIfDraining(ctx, log, "poll") {
 		return nil
 	}
 

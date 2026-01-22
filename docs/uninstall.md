@@ -20,10 +20,9 @@ helm uninstall ngrok-operator -n ngrok-operator
 ```
 
 The pre-delete hook will:
-1. Patch the `KubernetesOperator` CR to enable drain mode (`spec.drain.enabled: true`)
-2. Delete the `KubernetesOperator` CR
-3. Wait for the operator to drain all managed resources
-4. Complete the uninstall
+1. Delete the `KubernetesOperator` CR (which triggers drain mode)
+2. Wait for the operator to drain all managed resources
+3. Complete the uninstall
 
 ### Manual / Non-Helm
 
@@ -73,8 +72,7 @@ In Delete mode:
 The operator supports a "drain mode" that cleans up all resources it manages. Drain mode is triggered when:
 
 1. The `KubernetesOperator` CR is deleted (has a `DeletionTimestamp`)
-2. The `spec.drain.enabled` field is set to `true`
-3. The `status.drainStatus` is set to `draining`
+2. The `status.drainStatus` is set to `draining`
 
 Once drain mode is detected, it is cached and never resets (to prevent race conditions).
 
@@ -118,16 +116,15 @@ Status fields:
 - `status.drainProgress`: Progress indicator (e.g., `5/10` where X is processed count and Y is total)
 - `status.drainErrors`: Array of error messages from the most recent drain attempt
 
-### Manual Drain Trigger
+### Triggering Drain
 
-To trigger drain without deleting the CR:
+To trigger drain, delete the KubernetesOperator CR:
 
 ```bash
-kubectl patch kubernetesoperator <name> -n <namespace> \
-  --type=merge -p '{"spec":{"drain":{"enabled":true}}}'
+kubectl delete kubernetesoperator <name> -n <namespace>
 ```
 
-Watch the status:
+Watch the status while draining:
 
 ```bash
 kubectl get kubernetesoperator <name> -n <namespace> -w
@@ -135,10 +132,21 @@ kubectl get kubernetesoperator <name> -n <namespace> -w
 
 ## Multi-Instance Installations
 
-If you have multiple ngrok-operator instances (e.g., in different namespaces), drain only affects resources managed by that specific instance. Resources are identified by the controller labels:
+If you have multiple ngrok-operator instances (e.g., in different namespaces or managing different IngressClasses), drain only affects resources managed by that specific instance.
 
-- `k8s.ngrok.com/controller-namespace`: The namespace where the operator is deployed
-- `k8s.ngrok.com/controller-name`: The name of the operator deployment
+**How resources are filtered:**
+
+| Resource Type | Filtering Method |
+|---------------|------------------|
+| Ingress | By `IngressClass` - only drains Ingresses using an IngressClass managed by this operator |
+| Gateway, HTTPRoute, TCPRoute, TLSRoute | By `GatewayClass` - only drains resources using a GatewayClass managed by this operator |
+| Service, CloudEndpoint, AgentEndpoint, etc. | By namespace (if `--ingress-watch-namespace` is set) and finalizer presence |
+
+**Example multi-operator scenario:**
+- Operator A manages `IngressClass: ngrok-a` with `drainPolicy: Delete`
+- Operator B manages `IngressClass: ngrok-b`
+- When Operator A is uninstalled, only Ingresses using `ngrok-a` are drained
+- Ingresses using `ngrok-b` are unaffected
 
 This ensures that uninstalling one operator instance doesn't affect resources managed by another.
 
@@ -233,10 +241,11 @@ cleanupHook:
 
 - `internal/drainstate/drainstate.go` - Shared `State` interface
 - `internal/drain/state.go` - `StateChecker` implementation
-- `internal/drain/drain.go` - `Drainer` implementation
+- `internal/drain/drain.go` - `Drainer` implementation (includes RBAC tags for drained resources)
 - `internal/util/k8s.go` - Finalizer utilities (`HasFinalizer`, `RemoveFinalizer`, etc.)
 - `internal/controller/ngrok/kubernetesoperator_controller.go` - Drain orchestration
 - `helm/ngrok-operator/templates/cleanup-hook/` - Helm pre-delete hook
+- `tools/make/_common.mk` - `CONTROLLER_GEN_PATHS` includes `./internal/drain/...` for RBAC generation
 
 ## Best Practices
 
@@ -293,12 +302,16 @@ const (
 **DrainConfig Spec:**
 ```go
 type DrainConfig struct {
-    // Enabled triggers drain when set to true
-    Enabled bool `json:"enabled,omitempty"`
     // Policy determines whether to delete ngrok API resources or just remove finalizers
     // +kubebuilder:default=Retain
     Policy DrainPolicy `json:"policy,omitempty"`
 }
+```
+
+**Helper Method:**
+```go
+// GetDrainPolicy returns the configured drain policy, defaulting to Retain if not set.
+func (ko *KubernetesOperator) GetDrainPolicy() DrainPolicy
 ```
 
 **KubernetesOperator Status:**
@@ -358,7 +371,7 @@ type StateChecker struct {
 func (s *StateChecker) IsDraining(ctx context.Context) bool {
     // Fast path: check cache
     // Slow path: query KubernetesOperator CR by name
-    // Draining if: DeletionTimestamp set OR spec.drain.enabled OR status.drainStatus == "draining"
+    // Draining if: DeletionTimestamp set OR status.drainStatus == "draining"
 }
 ```
 
@@ -373,11 +386,12 @@ Located in `internal/drain/drain.go`:
 
 ```go
 type Drainer struct {
-    Client              client.Client
-    Log                 logr.Logger
-    ControllerNamespace string
-    ControllerName      string
-    Policy              string  // "Delete" or "Retain"
+    Client                client.Client
+    Log                   logr.Logger
+    Policy                DrainPolicy  // "Delete" or "Retain"
+    WatchNamespace        string       // If set, only drain in this namespace
+    IngressControllerName string       // Used to find matching IngressClasses
+    GatewayControllerName string       // Used to find matching GatewayClasses
 }
 
 func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error)
@@ -395,9 +409,11 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error)
 
 **Note:** In Delete mode, operator-managed resources are deleted *without* removing the finalizer first. This ensures the controller has a chance to clean up ngrok API resources during the delete reconcile.
 
-**Resource discovery:**
-- For operator-created resources (HTTPRoute, TCPRoute, TLSRoute, Ingress, Service, Gateway, Domain, BoundEndpoint), uses controller label selector to find resources owned by this operator instance
-- For user-creatable resources (CloudEndpoint, AgentEndpoint, IPPolicy), lists ALL resources and drains those with the operator's finalizer (`k8s.ngrok.com/finalizer`). This ensures user-created CRDs are properly cleaned up regardless of whether they have controller labels.
+**Resource filtering (multi-operator correctness):**
+- **Namespace filtering**: If `WatchNamespace` is set, only resources in that namespace are drained
+- **IngressClass filtering**: For Ingresses, only drains those using an IngressClass managed by this operator (matching `IngressControllerName`)
+- **GatewayClass filtering**: For Gateways and routes, only drains those using a GatewayClass managed by this operator (matching `GatewayControllerName`)
+- **Finalizer filtering**: For all resource types, only resources with the `k8s.ngrok.com/finalizer` are processed
 
 ### Controller Integration
 
@@ -451,9 +467,11 @@ func (d *Driver) Sync(ctx context.Context, client client.Client) error {
 In `internal/controller/bindings/boundendpoint_poller.go`:
 
 ```go
+// Helper method to check drain state and cancel any active reconciliation
+func (r *BoundEndpointPoller) cancelIfDraining(ctx context.Context, log logr.Logger, operation string) bool
+
 func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context) error {
-    if r.DrainState != nil && r.DrainState.IsDraining(ctx) {
-        log.V(1).Info("Draining, skipping poll")
+    if r.cancelIfDraining(ctx, log, "poll") {
         return nil
     }
     // ... normal polling
@@ -464,10 +482,6 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 
 **Job** (`templates/cleanup-hook/job.yaml`):
 ```bash
-# Patch to enable drain mode
-kubectl patch kubernetesoperator "$KO_NAME" -n {{ .Release.Namespace }} \
-  --type merge -p '{"spec":{"drain":{"enabled":true}}}'
-
 # Delete and wait for drain to complete
 kubectl delete kubernetesoperator "$KO_NAME" -n {{ .Release.Namespace }} \
   --wait=true --timeout={{ .Values.cleanupHook.timeout }}s
@@ -475,7 +489,7 @@ kubectl delete kubernetesoperator "$KO_NAME" -n {{ .Release.Namespace }} \
 
 **RBAC** (`templates/cleanup-hook/rbac.yaml`):
 - Namespace-scoped `Role` (not ClusterRole)
-- Permissions: `get`, `list`, `watch`, `patch`, `delete` on `kubernetesoperators`
+- Permissions: `get`, `list`, `watch`, `delete` on `kubernetesoperators`
 
 ### Command-Line Flags
 

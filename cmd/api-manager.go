@@ -385,14 +385,16 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 
 	// Always register the ngrok KubernetesOperator controller. It is independent of the feature set.
 	if err := (&ngrokcontroller.KubernetesOperatorReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("kubernetes-operator-controller"),
-		Namespace:      opts.namespace,
-		ControllerName: opts.managerName,
-		NgrokClientset: ngrokClientset,
-		DrainState:     drainState,
+		Client:                mgr.GetClient(),
+		Log:                   ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
+		Scheme:                mgr.GetScheme(),
+		Recorder:              mgr.GetEventRecorderFor("kubernetes-operator-controller"),
+		Namespace:             opts.namespace,
+		NgrokClientset:        ngrokClientset,
+		DrainState:            drainState,
+		WatchNamespace:        opts.ingressWatchNamespace,
+		IngressControllerName: opts.ingressControllerName,
+		GatewayControllerName: string(gatewaycontroller.ControllerName),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KubernetesOperator")
 		os.Exit(1)
@@ -532,12 +534,13 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 	controllerLabels := labels.NewControllerLabelValues(opts.namespace, opts.managerName)
 
 	if err := (&ingresscontroller.IngressReconciler{
-		Client:    mgr.GetClient(),
-		Log:       ctrl.Log.WithName("controllers").WithName("ingress"),
-		Scheme:    mgr.GetScheme(),
-		Recorder:  mgr.GetEventRecorderFor("ingress-controller"),
-		Namespace: opts.namespace,
-		Driver:    driver,
+		Client:     mgr.GetClient(),
+		Log:        ctrl.Log.WithName("controllers").WithName("ingress"),
+		Scheme:     mgr.GetScheme(),
+		Recorder:   mgr.GetEventRecorderFor("ingress-controller"),
+		Namespace:  opts.namespace,
+		Driver:     driver,
+		DrainState: drainState,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create ingress controller: %w", err)
 	}
@@ -792,7 +795,7 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 		}
 		k8sOperator.Spec.EnabledFeatures = features
 
-		// Set drain policy but preserve Enabled if already set (during drain)
+		// Set drain policy
 		if k8sOperator.Spec.Drain == nil {
 			k8sOperator.Spec.Drain = &ngrokv1alpha1.DrainConfig{}
 		}
