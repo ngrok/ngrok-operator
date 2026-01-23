@@ -7,6 +7,7 @@ import (
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -338,3 +339,62 @@ func newGateway(gwc *gatewayv1.GatewayClass) *gatewayv1.Gateway {
 	gw.Spec.GatewayClassName = gatewayv1.ObjectName(gwc.Name)
 	return &gw
 }
+
+var _ = Describe("secretReferencedByGateway", func() {
+	It("should return true when a TLS secret is referenced by a gateway listener in the same namespace", func(ctx SpecContext) {
+		namespace := "test-ns-" + rand.String(5)
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).To(Succeed())
+
+		gatewayClass := testutils.NewGatewayClass(true)
+		Expect(k8sClient.Create(ctx, gatewayClass)).To(Succeed())
+
+		secretName := "my-tls-secret"
+		secretNs := gatewayv1.Namespace(namespace)
+		gw := testutils.NewGateway("test-gateway", namespace)
+		gw.Spec.GatewayClassName = gatewayv1.ObjectName(gatewayClass.Name)
+		gw.Spec.Listeners = []gatewayv1.Listener{
+			{
+				Name:     "https",
+				Hostname: ptr.To(gatewayv1.Hostname("example.com")),
+				Port:     443,
+				Protocol: gatewayv1.HTTPSProtocolType,
+				TLS: &gatewayv1.GatewayTLSConfig{
+					CertificateRefs: []gatewayv1.SecretObjectReference{
+						{
+							Name:      gatewayv1.ObjectName(secretName),
+							Namespace: &secretNs,
+						},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, &gw)).To(Succeed())
+
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secretName,
+				Namespace: namespace,
+			},
+			Type: corev1.SecretTypeTLS,
+			Data: map[string][]byte{
+				"tls.crt": []byte("cert"),
+				"tls.key": []byte("key"),
+			},
+		}
+		Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+
+		result := secretReferencedByGateway(secret, k8sClient)
+		Expect(result).To(BeTrue(), "secretReferencedByGateway should return true when secret is referenced by gateway listener")
+
+		Expect(k8sClient.Delete(ctx, &gw)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, secret)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, gatewayClass)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, ns)).To(Succeed())
+	})
+})
