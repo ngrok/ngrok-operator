@@ -45,9 +45,10 @@ import (
 type GatewayClassReconciler struct {
 	client.Client
 
-	Log      logr.Logger
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Log            logr.Logger
+	Scheme         *runtime.Scheme
+	Recorder       record.EventRecorder
+	ControllerName gatewayv1.GatewayController
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;patch;update
@@ -63,7 +64,7 @@ func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(func(o client.Object) bool {
 					switch v := o.(type) {
 					case *gatewayv1.GatewayClass:
-						return ShouldHandleGatewayClass(v)
+						return shouldHandleGatewayClass(v, r.ControllerName)
 					default:
 					}
 					r.Log.V(1).Info("Filtering out object", "object", o)
@@ -94,7 +95,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !ShouldHandleGatewayClass(gwc) {
+	if !shouldHandleGatewayClass(gwc, r.ControllerName) {
 		return ctrl.Result{}, nil
 	}
 
@@ -207,10 +208,10 @@ func (r *GatewayClassReconciler) findGatewayClassForGateway(_ context.Context, o
 	}
 }
 
-// ShouldHandleGatewayClass returns true if the GatewayClass should be handled by this controller
-// based on the ControllerName field, false otherwise.
-func ShouldHandleGatewayClass(gatewayClass *gatewayv1.GatewayClass) bool {
-	return gatewayClass.Spec.ControllerName == ControllerName
+// shouldHandleGatewayClass returns true if the GatewayClass should be handled by a controller
+// with the given controller name.
+func shouldHandleGatewayClass(gatewayClass *gatewayv1.GatewayClass, controllerName gatewayv1.GatewayController) bool {
+	return gatewayClass.Spec.ControllerName == controllerName
 }
 
 func gatewayClassIsAccepted(gwc *gatewayv1.GatewayClass) bool {

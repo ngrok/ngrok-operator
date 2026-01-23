@@ -440,6 +440,12 @@ func (d *Driver) DeleteNamedGateway(n types.NamespacedName) error {
 	return d.cacheStores.Delete(gtw)
 }
 
+// HasGateway returns true if the gateway with the given name exists in the store
+func (d *Driver) HasGateway(key types.NamespacedName) bool {
+	gw, err := d.store.GetGateway(key.Name, key.Namespace)
+	return err == nil && gw != nil
+}
+
 func (d *Driver) DeleteNamedHTTPRoute(n types.NamespacedName) error {
 	httproute := &gatewayv1.HTTPRoute{}
 	// set NamespacedName on the httproute object

@@ -1,0 +1,12 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gateway-a
+  namespace: namespace-a
+spec:
+  gatewayClassName: ngrok-gatewayclass-a
+  listeners:
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: test-gateway-a.ngrok.app

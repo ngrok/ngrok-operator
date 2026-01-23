@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service-b
+  namespace: namespace-b
+  labels:
+    app.kubernetes.io/name: gateway-test-server-b
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  selector:
+    app.kubernetes.io/name: gateway-test-server-b

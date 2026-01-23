@@ -84,11 +84,15 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set bindings.serviceAnnotations.annotation2="val2" \
 		--set bindings.serviceLabels.label1="val1"
 
+.PHONY: install-gateway-api-crds
+install-gateway-api-crds: ## Install Gateway API CRDs from upstream
+	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+
 .PHONY: deploy_multi_namespace
 ## 1. We want to install the CRDs only once at the beginning
 ## 2. We want to make a namespace-a and namespace-b
 ## 3. We want to install the helm chart twice, watching only the namespace belonging to each one
-deploy_multi_namespace: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy multiple copies of the controller to the K8s cluster specified in ~/.kube/config.
+deploy_multi_namespace: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image install-gateway-api-crds ## Deploy multiple copies of the controller to the K8s cluster specified in ~/.kube/config.
 	helm upgrade ngrok-operator-crds $(CRD_CHART_DIR) --install \
 		--kube-context=kind-$(KIND_CLUSTER_NAME) \
 	    --namespace kube-system \
@@ -104,6 +108,9 @@ deploy_multi_namespace: _deploy-check-env-vars docker-build manifests _helm_setu
 		--set ingress.controllerName="k8s.ngrok.com/ingress-controller-a" \
 		--set ingress.ingressClass.name="ngrok-a" \
 		--set ingress.watchNamespace="namespace-a" \
+		--set gateway.enabled=true \
+		--set gateway.controllerName="ngrok.com/gateway-controller-a" \
+		--set gateway.gatewayClass.name="ngrok-gatewayclass-a" \
 		--set watchNamespace=namespace-a \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
@@ -121,6 +128,9 @@ deploy_multi_namespace: _deploy-check-env-vars docker-build manifests _helm_setu
 		--set ingress.controllerName="k8s.ngrok.com/ingress-controller-b" \
 		--set ingress.ingressClass.name="ngrok-b" \
 		--set ingress.watchNamespace="namespace-b" \
+		--set gateway.enabled=true \
+		--set gateway.controllerName="ngrok.com/gateway-controller-b" \
+		--set gateway.gatewayClass.name="ngrok-gatewayclass-b" \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set watchNamespace=namespace-b \

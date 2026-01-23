@@ -1,0 +1,17 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httproute-cross
+  namespace: namespace-a
+spec:
+  parentRefs:
+    - name: gateway-cross
+      namespace: namespace-a
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: gateway-service-a
+          port: 80

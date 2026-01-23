@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-test-server-a
+  namespace: namespace-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway-test-server-a
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway-test-server-a
+    spec:
+      containers:
+        - name: test-server
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+              name: http

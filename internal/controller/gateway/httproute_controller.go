@@ -55,10 +55,11 @@ import (
 type HTTPRouteReconciler struct {
 	client.Client
 
-	Log      logr.Logger
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
-	Driver   *managerdriver.Driver
+	Log            logr.Logger
+	Scheme         *runtime.Scheme
+	Recorder       record.EventRecorder
+	Driver         *managerdriver.Driver
+	ControllerName gatewayv1.GatewayController
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;update
@@ -213,7 +214,7 @@ func (r *HTTPRouteReconciler) validateRouteParentRefs(ctx context.Context, route
 	for _, parentRef := range route.Spec.ParentRefs {
 		parentStatus := gatewayv1.RouteParentStatus{
 			ParentRef:      parentRef,
-			ControllerName: ControllerName,
+			ControllerName: r.ControllerName,
 			Conditions:     []metav1.Condition{},
 		}
 
@@ -240,12 +241,13 @@ func (r *HTTPRouteReconciler) validateRouteParentRefs(ctx context.Context, route
 				Namespace: parentRefNamespace,
 			})
 
-			// TODO: Get the gateway from the store to limit the number of API calls
-			gw := &gatewayv1.Gateway{}
-			err := r.Client.Get(ctx, types.NamespacedName{
+			gwKey := types.NamespacedName{
 				Name:      parentRefName,
 				Namespace: parentRefNamespace,
-			}, gw)
+			}
+
+			gw := &gatewayv1.Gateway{}
+			err := r.Client.Get(ctx, gwKey, gw)
 
 			if err != nil {
 				if client.IgnoreNotFound(err) != nil {
@@ -262,6 +264,13 @@ func (r *HTTPRouteReconciler) validateRouteParentRefs(ctx context.Context, route
 					"",
 				)
 				break
+			}
+
+			// Gateway exists - check if it's managed by us (exists in our store)
+			// If not, skip this parentRef entirely - another controller should handle it
+			if !r.Driver.HasGateway(gwKey) {
+				parentRefLog.V(5).Info("Gateway not managed by this controller, skipping parentRef")
+				continue
 			}
 
 			// Find the listener that matches the parentRef
@@ -342,20 +351,14 @@ func (r *HTTPRouteReconciler) findHTTPRouteForGateway(ctx context.Context, o cli
 		"gateway.gatewayClassName", gw.Spec.GatewayClassName,
 	)
 
-	gwc := &gatewayv1.GatewayClass{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc)
-	if err != nil {
-		log.Error(err, "Failed to get GatewayClass", "gatewayClassName", gw.Spec.GatewayClassName)
-		return nil
-	}
-
-	if !ShouldHandleGatewayClass(gwc) {
-		log.V(5).Info("GatewayClass is not handled by this controller, ignoring")
+	// Check if this Gateway is in our store (meaning we manage it)
+	if !r.Driver.HasGateway(types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}) {
+		log.V(5).Info("Gateway not managed by this controller, ignoring")
 		return nil
 	}
 
 	routes := &gatewayv1.HTTPRouteList{}
-	err = r.Client.List(ctx, &gatewayv1.HTTPRouteList{})
+	err := r.Client.List(ctx, routes)
 	if err != nil {
 		log.Error(err, "Failed to list HTTPRoutes")
 		return nil

@@ -17,8 +17,8 @@ import (
 
 var _ = Describe("HTTPRoute controller", Ordered, func() {
 	const (
-		ManagedControllerName   = ControllerName
-		UnmanagedControllerName = "k8s.io/some-other-controller"
+		ManagedControllerName   gatewayv1.GatewayController = testutils.DefaultGatewayControllerName
+		UnmanagedControllerName                             = "k8s.io/some-other-controller"
 
 		timeout  = 10 * time.Second
 		duration = 10 * time.Second
@@ -183,6 +183,75 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 					g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 					g.Expect(cond.Reason).To(Equal(string(gatewayv1.RouteReasonInvalidKind)))
 				}, timeout, interval).Should(Succeed())
+			})
+		})
+	})
+
+	When("the gateway's gateway class is not managed by us", Ordered, func() {
+		var (
+			unmanagedGatewayClass *gatewayv1.GatewayClass
+			unmanagedGateway      *gatewayv1.Gateway
+			unmanagedRoute        *gatewayv1.HTTPRoute
+		)
+
+		BeforeAll(func(ctx SpecContext) {
+			// Create GatewayClass with different controller name
+			unmanagedGatewayClass = testutils.NewGatewayClass(false)
+			Expect(k8sClient.Create(ctx, unmanagedGatewayClass)).To(Succeed())
+
+			// Create Gateway referencing unmanaged GatewayClass
+			unmanagedGateway = newGateway(unmanagedGatewayClass)
+			Expect(k8sClient.Create(ctx, unmanagedGateway)).To(Succeed())
+		})
+
+		AfterAll(func(ctx SpecContext) {
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, unmanagedRoute))).To(Succeed())
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, unmanagedGateway))).To(Succeed())
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, unmanagedGatewayClass))).To(Succeed())
+		})
+
+		When("the route references the unmanaged gateway", func() {
+			BeforeEach(func(ctx SpecContext) {
+				unmanagedRoute = &gatewayv1.HTTPRoute{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testutils.RandomName("httproute-unmanaged"),
+						Namespace: "default",
+					},
+					Spec: gatewayv1.HTTPRouteSpec{
+						CommonRouteSpec: gatewayv1.CommonRouteSpec{
+							ParentRefs: []gatewayv1.ParentReference{
+								{
+									Name: gatewayv1.ObjectName(unmanagedGateway.Name),
+								},
+							},
+						},
+						Rules: []gatewayv1.HTTPRouteRule{
+							{
+								Matches: []gatewayv1.HTTPRouteMatch{
+									{
+										Path: &gatewayv1.HTTPPathMatch{},
+									},
+								},
+							},
+						},
+					},
+				}
+				Expect(k8sClient.Create(ctx, unmanagedRoute)).To(Succeed())
+			})
+
+			AfterEach(func(ctx SpecContext) {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, unmanagedRoute))).To(Succeed())
+			})
+
+			It("should not update the route status with our controller name", func(ctx SpecContext) {
+				Consistently(func(g Gomega) {
+					obj := &gatewayv1.HTTPRoute{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(unmanagedRoute), obj)).To(Succeed())
+					// Our controller should not write any parent status with our controller name
+					for _, parent := range obj.Status.Parents {
+						g.Expect(parent.ControllerName).NotTo(Equal(ManagedControllerName))
+					}
+				}, duration, interval).Should(Succeed())
 			})
 		})
 	})

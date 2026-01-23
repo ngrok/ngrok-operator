@@ -126,6 +126,11 @@ spec:
         {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
         - --ingress-watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
         {{- end }}
+        {{- /* DISABLED - Go code doesn't have this flag without the fix
+        {{- if .Values.gateway.enabled }}
+        - --gateway-controller-name={{ .Values.gateway.controllerName }}
+        {{- end }}
+        */ -}}
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
         - --zap-encoder={{ .Values.log.format }}

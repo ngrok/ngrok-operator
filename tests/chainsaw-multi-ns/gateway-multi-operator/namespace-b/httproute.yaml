@@ -1,0 +1,17 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httproute-b
+  namespace: namespace-b
+spec:
+  parentRefs:
+    - name: gateway-b
+      namespace: namespace-b
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: gateway-service-b
+          port: 80

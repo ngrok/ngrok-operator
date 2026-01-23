@@ -1,0 +1,13 @@
+{{- if and .Values.gateway.enabled .Values.gateway.gatewayClass.create }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: {{ .Values.gateway.gatewayClass.name }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+spec:
+  controllerName: {{ .Values.gateway.controllerName }}
+  {{- if .Values.gateway.gatewayClass.description }}
+  description: {{ .Values.gateway.gatewayClass.description | quote }}
+  {{- end }}
+{{- end }}

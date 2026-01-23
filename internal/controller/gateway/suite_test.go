@@ -158,28 +158,31 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&GatewayClassReconciler{
-		Client:   k8sManager.GetClient(),
-		Log:      logf.Log.WithName("controllers").WithName("GatewayClass"),
-		Recorder: k8sManager.GetEventRecorderFor("gatewayclass-controller"),
-		Scheme:   k8sManager.GetScheme(),
+		Client:         k8sManager.GetClient(),
+		Log:            logf.Log.WithName("controllers").WithName("GatewayClass"),
+		Recorder:       k8sManager.GetEventRecorderFor("gatewayclass-controller"),
+		Scheme:         k8sManager.GetScheme(),
+		ControllerName: testutils.DefaultGatewayControllerName,
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&GatewayReconciler{
-		Client:   k8sManager.GetClient(),
-		Log:      logf.Log.WithName("controllers").WithName("Gateway"),
-		Scheme:   k8sManager.GetScheme(),
-		Recorder: k8sManager.GetEventRecorderFor("gateway-controller"),
-		Driver:   driver,
+		Client:         k8sManager.GetClient(),
+		Log:            logf.Log.WithName("controllers").WithName("Gateway"),
+		Scheme:         k8sManager.GetScheme(),
+		Recorder:       k8sManager.GetEventRecorderFor("gateway-controller"),
+		Driver:         driver,
+		ControllerName: testutils.DefaultGatewayControllerName,
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&HTTPRouteReconciler{
-		Client:   k8sManager.GetClient(),
-		Log:      logf.Log.WithName("controllers").WithName("HTTPRoute"),
-		Scheme:   k8sManager.GetScheme(),
-		Recorder: k8sManager.GetEventRecorderFor("httproute-controller"),
-		Driver:   driver,
+		Client:         k8sManager.GetClient(),
+		Log:            logf.Log.WithName("controllers").WithName("HTTPRoute"),
+		Scheme:         k8sManager.GetScheme(),
+		Recorder:       k8sManager.GetEventRecorderFor("httproute-controller"),
+		Driver:         driver,
+		ControllerName: testutils.DefaultGatewayControllerName,
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 

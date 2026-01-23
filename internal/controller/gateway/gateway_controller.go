@@ -48,18 +48,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 )
 
-const (
-	ControllerName gatewayv1.GatewayController = "ngrok.com/gateway-controller"
-)
-
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
 	client.Client
 
-	Log      logr.Logger
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
-	Driver   *managerdriver.Driver
+	Log            logr.Logger
+	Scheme         *runtime.Scheme
+	Recorder       record.EventRecorder
+	Driver         *managerdriver.Driver
+	ControllerName gatewayv1.GatewayController
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -116,7 +113,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if !ShouldHandleGatewayClass(gwClass) {
+	if !shouldHandleGatewayClass(gwClass, r.ControllerName) {
 		log.V(1).Info("unsupported gatewayclass controllername, ignoring", "gatewayclass", gwClass.Name, "controllername", gwClass.Spec.ControllerName)
 		return ctrl.Result{}, nil
 	}

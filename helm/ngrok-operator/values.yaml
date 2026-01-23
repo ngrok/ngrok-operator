@@ -338,10 +338,19 @@ agent:
 ## @extra useExperimentalGatewayApi DEPRECATED: Use gateway.enabled instead
 ## @param gateway.enabled When true, Gateway API support will be enabled if the CRDs are detected. When false, Gateway API support will never be enabled
 ## @param gateway.disableReferenceGrants When true, disables required ReferenceGrants for cross-namespace references. Does nothing when gateway.enabled is false
+## @param gateway.controllerName The controller name for the GatewayClass. Must be unique per operator instance.
+## @param gateway.gatewayClass.name The name of the GatewayClass to create
+## @param gateway.gatewayClass.create Whether to create the GatewayClass
+## @param gateway.gatewayClass.description Description for the GatewayClass
 ##
 gateway:
   enabled: true # Enabled by default if the Gateway API CRDs are detected
   disableReferenceGrants: false
+  controllerName: "ngrok.com/gateway-controller"
+  gatewayClass:
+    name: ngrok
+    create: true
+    description: "The ngrok GatewayClass"
 
 ##
 ## @section Kubernetes Bindings feature configuration

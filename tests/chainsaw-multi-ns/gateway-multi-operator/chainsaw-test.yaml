@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: multi-ns-gateway-multi-operator
+spec:
+  description: |
+    Tests that operators only reconcile Gateway API resources (Gateways and HTTPRoutes)
+    belonging to their configured GatewayClass controllerName.
+    
+    - Operator A manages ngrok-gatewayclass-a with controllerName "ngrok.com/gateway-controller-a"
+    - Operator B manages ngrok-gatewayclass-b with controllerName "ngrok.com/gateway-controller-b"
+    
+    A Gateway in namespace-a using GatewayClass-B (cross-wired) should NOT be reconciled
+    by Operator A since it only watches namespace-a but the GatewayClass belongs to Operator B.
+  steps:
+    - name: create resources in namespace-a
+      try:
+        - create: { file: ./namespace-a/deployment.yaml }
+        - create: { file: ./namespace-a/service.yaml }
+        - create: { file: ./namespace-a/gateway.yaml }
+        - create: { file: ./namespace-a/httproute.yaml }
+
+    - name: create resources in namespace-b
+      try:
+        - create: { file: ./namespace-b/deployment.yaml }
+        - create: { file: ./namespace-b/service.yaml }
+        - create: { file: ./namespace-b/gateway.yaml }
+        - create: { file: ./namespace-b/httproute.yaml }
+
+    - name: create cross-wired resources
+      description: |
+        Create a Gateway in namespace-a that references GatewayClass-B.
+        This Gateway should NOT be reconciled by Operator A (wrong GatewayClass)
+        and also NOT by Operator B (namespace-b watch only).
+      try:
+        - create: { file: ./cross-wired/gateway-cross.yaml }
+        - create: { file: ./cross-wired/httproute-cross.yaml }
+
+    - name: verify gateway-a is accepted
+      try:
+        - assert:
+            timeout: 120s
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: Gateway
+              metadata:
+                name: gateway-a
+                namespace: namespace-a
+              status:
+                "(length(to_array(conditions)[?type=='Accepted' && status=='True']) > `0`)": true
+                "(length(to_array(addresses)[?type=='Hostname']) > `0`)": true
+
+    - name: verify httproute-a is accepted
+      try:
+        - assert:
+            timeout: 60s
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: HTTPRoute
+              metadata:
+                name: httproute-a
+                namespace: namespace-a
+              status:
+                "(length(to_array(parents)[?controllerName=='ngrok.com/gateway-controller-a']) > `0`)": true
+
+    - name: verify gateway-b is accepted
+      try:
+        - assert:
+            timeout: 120s
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: Gateway
+              metadata:
+                name: gateway-b
+                namespace: namespace-b
+              status:
+                "(length(to_array(conditions)[?type=='Accepted' && status=='True']) > `0`)": true
+                "(length(to_array(addresses)[?type=='Hostname']) > `0`)": true
+
+    - name: verify httproute-b is accepted
+      try:
+        - assert:
+            timeout: 60s
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: HTTPRoute
+              metadata:
+                name: httproute-b
+                namespace: namespace-b
+              status:
+                "(length(to_array(parents)[?controllerName=='ngrok.com/gateway-controller-b']) > `0`)": true
+
+    - name: verify cross-wired gateway is NOT accepted
+      description: |
+        The cross-wired Gateway (namespace-a + GatewayClass-B) should NOT be accepted
+        by either operator. It should have no Accepted=True conditions and no addresses.
+      try:
+        - assert:
+            timeout: 30s
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: Gateway
+              metadata:
+                name: gateway-cross
+                namespace: namespace-a
+              status:
+                "(status == null || length(to_array(conditions)[?type=='Accepted' && status=='True']) == `0`)": true
+                "(status == null || length(to_array(addresses)) == `0`)": true
+
+    - name: verify cross-wired httproute is NOT accepted
+      description: |
+        The HTTPRoute referencing the cross-wired gateway should have no parent status
+        from either operator.
+      try:
+        - assert:
+            timeout: 30s
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: HTTPRoute
+              metadata:
+                name: httproute-cross
+                namespace: namespace-a
+              status:
+                "(status == null || length(to_array(parents)) == `0`)": true
