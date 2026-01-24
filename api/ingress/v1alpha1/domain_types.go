@@ -75,7 +75,7 @@ type DomainStatus struct {
 	Region string `json:"region,omitempty"`
 
 	// ResolvesTo is the list of resolving targets for the domain
-	ResolvesTo *[]DomainResolvesToEntry `json:"ips,omitempty"`
+	ResolvesTo *[]DomainResolvesToEntry `json:"resolves_to,omitempty"`
 
 	// CNAMETarget is the CNAME target for the domain
 	CNAMETarget *string `json:"cnameTarget,omitempty"`
