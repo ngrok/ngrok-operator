@@ -53,6 +53,9 @@ type DomainSpec struct {
 	// Region is the region in which to reserve the domain
 	Region string `json:"region,omitempty"`
 
+	// ResolvesTo is the list of resolving targets for the domain
+	ResolvesTo *[]DomainResolvesToEntry `json:"resolves_to,omitempty"`
+
 	// DomainReclaimPolicy is the policy to use when the domain is deleted
 	// +kubebuilder:validation:Enum=Delete;Retain
 	// +kubebuilder:default=Delete
@@ -70,6 +73,9 @@ type DomainStatus struct {
 
 	// Region is the region in which the domain was created
 	Region string `json:"region,omitempty"`
+
+	// ResolvesTo is the list of resolving targets for the domain
+	ResolvesTo *[]DomainResolvesToEntry `json:"ips,omitempty"`
 
 	// CNAMETarget is the CNAME target for the domain
 	CNAMETarget *string `json:"cnameTarget,omitempty"`
@@ -113,6 +119,12 @@ type DomainStatusCertificateManagementStatus struct {
 	RenewsAt *metav1.Time `json:"renewsAt,omitempty"`
 	// ProvisioningJob contains information about the current provisioning job
 	ProvisioningJob *DomainStatusProvisioningJob `json:"provisioningJob,omitempty"`
+}
+
+// DomainResolvesToEntry contains a resolving target for this domain
+type DomainResolvesToEntry struct {
+	// Value is a point-of-presence alias, an IP address (coming soon), or an IP group alias (coming soon)
+	Value string `json:"value"`
 }
 
 // DomainStatusProvisioningJob contains information about a certificate provisioning job
