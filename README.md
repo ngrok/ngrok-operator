@@ -91,7 +91,7 @@ helm install ngrok-operator ngrok/ngrok-operator \
   --create-namespace \
   --set credentials.apiKey=$NGROK_API_KEY \
   --set credentials.authtoken=$NGROK_AUTHTOKEN \
-  --set useExperimentalGatewayApi=true
+  --set useExperimentalGatewayApi=true # gateway preview
 ```
 ### YAML Manifests
 
