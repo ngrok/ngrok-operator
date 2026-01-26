@@ -806,7 +806,7 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1alpha1.CloudEndpoint
 		},
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL:            publicURL,
-			PoolingEnabled: irVHost.EndpointPoolingEnabled,
+			PoolingEnabled: &irVHost.EndpointPoolingEnabled,
 			Metadata:       irVHost.Metadata,
 			Bindings:       irVHost.Bindings,
 		},

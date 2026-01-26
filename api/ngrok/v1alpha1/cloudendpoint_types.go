@@ -55,7 +55,7 @@ type CloudEndpointSpec struct {
 	// in the pool. A URL can only be shared across multiple Cloud Endpoints if they all have pooling enabled.
 	//
 	// +kubebuilder:validation:Optional
-	PoolingEnabled bool `json:"poolingEnabled"`
+	PoolingEnabled *bool `json:"poolingEnabled"`
 
 	// Allows inline definition of a TrafficPolicy object
 	TrafficPolicy *NgrokTrafficPolicySpec `json:"trafficPolicy,omitempty"`
