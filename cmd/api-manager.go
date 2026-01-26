@@ -391,10 +391,8 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		Recorder:              mgr.GetEventRecorderFor("kubernetes-operator-controller"),
 		Namespace:             opts.namespace,
 		NgrokClientset:        ngrokClientset,
-		DrainState:            drainState,
-		WatchNamespace:        opts.ingressWatchNamespace,
-		IngressControllerName: opts.ingressControllerName,
-		GatewayControllerName: string(gatewaycontroller.ControllerName),
+		DrainState:     drainState,
+		WatchNamespace: opts.ingressWatchNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KubernetesOperator")
 		os.Exit(1)

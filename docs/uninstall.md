@@ -386,12 +386,10 @@ Located in `internal/drain/drain.go`:
 
 ```go
 type Drainer struct {
-    Client                client.Client
-    Log                   logr.Logger
-    Policy                DrainPolicy  // "Delete" or "Retain"
-    WatchNamespace        string       // If set, only drain in this namespace
-    IngressControllerName string       // Used to find matching IngressClasses
-    GatewayControllerName string       // Used to find matching GatewayClasses
+    Client         client.Client
+    Log            logr.Logger
+    Policy         DrainPolicy  // "Delete" or "Retain"
+    WatchNamespace string       // If set, only drain in this namespace
 }
 
 func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error)
@@ -409,11 +407,11 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error)
 
 **Note:** In Delete mode, operator-managed resources are deleted *without* removing the finalizer first. This ensures the controller has a chance to clean up ngrok API resources during the delete reconcile.
 
-**Resource filtering (multi-operator correctness):**
+**Resource filtering:**
 - **Namespace filtering**: If `WatchNamespace` is set, only resources in that namespace are drained
-- **IngressClass filtering**: For Ingresses, only drains those using an IngressClass managed by this operator (matching `IngressControllerName`)
-- **GatewayClass filtering**: For Gateways and routes, only drains those using a GatewayClass managed by this operator (matching `GatewayControllerName`)
 - **Finalizer filtering**: For all resource types, only resources with the `k8s.ngrok.com/finalizer` are processed
+
+**Multi-operator note:** For user-owned resources (Ingress, Gateway, Routes), the drain only removes finalizers—it does not delete. If a finalizer is removed from a resource owned by a different operator that is not draining, that operator will simply re-add the finalizer during its next reconcile.
 
 ### Controller Integration
 

@@ -49,12 +49,6 @@ type Drainer struct {
 
 	// WatchNamespace limits draining to resources in this namespace (empty = all namespaces)
 	WatchNamespace string
-	// IngressControllerName is used to find IngressClasses managed by this operator
-	// (e.g., "k8s.ngrok.com/ingress-controller")
-	IngressControllerName string
-	// GatewayControllerName is used to find GatewayClasses managed by this operator
-	// (e.g., "ngrok.com/gateway-controller")
-	GatewayControllerName string
 }
 
 type DrainResult struct {
@@ -180,61 +174,12 @@ func (d *Drainer) drainOperatorResource(ctx context.Context, obj client.Object) 
 	return nil
 }
 
-// getIngressClassNames returns the names of IngressClasses managed by this operator.
-func (d *Drainer) getIngressClassNames(ctx context.Context) ([]string, error) {
-	if d.IngressControllerName == "" {
-		return nil, nil
-	}
-	var classes netv1.IngressClassList
-	if err := d.Client.List(ctx, &classes); err != nil {
-		return nil, fmt.Errorf("failed to list IngressClasses: %w", err)
-	}
-	var names []string
-	for _, class := range classes.Items {
-		if class.Spec.Controller == d.IngressControllerName {
-			names = append(names, class.Name)
-		}
-	}
-	return names, nil
-}
-
-// getGatewayClassNames returns the names of GatewayClasses managed by this operator.
-func (d *Drainer) getGatewayClassNames(ctx context.Context) ([]string, error) {
-	if d.GatewayControllerName == "" {
-		return nil, nil
-	}
-	var classes gatewayv1.GatewayClassList
-	if err := d.Client.List(ctx, &classes); err != nil {
-		if meta.IsNoMatchError(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to list GatewayClasses: %w", err)
-	}
-	var names []string
-	for _, class := range classes.Items {
-		if string(class.Spec.ControllerName) == d.GatewayControllerName {
-			names = append(names, class.Name)
-		}
-	}
-	return names, nil
-}
-
 // namespaceListOption returns a list option to filter by WatchNamespace if set.
 func (d *Drainer) namespaceListOption() []client.ListOption {
 	if d.WatchNamespace == "" {
 		return nil
 	}
 	return []client.ListOption{client.InNamespace(d.WatchNamespace)}
-}
-
-// containsString returns true if s is in the slice.
-func containsString(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
 
 func (d *Drainer) drainHTTPRoutes(ctx context.Context) (completed, total int, errs []error) {
@@ -247,29 +192,8 @@ func (d *Drainer) drainHTTPRoutes(ctx context.Context) (completed, total int, er
 		return 0, 0, []error{fmt.Errorf("failed to list HTTPRoutes: %w", err)}
 	}
 
-	// Get allowed gateway class names for filtering
-	gatewayClassNames, err := d.getGatewayClassNames(ctx)
-	if err != nil {
-		return 0, 0, []error{err}
-	}
-
-	// Build a map of gateway name -> class name
-	gatewayClasses := make(map[string]string)
-	if len(gatewayClassNames) > 0 {
-		var gateways gatewayv1.GatewayList
-		if err := d.Client.List(ctx, &gateways); err == nil {
-			for _, gw := range gateways.Items {
-				gatewayClasses[fmt.Sprintf("%s/%s", gw.Namespace, gw.Name)] = string(gw.Spec.GatewayClassName)
-			}
-		}
-	}
-
 	for i := range list.Items {
 		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		// Filter by parent gateway class if we have class filtering
-		if len(gatewayClassNames) > 0 && !d.routeMatchesGatewayClass(&list.Items[i], gatewayClasses, gatewayClassNames) {
 			continue
 		}
 		total++
@@ -282,39 +206,6 @@ func (d *Drainer) drainHTTPRoutes(ctx context.Context) (completed, total int, er
 	return
 }
 
-// routeMatchesGatewayClass checks if a route references a gateway that uses one of the allowed classes.
-func (d *Drainer) routeMatchesGatewayClass(route client.Object, gatewayClasses map[string]string, allowedClasses []string) bool {
-	// Get parent refs from the route
-	var parentRefs []gatewayv1.ParentReference
-	switch r := route.(type) {
-	case *gatewayv1.HTTPRoute:
-		parentRefs = r.Spec.ParentRefs
-	case *gatewayv1alpha2.TCPRoute:
-		parentRefs = r.Spec.ParentRefs
-	case *gatewayv1alpha2.TLSRoute:
-		parentRefs = r.Spec.ParentRefs
-	default:
-		return false
-	}
-
-	for _, ref := range parentRefs {
-		if ref.Kind != nil && *ref.Kind != "Gateway" {
-			continue
-		}
-		ns := route.GetNamespace()
-		if ref.Namespace != nil {
-			ns = string(*ref.Namespace)
-		}
-		key := fmt.Sprintf("%s/%s", ns, ref.Name)
-		if className, ok := gatewayClasses[key]; ok {
-			if containsString(allowedClasses, className) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (d *Drainer) drainTCPRoutes(ctx context.Context) (completed, total int, errs []error) {
 	list := &gatewayv1alpha2.TCPRouteList{}
 	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
@@ -325,28 +216,8 @@ func (d *Drainer) drainTCPRoutes(ctx context.Context) (completed, total int, err
 		return 0, 0, []error{fmt.Errorf("failed to list TCPRoutes: %w", err)}
 	}
 
-	// Get allowed gateway class names for filtering
-	gatewayClassNames, err := d.getGatewayClassNames(ctx)
-	if err != nil {
-		return 0, 0, []error{err}
-	}
-
-	// Build a map of gateway name -> class name
-	gatewayClasses := make(map[string]string)
-	if len(gatewayClassNames) > 0 {
-		var gateways gatewayv1.GatewayList
-		if err := d.Client.List(ctx, &gateways); err == nil {
-			for _, gw := range gateways.Items {
-				gatewayClasses[fmt.Sprintf("%s/%s", gw.Namespace, gw.Name)] = string(gw.Spec.GatewayClassName)
-			}
-		}
-	}
-
 	for i := range list.Items {
 		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		if len(gatewayClassNames) > 0 && !d.routeMatchesGatewayClass(&list.Items[i], gatewayClasses, gatewayClassNames) {
 			continue
 		}
 		total++
@@ -369,28 +240,8 @@ func (d *Drainer) drainTLSRoutes(ctx context.Context) (completed, total int, err
 		return 0, 0, []error{fmt.Errorf("failed to list TLSRoutes: %w", err)}
 	}
 
-	// Get allowed gateway class names for filtering
-	gatewayClassNames, err := d.getGatewayClassNames(ctx)
-	if err != nil {
-		return 0, 0, []error{err}
-	}
-
-	// Build a map of gateway name -> class name
-	gatewayClasses := make(map[string]string)
-	if len(gatewayClassNames) > 0 {
-		var gateways gatewayv1.GatewayList
-		if err := d.Client.List(ctx, &gateways); err == nil {
-			for _, gw := range gateways.Items {
-				gatewayClasses[fmt.Sprintf("%s/%s", gw.Namespace, gw.Name)] = string(gw.Spec.GatewayClassName)
-			}
-		}
-	}
-
 	for i := range list.Items {
 		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		if len(gatewayClassNames) > 0 && !d.routeMatchesGatewayClass(&list.Items[i], gatewayClasses, gatewayClassNames) {
 			continue
 		}
 		total++
@@ -409,22 +260,9 @@ func (d *Drainer) drainIngresses(ctx context.Context) (completed, total int, err
 		return 0, 0, []error{fmt.Errorf("failed to list Ingresses: %w", err)}
 	}
 
-	// Get allowed IngressClass names for filtering
-	ingressClassNames, err := d.getIngressClassNames(ctx)
-	if err != nil {
-		return 0, 0, []error{err}
-	}
-
 	for i := range list.Items {
 		if !util.HasFinalizer(&list.Items[i]) {
 			continue
-		}
-		// Filter by IngressClass if we have class filtering
-		if len(ingressClassNames) > 0 {
-			className := list.Items[i].Spec.IngressClassName
-			if className == nil || !containsString(ingressClassNames, *className) {
-				continue
-			}
 		}
 		total++
 		if err := d.drainUserResource(ctx, &list.Items[i]); err != nil {
@@ -465,21 +303,9 @@ func (d *Drainer) drainGateways(ctx context.Context) (completed, total int, errs
 		return 0, 0, []error{fmt.Errorf("failed to list Gateways: %w", err)}
 	}
 
-	// Get allowed GatewayClass names for filtering
-	gatewayClassNames, err := d.getGatewayClassNames(ctx)
-	if err != nil {
-		return 0, 0, []error{err}
-	}
-
 	for i := range list.Items {
 		if !util.HasFinalizer(&list.Items[i]) {
 			continue
-		}
-		// Filter by GatewayClass if we have class filtering
-		if len(gatewayClassNames) > 0 {
-			if !containsString(gatewayClassNames, string(list.Items[i].Spec.GatewayClassName)) {
-				continue
-			}
 		}
 		total++
 		if err := d.drainUserResource(ctx, &list.Items[i]); err != nil {

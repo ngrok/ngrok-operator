@@ -87,10 +87,6 @@ type KubernetesOperatorReconciler struct {
 
 	// WatchNamespace limits draining to resources in this namespace (empty = all namespaces)
 	WatchNamespace string
-	// IngressControllerName is used to find IngressClasses managed by this operator
-	IngressControllerName string
-	// GatewayControllerName is used to find GatewayClasses managed by this operator
-	GatewayControllerName string
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -167,12 +163,10 @@ func (r *KubernetesOperatorReconciler) handleDrain(ctx context.Context, ko *ngro
 	policy := ko.GetDrainPolicy()
 
 	drainer := &drain.Drainer{
-		Client:                r.Client,
-		Log:                   log,
-		Policy:                policy,
-		WatchNamespace:        r.WatchNamespace,
-		IngressControllerName: r.IngressControllerName,
-		GatewayControllerName: r.GatewayControllerName,
+		Client:         r.Client,
+		Log:            log,
+		Policy:         policy,
+		WatchNamespace: r.WatchNamespace,
 	}
 
 	result, err := drainer.DrainAll(ctx)
