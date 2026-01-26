@@ -74,9 +74,9 @@ helm install ngrok-operator ngrok/ngrok-operator \
 
 For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 
-#### Gateway API Preview
+#### Gateway API
 
-To install the developer preview of the gateway api we'll make the following changes to the above instructions.
+To install the CRD of the gateway API we'll make the following changes to the above instructions.
 
 Install the v1 gateway CRD before the helm installation.
 ```sh
@@ -91,7 +91,7 @@ helm install ngrok-operator ngrok/ngrok-operator \
   --create-namespace \
   --set credentials.apiKey=$NGROK_API_KEY \
   --set credentials.authtoken=$NGROK_AUTHTOKEN \
-  --set useExperimentalGatewayApi=true  # gateway preview
+  --set useExperimentalGatewayApi=true
 ```
 ### YAML Manifests
 
@@ -109,10 +109,6 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 The full documentation for the ngrok Kubernetes Operator can be found on our [k8s docs](https://ngrok.com/docs/k8s/)
 
 ## Known Issues
-
-> **Note**
->
-> This project is currently in beta as we continue testing and receiving feedback. The functionality and CRD contracts may change. It is currently used internally at ngrok for providing ingress to some of our production workloads.
 
 1. Current issues can be found in the GitHub issues. [Known/suspected bugs](https://github.com/ngrok/ngrok-operator/issues?q=is%3Aopen+is%3Aissue+label%3Abug) are labeled as `bug`.
 
