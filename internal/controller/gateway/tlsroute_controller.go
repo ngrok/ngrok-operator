@@ -35,6 +35,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 )
 
@@ -93,13 +94,13 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}
 
 		// The object is not being deleted, so register and sync finalizer
-		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, tlsRoute); err != nil {
+		if err := util.RegisterAndSyncFinalizer(ctx, r.Client, tlsRoute); err != nil {
 			log.Error(err, "Failed to register finalizer")
 			return ctrl.Result{}, err
 		}
 	} else {
 		log.Info("deleting TLSRoute from store")
-		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, tlsRoute); err != nil {
+		if err := util.RemoveAndSyncFinalizer(ctx, r.Client, tlsRoute); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}

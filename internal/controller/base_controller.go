@@ -90,7 +90,7 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 	}
 
 	if IsUpsert(obj) {
-		if err := RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
+		if err := util.RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -109,7 +109,7 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 			}
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s", objName))
 		}
-	} else if HasFinalizer(obj) {
+	} else if util.HasFinalizer(obj) {
 		if self.StatusID != nil && self.StatusID(obj) != "" {
 			sid := self.StatusID(obj)
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s", objName))
@@ -123,7 +123,7 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted %s", objName))
 		}
 
-		if err := RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
+		if err := util.RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
 			return ctrl.Result{}, err
 		}
 	}

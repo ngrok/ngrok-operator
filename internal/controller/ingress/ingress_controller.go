@@ -8,6 +8,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	internalerrors "github.com/ngrok/ngrok-operator/internal/errors"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -115,7 +116,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// If being deleted, remove finalizer and delete from store
 	if controller.IsDelete(ingress) {
 		log.Info("Deleting ingress from store")
-		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+		if err := util.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
@@ -144,7 +145,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// The object is not being deleted, so register and sync finalizer
-	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+	if err := util.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
 		log.Error(err, "Failed to register finalizer")
 		return ctrl.Result{}, err
 	}

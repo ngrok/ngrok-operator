@@ -23,27 +23,10 @@ SOFTWARE.
 */
 
 // Package controller contains controller utilities.
-//
-// Deprecated: Finalizer utilities (HasFinalizer, RemoveFinalizer, etc.) are re-exported
-// from internal/util for backwards compatibility. New code should import
-// "github.com/ngrok/ngrok-operator/internal/util" directly.
 package controller
 
 import (
-	"github.com/ngrok/ngrok-operator/internal/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-)
-
-// Re-export finalizer utilities from internal/util for backwards compatibility.
-// New code should import internal/util directly.
-const FinalizerName = util.FinalizerName
-
-var (
-	HasFinalizer             = util.HasFinalizer
-	AddFinalizer             = util.AddFinalizer
-	RemoveFinalizer          = util.RemoveFinalizer
-	RegisterAndSyncFinalizer = util.RegisterAndSyncFinalizer
-	RemoveAndSyncFinalizer   = util.RemoveAndSyncFinalizer
 )
 
 // IsUpsert returns true if the object is being created or updated. That is, if the deletion timestamp is not set.

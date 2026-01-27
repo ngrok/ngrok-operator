@@ -25,7 +25,7 @@ package drain
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -58,8 +58,8 @@ func TestDrainResult(t *testing.T) {
 	t.Run("ErrorStrings", func(t *testing.T) {
 		r := &DrainResult{
 			Errors: []error{
-				fmt.Errorf("error 1"),
-				fmt.Errorf("error 2"),
+				errors.New("error 1"),
+				errors.New("error 2"),
 			},
 		}
 		strs := r.ErrorStrings()
