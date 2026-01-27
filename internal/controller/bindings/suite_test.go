@@ -35,6 +35,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
+	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -136,6 +137,18 @@ var _ = BeforeSuite(func() {
 		ClusterDomain: "cluster.local",
 	}
 	err = controllerReconciler.SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Setup Forwarder controller
+	forwarderReconciler := &ForwarderReconciler{
+		Client:                 k8sManager.GetClient(),
+		Scheme:                 k8sManager.GetScheme(),
+		Log:                    logf.Log.WithName("forwarder-controller"),
+		Recorder:               k8sManager.GetEventRecorderFor("forwarder-controller"),
+		BindingsDriver:         bindingsdriver.New(),
+		KubernetesOperatorName: "test-op",
+	}
+	err = forwarderReconciler.SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
 	// Setup BoundEndpoint poller with very long interval (we'll trigger manually)

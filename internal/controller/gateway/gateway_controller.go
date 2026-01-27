@@ -480,7 +480,7 @@ func secretReferencedByGateway(secret *v1.Secret, c client.Client) bool {
 					certRef.Namespace = &certNs
 				}
 				if string(certRef.Name) == secret.Name &&
-					string(*certRef.Namespace) == secret.Name &&
+					string(*certRef.Namespace) == secret.Namespace &&
 					secret.Type == v1.SecretTypeTLS {
 					return true
 				}
