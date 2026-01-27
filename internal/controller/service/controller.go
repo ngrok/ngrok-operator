@@ -573,7 +573,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 			Spec: ngrokv1alpha1.CloudEndpointSpec{
 				URL:            computedEndpointURL,
 				Bindings:       useBindings,
-				PoolingEnabled: &useEndpointPooling,
+				PoolingEnabled: useEndpointPooling,
 				TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: rawPolicy,
 				},

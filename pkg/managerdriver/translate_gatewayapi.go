@@ -149,7 +149,7 @@ func (t *translator) findMatchingVHostsForXRoute(
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.MappingStrategyAnnotation))
 		}
-		if useEndpointPooling {
+		if useEndpointPooling != nil && *useEndpointPooling {
 			t.log.Info(fmt.Sprintf("the following Gateway and its routes will create endpoint(s) with pooling enabled because of the %q annotation",
 				annotations.MappingStrategyAnnotation),
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
