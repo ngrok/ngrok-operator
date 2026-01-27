@@ -105,11 +105,15 @@ var _ = Describe("DomainReconciler", func() {
 
 				When("the domain spec includes a list of IP targets", func() {
 					JustBeforeEach(func() {
-						domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
-							{
-								Value: "us",
-							},
-						}
+						Eventually(func(g Gomega) {
+							g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), domain)).To(Succeed())
+							domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
+								{
+									Value: "us",
+								},
+							}
+							g.Expect(k8sClient.Update(ctx, domain)).To(Succeed())
+						}, timeout, interval).Should(Succeed())
 					})
 					It("should accept a list of IP targets", func() {
 						Expect(createDomainErr).ToNot(HaveOccurred())
@@ -123,7 +127,8 @@ var _ = Describe("DomainReconciler", func() {
 							g.Expect(foundDomain.Status.ID).To(MatchRegexp("^rd"))
 							g.Expect(foundDomain.Status.Domain).To(Equal(domainName))
 							g.Expect(foundDomain.Status.CNAMETarget).To(BeNil())
-							g.Expect(foundDomain.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
+							g.Expect(foundDomain.Status.ResolvesTo).ToNot(BeNil())
+							g.Expect(*foundDomain.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
 								{
 									Value: "us",
 								},

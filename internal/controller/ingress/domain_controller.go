@@ -152,6 +152,7 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 			Region:      domain.Spec.Region,
 			Description: domain.Spec.Description,
 			Metadata:    domain.Spec.Metadata,
+			ResolvesTo:  buildResolvesToRequest(domain.Spec.ResolvesTo),
 		}
 		resp, err = r.DomainsClient.Create(ctx, req)
 		if err != nil {
@@ -175,9 +176,11 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 		return r.updateStatus(ctx, domain, nil, err)
 	}
 
-	// Only update the domain if the description or metadata has changed
-	// These are the only fields that can be updated that we write to.
-	if domain.Spec.Description == resp.Description && domain.Spec.Metadata == resp.Metadata {
+	// Only update the domain if updatable fields have changed
+	specResolvesTo := buildResolvesToRequest(domain.Spec.ResolvesTo)
+	if domain.Spec.Description == resp.Description &&
+		domain.Spec.Metadata == resp.Metadata &&
+		resolvesToEqual(specResolvesTo, resp.ResolvesTo) {
 		// No changes needed, still update status to ensure conditions are current
 		return r.updateStatus(ctx, domain, resp, nil)
 	}
@@ -186,6 +189,7 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 		ID:          domain.Status.ID,
 		Description: &domain.Spec.Description,
 		Metadata:    &domain.Spec.Metadata,
+		ResolvesTo:  specResolvesTo,
 	}
 	resp, err = r.DomainsClient.Update(ctx, req)
 	return r.updateStatus(ctx, domain, resp, err)
@@ -223,6 +227,7 @@ func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Do
 		domain.Status.Domain = ngrokDomain.Domain
 		domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
 		domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
+		domain.Status.ResolvesTo = buildResolvesToStatus(ngrokDomain.ResolvesTo)
 
 		domain.Status.Certificate = buildCertificateInfo(ngrokDomain.Certificate)
 		domain.Status.CertificateManagementPolicy = buildCertificateManagementPolicy(ngrokDomain.CertificateManagementPolicy)
@@ -231,6 +236,48 @@ func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Do
 
 	updateDomainConditions(domain, ngrokDomain, createErr)
 	return r.controller.ReconcileStatus(ctx, domain, createErr)
+}
+
+func buildResolvesToStatus(resolvesTo []ngrok.ReservedDomainResolvesToEntry) *[]v1alpha1.DomainResolvesToEntry {
+	if len(resolvesTo) == 0 {
+		return nil
+	}
+
+	result := make([]v1alpha1.DomainResolvesToEntry, len(resolvesTo))
+	for i, entry := range resolvesTo {
+		result[i] = v1alpha1.DomainResolvesToEntry{
+			Value: entry.Value,
+		}
+	}
+	return &result
+}
+
+func buildResolvesToRequest(resolvesTo *[]v1alpha1.DomainResolvesToEntry) []ngrok.ReservedDomainResolvesToEntry {
+	if resolvesTo == nil || len(*resolvesTo) == 0 {
+		return nil
+	}
+
+	result := make([]ngrok.ReservedDomainResolvesToEntry, len(*resolvesTo))
+	for i, entry := range *resolvesTo {
+		result[i] = ngrok.ReservedDomainResolvesToEntry{
+			Value: entry.Value,
+		}
+	}
+	return result
+}
+
+// This is technically sensitive to ordering, however we respect
+// what the user gives to us.
+func resolvesToEqual(a, b []ngrok.ReservedDomainResolvesToEntry) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Value != b[i].Value {
+			return false
+		}
+	}
+	return true
 }
 
 func buildCertificateInfo(certificate *ngrok.Ref) *v1alpha1.DomainStatusCertificateInfo {
