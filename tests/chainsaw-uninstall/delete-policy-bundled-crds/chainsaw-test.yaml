@@ -1,0 +1,204 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: delete-policy-bundled-crds
+spec:
+  namespace: uninstall-test
+  skipDelete: true
+  timeouts:
+    apply: 2m
+    assert: 3m
+    delete: 2m
+    exec: 2m
+  steps:
+    # ============================================================
+    # PHASE 1: Setup - Deploy operator with Delete drain policy
+    # ============================================================
+    - name: deploy operator with drainPolicy Delete
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              cd "$(git rev-parse --show-toplevel)"
+
+              # Build and load image using make targets for consistency
+              make docker-build kind-load-image
+
+              # Install operator using base values + scenario-specific overrides
+              helm upgrade ngrok-operator-uninstall-test ./helm/ngrok-operator --install \
+                --namespace uninstall-test \
+                --create-namespace \
+                --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
+                --values ./tests/chainsaw-uninstall/delete-policy-bundled-crds/values.yaml \
+                --set credentials.apiKey=${NGROK_API_KEY} \
+                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --wait \
+                --timeout 2m
+
+    - name: wait for KubernetesOperator to be registered
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: KubernetesOperator
+              metadata:
+                namespace: uninstall-test
+              status:
+                registrationStatus: registered
+                (id != null): true
+
+    - name: capture KubernetesOperator ID for later verification
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              KO_ID=$(kubectl get kubernetesoperator -n uninstall-test -o jsonpath='{.items[0].status.id}')
+              echo "KubernetesOperator ID: $KO_ID"
+              echo "$KO_ID" > /tmp/ko-id-delete-bundled.txt
+
+    # ============================================================
+    # PHASE 2: Create resources that will be drained
+    # ============================================================
+    - name: create test resources
+      try:
+        - create:
+            file: ../_fixtures/backend-service.yaml
+        - create:
+            file: ../_fixtures/cloudendpoint.yaml
+        - create:
+            file: ../_fixtures/agentendpoint.yaml
+        - create:
+            file: ../_fixtures/ingress.yaml
+
+    - name: verify CloudEndpoint is ready
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: CloudEndpoint
+              metadata:
+                name: uninstall-test-cloud-ep
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+              status:
+                (id != null): true
+
+    - name: verify AgentEndpoint is ready
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: AgentEndpoint
+              metadata:
+                name: uninstall-test-agent-ep
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+              status:
+                (conditions[?type == 'Ready'] | [0].status): "True"
+
+    - name: verify Ingress has finalizer
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: networking.k8s.io/v1
+              kind: Ingress
+              metadata:
+                name: uninstall-test-ingress
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
+    - name: verify endpoints exist in ngrok API
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-agent-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress.internal"
+
+    # ============================================================
+    # PHASE 3: Trigger drain via helm uninstall
+    # ============================================================
+    - name: uninstall operator (triggers drain)
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              echo "Starting helm uninstall - this triggers the drain process..."
+              helm uninstall ngrok-operator-uninstall-test --namespace uninstall-test --wait --timeout 2m
+              echo "Helm uninstall completed"
+
+    # ============================================================
+    # PHASE 4: Verify drain with Delete policy cleaned up everything
+    # ============================================================
+    - name: verify Ingress finalizer was removed
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # Ingress is a core K8s resource, should still exist but without finalizer
+              if kubectl get ingress uninstall-test-ingress -n uninstall-test &>/dev/null; then
+                FINALIZERS=$(kubectl get ingress uninstall-test-ingress -n uninstall-test -o jsonpath='{.metadata.finalizers}')
+                if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
+                  echo "✓ Ingress finalizer removed"
+                else
+                  echo "✗ Ingress still has finalizers: $FINALIZERS"
+                  exit 1
+                fi
+              else
+                echo "✓ Ingress already deleted (namespace cleanup)"
+              fi
+
+    - name: verify endpoints deleted from ngrok API
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              # With Delete policy, endpoints should be removed from ngrok API
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-cloud-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress.internal"
+              echo "✓ All endpoints cleaned up successfully"
+
+    - name: verify CRDs removed with operator (bundled CRDs)
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # With bundled CRDs, they should be removed when operator is uninstalled
+              if kubectl get crds 2>/dev/null | grep -q "ngrok"; then
+                echo "✗ ngrok CRDs still exist:"
+                kubectl get crds | grep ngrok
+                exit 1
+              else
+                echo "✓ All ngrok CRDs removed"
+              fi
+
+    - name: verify KubernetesOperator deregistered from ngrok API
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              KO_ID=$(cat /tmp/ko-id-delete-bundled.txt)
+              echo "Verifying KubernetesOperator $KO_ID is deregistered..."
+              ../_fixtures/ngrok-api-helper.sh k8sop absent "$KO_ID"
+              rm -f /tmp/ko-id-delete-bundled.txt
+
+    # ============================================================
+    # PHASE 5: Cleanup
+    # ============================================================
+    - name: cleanup namespace
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              kubectl delete namespace uninstall-test --ignore-not-found --wait=false
+              echo "Cleanup complete"

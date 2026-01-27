@@ -1,0 +1,345 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: multi-ns-retain-policy
+spec:
+  description: |
+    Tests uninstalling one of two namespace-scoped operators with Retain drain policy.
+    - Two operators watching separate namespaces (namespace-a and namespace-b)
+    - CRDs installed separately
+    - Uninstall operator-a, verify operator-b continues working
+    - Verify operator-a's CloudEndpoint is PRESERVED in ngrok API (Retain policy)
+  namespace: namespace-a
+  skipDelete: true
+  timeouts:
+    apply: 2m
+    assert: 3m
+    delete: 2m
+    exec: 3m
+  steps:
+    # ============================================================
+    # PHASE 1: Setup - Install CRDs and both operators
+    # ============================================================
+    - name: install CRDs separately
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              cd "$(git rev-parse --show-toplevel)"
+              helm upgrade ngrok-operator-crds ./helm/ngrok-crds --install \
+                --namespace kube-system \
+                --wait --timeout 1m
+              echo "CRDs installed separately"
+
+    - name: create namespaces
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              kubectl create namespace namespace-a --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create namespace namespace-b --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: build and load operator image
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              cd "$(git rev-parse --show-toplevel)"
+              make docker-build kind-load-image
+
+    - name: deploy operator-a (watches namespace-a)
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              cd "$(git rev-parse --show-toplevel)"
+              helm upgrade ngrok-operator-a ./helm/ngrok-operator --install \
+                --namespace namespace-a \
+                --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
+                --values ./tests/chainsaw-uninstall/multi-ns-retain-policy/values-operator-a.yaml \
+                --set credentials.apiKey=${NGROK_API_KEY} \
+                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --wait --timeout 2m
+
+    - name: deploy operator-b (watches namespace-b)
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              cd "$(git rev-parse --show-toplevel)"
+              helm upgrade ngrok-operator-b ./helm/ngrok-operator --install \
+                --namespace namespace-b \
+                --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
+                --values ./tests/chainsaw-uninstall/multi-ns-retain-policy/values-operator-b.yaml \
+                --set credentials.apiKey=${NGROK_API_KEY} \
+                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --wait --timeout 2m
+
+    - name: wait for both KubernetesOperators to be registered
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: KubernetesOperator
+              metadata:
+                namespace: namespace-a
+              status:
+                registrationStatus: registered
+                (id != null): true
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: KubernetesOperator
+              metadata:
+                namespace: namespace-b
+              status:
+                registrationStatus: registered
+                (id != null): true
+
+    - name: capture KubernetesOperator IDs
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # Use release name to get the correct KubernetesOperator (not items[0])
+              KO_ID_A=$(kubectl get kubernetesoperator ngrok-operator-a -n namespace-a -o jsonpath='{.status.id}')
+              KO_ID_B=$(kubectl get kubernetesoperator ngrok-operator-b -n namespace-b -o jsonpath='{.status.id}')
+              echo "KubernetesOperator A ID: $KO_ID_A"
+              echo "KubernetesOperator B ID: $KO_ID_B"
+              echo "$KO_ID_A" > /tmp/ko-id-multi-ns-a.txt
+              echo "$KO_ID_B" > /tmp/ko-id-multi-ns-b.txt
+
+    # ============================================================
+    # PHASE 2: Create resources in both namespaces
+    # ============================================================
+    - name: create resources in namespace-a
+      try:
+        - create:
+            file: ../_fixtures/backend-service-a.yaml
+        - create:
+            file: ../_fixtures/cloudendpoint-a.yaml
+        - create:
+            file: ../_fixtures/ingress-a.yaml
+
+    - name: create resources in namespace-b
+      try:
+        - create:
+            file: ../_fixtures/backend-service-b.yaml
+        - create:
+            file: ../_fixtures/cloudendpoint-b.yaml
+        - create:
+            file: ../_fixtures/ingress-b.yaml
+
+    - name: verify CloudEndpoints are ready
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: CloudEndpoint
+              metadata:
+                name: uninstall-test-cloud-ep-a
+                namespace: namespace-a
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+              status:
+                (id != null): true
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: CloudEndpoint
+              metadata:
+                name: uninstall-test-cloud-ep-b
+                namespace: namespace-b
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+              status:
+                (id != null): true
+
+    - name: verify Ingresses have finalizers
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: networking.k8s.io/v1
+              kind: Ingress
+              metadata:
+                name: uninstall-test-ingress-a
+                namespace: namespace-a
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: networking.k8s.io/v1
+              kind: Ingress
+              metadata:
+                name: uninstall-test-ingress-b
+                namespace: namespace-b
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
+    - name: verify all endpoints exist in ngrok API
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-a.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-b.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-a.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-b.internal"
+
+    # ============================================================
+    # PHASE 3: Uninstall operator-a only
+    # ============================================================
+    - name: uninstall operator-a (triggers drain for namespace-a)
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              echo "Uninstalling operator-a..."
+              helm uninstall ngrok-operator-a --namespace namespace-a --wait --timeout 2m
+              echo "Operator-a uninstalled"
+
+    # ============================================================
+    # PHASE 4: Verify Retain policy behavior for operator-a
+    # ============================================================
+    - name: verify operator-a's CloudEndpoint CR exists WITHOUT finalizer (Retain)
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              if ! kubectl get cloudendpoint uninstall-test-cloud-ep-a -n namespace-a &>/dev/null; then
+                echo "✗ CloudEndpoint A was deleted unexpectedly"
+                exit 1
+              fi
+              FINALIZERS=$(kubectl get cloudendpoint uninstall-test-cloud-ep-a -n namespace-a -o jsonpath='{.metadata.finalizers}')
+              if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
+                echo "✓ CloudEndpoint A exists without finalizer"
+              else
+                echo "✗ CloudEndpoint A still has finalizers: $FINALIZERS"
+                exit 1
+              fi
+
+    - name: verify operator-a's Ingress finalizer removed
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              FINALIZERS=$(kubectl get ingress uninstall-test-ingress-a -n namespace-a -o jsonpath='{.metadata.finalizers}')
+              if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
+                echo "✓ Ingress A finalizer removed"
+              else
+                echo "✗ Ingress A still has finalizers: $FINALIZERS"
+                exit 1
+              fi
+
+    - name: verify operator-a's CloudEndpoint STILL EXISTS in ngrok API (Retain policy)
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-a.internal"
+              echo "✓ CloudEndpoint A preserved in ngrok API (Retain policy)"
+
+    - name: verify operator-a's Ingress endpoint is gone (ephemeral)
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress-a.internal"
+              echo "✓ Ingress A endpoint gone (ephemeral)"
+
+    - name: verify KubernetesOperator-a deregistered
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              KO_ID_A=$(cat /tmp/ko-id-multi-ns-a.txt)
+              ../_fixtures/ngrok-api-helper.sh k8sop absent "$KO_ID_A"
+
+    - name: verify operator-b's resources STILL EXIST with finalizers
+      try:
+        - assert:
+            timeout: 30s
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: CloudEndpoint
+              metadata:
+                name: uninstall-test-cloud-ep-b
+                namespace: namespace-b
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+              status:
+                (id != null): true
+        - assert:
+            timeout: 30s
+            resource:
+              apiVersion: networking.k8s.io/v1
+              kind: Ingress
+              metadata:
+                name: uninstall-test-ingress-b
+                namespace: namespace-b
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
+    - name: verify operator-b's endpoints STILL EXIST in ngrok API
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-b.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-b.internal"
+              echo "✓ Operator-b endpoints still working"
+
+    - name: verify KubernetesOperator-b still registered
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              KO_ID_B=$(cat /tmp/ko-id-multi-ns-b.txt)
+              ../_fixtures/ngrok-api-helper.sh k8sop exists "$KO_ID_B"
+
+    # ============================================================
+    # PHASE 5: Cleanup
+    # ============================================================
+    - name: cleanup retained CloudEndpoint from ngrok API
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-cloud-ep-a"
+
+    - name: uninstall operator-b
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              helm uninstall ngrok-operator-b --namespace namespace-b --wait --timeout 2m
+
+    - name: cleanup retained CloudEndpoint-b from ngrok API
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-cloud-ep-b"
+
+    - name: uninstall CRD chart
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              helm uninstall ngrok-operator-crds --namespace kube-system --wait --timeout 1m
+
+    - name: cleanup namespaces and temp files
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              kubectl delete namespace namespace-a namespace-b --ignore-not-found --wait=false
+              rm -f /tmp/ko-id-multi-ns-a.txt /tmp/ko-id-multi-ns-b.txt
+              echo "Cleanup complete"

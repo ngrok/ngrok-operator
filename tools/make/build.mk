@@ -10,13 +10,11 @@ build: preflight generate fmt vet _build ## Build binaries.
 
 .PHONY: _build
 _build:
-	go build -o bin/ngrok-operator -trimpath -ldflags "-s -w \
-		-X $(REPO_URL)/internal/version.gitCommit=$(GIT_COMMIT) \
-		-X $(REPO_URL)/internal/version.version=$(VERSION)"
+	VERSION=$(VERSION) GIT_COMMIT=$(GIT_COMMIT) $(SCRIPT_DIR)/build.sh
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	DOCKER_BUILDKIT=1 docker build -t ${IMG} .
+	DOCKER_BUILDKIT=1 docker build --build-arg GIT_COMMIT=$(GIT_COMMIT) -t ${IMG} .
 
 
 .PHONY: docker-push

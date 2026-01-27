@@ -385,12 +385,12 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 
 	// Always register the ngrok KubernetesOperator controller. It is independent of the feature set.
 	if err := (&ngrokcontroller.KubernetesOperatorReconciler{
-		Client:                mgr.GetClient(),
-		Log:                   ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
-		Scheme:                mgr.GetScheme(),
-		Recorder:              mgr.GetEventRecorderFor("kubernetes-operator-controller"),
-		Namespace:             opts.namespace,
-		NgrokClientset:        ngrokClientset,
+		Client:         mgr.GetClient(),
+		Log:            ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
+		Scheme:         mgr.GetScheme(),
+		Recorder:       mgr.GetEventRecorderFor("kubernetes-operator-controller"),
+		Namespace:      opts.namespace,
+		NgrokClientset: ngrokClientset,
 		DrainState:     drainState,
 		WatchNamespace: opts.ingressWatchNamespace,
 	}).SetupWithManager(mgr); err != nil {

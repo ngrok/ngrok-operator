@@ -1,0 +1,11 @@
+# Scenario: multi-ingressclass-retain-policy - Operator B
+# Watches all namespaces, scoped by ingress class
+
+drainPolicy: Retain
+installCRDs: false
+# No watchNamespace - watches all namespaces
+
+ingress:
+  controllerName: k8s.ngrok.com/ingress-controller-b
+  ingressClass:
+    name: ngrok-b
