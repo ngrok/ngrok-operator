@@ -1,8 +1,13 @@
 ##@ Linting/Formatting
 
 .PHONY: lint
-lint: ## Run golangci-lint linter & yamllint
+lint: lint-markers ## Run golangci-lint linter & yamllint
 	golangci-lint run
+
+
+.PHONY: lint-markers
+lint-markers: ## Lint kubebuilder markers for common typos
+	@go run ./tools/markerlint/cmd/markerlint ./api/...
 
 
 .PHONY: lint-fix
