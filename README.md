@@ -76,23 +76,10 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 
 #### Gateway API
 
-To enable using the `ngrok-operator` with the Kubernetes Gateway API, you need to install the Gateway CRDs if you haven't already, and then include `gateway.enabled` in your `helm --set` or `values.yaml`
+To enable using the ngrok-operator with the Kubernetes Gateway API, you need to install the Gateway CRDs if you haven't already, and then include `gateway.enabled` in your `helm --set` or `values.yaml`.
 
-Install the v1 gateway CRD before the helm installation.
-```sh
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
-```
+See the [Kubernetes Gateway API Quickstart](https://ngrok.com/docs/getting-started/kubernetes/gateway-api#standard) for setup and installation steps.
 
-Then, during the helm install set the experimental gateway flag.
-
-```sh
-helm install ngrok-operator ngrok/ngrok-operator \
-  --namespace $NAMESPACE \
-  --create-namespace \
-  --set credentials.apiKey=$NGROK_API_KEY \
-  --set credentials.authtoken=$NGROK_AUTHTOKEN \
-  --set useExperimentalGatewayApi=true  # gateway preview
-```
 ### YAML Manifests
 
 Apply the [sample combined manifest](manifest-bundle.yaml) from our repo:
