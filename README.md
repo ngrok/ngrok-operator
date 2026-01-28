@@ -76,7 +76,7 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 
 #### Gateway API
 
-To install the CRD of the gateway API we'll make the following changes to the above instructions.
+To enable using the `ngrok-operator` with the Kubernetes Gateway API, you need to install the Gateway CRDs if you haven't already, and then include `gateway.enabled` in your `helm --set` or `values.yaml`
 
 Install the v1 gateway CRD before the helm installation.
 ```sh
