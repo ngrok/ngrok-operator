@@ -42,6 +42,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/mux"
+	pb_agent "github.com/ngrok/ngrok-operator/internal/pb_agent"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
@@ -222,6 +223,24 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 		log.Info("Handling connnection")
 
+		clientIp := conn.RemoteAddr().(*net.TCPAddr).IP.String()
+
+		podList := &v1.PodList{}
+		if err := r.Client.List(ctx, podList, client.MatchingFields{"status.podIP": clientIp}); err != nil {
+			log.Error(err, "failed to list pods")
+			return err
+		}
+
+		var podIdentity *pb_agent.PodIdentity
+		if len(podList.Items) > 0 {
+			pod := &podList.Items[0]
+			podIdentity = podIdentityFromPod(pod, clientIp, log)
+		} else {
+			podIdentity = &pb_agent.PodIdentity{}
+		}
+
+		log.Info("Pod Identity", podIdentity)
+
 		ngrokConn, err := tlsDialer.Dial("tcp", ingressEndpoint)
 		if err != nil {
 			log.Error(err, "failed to dial ingress endpoint")
@@ -229,7 +248,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		}
 
 		// Upgrade the connection to a binding connection
-		resp, err := mux.UpgradeToBindingConnection(log, ngrokConn, host, port)
+		resp, err := mux.UpgradeToBindingConnection(log, ngrokConn, host, port, podIdentity)
 		log = log.WithValues("endpoint.id", resp.EndpointId, "proto", resp.Proto)
 		if err != nil {
 			log.Error(err, "failed to upgrade connection")
@@ -310,4 +329,30 @@ func joinConnections(log logr.Logger, conn1, conn2 net.Conn) error {
 		return err
 	})
 	return g.Wait()
+}
+
+// podIdentityFromPod extracts a PodIdentity from a Pod, pruning annotations
+// to only include keys with the prefix "k8s.ngrok.com/" and niling annotations
+// if the map size exceeds 4096 bytes. Exported for unit testing.
+func podIdentityFromPod(pod *v1.Pod, clientIp string, log logr.Logger) *pb_agent.PodIdentity {
+	// Scrape for only pod annotations with prefix k8.ngrok.com
+	for key := range pod.Annotations {
+		if !strings.HasPrefix(key, "k8s.ngrok.com/") {
+			log.Info("Removing pod annotation", "Key", key)
+			delete(pod.Annotations, key)
+		}
+	}
+
+	// Check if pod.Annotations size is greater than 4k
+	if len(pod.Annotations) > 4096 {
+		log.Info("Pod annotations size is greater than 4k", "Client ID", clientIp, "Annotations", pod.Annotations)
+		pod.Annotations = nil
+	}
+
+	return &pb_agent.PodIdentity{
+		Uid:         string(pod.UID),
+		Name:        pod.Name,
+		Namespace:   pod.Namespace,
+		Annotations: pod.Annotations,
+	}
 }
