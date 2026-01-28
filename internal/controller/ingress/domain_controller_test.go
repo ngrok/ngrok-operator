@@ -684,6 +684,77 @@ var _ = Describe("DomainReconciler", func() {
 		})
 	})
 
+	Describe("Internal Domain Deletion", func() {
+		It("should delete Domain CRDs with .internal TLD", func() {
+			// Create a domain with .internal TLD - this should be automatically deleted
+			domain := &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("test-internal-domain-%s", rand.String(10)),
+					Namespace: namespace,
+				},
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: "my-service.namespace.internal",
+				},
+			}
+			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+			// The domain should be deleted by the controller
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), &ingressv1alpha1.Domain{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "internal domain should be deleted")
+			}, timeout, interval).Should(Succeed())
+
+			// Verify the domain was never created in ngrok
+			iter := domainClient.List(&ngrok.Paging{})
+			for iter.Next(ctx) {
+				d := iter.Item()
+				Expect(d.Domain).ToNot(Equal("my-service.namespace.internal"),
+					"internal domain should not exist in ngrok")
+			}
+			Expect(iter.Err()).To(BeNil())
+		})
+
+		It("should delete Domain CRDs with uppercase .INTERNAL TLD", func() {
+			domain := &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("test-internal-upper-%s", rand.String(10)),
+					Namespace: namespace,
+				},
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: "my-service.namespace.INTERNAL",
+				},
+			}
+			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), &ingressv1alpha1.Domain{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "internal domain should be deleted")
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should NOT delete domains that contain 'internal' as a subdomain", func() {
+			// This is NOT an internal domain - it just has "internal" as a subdomain
+			domain := &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("test-not-internal-%s", rand.String(10)),
+					Namespace: namespace,
+				},
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: fmt.Sprintf("service.internal.%s", CustomDomainSuffix),
+				},
+			}
+			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+			// The domain should NOT be deleted - it should be created normally
+			Eventually(func(g Gomega) {
+				foundDomain := &ingressv1alpha1.Domain{}
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(foundDomain.Status.ID).ToNot(BeEmpty(), "non-internal domain should be created in ngrok")
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
 	Describe("Domain Creation Failures", func() {
 		var (
 			domain *ingressv1alpha1.Domain

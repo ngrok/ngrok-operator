@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"encoding/json"
+	"fmt"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -186,6 +187,31 @@ func NewGateway(name string, namespace string) gatewayv1.Gateway {
 					Protocol: gatewayv1.HTTPProtocolType,
 				},
 			},
+		},
+	}
+}
+
+// NewGatewayWithHostnames creates a Gateway with the specified hostnames as listeners.
+func NewGatewayWithHostnames(name string, namespace string, hostnames ...string) *gatewayv1.Gateway {
+	listeners := make([]gatewayv1.Listener, len(hostnames))
+	for i, hostname := range hostnames {
+		h := gatewayv1.Hostname(hostname)
+		listeners[i] = gatewayv1.Listener{
+			Name:     gatewayv1.SectionName(fmt.Sprintf("listener-%d", i)),
+			Hostname: &h,
+			Port:     443,
+			Protocol: gatewayv1.HTTPSProtocolType,
+		}
+	}
+
+	return &gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "ngrok",
+			Listeners:        listeners,
 		},
 	}
 }

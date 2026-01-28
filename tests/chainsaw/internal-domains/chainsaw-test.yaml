@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: internal-domains
+spec:
+  description: |
+    Verifies that Domain CRDs are NOT created for internal domain hostnames (.internal TLD).
+    Internal domains cannot be reserved via the ngrok API (returns HTTP 400).
+  steps:
+  - name: create test resources
+    try:
+    - create: { file: ./test-deployment.yaml }
+    - create: { file: ./test-service.yaml }
+    - create: { file: ./ingress-internal-only.yaml }
+    - create: { file: ./ingress-mixed-domains.yaml }
+
+  - name: verify no Domain CRD created for internal-only ingress
+    try:
+    - script:
+        timeout: 10s
+        content: |
+          # Wait a bit for the operator to process
+          sleep 3
+          # Check that no Domain CRD was created for the internal domain
+          if kubectl get domain foo-internal -n $NAMESPACE 2>/dev/null; then
+            echo "ERROR: Domain CRD was created for foo.internal, but should have been skipped"
+            exit 1
+          fi
+          echo "PASS: No Domain CRD created for foo.internal"
+
+  - name: verify Domain CRD created only for non-internal hostname in mixed ingress
+    try:
+    - script:
+        timeout: 15s
+        content: |
+          # Wait for the operator to process
+          sleep 3
+          # Check that no Domain CRD was created for the internal domain
+          if kubectl get domain service-namespace-internal -n $NAMESPACE 2>/dev/null; then
+            echo "ERROR: Domain CRD was created for service.namespace.internal, but should have been skipped"
+            exit 1
+          fi
+          echo "PASS: No Domain CRD created for service.namespace.internal"
+    - assert:
+        timeout: 30s
+        resource:
+          apiVersion: ingress.k8s.ngrok.com/v1alpha1
+          kind: Domain
+          metadata:
+            # The domain name gets hyphenated: app.example.com -> app-example-com
+            name: app-example-com
+          spec:
+            domain: app.example.com
+
+  # Note: Gateway API internal domain handling is covered by unit tests in pkg/managerdriver/domains_test.go
+  # Gateway API CRDs are not installed in the default e2e environment

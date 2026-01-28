@@ -165,7 +165,7 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 	}
 
 	// Skip internal domains
-	if strings.HasSuffix(parsedURL.Hostname(), ".internal") {
+	if util.IsInternalDomain(parsedURL.Hostname()) {
 		msg := "Domain ready (internal domain - no domain reservation needed)"
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)
