@@ -82,10 +82,12 @@ func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
 }
 
 func TestExtractUseEndpointPooling(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
 	tests := []struct {
 		name        string
 		annotations map[string]string
-		expected    bool
+		expected    *bool
 		expectedErr error
 	}{
 		{
@@ -93,7 +95,7 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 			annotations: map[string]string{
 				"k8s.ngrok.com/pooling-enabled": "true",
 			},
-			expected:    true,
+			expected:    boolPtr(true),
 			expectedErr: nil,
 		},
 		{
@@ -101,7 +103,7 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 			annotations: map[string]string{
 				"k8s.ngrok.com/pooling-enabled": "false",
 			},
-			expected:    false,
+			expected:    boolPtr(false),
 			expectedErr: nil,
 		},
 		{
@@ -109,13 +111,13 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 			annotations: map[string]string{
 				"k8s.ngrok.com/pooling-enabled": "foo",
 			},
-			expected:    false,
+			expected:    boolPtr(false),
 			expectedErr: nil,
 		},
 		{
 			name:        "Annotation not present",
 			annotations: nil,
-			expected:    false,
+			expected:    nil,
 			expectedErr: nil,
 		},
 	}
@@ -136,7 +138,12 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 				assert.Equal(t, tc.expectedErr, err)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tc.expected, useEndpoints)
+				if tc.expected == nil {
+					assert.Nil(t, useEndpoints)
+				} else {
+					require.NotNil(t, useEndpoints)
+					assert.Equal(t, *tc.expected, *useEndpoints)
+				}
 			}
 		})
 	}

@@ -186,7 +186,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 				Bindings:               []string{"public"},
 				Namespace:              "foo",
 				Metadata:               "test-metadata",
-				EndpointPoolingEnabled: true,
+				EndpointPoolingEnabled: ptr.To(true),
 				LabelsToAdd:            map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd:       map[string]string{"test-annotations": "test-annotation-val"},
 				Listener: ir.IRListener{
@@ -204,7 +204,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 				NamePrefix:             ptr.To("prefix"),
 				Namespace:              "foo",
 				Metadata:               "test-metadata",
-				EndpointPoolingEnabled: true,
+				EndpointPoolingEnabled: ptr.To(true),
 				LabelsToAdd:            map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd:       map[string]string{"test-annotations": "test-annotation-val"},
 				Listener: ir.IRListener{
@@ -569,7 +569,14 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedCLEP.Annotations, actualCLEP.Annotations)
 				assert.Equal(t, expectedCLEP.Spec.URL, actualCLEP.Spec.URL)
 				assert.Equal(t, expectedCLEP.Spec.TrafficPolicyName, actualCLEP.Spec.TrafficPolicyName)
-				assert.Equal(t, expectedCLEP.Spec.PoolingEnabled, actualCLEP.Spec.PoolingEnabled)
+				if expectedCLEP.Spec.PoolingEnabled == nil {
+					assert.Nil(t, actualCLEP.Spec.PoolingEnabled)
+				} else {
+					expectedPoolingEnabled := *expectedCLEP.Spec.PoolingEnabled
+					assert.NotNil(t, actualCLEP.Spec.PoolingEnabled)
+					actualPoolingEnabled := *actualCLEP.Spec.PoolingEnabled
+					assert.Equal(t, expectedPoolingEnabled, actualPoolingEnabled)
+				}
 				if expectedCLEP.Spec.TrafficPolicy != nil {
 					require.NotNil(t, actualCLEP.Spec.TrafficPolicy)
 					expectedTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
@@ -672,7 +679,14 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedCLEP.Annotations, actualCLEP.Annotations)
 				assert.Equal(t, expectedCLEP.Spec.URL, actualCLEP.Spec.URL)
 				assert.Equal(t, expectedCLEP.Spec.TrafficPolicyName, actualCLEP.Spec.TrafficPolicyName)
-				assert.Equal(t, expectedCLEP.Spec.PoolingEnabled, actualCLEP.Spec.PoolingEnabled)
+				if expectedCLEP.Spec.PoolingEnabled == nil {
+					assert.Nil(t, actualCLEP.Spec.PoolingEnabled)
+				} else {
+					expectedPoolingEnabled := *expectedCLEP.Spec.PoolingEnabled
+					assert.NotNil(t, actualCLEP.Spec.PoolingEnabled)
+					actualPoolingEnabled := *actualCLEP.Spec.PoolingEnabled
+					assert.Equal(t, expectedPoolingEnabled, actualPoolingEnabled)
+				}
 				if expectedCLEP.Spec.TrafficPolicy != nil {
 					require.NotNil(t, actualCLEP.Spec.TrafficPolicy)
 					expectedTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}

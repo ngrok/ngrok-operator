@@ -14,6 +14,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// boolPtrEqual compares two *bool values for equality.
+// Returns true if both are nil, or both are non-nil with the same value.
+func boolPtrEqual(a, b *bool) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
 // #region Ingresses to IR
 
 // ingressesToIR fetches all stored ingresses and translates them into IR for further processing and translation
@@ -35,7 +44,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.MappingStrategyAnnotation))
 		}
-		if useEndpointPooling {
+		if useEndpointPooling != nil && *useEndpointPooling {
 			t.log.Info(fmt.Sprintf("the following ingress will create endpoint(s) with pooling enabled because of the %q annotation",
 				annotations.MappingStrategyAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
@@ -97,7 +106,7 @@ func (t *translator) ingressToIR(
 	defaultDestination *ir.IRDestination,
 	hostCache map[ir.IRHostname]*ir.IRVirtualHost,
 	upstreamCache map[ir.IRServiceKey]*ir.IRUpstream,
-	endpointPoolingEnabled bool,
+	endpointPoolingEnabled *bool,
 	annotationTrafficPolicy *trafficpolicy.TrafficPolicy,
 	annotationTrafficPolicyRef *ir.OwningResource,
 	bindings []string,
@@ -131,7 +140,7 @@ func (t *translator) ingressToIR(
 				continue
 			}
 			// They must have the same configuration for whether or not to pool endpoints
-			if irVHost.EndpointPoolingEnabled != endpointPoolingEnabled {
+			if !boolPtrEqual(irVHost.EndpointPoolingEnabled, endpointPoolingEnabled) {
 				t.log.Error(errors.New("different endpoint pooling annotations provided for the same hostname"),
 					"when using the same hostname across multiple ingresses, ensure that they all enable or all disable endpoint pooling",
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),

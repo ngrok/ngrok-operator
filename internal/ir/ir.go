@@ -57,8 +57,9 @@ type IRVirtualHost struct {
 	// Defines how we should listen for incoming traffic
 	Listener IRListener
 
-	// Enables/disables endpoint pooling for endpoints created from this virtual host
-	EndpointPoolingEnabled bool
+	// Enables/disables endpoint pooling for endpoints created from this virtual host.
+	// nil means unset (use API default), non-nil means explicitly set.
+	EndpointPoolingEnabled *bool
 
 	// This traffic policy will apply to all routes under this hostname
 	TrafficPolicy *trafficpolicy.TrafficPolicy

@@ -94,6 +94,20 @@ spec:
               region:
                 description: Region is the region in which to reserve the domain
                 type: string
+              resolves_to:
+                description: ResolvesTo is the list of resolving targets for the domain
+                items:
+                  description: DomainResolvesToEntry contains a resolving target for
+                    this domain
+                  properties:
+                    value:
+                      description: Value is a point-of-presence alias, an IP address
+                        (coming soon), or an IP group alias (coming soon)
+                      type: string
+                  required:
+                  - value
+                  type: object
+                type: array
             required:
             - domain
             type: object
@@ -232,6 +246,20 @@ spec:
               region:
                 description: Region is the region in which the domain was created
                 type: string
+              resolves_to:
+                description: ResolvesTo is the list of resolving targets for the domain
+                items:
+                  description: DomainResolvesToEntry contains a resolving target for
+                    this domain
+                  properties:
+                    value:
+                      description: Value is a point-of-presence alias, an IP address
+                        (coming soon), or an IP group alias (coming soon)
+                      type: string
+                  required:
+                  - value
+                  type: object
+                type: array
             type: object
         type: object
     served: true

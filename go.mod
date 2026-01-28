@@ -8,7 +8,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/gobwas/glob v0.2.3
 	github.com/google/uuid v1.6.0
-	github.com/ngrok/ngrok-api-go/v7 v7.6.0
+	github.com/ngrok/ngrok-api-go/v7 v7.8.0
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
 	github.com/segmentio/ksuid v1.0.4
