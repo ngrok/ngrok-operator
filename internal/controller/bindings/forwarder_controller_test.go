@@ -56,19 +56,22 @@ func TestGetIngressEndpointWithFallback(t *testing.T) {
 }
 
 var _ = Describe("podIdentityFromPod", func() {
-	It("prunes non-prefixed annotations and returns PodIdentity", func() {
-		logger := logr.Discard()
-
-		pod := &v1.Pod{
+	var (
+		logger         = logr.Discard()
+		pod    *v1.Pod = &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
-				UID:       "uid123",
-				Name:      "pod1",
-				Namespace: "default",
-				Annotations: map[string]string{
-					"k8s.ngrok.com/keep": "yes",
-					"some.other/strip":   "no",
-				},
+				UID:         "uid123",
+				Name:        "pod1",
+				Namespace:   "default",
+				Annotations: map[string]string{},
 			},
+		}
+	)
+
+	It("prunes non-prefixed annotations and returns PodIdentity", func() {
+		pod.Annotations = map[string]string{
+			"k8s.ngrok.com/keep": "yes",
+			"some.other/strip":   "no",
 		}
 
 		pid := podIdentityFromPod(pod, "1.2.3.4", logger)
@@ -82,21 +85,10 @@ var _ = Describe("podIdentityFromPod", func() {
 	})
 
 	It("nil-s the annotations map when it is larger than 4096 entries", func() {
-		logger := logr.Discard()
-
 		// Create a map > 4096 entries
-		anns := make(map[string]string)
+		pod.Annotations = make(map[string]string)
 		for i := 0; i < 4100; i++ {
-			anns["k8s.ngrok.com/key"+strconv.Itoa(i)] = "val"
-		}
-
-		pod := &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				UID:         "uid456",
-				Name:        "pod2",
-				Namespace:   "default",
-				Annotations: anns,
-			},
+			pod.Annotations["k8s.ngrok.com/key"+strconv.Itoa(i)] = "val"
 		}
 
 		pid := podIdentityFromPod(pod, "1.2.3.4", logger)
