@@ -82,8 +82,7 @@ type PodIdentity struct {
 	Uid           string                 `protobuf:"bytes,1,opt,name=uid,proto3" json:"uid,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Namespace     string                 `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	Labels        map[string]string      `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Annotations   map[string]string      `protobuf:"bytes,5,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Annotations   map[string]string      `protobuf:"bytes,4,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -137,13 +136,6 @@ func (x *PodIdentity) GetNamespace() string {
 		return x.Namespace
 	}
 	return ""
-}
-
-func (x *PodIdentity) GetLabels() map[string]string {
-	if x != nil {
-		return x.Labels
-	}
-	return nil
 }
 
 func (x *PodIdentity) GetAnnotations() map[string]string {
@@ -231,16 +223,12 @@ const file_agent_conn_header_proto_rawDesc = "" +
 	"\vConnRequest\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\x03R\x04port\x125\n" +
-	"\fpod_identity\x18\x03 \x01(\v2\x12.agent.PodIdentityR\vpodIdentity\"\xcb\x02\n" +
+	"\fpod_identity\x18\x03 \x01(\v2\x12.agent.PodIdentityR\vpodIdentity\"\xd8\x01\n" +
 	"\vPodIdentity\x12\x10\n" +
 	"\x03uid\x18\x01 \x01(\tR\x03uid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
-	"\tnamespace\x18\x03 \x01(\tR\tnamespace\x126\n" +
-	"\x06labels\x18\x04 \x03(\v2\x1e.agent.PodIdentity.LabelsEntryR\x06labels\x12E\n" +
-	"\vannotations\x18\x05 \x03(\v2#.agent.PodIdentity.AnnotationsEntryR\vannotations\x1a9\n" +
-	"\vLabelsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
+	"\tnamespace\x18\x03 \x01(\tR\tnamespace\x12E\n" +
+	"\vannotations\x18\x04 \x03(\v2#.agent.PodIdentity.AnnotationsEntryR\vannotations\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x89\x01\n" +
@@ -264,23 +252,21 @@ func file_agent_conn_header_proto_rawDescGZIP() []byte {
 	return file_agent_conn_header_proto_rawDescData
 }
 
-var file_agent_conn_header_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_agent_conn_header_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_agent_conn_header_proto_goTypes = []any{
 	(*ConnRequest)(nil),  // 0: agent.ConnRequest
 	(*PodIdentity)(nil),  // 1: agent.PodIdentity
 	(*ConnResponse)(nil), // 2: agent.ConnResponse
-	nil,                  // 3: agent.PodIdentity.LabelsEntry
-	nil,                  // 4: agent.PodIdentity.AnnotationsEntry
+	nil,                  // 3: agent.PodIdentity.AnnotationsEntry
 }
 var file_agent_conn_header_proto_depIdxs = []int32{
 	1, // 0: agent.ConnRequest.pod_identity:type_name -> agent.PodIdentity
-	3, // 1: agent.PodIdentity.labels:type_name -> agent.PodIdentity.LabelsEntry
-	4, // 2: agent.PodIdentity.annotations:type_name -> agent.PodIdentity.AnnotationsEntry
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	3, // 1: agent.PodIdentity.annotations:type_name -> agent.PodIdentity.AnnotationsEntry
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_agent_conn_header_proto_init() }
@@ -294,7 +280,7 @@ func file_agent_conn_header_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_conn_header_proto_rawDesc), len(file_agent_conn_header_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
