@@ -10,6 +10,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strconv"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -53,6 +54,51 @@ func TestGetIngressEndpointWithFallback(t *testing.T) {
 		}
 	}
 }
+
+var _ = Describe("podIdentityFromPod", func() {
+	var (
+		logger         = logr.Discard()
+		pod    *v1.Pod = &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				UID:         "uid123",
+				Name:        "pod1",
+				Namespace:   "default",
+				Annotations: map[string]string{},
+			},
+		}
+	)
+
+	It("prunes non-prefixed annotations and returns PodIdentity", func() {
+		pod.Annotations = map[string]string{
+			"k8s.ngrok.com/keep": "yes",
+			"some.other/strip":   "no",
+		}
+
+		pid := podIdentityFromPod(pod, "1.2.3.4", logger)
+		Expect(pid).To(Not(BeNil()))
+		Expect(pid.Uid).To(Equal("uid123"))
+		Expect(pid.Name).To(Equal("pod1"))
+		Expect(pid.Namespace).To(Equal("default"))
+		Expect(pid.Annotations).To(Not(BeNil()))
+		Expect(pid.Annotations).To(HaveKey("k8s.ngrok.com/keep"))
+		Expect(pid.Annotations).To(Not(HaveKey("some.other/strip")))
+	})
+
+	It("nil-s the annotations map when it is larger than 4096 entries", func() {
+		// Create a map > 4096 entries
+		pod.Annotations = make(map[string]string)
+		for i := 0; i < 4100; i++ {
+			pod.Annotations["k8s.ngrok.com/key"+strconv.Itoa(i)] = "val"
+		}
+
+		pid := podIdentityFromPod(pod, "1.2.3.4", logger)
+		Expect(pid).To(Not(BeNil()))
+		Expect(pid.Uid).To(Equal("uid123"))
+		Expect(pid.Name).To(Equal("pod1"))
+		Expect(pid.Namespace).To(Equal("default"))
+		Expect(pid.Annotations).To(BeNil())
+	})
+})
 
 var _ = Describe("ForwarderReconciler field indexer integration", func() {
 	const ip = "10.2.2.2"

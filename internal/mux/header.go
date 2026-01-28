@@ -67,11 +67,11 @@ func (e *BindingUpgradeFailure) Error() string {
 // UpgradeToBindingConnection upgrades a connection to a binding connection by exchanging header information
 // with the server. It may return a BindingUpgradeFailure error if the server can't upgrade the connection. The
 // underlying connection may also return an error if the connection is closed or otherwise fails.
-func UpgradeToBindingConnection(log logr.Logger, conn net.Conn, host string, port int) (resp *pb_agent.ConnResponse, err error) {
+func UpgradeToBindingConnection(log logr.Logger, conn net.Conn, host string, port int, podIdentity *pb_agent.PodIdentity) (resp *pb_agent.ConnResponse, err error) {
 	resp = new(pb_agent.ConnResponse)
 
 	// Exchange the header information
-	err = WriteProxyMessage(conn, &pb_agent.ConnRequest{Host: host, Port: int64(port)})
+	err = WriteProxyMessage(conn, &pb_agent.ConnRequest{Host: host, Port: int64(port), PodIdentity: podIdentity})
 	if err != nil {
 		log.Error(err, "failed to write proxy message")
 		return
