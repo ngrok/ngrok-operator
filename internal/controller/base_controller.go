@@ -49,7 +49,12 @@ type BaseController[T client.Object] struct {
 	// Namespace is optional for controllers
 	Namespace *string
 
-	StatusID  func(obj T) string
+	// Retrieves the ngrok resource ID from the status of the object
+	StatusID func(obj T) string
+
+	// ClearStatus clears the status on the object after deletion
+	ClearStatus func(obj T)
+
 	Create    func(ctx context.Context, obj T) error
 	Update    func(ctx context.Context, obj T) error
 	Delete    func(ctx context.Context, obj T) error
@@ -73,27 +78,14 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 
 	log.V(1).Info("Reconciling Resource", "ID", self.StatusID(obj))
 
-	if IsUpsert(obj) {
-		if err := RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
-			return ctrl.Result{}, err
-		}
+	// If the cleanup annotation is present and the finalizer has been removed, we've already cleaned up
+	// and can skip further processing
+	if IsCleanedUp(obj) {
+		log.V(3).Info("Cleanup annotation present and finalizer removed, skipping further processing")
+		return ctrl.Result{}, nil
+	}
 
-		if self.StatusID != nil && self.StatusID(obj) == "" {
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating %s", objName))
-			if err := self.Create(ctx, obj); err != nil {
-				self.Recorder.Event(obj, v1.EventTypeWarning, "CreateError", fmt.Sprintf("Failed to Create %s: %s", objName, err.Error()))
-				return self.handleErr(CreateOp, obj, err)
-			}
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Created", fmt.Sprintf("Created %s", objName))
-		} else {
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Updating", fmt.Sprintf("Updating %s", objName))
-			if err := self.Update(ctx, obj); err != nil {
-				self.Recorder.Event(obj, v1.EventTypeWarning, "UpdateError", fmt.Sprintf("Failed to update %s: %s", objName, err.Error()))
-				return self.handleErr(UpdateOp, obj, err)
-			}
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s", objName))
-		}
-	} else if HasFinalizer(obj) {
+	if IsDelete(obj) || HasCleanupAnnotation(obj) {
 		if self.StatusID != nil && self.StatusID(obj) != "" {
 			sid := self.StatusID(obj)
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s", objName))
@@ -105,11 +97,35 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 				log.Info(fmt.Sprintf("%s not found, assuming it was already deleted", objFullName), "ID", sid)
 			}
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted %s", objName))
+			if self.ClearStatus != nil {
+				self.ClearStatus(obj)
+				if err := self.ReconcileStatus(ctx, obj, nil); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
 		}
 
-		if err := RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
-			return ctrl.Result{}, err
+		return ctrl.Result{}, RemoveAndSyncFinalizer(ctx, self.Kube, obj)
+	}
+
+	if err := RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if self.StatusID != nil && self.StatusID(obj) == "" {
+		self.Recorder.Event(obj, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating %s", objName))
+		if err := self.Create(ctx, obj); err != nil {
+			self.Recorder.Event(obj, v1.EventTypeWarning, "CreateError", fmt.Sprintf("Failed to Create %s: %s", objName, err.Error()))
+			return self.handleErr(CreateOp, obj, err)
 		}
+		self.Recorder.Event(obj, v1.EventTypeNormal, "Created", fmt.Sprintf("Created %s", objName))
+	} else {
+		self.Recorder.Event(obj, v1.EventTypeNormal, "Updating", fmt.Sprintf("Updating %s", objName))
+		if err := self.Update(ctx, obj); err != nil {
+			self.Recorder.Event(obj, v1.EventTypeWarning, "UpdateError", fmt.Sprintf("Failed to update %s: %s", objName, err.Error()))
+			return self.handleErr(UpdateOp, obj, err)
+		}
+		self.Recorder.Event(obj, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s", objName))
 	}
 
 	return ctrl.Result{}, nil

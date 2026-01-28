@@ -77,28 +77,35 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	tcpRoute, err = r.Driver.UpdateTCPRoute(tcpRoute)
-	if err != nil {
-		return ctrl.Result{}, err
+	if controller.IsCleanedUp(tcpRoute) {
+		log.V(3).Info("Finalizer not present, skipping cleanup as already done")
+		return ctrl.Result{}, nil
 	}
 
-	if controller.IsUpsert(tcpRoute) {
-		// The object is not being deleted, so register and sync finalizer
-		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
-			log.Error(err, "Failed to register finalizer")
+	if controller.IsDelete(tcpRoute) || controller.HasCleanupAnnotation(tcpRoute) {
+		log.Info("deleting TCPRoute from store")
+		if err := r.Driver.DeleteTCPRoute(tcpRoute); err != nil {
+			log.Error(err, "Failed to delete TCPRoute from store")
 			return ctrl.Result{}, err
 		}
-	} else {
-		log.Info("deleting TCPRoute from store")
+
 		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
 
-		// Remove it from the store
-		if err := r.Driver.DeleteTCPRoute(tcpRoute); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, nil
+	}
+
+	// The object is not being deleted, so register and sync finalizer
+	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
+		log.Error(err, "Failed to register finalizer")
+		return ctrl.Result{}, err
+	}
+
+	_, err = r.Driver.UpdateTCPRoute(tcpRoute)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	if err := r.Driver.Sync(ctx, r.Client); err != nil {

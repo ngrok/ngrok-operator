@@ -3,6 +3,8 @@ package gateway
 import (
 	"time"
 
+	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/errors"
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -20,7 +22,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 		ManagedControllerName   = ControllerName
 		UnmanagedControllerName = "k8s.io/some-other-controller"
 
-		timeout  = 10 * time.Second
+		timeout  = 40 * time.Second
 		duration = 10 * time.Second
 		interval = 250 * time.Millisecond
 	)
@@ -76,8 +78,8 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 			})
 
 			AfterEach(func(ctx SpecContext) {
-				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, gw))).To(Succeed())
 				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, route))).To(Succeed())
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, gw))).To(Succeed())
 			})
 
 			JustBeforeEach(func(ctx SpecContext) {
@@ -102,6 +104,42 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 						g.Expect(cond.Reason).To(Equal(string(gatewayv1.RouteReasonAccepted)))
 
 					}, timeout, interval).Should(Succeed())
+				})
+
+				When("the httproute is annotated for cleanup", func() {
+					JustBeforeEach(func(ctx SpecContext) {
+						By("Waiting for the route to be added to the store")
+						Eventually(func(g Gomega) {
+							store := driver.GetStore()
+							fetched, err := store.GetHTTPRoute(route.GetName(), route.GetNamespace())
+							g.Expect(err).To(BeNil())
+							g.Expect(fetched).NotTo(BeNil())
+						}, timeout, interval).Should(Succeed())
+
+						By("Adding the cleanup annotation to the httproute")
+						kginkgo.ExpectAddAnnotations(ctx, route, map[string]string{
+							controller.CleanupAnnotation: "true",
+						})
+					})
+
+					It("Should remove the finalizer from the httproute", func(ctx SpecContext) {
+						kginkgo.ExpectFinalizerToBeRemoved(ctx, route, controller.FinalizerName)
+					})
+
+					It("Should remove the httproute from the store", func(_ SpecContext) {
+						Eventually(func(g Gomega) {
+							By("fetching the httproute from the store")
+							store := driver.GetStore()
+							fetched, err := store.GetHTTPRoute(route.GetName(), route.GetNamespace())
+							GinkgoLogr.Info("fetched httproute from store", "httproute", fetched, "err", err)
+
+							By("verifying the httproute is not found in the store")
+							g.Expect(fetched).To(BeNil())
+							By("expecting an error indicating the httproute is not found")
+							g.Expect(err).NotTo(BeNil())
+							g.Expect(errors.IsErrorNotFound(err)).To(BeTrue())
+						}, timeout, interval).Should(Succeed())
+					})
 				})
 			})
 

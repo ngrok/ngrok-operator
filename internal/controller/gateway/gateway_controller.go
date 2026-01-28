@@ -97,16 +97,33 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	if controller.IsCleanedUp(gw) {
+		log.V(3).Info("Finalizer not present, skipping cleanup as already done")
+		return ctrl.Result{}, nil
+	}
+
 	// If the gateway is being deleted, remove the finalizer, delete it from the store and
 	// return early.
-	if controller.IsDelete(gw) {
+	if controller.IsDelete(gw) || controller.HasCleanupAnnotation(gw) {
 		log.Info("Deleting gateway from store")
+
+		if err := r.Driver.DeleteGateway(gw); err != nil {
+			log.Error(err, "Failed to delete gateway from store")
+			return ctrl.Result{}, err
+		}
+
+		gw.Status = gatewayv1.GatewayStatus{}
+		if err := r.updateGatewayStatus(ctx, gw); err != nil {
+			log.Error(err, "Failed to update gateway status")
+			return ctrl.Result{}, err
+		}
+
 		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
 
-		return ctrl.Result{}, r.Driver.DeleteGateway(gw)
+		return ctrl.Result{}, nil
 	}
 
 	log.V(1).Info("verifying gatewayclass")
@@ -368,8 +385,6 @@ func (r *GatewayReconciler) updateGatewayStatus(ctx context.Context, gw *gateway
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	storedResources := []client.Object{
 		&gatewayv1.GatewayClass{},
-		&gatewayv1.HTTPRoute{},
-		// &corev1.Service{},
 		&ingressv1alpha1.Domain{},
 	}
 

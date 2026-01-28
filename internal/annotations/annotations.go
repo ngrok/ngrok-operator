@@ -46,6 +46,8 @@ const (
 	TrafficPolicyAnnotation    = "k8s.ngrok.com/traffic-policy"
 	TrafficPolicyAnnotationKey = "traffic-policy"
 
+	CleanupAnnotation = "k8s.ngrok.com/cleanup"
+
 	// This annotation can be used on a service to control whether the endpoint is a TCP or TLS endpoint.
 	// Examples:
 	//   * tcp://1.tcp.ngrok.io:12345
@@ -131,4 +133,10 @@ func ExtractURL(obj client.Object) (string, error) {
 // an error.
 func ExtractComputedURL(obj client.Object) (string, error) {
 	return parser.GetStringAnnotation(ComputedURLKey, obj)
+}
+
+// HasCleanupAnnotation returns true if the object has the cleanup annotation set to "true".
+func HasCleanupAnnotation(o client.Object) bool {
+	anns := o.GetAnnotations()
+	return anns != nil && anns[CleanupAnnotation] == "true"
 }

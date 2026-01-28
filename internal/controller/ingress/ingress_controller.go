@@ -85,6 +85,25 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	if controller.IsCleanedUp(ingress) {
+		log.V(3).Info("Finalizer not present, skipping cleanup as already done")
+		return ctrl.Result{}, nil
+	}
+
+	if controller.IsDelete(ingress) || controller.HasCleanupAnnotation(ingress) {
+		log.Info("Deleting ingress from store")
+		if err := r.Driver.DeleteIngress(ingress); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+			log.Error(err, "Failed to remove finalizer")
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{}, nil
+	}
+
 	// Store the originally found ingress separately to use later
 	// incase there is an error updating and finding it below
 	originalFoundIngress := ingress
@@ -109,23 +128,10 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if controller.IsUpsert(ingress) {
-		// The object is not being deleted, so register and sync finalizer
-		if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
-			log.Error(err, "Failed to register finalizer")
-			return ctrl.Result{}, err
-		}
-	} else {
-		log.Info("Deleting ingress from store")
-		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
-			log.Error(err, "Failed to remove finalizer")
-			return ctrl.Result{}, err
-		}
-
-		// Remove it from the store
-		if err := r.Driver.DeleteIngress(ingress); err != nil {
-			return ctrl.Result{}, err
-		}
+	// The object is not being deleted, so register and sync finalizer
+	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, ingress); err != nil {
+		log.Error(err, "Failed to register finalizer")
+		return ctrl.Result{}, err
 	}
 
 	err = r.Driver.Sync(ctx, r.Client)

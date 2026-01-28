@@ -14,6 +14,7 @@ deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-imag
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
+		--set cleanupHook.enabled=true \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
@@ -49,6 +50,7 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup 
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
+		--set cleanupHook.enabled=true \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \

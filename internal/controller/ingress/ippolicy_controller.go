@@ -77,9 +77,12 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Recorder: r.Recorder,
 
 		StatusID: func(cr *ingressv1alpha1.IPPolicy) string { return cr.Status.ID },
-		Create:   r.create,
-		Update:   r.update,
-		Delete:   r.delete,
+		ClearStatus: func(cr *ingressv1alpha1.IPPolicy) {
+			cr.Status = ingressv1alpha1.IPPolicyStatus{}
+		},
+		Create: r.create,
+		Update: r.update,
+		Delete: r.delete,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -161,11 +164,7 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 }
 
 func (r *IPPolicyReconciler) delete(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
-	err := r.IPPoliciesClient.Delete(ctx, policy.Status.ID)
-	if err == nil || ngrok.IsNotFound(err) {
-		policy.Status.ID = ""
-	}
-	return err
+	return r.IPPoliciesClient.Delete(ctx, policy.Status.ID)
 }
 
 func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
