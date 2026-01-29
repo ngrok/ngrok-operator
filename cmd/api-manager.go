@@ -68,6 +68,7 @@ import (
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/drain"
+	"github.com/ngrok/ngrok-operator/internal/drainstate"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -327,8 +328,19 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
 	}
 
-	// Create drain state checker - all controllers will use this to check if draining
-	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.releaseName)
+	// Create drain orchestrator - handles the complete drain workflow.
+	// - orchestrator.State() is passed to other controllers for read-only drain checking
+	// - orchestrator is passed to KubernetesOperatorReconciler for executing drain
+	drainOrchestrator := drain.NewOrchestrator(drain.OrchestratorConfig{
+		Client:         mgr.GetClient(),
+		Recorder:       mgr.GetEventRecorderFor("drain-orchestrator"),
+		Log:            ctrl.Log.WithName("drain"),
+		Namespace:      opts.namespace,
+		ReleaseName:    opts.releaseName,
+		WatchNamespace: opts.ingressWatchNamespace,
+	})
+	// drainState is the read-only interface passed to all other controllers
+	drainState := drainOrchestrator.State()
 
 	// register the k8sop in the ngrok API
 	if err := createKubernetesOperator(ctx, k8sClient, opts); err != nil {
@@ -385,14 +397,14 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 
 	// Always register the ngrok KubernetesOperator controller. It is independent of the feature set.
 	if err := (&ngrokcontroller.KubernetesOperatorReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
-		Scheme:         mgr.GetScheme(),
-		Recorder:       mgr.GetEventRecorderFor("kubernetes-operator-controller"),
-		Namespace:      opts.namespace,
-		NgrokClientset: ngrokClientset,
-		DrainState:     drainState,
-		WatchNamespace: opts.ingressWatchNamespace,
+		Client:            mgr.GetClient(),
+		Log:               ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
+		Scheme:            mgr.GetScheme(),
+		Recorder:          mgr.GetEventRecorderFor("kubernetes-operator-controller"),
+		Namespace:         opts.namespace,
+		ReleaseName:       opts.releaseName,
+		NgrokClientset:    ngrokClientset,
+		DrainOrchestrator: drainOrchestrator,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KubernetesOperator")
 		os.Exit(1)
@@ -706,7 +718,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 }
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
-func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, drainState *drain.StateChecker) error {
+func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, drainState drainstate.State) error {
 	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
 	if err != nil {
 		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")

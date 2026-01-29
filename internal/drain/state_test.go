@@ -95,7 +95,9 @@ func TestStateChecker_DrainStatusDraining(t *testing.T) {
 	assert.True(t, checker.IsDraining(context.Background()))
 }
 
-func TestStateChecker_DeletionTimestampSet(t *testing.T) {
+func TestStateChecker_DeletionTimestampWithoutStatus(t *testing.T) {
+	// DeletionTimestamp alone does NOT make IsDraining return true.
+	// The controller must set DrainStatus first.
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
@@ -108,6 +110,7 @@ func TestStateChecker_DeletionTimestampSet(t *testing.T) {
 			Finalizers:        []string{"test-finalizer"},
 		},
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
+		// Status.DrainStatus is empty
 	}
 
 	client := fake.NewClientBuilder().
@@ -116,7 +119,8 @@ func TestStateChecker_DeletionTimestampSet(t *testing.T) {
 		Build()
 
 	checker := NewStateChecker(client, "ngrok-operator", "my-release")
-	assert.True(t, checker.IsDraining(context.Background()))
+	// Not draining yet because status hasn't been set
+	assert.False(t, checker.IsDraining(context.Background()))
 }
 
 func TestStateChecker_SetDraining(t *testing.T) {
@@ -131,8 +135,8 @@ func TestStateChecker_SetDraining(t *testing.T) {
 	checker := NewStateChecker(client, "ngrok-operator", "my-release")
 	assert.False(t, checker.IsDraining(context.Background()))
 
-	// But SetDraining can override this
-	checker.SetDraining(true)
+	// But SetDraining can override this (monotonic - once set, always true)
+	checker.SetDraining()
 	assert.True(t, checker.IsDraining(context.Background()))
 }
 

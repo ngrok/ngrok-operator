@@ -34,10 +34,8 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,7 +54,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
-	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 var featureMap = map[string]string{
@@ -82,12 +79,14 @@ type KubernetesOperatorReconciler struct {
 	// Namespace where the ngrok-operator is managing its resources
 	Namespace string
 
-	// DrainState is the shared drain state checker. The controller uses IsDraining()
-	// to detect drain mode and SetDraining(true) to trigger it.
-	DrainState *drain.StateChecker
+	// ReleaseName is the name of the KubernetesOperator CR this controller manages.
+	// The controller will only reconcile the KubernetesOperator CR with this name.
+	ReleaseName string
 
-	// WatchNamespace limits draining to resources in this namespace (empty = all namespaces)
-	WatchNamespace string
+	// DrainOrchestrator manages the complete drain workflow. It provides:
+	// - State() for read-only drain checking (passed to other controllers)
+	// - HandleDrain() for executing the drain workflow
+	DrainOrchestrator *drain.Orchestrator
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -110,12 +109,21 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Delete:   r.delete,
 	}
 
+	// Only reconcile the specific KubernetesOperator CR for this operator instance.
+	// This prevents operator-b from reconciling operator-a's KO during multi-operator deployments.
+	ownKOPredicate := predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		return obj.GetNamespace() == r.Namespace && obj.GetName() == r.ReleaseName
+	})
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ngrokv1alpha1.KubernetesOperator{}).
 		WithEventFilter(
-			predicate.Or(
-				predicate.AnnotationChangedPredicate{},
-				predicate.GenerationChangedPredicate{},
+			predicate.And(
+				ownKOPredicate,
+				predicate.Or(
+					predicate.AnnotationChangedPredicate{},
+					predicate.GenerationChangedPredicate{},
+				),
 			),
 		).
 		Complete(r)
@@ -128,108 +136,7 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("kubernetesoperator", req.NamespacedName)
-
-	ko := &ngrokv1alpha1.KubernetesOperator{}
-	if err := r.Client.Get(ctx, req.NamespacedName, ko); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	// Use the shared DrainState as the single source of truth for drain detection
-	if r.DrainState != nil && r.DrainState.IsDraining(ctx) {
-		return r.handleDrain(ctx, ko, log)
-	}
-
 	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.KubernetesOperator))
-}
-
-func (r *KubernetesOperatorReconciler) handleDrain(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, log logr.Logger) (ctrl.Result, error) {
-	// Ensure the drain state is set so all other controllers immediately see it
-	if r.DrainState != nil {
-		r.DrainState.SetDraining(true)
-	}
-	log.Info("Starting drain process")
-
-	if ko.Status.DrainStatus != ngrokv1alpha1.DrainStatusDraining {
-		ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusDraining
-		ko.Status.DrainMessage = "Drain in progress"
-		if err := r.Client.Status().Update(ctx, ko); err != nil {
-			return ctrl.Result{}, err
-		}
-		r.Recorder.Event(ko, v1.EventTypeNormal, "DrainStarted", "Starting drain of all managed resources")
-	}
-
-	policy := ko.GetDrainPolicy()
-
-	drainer := &drain.Drainer{
-		Client:         r.Client,
-		Log:            log,
-		Policy:         policy,
-		WatchNamespace: r.WatchNamespace,
-	}
-
-	result, err := drainer.DrainAll(ctx)
-	if err != nil {
-		ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusFailed
-		ko.Status.DrainMessage = fmt.Sprintf("Drain failed: %v", err)
-		ko.Status.DrainProgress = result.Progress()
-		if statusErr := r.Client.Status().Update(ctx, ko); statusErr != nil {
-			log.Error(statusErr, "Failed to update drain status")
-		}
-		r.Recorder.Event(ko, v1.EventTypeWarning, "DrainFailed", fmt.Sprintf("Drain failed: %v", err))
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, err
-	}
-
-	ko.Status.DrainProgress = result.Progress()
-	ko.Status.DrainErrors = result.ErrorStrings()
-
-	if result.HasErrors() {
-		ko.Status.DrainMessage = fmt.Sprintf("Drain completed with %d errors", result.Failed)
-		for _, err := range result.Errors {
-			log.Error(err, "Drain error")
-		}
-		if statusErr := r.Client.Status().Update(ctx, ko); statusErr != nil {
-			log.Error(statusErr, "Failed to update drain status")
-		}
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-	}
-
-	if !result.IsComplete() {
-		ko.Status.DrainMessage = "Drain in progress"
-		if statusErr := r.Client.Status().Update(ctx, ko); statusErr != nil {
-			log.Error(statusErr, "Failed to update drain status")
-		}
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
-	}
-
-	ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusCompleted
-	ko.Status.DrainMessage = "Drain completed successfully"
-	ko.Status.DrainErrors = nil
-	if err := r.Client.Status().Update(ctx, ko); err != nil {
-		return ctrl.Result{}, err
-	}
-	r.Recorder.Event(ko, v1.EventTypeNormal, "DrainCompleted", "All managed resources have been drained")
-	log.Info("Drain completed successfully", "progress", result.Progress())
-
-	if !ko.DeletionTimestamp.IsZero() {
-		log.Info("Deleting KubernetesOperator from ngrok API")
-		if ko.Status.ID != "" {
-			if err := r.NgrokClientset.KubernetesOperators().Delete(ctx, ko.Status.ID); err != nil {
-				if !ngrok.IsNotFound(err) {
-					return ctrl.Result{}, err
-				}
-			}
-		}
-
-		if util.RemoveFinalizer(ko) {
-			if err := r.Client.Update(ctx, ko); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-		log.Info("Finalizer removed, KubernetesOperator will be deleted")
-	}
-
-	return ctrl.Result{}, nil
 }
 
 func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (err error) {
@@ -303,11 +210,47 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1al
 }
 
 func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
-	err := r.NgrokClientset.KubernetesOperators().Delete(ctx, ko.Status.ID)
-	if err == nil || ngrok.IsNotFound(err) {
+	log := ctrl.LoggerFrom(ctx)
+
+	// Step 1: Initiate drain if not already started
+	if ko.Status.DrainStatus == "" {
+		log.Info("KubernetesOperator deletion detected, initiating drain")
+		ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusDraining
+		ko.Status.DrainMessage = "Drain initiated"
+		if err := r.Client.Status().Update(ctx, ko); err != nil {
+			return err
+		}
+	}
+
+	// Step 2: Run drain workflow (if not already completed)
+	if ko.Status.DrainStatus != ngrokv1alpha1.DrainStatusCompleted {
+		outcome, err := r.DrainOrchestrator.HandleDrain(ctx, ko)
+		if err != nil {
+			return err
+		}
+
+		switch outcome {
+		case drain.OutcomeRetry:
+			return errors.New("drain in progress, will retry")
+		case drain.OutcomeFailed:
+			return errors.New("drain failed, will retry")
+		case drain.OutcomeComplete:
+			// Continue to ngrok API deletion
+		}
+	}
+
+	// Step 3: Drain complete - delete from ngrok API
+	log.Info("Drain complete, deleting KubernetesOperator from ngrok API")
+	if ko.Status.ID != "" {
+		err := r.NgrokClientset.KubernetesOperators().Delete(ctx, ko.Status.ID)
+		if err != nil && !ngrok.IsNotFound(err) {
+			return err
+		}
 		ko.Status.ID = ""
 	}
-	return err
+
+	// BaseController will now remove the finalizer
+	return nil
 }
 
 // updateStatus fills in the status fields of the KubernetesOperator CRD based on the current state of the ngrok API and updates the status in k8s

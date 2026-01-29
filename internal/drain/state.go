@@ -85,8 +85,9 @@ func (s *StateChecker) IsDraining(ctx context.Context) bool {
 		return false
 	}
 
-	isDraining := !ko.DeletionTimestamp.IsZero() ||
-		ko.Status.DrainStatus == ngrokv1alpha1.DrainStatusDraining
+	// Only check the status field - DeletionTimestamp triggers setting the status,
+	// but the status is the source of truth for "is draining"
+	isDraining := ko.Status.DrainStatus == ngrokv1alpha1.DrainStatusDraining
 
 	if isDraining {
 		s.mu.Lock()
@@ -96,8 +97,12 @@ func (s *StateChecker) IsDraining(ctx context.Context) bool {
 	return isDraining
 }
 
-func (s *StateChecker) SetDraining(draining bool) {
+// SetDraining marks the operator as draining. This is monotonic - once set,
+// it cannot be unset. This ensures that once drain starts, all controllers
+// will see the draining state even if the KubernetesOperator CR is temporarily
+// unavailable.
+func (s *StateChecker) SetDraining() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.draining = draining
+	s.draining = true
 }
