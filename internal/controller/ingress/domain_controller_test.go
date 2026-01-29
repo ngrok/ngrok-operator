@@ -321,6 +321,13 @@ var _ = Describe("DomainReconciler", func() {
 			}
 
 			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+			// As a precondition to updates, we should be able to read our write.
+			Eventually(func(g Gomega) {
+				d := &ingressv1alpha1.Domain{}
+				g.Expect(k8sClient.Get(ctx, objKey, d)).To(Succeed())
+				g.Expect(d.Status.ID).ToNot(BeEmpty())
+			}, timeout, interval).Should(Succeed())
 		})
 
 		It("updates the domain metadata", func() {
@@ -355,27 +362,54 @@ var _ = Describe("DomainReconciler", func() {
 			}, timeout, interval).Should(Succeed())
 		})
 
-		It("updates the domain IPs", func() {
-			patch := client.MergeFrom(domain.DeepCopy())
-			domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
-				{
-					Value: "us",
-				},
-			}
-			Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
+		It("updates the domain ResolvesTo and reflects it in status", func() {
+			Eventually(func(g Gomega) {
+				patch := client.MergeFrom(domain.DeepCopy())
+				domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
+					{
+						Value: "us",
+					},
+				}
+				g.Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
 
 			Eventually(func(g Gomega) {
 				d := &ingressv1alpha1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				g.Expect(d.Spec.ResolvesTo).To(Equal(&[]ingressv1alpha1.DomainResolvesToEntry{
+				g.Expect(d.Status.ID).ToNot(BeEmpty())
+				g.Expect(d.Status.Domain).To(Equal(domainName))
+				g.Expect(d.Status.ResolvesTo).ToNot(BeNil())
+				g.Expect(*d.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
 					{
 						Value: "us",
 					},
 				}))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("updates the domain ResolvesTo with multiple entries", func() {
+			Eventually(func(g Gomega) {
+				patch := client.MergeFrom(domain.DeepCopy())
+				domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
+					{Value: "us"},
+					{Value: "eu"},
+				}
+				g.Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				d := &ingressv1alpha1.Domain{}
+				err := k8sClient.Get(ctx, objKey, d)
+				g.Expect(err).ToNot(HaveOccurred())
+
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
-				g.Expect(d.Status.Domain).To(Equal(domainName))
+				g.Expect(d.Status.ResolvesTo).ToNot(BeNil())
+				g.Expect(*d.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
+					{Value: "us"},
+					{Value: "eu"},
+				}))
 			}, timeout, interval).Should(Succeed())
 		})
 
