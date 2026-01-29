@@ -28,6 +28,16 @@ spec:
     exec: 3m
   steps:
     # ============================================================
+    # PHASE 0: Cleanup any conflicting state from previous runs
+    # ============================================================
+    - name: cleanup conflicting CRDs and helm releases
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/cleanup-cluster.sh namespace-a namespace-b
+
+    # ============================================================
     # PHASE 1: Setup - Install CRDs and both operators
     # ============================================================
     - name: install CRDs separately
@@ -61,8 +71,8 @@ spec:
             timeout: 2m
             content: |
               helm upgrade ngrok-operator-a ../../../helm/ngrok-operator --install \
-                --namespace operator-a \
-                --create-namespace \
+                --namespace namespace-a \
+                 \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values-operator-a.yaml \
                 --set credentials.apiKey=${NGROK_API_KEY} \
@@ -75,8 +85,8 @@ spec:
             timeout: 2m
             content: |
               helm upgrade ngrok-operator-b ../../../helm/ngrok-operator --install \
-                --namespace operator-b \
-                --create-namespace \
+                --namespace namespace-b \
+                 \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values-operator-b.yaml \
                 --set credentials.apiKey=${NGROK_API_KEY} \
@@ -91,7 +101,7 @@ spec:
               apiVersion: ngrok.k8s.ngrok.com/v1alpha1
               kind: KubernetesOperator
               metadata:
-                namespace: operator-a
+                namespace: namespace-a
               status:
                 registrationStatus: registered
                 (id != null): true
@@ -101,7 +111,7 @@ spec:
               apiVersion: ngrok.k8s.ngrok.com/v1alpha1
               kind: KubernetesOperator
               metadata:
-                namespace: operator-b
+                namespace: namespace-b
               status:
                 registrationStatus: registered
                 (id != null): true
@@ -111,8 +121,8 @@ spec:
         - script:
             timeout: 30s
             content: |
-              KO_ID_A=$(kubectl get kubernetesoperator ngrok-operator-a -n operator-a -o jsonpath='{.status.id}')
-              KO_ID_B=$(kubectl get kubernetesoperator ngrok-operator-b -n operator-b -o jsonpath='{.status.id}')
+              KO_ID_A=$(kubectl get kubernetesoperator ngrok-operator-a -n namespace-a -o jsonpath='{.status.id}')
+              KO_ID_B=$(kubectl get kubernetesoperator ngrok-operator-b -n namespace-b -o jsonpath='{.status.id}')
               echo "KubernetesOperator A ID: $KO_ID_A"
               echo "KubernetesOperator B ID: $KO_ID_B"
               echo "$KO_ID_A" > /tmp/ko-id-ingclass-a.txt
@@ -197,7 +207,7 @@ spec:
             timeout: 3m
             content: |
               echo "Uninstalling operator-a..."
-              helm uninstall ngrok-operator-a --namespace operator-a --wait --timeout 2m
+              helm uninstall ngrok-operator-a --namespace namespace-a --wait --timeout 2m
               echo "Operator-a uninstalled"
 
     # ============================================================
@@ -291,7 +301,7 @@ spec:
         - script:
             timeout: 3m
             content: |
-              helm uninstall ngrok-operator-b --namespace operator-b --wait --timeout 2m || true
+              helm uninstall ngrok-operator-b --namespace namespace-b --wait --timeout 2m || true
         - script:
             timeout: 2m
             content: |
@@ -299,5 +309,5 @@ spec:
         - script:
             timeout: 30s
             content: |
-              kubectl delete namespace namespace-a namespace-b operator-a operator-b --ignore-not-found --wait=false
+              kubectl delete namespace namespace-a namespace-b  --ignore-not-found --wait=false
               echo "Cleanup complete"

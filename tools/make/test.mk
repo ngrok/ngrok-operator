@@ -71,10 +71,8 @@ e2e-clean-uninstall: ## Force cleanup uninstall test resources
 	-helm uninstall ngrok-operator-uninstall-test --namespace $(UNINSTALL_NAMESPACE) 2>/dev/null || true
 	-helm uninstall ngrok-operator-a --namespace namespace-a 2>/dev/null || true
 	-helm uninstall ngrok-operator-b --namespace namespace-b 2>/dev/null || true
-	-helm uninstall ngrok-operator-a --namespace operator-a 2>/dev/null || true
-	-helm uninstall ngrok-operator-b --namespace operator-b 2>/dev/null || true
 	-helm uninstall ngrok-operator-crds --namespace kube-system 2>/dev/null || true
-	-kubectl delete namespace $(UNINSTALL_NAMESPACE) namespace-a namespace-b operator-a operator-b --ignore-not-found --wait=false
+	-kubectl delete namespace $(UNINSTALL_NAMESPACE) namespace-a namespace-b --ignore-not-found --wait=false
 	-rm -f /tmp/ko-id-*.txt
 	@echo "Uninstall test cleanup complete"
 

@@ -19,6 +19,16 @@ spec:
     exec: 3m
   steps:
     # ============================================================
+    # PHASE 0: Cleanup any conflicting state from previous runs
+    # ============================================================
+    - name: cleanup conflicting CRDs and helm releases
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/cleanup-cluster.sh namespace-a namespace-b
+
+    # ============================================================
     # PHASE 1: Setup - Install CRDs and both operators
     # ============================================================
     - name: install CRDs separately

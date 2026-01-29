@@ -13,6 +13,16 @@ spec:
     exec: 2m
   steps:
     # ============================================================
+    # PHASE 0: Cleanup any conflicting state from previous runs
+    # ============================================================
+    - name: cleanup conflicting CRDs and helm releases
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/cleanup-cluster.sh uninstall-test
+
+    # ============================================================
     # PHASE 1: Setup - Install CRDs separately, then operator
     # ============================================================
     - name: install Gateway API CRDs
@@ -94,8 +104,8 @@ spec:
             file: ../_fixtures/agentendpoint.yaml
         - create:
             file: ../_fixtures/ingress.yaml
-        # Gateway API resources
-        - create:
+        # Gateway API resources (use apply for cluster-scoped GatewayClass)
+        - apply:
             file: ../_fixtures/gateway-class.yaml
         - create:
             file: ../_fixtures/gateway.yaml
@@ -327,10 +337,12 @@ spec:
     # ============================================================
     # PHASE 6: Cleanup
     # ============================================================
-    - name: cleanup namespace
+    - name: cleanup resources
       try:
         - script:
-            timeout: 30s
+            timeout: 2m
             content: |
+              # Clean up cluster-scoped GatewayClass (don't wait, it can be slow)
+              kubectl delete gatewayclass ngrok --ignore-not-found --wait=false
               kubectl delete namespace uninstall-test --ignore-not-found --wait=false
               echo "Cleanup complete"

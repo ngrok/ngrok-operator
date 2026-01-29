@@ -318,6 +318,17 @@ func runOneClickDemoMode(ctx context.Context, mgr ctrl.Manager) error {
 
 // runNormalMode runs the operator in normal operation mode
 func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Client, mgr ctrl.Manager, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool) error {
+	// Warn if watchNamespace doesn't match the operator's installed namespace.
+	// The operator should be installed in the same namespace it watches to ensure
+	// the KubernetesOperator CR can be reconciled (the cache only watches the watchNamespace).
+	if opts.ingressWatchNamespace != "" && opts.ingressWatchNamespace != opts.namespace {
+		setupLog.Info("WARNING: watchNamespace does not match the operator's installed namespace. "+
+			"The operator should be installed in the same namespace it watches. "+
+			"KubernetesOperator reconciliation may not work correctly.",
+			"watchNamespace", opts.ingressWatchNamespace,
+			"operatorNamespace", opts.namespace)
+	}
+
 	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
 	if err != nil {
 		return err

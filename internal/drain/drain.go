@@ -26,12 +26,16 @@ package drain
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -158,8 +162,19 @@ func (d *Drainer) drainOperatorResource(ctx context.Context, obj client.Object) 
 			if client.IgnoreNotFound(err) != nil {
 				return fmt.Errorf("failed to delete %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 			}
+			// Already gone, nothing more to do
+			d.Log.V(1).Info("Resource already deleted", "namespace", obj.GetNamespace(), "name", obj.GetName())
+			return nil
 		}
-		d.Log.V(1).Info("Deleted operator resource", "namespace", obj.GetNamespace(), "name", obj.GetName())
+		d.Log.V(1).Info("Issued delete for operator resource", "namespace", obj.GetNamespace(), "name", obj.GetName())
+
+		// Wait for the resource to be fully deleted (finalizer removed by controller).
+		// This ensures the controller has finished processing the delete before we continue.
+		key := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
+		if err := d.waitForDeletion(ctx, obj, key); err != nil {
+			return fmt.Errorf("failed waiting for deletion of %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+		}
+		d.Log.V(1).Info("Resource fully deleted", "namespace", obj.GetNamespace(), "name", obj.GetName())
 
 	case ngrokv1alpha1.DrainPolicyRetain:
 		// Retain mode: Only remove finalizer so the CR can be garbage collected
@@ -173,6 +188,27 @@ func (d *Drainer) drainOperatorResource(ctx context.Context, obj client.Object) 
 		}
 	}
 	return nil
+}
+
+// waitForDeletion polls until the resource no longer exists or context is cancelled.
+func (d *Drainer) waitForDeletion(ctx context.Context, obj client.Object, key types.NamespacedName) error {
+	// Create a new instance of the same type to use for Get calls
+	gvk := obj.GetObjectKind().GroupVersionKind()
+
+	return wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 60*time.Second, true, func(ctx context.Context) (bool, error) {
+		// We need a fresh object for each Get call
+		fresh := obj.DeepCopyObject().(client.Object)
+		err := d.Client.Get(ctx, key, fresh)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return true, nil // Resource is gone
+			}
+			d.Log.V(1).Info("Error checking resource deletion status", "gvk", gvk, "key", key, "error", err)
+			return false, nil // Retry on transient errors
+		}
+		// Resource still exists, keep waiting
+		return false, nil
+	})
 }
 
 // namespaceListOption returns a list option to filter by WatchNamespace if set.

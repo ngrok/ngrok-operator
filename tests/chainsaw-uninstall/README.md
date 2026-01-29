@@ -90,11 +90,14 @@ Two operators, each watching a different namespace AND using a different ingress
 >
 > **The only supported multi-operator configuration is:**
 > - Each operator watches a **DIFFERENT namespace** (`watchNamespace`)
+> - Each operator is **INSTALLED in the SAME namespace** as its `watchNamespace`
 > - Each operator uses a **DIFFERENT ingress class** (optional, but recommended)
 >
 > **What does NOT work:**
 > - Two operators watching all namespaces with different ingress classes
 > - This will cause both operators to fight over the same CloudEndpoints/AgentEndpoints
+> - Installing the operator in a different namespace than the `watchNamespace`
+> - The operator's cache only watches the `watchNamespace`, so the KubernetesOperator CR won't be reconciled
 
 **Known issue: Shared backend services**
 When multiple Ingresses point to the same backend service, the operator creates a single AgentEndpoint based on the backend service name. **Workaround**: Use separate backend services for each Ingress.
