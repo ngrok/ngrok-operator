@@ -15,22 +15,33 @@ spec:
     # ============================================================
     # PHASE 1: Setup - Deploy operator with Retain drain policy
     # ============================================================
+    - name: install Gateway API CRDs
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              # Install Gateway API CRDs (standard channel)
+              kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+              
+              # Wait for CRDs to be established before proceeding
+              kubectl wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io
+              kubectl wait --for=condition=Established --timeout=60s crd/gateways.gateway.networking.k8s.io
+              kubectl wait --for=condition=Established --timeout=60s crd/httproutes.gateway.networking.k8s.io
+              echo "✓ Gateway API CRDs installed and ready"
+
     - name: deploy operator with drainPolicy Retain
       try:
         - script:
             timeout: 3m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-
-              # Build and load image using make targets for consistency
-              make docker-build kind-load-image
+              make -C ../../../ docker-build kind-load-image
 
               # Install operator using base values + scenario-specific overrides
-              helm upgrade ngrok-operator-uninstall-test ./helm/ngrok-operator --install \
+              helm upgrade ngrok-operator-uninstall-test ../../../helm/ngrok-operator --install \
                 --namespace uninstall-test \
                 --create-namespace \
-                --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
-                --values ./tests/chainsaw-uninstall/retain-policy-bundled-crds/values.yaml \
+                --values ../_fixtures/values-base.yaml \
+                --values ./values.yaml \
                 --set credentials.apiKey=${NGROK_API_KEY} \
                 --set credentials.authtoken=${NGROK_AUTHTOKEN} \
                 --wait \
@@ -71,6 +82,13 @@ spec:
             file: ../_fixtures/agentendpoint.yaml
         - create:
             file: ../_fixtures/ingress.yaml
+        # Gateway API resources
+        - create:
+            file: ../_fixtures/gateway-class.yaml
+        - create:
+            file: ../_fixtures/gateway.yaml
+        - create:
+            file: ../_fixtures/httproute.yaml
 
     - name: verify CloudEndpoint is ready
       try:
@@ -115,6 +133,54 @@ spec:
                 finalizers:
                   - k8s.ngrok.com/finalizer
 
+    - name: verify HTTPRoute has finalizer
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: HTTPRoute
+              metadata:
+                name: uninstall-test-httproute
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
+    - name: verify Gateway has finalizer
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: Gateway
+              metadata:
+                name: uninstall-test-gateway
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
+    - name: verify Ingress created an AgentEndpoint
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # With default mapping strategy, Ingress creates an AgentEndpoint for the backend service
+              # The AgentEndpoint name is based on a hash, so we check for any AgentEndpoint with the right upstream
+              AGENT_EPS=$(kubectl get agentendpoint -n uninstall-test -o jsonpath='{.items[*].metadata.name}')
+              if [ -z "$AGENT_EPS" ]; then
+                echo "✗ No AgentEndpoints found in namespace"
+                exit 1
+              fi
+              echo "✓ Found AgentEndpoint(s): $AGENT_EPS"
+              # Verify at least one has the expected upstream service
+              UPSTREAM=$(kubectl get agentendpoint -n uninstall-test -o jsonpath='{.items[0].spec.upstream.url}')
+              if echo "$UPSTREAM" | grep -q "uninstall-test-svc"; then
+                echo "✓ AgentEndpoint has correct upstream: $UPSTREAM"
+              else
+                echo "✗ AgentEndpoint upstream doesn't match expected service: $UPSTREAM"
+                exit 1
+              fi
+
     - name: verify endpoints exist in ngrok API
       try:
         - script:
@@ -123,6 +189,8 @@ spec:
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-agent-ep.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress.internal"
+              # Gateway API endpoint
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-gateway.internal"
 
     # ============================================================
     # PHASE 3: Trigger drain via helm uninstall
@@ -157,6 +225,26 @@ spec:
                 echo "✓ Ingress already deleted (namespace cleanup)"
               fi
 
+    - name: verify Gateway API finalizers were removed
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # Gateway and HTTPRoute are Gateway API resources (not ngrok CRDs), should still exist but without finalizers
+              for RESOURCE in "gateway/uninstall-test-gateway" "httproute/uninstall-test-httproute"; do
+                if kubectl get "$RESOURCE" -n uninstall-test &>/dev/null; then
+                  FINALIZERS=$(kubectl get "$RESOURCE" -n uninstall-test -o jsonpath='{.metadata.finalizers}')
+                  if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
+                    echo "✓ $RESOURCE finalizer removed"
+                  else
+                    echo "✗ $RESOURCE still has finalizers: $FINALIZERS"
+                    exit 1
+                  fi
+                else
+                  echo "✓ $RESOURCE already deleted (namespace cleanup)"
+                fi
+              done
+
     - name: verify CloudEndpoint STILL EXISTS in ngrok API (Retain policy)
       try:
         - script:
@@ -172,9 +260,11 @@ spec:
             timeout: 60s
             content: |
               # AgentEndpoints are ephemeral - they go away when the agent pod stops
-              # Ingress-generated endpoints are backed by CRDs that get deleted
+              # Ingress-generated endpoints and Gateway API endpoints are backed by CRDs that get deleted
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress.internal"
+              # Gateway API endpoint is also ephemeral
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-gateway.internal"
               echo "✓ Ephemeral endpoints cleaned up as expected"
 
     - name: verify CRDs removed with operator (bundled CRDs)

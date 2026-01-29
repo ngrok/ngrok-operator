@@ -15,15 +15,26 @@ spec:
     # ============================================================
     # PHASE 1: Setup - Install CRDs separately, then operator
     # ============================================================
+    - name: install Gateway API CRDs
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              # Install Gateway API CRDs (standard channel)
+              kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+              
+              # Wait for CRDs to be established before proceeding
+              kubectl wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io
+              kubectl wait --for=condition=Established --timeout=60s crd/gateways.gateway.networking.k8s.io
+              kubectl wait --for=condition=Established --timeout=60s crd/httproutes.gateway.networking.k8s.io
+              echo "✓ Gateway API CRDs installed and ready"
+
     - name: install CRDs separately
       try:
         - script:
             timeout: 2m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-              
-              # Install CRDs chart first
-              helm upgrade ngrok-operator-crds ./helm/ngrok-crds --install \
+              helm upgrade ngrok-operator-crds ../../../helm/ngrok-crds --install \
                 --namespace kube-system \
                 --wait \
                 --timeout 1m
@@ -35,17 +46,14 @@ spec:
         - script:
             timeout: 3m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-
-              # Build and load image using make targets for consistency
-              make docker-build kind-load-image
+              make -C ../../../ docker-build kind-load-image
 
               # Install operator using base values + scenario-specific overrides
-              helm upgrade ngrok-operator-uninstall-test ./helm/ngrok-operator --install \
+              helm upgrade ngrok-operator-uninstall-test ../../../helm/ngrok-operator --install \
                 --namespace uninstall-test \
                 --create-namespace \
-                --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
-                --values ./tests/chainsaw-uninstall/delete-policy-separate-crds/values.yaml \
+                --values ../_fixtures/values-base.yaml \
+                --values ./values.yaml \
                 --set credentials.apiKey=${NGROK_API_KEY} \
                 --set credentials.authtoken=${NGROK_AUTHTOKEN} \
                 --wait \
@@ -86,6 +94,13 @@ spec:
             file: ../_fixtures/agentendpoint.yaml
         - create:
             file: ../_fixtures/ingress.yaml
+        # Gateway API resources
+        - create:
+            file: ../_fixtures/gateway-class.yaml
+        - create:
+            file: ../_fixtures/gateway.yaml
+        - create:
+            file: ../_fixtures/httproute.yaml
 
     - name: verify CloudEndpoint is ready
       try:
@@ -130,6 +145,32 @@ spec:
                 finalizers:
                   - k8s.ngrok.com/finalizer
 
+    - name: verify HTTPRoute has finalizer
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: HTTPRoute
+              metadata:
+                name: uninstall-test-httproute
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
+    - name: verify Gateway has finalizer
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: Gateway
+              metadata:
+                name: uninstall-test-gateway
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
     - name: verify endpoints exist in ngrok API
       try:
         - script:
@@ -138,6 +179,8 @@ spec:
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-agent-ep.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress.internal"
+              # Gateway API endpoint
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-gateway.internal"
 
     # ============================================================
     # PHASE 3: Trigger drain via helm uninstall (operator only)
@@ -211,6 +254,27 @@ spec:
                 exit 1
               fi
 
+    - name: verify Gateway API finalizers were removed
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # Gateway and HTTPRoute are Gateway API resources (not ngrok CRDs), should still exist but without finalizers
+              for RESOURCE in "gateway/uninstall-test-gateway" "httproute/uninstall-test-httproute"; do
+                if kubectl get "$RESOURCE" -n uninstall-test &>/dev/null; then
+                  FINALIZERS=$(kubectl get "$RESOURCE" -n uninstall-test -o jsonpath='{.metadata.finalizers}')
+                  if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
+                    echo "✓ $RESOURCE finalizer removed"
+                  else
+                    echo "✗ $RESOURCE still has finalizers: $FINALIZERS"
+                    exit 1
+                  fi
+                else
+                  echo "✗ $RESOURCE was deleted unexpectedly"
+                  exit 1
+                fi
+              done
+
     - name: verify endpoints deleted from ngrok API
       try:
         - script:
@@ -220,6 +284,8 @@ spec:
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-cloud-ep.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress.internal"
+              # Gateway API endpoint
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-gateway.internal"
               echo "✓ All endpoints cleaned up from ngrok API"
 
     - name: verify KubernetesOperator deregistered from ngrok API

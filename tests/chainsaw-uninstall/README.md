@@ -13,6 +13,20 @@ When `helm uninstall` is executed, a pre-delete hook triggers the drain process 
 
 **Note**: We test the Delete policy first as it makes manual cleanup easier during development.
 
+### Tested Resource Types
+
+Single-operator tests cover these resource types:
+- **CloudEndpoint** - ngrok cloud endpoint CRD
+- **AgentEndpoint** - ngrok agent endpoint CRD
+- **Ingress** - Kubernetes Ingress (networking.k8s.io/v1)
+- **Gateway API** - Gateway, HTTPRoute (gateway.networking.k8s.io/v1)
+- **BoundEndpoint** - Endpoints with kubernetes bindings that create Services
+
+Gateway API CRDs are installed during tests from the standard channel:
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+```
+
 ## Test Scenarios
 
 ### Single Operator Scenarios
@@ -23,6 +37,22 @@ When `helm uninstall` is executed, a pre-delete hook triggers the drain process 
 | `retain-policy-bundled-crds` | Retain | Bundled | Resources preserved in ngrok API, CRDs removed with operator |
 | `delete-policy-separate-crds` | Delete | Separate | Resources deleted from ngrok API, CRDs persist, CRs deleted |
 | `retain-policy-separate-crds` | Retain | Separate | CloudEndpoint preserved in ngrok API, CRDs persist, CRs exist without finalizers |
+
+### BoundEndpoint Scenarios
+
+These scenarios test the BoundEndpoint feature (endpoints with kubernetes bindings that create Services):
+
+| Scenario | Drain Policy | Description |
+|----------|--------------|-------------|
+| `bindings-delete-policy` | Delete | CloudEndpoint with kubernetes binding → BoundEndpoint → Services; all cleaned up on uninstall |
+| `bindings-retain-policy` | Retain | CloudEndpoint preserved in ngrok API; Services cleaned up |
+
+BoundEndpoint flow:
+1. Create CloudEndpoint with `bindings: ["kubernetes"]` and URL like `http://my-svc.my-namespace`
+   - **Note**: kubernetes-bound endpoints only support `http`, `tls`, and `tcp` protocols (NOT `https`)
+2. BoundEndpoint poller detects the endpoint via ngrok API
+3. BoundEndpoint controller creates target Service (ExternalName) in target namespace
+4. On drain, the CloudEndpoint is either deleted (Delete policy) or preserved (Retain policy)
 
 ### Separate CRD Scenarios
 
@@ -45,25 +75,29 @@ Two operators in separate namespaces, each watching only its own namespace:
 | `multi-ns-delete-policy` | Delete | Uninstall operator-a, verify operator-b continues working, resources cleaned from ngrok API |
 | `multi-ns-retain-policy` | Retain | Uninstall operator-a, verify operator-b continues working, CloudEndpoint preserved in ngrok API |
 
-#### IngressClass-Scoped
+#### IngressClass + Namespace-Scoped (REQUIRED for multi-operator)
 
-Two operators watching all namespaces, scoped by different ingress class names:
+Two operators, each watching a different namespace AND using a different ingress class:
 
 | Scenario | Drain Policy | Description |
 |----------|--------------|-------------|
-| `multi-ingressclass-delete-policy` | Delete | Uninstall operator-a (ngrok-a class), verify operator-b (ngrok-b class) unaffected |
+| `multi-ingressclass-delete-policy` | Delete | Uninstall operator-a (namespace-a, ngrok-a class), verify operator-b unaffected |
 | `multi-ingressclass-retain-policy` | Retain | Uninstall operator-a, verify operator-b unaffected |
 
-**Key differences from namespace-scoped**:
-- Only tests **Ingress resources** (which have `ingressClassName`)
-- Does NOT test CloudEndpoints/AgentEndpoints - these CRDs have no ingress class concept
-- If you need CRD isolation with multiple operators, use namespace-scoped (`watchNamespace`)
+> **⚠️ IMPORTANT: Multi-operator deployments MUST use `watchNamespace`!**
+>
+> CloudEndpoints and AgentEndpoints created by the operator driver have **NO ingress class scoping**. If multiple operators watch all namespaces, they will ALL try to reconcile each other's driver-generated CRDs, causing conflicts and undefined behavior.
+>
+> **The only supported multi-operator configuration is:**
+> - Each operator watches a **DIFFERENT namespace** (`watchNamespace`)
+> - Each operator uses a **DIFFERENT ingress class** (optional, but recommended)
+>
+> **What does NOT work:**
+> - Two operators watching all namespaces with different ingress classes
+> - This will cause both operators to fight over the same CloudEndpoints/AgentEndpoints
 
-**Why no CloudEndpoints in ingress-class tests?**
-When two operators watch all namespaces and are only differentiated by ingress class, both would try to reconcile the same CloudEndpoints (since CloudEndpoints have no ingress class field). This causes conflicts and undefined behavior.
-
-**Known bug: Shared backend services**
-When multiple Ingresses (with different ingress classes) point to the same backend service, the operator creates a single AgentEndpoint based on the backend service name, not the Ingress name. This causes only one Ingress to get an endpoint in the ngrok API. **Workaround**: Use separate backend services for each Ingress when using multiple ingress classes.
+**Known issue: Shared backend services**
+When multiple Ingresses point to the same backend service, the operator creates a single AgentEndpoint based on the backend service name. **Workaround**: Use separate backend services for each Ingress.
 
 ## Running Tests
 
@@ -104,19 +138,37 @@ tests/chainsaw-uninstall/
 │   ├── backend-service.yaml            # Single-operator backend service
 │   ├── backend-service-a.yaml          # Multi-operator backend (namespace-a)
 │   ├── backend-service-b.yaml          # Multi-operator backend (namespace-b)
+│   ├── service-ingressclass-a.yaml     # Service for ingress-class-scoped tests (operator-a)
+│   ├── service-ingressclass-b.yaml     # Service for ingress-class-scoped tests (operator-b)
 │   ├── cloudendpoint.yaml              # Single-operator CloudEndpoint
 │   ├── cloudendpoint-a.yaml            # Multi-operator CloudEndpoint A
 │   ├── cloudendpoint-b.yaml            # Multi-operator CloudEndpoint B
 │   ├── agentendpoint.yaml
 │   ├── ingress.yaml                    # Single-operator Ingress
-│   ├── ingress-a.yaml                  # Multi-operator Ingress A (ngrok-a class)
-│   ├── ingress-b.yaml                  # Multi-operator Ingress B (ngrok-b class)
+│   ├── ingress-a.yaml                  # Multi-operator Ingress A (namespace-a)
+│   ├── ingress-b.yaml                  # Multi-operator Ingress B (namespace-b)
+│   ├── ingress-ingressclass-a.yaml     # Ingress for ingress-class-scoped tests (ngrok-a)
+│   ├── ingress-ingressclass-b.yaml     # Ingress for ingress-class-scoped tests (ngrok-b)
+│   ├── gateway-class.yaml              # Single-operator GatewayClass
+│   ├── gateway-class-a.yaml            # Multi-operator GatewayClass A
+│   ├── gateway-class-b.yaml            # Multi-operator GatewayClass B
+│   ├── gateway.yaml                    # Single-operator Gateway
+│   ├── gateway-a.yaml                  # Multi-operator Gateway A
+│   ├── gateway-b.yaml                  # Multi-operator Gateway B
+│   ├── httproute.yaml                  # Single-operator HTTPRoute
+│   ├── httproute-a.yaml                # Multi-operator HTTPRoute A
+│   ├── httproute-b.yaml                # Multi-operator HTTPRoute B
+│   ├── cloudendpoint-k8s-binding.yaml  # CloudEndpoint with kubernetes binding for BoundEndpoint tests
+│   ├── values-bindings-enabled.yaml    # Values overlay for enabling bindings
 │   └── ngrok-api-helper.sh             # API assertion helper script
 │
 ├── delete-policy-bundled-crds/         # Single operator: Delete + bundled CRDs
 ├── retain-policy-bundled-crds/         # Single operator: Retain + bundled CRDs
 ├── delete-policy-separate-crds/        # Single operator: Delete + separate CRDs
 ├── retain-policy-separate-crds/        # Single operator: Retain + separate CRDs
+│
+├── bindings-delete-policy/             # BoundEndpoint: Delete policy
+├── bindings-retain-policy/             # BoundEndpoint: Retain policy
 │
 ├── multi-ns-delete-policy/             # Multi-operator: Namespace-scoped + Delete
 │   ├── chainsaw-test.yaml
@@ -218,13 +270,20 @@ When CRDs are bundled with the operator:
 
 We test only the supported configuration (separate CRDs) and document the limitation.
 
-### Why test both namespace-scoped and ingress-class-scoped?
+### Why do all multi-operator tests require `watchNamespace`?
 
-These are the two primary ways users run multiple operators:
-1. **Namespace-scoped**: Each operator watches a specific namespace (`watchNamespace`)
-2. **IngressClass-scoped**: Operators watch all namespaces but only reconcile Ingresses with their class
+Multi-operator deployments **MUST** use `watchNamespace` because:
+1. CloudEndpoints and AgentEndpoints have no ingress class scoping
+2. If operators watch all namespaces, they will fight over each other's CRDs
+3. The only way to achieve proper isolation is namespace-based scoping
 
-Both need testing because:
-- They have different resource ownership patterns
-- CloudEndpoints in the ingress-class scenario need special handling (placed in operator namespace)
-- Drain behavior may interact differently with scope boundaries
+The `multi-ingressclass-*` tests use BOTH namespace scoping AND ingress class scoping to demonstrate the recommended production configuration.
+
+### Script working directory
+
+Chainsaw runs scripts from the test directory (e.g., `tests/chainsaw-uninstall/delete-policy-bundled-crds/`).
+
+All tests are 3 levels deep from the repo root, so:
+- `../../../` = repo root (for `make -C ../../../` and helm charts)
+- `../_fixtures/` = shared fixtures directory
+- `./values.yaml` = local test values

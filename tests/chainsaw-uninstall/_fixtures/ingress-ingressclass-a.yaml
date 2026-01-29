@@ -1,0 +1,21 @@
+# Ingress for IngressClass-scoped tests (operator-a with ingress class ngrok-a)
+# MUST be in namespace-a because operator-a watches only namespace-a
+# Note: Uses separate backend service to avoid AgentEndpoint naming collision bug
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: uninstall-test-ingress-a
+  namespace: namespace-a
+spec:
+  ingressClassName: ngrok-a
+  rules:
+    - host: uninstall-test-ingress-a.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: uninstall-test-svc-a
+                port:
+                  number: 80

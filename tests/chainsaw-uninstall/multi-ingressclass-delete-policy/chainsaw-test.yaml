@@ -5,12 +5,18 @@ metadata:
   name: multi-ingressclass-delete-policy
 spec:
   description: |
-    Tests uninstalling one of two IngressClass-scoped operators with Delete drain policy.
-    - Two operators watching ALL namespaces, scoped by ingress class (ngrok-a, ngrok-b)
-    - CRDs installed separately
-    - Only tests Ingress resources (CloudEndpoints are not scoped by ingress class)
-    - Uninstall operator-a, verify operator-b's ingresses are unaffected
-  namespace: uninstall-test
+    Tests uninstalling one of two operators with Delete drain policy.
+    
+    IMPORTANT: Multi-operator deployments MUST use watchNamespace!
+    CloudEndpoints and AgentEndpoints created by the operator driver have NO ingress class
+    scoping. If multiple operators watch all namespaces, they will ALL try to reconcile
+    each other's driver-generated CRDs, causing conflicts and undefined behavior.
+    
+    This test uses:
+    - Operator A: watches namespace-a, ingress class ngrok-a
+    - Operator B: watches namespace-b, ingress class ngrok-b
+    - CRDs installed separately (required for multi-operator)
+  namespace: namespace-a
   skipDelete: true
   timeouts:
     apply: 2m
@@ -26,53 +32,50 @@ spec:
         - script:
             timeout: 2m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-              helm upgrade ngrok-operator-crds ./helm/ngrok-crds --install \
+              helm upgrade ngrok-operator-crds ../../../helm/ngrok-crds --install \
                 --namespace kube-system \
                 --wait --timeout 1m
               echo "CRDs installed separately"
 
-    - name: create test namespace
+    - name: create test namespaces
       try:
         - script:
             timeout: 30s
             content: |
-              kubectl create namespace uninstall-test --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create namespace namespace-a --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create namespace namespace-b --dry-run=client -o yaml | kubectl apply -f -
 
     - name: build and load operator image
       try:
         - script:
             timeout: 3m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-              make docker-build kind-load-image
+              make -C ../../../ docker-build kind-load-image
 
-    - name: deploy operator-a (ingress class ngrok-a)
+    - name: deploy operator-a (watches namespace-a, ingress class ngrok-a)
       try:
         - script:
             timeout: 2m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-              helm upgrade ngrok-operator-a ./helm/ngrok-operator --install \
+              helm upgrade ngrok-operator-a ../../../helm/ngrok-operator --install \
                 --namespace operator-a \
                 --create-namespace \
-                --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
-                --values ./tests/chainsaw-uninstall/multi-ingressclass-delete-policy/values-operator-a.yaml \
+                --values ../_fixtures/values-base.yaml \
+                --values ./values-operator-a.yaml \
                 --set credentials.apiKey=${NGROK_API_KEY} \
                 --set credentials.authtoken=${NGROK_AUTHTOKEN} \
                 --wait --timeout 2m
 
-    - name: deploy operator-b (ingress class ngrok-b)
+    - name: deploy operator-b (watches namespace-b, ingress class ngrok-b)
       try:
         - script:
             timeout: 2m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-              helm upgrade ngrok-operator-b ./helm/ngrok-operator --install \
+              helm upgrade ngrok-operator-b ../../../helm/ngrok-operator --install \
                 --namespace operator-b \
                 --create-namespace \
-                --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
-                --values ./tests/chainsaw-uninstall/multi-ingressclass-delete-policy/values-operator-b.yaml \
+                --values ../_fixtures/values-base.yaml \
+                --values ./values-operator-b.yaml \
                 --set credentials.apiKey=${NGROK_API_KEY} \
                 --set credentials.authtoken=${NGROK_AUTHTOKEN} \
                 --wait --timeout 2m
@@ -105,7 +108,6 @@ spec:
         - script:
             timeout: 30s
             content: |
-              # Use release name to get the correct KubernetesOperator (not items[0])
               KO_ID_A=$(kubectl get kubernetesoperator ngrok-operator-a -n operator-a -o jsonpath='{.status.id}')
               KO_ID_B=$(kubectl get kubernetesoperator ngrok-operator-b -n operator-b -o jsonpath='{.status.id}')
               echo "KubernetesOperator A ID: $KO_ID_A"
@@ -114,90 +116,22 @@ spec:
               echo "$KO_ID_B" > /tmp/ko-id-ingclass-b.txt
 
     # ============================================================
-    # PHASE 2: Create Ingress resources with different ingress classes
-    # Note: CloudEndpoints are NOT tested here because they have no
-    # ingress class scoping - both operators would try to reconcile them
+    # PHASE 2: Create Ingress resources in the watched namespaces
+    # Each operator watches its own namespace AND uses its own ingress class
     # ============================================================
-    - name: create separate backend services for each ingress class
+    - name: create backend services in watched namespaces
       try:
-        - script:
-            timeout: 30s
-            content: |
-              # Create separate backend services to avoid AgentEndpoint naming collision
-              # Bug: operator creates AgentEndpoint based on backend, not ingress name
-              cat <<EOF | kubectl apply -f -
-              apiVersion: v1
-              kind: Service
-              metadata:
-                name: uninstall-test-svc-a
-                namespace: uninstall-test
-              spec:
-                selector:
-                  app: uninstall-test
-                ports:
-                  - port: 80
-                    targetPort: 80
-              ---
-              apiVersion: v1
-              kind: Service
-              metadata:
-                name: uninstall-test-svc-b
-                namespace: uninstall-test
-              spec:
-                selector:
-                  app: uninstall-test
-                ports:
-                  - port: 80
-                    targetPort: 80
-              EOF
+        - create:
+            file: ../_fixtures/service-ingressclass-a.yaml
+        - create:
+            file: ../_fixtures/service-ingressclass-b.yaml
 
-    - name: create Ingresses with different ingress classes
+    - name: create Ingresses in watched namespaces
       try:
-        - script:
-            timeout: 30s
-            content: |
-              # These ingresses use different ingress classes AND different backends
-              # to avoid the AgentEndpoint naming collision bug
-              cat <<EOF | kubectl apply -f -
-              apiVersion: networking.k8s.io/v1
-              kind: Ingress
-              metadata:
-                name: uninstall-test-ingress-a
-                namespace: uninstall-test
-              spec:
-                ingressClassName: ngrok-a
-                rules:
-                  - host: uninstall-test-ingress-a.internal
-                    http:
-                      paths:
-                        - path: /
-                          pathType: Prefix
-                          backend:
-                            service:
-                              name: uninstall-test-svc-a
-                              port:
-                                number: 80
-              EOF
-              cat <<EOF | kubectl apply -f -
-              apiVersion: networking.k8s.io/v1
-              kind: Ingress
-              metadata:
-                name: uninstall-test-ingress-b
-                namespace: uninstall-test
-              spec:
-                ingressClassName: ngrok-b
-                rules:
-                  - host: uninstall-test-ingress-b.internal
-                    http:
-                      paths:
-                        - path: /
-                          pathType: Prefix
-                          backend:
-                            service:
-                              name: uninstall-test-svc-b
-                              port:
-                                number: 80
-              EOF
+        - create:
+            file: ../_fixtures/ingress-ingressclass-a.yaml
+        - create:
+            file: ../_fixtures/ingress-ingressclass-b.yaml
 
     - name: verify Ingresses have finalizers
       try:
@@ -208,7 +142,7 @@ spec:
               kind: Ingress
               metadata:
                 name: uninstall-test-ingress-a
-                namespace: uninstall-test
+                namespace: namespace-a
                 finalizers:
                   - k8s.ngrok.com/finalizer
         - assert:
@@ -218,9 +152,30 @@ spec:
               kind: Ingress
               metadata:
                 name: uninstall-test-ingress-b
-                namespace: uninstall-test
+                namespace: namespace-b
                 finalizers:
                   - k8s.ngrok.com/finalizer
+
+    - name: verify AgentEndpoints created for Ingresses
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              # Verify operator-a created an AgentEndpoint in namespace-a
+              AGENT_EPS_A=$(kubectl get agentendpoint -n namespace-a -o jsonpath='{.items[*].metadata.name}')
+              if [ -z "$AGENT_EPS_A" ]; then
+                echo "✗ No AgentEndpoints found in namespace-a"
+                exit 1
+              fi
+              echo "✓ Found AgentEndpoint(s) in namespace-a: $AGENT_EPS_A"
+              
+              # Verify operator-b created an AgentEndpoint in namespace-b
+              AGENT_EPS_B=$(kubectl get agentendpoint -n namespace-b -o jsonpath='{.items[*].metadata.name}')
+              if [ -z "$AGENT_EPS_B" ]; then
+                echo "✗ No AgentEndpoints found in namespace-b"
+                exit 1
+              fi
+              echo "✓ Found AgentEndpoint(s) in namespace-b: $AGENT_EPS_B"
 
     - name: verify both ingress endpoints exist in ngrok API
       try:
@@ -250,7 +205,7 @@ spec:
         - script:
             timeout: 30s
             content: |
-              FINALIZERS=$(kubectl get ingress uninstall-test-ingress-a -n uninstall-test -o jsonpath='{.metadata.finalizers}')
+              FINALIZERS=$(kubectl get ingress uninstall-test-ingress-a -n namespace-a -o jsonpath='{.metadata.finalizers}')
               if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
                 echo "✓ Ingress A finalizer removed"
               else
@@ -283,7 +238,7 @@ spec:
               kind: Ingress
               metadata:
                 name: uninstall-test-ingress-b
-                namespace: uninstall-test
+                namespace: namespace-b
                 finalizers:
                   - k8s.ngrok.com/finalizer
 
@@ -304,27 +259,26 @@ spec:
               ../_fixtures/ngrok-api-helper.sh k8sop exists "$KO_ID_B"
 
     # ============================================================
-    # PHASE 5: Cleanup
+    # PHASE 5: Cleanup - uses finally to ensure cleanup happens
     # ============================================================
-    - name: uninstall operator-b
+    - name: cleanup
+      finally:
+        - script:
+            timeout: 30s
+            content: |
+              rm -f /tmp/ko-id-ingclass-a.txt /tmp/ko-id-ingclass-b.txt
+              echo "Temp files cleaned up"
       try:
         - script:
             timeout: 3m
             content: |
-              helm uninstall ngrok-operator-b --namespace operator-b --wait --timeout 2m
-
-    - name: uninstall CRD chart
-      try:
+              helm uninstall ngrok-operator-b --namespace operator-b --wait --timeout 2m || true
         - script:
             timeout: 2m
             content: |
-              helm uninstall ngrok-operator-crds --namespace kube-system --wait --timeout 1m
-
-    - name: cleanup namespaces and temp files
-      try:
+              helm uninstall ngrok-operator-crds --namespace kube-system --wait --timeout 1m || true
         - script:
             timeout: 30s
             content: |
-              kubectl delete namespace uninstall-test operator-a operator-b --ignore-not-found --wait=false
-              rm -f /tmp/ko-id-ingclass-a.txt /tmp/ko-id-ingclass-b.txt
+              kubectl delete namespace namespace-a namespace-b operator-a operator-b --ignore-not-found --wait=false
               echo "Cleanup complete"

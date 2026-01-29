@@ -1,0 +1,14 @@
+# Gateway for single-operator uninstall tests
+# Using HTTP protocol to avoid TLS certificate requirements in tests
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: uninstall-test-gateway
+  namespace: uninstall-test
+spec:
+  gatewayClassName: ngrok
+  listeners:
+    - name: http
+      hostname: "uninstall-test-gateway.internal"
+      port: 80
+      protocol: HTTP

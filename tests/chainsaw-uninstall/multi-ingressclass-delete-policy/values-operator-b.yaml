@@ -1,9 +1,19 @@
 # Scenario: multi-ingressclass-delete-policy - Operator B
-# Watches all namespaces, scoped by ingress class
+#
+# IMPORTANT: Multi-operator deployments MUST use watchNamespace!
+# CloudEndpoints and AgentEndpoints created by the operator driver have NO ingress class
+# scoping. If multiple operators watch all namespaces, they will ALL try to reconcile
+# each other's driver-generated CRDs, causing conflicts and undefined behavior.
+#
+# The only supported multi-operator configuration is:
+#   - Each operator watches a DIFFERENT namespace (watchNamespace)
+#   - Each operator uses a DIFFERENT ingress class (optional, but recommended)
 
 drainPolicy: Delete
 installCRDs: false
-# No watchNamespace - watches all namespaces
+
+# REQUIRED for multi-operator: Each operator MUST watch only its own namespace
+watchNamespace: namespace-b
 
 ingress:
   controllerName: k8s.ngrok.com/ingress-controller-b

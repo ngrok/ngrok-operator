@@ -1,0 +1,13 @@
+# Scenario: bindings-retain-policy
+# Tests BoundEndpoint behavior during uninstall with Retain drain policy
+#
+# - drainPolicy: Retain (CloudEndpoint preserved in ngrok API)
+# - bindings.enabled: true (enables BoundEndpoint feature)
+# - installCRDs: true (bundled CRDs for simplicity)
+
+drainPolicy: Retain
+
+bindings:
+  enabled: true
+  endpointSelectors:
+    - "true"  # Accept all kubernetes-bound endpoints

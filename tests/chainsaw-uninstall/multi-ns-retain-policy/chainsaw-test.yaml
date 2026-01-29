@@ -26,8 +26,7 @@ spec:
         - script:
             timeout: 2m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-              helm upgrade ngrok-operator-crds ./helm/ngrok-crds --install \
+              helm upgrade ngrok-operator-crds ../../../helm/ngrok-crds --install \
                 --namespace kube-system \
                 --wait --timeout 1m
               echo "CRDs installed separately"
@@ -45,19 +44,17 @@ spec:
         - script:
             timeout: 3m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-              make docker-build kind-load-image
+              make -C ../../../ docker-build kind-load-image
 
     - name: deploy operator-a (watches namespace-a)
       try:
         - script:
             timeout: 2m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-              helm upgrade ngrok-operator-a ./helm/ngrok-operator --install \
+              helm upgrade ngrok-operator-a ../../../helm/ngrok-operator --install \
                 --namespace namespace-a \
-                --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
-                --values ./tests/chainsaw-uninstall/multi-ns-retain-policy/values-operator-a.yaml \
+                --values ../_fixtures/values-base.yaml \
+                --values ./values-operator-a.yaml \
                 --set credentials.apiKey=${NGROK_API_KEY} \
                 --set credentials.authtoken=${NGROK_AUTHTOKEN} \
                 --wait --timeout 2m
@@ -67,11 +64,10 @@ spec:
         - script:
             timeout: 2m
             content: |
-              cd "$(git rev-parse --show-toplevel)"
-              helm upgrade ngrok-operator-b ./helm/ngrok-operator --install \
+              helm upgrade ngrok-operator-b ../../../helm/ngrok-operator --install \
                 --namespace namespace-b \
-                --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
-                --values ./tests/chainsaw-uninstall/multi-ns-retain-policy/values-operator-b.yaml \
+                --values ../_fixtures/values-base.yaml \
+                --values ./values-operator-b.yaml \
                 --set credentials.apiKey=${NGROK_API_KEY} \
                 --set credentials.authtoken=${NGROK_AUTHTOKEN} \
                 --wait --timeout 2m
