@@ -31,6 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -182,240 +183,86 @@ func (d *Drainer) namespaceListOption() []client.ListOption {
 	return []client.ListOption{client.InNamespace(d.WatchNamespace)}
 }
 
-func (d *Drainer) drainHTTPRoutes(ctx context.Context) (completed, total int, errs []error) {
-	list := &gatewayv1.HTTPRouteList{}
+// drainList is a generic helper that lists resources, iterates items with our finalizer,
+// and calls the provided drain function. It handles optional CRD skip logic for Gateway API types.
+func (d *Drainer) drainList(
+	ctx context.Context,
+	kind string,
+	list client.ObjectList,
+	skipNoMatch bool,
+	drainOne func(context.Context, client.Object) error,
+) (completed, total int, errs []error) {
 	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		if meta.IsNoMatchError(err) {
-			d.Log.V(1).Info("HTTPRoute CRD not installed, skipping")
+		if skipNoMatch && meta.IsNoMatchError(err) {
+			d.Log.V(1).Info(kind + " CRD not installed, skipping")
 			return 0, 0, nil
 		}
-		return 0, 0, []error{fmt.Errorf("failed to list HTTPRoutes: %w", err)}
+		return 0, 0, []error{fmt.Errorf("failed to list %s: %w", kind, err)}
 	}
 
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
+	if err := meta.EachListItem(list, func(obj runtime.Object) error {
+		co, ok := obj.(client.Object)
+		if !ok {
+			return fmt.Errorf("%s list item does not implement client.Object: %T", kind, obj)
 		}
+		if !util.HasFinalizer(co) {
+			return nil
+		}
+
 		total++
-		if err := d.drainUserResource(ctx, &list.Items[i]); err != nil {
+		if err := drainOne(ctx, co); err != nil {
 			errs = append(errs, err)
 		} else {
 			completed++
 		}
+		return nil
+	}); err != nil {
+		return 0, 0, []error{fmt.Errorf("failed to iterate %s list: %w", kind, err)}
 	}
-	return
+
+	return completed, total, errs
+}
+
+func (d *Drainer) drainHTTPRoutes(ctx context.Context) (completed, total int, errs []error) {
+	return d.drainList(ctx, "HTTPRoute", &gatewayv1.HTTPRouteList{}, true, d.drainUserResource)
 }
 
 func (d *Drainer) drainTCPRoutes(ctx context.Context) (completed, total int, errs []error) {
-	list := &gatewayv1alpha2.TCPRouteList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		if meta.IsNoMatchError(err) {
-			d.Log.V(1).Info("TCPRoute CRD not installed, skipping")
-			return 0, 0, nil
-		}
-		return 0, 0, []error{fmt.Errorf("failed to list TCPRoutes: %w", err)}
-	}
-
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainUserResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "TCPRoute", &gatewayv1alpha2.TCPRouteList{}, true, d.drainUserResource)
 }
 
 func (d *Drainer) drainTLSRoutes(ctx context.Context) (completed, total int, errs []error) {
-	list := &gatewayv1alpha2.TLSRouteList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		if meta.IsNoMatchError(err) {
-			d.Log.V(1).Info("TLSRoute CRD not installed, skipping")
-			return 0, 0, nil
-		}
-		return 0, 0, []error{fmt.Errorf("failed to list TLSRoutes: %w", err)}
-	}
-
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainUserResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "TLSRoute", &gatewayv1alpha2.TLSRouteList{}, true, d.drainUserResource)
 }
 
 func (d *Drainer) drainIngresses(ctx context.Context) (completed, total int, errs []error) {
-	list := &netv1.IngressList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		return 0, 0, []error{fmt.Errorf("failed to list Ingresses: %w", err)}
-	}
-
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainUserResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "Ingress", &netv1.IngressList{}, false, d.drainUserResource)
 }
 
 func (d *Drainer) drainServices(ctx context.Context) (completed, total int, errs []error) {
-	list := &corev1.ServiceList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		return 0, 0, []error{fmt.Errorf("failed to list Services: %w", err)}
-	}
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainUserResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "Service", &corev1.ServiceList{}, false, d.drainUserResource)
 }
 
 func (d *Drainer) drainGateways(ctx context.Context) (completed, total int, errs []error) {
-	list := &gatewayv1.GatewayList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		if meta.IsNoMatchError(err) {
-			d.Log.V(1).Info("Gateway CRD not installed, skipping")
-			return 0, 0, nil
-		}
-		return 0, 0, []error{fmt.Errorf("failed to list Gateways: %w", err)}
-	}
-
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainUserResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "Gateway", &gatewayv1.GatewayList{}, true, d.drainUserResource)
 }
 
 func (d *Drainer) drainCloudEndpoints(ctx context.Context) (completed, total int, errs []error) {
-	// CloudEndpoints can be user-created or operator-created.
-	// List ALL CloudEndpoints and drain those that have our finalizer.
-	list := &ngrokv1alpha1.CloudEndpointList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		return 0, 0, []error{fmt.Errorf("failed to list CloudEndpoints: %w", err)}
-	}
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainOperatorResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "CloudEndpoint", &ngrokv1alpha1.CloudEndpointList{}, false, d.drainOperatorResource)
 }
 
 func (d *Drainer) drainAgentEndpoints(ctx context.Context) (completed, total int, errs []error) {
-	// AgentEndpoints can be user-created or operator-created.
-	// List ALL AgentEndpoints and drain those that have our finalizer.
-	list := &ngrokv1alpha1.AgentEndpointList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		return 0, 0, []error{fmt.Errorf("failed to list AgentEndpoints: %w", err)}
-	}
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainOperatorResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "AgentEndpoint", &ngrokv1alpha1.AgentEndpointList{}, false, d.drainOperatorResource)
 }
 
 func (d *Drainer) drainDomains(ctx context.Context) (completed, total int, errs []error) {
-	// Domains are operator-managed and have our finalizer.
-	list := &ingressv1alpha1.DomainList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		return 0, 0, []error{fmt.Errorf("failed to list Domains: %w", err)}
-	}
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainOperatorResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "Domain", &ingressv1alpha1.DomainList{}, false, d.drainOperatorResource)
 }
 
 func (d *Drainer) drainIPPolicies(ctx context.Context) (completed, total int, errs []error) {
-	// IPPolicies are user-created CRDs.
-	// List ALL IPPolicies and drain those that have our finalizer.
-	list := &ingressv1alpha1.IPPolicyList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		return 0, 0, []error{fmt.Errorf("failed to list IPPolicies: %w", err)}
-	}
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainOperatorResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "IPPolicy", &ingressv1alpha1.IPPolicyList{}, false, d.drainOperatorResource)
 }
 
 func (d *Drainer) drainBoundEndpoints(ctx context.Context) (completed, total int, errs []error) {
-	// BoundEndpoints are operator-managed.
-	list := &bindingsv1alpha1.BoundEndpointList{}
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
-		return 0, 0, []error{fmt.Errorf("failed to list BoundEndpoints: %w", err)}
-	}
-	for i := range list.Items {
-		if !util.HasFinalizer(&list.Items[i]) {
-			continue
-		}
-		total++
-		if err := d.drainOperatorResource(ctx, &list.Items[i]); err != nil {
-			errs = append(errs, err)
-		} else {
-			completed++
-		}
-	}
-	return
+	return d.drainList(ctx, "BoundEndpoint", &bindingsv1alpha1.BoundEndpointList{}, false, d.drainOperatorResource)
 }
