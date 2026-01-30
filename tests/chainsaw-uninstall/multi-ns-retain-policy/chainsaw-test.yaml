@@ -192,6 +192,8 @@ spec:
     - name: verify all endpoints exist in ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-a.internal"
@@ -247,6 +249,8 @@ spec:
     - name: verify operator-a's CloudEndpoint STILL EXISTS in ngrok API (Retain policy)
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-a.internal"
@@ -255,6 +259,8 @@ spec:
     - name: verify operator-a's Ingress endpoint is gone (ephemeral)
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress-a.internal"
@@ -263,6 +269,8 @@ spec:
     - name: verify KubernetesOperator-a deregistered
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               KO_ID_A=$(cat /tmp/ko-id-multi-ns-a.txt)
@@ -296,6 +304,8 @@ spec:
     - name: verify operator-b's endpoints STILL EXIST in ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-b.internal"
@@ -305,6 +315,8 @@ spec:
     - name: verify KubernetesOperator-b still registered
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 30s
             content: |
               KO_ID_B=$(cat /tmp/ko-id-multi-ns-b.txt)
@@ -316,6 +328,8 @@ spec:
     - name: cleanup retained CloudEndpoint from ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 30s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-cloud-ep-a"
@@ -330,6 +344,8 @@ spec:
     - name: cleanup retained CloudEndpoint-b from ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 30s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-cloud-ep-b"

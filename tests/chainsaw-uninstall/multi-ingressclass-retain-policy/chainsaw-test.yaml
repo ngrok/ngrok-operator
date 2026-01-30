@@ -193,6 +193,8 @@ spec:
     - name: verify both ingress endpoints exist in ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-a.internal"
@@ -244,6 +246,8 @@ spec:
     - name: verify operator-a's endpoint is gone (ephemeral)
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               # Ingress endpoints are ephemeral - they go away when the agent pod stops
@@ -253,6 +257,8 @@ spec:
     - name: verify KubernetesOperator-a deregistered
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               KO_ID_A=$(cat /tmp/ko-id-ingclass-a.txt)
@@ -274,6 +280,8 @@ spec:
     - name: verify operator-b's endpoint STILL EXISTS in ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-b.internal"
@@ -282,6 +290,8 @@ spec:
     - name: verify KubernetesOperator-b still registered
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 30s
             content: |
               KO_ID_B=$(cat /tmp/ko-id-ingclass-b.txt)

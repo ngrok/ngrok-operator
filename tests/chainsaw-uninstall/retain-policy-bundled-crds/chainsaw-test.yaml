@@ -194,6 +194,8 @@ spec:
     - name: verify endpoints exist in ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
@@ -258,6 +260,8 @@ spec:
     - name: verify CloudEndpoint STILL EXISTS in ngrok API (Retain policy)
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               # With Retain policy, CloudEndpoints should be PRESERVED in ngrok API
@@ -267,6 +271,8 @@ spec:
     - name: verify ephemeral endpoints are gone
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               # AgentEndpoints are ephemeral - they go away when the agent pod stops
@@ -294,6 +300,8 @@ spec:
     - name: verify KubernetesOperator deregistered from ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               KO_ID=$(cat /tmp/ko-id-retain-bundled.txt)
@@ -307,6 +315,8 @@ spec:
     - name: cleanup retained CloudEndpoint from ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 30s
             content: |
               echo "Cleaning up retained CloudEndpoint from ngrok API..."
@@ -316,6 +326,8 @@ spec:
     - name: verify CloudEndpoint deleted after cleanup
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-cloud-ep.internal"

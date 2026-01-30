@@ -194,6 +194,8 @@ spec:
     - name: verify endpoints exist in ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
@@ -258,6 +260,8 @@ spec:
     - name: verify endpoints deleted from ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               # With Delete policy, endpoints should be removed from ngrok API
@@ -285,6 +289,8 @@ spec:
     - name: verify KubernetesOperator deregistered from ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               KO_ID=$(cat /tmp/ko-id-delete-bundled.txt)

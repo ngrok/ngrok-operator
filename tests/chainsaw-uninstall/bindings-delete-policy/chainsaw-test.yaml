@@ -105,6 +105,8 @@ spec:
     - name: verify endpoint exists in ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint exists "bound-test-svc.bound-target-ns"
@@ -205,6 +207,8 @@ spec:
     - name: verify CloudEndpoint deleted from ngrok API
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               ../_fixtures/ngrok-api-helper.sh endpoint absent "bound-test-svc.bound-target-ns"
@@ -226,6 +230,8 @@ spec:
     - name: verify KubernetesOperator deregistered
       try:
         - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
               KO_ID=$(cat /tmp/ko-id-bindings-delete.txt)
