@@ -76,6 +76,12 @@ For a more in-depth installation guide follow our step-by-step [Getting Started]
 
 #### Gateway API
 
+> **Note**
+>
+> This Kubernetes Gateway API is production-ready and supported for use in production environments. However, it is currently _`pre-1.0.0`_, and as such, the public API should be considered unstable.
+>
+> While we aim to minimize disruption, breaking changes may be introduced in minor or patch releases prior to the `1.0.0` release. Users are encouraged to pin versions and review release notes when upgrading.
+
 To enable using the ngrok-operator with the Kubernetes Gateway API, you need to install the Gateway CRDs if you haven't already, and then include `gateway.enabled` in your `helm --set` or `values.yaml`.
 
 See the [Kubernetes Gateway API Quickstart](https://ngrok.com/docs/getting-started/kubernetes/gateway-api#standard) for setup and installation steps.
