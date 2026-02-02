@@ -30,7 +30,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
-	"github.com/ngrok/ngrok-operator/internal/drainstate"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -67,11 +67,11 @@ type Driver struct {
 
 	// drainState is used to check if the operator is draining.
 	// If draining, Sync() returns early to prevent creating new resources.
-	drainState drainstate.State
+	drainState drain.State
 }
 
-// DrainState is an alias for drainstate.State for convenience
-type DrainState = drainstate.State
+// DrainState is an alias for drain.State for convenience
+type DrainState = drain.State
 
 type DriverOpt func(*Driver)
 
@@ -566,7 +566,7 @@ func (d *Driver) syncDone() {
 // objects in the store. It then compares that to the actual state of the cluster and updates the cluster
 func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	// Skip sync during drain to prevent creating new resources
-	if drainstate.IsDraining(ctx, d.drainState) {
+	if drain.IsDraining(ctx, d.drainState) {
 		d.log.V(1).Info("Draining, skipping sync")
 		return nil
 	}

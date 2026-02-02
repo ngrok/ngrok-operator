@@ -30,7 +30,6 @@ import (
 
 	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/drainstate"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -89,7 +88,7 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 // State returns the read-only drain state interface for other controllers to check
 // if the operator is draining. This should be passed to all controllers that need
 // to skip non-delete reconciles during drain.
-func (o *Orchestrator) State() drainstate.State {
+func (o *Orchestrator) State() State {
 	return o.stateChecker
 }
 

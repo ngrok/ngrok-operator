@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
-	"github.com/ngrok/ngrok-operator/internal/drainstate"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	v1 "k8s.io/api/core/v1"
@@ -20,10 +20,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// Re-export drainstate types for convenience so consumers can use controller.DrainState
-type DrainState = drainstate.State
+// Re-export drain types for convenience so consumers can use controller.DrainState
+type DrainState = drain.State
 
-var IsDraining = drainstate.IsDraining
+var IsDraining = drain.IsDraining
 
 // BaseControllerOp is an enum for the different operations that can be performed by a BaseController
 type BaseControllerOp int

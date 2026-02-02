@@ -35,16 +35,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/drainstate"
 )
 
 func TestNeverDraining(t *testing.T) {
-	nd := drainstate.NeverDraining{}
+	nd := NeverDraining{}
 	assert.False(t, nd.IsDraining(context.Background()))
 }
 
 func TestAlwaysDraining(t *testing.T) {
-	ad := drainstate.AlwaysDraining{}
+	ad := AlwaysDraining{}
 	assert.True(t, ad.IsDraining(context.Background()))
 }
 

@@ -264,11 +264,11 @@ spec:
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
-              # With Retain policy, CloudEndpoints should be PRESERVED in ngrok API
+              # Manually created CloudEndpoint should be RETAINED with Retain policy
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
               echo "✓ CloudEndpoint preserved as expected (Retain policy)"
 
-    - name: verify ephemeral endpoints are gone
+    - name: verify ephemeral AgentEndpoints are gone
       try:
         - script:
             shell: /bin/bash
@@ -276,12 +276,11 @@ spec:
             timeout: 60s
             content: |
               # AgentEndpoints are ephemeral - they go away when the agent pod stops
-              # Ingress-generated endpoints and Gateway API endpoints are backed by CRDs that get deleted
+              # By default, Ingress and Gateway create AgentEndpoints (not CloudEndpoints)
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress.internal"
-              # Gateway API endpoint is also ephemeral
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-gateway.internal"
-              echo "✓ Ephemeral endpoints cleaned up as expected"
+              echo "✓ Ephemeral AgentEndpoints cleaned up as expected"
 
     - name: verify CRDs removed with operator (bundled CRDs)
       try:

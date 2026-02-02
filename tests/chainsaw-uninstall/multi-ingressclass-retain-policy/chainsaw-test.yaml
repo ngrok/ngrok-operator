@@ -243,16 +243,17 @@ spec:
                 exit 1
               fi
 
-    - name: verify operator-a's endpoint is gone (ephemeral)
+    - name: verify operator-a's endpoint is gone (ephemeral AgentEndpoint)
       try:
         - script:
             shell: /bin/bash
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
-              # Ingress endpoints are ephemeral - they go away when the agent pod stops
+              # By default, Ingress creates AgentEndpoints (ephemeral, tied to agent pod)
+              # AgentEndpoints go away when the agent pod stops
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress-a.internal"
-              echo "✓ Ingress A endpoint gone (ephemeral, expected even with Retain)"
+              echo "✓ Ingress A endpoint gone (ephemeral AgentEndpoint)"
 
     - name: verify KubernetesOperator-a deregistered
       try:

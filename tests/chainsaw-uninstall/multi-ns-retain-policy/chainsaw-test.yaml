@@ -253,18 +253,20 @@ spec:
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
+              # Manually created CloudEndpoint should be RETAINED with Retain policy
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-a.internal"
               echo "✓ CloudEndpoint A preserved in ngrok API (Retain policy)"
 
-    - name: verify operator-a's Ingress endpoint is gone (ephemeral)
+    - name: verify operator-a's Ingress endpoint is gone (ephemeral AgentEndpoint)
       try:
         - script:
             shell: /bin/bash
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
+              # By default, Ingress creates AgentEndpoints (ephemeral, tied to agent pod)
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress-a.internal"
-              echo "✓ Ingress A endpoint gone (ephemeral)"
+              echo "✓ Ingress A endpoint gone (ephemeral AgentEndpoint)"
 
     - name: verify KubernetesOperator-a deregistered
       try:

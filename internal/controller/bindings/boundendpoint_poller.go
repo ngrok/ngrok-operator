@@ -11,7 +11,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v7"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/drainstate"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,8 +30,8 @@ type PortRangeConfig struct {
 	Max uint16
 }
 
-// DrainState is an alias for drainstate.State for convenience
-type DrainState = drainstate.State
+// DrainState is an alias for drain.State for convenience
+type DrainState = drain.State
 
 // BoundEndpointPoller is a process to poll the ngrok API for binding_endpoints and reconcile the desired state with the cluster state of BoundEndpoints
 type BoundEndpointPoller struct {
@@ -81,7 +81,7 @@ type BoundEndpointPoller struct {
 // cancelIfDraining checks if drain mode is active and cancels any active reconciliation.
 // Returns true if draining (caller should return early).
 func (r *BoundEndpointPoller) cancelIfDraining(ctx context.Context, log logr.Logger, operation string) bool {
-	if drainstate.IsDraining(ctx, r.DrainState) {
+	if drain.IsDraining(ctx, r.DrainState) {
 		log.V(1).Info("Draining, skipping " + operation)
 		if r.reconcilingCancel != nil {
 			r.reconcilingCancel()

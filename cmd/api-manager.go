@@ -68,7 +68,6 @@ import (
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/drain"
-	"github.com/ngrok/ngrok-operator/internal/drainstate"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -729,7 +728,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 }
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
-func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, drainState drainstate.State) error {
+func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, drainState drain.State) error {
 	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
 	if err != nil {
 		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")

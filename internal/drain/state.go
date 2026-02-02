@@ -28,21 +28,43 @@ import (
 	"sync"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/drainstate"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Re-export drainstate types for convenience
-type State = drainstate.State
+// State is an interface for checking if the operator is in drain mode.
+// Implementations should cache the draining state - once true, it should never reset.
+type State interface {
+	IsDraining(ctx context.Context) bool
+}
 
-var (
-	IsDraining    = drainstate.IsDraining
-	NeverDraining = drainstate.NeverDraining{}
-)
+// IsDraining is a helper function that safely checks if drain mode is active.
+// Returns false if state is nil, avoiding the need for nil checks at every call site.
+func IsDraining(ctx context.Context, state State) bool {
+	if state == nil {
+		return false
+	}
+	return state.IsDraining(ctx)
+}
 
-// Compile-time check that StateChecker implements drainstate.State
-var _ drainstate.State = (*StateChecker)(nil)
+// NeverDraining is a State implementation that always returns false.
+// Useful for testing or when drain mode is not enabled.
+type NeverDraining struct{}
+
+var _ State = NeverDraining{}
+
+func (NeverDraining) IsDraining(context.Context) bool { return false }
+
+// AlwaysDraining is a State implementation that always returns true.
+// Useful for testing drain behavior.
+type AlwaysDraining struct{}
+
+var _ State = AlwaysDraining{}
+
+func (AlwaysDraining) IsDraining(context.Context) bool { return true }
+
+// Compile-time check that StateChecker implements State
+var _ State = (*StateChecker)(nil)
 
 // StateChecker checks if the operator is in drain mode by looking up the KubernetesOperator CR.
 // It caches the draining state - once draining is detected, it stays true (never resets).
