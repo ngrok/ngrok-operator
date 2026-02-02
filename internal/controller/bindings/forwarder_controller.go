@@ -40,8 +40,10 @@ import (
 	"github.com/go-logr/logr"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	parser "github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/mux"
+	pb_agent "github.com/ngrok/ngrok-operator/internal/pb_agent"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
@@ -222,6 +224,28 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 		log.Info("Handling connnection")
 
+		clientIp := conn.RemoteAddr().(*net.TCPAddr).IP.String()
+
+		podList := &v1.PodList{}
+		if err := r.Client.List(ctx, podList, client.MatchingFields{"status.podIP": clientIp}); err != nil {
+			log.Error(err, "failed to list pods")
+			return err
+		}
+
+		var podIdentity *pb_agent.PodIdentity
+		if len(podList.Items) == 0 {
+			log.Info("no pods matched podIP; using default identity", "podIP", clientIp)
+			podIdentity = &pb_agent.PodIdentity{}
+		} else {
+			if len(podList.Items) > 1 {
+				log.Info("multiple pods matched podIP; picking best candidate", "podIP", clientIp, "count", len(podList.Items))
+			}
+			pod := &podList.Items[0]
+			podIdentity = podIdentityFromPod(pod)
+		}
+
+		log.V(5).Info("Pod Identity", podIdentity)
+
 		ngrokConn, err := tlsDialer.Dial("tcp", ingressEndpoint)
 		if err != nil {
 			log.Error(err, "failed to dial ingress endpoint")
@@ -229,7 +253,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		}
 
 		// Upgrade the connection to a binding connection
-		resp, err := mux.UpgradeToBindingConnection(log, ngrokConn, host, port)
+		resp, err := mux.UpgradeToBindingConnection(log, ngrokConn, host, port, podIdentity)
 		log = log.WithValues("endpoint.id", resp.EndpointId, "proto", resp.Proto)
 		if err != nil {
 			log.Error(err, "failed to upgrade connection")
@@ -310,4 +334,22 @@ func joinConnections(log logr.Logger, conn1, conn2 net.Conn) error {
 		return err
 	})
 	return g.Wait()
+}
+
+// podIdentityFromPod extracts a PodIdentity from a Pod, pruning annotations
+// to only include keys with the prefix "k8s.ngrok.com/". Exported for unit testing.
+func podIdentityFromPod(pod *v1.Pod) *pb_agent.PodIdentity {
+	anns := make(map[string]string)
+	for key := range pod.Annotations {
+		if strings.HasPrefix(key, parser.DefaultAnnotationsPrefix) {
+			anns[key] = pod.Annotations[key]
+		}
+	}
+
+	return &pb_agent.PodIdentity{
+		Uid:         string(pod.UID),
+		Name:        pod.Name,
+		Namespace:   pod.Namespace,
+		Annotations: anns,
+	}
 }
