@@ -138,11 +138,13 @@ func TestDrainer_DrainOperatorResource(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
+	// Note: no finalizer here - the fake client will immediately delete the resource
+	// when Delete is called. In a real cluster, the controller would handle
+	// removing the finalizer after cleanup, but we can't simulate that here.
 	domain := &ingressv1alpha1.Domain{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-domain",
-			Namespace:  "ngrok-operator",
-			Finalizers: []string{util.FinalizerName},
+			Name:      "test-domain",
+			Namespace: "ngrok-operator",
 		},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: "test.ngrok.io",
@@ -162,6 +164,11 @@ func TestDrainer_DrainOperatorResource(t *testing.T) {
 
 	err := drainer.drainOperatorResource(context.Background(), domain)
 	require.NoError(t, err)
+
+	// Verify resource was deleted
+	var fetched ingressv1alpha1.Domain
+	err = c.Get(context.Background(), client.ObjectKey{Name: "test-domain", Namespace: "ngrok-operator"}, &fetched)
+	assert.True(t, errors.Is(err, errors.New("")) || err != nil, "resource should be deleted")
 }
 
 func TestDrainer_DrainOperatorResource_RetainMode(t *testing.T) {

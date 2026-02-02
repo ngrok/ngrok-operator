@@ -51,9 +51,6 @@ type Drainer struct {
 	Log    logr.Logger
 	// Policy determines whether to delete ngrok API resources or just remove finalizers
 	Policy ngrokv1alpha1.DrainPolicy
-
-	// WatchNamespace limits draining to resources in this namespace (empty = all namespaces)
-	WatchNamespace string
 }
 
 type DrainResult struct {
@@ -84,8 +81,10 @@ func (r *DrainResult) ErrorStrings() []string {
 }
 
 type resourceHandler struct {
-	name      string
-	drainFunc func(ctx context.Context) (int, int, []error)
+	name        string
+	list        client.ObjectList
+	skipNoMatch bool                                      // true for optional CRDs like Gateway API
+	drainFunc   func(context.Context, client.Object) error // drainUserResource or drainOperatorResource
 }
 
 // RBAC permissions needed by the Drainer to list, update, and delete resources during drain.
@@ -108,22 +107,24 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error) {
 	result := &DrainResult{}
 
 	handlers := []resourceHandler{
-		{"HTTPRoute", d.drainHTTPRoutes},
-		{"TCPRoute", d.drainTCPRoutes},
-		{"TLSRoute", d.drainTLSRoutes},
-		{"Ingress", d.drainIngresses},
-		{"Service", d.drainServices},
-		{"Gateway", d.drainGateways},
-		{"CloudEndpoint", d.drainCloudEndpoints},
-		{"AgentEndpoint", d.drainAgentEndpoints},
-		{"Domain", d.drainDomains},
-		{"IPPolicy", d.drainIPPolicies},
-		{"BoundEndpoint", d.drainBoundEndpoints},
+		// User resources: only remove finalizers so they're not blocked
+		{"HTTPRoute", &gatewayv1.HTTPRouteList{}, true, d.drainUserResource},
+		{"TCPRoute", &gatewayv1alpha2.TCPRouteList{}, true, d.drainUserResource},
+		{"TLSRoute", &gatewayv1alpha2.TLSRouteList{}, true, d.drainUserResource},
+		{"Ingress", &netv1.IngressList{}, false, d.drainUserResource},
+		{"Service", &corev1.ServiceList{}, false, d.drainUserResource},
+		{"Gateway", &gatewayv1.GatewayList{}, true, d.drainUserResource},
+		// Operator resources: delete or retain based on policy
+		{"CloudEndpoint", &ngrokv1alpha1.CloudEndpointList{}, false, d.drainOperatorResource},
+		{"AgentEndpoint", &ngrokv1alpha1.AgentEndpointList{}, false, d.drainOperatorResource},
+		{"Domain", &ingressv1alpha1.DomainList{}, false, d.drainOperatorResource},
+		{"IPPolicy", &ingressv1alpha1.IPPolicyList{}, false, d.drainOperatorResource},
+		{"BoundEndpoint", &bindingsv1alpha1.BoundEndpointList{}, false, d.drainOperatorResource},
 	}
 
 	for _, h := range handlers {
 		d.Log.Info("Draining resource type", "type", h.name)
-		completed, total, errs := h.drainFunc(ctx)
+		completed, total, errs := d.drainList(ctx, h.name, h.list, h.skipNoMatch, h.drainFunc)
 		result.Completed += completed
 		result.Total += total
 		result.Failed += len(errs)
@@ -140,12 +141,7 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error) {
 }
 
 func (d *Drainer) drainUserResource(ctx context.Context, obj client.Object) error {
-	if !util.HasFinalizer(obj) {
-		return nil
-	}
-
-	util.RemoveFinalizer(obj)
-	if err := d.Client.Update(ctx, obj); err != nil {
+	if err := util.RemoveAndSyncFinalizer(ctx, d.Client, obj); err != nil {
 		return fmt.Errorf("failed to remove finalizer from %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 	}
 	d.Log.V(1).Info("Removed finalizer from user resource", "namespace", obj.GetNamespace(), "name", obj.GetName())
@@ -179,13 +175,10 @@ func (d *Drainer) drainOperatorResource(ctx context.Context, obj client.Object) 
 	case ngrokv1alpha1.DrainPolicyRetain:
 		// Retain mode: Only remove finalizer so the CR can be garbage collected
 		// when the CRD is removed. Do not delete to preserve ngrok API resources.
-		if util.HasFinalizer(obj) {
-			util.RemoveFinalizer(obj)
-			if err := d.Client.Update(ctx, obj); err != nil {
-				return fmt.Errorf("failed to remove finalizer from %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
-			}
-			d.Log.V(1).Info("Removed finalizer from operator resource", "namespace", obj.GetNamespace(), "name", obj.GetName())
+		if err := util.RemoveAndSyncFinalizer(ctx, d.Client, obj); err != nil {
+			return fmt.Errorf("failed to remove finalizer from %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
+		d.Log.V(1).Info("Removed finalizer from operator resource", "namespace", obj.GetNamespace(), "name", obj.GetName())
 	}
 	return nil
 }
@@ -211,14 +204,6 @@ func (d *Drainer) waitForDeletion(ctx context.Context, obj client.Object, key ty
 	})
 }
 
-// namespaceListOption returns a list option to filter by WatchNamespace if set.
-func (d *Drainer) namespaceListOption() []client.ListOption {
-	if d.WatchNamespace == "" {
-		return nil
-	}
-	return []client.ListOption{client.InNamespace(d.WatchNamespace)}
-}
-
 // drainList is a generic helper that lists resources, iterates items with our finalizer,
 // and calls the provided drain function. It handles optional CRD skip logic for Gateway API types.
 func (d *Drainer) drainList(
@@ -228,7 +213,7 @@ func (d *Drainer) drainList(
 	skipNoMatch bool,
 	drainOne func(context.Context, client.Object) error,
 ) (completed, total int, errs []error) {
-	if err := d.Client.List(ctx, list, d.namespaceListOption()...); err != nil {
+	if err := d.Client.List(ctx, list); err != nil {
 		if skipNoMatch && meta.IsNoMatchError(err) {
 			d.Log.V(1).Info(kind + " CRD not installed, skipping")
 			return 0, 0, nil
@@ -257,48 +242,4 @@ func (d *Drainer) drainList(
 	}
 
 	return completed, total, errs
-}
-
-func (d *Drainer) drainHTTPRoutes(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "HTTPRoute", &gatewayv1.HTTPRouteList{}, true, d.drainUserResource)
-}
-
-func (d *Drainer) drainTCPRoutes(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "TCPRoute", &gatewayv1alpha2.TCPRouteList{}, true, d.drainUserResource)
-}
-
-func (d *Drainer) drainTLSRoutes(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "TLSRoute", &gatewayv1alpha2.TLSRouteList{}, true, d.drainUserResource)
-}
-
-func (d *Drainer) drainIngresses(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "Ingress", &netv1.IngressList{}, false, d.drainUserResource)
-}
-
-func (d *Drainer) drainServices(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "Service", &corev1.ServiceList{}, false, d.drainUserResource)
-}
-
-func (d *Drainer) drainGateways(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "Gateway", &gatewayv1.GatewayList{}, true, d.drainUserResource)
-}
-
-func (d *Drainer) drainCloudEndpoints(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "CloudEndpoint", &ngrokv1alpha1.CloudEndpointList{}, false, d.drainOperatorResource)
-}
-
-func (d *Drainer) drainAgentEndpoints(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "AgentEndpoint", &ngrokv1alpha1.AgentEndpointList{}, false, d.drainOperatorResource)
-}
-
-func (d *Drainer) drainDomains(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "Domain", &ingressv1alpha1.DomainList{}, false, d.drainOperatorResource)
-}
-
-func (d *Drainer) drainIPPolicies(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "IPPolicy", &ingressv1alpha1.IPPolicyList{}, false, d.drainOperatorResource)
-}
-
-func (d *Drainer) drainBoundEndpoints(ctx context.Context) (completed, total int, errs []error) {
-	return d.drainList(ctx, "BoundEndpoint", &bindingsv1alpha1.BoundEndpointList{}, false, d.drainOperatorResource)
 }

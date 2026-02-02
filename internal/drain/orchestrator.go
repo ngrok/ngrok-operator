@@ -49,7 +49,8 @@ const (
 
 // OrchestratorConfig contains the configuration for creating an Orchestrator
 type OrchestratorConfig struct {
-	// Client is the Kubernetes client
+	// Client is the Kubernetes client (should be the manager's cached client, which
+	// respects cache.Options.DefaultNamespaces if configured)
 	Client client.Client
 	// Recorder is the event recorder for drain-related events
 	Recorder record.EventRecorder
@@ -59,29 +60,25 @@ type OrchestratorConfig struct {
 	Namespace string
 	// ReleaseName is the KubernetesOperator CR name (used for StateChecker)
 	ReleaseName string
-	// WatchNamespace limits draining to this namespace (empty = all namespaces)
-	WatchNamespace string
 }
 
 // Orchestrator manages the complete drain workflow including state checking,
 // status updates, and resource cleanup. It provides a clean separation between
 // the drain workflow and the KubernetesOperator lifecycle management.
 type Orchestrator struct {
-	client         client.Client
-	recorder       record.EventRecorder
-	log            logr.Logger
-	stateChecker   *StateChecker
-	watchNamespace string
+	client       client.Client
+	recorder     record.EventRecorder
+	log          logr.Logger
+	stateChecker *StateChecker
 }
 
 // NewOrchestrator creates a new Orchestrator with the given configuration.
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 	return &Orchestrator{
-		client:         cfg.Client,
-		recorder:       cfg.Recorder,
-		log:            cfg.Log,
-		stateChecker:   NewStateChecker(cfg.Client, cfg.Namespace, cfg.ReleaseName),
-		watchNamespace: cfg.WatchNamespace,
+		client:       cfg.Client,
+		recorder:     cfg.Recorder,
+		log:          cfg.Log,
+		stateChecker: NewStateChecker(cfg.Client, cfg.Namespace, cfg.ReleaseName),
 	}
 }
 
@@ -121,10 +118,9 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 
 	// Create and run the drainer
 	drainer := &Drainer{
-		Client:         o.client,
-		Log:            log,
-		Policy:         ko.GetDrainPolicy(),
-		WatchNamespace: o.watchNamespace,
+		Client: o.client,
+		Log:    log,
+		Policy: ko.GetDrainPolicy(),
 	}
 
 	result, err := drainer.DrainAll(ctx)
