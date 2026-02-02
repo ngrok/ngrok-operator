@@ -1,292 +1,225 @@
 # Uninstall E2E Tests
 
-This directory contains end-to-end tests for the operator's behavior during `helm uninstall`.
+End-to-end tests for `helm uninstall` drain behavior.
 
-## Overview
+## Key Concepts
 
-When `helm uninstall` is executed, a pre-delete hook triggers the drain process which:
-1. Sets the KubernetesOperator to draining state
-2. Processes all managed resources based on the `drainPolicy`:
-   - **Retain** (default): Removes finalizers only (ngrok API resources preserved)
-   - **Delete**: Deletes CRs (controllers clean up ngrok API resources)
-3. Removes the KubernetesOperator finalizer and completes uninstall
+### Drain Process
 
-**Note**: We test the Delete policy first as it makes manual cleanup easier during development.
+When `helm uninstall` runs, a pre-delete hook triggers the drain:
+1. Sets `KubernetesOperator` to draining state
+2. Processes resources based on `drainPolicy`:
+   - **Delete**: Deletes CRs → controllers clean up ngrok API resources
+   - **Retain**: Removes finalizers only → ngrok API resources preserved
+3. Deregisters `KubernetesOperator` from ngrok API
+4. Helm completes uninstall
 
-### Tested Resource Types
+### Endpoint Types (CRITICAL!)
 
-Single-operator tests cover these resource types:
-- **CloudEndpoint** - ngrok cloud endpoint CRD
-- **AgentEndpoint** - ngrok agent endpoint CRD
-- **Ingress** - Kubernetes Ingress (networking.k8s.io/v1)
-- **Gateway API** - Gateway, HTTPRoute (gateway.networking.k8s.io/v1)
-- **BoundEndpoint** - Endpoints with kubernetes bindings that create Services
+| Endpoint Type | Persists in ngrok API? | Created By |
+|--------------|------------------------|------------|
+| **CloudEndpoint** | ✅ Yes (API resource) | Explicit CloudEndpoint CR, or advanced Ingress/Gateway configs |
+| **AgentEndpoint** | ❌ No (session-based) | Agent pod; dies when pod stops |
 
-Gateway API CRDs are installed during tests from the standard channel:
-```bash
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+**This is the most important concept for test assertions:**
+- CloudEndpoints are retained in ngrok API with `Retain` policy
+- AgentEndpoints ALWAYS disappear when the operator stops (regardless of policy)
+
+## Fixture → Endpoint Mapping
+
+| Fixture | K8s Resource | Creates in Cluster | ngrok API Endpoint | Persists After Uninstall? |
+|---------|--------------|-------------------|-------------------|--------------------------|
+| `cloudendpoint.yaml` | CloudEndpoint CR | CloudEndpoint | CloudEndpoint | ✅ Yes (with Retain) |
+| `agentendpoint.yaml` | AgentEndpoint CR | AgentEndpoint | AgentEndpoint | ❌ No (session-based) |
+| `ingress.yaml` | Ingress | AgentEndpoint (driver-generated) | AgentEndpoint | ❌ No (session-based) |
+| `gateway.yaml` + `httproute.yaml` | Gateway + HTTPRoute | AgentEndpoint (driver-generated) | AgentEndpoint | ❌ No (session-based) |
+| `cloudendpoint-k8s-binding.yaml` | CloudEndpoint w/ kubernetes binding | CloudEndpoint + BoundEndpoint + Service | CloudEndpoint | ✅ Yes (with Retain) |
+
+### Endpoint URLs by Fixture
+
+**Single-operator tests (`uninstall-test` namespace):**
+| Fixture | Endpoint URL | Type | Retained? |
+|---------|--------------|------|-----------|
+| `cloudendpoint.yaml` | `uninstall-test-cloud-ep.internal` | Cloud | ✅ |
+| `agentendpoint.yaml` | `uninstall-test-agent-ep.internal` | Agent | ❌ |
+| `ingress.yaml` | `uninstall-test-ingress.internal` | Agent | ❌ |
+| `gateway.yaml` | `uninstall-test-gateway.internal` | Agent | ❌ |
+| `cloudendpoint-k8s-binding.yaml` | `bound-test-svc.bound-target-ns` | Cloud | ✅ |
+
+**Multi-operator tests:**
+| Fixture | Endpoint URL | Type | Retained? |
+|---------|--------------|------|-----------|
+| `cloudendpoint-a.yaml` | `uninstall-test-cloud-ep-a.internal` | Cloud | ✅ |
+| `cloudendpoint-b.yaml` | `uninstall-test-cloud-ep-b.internal` | Cloud | ✅ |
+| `ingress-a.yaml` | `uninstall-test-ingress-a.internal` | Agent | ❌ |
+| `ingress-b.yaml` | `uninstall-test-ingress-b.internal` | Agent | ❌ |
+
+## Test Skeleton
+
+Every test follows this structure:
+
+```
+PHASE 0: Cleanup
+  └── cleanup-cluster.sh - Remove leftover CRDs, helm releases, namespaces
+
+PHASE 1: Setup
+  ├── Install Gateway API CRDs (if needed)
+  ├── Install ngrok CRDs (if separate)
+  ├── Build and load operator image
+  ├── helm install operator
+  ├── Assert KubernetesOperator registered (status.registrationStatus=registered)
+  └── Capture KubernetesOperator ID to temp file
+
+PHASE 2: Create Resources
+  ├── Create fixtures (CloudEndpoint, AgentEndpoint, Ingress, Gateway, etc.)
+  ├── Assert resources have finalizers (k8s.ngrok.com/finalizer)
+  └── Assert endpoints exist in ngrok API
+
+PHASE 3: Uninstall
+  └── helm uninstall (triggers drain process)
+
+PHASE 4: Assert Drain Results
+  ├── Verify finalizers removed from all resources
+  ├── Verify CRDs removed (bundled) or persist (separate)
+  ├── Verify CRs deleted (Delete policy) or exist without finalizers (Retain policy)
+  ├── Verify ngrok API state:
+  │   ├── DELETE policy: ALL endpoints absent
+  │   └── RETAIN policy: CloudEndpoints exist, AgentEndpoints absent
+  └── Verify KubernetesOperator deregistered from ngrok API
+
+PHASE 5: Cleanup Retained (Retain policy only)
+  └── Delete retained CloudEndpoints from ngrok API
+
+PHASE 6: Final Cleanup
+  ├── Uninstall CRD chart (if separate)
+  └── Delete namespaces
 ```
 
 ## Test Scenarios
 
-### Single Operator Scenarios
+### Single Operator
 
-| Scenario | Drain Policy | CRDs | Description |
-|----------|--------------|------|-------------|
-| `delete-policy-bundled-crds` | Delete | Bundled | Resources deleted from ngrok API, CRDs removed with operator |
-| `retain-policy-bundled-crds` | Retain | Bundled | Resources preserved in ngrok API, CRDs removed with operator |
-| `delete-policy-separate-crds` | Delete | Separate | Resources deleted from ngrok API, CRDs persist, CRs deleted |
-| `retain-policy-separate-crds` | Retain | Separate | CloudEndpoint preserved in ngrok API, CRDs persist, CRs exist without finalizers |
+| Scenario | Drain Policy | CRDs | What's Retained in ngrok API? |
+|----------|--------------|------|------------------------------|
+| `delete-policy-bundled-crds` | Delete | Bundled | Nothing |
+| `retain-policy-bundled-crds` | Retain | Bundled | CloudEndpoint only |
+| `delete-policy-separate-crds` | Delete | Separate | Nothing |
+| `retain-policy-separate-crds` | Retain | Separate | CloudEndpoint only |
 
-### BoundEndpoint Scenarios
+### BoundEndpoint (kubernetes bindings)
 
-These scenarios test the BoundEndpoint feature (endpoints with kubernetes bindings that create Services):
+| Scenario | Drain Policy | What's Retained? |
+|----------|--------------|------------------|
+| `bindings-delete-policy` | Delete | Nothing |
+| `bindings-retain-policy` | Retain | CloudEndpoint with kubernetes binding |
 
-| Scenario | Drain Policy | Description |
-|----------|--------------|-------------|
-| `bindings-delete-policy` | Delete | CloudEndpoint with kubernetes binding → BoundEndpoint → Services; all cleaned up on uninstall |
-| `bindings-retain-policy` | Retain | CloudEndpoint preserved in ngrok API; Services cleaned up |
+### Multi-Operator
 
-BoundEndpoint flow:
-1. Create CloudEndpoint with `bindings: ["kubernetes"]` and URL like `http://my-svc.my-namespace`
-   - **Note**: kubernetes-bound endpoints only support `http`, `tls`, and `tcp` protocols (NOT `https`)
-2. BoundEndpoint poller detects the endpoint via ngrok API
-3. BoundEndpoint controller creates target Service (ExternalName) in target namespace
-4. On drain, the CloudEndpoint is either deleted (Delete policy) or preserved (Retain policy)
-
-### Separate CRD Scenarios
-
-When CRDs are installed separately via `helm/ngrok-crds`:
-1. CRDs persist after operator uninstall
-2. With **Delete policy**: CRs are deleted (triggering ngrok API cleanup via finalizers)
-3. With **Retain policy**: CRs exist but **without finalizers** (drain removes them)
-4. Uninstalling the CRD chart removes CRDs and cascades to delete any remaining CRs
-
-### Multi-Operator Scenarios
-
-All multi-operator scenarios use **separate CRDs** to avoid complications when one operator is uninstalled.
-
-#### Namespace-Scoped (watchNamespace)
-
-Two operators in separate namespaces, each watching only its own namespace:
+All multi-operator tests use **separate CRDs** and **namespace scoping**.
 
 | Scenario | Drain Policy | Description |
 |----------|--------------|-------------|
-| `multi-ns-delete-policy` | Delete | Uninstall operator-a, verify operator-b continues working, resources cleaned from ngrok API |
-| `multi-ns-retain-policy` | Retain | Uninstall operator-a, verify operator-b continues working, CloudEndpoint preserved in ngrok API |
+| `multi-ns-delete-policy` | Delete | Uninstall operator-a; operator-b unaffected |
+| `multi-ns-retain-policy` | Retain | Uninstall operator-a; operator-b unaffected |
+| `multi-ingressclass-delete-policy` | Delete | Same + different ingress classes |
+| `multi-ingressclass-retain-policy` | Retain | Same + different ingress classes |
 
-#### IngressClass + Namespace-Scoped (REQUIRED for multi-operator)
+> **⚠️ Multi-operator requires `watchNamespace`!** Without it, operators fight over each other's resources.
 
-Two operators, each watching a different namespace AND using a different ingress class:
+## Expected Assertions by Policy
 
-| Scenario | Drain Policy | Description |
-|----------|--------------|-------------|
-| `multi-ingressclass-delete-policy` | Delete | Uninstall operator-a (namespace-a, ngrok-a class), verify operator-b unaffected |
-| `multi-ingressclass-retain-policy` | Retain | Uninstall operator-a, verify operator-b unaffected |
+### Delete Policy
+```bash
+# ALL endpoints should be absent
+ngrok-api-helper.sh endpoint absent "uninstall-test-cloud-ep.internal"
+ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
+ngrok-api-helper.sh endpoint absent "uninstall-test-ingress.internal"
+ngrok-api-helper.sh endpoint absent "uninstall-test-gateway.internal"
+```
 
-> **⚠️ IMPORTANT: Multi-operator deployments MUST use `watchNamespace`!**
->
-> CloudEndpoints and AgentEndpoints created by the operator driver have **NO ingress class scoping**. If multiple operators watch all namespaces, they will ALL try to reconcile each other's driver-generated CRDs, causing conflicts and undefined behavior.
->
-> **The only supported multi-operator configuration is:**
-> - Each operator watches a **DIFFERENT namespace** (`watchNamespace`)
-> - Each operator is **INSTALLED in the SAME namespace** as its `watchNamespace`
-> - Each operator uses a **DIFFERENT ingress class** (optional, but recommended)
->
-> **What does NOT work:**
-> - Two operators watching all namespaces with different ingress classes
-> - This will cause both operators to fight over the same CloudEndpoints/AgentEndpoints
-> - Installing the operator in a different namespace than the `watchNamespace`
-> - The operator's cache only watches the `watchNamespace`, so the KubernetesOperator CR won't be reconciled
+### Retain Policy
+```bash
+# CloudEndpoints should EXIST (retained)
+ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
 
-**Known issue: Shared backend services**
-When multiple Ingresses point to the same backend service, the operator creates a single AgentEndpoint based on the backend service name. **Workaround**: Use separate backend services for each Ingress.
+# AgentEndpoints should be ABSENT (always disappear when agent stops)
+ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
+ngrok-api-helper.sh endpoint absent "uninstall-test-ingress.internal"
+ngrok-api-helper.sh endpoint absent "uninstall-test-gateway.internal"
+```
 
 ## Running Tests
 
-### Run a specific scenario
 ```bash
+# Run specific scenario
 make e2e-uninstall SCENARIO=delete-policy-bundled-crds
-make e2e-uninstall SCENARIO=multi-ns-delete-policy
-```
 
-### Run with debug mode (pause on failure, keep resources)
-```bash
+# Run with debug mode (pause on failure)
 make e2e-uninstall SCENARIO=delete-policy-bundled-crds DEBUG=1
-```
 
-### Run all scenarios
-```bash
+# Run all scenarios
 make e2e-uninstall-all
-```
 
-### Cleanup after failed test
-```bash
+# Cleanup after failed test
 make e2e-clean-uninstall
 ```
-
-## Prerequisites
-
-- `NGROK_API_KEY` and `NGROK_AUTHTOKEN` environment variables set
-- Kind cluster running (`kind create cluster`)
-- Docker available for image building
 
 ## Directory Structure
 
 ```
 tests/chainsaw-uninstall/
-├── README.md
-├── _fixtures/                          # Shared test resources
-│   ├── values-base.yaml                # Base Helm values (image, logging, etc.)
-│   ├── backend-service.yaml            # Single-operator backend service
-│   ├── backend-service-a.yaml          # Multi-operator backend (namespace-a)
-│   ├── backend-service-b.yaml          # Multi-operator backend (namespace-b)
-│   ├── service-ingressclass-a.yaml     # Service for ingress-class-scoped tests (operator-a)
-│   ├── service-ingressclass-b.yaml     # Service for ingress-class-scoped tests (operator-b)
-│   ├── cloudendpoint.yaml              # Single-operator CloudEndpoint
-│   ├── cloudendpoint-a.yaml            # Multi-operator CloudEndpoint A
-│   ├── cloudendpoint-b.yaml            # Multi-operator CloudEndpoint B
-│   ├── agentendpoint.yaml
-│   ├── ingress.yaml                    # Single-operator Ingress
-│   ├── ingress-a.yaml                  # Multi-operator Ingress A (namespace-a)
-│   ├── ingress-b.yaml                  # Multi-operator Ingress B (namespace-b)
-│   ├── ingress-ingressclass-a.yaml     # Ingress for ingress-class-scoped tests (ngrok-a)
-│   ├── ingress-ingressclass-b.yaml     # Ingress for ingress-class-scoped tests (ngrok-b)
-│   ├── gateway-class.yaml              # Single-operator GatewayClass
-│   ├── gateway-class-a.yaml            # Multi-operator GatewayClass A
-│   ├── gateway-class-b.yaml            # Multi-operator GatewayClass B
-│   ├── gateway.yaml                    # Single-operator Gateway
-│   ├── gateway-a.yaml                  # Multi-operator Gateway A
-│   ├── gateway-b.yaml                  # Multi-operator Gateway B
-│   ├── httproute.yaml                  # Single-operator HTTPRoute
-│   ├── httproute-a.yaml                # Multi-operator HTTPRoute A
-│   ├── httproute-b.yaml                # Multi-operator HTTPRoute B
-│   ├── cloudendpoint-k8s-binding.yaml  # CloudEndpoint with kubernetes binding for BoundEndpoint tests
-│   ├── values-bindings-enabled.yaml    # Values overlay for enabling bindings
-│   └── ngrok-api-helper.sh             # API assertion helper script
+├── _fixtures/                      # Shared resources
+│   ├── values-base.yaml            # Common Helm values
+│   ├── cloudendpoint.yaml          # → CloudEndpoint (retained w/ Retain)
+│   ├── agentendpoint.yaml          # → AgentEndpoint (never retained)
+│   ├── ingress.yaml                # → AgentEndpoint (never retained)
+│   ├── gateway.yaml + httproute.yaml # → AgentEndpoint (never retained)
+│   ├── cloudendpoint-k8s-binding.yaml # → CloudEndpoint + BoundEndpoint
+│   ├── ngrok-api-helper.sh         # API assertions
+│   └── cleanup-cluster.sh          # Pre-test cleanup
 │
-├── delete-policy-bundled-crds/         # Single operator: Delete + bundled CRDs
-├── retain-policy-bundled-crds/         # Single operator: Retain + bundled CRDs
-├── delete-policy-separate-crds/        # Single operator: Delete + separate CRDs
-├── retain-policy-separate-crds/        # Single operator: Retain + separate CRDs
-│
-├── bindings-delete-policy/             # BoundEndpoint: Delete policy
-├── bindings-retain-policy/             # BoundEndpoint: Retain policy
-│
-├── multi-ns-delete-policy/             # Multi-operator: Namespace-scoped + Delete
-│   ├── chainsaw-test.yaml
-│   ├── values-operator-a.yaml          # Operator A config (watches namespace-a)
-│   └── values-operator-b.yaml          # Operator B config (watches namespace-b)
-├── multi-ns-retain-policy/             # Multi-operator: Namespace-scoped + Retain
-│   ├── chainsaw-test.yaml
-│   ├── values-operator-a.yaml
-│   └── values-operator-b.yaml
-│
-├── multi-ingressclass-delete-policy/   # Multi-operator: IngressClass-scoped + Delete
-│   ├── chainsaw-test.yaml
-│   ├── values-operator-a.yaml          # Operator A config (ingress class ngrok-a)
-│   └── values-operator-b.yaml          # Operator B config (ingress class ngrok-b)
-└── multi-ingressclass-retain-policy/   # Multi-operator: IngressClass-scoped + Retain
-    ├── chainsaw-test.yaml
-    ├── values-operator-a.yaml
-    └── values-operator-b.yaml
+├── delete-policy-bundled-crds/     # Single: Delete + bundled CRDs
+├── retain-policy-bundled-crds/     # Single: Retain + bundled CRDs
+├── delete-policy-separate-crds/    # Single: Delete + separate CRDs
+├── retain-policy-separate-crds/    # Single: Retain + separate CRDs
+├── bindings-delete-policy/         # BoundEndpoint + Delete
+├── bindings-retain-policy/         # BoundEndpoint + Retain
+├── multi-ns-delete-policy/         # Multi-op: namespace-scoped + Delete
+├── multi-ns-retain-policy/         # Multi-op: namespace-scoped + Retain
+├── multi-ingressclass-delete-policy/ # Multi-op: ingress-class + Delete
+└── multi-ingressclass-retain-policy/ # Multi-op: ingress-class + Retain
 ```
 
 ## Helm Values Cascade
 
-Tests use cascading Helm values files:
 ```bash
-# Single operator
 helm upgrade ... \
-  --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
-  --values ./tests/chainsaw-uninstall/<scenario>/values.yaml \
-  --set credentials.apiKey=... \
-  --set credentials.authtoken=...
-
-# Multi-operator
-helm upgrade ngrok-operator-a ... \
-  --values ./tests/chainsaw-uninstall/_fixtures/values-base.yaml \
-  --values ./tests/chainsaw-uninstall/<scenario>/values-operator-a.yaml \
-  ...
+  --values _fixtures/values-base.yaml \  # Common: image, logging
+  --values ./values.yaml \               # Scenario-specific: drainPolicy, installCRDs
+  --set credentials.apiKey=...
 ```
 
-**values-base.yaml** contains common settings:
-- Image repository, tag, pullPolicy
-- Log format and level
+## Prerequisites
 
-**Scenario values files** only override what's different:
-- `drainPolicy: Delete` or `Retain`
-- `installCRDs: false` for separate CRD scenarios
-- `watchNamespace` for namespace-scoped operators
-- `ingress.ingressClass.name`, `ingress.controllerName` for multi-operator scenarios
+- `NGROK_API_KEY` and `NGROK_AUTHTOKEN` environment variables
+- Kind cluster running
+- Docker available
 
-## Adding New Scenarios
+## Debugging Tips
 
-1. Create a new directory under `tests/chainsaw-uninstall/`
-2. Create values file(s) with scenario-specific helm configuration
-3. Create `chainsaw-test.yaml` using shared fixtures from `../_fixtures/`
-4. The scenario will automatically be picked up by `make e2e-uninstall-all`
+1. **Check endpoint type**: If a Retain test expects an endpoint to exist but it's absent, it's probably an AgentEndpoint (which always disappears)
 
-## Helper Scripts
+2. **List all endpoints in ngrok API**:
+   ```bash
+   ./_fixtures/ngrok-api-helper.sh endpoint list
+   ```
 
-- `_fixtures/ngrok-api-helper.sh` - Assert ngrok API state for endpoints and KubernetesOperators
-  ```bash
-  # Endpoint commands
-  ./_fixtures/ngrok-api-helper.sh endpoint exists "my-endpoint.internal"
-  ./_fixtures/ngrok-api-helper.sh endpoint absent "my-endpoint.internal"
-  ./_fixtures/ngrok-api-helper.sh endpoint list
-  ./_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test"
-  
-  # KubernetesOperator commands
-  ./_fixtures/ngrok-api-helper.sh k8sop exists "k8sop_abc123"
-  ./_fixtures/ngrok-api-helper.sh k8sop absent "k8sop_abc123"
-  ```
+3. **Check what the operator created**:
+   ```bash
+   kubectl get cloudendpoint,agentendpoint -A
+   ```
 
-## Relationship to tests/chainsaw-multi-ns
-
-The `tests/chainsaw-multi-ns` directory contains functional tests for multi-namespace deployments:
-- Tests that operators only reconcile resources in their watched namespace
-- Tests that unwatched namespaces are ignored
-- **Does NOT test uninstall behavior**
-
-This uninstall test suite (`tests/chainsaw-uninstall`) complements those tests by:
-- Testing what happens when one of multiple operators is uninstalled
-- Verifying drain policy behavior (Delete vs Retain)
-- Verifying the other operator continues working after one is removed
-
-**Overlap**: Both test suites deploy two operators with namespace/ingress-class scoping. The deployment patterns are similar but serve different purposes.
-
-**Future consideration**: Could potentially share deployment setup code, but keeping them separate maintains test isolation and makes each suite self-contained.
-
-## CI Integration
-
-These tests run serially in CI (due to shared ngrok API) after the standard e2e tests.
-
-## Design Decisions
-
-### Why separate CRDs for multi-operator scenarios?
-
-When CRDs are bundled with the operator:
-- Uninstalling the first operator removes CRDs
-- This breaks the second operator (can't reconcile resources without CRDs)
-- Users should be instructed not to bundle CRDs in multi-operator deployments
-
-We test only the supported configuration (separate CRDs) and document the limitation.
-
-### Why do all multi-operator tests require `watchNamespace`?
-
-Multi-operator deployments **MUST** use `watchNamespace` because:
-1. CloudEndpoints and AgentEndpoints have no ingress class scoping
-2. If operators watch all namespaces, they will fight over each other's CRDs
-3. The only way to achieve proper isolation is namespace-based scoping
-
-The `multi-ingressclass-*` tests use BOTH namespace scoping AND ingress class scoping to demonstrate the recommended production configuration.
-
-### Script working directory
-
-Chainsaw runs scripts from the test directory (e.g., `tests/chainsaw-uninstall/delete-policy-bundled-crds/`).
-
-All tests are 3 levels deep from the repo root, so:
-- `../../../` = repo root (for `make -C ../../../` and helm charts)
-- `../_fixtures/` = shared fixtures directory
-- `./values.yaml` = local test values
+4. **Verify finalizers**:
+   ```bash
+   kubectl get ingress,gateway,httproute,cloudendpoint,agentendpoint -A -o jsonpath='{range .items[*]}{.kind}/{.metadata.name}: {.metadata.finalizers}{"\n"}{end}'
+   ```

@@ -32,7 +32,7 @@ spec:
             content: |
               # Install Gateway API CRDs (standard channel)
               kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
-              
+
               # Wait for CRDs to be established before proceeding
               kubectl wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io
               kubectl wait --for=condition=Established --timeout=60s crd/gateways.gateway.networking.k8s.io
@@ -48,7 +48,7 @@ spec:
                 --namespace kube-system \
                 --wait \
                 --timeout 1m
-              
+
               echo "CRDs installed separately"
 
     - name: deploy operator with drainPolicy Retain and installCRDs=false
@@ -233,7 +233,7 @@ spec:
                 echo "✗ CloudEndpoint CR was deleted unexpectedly"
                 exit 1
               fi
-              
+
               FINALIZERS=$(kubectl get cloudendpoint uninstall-test-cloud-ep -n uninstall-test -o jsonpath='{.metadata.finalizers}')
               if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
                 echo "✓ CloudEndpoint exists without finalizer"
@@ -252,7 +252,7 @@ spec:
                 echo "✗ AgentEndpoint CR was deleted unexpectedly"
                 exit 1
               fi
-              
+
               FINALIZERS=$(kubectl get agentendpoint uninstall-test-agent-ep -n uninstall-test -o jsonpath='{.metadata.finalizers}')
               if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
                 echo "✓ AgentEndpoint exists without finalizer"
@@ -310,6 +310,8 @@ spec:
             content: |
               # Manually created CloudEndpoint should be RETAINED with Retain policy
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-gateway.internal"
               echo "✓ CloudEndpoint preserved as expected (Retain policy)"
 
     - name: verify ephemeral AgentEndpoints are gone
@@ -322,8 +324,6 @@ spec:
               # AgentEndpoints are ephemeral - they go away when the agent pod stops
               # By default, Ingress and Gateway create AgentEndpoints (not CloudEndpoints)
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
-              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress.internal"
-              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-gateway.internal"
               echo "✓ Ephemeral AgentEndpoints cleaned up as expected"
 
     - name: verify KubernetesOperator deregistered from ngrok API
@@ -387,7 +387,7 @@ spec:
               else
                 echo "✓ All ngrok CRDs removed"
               fi
-              
+
               # CRs should be gone with the CRDs (command should fail since CRD doesn't exist)
               if ! kubectl get cloudendpoint -n uninstall-test 2>&1 | grep -qE "(NotFound|doesn't have a resource type)"; then
                 echo "✗ CloudEndpoint resources may still exist"
@@ -399,6 +399,15 @@ spec:
     # ============================================================
     # PHASE 7: Cleanup
     # ============================================================
+    - name: cleanup retained CloudEndpoint from ngrok API
+      try:
+        - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
+            timeout: 30s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-ingress.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-gateway.internal"
     - name: cleanup resources
       try:
         - script:

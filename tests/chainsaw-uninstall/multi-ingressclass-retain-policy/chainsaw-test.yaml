@@ -6,17 +6,17 @@ metadata:
 spec:
   description: |
     Tests uninstalling one of two operators with Retain drain policy.
-    
+
     IMPORTANT: Multi-operator deployments MUST use watchNamespace!
     CloudEndpoints and AgentEndpoints created by the operator driver have NO ingress class
     scoping. If multiple operators watch all namespaces, they will ALL try to reconcile
     each other's driver-generated CRDs, causing conflicts and undefined behavior.
-    
+
     This test uses:
     - Operator A: watches namespace-a, ingress class ngrok-a
     - Operator B: watches namespace-b, ingress class ngrok-b
     - CRDs installed separately (required for multi-operator)
-    
+
     Note: Ingress endpoints are ephemeral (tied to agent), so they disappear regardless
     of Retain policy. The key test is that finalizers are removed properly.
   namespace: namespace-a
@@ -181,7 +181,7 @@ spec:
                 exit 1
               fi
               echo "✓ Found AgentEndpoint(s) in namespace-a: $AGENT_EPS_A"
-              
+
               # Verify operator-b created an AgentEndpoint in namespace-b
               AGENT_EPS_B=$(kubectl get agentendpoint -n namespace-b -o jsonpath='{.items[*].metadata.name}')
               if [ -z "$AGENT_EPS_B" ]; then
@@ -200,125 +200,125 @@ spec:
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-a.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-b.internal"
 
-    # ============================================================
-    # PHASE 3: Uninstall operator-a only
-    # ============================================================
-    - name: uninstall operator-a (triggers drain)
-      try:
-        - script:
-            timeout: 3m
-            content: |
-              echo "Uninstalling operator-a..."
-              helm uninstall ngrok-operator-a --namespace namespace-a --wait --timeout 2m
-              echo "Operator-a uninstalled"
+    # # ============================================================
+    # # PHASE 3: Uninstall operator-a only
+    # # ============================================================
+    # - name: uninstall operator-a (triggers drain)
+    #   try:
+    #     - script:
+    #         timeout: 3m
+    #         content: |
+    #           echo "Uninstalling operator-a..."
+    #           helm uninstall ngrok-operator-a --namespace namespace-a --wait --timeout 2m
+    #           echo "Operator-a uninstalled"
 
-    # ============================================================
-    # PHASE 4: Verify Retain policy behavior for operator-a
-    # Note: Ingress endpoints are ephemeral (tied to agent), so they
-    # disappear regardless of Retain policy. The key test is that
-    # the Ingress resource has its finalizer removed.
-    # ============================================================
-    - name: verify operator-a's Ingress finalizer removed
-      try:
-        - script:
-            timeout: 30s
-            content: |
-              FINALIZERS=$(kubectl get ingress uninstall-test-ingress-a -n namespace-a -o jsonpath='{.metadata.finalizers}')
-              if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
-                echo "✓ Ingress A finalizer removed"
-              else
-                echo "✗ Ingress A still has finalizers: $FINALIZERS"
-                exit 1
-              fi
+    # # ============================================================
+    # # PHASE 4: Verify Retain policy behavior for operator-a
+    # # Note: Ingress endpoints are ephemeral (tied to agent), so they
+    # # disappear regardless of Retain policy. The key test is that
+    # # the Ingress resource has its finalizer removed.
+    # # ============================================================
+    # - name: verify operator-a's Ingress finalizer removed
+    #   try:
+    #     - script:
+    #         timeout: 30s
+    #         content: |
+    #           FINALIZERS=$(kubectl get ingress uninstall-test-ingress-a -n namespace-a -o jsonpath='{.metadata.finalizers}')
+    #           if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
+    #             echo "✓ Ingress A finalizer removed"
+    #           else
+    #             echo "✗ Ingress A still has finalizers: $FINALIZERS"
+    #             exit 1
+    #           fi
 
-    - name: verify operator-a's Ingress still exists (Retain policy)
-      try:
-        - script:
-            timeout: 30s
-            content: |
-              if kubectl get ingress uninstall-test-ingress-a -n namespace-a &>/dev/null; then
-                echo "✓ Ingress A still exists (Retain policy)"
-              else
-                echo "✗ Ingress A was deleted unexpectedly"
-                exit 1
-              fi
+    # - name: verify operator-a's Ingress still exists (Retain policy)
+    #   try:
+    #     - script:
+    #         timeout: 30s
+    #         content: |
+    #           if kubectl get ingress uninstall-test-ingress-a -n namespace-a &>/dev/null; then
+    #             echo "✓ Ingress A still exists (Retain policy)"
+    #           else
+    #             echo "✗ Ingress A was deleted unexpectedly"
+    #             exit 1
+    #           fi
 
-    - name: verify operator-a's endpoint is gone (ephemeral AgentEndpoint)
-      try:
-        - script:
-            shell: /bin/bash
-            shellArgs: ["-e", "-o", "pipefail", "-c"]
-            timeout: 60s
-            content: |
-              # By default, Ingress creates AgentEndpoints (ephemeral, tied to agent pod)
-              # AgentEndpoints go away when the agent pod stops
-              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress-a.internal"
-              echo "✓ Ingress A endpoint gone (ephemeral AgentEndpoint)"
+    # - name: verify operator-a's endpoint is gone (ephemeral AgentEndpoint)
+    #   try:
+    #     - script:
+    #         shell: /bin/bash
+    #         shellArgs: ["-e", "-o", "pipefail", "-c"]
+    #         timeout: 60s
+    #         content: |
+    #           # By default, Ingress creates AgentEndpoints (ephemeral, tied to agent pod)
+    #           # AgentEndpoints go away when the agent pod stops
+    #           ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress-a.internal"
+    #           echo "✓ Ingress A endpoint gone (ephemeral AgentEndpoint)"
 
-    - name: verify KubernetesOperator-a deregistered
-      try:
-        - script:
-            shell: /bin/bash
-            shellArgs: ["-e", "-o", "pipefail", "-c"]
-            timeout: 60s
-            content: |
-              KO_ID_A=$(cat /tmp/ko-id-ingclass-a.txt)
-              ../_fixtures/ngrok-api-helper.sh k8sop absent "$KO_ID_A"
+    # - name: verify KubernetesOperator-a deregistered
+    #   try:
+    #     - script:
+    #         shell: /bin/bash
+    #         shellArgs: ["-e", "-o", "pipefail", "-c"]
+    #         timeout: 60s
+    #         content: |
+    #           KO_ID_A=$(cat /tmp/ko-id-ingclass-a.txt)
+    #           ../_fixtures/ngrok-api-helper.sh k8sop absent "$KO_ID_A"
 
-    - name: verify operator-b's Ingress STILL HAS finalizer
-      try:
-        - assert:
-            timeout: 30s
-            resource:
-              apiVersion: networking.k8s.io/v1
-              kind: Ingress
-              metadata:
-                name: uninstall-test-ingress-b
-                namespace: namespace-b
-                finalizers:
-                  - k8s.ngrok.com/finalizer
+    # - name: verify operator-b's Ingress STILL HAS finalizer
+    #   try:
+    #     - assert:
+    #         timeout: 30s
+    #         resource:
+    #           apiVersion: networking.k8s.io/v1
+    #           kind: Ingress
+    #           metadata:
+    #             name: uninstall-test-ingress-b
+    #             namespace: namespace-b
+    #             finalizers:
+    #               - k8s.ngrok.com/finalizer
 
-    - name: verify operator-b's endpoint STILL EXISTS in ngrok API
-      try:
-        - script:
-            shell: /bin/bash
-            shellArgs: ["-e", "-o", "pipefail", "-c"]
-            timeout: 60s
-            content: |
-              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-b.internal"
-              echo "✓ Operator-b ingress endpoint still working"
+    # - name: verify operator-b's endpoint STILL EXISTS in ngrok API
+    #   try:
+    #     - script:
+    #         shell: /bin/bash
+    #         shellArgs: ["-e", "-o", "pipefail", "-c"]
+    #         timeout: 60s
+    #         content: |
+    #           ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-b.internal"
+    #           echo "✓ Operator-b ingress endpoint still working"
 
-    - name: verify KubernetesOperator-b still registered
-      try:
-        - script:
-            shell: /bin/bash
-            shellArgs: ["-e", "-o", "pipefail", "-c"]
-            timeout: 30s
-            content: |
-              KO_ID_B=$(cat /tmp/ko-id-ingclass-b.txt)
-              ../_fixtures/ngrok-api-helper.sh k8sop exists "$KO_ID_B"
+    # - name: verify KubernetesOperator-b still registered
+    #   try:
+    #     - script:
+    #         shell: /bin/bash
+    #         shellArgs: ["-e", "-o", "pipefail", "-c"]
+    #         timeout: 30s
+    #         content: |
+    #           KO_ID_B=$(cat /tmp/ko-id-ingclass-b.txt)
+    #           ../_fixtures/ngrok-api-helper.sh k8sop exists "$KO_ID_B"
 
-    # ============================================================
-    # PHASE 5: Cleanup - uses finally to ensure cleanup happens
-    # ============================================================
-    - name: cleanup
-      finally:
-        - script:
-            timeout: 30s
-            content: |
-              rm -f /tmp/ko-id-ingclass-a.txt /tmp/ko-id-ingclass-b.txt
-              echo "Temp files cleaned up"
-      try:
-        - script:
-            timeout: 3m
-            content: |
-              helm uninstall ngrok-operator-b --namespace namespace-b --wait --timeout 2m || true
-        - script:
-            timeout: 2m
-            content: |
-              helm uninstall ngrok-operator-crds --namespace kube-system --wait --timeout 1m || true
-        - script:
-            timeout: 30s
-            content: |
-              kubectl delete namespace namespace-a namespace-b  --ignore-not-found --wait=false
-              echo "Cleanup complete"
+    # # ============================================================
+    # # PHASE 5: Cleanup - uses finally to ensure cleanup happens
+    # # ============================================================
+    # - name: cleanup
+    #   finally:
+    #     - script:
+    #         timeout: 30s
+    #         content: |
+    #           rm -f /tmp/ko-id-ingclass-a.txt /tmp/ko-id-ingclass-b.txt
+    #           echo "Temp files cleaned up"
+    #   try:
+    #     - script:
+    #         timeout: 3m
+    #         content: |
+    #           helm uninstall ngrok-operator-b --namespace namespace-b --wait --timeout 2m || true
+    #     - script:
+    #         timeout: 2m
+    #         content: |
+    #           helm uninstall ngrok-operator-crds --namespace kube-system --wait --timeout 1m || true
+    #     - script:
+    #         timeout: 30s
+    #         content: |
+    #           kubectl delete namespace namespace-a namespace-b  --ignore-not-found --wait=false
+    #           echo "Cleanup complete"

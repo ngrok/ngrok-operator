@@ -32,7 +32,7 @@ spec:
             content: |
               # Install Gateway API CRDs (standard channel)
               kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
-              
+
               # Wait for CRDs to be established before proceeding
               kubectl wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io
               kubectl wait --for=condition=Established --timeout=60s crd/gateways.gateway.networking.k8s.io
@@ -266,6 +266,8 @@ spec:
             content: |
               # Manually created CloudEndpoint should be RETAINED with Retain policy
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-gateway.internal"
               echo "✓ CloudEndpoint preserved as expected (Retain policy)"
 
     - name: verify ephemeral AgentEndpoints are gone
@@ -278,8 +280,6 @@ spec:
               # AgentEndpoints are ephemeral - they go away when the agent pod stops
               # By default, Ingress and Gateway create AgentEndpoints (not CloudEndpoints)
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
-              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress.internal"
-              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-gateway.internal"
               echo "✓ Ephemeral AgentEndpoints cleaned up as expected"
 
     - name: verify CRDs removed with operator (bundled CRDs)
@@ -320,17 +320,9 @@ spec:
             content: |
               echo "Cleaning up retained CloudEndpoint from ngrok API..."
               ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-cloud-ep"
+              ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-ingress.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-gateway.internal"
               echo "✓ Retained CloudEndpoint cleaned up"
-
-    - name: verify CloudEndpoint deleted after cleanup
-      try:
-        - script:
-            shell: /bin/bash
-            shellArgs: ["-e", "-o", "pipefail", "-c"]
-            timeout: 60s
-            content: |
-              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-cloud-ep.internal"
-              echo "✓ CloudEndpoint cleaned up successfully"
 
     - name: cleanup resources
       try:

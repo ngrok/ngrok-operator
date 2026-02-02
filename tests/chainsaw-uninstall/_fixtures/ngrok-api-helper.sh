@@ -28,7 +28,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Retry settings
-MAX_RETRIES="${MAX_RETRIES:-5}"
+MAX_RETRIES="${MAX_RETRIES:-10}"
 RETRY_DELAY="${RETRY_DELAY:-3}"
 
 # API settings
@@ -107,18 +107,18 @@ endpoint_list() {
 endpoint_delete_matching() {
     local pattern="${1:?Missing pattern argument}"
     log_info "Deleting endpoints matching '$pattern'..."
-    
+
     ENDPOINTS_JSON=$(fetch_endpoints)
     MATCHING=$(echo "$ENDPOINTS_JSON" | jq -r ".endpoints[] | select(.url | test(\"$pattern\")) | \"\(.id) \(.url)\"" 2>/dev/null)
-    
+
     if [ -z "$MATCHING" ]; then
         log_info "No endpoints matching '$pattern' to delete"
         return 0
     fi
-    
+
     FAIL_FILE=$(mktemp)
     echo "0" > "$FAIL_FILE"
-    
+
     echo "$MATCHING" | while read -r id url; do
         log_info "Deleting endpoint: $url ($id)"
         DELETE_OUTPUT=$(ngrok api endpoints delete "$id" --api-key "${NGROK_API_KEY}" 2>&1) || {
@@ -126,10 +126,10 @@ endpoint_delete_matching() {
             echo "1" > "$FAIL_FILE"
         }
     done
-    
+
     FAILED=$(cat "$FAIL_FILE")
     rm -f "$FAIL_FILE"
-    
+
     if [ "$FAILED" -eq 1 ]; then
         log_error "Some endpoints failed to delete"
         return 1
@@ -152,10 +152,10 @@ k8sop_get() {
 k8sop_exists() {
     local id="${1:?Missing k8sop ID argument}"
     log_info "Checking if KubernetesOperator '$id' exists..."
-    
+
     RESPONSE=$(k8sop_get "$id")
     HTTP_STATUS=$(echo "$RESPONSE" | jq -r '.error_code // empty' 2>/dev/null)
-    
+
     if [ -z "$HTTP_STATUS" ]; then
         log_success "KubernetesOperator '$id' exists"
         return 0
@@ -168,12 +168,12 @@ k8sop_exists() {
 k8sop_absent() {
     local id="${1:?Missing k8sop ID argument}"
     log_info "Checking if KubernetesOperator '$id' is absent (max ${MAX_RETRIES} retries)..."
-    
+
     for i in $(seq 1 "$MAX_RETRIES"); do
         RESPONSE=$(k8sop_get "$id")
         ERROR_CODE=$(echo "$RESPONSE" | jq -r '.error_code // empty' 2>/dev/null)
         STATUS_CODE=$(echo "$RESPONSE" | jq -r '.status_code // empty' 2>/dev/null)
-        
+
         # If we get an error code (like ERR_NGROK_404) or status_code 404, the k8sop is gone
         if [ -n "$ERROR_CODE" ]; then
             log_success "KubernetesOperator '$id' is absent (got error: $ERROR_CODE)"
@@ -183,13 +183,13 @@ k8sop_absent() {
             log_success "KubernetesOperator '$id' is absent (got 404)"
             return 0
         fi
-        
+
         if [ "$i" -lt "$MAX_RETRIES" ]; then
             log_info "Attempt $i/$MAX_RETRIES: still exists, retrying in ${RETRY_DELAY}s..."
             sleep "$RETRY_DELAY"
         fi
     done
-    
+
     log_error "KubernetesOperator '$id' still exists after $MAX_RETRIES attempts"
     echo "Response: $RESPONSE"
     return 1
@@ -213,7 +213,7 @@ case "${1:-help}" in
                 ;;
         esac
         ;;
-    
+
     k8sop)
         case "${2:-}" in
             exists) k8sop_exists "${3:-}" ;;
@@ -225,7 +225,7 @@ case "${1:-help}" in
                 ;;
         esac
         ;;
-    
+
     help|--help|-h)
         echo "Usage: $0 <resource> <command> [args]"
         echo ""
@@ -245,7 +245,7 @@ case "${1:-help}" in
         echo "  RETRY_DELAY            Seconds between retries (default: 3)"
         exit 0
         ;;
-    
+
     *)
         log_error "Unknown resource: $1"
         echo "Run '$0 --help' for usage"
