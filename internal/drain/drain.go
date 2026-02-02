@@ -83,7 +83,7 @@ func (r *DrainResult) ErrorStrings() []string {
 type resourceHandler struct {
 	name        string
 	list        client.ObjectList
-	skipNoMatch bool                                      // true for optional CRDs like Gateway API
+	skipNoMatch bool                                       // true for optional CRDs like Gateway API
 	drainFunc   func(context.Context, client.Object) error // drainUserResource or drainOperatorResource
 }
 
