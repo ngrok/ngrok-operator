@@ -56,10 +56,10 @@ type OrchestratorConfig struct {
 	Recorder record.EventRecorder
 	// Log is the logger for drain operations
 	Log logr.Logger
-	// Namespace is the operator's namespace (used for StateChecker)
-	Namespace string
-	// ReleaseName is the KubernetesOperator CR name (used for StateChecker)
-	ReleaseName string
+	// K8sOpNamespace is the operator's namespace (used for StateChecker)
+	K8sOpNamespace string
+	// K8sOpName is the KubernetesOperator CR name (used for StateChecker)
+	K8sOpName string
 }
 
 // Orchestrator manages the complete drain workflow including state checking,
@@ -78,7 +78,7 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 		client:       cfg.Client,
 		recorder:     cfg.Recorder,
 		log:          cfg.Log,
-		stateChecker: NewStateChecker(cfg.Client, cfg.Namespace, cfg.ReleaseName),
+		stateChecker: NewStateChecker(cfg.Client, cfg.K8sOpNamespace, cfg.K8sOpName),
 	}
 }
 

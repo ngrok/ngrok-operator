@@ -65,11 +65,11 @@ func TestOrchestrator_State(t *testing.T) {
 		Build()
 
 	orchestrator := NewOrchestrator(OrchestratorConfig{
-		Client:      client,
-		Recorder:    record.NewFakeRecorder(10),
-		Log:         logr.Discard(),
-		Namespace:   "ngrok-operator",
-		ReleaseName: "my-release",
+		Client:         client,
+		Recorder:       record.NewFakeRecorder(10),
+		Log:            logr.Discard(),
+		K8sOpNamespace: "ngrok-operator",
+		K8sOpName:      "my-release",
 	})
 
 	// State() should return a non-nil drainstate.State
@@ -103,11 +103,11 @@ func TestOrchestrator_HandleDrain_CompletesSuccessfully(t *testing.T) {
 
 	recorder := record.NewFakeRecorder(10)
 	orchestrator := NewOrchestrator(OrchestratorConfig{
-		Client:      client,
-		Recorder:    recorder,
-		Log:         logr.Discard(),
-		Namespace:   "ngrok-operator",
-		ReleaseName: "my-release",
+		Client:         client,
+		Recorder:       recorder,
+		Log:            logr.Discard(),
+		K8sOpNamespace: "ngrok-operator",
+		K8sOpName:      "my-release",
 	})
 
 	ctx := context.Background()
@@ -143,11 +143,11 @@ func TestOrchestrator_HandleDrain_SetsStatusToDraining(t *testing.T) {
 
 	recorder := record.NewFakeRecorder(10)
 	orchestrator := NewOrchestrator(OrchestratorConfig{
-		Client:      client,
-		Recorder:    recorder,
-		Log:         logr.Discard(),
-		Namespace:   "ngrok-operator",
-		ReleaseName: "my-release",
+		Client:         client,
+		Recorder:       recorder,
+		Log:            logr.Discard(),
+		K8sOpNamespace: "ngrok-operator",
+		K8sOpName:      "my-release",
 	})
 
 	ctx := context.Background()

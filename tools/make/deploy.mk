@@ -43,6 +43,7 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
 		--set useExperimentalGatewayApi=true \
+		--set drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: deploy_with_bindings
@@ -61,6 +62,7 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup 
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
 		--set bindings.enabled=true \
+		--set drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: deploy_for_e2e
@@ -83,7 +85,8 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set bindings.enabled=true \
 		--set bindings.serviceAnnotations.annotation1="val1" \
 		--set bindings.serviceAnnotations.annotation2="val2" \
-		--set bindings.serviceLabels.label1="val1"
+		--set bindings.serviceLabels.label1="val1" \
+		--set drainPolicy="Delete"
 
 .PHONY: deploy_multi_namespace
 ## 1. We want to install the CRDs only once at the beginning

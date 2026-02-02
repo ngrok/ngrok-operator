@@ -76,12 +76,12 @@ type KubernetesOperatorReconciler struct {
 	Recorder       record.EventRecorder
 	NgrokClientset ngrokapi.Clientset
 
-	// Namespace where the ngrok-operator is managing its resources
-	Namespace string
+	// K8sOpNamespace where the ngrok-operator is managing its resources
+	K8sOpNamespace string
 
-	// ReleaseName is the name of the KubernetesOperator CR this controller manages.
+	// K8sOpName is the name of the KubernetesOperator CR this controller manages.
 	// The controller will only reconcile the KubernetesOperator CR with this name.
-	ReleaseName string
+	K8sOpName string
 
 	// DrainOrchestrator manages the complete drain workflow. It provides:
 	// - State() for read-only drain checking (passed to other controllers)
@@ -101,7 +101,7 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		Namespace: &r.Namespace,
+		Namespace: &r.K8sOpNamespace,
 
 		StatusID: func(obj *ngrokv1alpha1.KubernetesOperator) string { return obj.Status.ID },
 		Create:   r.create,
@@ -112,7 +112,7 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 	// Only reconcile the specific KubernetesOperator CR for this operator instance.
 	// This prevents operator-b from reconciling operator-a's KO during multi-operator deployments.
 	ownKOPredicate := predicate.NewPredicateFuncs(func(obj client.Object) bool {
-		return obj.GetNamespace() == r.Namespace && obj.GetName() == r.ReleaseName
+		return obj.GetNamespace() == r.K8sOpNamespace && obj.GetName() == r.K8sOpName
 	})
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -461,7 +461,7 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 	secret = &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ko.Spec.Binding.TlsSecretName,
-			Namespace: r.Namespace,
+			Namespace: r.K8sOpNamespace,
 		},
 		Type: v1.SecretTypeTLS,
 	}

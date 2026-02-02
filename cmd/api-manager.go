@@ -342,11 +342,11 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	// - orchestrator.State() is passed to other controllers for read-only drain checking
 	// - orchestrator is passed to KubernetesOperatorReconciler for executing drain
 	drainOrchestrator := drain.NewOrchestrator(drain.OrchestratorConfig{
-		Client:      mgr.GetClient(),
-		Recorder:    mgr.GetEventRecorderFor("drain-orchestrator"),
-		Log:         ctrl.Log.WithName("drain"),
-		Namespace:   opts.namespace,
-		ReleaseName: opts.releaseName,
+		Client:         mgr.GetClient(),
+		Recorder:       mgr.GetEventRecorderFor("drain-orchestrator"),
+		Log:            ctrl.Log.WithName("drain"),
+		K8sOpNamespace: opts.namespace,
+		K8sOpName:      opts.releaseName,
 	})
 	// drainState is the read-only interface passed to all other controllers
 	drainState := drainOrchestrator.State()
@@ -410,8 +410,8 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		Log:               ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
 		Scheme:            mgr.GetScheme(),
 		Recorder:          mgr.GetEventRecorderFor("kubernetes-operator-controller"),
-		Namespace:         opts.namespace,
-		ReleaseName:       opts.releaseName,
+		K8sOpNamespace:    opts.namespace,
+		K8sOpName:         opts.releaseName,
 		NgrokClientset:    ngrokClientset,
 		DrainOrchestrator: drainOrchestrator,
 	}).SetupWithManager(mgr); err != nil {
