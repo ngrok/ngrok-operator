@@ -438,8 +438,10 @@ installCRDs: true
 ## @param cleanupHook.image.repository The repository for the kubectl image used by the cleanup hook
 ## @param cleanupHook.image.tag The tag for the kubectl image
 ## @param cleanupHook.image.pullPolicy The pull policy for the cleanup hook image
-## @param cleanupHook.resources.limits The resources limits for the cleanup hook container
-## @param cleanupHook.resources.requests The requested resources for the cleanup hook container
+## @param cleanupHook.resources.limits.cpu CPU limit for the cleanup hook container
+## @param cleanupHook.resources.limits.memory Memory limit for the cleanup hook container
+## @param cleanupHook.resources.requests.cpu CPU request for the cleanup hook container
+## @param cleanupHook.resources.requests.memory Memory request for the cleanup hook container
 ##
 drainPolicy: "Retain"  # "Delete" or "Retain"
 
