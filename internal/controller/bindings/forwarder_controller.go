@@ -40,6 +40,7 @@ import (
 	"github.com/go-logr/logr"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	parser "github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/mux"
 	pb_agent "github.com/ngrok/ngrok-operator/internal/pb_agent"
@@ -232,14 +233,18 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		}
 
 		var podIdentity *pb_agent.PodIdentity
-		if len(podList.Items) > 0 {
-			pod := &podList.Items[0]
-			podIdentity = podIdentityFromPod(pod, clientIp, log)
-		} else {
+		if len(podList.Items) == 0 {
+			log.Info("no pods matched podIP; using default identity", "podIP", clientIp)
 			podIdentity = &pb_agent.PodIdentity{}
+		} else {
+			if len(podList.Items) > 1 {
+				log.Info("multiple pods matched podIP; picking best candidate", "podIP", clientIp, "count", len(podList.Items))
+			}
+			pod := &podList.Items[0]
+			podIdentity = podIdentityFromPod(pod)
 		}
 
-		log.Info("Pod Identity", podIdentity)
+		log.V(5).Info("Pod Identity", podIdentity)
 
 		ngrokConn, err := tlsDialer.Dial("tcp", ingressEndpoint)
 		if err != nil {
@@ -332,27 +337,19 @@ func joinConnections(log logr.Logger, conn1, conn2 net.Conn) error {
 }
 
 // podIdentityFromPod extracts a PodIdentity from a Pod, pruning annotations
-// to only include keys with the prefix "k8s.ngrok.com/" and niling annotations
-// if the map size exceeds 4096 bytes. Exported for unit testing.
-func podIdentityFromPod(pod *v1.Pod, clientIp string, log logr.Logger) *pb_agent.PodIdentity {
-	// Scrape for only pod annotations with prefix k8.ngrok.com
+// to only include keys with the prefix "k8s.ngrok.com/". Exported for unit testing.
+func podIdentityFromPod(pod *v1.Pod) *pb_agent.PodIdentity {
+	anns := make(map[string]string)
 	for key := range pod.Annotations {
-		if !strings.HasPrefix(key, "k8s.ngrok.com/") {
-			log.Info("Removing pod annotation", "Key", key)
-			delete(pod.Annotations, key)
+		if strings.HasPrefix(key, parser.DefaultAnnotationsPrefix) {
+			anns[key] = pod.Annotations[key]
 		}
-	}
-
-	// Check if pod.Annotations size is greater than 4k
-	if len(pod.Annotations) > 4096 {
-		log.Info("Pod annotations size is greater than 4k", "Client ID", clientIp, "Annotations", pod.Annotations)
-		pod.Annotations = nil
 	}
 
 	return &pb_agent.PodIdentity{
 		Uid:         string(pod.UID),
 		Name:        pod.Name,
 		Namespace:   pod.Namespace,
-		Annotations: pod.Annotations,
+		Annotations: anns,
 	}
 }
