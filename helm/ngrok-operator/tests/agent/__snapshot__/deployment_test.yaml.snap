@@ -4,7 +4,7 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/rbac: 0e755cc4d5b48ace2730e13b33bb8890d470cbd03da5bce17ad773f0638907f6
+        checksum/rbac: 8f640c9e7d6d50b969f613e3cf505155384784586040a6d984a97d4e3c761fcb
       labels:
         app.kubernetes.io/component: agent
         app.kubernetes.io/instance: RELEASE-NAME
@@ -27,7 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
-            checksum/rbac: 0e755cc4d5b48ace2730e13b33bb8890d470cbd03da5bce17ad773f0638907f6
+            checksum/rbac: 8f640c9e7d6d50b969f613e3cf505155384784586040a6d984a97d4e3c761fcb
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
@@ -62,6 +62,7 @@ Should match snapshot:
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --manager-name=RELEASE-NAME-ngrok-operator-agent-manager
+                - --release-name=RELEASE-NAME
                 - --default-domain-reclaim-policy=Delete
               command:
                 - /ngrok-operator
@@ -183,6 +184,14 @@ Should match snapshot:
           - ""
         resources:
           - secrets
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators
         verbs:
           - get
           - list
