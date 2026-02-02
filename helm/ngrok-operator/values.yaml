@@ -428,3 +428,32 @@ bindings:
 
 ## @param installCRDs When true, the ngrok CRDs will be installed alongside the operator
 installCRDs: true
+
+##
+## @section Cleanup Hook configuration
+##
+## @param drainPolicy Policy for what to do with ngrok API resources while draining during an Uninstall. "Delete" removes ngrok API resources, "Retain" preserves them
+## @param cleanupHook.enabled Enable the pre-delete cleanup hook that drains resources before uninstall
+## @param cleanupHook.timeout Timeout in seconds for the cleanup process
+## @param cleanupHook.image.repository The repository for the kubectl image used by the cleanup hook
+## @param cleanupHook.image.tag The tag for the kubectl image
+## @param cleanupHook.image.pullPolicy The pull policy for the cleanup hook image
+## @param cleanupHook.resources.limits The resources limits for the cleanup hook container
+## @param cleanupHook.resources.requests The requested resources for the cleanup hook container
+##
+drainPolicy: "Retain"  # "Delete" or "Retain"
+
+cleanupHook:
+  enabled: true
+  timeout: 300
+  image:
+    repository: bitnami/kubectl
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi

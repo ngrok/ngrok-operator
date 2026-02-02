@@ -47,6 +47,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	agentcontroller "github.com/ngrok/ngrok-operator/internal/controller/agent"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/healthcheck"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
@@ -66,6 +67,7 @@ func init() {
 
 type agentManagerOpts struct {
 	// flags
+	releaseName    string
 	metricsAddr    string
 	probeAddr      string
 	serverAddr     string
@@ -99,6 +101,7 @@ func agentCmd() *cobra.Command {
 		},
 	}
 
+	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
@@ -195,6 +198,9 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 	// register healthcheck for tunnel driver
 	healthcheck.RegisterHealthChecker(ad)
 
+	// Create drain state checker - controller will use this to check if draining
+	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.releaseName)
+
 	if err = (&agentcontroller.AgentEndpointReconciler{
 		Client:                     mgr.GetClient(),
 		Log:                        ctrl.Log.WithName("controllers").WithName("agentendpoint"),
@@ -203,6 +209,7 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		AgentDriver:                ad,
 		DefaultDomainReclaimPolicy: defaultDomainReclaimPolicy,
 		ControllerLabels:           labels.NewControllerLabelValues(opts.namespace, opts.managerName),
+		DrainState:                 drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")
 		os.Exit(1)

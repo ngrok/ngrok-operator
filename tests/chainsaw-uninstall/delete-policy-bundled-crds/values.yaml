@@ -1,0 +1,7 @@
+# Scenario: delete-policy-bundled-crds
+# Overrides base values - only specify what's different
+#
+# - drainPolicy: Delete (resources cleaned up from ngrok API)
+# - installCRDs: true (default, bundled with operator)
+
+drainPolicy: Delete

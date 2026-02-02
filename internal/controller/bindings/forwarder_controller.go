@@ -70,6 +70,10 @@ type ForwarderReconciler struct {
 	BindingsDriver         *bindingsdriver.BindingsDriver
 	KubernetesOperatorName string
 	RootCAs                *x509.CertPool
+
+	// DrainState is used to check if the operator is draining.
+	// If draining, non-delete reconciles are skipped to prevent new finalizers.
+	DrainState controller.DrainState
 }
 
 func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
@@ -82,9 +86,10 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	}
 
 	r.controller = &controller.BaseController[*bindingsv1alpha1.BoundEndpoint]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
+		Kube:       r.Client,
+		Log:        r.Log,
+		Recorder:   r.Recorder,
+		DrainState: r.DrainState,
 
 		Update:   r.update,
 		Delete:   r.delete,

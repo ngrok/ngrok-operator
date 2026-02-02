@@ -1,0 +1,7 @@
+# Values overlay to enable bindings feature
+# Use with: --values ../_fixtures/values-bindings-enabled.yaml
+
+bindings:
+  enabled: true
+  endpointSelectors:
+    - "true"  # Accept all kubernetes-bound endpoints

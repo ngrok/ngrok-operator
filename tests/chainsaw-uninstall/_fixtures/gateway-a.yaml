@@ -1,0 +1,14 @@
+# Gateway for operator A in multi-operator tests
+# Using HTTP protocol to avoid TLS certificate requirements in tests
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: uninstall-test-gateway-a
+  namespace: namespace-a
+spec:
+  gatewayClassName: ngrok-a
+  listeners:
+    - name: http
+      hostname: "uninstall-test-gateway-a.internal"
+      port: 80
+      protocol: HTTP

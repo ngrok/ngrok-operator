@@ -1,0 +1,14 @@
+# Backend service for IngressClass-scoped tests (operator-a with ingress class ngrok-a)
+# MUST be in namespace-a because operator-a watches only namespace-a
+# Note: Uses different service name to avoid AgentEndpoint naming collision bug
+apiVersion: v1
+kind: Service
+metadata:
+  name: uninstall-test-svc-a
+  namespace: namespace-a
+spec:
+  selector:
+    app: uninstall-test
+  ports:
+    - port: 80
+      targetPort: 80

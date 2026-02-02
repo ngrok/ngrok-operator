@@ -33,9 +33,9 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
-	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -48,7 +48,7 @@ const (
 	LoadBalancer = corev1.ServiceTypeLoadBalancer
 	ClusterIP    = corev1.ServiceTypeClusterIP
 
-	FinalizerName = controller.FinalizerName
+	FinalizerName = util.FinalizerName
 
 	Annotation_URL             = annotations.URLAnnotation
 	Annotation_MappingStrategy = annotations.MappingStrategyAnnotation

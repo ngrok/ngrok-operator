@@ -1,0 +1,17 @@
+# Base Helm values for all uninstall e2e tests
+# Scenario-specific values can override these via additional --values or --set
+
+image:
+  repository: ngrok-operator-local
+  tag: latest
+  pullPolicy: Never
+
+log:
+  format: console
+  level: debug
+
+# Default to Retain (the actual default) - scenarios override as needed
+# drainPolicy: Retain
+
+# Default to bundled CRDs - scenarios override as needed  
+# installCRDs: true

@@ -1,0 +1,24 @@
+# CloudEndpoint with kubernetes binding for BoundEndpoint testing
+# The URL follows the service.namespace format which the BoundEndpoint poller parses
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: CloudEndpoint
+metadata:
+  name: bound-endpoint-test
+  namespace: uninstall-test
+spec:
+  # URL in service.namespace format - this is what BoundEndpoint poller parses
+  # NOTE: kubernetes-bound endpoints only support http, tls, and tcp (NOT https)
+  url: http://bound-test-svc.bound-target-ns
+  bindings:
+    - kubernetes
+  description: "CloudEndpoint with kubernetes binding for BoundEndpoint testing"
+  metadata: '{"test":"uninstall-e2e-bindings"}'
+  trafficPolicy:
+    policy:
+      on_http_request:
+        - name: test-response
+          actions:
+            - type: custom-response
+              config:
+                status_code: 200
+                content: "bound-endpoint-test"

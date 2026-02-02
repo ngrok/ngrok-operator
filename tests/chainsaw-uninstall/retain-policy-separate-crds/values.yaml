@@ -1,0 +1,8 @@
+# Scenario: retain-policy-separate-crds
+# Overrides base values - only specify what's different
+#
+# - drainPolicy: Retain (default, resources preserved in ngrok API)
+# - installCRDs: false (CRDs installed separately via ngrok-crds chart)
+
+drainPolicy: Retain
+installCRDs: false

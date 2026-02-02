@@ -81,6 +81,21 @@ type KubernetesOperatorStatus struct {
 	// BindingsIngressEndpoint is the URL that the operator will use to talk
 	// to the ngrok edge when forwarding traffic for k8s-bound endpoints
 	BindingsIngressEndpoint string `json:"bindingsIngressEndpoint,omitempty"`
+
+	// DrainStatus indicates the current state of the drain process
+	// +kubebuilder:validation:Enum=pending;draining;completed;failed
+	DrainStatus string `json:"drainStatus,omitempty"`
+
+	// DrainMessage provides additional information about the drain status
+	DrainMessage string `json:"drainMessage,omitempty"`
+
+	// DrainProgress indicates how many resources have been drained vs total
+	// Format: "X/Y" where X is processed (completed + failed) and Y is total
+	DrainProgress string `json:"drainProgress,omitempty"`
+
+	// DrainErrors contains the most recent errors encountered during drain
+	// +optional
+	DrainErrors []string `json:"drainErrors,omitempty"`
 }
 
 const (
@@ -93,6 +108,24 @@ const (
 	KubernetesOperatorFeatureIngress  = "ingress"
 	KubernetesOperatorFeatureGateway  = "gateway"
 	KubernetesOperatorFeatureBindings = "bindings"
+)
+
+const (
+	DrainStatusPending   = "pending"
+	DrainStatusDraining  = "draining"
+	DrainStatusCompleted = "completed"
+	DrainStatusFailed    = "failed"
+)
+
+// DrainPolicy determines how ngrok API resources are handled during drain
+// +kubebuilder:validation:Enum=Delete;Retain
+type DrainPolicy string
+
+const (
+	// DrainPolicyDelete deletes the CR, triggering controllers to clean up ngrok API resources
+	DrainPolicyDelete DrainPolicy = "Delete"
+	// DrainPolicyRetain removes finalizers but preserves ngrok API resources
+	DrainPolicyRetain DrainPolicy = "Retain"
 )
 
 type KubernetesOperatorSpec struct {
@@ -121,6 +154,16 @@ type KubernetesOperatorSpec struct {
 
 	// Configuration for the binding feature of this Kubernetes Operator
 	Binding *KubernetesOperatorBinding `json:"binding,omitempty"`
+
+	// Drain configures the drain behavior for uninstall
+	Drain *DrainConfig `json:"drain,omitempty"`
+}
+
+// DrainConfig configures the drain behavior during operator uninstall
+type DrainConfig struct {
+	// Policy determines whether to delete ngrok API resources or just remove finalizers
+	// +kubebuilder:default=Retain
+	Policy DrainPolicy `json:"policy,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -148,6 +191,14 @@ type KubernetesOperatorList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []KubernetesOperator `json:"items"`
+}
+
+// GetDrainPolicy returns the configured drain policy, defaulting to Retain if not set.
+func (ko *KubernetesOperator) GetDrainPolicy() DrainPolicy {
+	if ko.Spec.Drain != nil && ko.Spec.Drain.Policy != "" {
+		return ko.Spec.Drain.Policy
+	}
+	return DrainPolicyRetain
 }
 
 func init() {

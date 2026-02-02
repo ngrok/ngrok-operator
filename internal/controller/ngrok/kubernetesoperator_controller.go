@@ -52,6 +52,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
@@ -75,8 +76,17 @@ type KubernetesOperatorReconciler struct {
 	Recorder       record.EventRecorder
 	NgrokClientset ngrokapi.Clientset
 
-	// Namespace where the ngrok-operator is managing its resources
-	Namespace string
+	// K8sOpNamespace where the ngrok-operator is managing its resources
+	K8sOpNamespace string
+
+	// K8sOpName is the name of the KubernetesOperator CR this controller manages.
+	// The controller will only reconcile the KubernetesOperator CR with this name.
+	K8sOpName string
+
+	// DrainOrchestrator manages the complete drain workflow. It provides:
+	// - State() for read-only drain checking (passed to other controllers)
+	// - HandleDrain() for executing the drain workflow
+	DrainOrchestrator *drain.Orchestrator
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -91,7 +101,7 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
-		Namespace: &r.Namespace,
+		Namespace: &r.K8sOpNamespace,
 
 		StatusID: func(obj *ngrokv1alpha1.KubernetesOperator) string { return obj.Status.ID },
 		Create:   r.create,
@@ -99,12 +109,21 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Delete:   r.delete,
 	}
 
+	// Only reconcile the specific KubernetesOperator CR for this operator instance.
+	// This prevents operator-b from reconciling operator-a's KO during multi-operator deployments.
+	ownKOPredicate := predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		return obj.GetNamespace() == r.K8sOpNamespace && obj.GetName() == r.K8sOpName
+	})
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ngrokv1alpha1.KubernetesOperator{}).
 		WithEventFilter(
-			predicate.Or(
-				predicate.AnnotationChangedPredicate{},
-				predicate.GenerationChangedPredicate{},
+			predicate.And(
+				ownKOPredicate,
+				predicate.Or(
+					predicate.AnnotationChangedPredicate{},
+					predicate.GenerationChangedPredicate{},
+				),
 			),
 		).
 		Complete(r)
@@ -191,11 +210,47 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1al
 }
 
 func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
-	err := r.NgrokClientset.KubernetesOperators().Delete(ctx, ko.Status.ID)
-	if err == nil || ngrok.IsNotFound(err) {
+	log := ctrl.LoggerFrom(ctx)
+
+	// Step 1: Initiate drain if not already started
+	if ko.Status.DrainStatus == "" {
+		log.Info("KubernetesOperator deletion detected, initiating drain")
+		ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusDraining
+		ko.Status.DrainMessage = "Drain initiated"
+		if err := r.Client.Status().Update(ctx, ko); err != nil {
+			return err
+		}
+	}
+
+	// Step 2: Run drain workflow (if not already completed)
+	if ko.Status.DrainStatus != ngrokv1alpha1.DrainStatusCompleted {
+		outcome, err := r.DrainOrchestrator.HandleDrain(ctx, ko)
+		if err != nil {
+			return err
+		}
+
+		switch outcome {
+		case drain.OutcomeRetry:
+			return errors.New("drain in progress, will retry")
+		case drain.OutcomeFailed:
+			return errors.New("drain failed, will retry")
+		case drain.OutcomeComplete:
+			// Continue to ngrok API deletion
+		}
+	}
+
+	// Step 3: Drain complete - delete from ngrok API
+	log.Info("Drain complete, deleting KubernetesOperator from ngrok API")
+	if ko.Status.ID != "" {
+		err := r.NgrokClientset.KubernetesOperators().Delete(ctx, ko.Status.ID)
+		if err != nil && !ngrok.IsNotFound(err) {
+			return err
+		}
 		ko.Status.ID = ""
 	}
-	return err
+
+	// BaseController will now remove the finalizer
+	return nil
 }
 
 // updateStatus fills in the status fields of the KubernetesOperator CRD based on the current state of the ngrok API and updates the status in k8s
@@ -406,7 +461,7 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 	secret = &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ko.Spec.Binding.TlsSecretName,
-			Namespace: r.Namespace,
+			Namespace: r.K8sOpNamespace,
 		},
 		Type: v1.SecretTypeTLS,
 	}

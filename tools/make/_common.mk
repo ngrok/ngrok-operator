@@ -33,7 +33,7 @@ REPO_URL = github.com/ngrok/ngrok-operator
 
 SCRIPT_DIR = ./scripts
 
-CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/...}
+CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/..., ./internal/drain/...}
 
 # when true, deploy with --set oneClickDemoMode=true
 DEPLOY_ONE_CLICK_DEMO_MODE ?= false

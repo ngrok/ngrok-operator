@@ -8,7 +8,6 @@ rules:
   - ""
   resources:
   - configmaps
-  - services
   verbs:
   - create
   - delete
@@ -39,6 +38,18 @@ rules:
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ""
@@ -81,6 +92,10 @@ rules:
   resources:
   - gatewayclasses
   - gatewayclasses/status
+  - gateways
+  - httproutes
+  - tcproutes
+  - tlsroutes
   verbs:
   - get
   - list
@@ -97,13 +112,9 @@ rules:
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
-  - gateways
   - gateways/status
-  - httproutes
   - httproutes/status
-  - tcproutes
   - tcproutes/status
-  - tlsroutes
   - tlsroutes/status
   verbs:
   - get
@@ -159,6 +170,15 @@ rules:
   - networking.k8s.io
   resources:
   - ingresses
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
   - ingresses/status
   verbs:
   - get

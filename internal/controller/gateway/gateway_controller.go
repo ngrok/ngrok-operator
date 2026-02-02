@@ -44,6 +44,7 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 )
@@ -60,6 +61,9 @@ type GatewayReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 	Driver   *managerdriver.Driver
+	// DrainState is used to check if the operator is draining.
+	// If draining, non-delete reconciles are skipped to prevent new finalizers.
+	DrainState controller.DrainState
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -101,7 +105,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// return early.
 	if controller.IsDelete(gw) {
 		log.Info("Deleting gateway from store")
-		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+		if err := util.RemoveAndSyncFinalizer(ctx, r.Client, gw); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
@@ -121,8 +125,14 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
+	// Skip non-delete reconciles during drain to prevent adding new finalizers
+	if controller.IsDraining(ctx, r.DrainState) {
+		log.V(1).Info("Draining, skipping non-delete reconcile")
+		return ctrl.Result{}, nil
+	}
+
 	// The object is not being deleted, so register and sync finalizer
-	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, gw); err != nil {
+	if err := util.RegisterAndSyncFinalizer(ctx, r.Client, gw); err != nil {
 		log.Error(err, "Failed to register finalizer")
 		return ctrl.Result{}, err
 	}

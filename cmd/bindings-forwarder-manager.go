@@ -44,6 +44,7 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
@@ -135,6 +136,9 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		return err
 	}
 
+	// Create drain state checker - controller will use this to check if draining
+	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.releaseName)
+
 	if err = (&bindingscontroller.ForwarderReconciler{
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("bindings-forwarder"),
@@ -143,6 +147,7 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		BindingsDriver:         bd,
 		KubernetesOperatorName: opts.releaseName,
 		RootCAs:                certPool,
+		DrainState:             drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BindingsForwarder")
 		os.Exit(1)
