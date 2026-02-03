@@ -120,6 +120,14 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 			expected:    nil,
 			expectedErr: nil,
 		},
+		{
+			name: "Empty annotation value returns error",
+			annotations: map[string]string{
+				"k8s.ngrok.com/pooling-enabled": "",
+			},
+			expected:    nil,
+			expectedErr: errors.InvalidContent{Name: "the annotation k8s.ngrok.com/pooling-enabled does not contain a valid value ()"},
+		},
 	}
 
 	for _, tc := range tests {
