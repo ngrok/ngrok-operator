@@ -38,11 +38,15 @@
 
 # ngrok Kubernetes Operator
 
-
 Leverage [ngrok](https://ngrok.com/) for your ingress in your Kubernetes cluster.  Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling. This repo contains both our [Kubernetes Ingress Controller](https://kubernetes.io/docs/concepts/services-networking/ingress/) and the [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/)
 
-
 [Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/ngrok-operator/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
+
+> **Note**
+>
+> The ngrok-operator is production-ready and supported for use in production environments. However, it is currently _`pre-1.0.0`_, and as such, the public API (including helm values and CRDs) should be considered unstable.
+>
+> While we aim to minimize disruption, breaking changes may be introduced in minor or patch releases prior to the `1.0.0` release. Users are encouraged to pin versions and review release notes when upgrading.
 
 ## Installation
 
