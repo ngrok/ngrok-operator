@@ -44,6 +44,7 @@ import (
 	"github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	basecontroller "github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 // DomainReconciler reconciles a Domain object
@@ -116,14 +117,29 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log.WithValues("domain", req.NamespacedName)
+
+	// Get the domain first to check if it's internal
+	domain := &v1alpha1.Domain{}
+	if err := r.Get(ctx, req.NamespacedName, domain); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// Delete internal domains - they cannot be reserved via ngrok API
+	if util.IsInternalDomain(domain.Spec.Domain) {
+		log.Info("Deleting Domain CRD with internal TLD - internal domains cannot be reserved via ngrok API", "hostname", domain.Spec.Domain)
+
+		err := r.Delete(ctx, domain)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
 	result, err := r.controller.Reconcile(ctx, req, new(v1alpha1.Domain))
 	if err != nil {
 		return result, err
 	}
 
 	// Get the updated domain to check if we need requeuing
-	domain := &v1alpha1.Domain{}
-	if err := r.Get(ctx, req.NamespacedName, domain); err != nil {
+	if err = r.Get(ctx, req.NamespacedName, domain); err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
 
