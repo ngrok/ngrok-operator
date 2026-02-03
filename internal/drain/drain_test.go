@@ -33,8 +33,10 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -345,4 +347,209 @@ func TestDrainer_SkipsResourcesWithoutFinalizer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Total, "should only count resource with finalizer")
 	assert.Equal(t, 1, result.Completed, "should only drain resource with finalizer")
+}
+
+type errorClient struct {
+	client.Client
+	listErr   error
+	deleteErr error
+}
+
+func (c *errorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if c.listErr != nil {
+		return c.listErr
+	}
+	return c.Client.List(ctx, list, opts...)
+}
+
+func (c *errorClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+	if c.deleteErr != nil {
+		return c.deleteErr
+	}
+	return c.Client.Delete(ctx, obj, opts...)
+}
+
+func TestDrainer_drainList_ListError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		Build()
+
+	listErr := errors.New("list failed: connection refused")
+	errClient := &errorClient{Client: fakeClient, listErr: listErr}
+
+	drainer := &Drainer{
+		Client: errClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyRetain,
+	}
+
+	completed, total, errs := drainer.drainList(
+		context.Background(),
+		"Domain",
+		&ingressv1alpha1.DomainList{},
+		false,
+		drainer.drainUserResource,
+	)
+
+	assert.Equal(t, 0, completed)
+	assert.Equal(t, 0, total)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "failed to list Domain")
+	assert.Contains(t, errs[0].Error(), "connection refused")
+}
+
+type noMatchErrorClient struct {
+	client.Client
+}
+
+func (c *noMatchErrorClient) List(_ context.Context, _ client.ObjectList, _ ...client.ListOption) error {
+	return &meta.NoKindMatchError{
+		GroupKind:        schema.GroupKind{Group: "gateway.networking.k8s.io", Kind: "HTTPRoute"},
+		SearchedVersions: []string{"v1"},
+	}
+}
+
+func TestDrainer_drainList_NoMatchError_SkipsOptionalCRD(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, gatewayv1.Install(scheme))
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		Build()
+
+	errClient := &noMatchErrorClient{Client: fakeClient}
+
+	drainer := &Drainer{
+		Client: errClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyRetain,
+	}
+
+	completed, total, errs := drainer.drainList(
+		context.Background(),
+		"HTTPRoute",
+		&gatewayv1.HTTPRouteList{},
+		true,
+		drainer.drainUserResource,
+	)
+
+	assert.Equal(t, 0, completed)
+	assert.Equal(t, 0, total)
+	assert.Len(t, errs, 0, "should skip NoMatch error when skipNoMatch is true")
+}
+
+func TestDrainer_DrainOperatorResource_AlreadyDeleted(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		Build()
+
+	domain := &ingressv1alpha1.Domain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "already-deleted",
+			Namespace:  "ngrok-operator",
+			Finalizers: []string{util.FinalizerName},
+		},
+		Spec: ingressv1alpha1.DomainSpec{
+			Domain: "test.ngrok.io",
+		},
+	}
+
+	drainer := &Drainer{
+		Client: fakeClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyDelete,
+	}
+
+	err := drainer.drainOperatorResource(context.Background(), domain)
+	require.NoError(t, err, "should succeed when resource is already deleted (NotFound)")
+}
+
+func TestDrainer_DrainOperatorResource_DeleteError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+	domain := &ingressv1alpha1.Domain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-domain",
+			Namespace:  "ngrok-operator",
+			Finalizers: []string{util.FinalizerName},
+		},
+		Spec: ingressv1alpha1.DomainSpec{
+			Domain: "test.ngrok.io",
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(domain).
+		Build()
+
+	deleteErr := errors.New("forbidden: insufficient permissions")
+	errClient := &errorClient{Client: fakeClient, deleteErr: deleteErr}
+
+	drainer := &Drainer{
+		Client: errClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyDelete,
+	}
+
+	err := drainer.drainOperatorResource(context.Background(), domain)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to delete")
+	assert.Contains(t, err.Error(), "insufficient permissions")
+}
+
+type updateErrorClientForDrain struct {
+	client.Client
+	updateErr error
+}
+
+func (c *updateErrorClientForDrain) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+	if c.updateErr != nil {
+		return c.updateErr
+	}
+	return c.Client.Update(ctx, obj, opts...)
+}
+
+func TestDrainer_DrainOperatorResource_RetainUpdateError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+	domain := &ingressv1alpha1.Domain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-domain",
+			Namespace:  "ngrok-operator",
+			Finalizers: []string{util.FinalizerName},
+		},
+		Spec: ingressv1alpha1.DomainSpec{
+			Domain: "test.ngrok.io",
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(domain).
+		Build()
+
+	updateErr := errors.New("conflict: object has been modified")
+	errClient := &updateErrorClientForDrain{Client: fakeClient, updateErr: updateErr}
+
+	drainer := &Drainer{
+		Client: errClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyRetain,
+	}
+
+	err := drainer.drainOperatorResource(context.Background(), domain)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to remove finalizer")
 }
