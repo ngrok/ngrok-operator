@@ -346,3 +346,146 @@ func TestIsDomainReady(t *testing.T) {
 		})
 	}
 }
+
+func TestResolvesToEqual(t *testing.T) {
+	tests := []struct {
+		name     string
+		a        []ngrok.ReservedDomainResolvesToEntry
+		b        []ngrok.ReservedDomainResolvesToEntry
+		expected bool
+	}{
+		{
+			name:     "both nil",
+			a:        nil,
+			b:        nil,
+			expected: true,
+		},
+		{
+			name:     "both empty",
+			a:        []ngrok.ReservedDomainResolvesToEntry{},
+			b:        []ngrok.ReservedDomainResolvesToEntry{},
+			expected: true,
+		},
+		{
+			name:     "one nil one empty",
+			a:        nil,
+			b:        []ngrok.ReservedDomainResolvesToEntry{},
+			expected: true,
+		},
+		{
+			name:     "different lengths - first longer",
+			a:        []ngrok.ReservedDomainResolvesToEntry{{Value: "a"}},
+			b:        nil,
+			expected: false,
+		},
+		{
+			name:     "different lengths - second longer",
+			a:        nil,
+			b:        []ngrok.ReservedDomainResolvesToEntry{{Value: "a"}},
+			expected: false,
+		},
+		{
+			name:     "same single value",
+			a:        []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}},
+			b:        []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}},
+			expected: true,
+		},
+		{
+			name:     "different single values",
+			a:        []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}},
+			b:        []ngrok.ReservedDomainResolvesToEntry{{Value: "eu"}},
+			expected: false,
+		},
+		{
+			name:     "same multiple values",
+			a:        []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
+			b:        []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
+			expected: true,
+		},
+		{
+			name:     "same values different order",
+			a:        []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
+			b:        []ngrok.ReservedDomainResolvesToEntry{{Value: "eu"}, {Value: "us"}},
+			expected: false, // This is a (small) design decision within resolvesToEqual.
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolvesToEqual(tt.a, tt.b)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestBuildResolvesToRequest(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *[]ingressv1alpha1.DomainResolvesToEntry
+		expected []ngrok.ReservedDomainResolvesToEntry
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty slice",
+			input:    &[]ingressv1alpha1.DomainResolvesToEntry{},
+			expected: nil,
+		},
+		{
+			name:     "single entry",
+			input:    &[]ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
+			expected: []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}},
+		},
+		{
+			name:     "multiple entries",
+			input:    &[]ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
+			expected: []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildResolvesToRequest(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestBuildResolvesToStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []ngrok.ReservedDomainResolvesToEntry
+		expected *[]ingressv1alpha1.DomainResolvesToEntry
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty slice",
+			input:    []ngrok.ReservedDomainResolvesToEntry{},
+			expected: nil,
+		},
+		{
+			name:     "single entry",
+			input:    []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}},
+			expected: &[]ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
+		},
+		{
+			name:     "multiple entries",
+			input:    []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
+			expected: &[]ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildResolvesToStatus(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
