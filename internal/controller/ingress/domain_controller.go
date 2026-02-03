@@ -127,12 +127,10 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// Delete internal domains - they cannot be reserved via ngrok API
 	if util.IsInternalDomain(domain.Spec.Domain) {
-		log.Info("Deleting Domain CRD with internal TLD - internal domains cannot be reserved via ngrok API",
-			"hostname", domain.Spec.Domain)
-		if err := r.Delete(ctx, domain); err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
-		}
-		return ctrl.Result{}, nil
+		log.Info("Deleting Domain CRD with internal TLD - internal domains cannot be reserved via ngrok API", "hostname", domain.Spec.Domain)
+
+		err := r.Delete(ctx, domain)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	result, err := r.controller.Reconcile(ctx, req, new(v1alpha1.Domain))
