@@ -181,6 +181,32 @@ spec:
                 finalizers:
                   - k8s.ngrok.com/finalizer
 
+    - name: verify Ingress and Gateway created CloudEndpoints
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # With endpoints-verbose mapping strategy, Ingress/Gateway create CloudEndpoints
+              # Check CloudEndpoint URLs (more reliable than names which may have hashes)
+              CLOUD_EP_URLS=$(kubectl get cloudendpoint -n uninstall-test -o jsonpath='{.items[*].spec.url}')
+              echo "Found CloudEndpoint URLs: $CLOUD_EP_URLS"
+              
+              # Verify Ingress CloudEndpoint exists
+              if echo "$CLOUD_EP_URLS" | grep -q "uninstall-test-ingress.internal"; then
+                echo "✓ Ingress created CloudEndpoint for uninstall-test-ingress.internal"
+              else
+                echo "✗ Ingress CloudEndpoint not found"
+                exit 1
+              fi
+              
+              # Verify Gateway CloudEndpoint exists
+              if echo "$CLOUD_EP_URLS" | grep -q "uninstall-test-gateway.internal"; then
+                echo "✓ Gateway created CloudEndpoint for uninstall-test-gateway.internal"
+              else
+                echo "✗ Gateway CloudEndpoint not found"
+                exit 1
+              fi
+
     - name: verify endpoints exist in ngrok API
       try:
         - script:
@@ -188,10 +214,11 @@ spec:
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
+              # Manually created CloudEndpoint and AgentEndpoint
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-agent-ep.internal"
+              # CloudEndpoints created by Ingress and Gateway (endpoints-verbose)
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress.internal"
-              # Gateway API endpoint
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-gateway.internal"
 
     # ============================================================

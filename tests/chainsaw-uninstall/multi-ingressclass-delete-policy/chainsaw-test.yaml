@@ -166,12 +166,27 @@ spec:
                 finalizers:
                   - k8s.ngrok.com/finalizer
 
-    - name: verify AgentEndpoints created for Ingresses
+    - name: verify Ingresses created CloudEndpoints and AgentEndpoints
       try:
         - script:
             timeout: 60s
             content: |
-              # Verify operator-a created an AgentEndpoint in namespace-a
+              # With endpoints-verbose mapping strategy, each Ingress creates:
+              # - A CloudEndpoint for the public URL
+              # - An internal AgentEndpoint for the backend service
+              # Check CloudEndpoint URLs (more reliable than names which may have hashes)
+              
+              # Verify operator-a created CloudEndpoint in namespace-a
+              CLOUD_EP_URLS_A=$(kubectl get cloudendpoint -n namespace-a -o jsonpath='{.items[*].spec.url}')
+              if echo "$CLOUD_EP_URLS_A" | grep -q "uninstall-test-ingress-a.internal"; then
+                echo "✓ Ingress A created CloudEndpoint for uninstall-test-ingress-a.internal"
+              else
+                echo "✗ Ingress A CloudEndpoint not found"
+                echo "Available URLs: $CLOUD_EP_URLS_A"
+                exit 1
+              fi
+              
+              # Verify operator-a created an internal AgentEndpoint in namespace-a
               AGENT_EPS_A=$(kubectl get agentendpoint -n namespace-a -o jsonpath='{.items[*].metadata.name}')
               if [ -z "$AGENT_EPS_A" ]; then
                 echo "✗ No AgentEndpoints found in namespace-a"
@@ -179,7 +194,17 @@ spec:
               fi
               echo "✓ Found AgentEndpoint(s) in namespace-a: $AGENT_EPS_A"
               
-              # Verify operator-b created an AgentEndpoint in namespace-b
+              # Verify operator-b created CloudEndpoint in namespace-b
+              CLOUD_EP_URLS_B=$(kubectl get cloudendpoint -n namespace-b -o jsonpath='{.items[*].spec.url}')
+              if echo "$CLOUD_EP_URLS_B" | grep -q "uninstall-test-ingress-b.internal"; then
+                echo "✓ Ingress B created CloudEndpoint for uninstall-test-ingress-b.internal"
+              else
+                echo "✗ Ingress B CloudEndpoint not found"
+                echo "Available URLs: $CLOUD_EP_URLS_B"
+                exit 1
+              fi
+              
+              # Verify operator-b created an internal AgentEndpoint in namespace-b
               AGENT_EPS_B=$(kubectl get agentendpoint -n namespace-b -o jsonpath='{.items[*].metadata.name}')
               if [ -z "$AGENT_EPS_B" ]; then
                 echo "✗ No AgentEndpoints found in namespace-b"
@@ -187,13 +212,14 @@ spec:
               fi
               echo "✓ Found AgentEndpoint(s) in namespace-b: $AGENT_EPS_B"
 
-    - name: verify both ingress endpoints exist in ngrok API
+    - name: verify both ingress CloudEndpoints exist in ngrok API
       try:
         - script:
             shell: /bin/bash
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
+              # With endpoints-verbose, Ingresses create CloudEndpoints
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-a.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-b.internal"
 

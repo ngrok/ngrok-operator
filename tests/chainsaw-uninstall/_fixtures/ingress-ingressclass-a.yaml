@@ -6,6 +6,8 @@ kind: Ingress
 metadata:
   name: uninstall-test-ingress-a
   namespace: namespace-a
+  annotations:
+    k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
 spec:
   ingressClassName: ngrok-a
   rules:

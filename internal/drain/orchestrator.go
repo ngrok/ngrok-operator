@@ -27,6 +27,7 @@ package drain
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -112,6 +113,9 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 		log.V(1).Info("Drain already completed, skipping")
 		return OutcomeComplete, nil
 	}
+
+	log.Info("Drain started, sleeping to allow other controllers to observe drain state")
+	time.Sleep(2 * time.Second)
 
 	log.Info("Running drain process")
 	o.recorder.Event(ko, v1.EventTypeNormal, "DrainStarted", "Starting drain of all managed resources")

@@ -11,6 +11,16 @@ End-to-end tests for `helm uninstall` drain behavior.
 
 This distinction drives all test assertions.
 
+### Mapping Strategy: endpoints-verbose
+
+All Ingress and Gateway fixtures use the `k8s.ngrok.com/mapping-strategy: "endpoints-verbose"` annotation.
+This ensures **both** a CloudEndpoint (public URL) and an internal AgentEndpoint are created:
+
+- **CloudEndpoint**: e.g., `https://uninstall-test-ingress.internal` - respects Retain/Delete policy
+- **Internal AgentEndpoint**: e.g., `https://abc12-svc-ns-80.internal` - always ephemeral
+
+This provides consistent, predictable test behavior regardless of route complexity.
+
 ## Running Tests
 
 ```bash
@@ -63,8 +73,8 @@ tests/chainsaw-uninstall/
 ├── _fixtures/                        # Shared test resources
 │   ├── cloudendpoint.yaml            # → CloudEndpoint (retained)
 │   ├── agentendpoint.yaml            # → AgentEndpoint (never retained)
-│   ├── ingress.yaml                  # → AgentEndpoint
-│   ├── gateway.yaml + httproute.yaml # → AgentEndpoint
+│   ├── ingress.yaml                  # → CloudEndpoint + internal AgentEndpoint (endpoints-verbose)
+│   ├── gateway.yaml + httproute.yaml # → CloudEndpoint + internal AgentEndpoint (endpoints-verbose)
 │   ├── ngrok-api-helper.sh           # API assertions
 │   └── cleanup-cluster.sh            # Pre-test cleanup
 │

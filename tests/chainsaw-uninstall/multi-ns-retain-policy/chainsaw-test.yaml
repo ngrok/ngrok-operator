@@ -189,6 +189,31 @@ spec:
                 finalizers:
                   - k8s.ngrok.com/finalizer
 
+    - name: verify Ingresses created CloudEndpoints (endpoints-verbose)
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # With endpoints-verbose mapping strategy, Ingresses create CloudEndpoints
+              # Check CloudEndpoint URLs (more reliable than names which may have hashes)
+              CLOUD_EP_URLS_A=$(kubectl get cloudendpoint -n namespace-a -o jsonpath='{.items[*].spec.url}')
+              if echo "$CLOUD_EP_URLS_A" | grep -q "uninstall-test-ingress-a.internal"; then
+                echo "✓ Ingress A created CloudEndpoint for uninstall-test-ingress-a.internal"
+              else
+                echo "✗ Ingress A CloudEndpoint not found in namespace-a"
+                echo "Available URLs: $CLOUD_EP_URLS_A"
+                exit 1
+              fi
+              
+              CLOUD_EP_URLS_B=$(kubectl get cloudendpoint -n namespace-b -o jsonpath='{.items[*].spec.url}')
+              if echo "$CLOUD_EP_URLS_B" | grep -q "uninstall-test-ingress-b.internal"; then
+                echo "✓ Ingress B created CloudEndpoint for uninstall-test-ingress-b.internal"
+              else
+                echo "✗ Ingress B CloudEndpoint not found in namespace-b"
+                echo "Available URLs: $CLOUD_EP_URLS_B"
+                exit 1
+              fi
+
     - name: verify all endpoints exist in ngrok API
       try:
         - script:
@@ -196,8 +221,10 @@ spec:
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
+              # Manually created CloudEndpoints
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-a.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-b.internal"
+              # CloudEndpoints created by Ingresses (endpoints-verbose)
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-a.internal"
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-b.internal"
 
@@ -257,16 +284,17 @@ spec:
               ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep-a.internal"
               echo "✓ CloudEndpoint A preserved in ngrok API (Retain policy)"
 
-    - name: verify operator-a's Ingress endpoint is gone (ephemeral AgentEndpoint)
+    - name: verify operator-a's Ingress CloudEndpoint STILL EXISTS (Retain policy)
       try:
         - script:
             shell: /bin/bash
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
-              # By default, Ingress creates AgentEndpoints (ephemeral, tied to agent pod)
-              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress-a.internal"
-              echo "✓ Ingress A endpoint gone (ephemeral AgentEndpoint)"
+              # With endpoints-verbose, Ingress creates CloudEndpoints
+              # With Retain policy, these CloudEndpoints are PRESERVED
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress-a.internal"
+              echo "✓ Ingress A CloudEndpoint preserved (Retain policy)"
 
     - name: verify KubernetesOperator-a deregistered
       try:
@@ -327,14 +355,17 @@ spec:
     # ============================================================
     # PHASE 5: Cleanup
     # ============================================================
-    - name: cleanup retained CloudEndpoint from ngrok API
+    - name: cleanup retained CloudEndpoints from ngrok API (operator-a)
       try:
         - script:
             shell: /bin/bash
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 30s
             content: |
+              # Clean up manually created CloudEndpoint
               ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-cloud-ep-a"
+              # Clean up Ingress-generated CloudEndpoint (endpoints-verbose)
+              ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-ingress-a.internal"
 
     - name: uninstall operator-b
       try:
@@ -343,14 +374,17 @@ spec:
             content: |
               helm uninstall ngrok-operator-b --namespace namespace-b --wait --timeout 2m
 
-    - name: cleanup retained CloudEndpoint-b from ngrok API
+    - name: cleanup retained CloudEndpoints from ngrok API (operator-b)
       try:
         - script:
             shell: /bin/bash
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 30s
             content: |
+              # Clean up manually created CloudEndpoint
               ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-cloud-ep-b"
+              # Clean up Ingress-generated CloudEndpoint (endpoints-verbose)
+              ../_fixtures/ngrok-api-helper.sh endpoint delete-matching "uninstall-test-ingress-b.internal"
 
     - name: uninstall CRD chart
       try:

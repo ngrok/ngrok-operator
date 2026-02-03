@@ -5,6 +5,8 @@ kind: Gateway
 metadata:
   name: uninstall-test-gateway-b
   namespace: namespace-b
+  annotations:
+    k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
 spec:
   gatewayClassName: ngrok-b
   listeners:

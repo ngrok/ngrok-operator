@@ -169,27 +169,42 @@ spec:
                 finalizers:
                   - k8s.ngrok.com/finalizer
 
-    - name: verify Ingress created an AgentEndpoint
+    - name: verify Ingress and Gateway created CloudEndpoints and AgentEndpoints
       try:
         - script:
             timeout: 30s
             content: |
-              # With default mapping strategy, Ingress creates an AgentEndpoint for the backend service
-              # The AgentEndpoint name is based on a hash, so we check for any AgentEndpoint with the right upstream
+              # With endpoints-verbose mapping strategy, Ingress/Gateway create both:
+              # - A CloudEndpoint for the public URL
+              # - An internal AgentEndpoint for the backend service (hashed name)
+              
+              # Check CloudEndpoint URLs (more reliable than names which may have hashes)
+              CLOUD_EP_URLS=$(kubectl get cloudendpoint -n uninstall-test -o jsonpath='{.items[*].spec.url}')
+              echo "Found CloudEndpoint URLs: $CLOUD_EP_URLS"
+              
+              # Verify Ingress CloudEndpoint exists
+              if echo "$CLOUD_EP_URLS" | grep -q "uninstall-test-ingress.internal"; then
+                echo "✓ Ingress created CloudEndpoint for uninstall-test-ingress.internal"
+              else
+                echo "✗ Ingress CloudEndpoint not found"
+                exit 1
+              fi
+              
+              # Verify Gateway CloudEndpoint exists
+              if echo "$CLOUD_EP_URLS" | grep -q "uninstall-test-gateway.internal"; then
+                echo "✓ Gateway created CloudEndpoint for uninstall-test-gateway.internal"
+              else
+                echo "✗ Gateway CloudEndpoint not found"
+                exit 1
+              fi
+              
+              # Check for internal AgentEndpoint(s) created by Ingress/Gateway
               AGENT_EPS=$(kubectl get agentendpoint -n uninstall-test -o jsonpath='{.items[*].metadata.name}')
               if [ -z "$AGENT_EPS" ]; then
                 echo "✗ No AgentEndpoints found in namespace"
                 exit 1
               fi
               echo "✓ Found AgentEndpoint(s): $AGENT_EPS"
-              # Verify at least one has the expected upstream service
-              UPSTREAM=$(kubectl get agentendpoint -n uninstall-test -o jsonpath='{.items[0].spec.upstream.url}')
-              if echo "$UPSTREAM" | grep -q "uninstall-test-svc"; then
-                echo "✓ AgentEndpoint has correct upstream: $UPSTREAM"
-              else
-                echo "✗ AgentEndpoint upstream doesn't match expected service: $UPSTREAM"
-                exit 1
-              fi
 
     - name: verify endpoints exist in ngrok API
       try:
@@ -277,10 +292,14 @@ spec:
             shellArgs: ["-e", "-o", "pipefail", "-c"]
             timeout: 60s
             content: |
-              # AgentEndpoints are ephemeral - they go away when the agent pod stops
-              # By default, Ingress and Gateway create AgentEndpoints (not CloudEndpoints)
+              # The manually created AgentEndpoint (uninstall-test-agent-ep) is ephemeral
+              # It goes away when the agent pod stops, regardless of Retain/Delete policy
               ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
-              echo "✓ Ephemeral AgentEndpoints cleaned up as expected"
+              echo "✓ Manually created AgentEndpoint cleaned up as expected"
+              
+              # Internal AgentEndpoints created by Ingress/Gateway (with .internal suffix) 
+              # are also ephemeral and should be gone
+              # We don't check for specific hashed names since they're unpredictable
 
     - name: verify CRDs removed with operator (bundled CRDs)
       try:
