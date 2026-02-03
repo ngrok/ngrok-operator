@@ -27,6 +27,7 @@ package ingress
 import (
 	"context"
 	"errors"
+	"reflect"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -180,7 +181,7 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 	specResolvesTo := buildResolvesToRequest(domain.Spec.ResolvesTo)
 	if domain.Spec.Description == resp.Description &&
 		domain.Spec.Metadata == resp.Metadata &&
-		resolvesToEqual(specResolvesTo, resp.ResolvesTo) {
+		reflect.DeepEqual(specResolvesTo, resp.ResolvesTo) {
 		// No changes needed, still update status to ensure conditions are current
 		return r.updateStatus(ctx, domain, resp, nil)
 	}
@@ -264,20 +265,6 @@ func buildResolvesToRequest(resolvesTo *[]v1alpha1.DomainResolvesToEntry) []ngro
 		}
 	}
 	return result
-}
-
-// This is technically sensitive to ordering, however we respect
-// what the user gives to us.
-func resolvesToEqual(a, b []ngrok.ReservedDomainResolvesToEntry) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i].Value != b[i].Value {
-			return false
-		}
-	}
-	return true
 }
 
 func buildCertificateInfo(certificate *ngrok.Ref) *v1alpha1.DomainStatusCertificateInfo {

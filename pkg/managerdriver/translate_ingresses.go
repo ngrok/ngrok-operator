@@ -11,17 +11,9 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-// boolPtrEqual compares two *bool values for equality.
-// Returns true if both are nil, or both are non-nil with the same value.
-func boolPtrEqual(a, b *bool) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
-}
 
 // #region Ingresses to IR
 
@@ -140,7 +132,7 @@ func (t *translator) ingressToIR(
 				continue
 			}
 			// They must have the same configuration for whether or not to pool endpoints
-			if !boolPtrEqual(irVHost.EndpointPoolingEnabled, endpointPoolingEnabled) {
+			if !ptr.Equal(irVHost.EndpointPoolingEnabled, endpointPoolingEnabled) {
 				t.log.Error(errors.New("different endpoint pooling annotations provided for the same hostname"),
 					"when using the same hostname across multiple ingresses, ensure that they all enable or all disable endpoint pooling",
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
