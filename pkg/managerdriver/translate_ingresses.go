@@ -11,6 +11,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -35,7 +36,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.MappingStrategyAnnotation))
 		}
-		if useEndpointPooling {
+		if useEndpointPooling != nil && *useEndpointPooling {
 			t.log.Info(fmt.Sprintf("the following ingress will create endpoint(s) with pooling enabled because of the %q annotation",
 				annotations.MappingStrategyAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
@@ -97,7 +98,7 @@ func (t *translator) ingressToIR(
 	defaultDestination *ir.IRDestination,
 	hostCache map[ir.IRHostname]*ir.IRVirtualHost,
 	upstreamCache map[ir.IRServiceKey]*ir.IRUpstream,
-	endpointPoolingEnabled bool,
+	endpointPoolingEnabled *bool,
 	annotationTrafficPolicy *trafficpolicy.TrafficPolicy,
 	annotationTrafficPolicyRef *ir.OwningResource,
 	bindings []string,
@@ -131,7 +132,7 @@ func (t *translator) ingressToIR(
 				continue
 			}
 			// They must have the same configuration for whether or not to pool endpoints
-			if irVHost.EndpointPoolingEnabled != endpointPoolingEnabled {
+			if !ptr.Equal(irVHost.EndpointPoolingEnabled, endpointPoolingEnabled) {
 				t.log.Error(errors.New("different endpoint pooling annotations provided for the same hostname"),
 					"when using the same hostname across multiple ingresses, ensure that they all enable or all disable endpoint pooling",
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),

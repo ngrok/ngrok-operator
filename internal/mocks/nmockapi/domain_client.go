@@ -43,11 +43,12 @@ func (m *DomainClient) Create(_ context.Context, item *ngrok.ReservedDomainCreat
 	id := m.newID()
 
 	newDomain := &ngrok.ReservedDomain{
-		ID:        id,
-		CreatedAt: m.createdAt(),
-		Domain:    item.Domain,
-		Region:    item.Region,
-		URI:       fmt.Sprintf("https://mock-api.ngrok.com/reserved_domains/%s", id),
+		ID:         id,
+		CreatedAt:  m.createdAt(),
+		Domain:     item.Domain,
+		Region:     item.Region,
+		URI:        fmt.Sprintf("https://mock-api.ngrok.com/reserved_domains/%s", id),
+		ResolvesTo: item.ResolvesTo,
 	}
 
 	if !isNgrokManagedDomain(newDomain) {
@@ -84,6 +85,10 @@ func (m *DomainClient) Update(ctx context.Context, item *ngrok.ReservedDomainUpd
 
 	if item.CertificateManagementPolicy != nil {
 		existingItem.CertificateManagementPolicy = item.CertificateManagementPolicy
+	}
+
+	if item.ResolvesTo != nil {
+		existingItem.ResolvesTo = item.ResolvesTo
 	}
 
 	m.items[item.ID] = existingItem

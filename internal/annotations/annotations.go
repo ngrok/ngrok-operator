@@ -86,17 +86,20 @@ func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error)
 }
 
 // Whether or not we should use endpoint pooling
-// from the annotation "k8s.ngrok.com/pooling-enabled" if it is present. Otherwise, it defaults to false
-func ExtractUseEndpointPooling(obj client.Object) (bool, error) {
+// from the annotation "k8s.ngrok.com/pooling-enabled" if it is present.
+// Returns nil if the annotation is not set, allowing the caller to distinguish
+// between "not configured" and "explicitly disabled".
+func ExtractUseEndpointPooling(obj client.Object) (*bool, error) {
 	val, err := parser.GetStringAnnotation(EndpointPoolingAnnotationKey, obj)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
-			return false, nil
+			return nil, nil
 		}
-		return false, err
+		return nil, err
 	}
 
-	return strings.EqualFold(val, "true"), nil
+	result := strings.EqualFold(val, "true")
+	return &result, nil
 }
 
 // Determines which traffic is allowed to reach an endpoint
