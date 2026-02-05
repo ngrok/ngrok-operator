@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.20.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.19.1...ngrok-operator-0.20.0-rc.1
+
+### Added
+
+- feat: support Domain `resolves_to` field by @andrew-harris-at-ngrok in [#746](https://github.com/ngrok/ngrok-operator/pull/746)
+- feat: Label operator created resources consistently with `k8s.ngrok.com/controller-name` and `k8s.ngrok.com/controller-namespace` labels by @jonstacks in [#741](https://github.com/ngrok/ngrok-operator/pull/741)
+- Add pods to bindings forwarder manager cache and new field indexer for IP-based pod lookup by @sabrina-ngrok in [#742](https://github.com/ngrok/ngrok-operator/pull/742)
+- Get pod from cache with client IP, load pod identity with information and pass through binding connection by @sabrina-ngrok in [#749](https://github.com/ngrok/ngrok-operator/pull/749)
+- Updating proto to match ngrok-private, adding PodIdentity by @sabrina-ngrok in [#743](https://github.com/ngrok/ngrok-operator/pull/743)
+- Create NewTrafficPolicyFromJson deserializer checking for unknown keys and implement it in translating ingresses by @sabrina-ngrok in [#718](https://github.com/ngrok/ngrok-operator/pull/718)
+- Push events to ingress about domain conditions via driver by @alex-bezek in [#730](https://github.com/ngrok/ngrok-operator/pull/730)
+- Add better kubebuilder type annotations to some status condition fields by @alex-bezek in [#728](https://github.com/ngrok/ngrok-operator/pull/728)
+
+### Changed
+
+- chore(deps): Update go to 1.25.5 by @jonstacks in [#724](https://github.com/ngrok/ngrok-operator/pull/724)
+- chore(deps): Update ngrok go sdk to the latest version to get a bug fix by @alex-bezek in [#723](https://github.com/ngrok/ngrok-operator/pull/723)
+- Remove the deprecated domain annotation on Load balancer services by @alex-bezek in [#722](https://github.com/ngrok/ngrok-operator/pull/722)
+- Remove the deprecated cloud endpoint domain status by @alex-bezek in [#727](https://github.com/ngrok/ngrok-operator/pull/727)
+- Don't create internal domains for ingress and gateway objects by @alex-bezek in [#744](https://github.com/ngrok/ngrok-operator/pull/744)
+- Make agent endpoint controller respect the watchNamespace flag by @alex-bezek in [#740](https://github.com/ngrok/ngrok-operator/pull/740)
+- Remove labels from pod identity by @sabrina-ngrok in [#748](https://github.com/ngrok/ngrok-operator/pull/748)
+- refactor: Remove ngrokAPICommon by @jonstacks in [#704](https://github.com/ngrok/ngrok-operator/pull/704)
+- Adding strategy type of RollingUpdate to prevent session doubling during deployments by @sabrina-ngrok in [#711](https://github.com/ngrok/ngrok-operator/pull/711)
+
+### Fixed
+
+- fix: correct namespace comparison in secretReferencedByGateway by @alex-bezek in [#745](https://github.com/ngrok/ngrok-operator/pull/745)
+- Fix invalid kubebuilder code gen markers by @alex-bezek in [#734](https://github.com/ngrok/ngrok-operator/pull/734)
+- Fix race condition in env test for service controller by @alex-bezek in [#733](https://github.com/ngrok/ngrok-operator/pull/733)
+
 ## 0.19.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.19.0...ngrok-operator-0.19.1
 

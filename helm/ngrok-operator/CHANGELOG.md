@@ -5,6 +5,23 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.22.0-rc.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.22.0-rc.1...helm-chart-0.22.0-rc.2
+
+- Update ngrok-operator image version to `0.20.0-rc.1`
+- Update Helm chart version to `0.22.0-rc.2`
+
+### Added
+
+- Allow helm uninstall to be configured to handle cleaning up api resources and removing finalizers by @alex-bezek in [#750](https://github.com/ngrok/ngrok-operator/pull/750)
+- Allow adding annotations to helm cluster roles by @sabrina-ngrok in [#738](https://github.com/ngrok/ngrok-operator/pull/738)
+- feat(helm): Allow multiple versions of the operator to be installed by @jonstacks in [#736](https://github.com/ngrok/ngrok-operator/pull/736)
+
+### Changed
+
+- Make agent endpoint controller respect the watchNamespace flag by @alex-bezek in [#740](https://github.com/ngrok/ngrok-operator/pull/740)
+- Get pod from cache with client IP, load pod identity with information and pass through binding connection by @sabrina-ngrok in [#749](https://github.com/ngrok/ngrok-operator/pull/749)
+
 ## 0.21.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.21.0...helm-chart-0.21.1
 
