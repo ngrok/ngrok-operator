@@ -78,8 +78,8 @@ The `scripts/release.sh` script includes a `gather_prs()` function that:
 **Key Points**:
 - Only commits with `(#XXXX)` in the message are included
 - PR numbers are extracted from commit messages
-- GitHub usernames should be replaced from emails (requires lookup)
-- This list is provided as a **reference** for manual editing
+- The format includes both `@<gh-user>` and `<email>` temporarily - you should replace these with the actual GitHub username (e.g., `@jonstacks`) by looking up the user from their email or PR
+- This list is provided as a **reference** for manual editing and categorization
 
 ## Your Responsibilities
 
@@ -206,7 +206,7 @@ yq -Y -i ".appVersion = \"0.20.0\"" helm/ngrok-operator/Chart.yaml
 make helm-update-snapshots
 make helm-test
 
-# 5. Gather PRs
+# 5. Gather PRs (the -P flag enables Perl regex for \d digit matching)
 git log --pretty=format:"%h %s" -P --grep="#\d+" ngrok-operator-0.19.1..HEAD
 
 # 6. Edit changelogs
