@@ -1,0 +1,327 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: delete-policy-bundled-crds
+spec:
+  namespace: uninstall-test
+  skipDelete: true
+  timeouts:
+    apply: 2m
+    assert: 3m
+    delete: 2m
+    exec: 2m
+  steps:
+    # ============================================================
+    # PHASE 0: Cleanup any conflicting state from previous runs
+    # ============================================================
+    - name: cleanup conflicting CRDs and helm releases
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/cleanup-cluster.sh uninstall-test
+
+    # ============================================================
+    # PHASE 1: Setup - Deploy operator with Delete drain policy
+    # ============================================================
+    - name: install Gateway API CRDs
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              # Install Gateway API CRDs (standard channel)
+              kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+              
+              # Wait for CRDs to be established before proceeding
+              kubectl wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io
+              kubectl wait --for=condition=Established --timeout=60s crd/gateways.gateway.networking.k8s.io
+              kubectl wait --for=condition=Established --timeout=60s crd/httproutes.gateway.networking.k8s.io
+              echo "✓ Gateway API CRDs installed and ready"
+
+    - name: deploy operator with drainPolicy Delete
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              make -C ../../../ docker-build kind-load-image
+
+              # Install operator using base values + scenario-specific overrides
+              helm upgrade ngrok-operator-uninstall-test ../../../helm/ngrok-operator --install \
+                --namespace uninstall-test \
+                --create-namespace \
+                --values ../_fixtures/values-base.yaml \
+                --values ./values.yaml \
+                --set credentials.apiKey=${NGROK_API_KEY} \
+                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --wait \
+                --timeout 2m
+
+    - name: wait for KubernetesOperator to be registered
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: KubernetesOperator
+              metadata:
+                namespace: uninstall-test
+              status:
+                registrationStatus: registered
+                (id != null): true
+
+    - name: capture KubernetesOperator ID for later verification
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              KO_ID=$(kubectl get kubernetesoperator -n uninstall-test -o jsonpath='{.items[0].status.id}')
+              echo "KubernetesOperator ID: $KO_ID"
+              echo "$KO_ID" > /tmp/ko-id-delete-bundled.txt
+
+    # ============================================================
+    # PHASE 2: Create resources that will be drained
+    # ============================================================
+    - name: create test resources
+      try:
+        - create:
+            file: ../_fixtures/backend-service.yaml
+        - create:
+            file: ../_fixtures/cloudendpoint.yaml
+        - create:
+            file: ../_fixtures/agentendpoint.yaml
+        - create:
+            file: ../_fixtures/ingress.yaml
+        # Gateway API resources (use apply for cluster-scoped GatewayClass)
+        - apply:
+            file: ../_fixtures/gateway-class.yaml
+        - create:
+            file: ../_fixtures/gateway.yaml
+        - create:
+            file: ../_fixtures/httproute.yaml
+
+    - name: verify CloudEndpoint is ready
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: CloudEndpoint
+              metadata:
+                name: uninstall-test-cloud-ep
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+              status:
+                (id != null): true
+
+    - name: verify AgentEndpoint is ready
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: AgentEndpoint
+              metadata:
+                name: uninstall-test-agent-ep
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+              status:
+                (conditions[?type == 'Ready'] | [0].status): "True"
+
+    - name: verify Ingress has finalizer
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: networking.k8s.io/v1
+              kind: Ingress
+              metadata:
+                name: uninstall-test-ingress
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
+    - name: verify HTTPRoute has finalizer
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: HTTPRoute
+              metadata:
+                name: uninstall-test-httproute
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
+    - name: verify Gateway has finalizer
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: Gateway
+              metadata:
+                name: uninstall-test-gateway
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+
+    - name: verify Ingress and Gateway created CloudEndpoints and AgentEndpoints
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # With endpoints-verbose mapping strategy, Ingress/Gateway create both:
+              # - A CloudEndpoint for the public URL
+              # - An internal AgentEndpoint for the backend service (hashed name)
+              
+              # Check CloudEndpoint URLs (more reliable than names which may have hashes)
+              CLOUD_EP_URLS=$(kubectl get cloudendpoint -n uninstall-test -o jsonpath='{.items[*].spec.url}')
+              echo "Found CloudEndpoint URLs: $CLOUD_EP_URLS"
+              
+              # Verify Ingress CloudEndpoint exists
+              if echo "$CLOUD_EP_URLS" | grep -q "uninstall-test-ingress.internal"; then
+                echo "✓ Ingress created CloudEndpoint for uninstall-test-ingress.internal"
+              else
+                echo "✗ Ingress CloudEndpoint not found"
+                exit 1
+              fi
+              
+              # Verify Gateway CloudEndpoint exists
+              if echo "$CLOUD_EP_URLS" | grep -q "uninstall-test-gateway.internal"; then
+                echo "✓ Gateway created CloudEndpoint for uninstall-test-gateway.internal"
+              else
+                echo "✗ Gateway CloudEndpoint not found"
+                exit 1
+              fi
+              
+              # Check for internal AgentEndpoint(s) created by Ingress/Gateway
+              AGENT_EPS=$(kubectl get agentendpoint -n uninstall-test -o jsonpath='{.items[*].metadata.name}')
+              if [ -z "$AGENT_EPS" ]; then
+                echo "✗ No AgentEndpoints found in namespace"
+                exit 1
+              fi
+              echo "✓ Found AgentEndpoint(s): $AGENT_EPS"
+
+    - name: verify endpoints exist in ngrok API
+      try:
+        - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
+            timeout: 60s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-cloud-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-agent-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-ingress.internal"
+              # Gateway API endpoint
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "uninstall-test-gateway.internal"
+
+    # ============================================================
+    # PHASE 3: Trigger drain via helm uninstall
+    # ============================================================
+    - name: uninstall operator (triggers drain)
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              echo "Starting helm uninstall - this triggers the drain process..."
+              helm uninstall ngrok-operator-uninstall-test --namespace uninstall-test --wait --timeout 2m
+              echo "Helm uninstall completed"
+
+    # ============================================================
+    # PHASE 4: Verify drain with Delete policy cleaned up everything
+    # ============================================================
+    - name: verify Ingress finalizer was removed
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # Ingress is a core K8s resource, should still exist but without finalizer
+              if kubectl get ingress uninstall-test-ingress -n uninstall-test &>/dev/null; then
+                FINALIZERS=$(kubectl get ingress uninstall-test-ingress -n uninstall-test -o jsonpath='{.metadata.finalizers}')
+                if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
+                  echo "✓ Ingress finalizer removed"
+                else
+                  echo "✗ Ingress still has finalizers: $FINALIZERS"
+                  exit 1
+                fi
+              else
+                echo "✓ Ingress already deleted (namespace cleanup)"
+              fi
+
+    - name: verify Gateway API finalizers were removed
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # Gateway and HTTPRoute are Gateway API resources (not ngrok CRDs), should still exist but without finalizers
+              for RESOURCE in "gateway/uninstall-test-gateway" "httproute/uninstall-test-httproute"; do
+                if kubectl get "$RESOURCE" -n uninstall-test &>/dev/null; then
+                  FINALIZERS=$(kubectl get "$RESOURCE" -n uninstall-test -o jsonpath='{.metadata.finalizers}')
+                  if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
+                    echo "✓ $RESOURCE finalizer removed"
+                  else
+                    echo "✗ $RESOURCE still has finalizers: $FINALIZERS"
+                    exit 1
+                  fi
+                else
+                  echo "✓ $RESOURCE already deleted (namespace cleanup)"
+                fi
+              done
+
+    - name: verify endpoints deleted from ngrok API
+      try:
+        - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
+            timeout: 60s
+            content: |
+              # With Delete policy, endpoints should be removed from ngrok API
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-cloud-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-agent-ep.internal"
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-ingress.internal"
+              # Gateway API endpoint
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "uninstall-test-gateway.internal"
+              echo "✓ All endpoints cleaned up successfully"
+
+    - name: verify CRDs removed with operator (bundled CRDs)
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # With bundled CRDs, they should be removed when operator is uninstalled
+              if kubectl get crds 2>/dev/null | grep -q "ngrok"; then
+                echo "✗ ngrok CRDs still exist:"
+                kubectl get crds | grep ngrok
+                exit 1
+              else
+                echo "✓ All ngrok CRDs removed"
+              fi
+
+    - name: verify KubernetesOperator deregistered from ngrok API
+      try:
+        - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
+            timeout: 60s
+            content: |
+              KO_ID=$(cat /tmp/ko-id-delete-bundled.txt)
+              echo "Verifying KubernetesOperator $KO_ID is deregistered..."
+              ../_fixtures/ngrok-api-helper.sh k8sop absent "$KO_ID"
+              rm -f /tmp/ko-id-delete-bundled.txt
+
+    # ============================================================
+    # PHASE 5: Cleanup
+    # ============================================================
+    - name: cleanup resources
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              # Clean up cluster-scoped GatewayClass (don't wait, it can be slow)
+              kubectl delete gatewayclass ngrok --ignore-not-found --wait=false
+              kubectl delete namespace uninstall-test --ignore-not-found --wait=false
+              echo "Cleanup complete"

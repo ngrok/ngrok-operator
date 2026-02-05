@@ -75,6 +75,7 @@ spec:
         args:
         - api-manager
         - --release-name={{ .Release.Name }}
+        - --drain-policy={{ .Values.drainPolicy }}
         - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
         {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
         {{- if .Values.oneClickDemoMode }}

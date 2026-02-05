@@ -1,0 +1,18 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: CloudEndpoint
+metadata:
+  name: uninstall-test-cloud-ep-a
+  namespace: namespace-a
+spec:
+  url: https://uninstall-test-cloud-ep-a.internal
+  description: "Uninstall test CloudEndpoint A"
+  metadata: '{"test":"uninstall-e2e","operator":"a"}'
+  trafficPolicy:
+    policy:
+      on_http_request:
+        - name: test-response
+          actions:
+            - type: custom-response
+              config:
+                status_code: 200
+                content: "uninstall-test-a"

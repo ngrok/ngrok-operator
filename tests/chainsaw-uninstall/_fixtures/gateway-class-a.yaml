@@ -1,0 +1,8 @@
+# GatewayClass for operator A in multi-operator tests
+# Note: GatewayClass is cluster-scoped (no namespace)
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: ngrok-a
+spec:
+  controllerName: ngrok.com/gateway-controller-a

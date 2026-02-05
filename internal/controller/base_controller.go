@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	v1 "k8s.io/api/core/v1"
@@ -18,6 +19,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+// Re-export drain types for convenience so consumers can use controller.DrainState
+type DrainState = drain.State
+
+var IsDraining = drain.IsDraining
 
 // BaseControllerOp is an enum for the different operations that can be performed by a BaseController
 type BaseControllerOp int
@@ -49,6 +55,10 @@ type BaseController[T client.Object] struct {
 	// Namespace is optional for controllers
 	Namespace *string
 
+	// DrainState is used to check if the operator is draining.
+	// If draining, non-delete reconciles are skipped to prevent new finalizers.
+	DrainState DrainState
+
 	StatusID  func(obj T) string
 	Create    func(ctx context.Context, obj T) error
 	Update    func(ctx context.Context, obj T) error
@@ -73,8 +83,14 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 
 	log.V(1).Info("Reconciling Resource", "ID", self.StatusID(obj))
 
+	// Skip non-delete reconciles during drain to prevent adding new finalizers
+	if IsDraining(ctx, self.DrainState) && !IsDelete(obj) {
+		log.V(1).Info("Draining, skipping non-delete reconcile")
+		return ctrl.Result{}, nil
+	}
+
 	if IsUpsert(obj) {
-		if err := RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
+		if err := util.RegisterAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -93,7 +109,7 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 			}
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s", objName))
 		}
-	} else if HasFinalizer(obj) {
+	} else if util.HasFinalizer(obj) {
 		if self.StatusID != nil && self.StatusID(obj) != "" {
 			sid := self.StatusID(obj)
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s", objName))
@@ -107,7 +123,7 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted %s", objName))
 		}
 
-		if err := RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
+		if err := util.RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
 			return ctrl.Result{}, err
 		}
 	}

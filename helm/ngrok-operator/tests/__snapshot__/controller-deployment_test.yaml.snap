@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 8f200b2fa2211fba423622bd81f8205070b07b45812490f0c53ec9f5f824f6a5
+        checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
         checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
       labels:
         app.kubernetes.io/component: controller
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 8f200b2fa2211fba423622bd81f8205070b07b45812490f0c53ec9f5f824f6a5
+            checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
             checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -54,6 +54,7 @@ Should match all-options snapshot:
             - args:
                 - api-manager
                 - --release-name=RELEASE-NAME
+                - --drain-policy=Retain
                 - --default-domain-reclaim-policy=Delete
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=true
@@ -223,7 +224,6 @@ Should match all-options snapshot:
           - ""
         resources:
           - configmaps
-          - services
         verbs:
           - create
           - delete
@@ -254,6 +254,18 @@ Should match all-options snapshot:
         verbs:
           - get
           - list
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - services
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
           - watch
       - apiGroups:
           - ""
@@ -296,6 +308,10 @@ Should match all-options snapshot:
         resources:
           - gatewayclasses
           - gatewayclasses/status
+          - gateways
+          - httproutes
+          - tcproutes
+          - tlsroutes
         verbs:
           - get
           - list
@@ -312,13 +328,9 @@ Should match all-options snapshot:
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
-          - gateways
           - gateways/status
-          - httproutes
           - httproutes/status
-          - tcproutes
           - tcproutes/status
-          - tlsroutes
           - tlsroutes/status
         verbs:
           - get
@@ -374,6 +386,15 @@ Should match all-options snapshot:
           - networking.k8s.io
         resources:
           - ingresses
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
           - ingresses/status
         verbs:
           - get
@@ -421,7 +442,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 8f200b2fa2211fba423622bd81f8205070b07b45812490f0c53ec9f5f824f6a5
+        checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
         checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
       labels:
         app.kubernetes.io/component: controller
@@ -443,7 +464,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 8f200b2fa2211fba423622bd81f8205070b07b45812490f0c53ec9f5f824f6a5
+            checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
             checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -471,6 +492,7 @@ Should match default snapshot:
             - args:
                 - api-manager
                 - --release-name=RELEASE-NAME
+                - --drain-policy=Retain
                 - --default-domain-reclaim-policy=Delete
                 - --enable-feature-ingress=true
                 - --enable-feature-gateway=true
@@ -627,7 +649,6 @@ Should match default snapshot:
           - ""
         resources:
           - configmaps
-          - services
         verbs:
           - create
           - delete
@@ -658,6 +679,18 @@ Should match default snapshot:
         verbs:
           - get
           - list
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - services
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
           - watch
       - apiGroups:
           - ""
@@ -700,6 +733,10 @@ Should match default snapshot:
         resources:
           - gatewayclasses
           - gatewayclasses/status
+          - gateways
+          - httproutes
+          - tcproutes
+          - tlsroutes
         verbs:
           - get
           - list
@@ -716,13 +753,9 @@ Should match default snapshot:
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
-          - gateways
           - gateways/status
-          - httproutes
           - httproutes/status
-          - tcproutes
           - tcproutes/status
-          - tlsroutes
           - tlsroutes/status
         verbs:
           - get
@@ -778,6 +811,15 @@ Should match default snapshot:
           - networking.k8s.io
         resources:
           - ingresses
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
           - ingresses/status
         verbs:
           - get

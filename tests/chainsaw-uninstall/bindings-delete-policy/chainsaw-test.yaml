@@ -1,0 +1,256 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: bindings-delete-policy
+spec:
+  description: |
+    Tests BoundEndpoint behavior during uninstall with Delete drain policy.
+    - Creates a CloudEndpoint with kubernetes binding (url: https://svc.namespace)
+    - Operator's BoundEndpoint poller should detect it and create a BoundEndpoint CR
+    - BoundEndpoint controller creates Services (target + upstream)
+    - On uninstall with Delete policy, everything should be cleaned up
+  namespace: uninstall-test
+  skipDelete: true
+  timeouts:
+    apply: 2m
+    assert: 3m
+    delete: 2m
+    exec: 3m
+  steps:
+    # ============================================================
+    # PHASE 0: Cleanup any conflicting state from previous runs
+    # ============================================================
+    - name: cleanup conflicting CRDs and helm releases
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              ../_fixtures/cleanup-cluster.sh uninstall-test bound-target-ns
+
+    # ============================================================
+    # PHASE 1: Setup - Deploy operator with bindings enabled
+    # ============================================================
+    - name: create target namespace for bound service
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # Create the namespace where the BoundEndpoint will create its target Service
+              kubectl create namespace bound-target-ns --dry-run=client -o yaml | kubectl apply -f -
+              echo "✓ Target namespace created"
+
+    - name: deploy operator with bindings enabled
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              make -C ../../../ docker-build kind-load-image
+
+              helm upgrade ngrok-operator-uninstall-test ../../../helm/ngrok-operator --install \
+                --namespace uninstall-test \
+                --create-namespace \
+                --values ../_fixtures/values-base.yaml \
+                --values ./values.yaml \
+                --set credentials.apiKey=${NGROK_API_KEY} \
+                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --wait \
+                --timeout 2m
+
+    - name: wait for KubernetesOperator to be registered
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: KubernetesOperator
+              metadata:
+                namespace: uninstall-test
+              status:
+                registrationStatus: registered
+                (id != null): true
+
+    - name: capture KubernetesOperator ID
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              KO_ID=$(kubectl get kubernetesoperator -n uninstall-test -o jsonpath='{.items[0].status.id}')
+              echo "KubernetesOperator ID: $KO_ID"
+              echo "$KO_ID" > /tmp/ko-id-bindings-delete.txt
+
+    # ============================================================
+    # PHASE 2: Create CloudEndpoint with kubernetes binding
+    # ============================================================
+    - name: create CloudEndpoint with kubernetes binding
+      try:
+        - create:
+            file: ../_fixtures/cloudendpoint-k8s-binding.yaml
+
+    - name: verify CloudEndpoint is ready
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: CloudEndpoint
+              metadata:
+                name: bound-endpoint-test
+                namespace: uninstall-test
+                finalizers:
+                  - k8s.ngrok.com/finalizer
+              status:
+                (id != null): true
+
+    - name: verify endpoint exists in ngrok API
+      try:
+        - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
+            timeout: 60s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint exists "bound-test-svc.bound-target-ns"
+
+    # ============================================================
+    # PHASE 3: Verify BoundEndpoint was created
+    # ============================================================
+    - name: wait for BoundEndpoint to be created by poller
+      try:
+        - script:
+            timeout: 120s
+            content: |
+              echo "Waiting for BoundEndpoint to be created..."
+              # The poller runs on an interval, so we need to wait
+              for i in $(seq 1 24); do
+                BOUND_EPS=$(kubectl get boundendpoint -n uninstall-test -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+                if [ -n "$BOUND_EPS" ]; then
+                  echo "✓ Found BoundEndpoint(s): $BOUND_EPS"
+                  exit 0
+                fi
+                echo "Attempt $i/24: No BoundEndpoint yet, waiting 5s..."
+                sleep 5
+              done
+              echo "✗ No BoundEndpoint created after 2 minutes"
+              exit 1
+
+    - name: verify BoundEndpoint has correct spec
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              # Get the BoundEndpoint and verify its spec
+              BE_NAME=$(kubectl get boundendpoint -n uninstall-test -o jsonpath='{.items[0].metadata.name}')
+              echo "BoundEndpoint name: $BE_NAME"
+              
+              # Verify the endpoint URI matches our CloudEndpoint
+              ENDPOINT_URI=$(kubectl get boundendpoint "$BE_NAME" -n uninstall-test -o jsonpath='{.spec.endpointURI}')
+              echo "Endpoint URI: $ENDPOINT_URI"
+              if echo "$ENDPOINT_URI" | grep -q "bound-test-svc.bound-target-ns"; then
+                echo "✓ BoundEndpoint has correct endpoint URI"
+              else
+                echo "✗ BoundEndpoint has unexpected endpoint URI: $ENDPOINT_URI"
+                exit 1
+              fi
+              
+              # Verify target service and namespace
+              TARGET_SVC=$(kubectl get boundendpoint "$BE_NAME" -n uninstall-test -o jsonpath='{.spec.target.service}')
+              TARGET_NS=$(kubectl get boundendpoint "$BE_NAME" -n uninstall-test -o jsonpath='{.spec.target.namespace}')
+              echo "Target: $TARGET_SVC in namespace $TARGET_NS"
+              if [ "$TARGET_SVC" = "bound-test-svc" ] && [ "$TARGET_NS" = "bound-target-ns" ]; then
+                echo "✓ BoundEndpoint has correct target"
+              else
+                echo "✗ BoundEndpoint has unexpected target: $TARGET_SVC.$TARGET_NS"
+                exit 1
+              fi
+
+    - name: verify Services were created by BoundEndpoint controller
+      try:
+        - script:
+            timeout: 60s
+            content: |
+              echo "Checking for Services created by BoundEndpoint..."
+              
+              # The target Service should be created in the target namespace
+              # Name comes from the service part of the URL (bound-test-svc)
+              for i in $(seq 1 12); do
+                if kubectl get service bound-test-svc -n bound-target-ns &>/dev/null; then
+                  echo "✓ Target Service 'bound-test-svc' found in 'bound-target-ns'"
+                  SVC_TYPE=$(kubectl get service bound-test-svc -n bound-target-ns -o jsonpath='{.spec.type}')
+                  echo "  Service type: $SVC_TYPE"
+                  exit 0
+                fi
+                echo "Attempt $i/12: Service not found yet, waiting 5s..."
+                sleep 5
+              done
+              echo "✗ Target Service not created after 1 minute"
+              echo "Services in bound-target-ns:"
+              kubectl get services -n bound-target-ns
+              echo "BoundEndpoint status:"
+              kubectl get boundendpoint -n uninstall-test -o yaml
+              exit 1
+
+    # ============================================================
+    # PHASE 4: Trigger drain via helm uninstall
+    # ============================================================
+    - name: uninstall operator (triggers drain)
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              echo "Starting helm uninstall - this triggers the drain process..."
+              helm uninstall ngrok-operator-uninstall-test --namespace uninstall-test --wait --timeout 2m
+              echo "Helm uninstall completed"
+
+    # ============================================================
+    # PHASE 5: Verify cleanup with Delete policy
+    # ============================================================
+    - name: verify CloudEndpoint deleted from ngrok API
+      try:
+        - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
+            timeout: 60s
+            content: |
+              ../_fixtures/ngrok-api-helper.sh endpoint absent "bound-test-svc.bound-target-ns"
+              echo "✓ CloudEndpoint cleaned up from ngrok API"
+
+    - name: verify CRDs removed (bundled CRDs)
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              if kubectl get crds 2>/dev/null | grep -q "ngrok"; then
+                echo "✗ ngrok CRDs still exist:"
+                kubectl get crds | grep ngrok
+                exit 1
+              else
+                echo "✓ All ngrok CRDs removed"
+              fi
+
+    - name: verify KubernetesOperator deregistered
+      try:
+        - script:
+            shell: /bin/bash
+            shellArgs: ["-e", "-o", "pipefail", "-c"]
+            timeout: 60s
+            content: |
+              KO_ID=$(cat /tmp/ko-id-bindings-delete.txt)
+              echo "Verifying KubernetesOperator $KO_ID is deregistered..."
+              ../_fixtures/ngrok-api-helper.sh k8sop absent "$KO_ID"
+              rm -f /tmp/ko-id-bindings-delete.txt
+
+    # Note: Target Service in bound-target-ns may or may not be cleaned up
+    # depending on BoundEndpoint controller behavior during drain.
+    # The key verification is that the ngrok API endpoint is cleaned up.
+
+    # ============================================================
+    # PHASE 6: Cleanup
+    # ============================================================
+    - name: cleanup namespaces
+      try:
+        - script:
+            timeout: 30s
+            content: |
+              kubectl delete namespace uninstall-test --ignore-not-found --wait=false
+              kubectl delete namespace bound-target-ns --ignore-not-found --wait=false
+              echo "Cleanup complete"

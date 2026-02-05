@@ -45,6 +45,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/resolvers"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
@@ -251,7 +252,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		log.Info("Removing and syncing finalizer")
-		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
+		if err := util.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
@@ -272,7 +273,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		// Once we clean up the Cloud/Agent Endpoints, we can remove the finalizer if it exists. We don't
 		// care about registering a finalizer since we only care about load balancer services
-		if err := controller.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
+		if err := util.RemoveAndSyncFinalizer(ctx, r.Client, svc); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
@@ -285,7 +286,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	log.Info("Registering and syncing finalizers")
-	if err := controller.RegisterAndSyncFinalizer(ctx, r.Client, svc); err != nil {
+	if err := util.RegisterAndSyncFinalizer(ctx, r.Client, svc); err != nil {
 		log.Error(err, "Failed to register finalizer")
 		return ctrl.Result{}, err
 	}

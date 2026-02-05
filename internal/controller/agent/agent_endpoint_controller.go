@@ -98,6 +98,10 @@ type AgentEndpointReconciler struct {
 	ControllerLabels           labels.ControllerLabelValues
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 	DomainManager              *domainpkg.Manager
+
+	// DrainState is used to check if the operator is draining.
+	// If draining, non-delete reconciles are skipped to prevent new finalizers.
+	DrainState controller.DrainState
 }
 
 // SetupWithManager sets up the controller with the Manager
@@ -136,12 +140,13 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.AgentEndpoint]{
-		Kube:     r.Client,
-		Log:      r.Log,
-		Recorder: r.Recorder,
-		Update:   r.update,
-		Delete:   r.delete,
-		StatusID: r.statusID,
+		Kube:       r.Client,
+		Log:        r.Log,
+		Recorder:   r.Recorder,
+		DrainState: r.DrainState,
+		Update:     r.update,
+		Delete:     r.delete,
+		StatusID:   r.statusID,
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
 			if errors.Is(err, domainpkg.ErrDomainNotReady) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil

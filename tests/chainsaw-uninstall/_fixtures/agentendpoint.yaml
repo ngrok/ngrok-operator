@@ -1,0 +1,14 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: uninstall-test-agent-ep
+  namespace: uninstall-test
+spec:
+  # Using .internal domain - no domain registration required
+  url: http://uninstall-test-agent-ep.internal
+  bindings:
+    - internal
+  upstream:
+    url: http://localhost:8080
+  description: "Uninstall test AgentEndpoint"
+  metadata: '{"test":"uninstall-e2e"}'

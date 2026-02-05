@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: uninstall-test-ingress
+  namespace: uninstall-test
+  annotations:
+    k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
+spec:
+  ingressClassName: ngrok
+  rules:
+    - host: uninstall-test-ingress.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: uninstall-test-svc
+                port:
+                  number: 80

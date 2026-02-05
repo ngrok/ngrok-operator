@@ -14,10 +14,11 @@ RUN --mount=type=cache,target=/go \
 COPY . .
 
 ARG TARGETOS TARGETARCH
+ARG GIT_COMMIT=""
 
 # Build
 RUN --mount=type=cache,target=/go \
-	CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" make _build
+        CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" GIT_COMMIT="${GIT_COMMIT}" ./scripts/build.sh
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot

@@ -11,6 +11,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v7"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +29,9 @@ type PortRangeConfig struct {
 	// Max is the maximum port number
 	Max uint16
 }
+
+// DrainState is an alias for drain.State for convenience
+type DrainState = drain.State
 
 // BoundEndpointPoller is a process to poll the ngrok API for binding_endpoints and reconcile the desired state with the cluster state of BoundEndpoints
 type BoundEndpointPoller struct {
@@ -56,6 +60,10 @@ type BoundEndpointPoller struct {
 	// TargetServiceLabels is a map of key/value pairs to attach to the BoundEndpoint's Target Service
 	TargetServiceLabels map[string]string
 
+	// DrainState is used to check if the operator is draining.
+	// If draining, polling is skipped to prevent creating new resources.
+	DrainState DrainState
+
 	// portAllocator manages the unique port allocations
 	portAllocator *portBitmap
 
@@ -68,6 +76,19 @@ type BoundEndpointPoller struct {
 
 	// koId is the KubernetesOperator ID from the ngrok API
 	koId string
+}
+
+// cancelIfDraining checks if drain mode is active and cancels any active reconciliation.
+// Returns true if draining (caller should return early).
+func (r *BoundEndpointPoller) cancelIfDraining(ctx context.Context, log logr.Logger, operation string) bool {
+	if drain.IsDraining(ctx, r.DrainState) {
+		log.V(1).Info("Draining, skipping " + operation)
+		if r.reconcilingCancel != nil {
+			r.reconcilingCancel()
+		}
+		return true
+	}
+	return false
 }
 
 // Start implements the manager.Runnable interface.
@@ -148,6 +169,11 @@ func (r *BoundEndpointPoller) startPollingAPI(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
+			// Check drain state and exit loop entirely if draining.
+			// Drain state is cached and never resets, so no point continuing to tick.
+			if r.cancelIfDraining(ctx, log, "polling loop") {
+				return
+			}
 			log.V(9).Info("Polling API for binding_endpoints")
 			if err := r.reconcileBoundEndpointsFromAPI(ctx); err != nil {
 				log.Error(err, "Failed to update binding_endpoints from API")
@@ -163,6 +189,12 @@ func (r *BoundEndpointPoller) startPollingAPI(ctx context.Context) {
 // then creates, updates, or deletes the BoundEndpoints in-cluster
 func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context) error {
 	log := ctrl.LoggerFrom(ctx)
+
+	// Skip polling during drain to prevent creating new resources.
+	// Also cancel any in-flight reconcile goroutines to stop ongoing mutations.
+	if r.cancelIfDraining(ctx, log, "poll") {
+		return nil
+	}
 
 	if r.reconcilingCancel != nil {
 		r.reconcilingCancel() // cancel the previous reconcile loop
@@ -216,8 +248,9 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 
 	toCreate, toUpdate, toDelete := r.filterBoundEndpointActions(ctx, existingBoundEndpoints, desiredBoundEndpoints)
 
-	// create context + errgroup for managing/closing the future goroutine in the reconcile actions loops
-	reconcileActionCtx, cancel := context.WithCancel(context.Background())
+	// Create context for managing/closing the future goroutines in the reconcile action loops.
+	// Derive from parent ctx so goroutines are canceled on manager shutdown, not just on next poll.
+	reconcileActionCtx, cancel := context.WithCancel(ctx)
 	reconcileActionCtx = ctrl.LoggerInto(reconcileActionCtx, log)
 	r.reconcilingCancel = cancel
 

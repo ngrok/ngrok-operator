@@ -1,0 +1,37 @@
+{{- if .Values.cleanupHook.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: cleanup
+    spec:
+      serviceAccountName: {{ include "ngrok-operator.fullname" . }}-cleanup
+      restartPolicy: OnFailure
+      containers:
+        - name: cleanup
+          image: "{{ .Values.cleanupHook.image.repository }}:{{ .Values.cleanupHook.image.tag }}"
+          imagePullPolicy: {{ .Values.cleanupHook.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Deleting KubernetesOperator '{{ .Release.Name }}' to trigger drain..."
+              kubectl delete kubernetesoperator "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.cleanupHook.timeout }}s || true
+          resources:
+            {{- toYaml .Values.cleanupHook.resources | nindent 12 }}
+{{- end }}

@@ -103,6 +103,18 @@ spec:
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
+              drain:
+                description: Drain configures the drain behavior for uninstall
+                properties:
+                  policy:
+                    default: Retain
+                    description: Policy determines whether to delete ngrok API resources
+                      or just remove finalizers
+                    enum:
+                    - Delete
+                    - Retain
+                    type: string
+                type: object
               enabledFeatures:
                 description: Features enabled for this Kubernetes Operator
                 items:
@@ -131,6 +143,30 @@ spec:
                 description: |-
                   BindingsIngressEndpoint is the URL that the operator will use to talk
                   to the ngrok edge when forwarding traffic for k8s-bound endpoints
+                type: string
+              drainErrors:
+                description: DrainErrors contains the most recent errors encountered
+                  during drain
+                items:
+                  type: string
+                type: array
+              drainMessage:
+                description: DrainMessage provides additional information about the
+                  drain status
+                type: string
+              drainProgress:
+                description: |-
+                  DrainProgress indicates how many resources have been drained vs total
+                  Format: "X/Y" where X is processed (completed + failed) and Y is total
+                type: string
+              drainStatus:
+                description: DrainStatus indicates the current state of the drain
+                  process
+                enum:
+                - pending
+                - draining
+                - completed
+                - failed
                 type: string
               enabledFeatures:
                 description: EnabledFeatures is the string representation of the features

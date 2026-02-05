@@ -566,6 +566,81 @@
             "type": "boolean",
             "description": "When true, the ngrok CRDs will be installed alongside the operator",
             "default": true
+        },
+        "drainPolicy": {
+            "type": "string",
+            "description": "Policy for what to do with ngrok API resources while draining during an Uninstall. \"Delete\" removes ngrok API resources, \"Retain\" preserves them",
+            "default": "Retain"
+        },
+        "cleanupHook": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the pre-delete cleanup hook that drains resources before uninstall",
+                    "default": true
+                },
+                "timeout": {
+                    "type": "number",
+                    "description": "Timeout in seconds for the cleanup process",
+                    "default": 300
+                },
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "repository": {
+                            "type": "string",
+                            "description": "The repository for the kubectl image used by the cleanup hook",
+                            "default": "bitnami/kubectl"
+                        },
+                        "tag": {
+                            "type": "string",
+                            "description": "The tag for the kubectl image",
+                            "default": "latest"
+                        },
+                        "pullPolicy": {
+                            "type": "string",
+                            "description": "The pull policy for the cleanup hook image",
+                            "default": "IfNotPresent"
+                        }
+                    }
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "limits": {
+                            "type": "object",
+                            "properties": {
+                                "cpu": {
+                                    "type": "string",
+                                    "description": "CPU limit for the cleanup hook container",
+                                    "default": "100m"
+                                },
+                                "memory": {
+                                    "type": "string",
+                                    "description": "Memory limit for the cleanup hook container",
+                                    "default": "128Mi"
+                                }
+                            }
+                        },
+                        "requests": {
+                            "type": "object",
+                            "properties": {
+                                "cpu": {
+                                    "type": "string",
+                                    "description": "CPU request for the cleanup hook container",
+                                    "default": "50m"
+                                },
+                                "memory": {
+                                    "type": "string",
+                                    "description": "Memory request for the cleanup hook container",
+                                    "default": "64Mi"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
