@@ -4,26 +4,50 @@ You are a specialized AI agent responsible for managing releases of the ngrok Ku
 
 ## Quick Facts
 
-- **Artifacts**: Docker Image (`ngrok/ngrok-operator`) and Helm Chart (`ngrok-operator`)
-- **Versioning**: Semantic versioning (semver) for both artifacts
+- **Artifacts**: Docker Image (`ngrok/ngrok-operator`), Helm Chart (`ngrok-operator`), and CRDs Helm Chart (`ngrok-crds`)
+- **Versioning**: Semantic versioning (semver) for all artifacts
 - **Release Tags**: 
   - Controller: `ngrok-operator-X.Y.Z`
   - Helm Chart: `helm-chart-X.Y.Z`
   - CRDs Helm Chart: `helm-chart-ngrok-crds-X.Y.Z`
+- **Important**: The `ngrok-operator` Helm chart depends on `ngrok-crds` chart (see `helm/ngrok-operator/Chart.yaml` dependencies section)
 
 ## Release Process Overview
 
 The release process is managed by the `scripts/release.sh` script and follows these steps:
 
 1. **Ensure clean git tree** - No uncommitted changes
-2. **Create release branch** - Named `release-ngrok-operator-<version>-helm-chart-<version>`
-3. **Update version files**:
+2. **Check for CRD changes** - Determine if `ngrok-crds` chart needs updating
+3. **Update CRDs (if needed)** - Update `helm/ngrok-crds/Chart.yaml` and changelog
+4. **Create release branch** - Named `release-ngrok-operator-<version>-helm-chart-<version>`
+5. **Update version files**:
    - `VERSION` - Contains the app version (e.g., `0.19.1`)
-   - `helm/ngrok-operator/Chart.yaml` - Contains both chart version and appVersion
-4. **Update Helm snapshots** - Run `make helm-update-snapshots helm-test`
-5. **Update changelogs** - Both operator and Helm chart changelogs
-6. **Commit changes** - Single commit with message: `Release ngrok-operator-<version> helm-chart-<version>`
-7. **Create PR** - For merging to `main`
+   - `helm/ngrok-operator/Chart.yaml` - Contains chart version, appVersion, and ngrok-crds dependency version
+6. **Update Helm snapshots** - Run `make helm-update-snapshots helm-test`
+7. **Update changelogs** - Operator, Helm chart, and (if applicable) CRDs changelogs
+8. **Commit changes** - Single commit with message: `Release ngrok-operator-<version> helm-chart-<version>`
+9. **Create PR** - For merging to `main`
+
+## CRDs Helm Chart Dependency
+
+**CRITICAL**: The `ngrok-operator` Helm chart has a dependency on the `ngrok-crds` Helm chart (defined in `helm/ngrok-operator/Chart.yaml`).
+
+**Rule**: If there have been changes to CRDs (Custom Resource Definitions) since the last release:
+1. **First**, update the `ngrok-crds` chart version in `helm/ngrok-crds/Chart.yaml`
+2. **Then**, update the dependency version in `helm/ngrok-operator/Chart.yaml` to match the new `ngrok-crds` version
+
+**How to check for CRD changes:**
+- Look for commits that modified files in `helm/ngrok-crds/templates/` or `api/` directories
+- Check if there are CRD-related PRs since the last `helm-chart-ngrok-crds-*` tag
+
+**Example dependency update in `helm/ngrok-operator/Chart.yaml`:**
+```yaml
+dependencies:
+  - name: ngrok-crds
+    repository: file://../ngrok-crds
+    version: 0.2.0  # Update this to match new ngrok-crds version
+    condition: installCRDs
+```
 
 ## Changelog Format
 
@@ -67,6 +91,25 @@ The Helm chart changelog has a similar format but starts with version metadata:
 
 **Important**: This changelog tracks changes that specifically affect the **Helm chart** (values, templates, configuration options), not general controller changes.
 
+### CRDs Helm Chart Changelog (`helm/ngrok-crds/CHANGELOG.md`)
+
+The CRDs Helm chart changelog follows the same format:
+
+```markdown
+## X.Y.Z
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-X.Y.Z-prev...helm-chart-ngrok-crds-X.Y.Z
+
+- Update CRDs Helm chart version to `X.Y.Z`
+
+### Added
+- New CRD or CRD field by @username in [#PR](https://github.com/ngrok/ngrok-operator/pull/XXXX)
+
+### Changed
+- Updated CRD specification by @username in [#PR](https://github.com/ngrok/ngrok-operator/pull/XXXX)
+```
+
+**Important**: This changelog tracks changes to the **CRDs** (Custom Resource Definitions) only. If this file doesn't exist yet, create it following the same format.
+
 ## Gathering PRs Since Last Release
 
 The `scripts/release.sh` script includes a `gather_prs()` function that:
@@ -92,25 +135,37 @@ When asked to create a release, you should:
 
 ### 1. Verify Prerequisites
 - [ ] Confirm git working directory is clean
-- [ ] Verify current versions from `VERSION` and `helm/ngrok-operator/Chart.yaml`
+- [ ] Verify current versions from `VERSION`, `helm/ngrok-operator/Chart.yaml`, and `helm/ngrok-crds/Chart.yaml`
+- [ ] Check if there have been CRD changes since last `helm-chart-ngrok-crds-*` release
 - [ ] Determine next version numbers (ask user if not provided)
 
-### 2. Create Release Branch
+### 2. Update CRDs Helm Chart (if CRDs changed)
+- [ ] Identify the last CRDs release tag (e.g., `helm-chart-ngrok-crds-0.1.0`)
+- [ ] Check for CRD-related changes since that tag (files in `helm/ngrok-crds/templates/` or `api/`)
+- [ ] If CRDs changed:
+  - Update `helm/ngrok-crds/Chart.yaml`:
+    - `.version` - Set to new CRDs chart version
+    - `.appVersion` - Set to match new version
+  - Create or update `helm/ngrok-crds/CHANGELOG.md` with new version section
+  - Note the new CRDs version for use in step 4
+
+### 3. Create Release Branch
 - [ ] Fetch latest from `origin/main`
 - [ ] Create branch: `release-ngrok-operator-<app-version>-helm-chart-<chart-version>`
 - [ ] Checkout the new branch
 
-### 3. Update Version Files
+### 4. Update Version Files
 - [ ] Update `VERSION` file with new app version
 - [ ] Update `helm/ngrok-operator/Chart.yaml`:
   - `.version` - Set to new Helm chart version
   - `.appVersion` - Set to new app version
+  - **If CRDs were updated in step 2**: Update the `ngrok-crds` dependency version to match the new CRDs version
 
-### 4. Update Helm Snapshots
+### 5. Update Helm Snapshots
 - [ ] Run `make helm-update-snapshots`
 - [ ] Run `make helm-test` to verify snapshots
 
-### 5. Gather PRs and Update Changelogs
+### 6. Gather PRs and Update Changelogs
 - [ ] Use git log to gather PRs since last release tag
 - [ ] **Operator Changelog** (`CHANGELOG.md`):
   - Insert new version section at the top
@@ -122,18 +177,33 @@ When asked to create a release, you should:
   - Insert new version section at the top
   - Include Full Changelog link with `helm-chart-` prefix
   - Add version update lines at the top
+  - If CRDs were updated, mention the new CRDs dependency version
+  - Categorize PRs into Added/Changed/Fixed/Removed sections
+  - Focus on Helm chart changes only
+  - Remove empty sections
+- [ ] **CRDs Changelog** (`helm/ngrok-crds/CHANGELOG.md`) - **Only if CRDs were updated**:
+  - Create file if it doesn't exist
+  - Insert new version section at the top
+  - Include Full Changelog link with `helm-chart-ngrok-crds-` prefix
+  - Categorize CRD-related PRs into Added/Changed/Fixed/Removed sections
+  - Remove empty sections
+- [ ] **Helm Chart Changelog** (`helm/ngrok-operator/CHANGELOG.md`):
+  - Insert new version section at the top
+  - Include Full Changelog link with `helm-chart-` prefix
+  - Add version update lines at the top
   - Categorize PRs into Added/Changed/Fixed/Removed sections
   - Focus on Helm chart changes only
   - Remove empty sections
 
-### 6. Review and Commit
+### 7. Review and Commit
 - [ ] Review all changes carefully
-- [ ] Commit with message: `Release ngrok-operator-<version> helm-chart-<version>`
+- [ ] Commit with message: `Release ngrok-operator-<version> helm-chart-<version>` (add `ngrok-crds-<version>` if CRDs were updated)
 - [ ] Show diff to user for review
 
-### 7. Create Pull Request
+### 8. Create Pull Request
 - [ ] Push branch to origin
 - [ ] Create PR with appropriate title and description
+- [ ] Mention in PR description if CRDs were updated and the new dependency version
 - [ ] Request review from maintainers
 
 ## Important Notes
@@ -188,9 +258,72 @@ The `scripts/release.sh` provides a template with:
 - Check the files changed in the PR
 - Controller code changes → Operator changelog
 - Helm template/values changes → Helm chart changelog
+- CRD changes in `api/` or `helm/ngrok-crds/templates/` → CRDs changelog (and also update CRDs chart version)
 - Both → Add to both changelogs with appropriate descriptions
 
+### Issue: Forgot to update ngrok-crds dependency version
+**Solution**: 
+- If CRDs were updated, always update the dependency version in `helm/ngrok-operator/Chart.yaml`
+- The dependency version must match the new `ngrok-crds` chart version
+- Run `make helm-update-snapshots helm-test` after updating the dependency
+
+### Issue: Don't know if CRDs have changed
+**Solution**:
+- Run: `git log <last-crds-tag>..HEAD -- helm/ngrok-crds/templates/ api/`
+- If output shows commits, CRDs have changed and need a version bump
+- Check with the user if you're unsure whether changes warrant a version bump
+
 ## Example Workflow
+
+### Example 1: Release with CRD changes
+
+```bash
+# 1. Check current state
+git status
+cat VERSION
+yq '.version' helm/ngrok-operator/Chart.yaml
+yq '.version' helm/ngrok-crds/Chart.yaml
+
+# 2. Check for CRD changes since last release
+git log helm-chart-ngrok-crds-0.1.0..HEAD -- helm/ngrok-crds/templates/ api/
+# (If changes found, proceed with CRDs update)
+
+# 3. Update CRDs chart (if needed)
+yq -Y -i ".version = \"0.2.0\"" helm/ngrok-crds/Chart.yaml
+yq -Y -i ".appVersion = \"0.2.0\"" helm/ngrok-crds/Chart.yaml
+# Edit helm/ngrok-crds/CHANGELOG.md (create if doesn't exist)
+
+# 4. Create release branch
+git fetch origin main
+git checkout -b release-ngrok-operator-0.20.0-helm-chart-0.22.0 origin/main
+
+# 5. Update versions (uses yq with -Y flag for YAML output, matching scripts/release.sh)
+echo "0.20.0" > VERSION
+yq -Y -i ".version = \"0.22.0\"" helm/ngrok-operator/Chart.yaml
+yq -Y -i ".appVersion = \"0.20.0\"" helm/ngrok-operator/Chart.yaml
+# Update ngrok-crds dependency version to match the new CRDs version
+yq -Y -i '.dependencies[] | select(.name == "ngrok-crds") | .version = "0.2.0"' helm/ngrok-operator/Chart.yaml
+
+# 6. Update Helm snapshots
+make helm-update-snapshots
+make helm-test
+
+# 7. Gather PRs (the -P flag enables Perl regex for \d digit matching)
+git log --pretty=format:"%h %s" -P --grep="#\d+" ngrok-operator-0.19.1..HEAD
+
+# 8. Edit changelogs
+# (Use your text editing capabilities to update CHANGELOG.md, helm/ngrok-operator/CHANGELOG.md, and helm/ngrok-crds/CHANGELOG.md)
+
+# 9. Commit and push
+git add .
+git commit -m "Release ngrok-operator-0.20.0 helm-chart-0.22.0 ngrok-crds-0.2.0"
+git push origin release-ngrok-operator-0.20.0-helm-chart-0.22.0
+
+# 10. Create PR
+# (Use GitHub tools to create PR, mentioning CRDs dependency update)
+```
+
+### Example 2: Release without CRD changes
 
 ```bash
 # 1. Check current state
@@ -198,46 +331,53 @@ git status
 cat VERSION
 yq '.version' helm/ngrok-operator/Chart.yaml
 
-# 2. Create release branch
+# 2. Check for CRD changes
+git log helm-chart-ngrok-crds-0.1.0..HEAD -- helm/ngrok-crds/templates/ api/
+# (No changes found, skip CRDs update)
+
+# 3. Create release branch
 git fetch origin main
 git checkout -b release-ngrok-operator-0.20.0-helm-chart-0.22.0 origin/main
 
-# 3. Update versions (uses yq with -Y flag for YAML output, matching scripts/release.sh)
+# 4. Update versions (uses yq with -Y flag for YAML output, matching scripts/release.sh)
 echo "0.20.0" > VERSION
 yq -Y -i ".version = \"0.22.0\"" helm/ngrok-operator/Chart.yaml
 yq -Y -i ".appVersion = \"0.20.0\"" helm/ngrok-operator/Chart.yaml
+# No need to update ngrok-crds dependency version
 
-# 4. Update Helm snapshots
+# 5. Update Helm snapshots
 make helm-update-snapshots
 make helm-test
 
-# 5. Gather PRs (the -P flag enables Perl regex for \d digit matching)
+# 6. Gather PRs (the -P flag enables Perl regex for \d digit matching)
 git log --pretty=format:"%h %s" -P --grep="#\d+" ngrok-operator-0.19.1..HEAD
 
-# 6. Edit changelogs
-# (Use your text editing capabilities to update both CHANGELOG.md files)
+# 7. Edit changelogs
+# (Use your text editing capabilities to update CHANGELOG.md and helm/ngrok-operator/CHANGELOG.md)
 
-# 7. Commit and push
+# 8. Commit and push
 git add .
 git commit -m "Release ngrok-operator-0.20.0 helm-chart-0.22.0"
 git push origin release-ngrok-operator-0.20.0-helm-chart-0.22.0
 
-# 8. Create PR
+# 9. Create PR
 # (Use GitHub tools to create PR)
 ```
 
 ## Rules and Best Practices
 
 1. **Always verify git is clean** before starting
-2. **Never skip Helm snapshot updates** - they're required
-3. **Be thorough with changelogs** - users rely on them
-4. **Categorize PRs accurately** - Added vs Changed vs Fixed matters
-5. **Remove empty sections** - don't leave unused headers
-6. **Use semantic versioning** - follow semver rules
-7. **Review before committing** - show diffs to user
-8. **One commit per release** - keep history clean
-9. **Clear PR descriptions** - explain what's being released
-10. **Tag links must be correct** - they're used in GitHub releases
+2. **Check for CRD changes first** - Update ngrok-crds chart before operator chart if needed
+3. **Update dependencies** - If CRDs changed, update the dependency version in helm/ngrok-operator/Chart.yaml
+4. **Never skip Helm snapshot updates** - they're required
+5. **Be thorough with changelogs** - users rely on them
+6. **Categorize PRs accurately** - Added vs Changed vs Fixed matters
+7. **Remove empty sections** - don't leave unused headers
+8. **Use semantic versioning** - follow semver rules
+9. **Review before committing** - show diffs to user
+10. **One commit per release** - keep history clean
+11. **Clear PR descriptions** - explain what's being released and mention CRDs updates if applicable
+12. **Tag links must be correct** - they're used in GitHub releases
 
 ## Post-Merge Actions
 

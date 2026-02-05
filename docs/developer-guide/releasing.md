@@ -24,10 +24,16 @@ Overview:
 1. Merge PR (triggers `.github/workflows` to publish the new release)
 
 Determine:
-* The Helm Chart version: `helm/ingress-operator/Chart.yaml`
-* The ngrok-op App version: `VERSION`
+* The Helm Chart version: `helm/ngrok-operator/Chart.yaml`
+* The CRDs Helm Chart version: `helm/ngrok-crds/Chart.yaml`
+* The ngrok-operator App version: `VERSION`
 
 Steps:
+* **CRDs Helm Chart Version Bump** (if CRDs have changed since last release)
+    1. Update `version` in `helm/ngrok-crds/Chart.yaml` to new version
+    1. Update `appVersion` in `helm/ngrok-crds/Chart.yaml` to match the new version
+    1. Create or update `helm/ngrok-crds/CHANGELOG.md` with a new section (if it doesn't exist, create it following the same format as the operator changelog)
+        * Note: Use the expected tag `helm-chart-ngrok-crds-<VERSION>` for the full changelog
 * App Version Bump
     1. Update `VERSION` to new version
     1. Write a new section in `CHANGELOG`
@@ -35,9 +41,10 @@ Steps:
         changelog (this tag will be created for you when your release PR is merged)
         * Note: Find the new commits using a link, such as `https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-<version>...main`
 * Helm Chart Version Bump
+    1. **If CRDs were updated**: Update the `ngrok-crds` dependency version in `helm/ngrok-operator/Chart.yaml` to match the new CRDs version
     1. Update `version` to new version
     1. Update the `appVersion` to the desired `VERSION`
-    1. Write a new section in `CHANGELOG`
+    1. Write a new section in `helm/ngrok-operator/CHANGELOG`
     1. Run `$ make helm-update-snapshots helm-test`
 
 ## Artifacts
