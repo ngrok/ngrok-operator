@@ -73,13 +73,18 @@ The `scripts/release.sh` script includes a `gather_prs()` function that:
 
 1. Takes a git tag range (e.g., `ngrok-operator-0.19.0..HEAD`)
 2. Filters commits with PR numbers using pattern `#\d+`
-3. Formats output as: `- <commit-msg> by @<gh-user> <email> in [#PR](https://github.com/ngrok/ngrok-operator/pull/PR)`
+3. Formats output as markdown list items with commit message, author, and PR link
+
+**Example output format:**
+```
+- feat: Add new feature by @jonstacks <email@example.com> in [#123](https://github.com/ngrok/ngrok-operator/pull/123)
+```
 
 **Key Points**:
 - Only commits with `(#XXXX)` in the message are included
 - PR numbers are extracted from commit messages
-- The format includes both `@<gh-user>` and `<email>` temporarily - you should replace these with the actual GitHub username (e.g., `@jonstacks`) by looking up the user from their email or PR
-- This list is provided as a **reference** for manual editing and categorization
+- The output includes `@<gh-user> <email>` - replace this with the actual GitHub username (e.g., `@jonstacks`) by looking up contributors from the PR
+- This list is provided as a **reference** for manual editing and categorization into Added/Changed/Fixed/Removed sections
 
 ## Your Responsibilities
 
@@ -197,7 +202,7 @@ yq '.version' helm/ngrok-operator/Chart.yaml
 git fetch origin main
 git checkout -b release-ngrok-operator-0.20.0-helm-chart-0.22.0 origin/main
 
-# 3. Update versions
+# 3. Update versions (uses yq with -Y flag for YAML output, matching scripts/release.sh)
 echo "0.20.0" > VERSION
 yq -Y -i ".version = \"0.22.0\"" helm/ngrok-operator/Chart.yaml
 yq -Y -i ".appVersion = \"0.20.0\"" helm/ngrok-operator/Chart.yaml
