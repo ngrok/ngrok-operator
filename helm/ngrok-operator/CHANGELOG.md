@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update ngrok-operator image version to `0.20.0`
 - Update Helm chart version to `0.22.0-rc.2`
-- Update ngrok-crds dependency version to `0.2.0`
+- Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.2.0`
 
 ### Added
 
