@@ -53,7 +53,7 @@ UNINSTALL_NAMESPACE := uninstall-test
 SCENARIO ?= delete-policy-bundled-crds
 
 .PHONY: e2e-uninstall
-e2e-uninstall: ## Run uninstall e2e test. Usage: make e2e-uninstall SCENARIO=<scenario> [DEBUG=1]
+e2e-uninstall: _helm_setup ## Run uninstall e2e test. Usage: make e2e-uninstall SCENARIO=<scenario> [DEBUG=1]
 	chainsaw test $(UNINSTALL_TEST_DIR)/$(SCENARIO) \
 		--namespace $(UNINSTALL_NAMESPACE) \
 		--cleanup-timeout 2m \
