@@ -30,6 +30,17 @@ NC='\033[0m' # No Color
 # Retry settings
 MAX_RETRIES="${MAX_RETRIES:-10}"
 RETRY_DELAY="${RETRY_DELAY:-3}"
+MAX_RETRY_DELAY="${MAX_RETRY_DELAY:-30}"
+
+# Calculate backoff delay: linear backoff (delay * attempt), capped at MAX_RETRY_DELAY
+get_backoff_delay() {
+    local attempt=$1
+    local delay=$((RETRY_DELAY * attempt))
+    if [ "$delay" -gt "$MAX_RETRY_DELAY" ]; then
+        delay=$MAX_RETRY_DELAY
+    fi
+    echo "$delay"
+}
 
 # API settings
 NGROK_API_URL="${NGROK_API_URL:-https://api.ngrok.com}"
@@ -70,8 +81,9 @@ endpoint_exists() {
             return 0
         fi
         if [ "$i" -lt "$MAX_RETRIES" ]; then
-            log_info "Attempt $i/$MAX_RETRIES failed, retrying in ${RETRY_DELAY}s..."
-            sleep "$RETRY_DELAY"
+            delay=$(get_backoff_delay "$i")
+            log_info "Attempt $i/$MAX_RETRIES failed, retrying in ${delay}s..."
+            sleep "$delay"
         fi
     done
     log_error "Endpoint matching '$pattern' NOT found after $MAX_RETRIES attempts"
@@ -89,8 +101,9 @@ endpoint_absent() {
             return 0
         fi
         if [ "$i" -lt "$MAX_RETRIES" ]; then
-            log_info "Attempt $i/$MAX_RETRIES: still exists, retrying in ${RETRY_DELAY}s..."
-            sleep "$RETRY_DELAY"
+            delay=$(get_backoff_delay "$i")
+            log_info "Attempt $i/$MAX_RETRIES: still exists, retrying in ${delay}s..."
+            sleep "$delay"
         fi
     done
     log_error "Endpoint matching '$pattern' still exists after $MAX_RETRIES attempts (expected absent)"
@@ -185,8 +198,9 @@ k8sop_absent() {
         fi
 
         if [ "$i" -lt "$MAX_RETRIES" ]; then
-            log_info "Attempt $i/$MAX_RETRIES: still exists, retrying in ${RETRY_DELAY}s..."
-            sleep "$RETRY_DELAY"
+            delay=$(get_backoff_delay "$i")
+            log_info "Attempt $i/$MAX_RETRIES: still exists, retrying in ${delay}s..."
+            sleep "$delay"
         fi
     done
 
@@ -241,8 +255,9 @@ case "${1:-help}" in
         echo ""
         echo "Environment:"
         echo "  NGROK_API_KEY          Required for ngrok API access"
-        echo "  MAX_RETRIES            Max retry attempts (default: 5)"
-        echo "  RETRY_DELAY            Seconds between retries (default: 3)"
+        echo "  MAX_RETRIES            Max retry attempts (default: 10)"
+        echo "  RETRY_DELAY            Base seconds for backoff (default: 3)"
+        echo "  MAX_RETRY_DELAY        Max backoff delay cap (default: 30)"
         exit 0
         ;;
 
