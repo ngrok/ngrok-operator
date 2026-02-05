@@ -785,13 +785,18 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 		},
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
-		k8sOperator.Spec.Description = opts.description
-		k8sOperator.Spec.Deployment = &ngrokv1alpha1.KubernetesOperatorDeployment{
-			Name:      opts.releaseName,
-			Namespace: opts.namespace,
-			Version:   version.GetVersion(),
+		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
+			Description: opts.description,
+			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
+				Name:      opts.releaseName,
+				Namespace: opts.namespace,
+				Version:   version.GetVersion(),
+			},
+			Region: opts.region,
+			Drain: &ngrokv1alpha1.DrainConfig{
+				Policy: opts.drainPolicy,
+			},
 		}
-		k8sOperator.Spec.Region = opts.region
 
 		features := []string{}
 		if opts.enableFeatureIngress {
@@ -813,12 +818,6 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 			}
 		}
 		k8sOperator.Spec.EnabledFeatures = features
-
-		// Set drain policy
-		if k8sOperator.Spec.Drain == nil {
-			k8sOperator.Spec.Drain = &ngrokv1alpha1.DrainConfig{}
-		}
-		k8sOperator.Spec.Drain.Policy = opts.drainPolicy
 
 		setupLog.Info("created KubernetesOperator", "name", k8sOperator.Name, "namespace", k8sOperator.Namespace, "op", fmt.Sprintf("%+v", k8sOperator.Spec.Binding))
 		return nil

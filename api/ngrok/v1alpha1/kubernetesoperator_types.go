@@ -83,8 +83,7 @@ type KubernetesOperatorStatus struct {
 	BindingsIngressEndpoint string `json:"bindingsIngressEndpoint,omitempty"`
 
 	// DrainStatus indicates the current state of the drain process
-	// +kubebuilder:validation:Enum=pending;draining;completed;failed
-	DrainStatus string `json:"drainStatus,omitempty"`
+	DrainStatus DrainStatus `json:"drainStatus,omitempty"`
 
 	// DrainMessage provides additional information about the drain status
 	DrainMessage string `json:"drainMessage,omitempty"`
@@ -110,11 +109,15 @@ const (
 	KubernetesOperatorFeatureBindings = "bindings"
 )
 
+// DrainStatus indicates the current state of the drain process
+// +kubebuilder:validation:Enum=pending;draining;completed;failed
+type DrainStatus string
+
 const (
-	DrainStatusPending   = "pending"
-	DrainStatusDraining  = "draining"
-	DrainStatusCompleted = "completed"
-	DrainStatusFailed    = "failed"
+	DrainStatusPending   DrainStatus = "pending"
+	DrainStatusDraining  DrainStatus = "draining"
+	DrainStatusCompleted DrainStatus = "completed"
+	DrainStatusFailed    DrainStatus = "failed"
 )
 
 // DrainPolicy determines how ngrok API resources are handled during drain
