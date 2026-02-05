@@ -4,7 +4,7 @@ This directory contains custom GitHub Copilot agents that provide specialized as
 
 ## Available Agents
 
-### Release Agent (`release-agent.md`)
+### Release Agent (`release-agent.agent.md`)
 
 A specialized AI agent that automates the release process for the ngrok Kubernetes Operator.
 
