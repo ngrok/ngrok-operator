@@ -187,13 +187,6 @@ When asked to create a release, you should:
   - Include Full Changelog link with `helm-chart-ngrok-crds-` prefix
   - Categorize CRD-related PRs into Added/Changed/Fixed/Removed sections
   - Remove empty sections
-- [ ] **Helm Chart Changelog** (`helm/ngrok-operator/CHANGELOG.md`):
-  - Insert new version section at the top
-  - Include Full Changelog link with `helm-chart-` prefix
-  - Add version update lines at the top
-  - Categorize PRs into Added/Changed/Fixed/Removed sections
-  - Focus on Helm chart changes only
-  - Remove empty sections
 
 ### 7. Review and Commit
 - [ ] Review all changes carefully
