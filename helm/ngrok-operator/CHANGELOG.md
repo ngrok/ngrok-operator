@@ -5,6 +5,39 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.22.0-rc.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.0-rc.1...helm-chart-ngrok-operator-0.22.0-rc.2
+
+- Update ngrok-operator image version to `0.20.0`
+- Update Helm chart version to `0.22.0-rc.2`
+- Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.2.0`
+
+### Added
+
+- feat: support Domain `resolves_to` field by @andrew-harris-at-ngrok in [#746](https://github.com/ngrok/ngrok-operator/pull/746)
+- Allow helm uninstall to be configured to handle cleaning up api resources by @alex-bezek in [#750](https://github.com/ngrok/ngrok-operator/pull/750)
+
+### Fixed
+- Adding strategy type of RollingUpdate to prevent session doubling during deployments by @sabrina-ngrok in [#711](https://github.com/ngrok/ngrok-operator/pull/711)
+
+## 0.22.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.21.1...helm-chart-ngrok-operator-0.22.0-rc.1
+
+- Update ngrok-operator image version to `0.19.1`
+- Update Helm chart version to `0.22.0-rc.1`
+
+### Added
+
+- feat(helm): Allow multiple versions of the operator to be installed by @jonstacks in [#736](https://github.com/ngrok/ngrok-operator/pull/736)
+- feat: Split ngrok-operators CRDs into their own chart by @jonstacks in [#732](https://github.com/ngrok/ngrok-operator/pull/732)
+- Allow adding annotations to helm cluster roles by @sabrina-ngrok in [#738](https://github.com/ngrok/ngrok-operator/pull/738)
+- allow setting specific pod annotations for the agent pod by @alex-bezek in [#721](https://github.com/ngrok/ngrok-operator/pull/721)
+- Get pod from cache with client IP, load pod identity with information and pass through binding connection by @sabrina-ngrok in [#749](https://github.com/ngrok/ngrok-operator/pull/749)
+
+### Fixed
+
+- Make agent endpoint controller respect the watchNamespace flag by @alex-bezek in [#740](https://github.com/ngrok/ngrok-operator/pull/740)
+
 ## 0.21.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-0.21.0...helm-chart-0.21.1
 
