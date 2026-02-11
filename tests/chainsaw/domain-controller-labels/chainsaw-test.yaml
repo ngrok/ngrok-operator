@@ -29,21 +29,16 @@ spec:
 
   - name: verify controller labels added to domain
     try:
-    - script:
+    - assert:
         timeout: 30s
-        content: |
-          for i in $(seq 1 15); do
-            NAME=$(kubectl get domain test-domain-labels-ngrok-app -n $NAMESPACE -o jsonpath='{.metadata.labels.k8s\.ngrok\.com/controller-name}' 2>/dev/null)
-            NS=$(kubectl get domain test-domain-labels-ngrok-app -n $NAMESPACE -o jsonpath='{.metadata.labels.k8s\.ngrok\.com/controller-namespace}' 2>/dev/null)
-            if [ -n "$NAME" ] && [ -n "$NS" ]; then
-              echo "PASS: controller labels found (name=$NAME, namespace=$NS)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "ERROR: controller labels not found on Domain after 30s"
-          kubectl get domain test-domain-labels-ngrok-app -n $NAMESPACE -o yaml
-          exit 1
+        resource:
+          apiVersion: ingress.k8s.ngrok.com/v1alpha1
+          kind: Domain
+          metadata:
+            name: test-domain-labels-ngrok-app
+            labels:
+              k8s.ngrok.com/controller-name: ngrok-operator-agent-manager
+              k8s.ngrok.com/controller-namespace: ngrok-operator
 
   - name: verify no update errors on agent endpoint
     try:
