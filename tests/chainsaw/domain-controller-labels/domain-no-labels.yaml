@@ -1,0 +1,6 @@
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: Domain
+metadata:
+  name: test-domain-labels-ngrok-app
+spec:
+  domain: test-domain-labels.ngrok.app
