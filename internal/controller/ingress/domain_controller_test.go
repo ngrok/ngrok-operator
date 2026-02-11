@@ -807,9 +807,8 @@ var _ = Describe("DomainReconciler", func() {
 		})
 	})
 
-	Describe("Internal Domain Deletion", func() {
-		It("should delete Domain CRDs with .internal TLD", func() {
-			// Create a domain with .internal TLD - this should be automatically deleted
+	Describe("Internal Domain Handling", func() {
+		It("should skip reconciliation and not reserve .internal TLD domains in ngrok", func() {
 			domain := &ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf("test-internal-domain-%s", rand.String(10)),
@@ -821,10 +820,18 @@ var _ = Describe("DomainReconciler", func() {
 			}
 			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 
-			// The domain should be deleted by the controller
+			// The domain CRD should still exist but have no finalizer and status conditions set
 			Eventually(func(g Gomega) {
-				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), &ingressv1alpha1.Domain{})
-				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "internal domain should be deleted")
+				foundDomain := &ingressv1alpha1.Domain{}
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(foundDomain.Finalizers).To(BeEmpty(), "internal domain should have no finalizer")
+
+				readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+				g.Expect(readyCondition).ToNot(BeNil())
+				g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+				g.Expect(readyCondition.Message).To(ContainSubstring(".internal domains do not need to be reserved"))
 			}, timeout, interval).Should(Succeed())
 
 			// Verify the domain was never created in ngrok
@@ -835,9 +842,16 @@ var _ = Describe("DomainReconciler", func() {
 					"internal domain should not exist in ngrok")
 			}
 			Expect(iter.Err()).To(BeNil())
+
+			// Verify the domain can be deleted without hanging
+			Expect(k8sClient.Delete(ctx, domain)).To(Succeed())
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), &ingressv1alpha1.Domain{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "internal domain should be deleted")
+			}, timeout, interval).Should(Succeed())
 		})
 
-		It("should delete Domain CRDs with uppercase .INTERNAL TLD", func() {
+		It("should remove finalizer from .INTERNAL TLD domains allowing clean deletion", func() {
 			domain := &ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf("test-internal-upper-%s", rand.String(10)),
@@ -849,6 +863,20 @@ var _ = Describe("DomainReconciler", func() {
 			}
 			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 
+			Eventually(func(g Gomega) {
+				foundDomain := &ingressv1alpha1.Domain{}
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(foundDomain.Finalizers).To(BeEmpty(), "internal domain should have no finalizer")
+
+				readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+				g.Expect(readyCondition).ToNot(BeNil())
+				g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+				g.Expect(readyCondition.Message).To(ContainSubstring(".internal domains do not need to be reserved"))
+			}, timeout, interval).Should(Succeed())
+
+			Expect(k8sClient.Delete(ctx, domain)).To(Succeed())
 			Eventually(func(g Gomega) {
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), &ingressv1alpha1.Domain{})
 				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "internal domain should be deleted")

@@ -128,12 +128,18 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Delete internal domains - they cannot be reserved via ngrok API
+	// Internal domains cannot be reserved via the ngrok API.
+	// Skip reconciliation but ensure the finalizer is removed so deletion can proceed.
 	if util.IsInternalDomain(domain.Spec.Domain) {
-		log.Info("Deleting Domain CRD with internal TLD - internal domains cannot be reserved via ngrok API", "hostname", domain.Spec.Domain)
+		log.Info("Skipping Domain with internal TLD - internal domains cannot be reserved via ngrok API", "hostname", domain.Spec.Domain)
 
-		err := r.Delete(ctx, domain)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if util.HasFinalizer(domain) {
+			if err := util.RemoveAndSyncFinalizer(ctx, r.Client, domain); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		updateDomainConditions(domain, nil, errors.New(".internal domains do not need to be reserved. You can safely delete this Domain CR if you wish"))
+		return ctrl.Result{}, r.controller.ReconcileStatus(ctx, domain, nil)
 	}
 
 	result, err := r.controller.Reconcile(ctx, req, new(v1alpha1.Domain))
