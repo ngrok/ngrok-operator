@@ -5,6 +5,16 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.22.0-rc.3
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.0-rc.2...helm-chart-ngrok-operator-0.22.0-rc.3
+
+- Update ngrok-operator image version to `0.20.1`
+- Update Helm chart version to `0.22.0-rc.3`
+
+### Fixed
+
+- fix(helm): Add missing RBAC `update` permission on Domains for the agent manager ClusterRole so the agent endpoint controller can add controller labels to existing Domain CRs by @alex-bezek in [#762](https://github.com/ngrok/ngrok-operator/pull/762)
+
 ## 0.22.0-rc.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.0-rc.1...helm-chart-ngrok-operator-0.22.0-rc.2
 

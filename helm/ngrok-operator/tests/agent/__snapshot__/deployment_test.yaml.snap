@@ -11,8 +11,8 @@ Should match snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.0
-        helm.sh/chart: ngrok-operator-0.22.0-rc.2
+        app.kubernetes.io/version: 0.20.1
+        helm.sh/chart: ngrok-operator-0.22.0-rc.3
       name: RELEASE-NAME-ngrok-operator-agent
       namespace: NAMESPACE
     spec:
@@ -78,7 +78,7 @@ Should match snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
-              image: docker.io/ngrok/ngrok-operator:0.20.0
+              image: docker.io/ngrok/ngrok-operator:0.20.1
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
