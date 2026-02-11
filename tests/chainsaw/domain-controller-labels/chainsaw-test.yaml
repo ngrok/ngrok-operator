@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: domain-controller-labels
+spec:
+  description: |
+    Verifies that the agent controller can update an existing Domain CRD
+    to add controller labels when they are missing. This requires the agent
+    service account to have update permission on domains.
+  steps:
+  - name: create domain without controller labels
+    try:
+    - create:
+        file: ./domain-no-labels.yaml
+    - assert:
+        resource:
+          apiVersion: ingress.k8s.ngrok.com/v1alpha1
+          kind: Domain
+          metadata:
+            name: test-domain-labels-ngrok-app
+          spec:
+            domain: test-domain-labels.ngrok.app
+
+  - name: create agent endpoint referencing the domain
+    try:
+    - create:
+        file: ./agentendpoint.yaml
+
+  - name: verify controller labels added to domain
+    try:
+    - script:
+        timeout: 30s
+        content: |
+          for i in $(seq 1 15); do
+            NAME=$(kubectl get domain test-domain-labels-ngrok-app -n $NAMESPACE -o jsonpath='{.metadata.labels.k8s\.ngrok\.com/controller-name}' 2>/dev/null)
+            NS=$(kubectl get domain test-domain-labels-ngrok-app -n $NAMESPACE -o jsonpath='{.metadata.labels.k8s\.ngrok\.com/controller-namespace}' 2>/dev/null)
+            if [ -n "$NAME" ] && [ -n "$NS" ]; then
+              echo "PASS: controller labels found (name=$NAME, namespace=$NS)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "ERROR: controller labels not found on Domain after 30s"
+          kubectl get domain test-domain-labels-ngrok-app -n $NAMESPACE -o yaml
+          exit 1
+
+  - name: verify no update errors on agent endpoint
+    try:
+    - script:
+        timeout: 10s
+        content: |
+          if kubectl get events -n $NAMESPACE --field-selector involvedObject.name=test-domain-labels,reason=UpdateError -o json | grep -q '"forbidden"'; then
+            echo "ERROR: Found forbidden UpdateError event on AgentEndpoint"
+            exit 1
+          fi
+          echo "PASS: No forbidden UpdateError events found"

@@ -1,0 +1,8 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: test-domain-labels
+spec:
+  url: "https://test-domain-labels.ngrok.app"
+  upstream:
+    url: "http://nginx.default:80"
