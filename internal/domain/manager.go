@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -153,7 +152,7 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 	}
 
 	// Skip TCP ngrok URLs
-	if parsedURL.Scheme == "tcp" && strings.HasSuffix(parsedURL.Hostname(), "tcp.ngrok.io") {
+	if parsedURL.Scheme == "tcp" {
 		msg := "Domain ready (TCP ngrok URL - no domain reservation needed)"
 		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
 		endpoint.SetDomainRef(nil)

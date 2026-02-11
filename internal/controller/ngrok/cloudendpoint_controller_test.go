@@ -137,6 +137,58 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				// Check that endpoint was created
 				g.Expect(obj.Status.ID).NotTo(BeEmpty())
 			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no domain CR was created for TCP endpoint")
+			Eventually(func(g Gomega) {
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(BeEmpty())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no domain ref is set")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should not create domain CR for custom TCP endpoint", func(ctx SpecContext) {
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "tcp-custom-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:         "tcp://1.2.3.4:25565",
+					Description: "Custom TCP test endpoint",
+					Metadata:    "{}",
+				},
+			}
+
+			By("Creating the CloudEndpoint")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Waiting for controller to reconcile")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no domain CR was created for custom TCP endpoint")
+			Eventually(func(g Gomega) {
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(BeEmpty())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no domain ref is set")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+			}, timeout, interval).Should(Succeed())
 		})
 
 		It("should handle endpoint with traffic policy reference", func(ctx SpecContext) {

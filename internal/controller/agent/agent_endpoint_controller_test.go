@@ -121,6 +121,62 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				// Verify status fields set by controller
 				g.Expect(obj.Status.AssignedURL).To(Equal("tcp://1.tcp.ngrok.io:12345"))
 				g.Expect(obj.Status.AttachedTrafficPolicy).To(Equal("none"))
+
+				By("verifying no domain was created for TCP endpoint")
+				g.Expect(obj.Status.DomainRef).To(BeNil())
+
+				By("verifying the ")
+				cond = testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(cond.Reason).To(Equal(domainpkg.ReasonDomainReady))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should not create domain CR for custom TCP endpoint", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "tcp-custom-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "tcp://1.2.3.4:25565",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			envMockDriver.SetEndpointResult(namespace+"/tcp-custom-endpoint", &agent.EndpointResult{
+				URL: "tcp://1.2.3.4:25565",
+			})
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Waiting for controller to reconcile and set ready condition")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(obj.Status.AssignedURL).To(Equal("tcp://1.2.3.4:25565"))
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no domain CR was created for custom TCP endpoint")
+			Eventually(func(g Gomega) {
+				domains := &ingressv1alpha1.DomainList{}
+				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(domains.Items).To(BeEmpty())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no domain ref is set")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.DomainRef).To(BeNil())
 			}, timeout, interval).Should(Succeed())
 		})
 

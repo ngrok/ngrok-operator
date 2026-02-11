@@ -179,6 +179,27 @@ func TestManager_EnsureDomainExists_SpecialURLs(t *testing.T) {
 			condStatus:   metav1.ConditionTrue,
 		},
 		{
+			name:         "tcp custom domain is skipped and ready",
+			url:          "tcp://custom.example.com:8080",
+			expectReady:  true,
+			expectNilDom: true,
+			condStatus:   metav1.ConditionTrue,
+		},
+		{
+			name:         "tcp custom domain with non-standard port is skipped and ready",
+			url:          "tcp://game-server.mycompany.io:25565",
+			expectReady:  true,
+			expectNilDom: true,
+			condStatus:   metav1.ConditionTrue,
+		},
+		{
+			name:         "tcp with specific IP is skipped and ready",
+			url:          "tcp://192.168.1.100:12345",
+			expectReady:  true,
+			expectNilDom: true,
+			condStatus:   metav1.ConditionTrue,
+		},
+		{
 			name:         "internal domain is skipped and ready",
 			url:          "https://api.service.internal",
 			expectReady:  true,
@@ -414,6 +435,62 @@ func TestManager_EnsureDomainExists_SkipsInternalBinding(t *testing.T) {
 			assert.Nil(t, result.Domain)
 			assertNoDomainRef(t, tt.endpoint)
 			assertDomainCondition(t, tt.endpoint, metav1.ConditionTrue, "internal binding")
+			assertNoDomainCreated(t, c)
+		})
+	}
+}
+
+func TestManager_EnsureDomainExists_SkipsTCPURLs(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint ngrokv1alpha1.EndpointWithDomain
+	}{
+		{
+			name: "AgentEndpoint with tcp ngrok URL",
+			endpoint: &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tcp-endpoint", Namespace: "default"},
+				Spec:       ngrokv1alpha1.AgentEndpointSpec{URL: "tcp://1.tcp.ngrok.io:12345"},
+				Status:     ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
+			},
+		},
+		{
+			name: "AgentEndpoint with custom tcp URL",
+			endpoint: &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tcp-custom-endpoint", Namespace: "default"},
+				Spec:       ngrokv1alpha1.AgentEndpointSpec{URL: "tcp://custom.example.com:8080"},
+				Status:     ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
+			},
+		},
+		{
+			name: "CloudEndpoint with tcp ngrok URL",
+			endpoint: &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tcp-endpoint", Namespace: "default"},
+				Spec:       ngrokv1alpha1.CloudEndpointSpec{URL: "tcp://1.tcp.ngrok.io:12345"},
+				Status:     ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
+			},
+		},
+		{
+			name: "CloudEndpoint with custom tcp URL",
+			endpoint: &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tcp-custom-endpoint", Namespace: "default"},
+				Spec:       ngrokv1alpha1.CloudEndpointSpec{URL: "tcp://custom.example.com:8080"},
+				Status:     ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			manager, c := newTestManager(t)
+
+			result, err := manager.EnsureDomainExists(t.Context(), tt.endpoint)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.True(t, result.IsReady)
+			assert.Nil(t, result.Domain)
+			assertNoDomainRef(t, tt.endpoint)
+			assertDomainCondition(t, tt.endpoint, metav1.ConditionTrue, "TCP")
 			assertNoDomainCreated(t, c)
 		})
 	}
