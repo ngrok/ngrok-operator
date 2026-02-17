@@ -13,7 +13,7 @@ Should match all-options snapshot:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.20.1
-        helm.sh/chart: ngrok-operator-0.22.0-rc.3
+        helm.sh/chart: ngrok-operator-0.22.0
       name: RELEASE-NAME-ngrok-operator-manager
       namespace: NAMESPACE
     spec:
@@ -451,7 +451,7 @@ Should match default snapshot:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.20.1
-        helm.sh/chart: ngrok-operator-0.22.0-rc.3
+        helm.sh/chart: ngrok-operator-0.22.0
       name: RELEASE-NAME-ngrok-operator-manager
       namespace: NAMESPACE
     spec:
