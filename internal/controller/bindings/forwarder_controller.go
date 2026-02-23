@@ -271,6 +271,10 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 			return err
 		}
 
+		for _, notice := range resp.Notices {
+			log.Info("Warning", "message", notice.GetMessage())
+		}
+
 		log.Info("Bound connection")
 		return joinConnections(log, conn, ngrokConn)
 	}

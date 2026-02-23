@@ -151,8 +151,9 @@ type ConnResponse struct {
 	EndpointId string `protobuf:"bytes,1,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
 	Proto      string `protobuf:"bytes,2,opt,name=proto,proto3" json:"proto,omitempty"`
 	// only set on error
-	ErrorCode     string `protobuf:"bytes,3,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	ErrorMessage  string `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	ErrorCode     string                 `protobuf:"bytes,3,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	Notices       []*ConnResponse_Notice `protobuf:"bytes,5,rep,name=notices,proto3" json:"notices,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -215,6 +216,57 @@ func (x *ConnResponse) GetErrorMessage() string {
 	return ""
 }
 
+func (x *ConnResponse) GetNotices() []*ConnResponse_Notice {
+	if x != nil {
+		return x.Notices
+	}
+	return nil
+}
+
+type ConnResponse_Notice struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=Message,proto3" json:"Message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnResponse_Notice) Reset() {
+	*x = ConnResponse_Notice{}
+	mi := &file_agent_conn_header_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnResponse_Notice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnResponse_Notice) ProtoMessage() {}
+
+func (x *ConnResponse_Notice) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_conn_header_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnResponse_Notice.ProtoReflect.Descriptor instead.
+func (*ConnResponse_Notice) Descriptor() ([]byte, []int) {
+	return file_agent_conn_header_proto_rawDescGZIP(), []int{2, 0}
+}
+
+func (x *ConnResponse_Notice) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_agent_conn_header_proto protoreflect.FileDescriptor
 
 const file_agent_conn_header_proto_rawDesc = "" +
@@ -231,14 +283,17 @@ const file_agent_conn_header_proto_rawDesc = "" +
 	"\vannotations\x18\x04 \x03(\v2#.agent.PodIdentity.AnnotationsEntryR\vannotations\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x89\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe3\x01\n" +
 	"\fConnResponse\x12\x1f\n" +
 	"\vendpoint_id\x18\x01 \x01(\tR\n" +
 	"endpointId\x12\x14\n" +
 	"\x05proto\x18\x02 \x01(\tR\x05proto\x12\x1d\n" +
 	"\n" +
 	"error_code\x18\x03 \x01(\tR\terrorCode\x12#\n" +
-	"\rerror_message\x18\x04 \x01(\tR\ferrorMessageB\x1bZ\x19go.ngrok.com/lib/pb_agentb\x06proto3"
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\x124\n" +
+	"\anotices\x18\x05 \x03(\v2\x1a.agent.ConnResponse.NoticeR\anotices\x1a\"\n" +
+	"\x06Notice\x12\x18\n" +
+	"\aMessage\x18\x01 \x01(\tR\aMessageB\x1bZ\x19go.ngrok.com/lib/pb_agentb\x06proto3"
 
 var (
 	file_agent_conn_header_proto_rawDescOnce sync.Once
@@ -252,21 +307,23 @@ func file_agent_conn_header_proto_rawDescGZIP() []byte {
 	return file_agent_conn_header_proto_rawDescData
 }
 
-var file_agent_conn_header_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_agent_conn_header_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_agent_conn_header_proto_goTypes = []any{
-	(*ConnRequest)(nil),  // 0: agent.ConnRequest
-	(*PodIdentity)(nil),  // 1: agent.PodIdentity
-	(*ConnResponse)(nil), // 2: agent.ConnResponse
-	nil,                  // 3: agent.PodIdentity.AnnotationsEntry
+	(*ConnRequest)(nil),         // 0: agent.ConnRequest
+	(*PodIdentity)(nil),         // 1: agent.PodIdentity
+	(*ConnResponse)(nil),        // 2: agent.ConnResponse
+	nil,                         // 3: agent.PodIdentity.AnnotationsEntry
+	(*ConnResponse_Notice)(nil), // 4: agent.ConnResponse.Notice
 }
 var file_agent_conn_header_proto_depIdxs = []int32{
 	1, // 0: agent.ConnRequest.pod_identity:type_name -> agent.PodIdentity
 	3, // 1: agent.PodIdentity.annotations:type_name -> agent.PodIdentity.AnnotationsEntry
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	4, // 2: agent.ConnResponse.notices:type_name -> agent.ConnResponse.Notice
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_agent_conn_header_proto_init() }
@@ -280,7 +337,7 @@ func file_agent_conn_header_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_conn_header_proto_rawDesc), len(file_agent_conn_header_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
