@@ -259,7 +259,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 		// Upgrade the connection to a binding connection
 		resp, err := mux.UpgradeToBindingConnection(log, ngrokConn, host, port, podIdentity)
-		log = log.WithValues("endpoint.id", resp.EndpointId, "proto", resp.Proto)
+		log = log.WithValues("endpoint.id", resp.EndpointId, "proto", resp.Proto, "pod identity", podIdentity)
 		if err != nil {
 			log.Error(err, "failed to upgrade connection")
 			return err
@@ -269,6 +269,11 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 			err := fmt.Errorf("%s: %s", resp.ErrorCode, resp.ErrorMessage)
 			log.Error(err, "failed to upgrade connection", "errorCode", resp.ErrorCode, "errorMessage", resp.ErrorMessage)
 			return err
+		}
+
+		for _, notice := range resp.Notices {
+			noticeMsg := fmt.Sprintf("WARNING: %s", notice.GetMessage())
+			log.V(1).Info(noticeMsg)
 		}
 
 		log.Info("Bound connection")
