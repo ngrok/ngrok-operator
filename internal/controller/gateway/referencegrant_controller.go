@@ -26,7 +26,6 @@ package gateway
 
 import (
 	"context"
-	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -74,14 +73,7 @@ func (r *ReferenceGrantReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	err = r.Driver.Sync(ctx, r.Client)
-	if err != nil {
-		log.Error(err, "failed to sync after reconciling ReferenceGrant",
-			"ReferenceGrant", fmt.Sprintf("%s.%s", req.Name, req.Namespace),
-		)
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, nil
+	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 }
 
 // SetupWithManager sets up the controller with the Manager.

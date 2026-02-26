@@ -73,14 +73,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	err = r.Driver.Sync(ctx, r.Client)
-	if err != nil {
-		log.Error(err, "failed to sync after reconciling Namespace",
-			"Namespace", namespace.Name,
-		)
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, nil
+	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 }
 
 // SetupWithManager sets up the controller with the Manager

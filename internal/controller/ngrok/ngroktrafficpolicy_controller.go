@@ -85,7 +85,7 @@ func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.R
 		r.Recorder.Eventf(policy, v1.EventTypeWarning, events.PolicyDeprecation, "Traffic Policy has 'enabled' set. This is a legacy option that will stop being supported soon.")
 	}
 
-	return ctrl.Result{}, r.Driver.SyncEndpoints(ctx, r.Client)
+	return managerdriver.HandleSyncResult(r.Driver.SyncEndpoints(ctx, r.Client))
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -78,13 +78,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 
-		err = r.Driver.Sync(ctx, r.Client)
-		if err != nil {
-			log.Error(err, "Failed to sync after removing ingress from store")
-			return ctrl.Result{}, err
-		}
-
-		return ctrl.Result{}, nil
+		return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 	default:
 		return ctrl.Result{}, err
 	}
@@ -126,11 +120,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 
-		err = r.Driver.Sync(ctx, r.Client)
-		if err != nil {
-			log.Error(err, "Failed to sync")
-		}
-		return ctrl.Result{}, err
+		return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 	}
 
 	// Skip non-delete reconciles during drain to prevent adding new finalizers
@@ -150,10 +140,5 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	err = r.Driver.Sync(ctx, r.Client)
-	if err != nil {
-		log.Error(err, "Failed to sync")
-	}
-
-	return ctrl.Result{}, err
+	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 }
