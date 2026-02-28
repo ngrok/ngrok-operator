@@ -19,7 +19,7 @@ LDFLAGS="-s -w \
     -X ${REPO_URL}/internal/version.version=${VERSION}"
 
 if [ "$#" -eq 0 ]; then
-    go build -o bin/ngrok-operator -trimpath -ldflags "$LDFLAGS"
+    go build -o bin/ngrok-operator -trimpath -buildvcs=false -ldflags "$LDFLAGS"
     exit 0
 fi
 
@@ -34,5 +34,5 @@ for platform in $(echo "$@" | tr ',' ' '); do
 
     echo "building bin/ngrok-operator-${os}-${arch}"
     CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
-        go build -o "bin/ngrok-operator-${os}-${arch}" -trimpath -ldflags "$LDFLAGS"
+        go build -o "bin/ngrok-operator-${os}-${arch}" -trimpath -buildvcs=false -ldflags "$LDFLAGS"
 done

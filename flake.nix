@@ -99,6 +99,7 @@
             with pkgs;
             [
               bashInteractive
+              git
               goVersion
               go-tools
               golangci-lint
