@@ -75,6 +75,18 @@ rules:
   - patch
   - update
   - watch
+# --- apps ---
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
 # --- networking.k8s.io ---
 - apiGroups:
   - networking.k8s.io
