@@ -62,6 +62,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
+	computecontroller "github.com/ngrok/ngrok-operator/internal/controller/compute"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
@@ -417,6 +418,17 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KubernetesOperator")
 		os.Exit(1)
+	}
+
+	// App-replica poller: polls ngrok Vaults API and reconciles Deployments
+	if err := mgr.Add(&computecontroller.AppReplicaPoller{
+		Client:          mgr.GetClient(),
+		Log:             ctrl.Log.WithName("controllers").WithName("AppReplicaPoller"),
+		Namespace:       opts.namespace,
+		NgrokClientset:  ngrokClientset,
+		PollingInterval: 3 * time.Second,
+	}); err != nil {
+		return fmt.Errorf("unable to add AppReplicaPoller: %w", err)
 	}
 
 	// register healthchecks

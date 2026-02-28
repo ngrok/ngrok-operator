@@ -79,6 +79,7 @@
           buildInputs =
             with pkgs;
             [
+              git
               go
               go-tools
               golangci-lint
