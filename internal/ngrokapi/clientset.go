@@ -10,6 +10,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v7/kubernetes_operators"
 	"github.com/ngrok/ngrok-api-go/v7/reserved_addrs"
 	"github.com/ngrok/ngrok-api-go/v7/reserved_domains"
+	"github.com/ngrok/ngrok-api-go/v7/vaults"
 )
 
 type Clientset interface {
@@ -19,6 +20,7 @@ type Clientset interface {
 	IPPolicyRules() IPPolicyRulesClient
 	KubernetesOperators() KubernetesOperatorsClient
 	TCPAddresses() TCPAddressesClient
+	Vaults() VaultsClient
 }
 
 type DefaultClientset struct {
@@ -28,6 +30,7 @@ type DefaultClientset struct {
 	ipPolicyRulesClient       *ip_policy_rules.Client
 	kubernetesOperatorsClient *kubernetes_operators.Client
 	tcpAddrsClient            *reserved_addrs.Client
+	vaultsClient              *vaults.Client
 }
 
 // NewClientSet creates a new ClientSet from an ngrok client config.
@@ -39,6 +42,7 @@ func NewClientSet(config *ngrok.ClientConfig) *DefaultClientset {
 		ipPolicyRulesClient:       ip_policy_rules.NewClient(config),
 		kubernetesOperatorsClient: kubernetes_operators.NewClient(config),
 		tcpAddrsClient:            reserved_addrs.NewClient(config),
+		vaultsClient:              vaults.NewClient(config),
 	}
 }
 
@@ -129,4 +133,12 @@ type TCPAddressesClient interface {
 
 func (c *DefaultClientset) TCPAddresses() TCPAddressesClient {
 	return c.tcpAddrsClient
+}
+
+type VaultsClient interface {
+	Lister[*ngrok.Vault]
+}
+
+func (c *DefaultClientset) Vaults() VaultsClient {
+	return c.vaultsClient
 }
