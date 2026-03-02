@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 const (
@@ -456,6 +457,46 @@ func (k *KGinkgo) EventuallyExpectNoEndpoints(ctx context.Context, namespace str
 
 		By("verifying no agent endpoints remain")
 		g.Expect(aeps).To(BeEmpty())
+	}, opts...)
+}
+
+// EventuallyWithGatewayClass continually fetches the specified GatewayClass and invokes the inner function with the fetched object.
+// The function uses Gomega's Eventually internally, so it should only be used in Ginkgo tests.
+// You can pass optional KGinkgoOpt parameters to customize the timeout and polling interval.
+//
+// Example usage:
+//
+//	kginkgo := testutils.NewKGinkgo(k8sClient)
+//	kginkgo.EventuallyWithGatewayClass(ctx, myGatewayClass, func(g Gomega, fetched *gatewayv1.GatewayClass) {
+//	    g.Expect(meta.IsStatusConditionTrue(fetched.Status.Conditions, string(gatewayv1.GatewayClassConditionStatusAccepted))).To(BeTrue())
+//	})
+func (k *KGinkgo) EventuallyWithGatewayClass(ctx context.Context, gwc *gatewayv1.GatewayClass, inner func(g Gomega, fetched *gatewayv1.GatewayClass), opts ...KGinkgoOpt) {
+	GinkgoHelper()
+
+	k.EventuallyWithObject(ctx, gwc.DeepCopy(), func(g Gomega, obj client.Object) {
+		fetched, ok := obj.(*gatewayv1.GatewayClass)
+		g.Expect(ok).To(BeTrue(), "expected object to be a GatewayClass")
+		inner(g, fetched)
+	}, opts...)
+}
+
+// EventuallyWithGateway continually fetches the specified Gateway and invokes the inner function with the fetched object.
+// The function uses Gomega's Eventually internally, so it should only be used in Ginkgo tests.
+// You can pass optional KGinkgoOpt parameters to customize the timeout and polling interval.
+//
+// Example usage:
+//
+//	kginkgo := testutils.NewKGinkgo(k8sClient)
+//	kginkgo.EventuallyWithGateway(ctx, myGateway, func(g Gomega, fetched *gatewayv1.Gateway) {
+//	    g.Expect(fetched.Status.Conditions).NotTo(BeEmpty())
+//	})
+func (k *KGinkgo) EventuallyWithGateway(ctx context.Context, gw *gatewayv1.Gateway, inner func(g Gomega, fetched *gatewayv1.Gateway), opts ...KGinkgoOpt) {
+	GinkgoHelper()
+
+	k.EventuallyWithObject(ctx, gw.DeepCopy(), func(g Gomega, obj client.Object) {
+		fetched, ok := obj.(*gatewayv1.Gateway)
+		g.Expect(ok).To(BeTrue(), "expected object to be a Gateway")
+		inner(g, fetched)
 	}, opts...)
 }
 

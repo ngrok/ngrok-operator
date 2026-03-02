@@ -1,0 +1,9 @@
+# GatewayClass owned by a third-party controller (e.g. Kong, Traefik).
+# The ngrok operator must NOT manage routes targeting Gateways that use this class.
+# Note: GatewayClass is cluster-scoped (no namespace).
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: other-controller
+spec:
+  controllerName: example.io/other-gateway-controller

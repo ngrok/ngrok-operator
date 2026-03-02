@@ -106,6 +106,18 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, r.Driver.DeleteHTTPRoute(httproute)
 	}
 
+	// Per the Gateway API spec, only manage routes that reference our GatewayClass.
+	// If no parentRef targets an ngrok-managed Gateway, remove any previously-added
+	// finalizer and skip reconciliation entirely.
+	owned, err := routeReferencesNgrokGateway(ctx, r.Client, httproute.Namespace, httproute.Spec.ParentRefs)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if !owned {
+		log.V(1).Info("HTTPRoute does not reference any ngrok-managed Gateway, skipping")
+		return ctrl.Result{}, util.RemoveAndSyncFinalizer(ctx, r.Client, httproute)
+	}
+
 	// Skip non-delete reconciles during drain to prevent adding new finalizers
 	if controller.IsDraining(ctx, r.DrainState) {
 		log.V(1).Info("Draining, skipping non-delete reconcile")
@@ -173,9 +185,8 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 var (
-	ErrValidation          = errors.New("validation")
-	ErrParentRefNotFound   = errors.New("parentRefs not found")
-	ErrRouteGKNotSupported = errors.New("route group kind not supported")
+	ErrValidation        = errors.New("validation")
+	ErrParentRefNotFound = errors.New("parentRefs not found")
 )
 
 func (r *HTTPRouteReconciler) validateHTTPRoute(ctx context.Context, route *gatewayv1.HTTPRoute) error {
@@ -221,6 +232,47 @@ func (r *HTTPRouteReconciler) validateRouteParentRefs(ctx context.Context, route
 	parentStatuses := []gatewayv1.RouteParentStatus{}
 
 	for _, parentRef := range route.Spec.ParentRefs {
+		// Only emit status for parentRefs that target a Gateway in the gateway API group.
+		// ParentRefs for other groups/kinds belong to other controllers.
+		if !parentRefIsGateway(parentRef) {
+			log.V(5).Info("Skipping parentRef that does not reference a Gateway", "parentRef", parentRef)
+			continue
+		}
+
+		parentRefName := string(parentRef.Name)
+		parentRefNamespace := string(ptr.Deref(parentRef.Namespace, gatewayv1.Namespace(route.Namespace)))
+		parentRefLog := log.WithValues("parentRef", types.NamespacedName{
+			Name:      parentRefName,
+			Namespace: parentRefNamespace,
+		})
+
+		// TODO: Get the gateway from the store to limit the number of API calls
+		gw := &gatewayv1.Gateway{}
+		if err := r.Client.Get(ctx, types.NamespacedName{Name: parentRefName, Namespace: parentRefNamespace}, gw); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				parentRefLog.Error(err, "Failed to get gateway")
+				return nil, err
+			}
+			// Gateway not found; cannot confirm ownership, skip this parentRef.
+			parentRefLog.V(5).Info("Gateway not found, skipping parentRef")
+			continue
+		}
+
+		// Only emit status for parentRefs whose Gateway uses our GatewayClass.
+		gwc := &gatewayv1.GatewayClass{}
+		if err := r.Client.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				parentRefLog.Error(err, "Failed to get GatewayClass")
+				return nil, err
+			}
+			continue
+		}
+		if !ShouldHandleGatewayClass(gwc) {
+			parentRefLog.V(5).Info("GatewayClass is not managed by this controller, skipping parentRef",
+				"gatewayClass", gwc.Name, "controllerName", gwc.Spec.ControllerName)
+			continue
+		}
+
 		parentStatus := gatewayv1.RouteParentStatus{
 			ParentRef:      parentRef,
 			ControllerName: ControllerName,
@@ -232,90 +284,29 @@ func (r *HTTPRouteReconciler) validateRouteParentRefs(ctx context.Context, route
 			if !reflect.DeepEqual(s.ParentRef, parentRef) {
 				continue
 			}
-
 			parentStatus.Conditions = s.Conditions
 		}
 
-		group := ptr.Deref(parentRef.Group, gatewayv1.GroupName)
-
-		var cnd metav1.Condition
-
-		switch group {
-		case gatewayv1.GroupName:
-			parentRefName := string(parentRef.Name)
-			// Get the parentRef namespace if supplied. If it's not supplied, use the route namespace.
-			parentRefNamespace := string(ptr.Deref(parentRef.Namespace, gatewayv1.Namespace(route.Namespace)))
-			parentRefLog := log.WithValues("parentRef", types.NamespacedName{
-				Name:      parentRefName,
-				Namespace: parentRefNamespace,
-			})
-
-			// TODO: Get the gateway from the store to limit the number of API calls
-			gw := &gatewayv1.Gateway{}
-			err := r.Client.Get(ctx, types.NamespacedName{
-				Name:      parentRefName,
-				Namespace: parentRefNamespace,
-			}, gw)
-
-			if err != nil {
-				if client.IgnoreNotFound(err) != nil {
-					// Some other error besides not found
-					parentRefLog.Error(err, "Failed to get gateway")
-					break
-				}
-
-				log.Error(err, "Gateway not found", "parentRef", parentRefName, "namespace", parentRefNamespace)
-				cnd = r.newCondition(
-					route,
-					gatewayv1.RouteConditionAccepted,
-					gatewayv1.RouteReasonNoMatchingParent,
-					"",
-				)
-				break
+		// Find the listener that matches the parentRef
+		noMatchingParent := true
+		for _, listener := range gw.Spec.Listeners {
+			if parentRef.Port != nil && *parentRef.Port != listener.Port {
+				continue
 			}
-
-			// Find the listener that matches the parentRef
-			noMatchingParent := true
-			for _, listener := range gw.Spec.Listeners {
-				if parentRef.Port != nil && *parentRef.Port != listener.Port {
-					continue
-				}
-
-				if parentRef.SectionName != nil && *parentRef.SectionName != listener.Name {
-					continue
-				}
-
-				noMatchingParent = false
+			if parentRef.SectionName != nil && *parentRef.SectionName != listener.Name {
+				continue
 			}
-
-			var reason gatewayv1.RouteConditionReason
-			if noMatchingParent {
-				reason = gatewayv1.RouteReasonNoMatchingParent
-			} else {
-				reason = gatewayv1.RouteReasonAccepted
-			}
-
-			cnd = r.newCondition(
-				route,
-				gatewayv1.RouteConditionAccepted,
-				reason,
-				"",
-			)
-
-		case "":
-			// TODO: From the spec:
-			//    To set the core API group (such as for a "Service" kind referent),
-			//    Group must be explicitly set to "".
-			fallthrough
-		default:
-			cnd = r.newCondition(
-				route,
-				gatewayv1.RouteConditionAccepted,
-				gatewayv1.RouteReasonInvalidKind,
-				fmt.Sprintf("Group '%s' is not supported", group),
-			)
+			noMatchingParent = false
 		}
 
+		var reason gatewayv1.RouteConditionReason
+		if noMatchingParent {
+			reason = gatewayv1.RouteReasonNoMatchingParent
+		} else {
+			reason = gatewayv1.RouteReasonAccepted
+		}
+
+		cnd := r.newCondition(route, gatewayv1.RouteConditionAccepted, reason, "")
 		meta.SetStatusCondition(&parentStatus.Conditions, cnd)
 		parentStatuses = append(parentStatuses, parentStatus)
 	}
