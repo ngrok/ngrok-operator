@@ -27,62 +27,160 @@ package gateway
 import (
 	"time"
 
+	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-var _ = Describe("TLSRoute controller", func() {
+var _ = Describe("TLSRoute controller", Ordered, func() {
 	const (
-		TLSRouteName = "test-tlsroute"
+		timeout  = 10 * time.Second
+		duration = 10 * time.Second
+		interval = 250 * time.Millisecond
 	)
 
 	var (
-		testTLSroute *gatewayv1alpha2.TLSRoute
+		gatewayClass *gatewayv1.GatewayClass
+		route        *gatewayv1alpha2.TLSRoute
 	)
 
-	BeforeEach(func() {
-		ctx := GinkgoT().Context()
-		testTLSroute = &gatewayv1alpha2.TLSRoute{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: TLSRouteName,
-			},
-			Spec: gatewayv1alpha2.TLSRouteSpec{
-				CommonRouteSpec: gatewayv1.CommonRouteSpec{
-					ParentRefs: []gatewayv1.ParentReference{{
-						Kind: ptr.To(gatewayv1.Kind("gateway")),
-						Name: gatewayv1.ObjectName("example-gw"),
-					}},
-				},
-				Rules: []gatewayv1alpha2.TLSRouteRule{{
-					BackendRefs: []gatewayv1alpha2.BackendRef{{
-						BackendObjectReference: gatewayv1.BackendObjectReference{
-							Name: gatewayv1.ObjectName("example-svc"),
+	When("the gateway class is managed by us", Ordered, func() {
+		BeforeAll(func(ctx SpecContext) {
+			gatewayClass = testutils.NewGatewayClass(true)
+			CreateGatewayClassAndWaitForAcceptance(ctx, gatewayClass, timeout, interval)
+		})
+
+		AfterAll(func(ctx SpecContext) {
+			DeleteAllGatewayClasses(ctx, timeout, interval)
+		})
+
+		When("the parent ref is an ngrok-managed gateway", func() {
+			var gw *gatewayv1.Gateway
+
+			BeforeEach(func(ctx SpecContext) {
+				gw = newGateway(gatewayClass)
+				CreateGatewayAndWaitForAcceptance(ctx, gw, timeout, interval)
+
+				route = &gatewayv1alpha2.TLSRoute{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testutils.RandomName("tlsroute"),
+						Namespace: "default",
+					},
+					Spec: gatewayv1alpha2.TLSRouteSpec{
+						CommonRouteSpec: gatewayv1.CommonRouteSpec{
+							ParentRefs: []gatewayv1.ParentReference{{
+								Name: gatewayv1.ObjectName(gw.Name),
+							}},
 						},
-					}},
-				}},
-			},
-		}
-		Expect(k8sClient.Create(ctx, testTLSroute)).To(Succeed())
+						Rules: []gatewayv1alpha2.TLSRouteRule{{
+							BackendRefs: []gatewayv1alpha2.BackendRef{{
+								BackendObjectReference: gatewayv1.BackendObjectReference{
+									Name: gatewayv1.ObjectName("example-svc"),
+									Port: (*gatewayv1.PortNumber)(ptr.To[int32](8080)),
+								},
+							}},
+						}},
+					},
+				}
+				Expect(k8sClient.Create(ctx, route)).To(Succeed())
+			})
+
+			AfterEach(func(ctx SpecContext) {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, gw))).To(Succeed())
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, route))).To(Succeed())
+			})
+
+			It("Should add the TLSRoute to the store and finalizer to the route", func(ctx SpecContext) {
+				Eventually(func(g Gomega) {
+					obj := &gatewayv1alpha2.TLSRoute{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
+					g.Expect(obj.Finalizers).To(ContainElement("k8s.ngrok.com/finalizer"))
+
+					routes := driver.GetStore().ListTLSRoutes()
+					g.Expect(routes).To(HaveLen(1))
+					g.Expect(routes[0].Name).To(Equal(route.Name))
+				}, timeout, interval).Should(Succeed())
+			})
+
+			It("Should remove the TLSRoute from the store when deleted", func(ctx SpecContext) {
+				Eventually(func(g Gomega) {
+					routes := driver.GetStore().ListTLSRoutes()
+					g.Expect(routes).To(HaveLen(1))
+				}, timeout, interval).Should(Succeed())
+
+				Expect(k8sClient.Delete(ctx, route)).To(Succeed())
+
+				Eventually(func(g Gomega) {
+					routes := driver.GetStore().ListTLSRoutes()
+					g.Expect(routes).To(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+			})
+		})
 	})
 
-	AfterEach(func() {
-		ctx := GinkgoT().Context()
-		hasTLSRoute := false
-		tlsRoutes := driver.GetStore().ListTLSRoutes()
-		for _, tlsRoute := range tlsRoutes {
-			if tlsRoute.Name == "test-tlsroute" {
-				hasTLSRoute = true
-			}
-		}
-		Expect(len(tlsRoutes)).To(Equal(1))
-		Expect(hasTLSRoute).To(Equal(true))
-		Expect(k8sClient.Delete(ctx, testTLSroute)).To(Succeed())
-		time.Sleep(time.Second * 3)
-		tlsRoutes = driver.GetStore().ListTLSRoutes()
-		Expect(len(tlsRoutes)).To(Equal(0))
+	When("the gateway class is NOT managed by us", Ordered, func() {
+		var unmanagedGatewayClass *gatewayv1.GatewayClass
+
+		BeforeAll(func(ctx SpecContext) {
+			unmanagedGatewayClass = testutils.NewGatewayClass(false)
+			Expect(k8sClient.Create(ctx, unmanagedGatewayClass)).To(Succeed())
+		})
+
+		AfterAll(func(ctx SpecContext) {
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, unmanagedGatewayClass))).To(Succeed())
+		})
+
+		When("a TLSRoute references a Gateway with an unmanaged GatewayClass", func() {
+			var unmanagedGateway *gatewayv1.Gateway
+
+			BeforeEach(func(ctx SpecContext) {
+				unmanagedGateway = newGateway(unmanagedGatewayClass)
+				Expect(k8sClient.Create(ctx, unmanagedGateway)).To(Succeed())
+
+				route = &gatewayv1alpha2.TLSRoute{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testutils.RandomName("tlsroute"),
+						Namespace: "default",
+					},
+					Spec: gatewayv1alpha2.TLSRouteSpec{
+						CommonRouteSpec: gatewayv1.CommonRouteSpec{
+							ParentRefs: []gatewayv1.ParentReference{{
+								Name: gatewayv1.ObjectName(unmanagedGateway.Name),
+							}},
+						},
+						Rules: []gatewayv1alpha2.TLSRouteRule{{
+							BackendRefs: []gatewayv1alpha2.BackendRef{{
+								BackendObjectReference: gatewayv1.BackendObjectReference{
+									Name: gatewayv1.ObjectName("example-svc"),
+									Port: (*gatewayv1.PortNumber)(ptr.To[int32](8080)),
+								},
+							}},
+						}},
+					},
+				}
+				Expect(k8sClient.Create(ctx, route)).To(Succeed())
+			})
+
+			AfterEach(func(ctx SpecContext) {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, unmanagedGateway))).To(Succeed())
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, route))).To(Succeed())
+			})
+
+			It("Should not add a finalizer or store the TLSRoute", func(ctx SpecContext) {
+				Consistently(func(g Gomega) {
+					obj := &gatewayv1alpha2.TLSRoute{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
+					g.Expect(obj.Finalizers).NotTo(ContainElement("k8s.ngrok.com/finalizer"))
+
+					routes := driver.GetStore().ListTLSRoutes()
+					g.Expect(routes).To(BeEmpty())
+				}, duration, interval).Should(Succeed())
+			})
+		})
 	})
 })

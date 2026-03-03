@@ -81,34 +81,51 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	tlsRoute, err = r.Driver.UpdateTLSRoute(tlsRoute)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if controller.IsUpsert(tlsRoute) {
-		// Skip non-delete reconciles during drain to prevent adding new finalizers
-		if controller.IsDraining(ctx, r.DrainState) {
-			log.V(1).Info("Draining, skipping non-delete reconcile")
-			return ctrl.Result{}, nil
-		}
-
-		// The object is not being deleted, so register and sync finalizer
-		if err := util.RegisterAndSyncFinalizer(ctx, r.Client, tlsRoute); err != nil {
-			log.Error(err, "Failed to register finalizer")
-			return ctrl.Result{}, err
-		}
-	} else {
+	if controller.IsDelete(tlsRoute) {
 		log.Info("deleting TLSRoute from store")
 		if err := util.RemoveAndSyncFinalizer(ctx, r.Client, tlsRoute); err != nil {
 			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
 
-		// Remove it from the store
 		if err := r.Driver.DeleteTLSRoute(tlsRoute); err != nil {
 			return ctrl.Result{}, err
 		}
+
+		if err := r.Driver.Sync(ctx, r.Client); err != nil {
+			log.Error(err, "failed to sync after deleting TLSRoute from store")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Per the Gateway API spec, only manage routes that reference our GatewayClass.
+	// If no parentRef targets an ngrok-managed Gateway, remove any previously-added
+	// finalizer and skip reconciliation entirely.
+	owned, err := routeReferencesNgrokGateway(ctx, r.Client, tlsRoute.Namespace, tlsRoute.Spec.ParentRefs)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if !owned {
+		log.V(1).Info("TLSRoute does not reference any ngrok-managed Gateway, skipping")
+		return ctrl.Result{}, util.RemoveAndSyncFinalizer(ctx, r.Client, tlsRoute)
+	}
+
+	// Skip non-delete reconciles during drain to prevent adding new finalizers
+	if controller.IsDraining(ctx, r.DrainState) {
+		log.V(1).Info("Draining, skipping non-delete reconcile")
+		return ctrl.Result{}, nil
+	}
+
+	// The object is not being deleted, so register and sync finalizer
+	if err := util.RegisterAndSyncFinalizer(ctx, r.Client, tlsRoute); err != nil {
+		log.Error(err, "Failed to register finalizer")
+		return ctrl.Result{}, err
+	}
+
+	_, err = r.Driver.UpdateTLSRoute(tlsRoute)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	if err := r.Driver.Sync(ctx, r.Client); err != nil {
