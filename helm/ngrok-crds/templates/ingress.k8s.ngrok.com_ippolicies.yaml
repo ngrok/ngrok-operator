@@ -27,6 +27,16 @@ spec:
       jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - description: Ready Reason
+      jsonPath: .status.conditions[?(@.type=='Ready')].reason
+      name: Reason
+      priority: 1
+      type: string
+    - description: Ready Message
+      jsonPath: .status.conditions[?(@.type=='Ready')].message
+      name: Message
+      priority: 1
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:

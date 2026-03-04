@@ -148,6 +148,8 @@ type DomainStatusProvisioningJob struct {
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 // +kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cnameTarget`,description="CNAME Target",priority=2
 // +kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`,description="Region",priority=2
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].reason`,description="Ready Reason",priority=1
+// +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].message`,description="Ready Message",priority=1
 
 // Domain is the Schema for the domains API
 type Domain struct {

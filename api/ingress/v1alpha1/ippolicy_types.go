@@ -84,6 +84,8 @@ type IPPolicyStatus struct {
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="IPPolicy ID"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`,description="IPPolicy Ready"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].reason`,description="Ready Reason",priority=1
+// +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].message`,description="Ready Message",priority=1
 
 // IPPolicy is the Schema for the ippolicies API
 type IPPolicy struct {
