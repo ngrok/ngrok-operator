@@ -539,7 +539,11 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 		d.WithNgrokMetadata(customMetadata)
 	}
 
-	if err := d.Seed(ctx, mgr.GetAPIReader()); err != nil {
+	var seedOpts []client.ListOption
+	if options.ingressWatchNamespace != "" {
+		seedOpts = append(seedOpts, client.InNamespace(options.ingressWatchNamespace))
+	}
+	if err := d.Seed(ctx, mgr.GetAPIReader(), seedOpts...); err != nil {
 		return nil, fmt.Errorf("unable to seed cache store: %w", err)
 	}
 
