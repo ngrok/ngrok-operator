@@ -87,6 +87,64 @@ var _ = Describe("Driver", func() {
 				Expect(foundObj).To(Equal(obj))
 			}
 		})
+		It("Should not seed namespace-scoped resources from outside the watched namespace", func() {
+			watchedNS := "watched-ns"
+			otherNS := "other-ns"
+
+			// Resources in the watched namespace
+			watchedIngress := testutils.NewTestIngressV1("ingress-watched", watchedNS)
+			watchedDomain := testutils.NewDomainV1("watched.example.com", watchedNS)
+			watchedService := testutils.NewTestServiceV1("svc-watched", watchedNS)
+
+			// Resources in another namespace (should be excluded when namespace-scoped)
+			otherIngress := testutils.NewTestIngressV1("ingress-other", otherNS)
+			otherDomain := testutils.NewDomainV1("other.example.com", otherNS)
+			otherService := testutils.NewTestServiceV1("svc-other", otherNS)
+
+			// Cluster-scoped resources (should always be included)
+			ic := testutils.NewTestIngressClass("ngrok-class", true, true)
+
+			allObjs := []runtime.Object{
+				watchedIngress, watchedDomain, watchedService,
+				otherIngress, otherDomain, otherService,
+				ic,
+			}
+
+			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(allObjs...).Build()
+			err := driver.Seed(GinkgoT().Context(), c, client.InNamespace(watchedNS))
+			Expect(err).ToNot(HaveOccurred())
+
+			// Watched namespace resources should be in the store
+			_, found, err := driver.store.Get(watchedIngress)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue(), "watched ingress should be in store")
+
+			_, found, err = driver.store.Get(watchedDomain)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue(), "watched domain should be in store")
+
+			_, found, err = driver.store.Get(watchedService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue(), "watched service should be in store")
+
+			// Other namespace resources should NOT be in the store
+			_, found, err = driver.store.Get(otherIngress)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeFalse(), "other-ns ingress should NOT be in store")
+
+			_, found, err = driver.store.Get(otherDomain)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeFalse(), "other-ns domain should NOT be in store")
+
+			_, found, err = driver.store.Get(otherService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeFalse(), "other-ns service should NOT be in store")
+
+			// Cluster-scoped resources should still be in the store
+			_, found, err = driver.store.Get(ic)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue(), "cluster-scoped IngressClass should be in store")
+		})
 	})
 
 	Describe("DeleteIngress", func() {

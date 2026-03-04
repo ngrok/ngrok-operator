@@ -194,7 +194,7 @@ func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[str
 	return string(jsonString), nil
 }
 
-func listObjectsForType(ctx context.Context, client client.Reader, v interface{}) ([]client.Object, error) {
+func listObjectsForType(ctx context.Context, client client.Reader, v interface{}, listOpts ...client.ListOption) ([]client.Object, error) {
 	switch v.(type) {
 
 	// ----------------------------------------------------------------------------
@@ -202,15 +202,15 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 	// ----------------------------------------------------------------------------
 	case *corev1.Service:
 		services := &corev1.ServiceList{}
-		err := client.List(ctx, services)
+		err := client.List(ctx, services, listOpts...)
 		return util.ToClientObjects(services.Items), err
 	case *corev1.Secret:
 		secrets := &corev1.SecretList{}
-		err := client.List(ctx, secrets)
+		err := client.List(ctx, secrets, listOpts...)
 		return util.ToClientObjects(secrets.Items), err
 	case *corev1.ConfigMap:
 		configmaps := &corev1.ConfigMapList{}
-		err := client.List(ctx, configmaps)
+		err := client.List(ctx, configmaps, listOpts...)
 		return util.ToClientObjects(configmaps.Items), err
 	case *corev1.Namespace:
 		namespaces := &corev1.NamespaceList{}
@@ -218,7 +218,7 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 		return util.ToClientObjects(namespaces.Items), err
 	case *netv1.Ingress:
 		ingresses := &netv1.IngressList{}
-		err := client.List(ctx, ingresses)
+		err := client.List(ctx, ingresses, listOpts...)
 		return util.ToClientObjects(ingresses.Items), err
 	case *netv1.IngressClass:
 		ingressClasses := &netv1.IngressClassList{}
@@ -234,23 +234,23 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 		return util.ToClientObjects(gatewayClasses.Items), err
 	case *gatewayv1.Gateway:
 		gateways := &gatewayv1.GatewayList{}
-		err := client.List(ctx, gateways)
+		err := client.List(ctx, gateways, listOpts...)
 		return util.ToClientObjects(gateways.Items), err
 	case *gatewayv1.HTTPRoute:
 		httproutes := &gatewayv1.HTTPRouteList{}
-		err := client.List(ctx, httproutes)
+		err := client.List(ctx, httproutes, listOpts...)
 		return util.ToClientObjects(httproutes.Items), err
 	case *gatewayv1alpha2.TCPRoute:
 		tcpRoutes := &gatewayv1alpha2.TCPRouteList{}
-		err := client.List(ctx, tcpRoutes)
+		err := client.List(ctx, tcpRoutes, listOpts...)
 		return util.ToClientObjects(tcpRoutes.Items), err
 	case *gatewayv1alpha2.TLSRoute:
 		tlsRoutes := &gatewayv1alpha2.TLSRouteList{}
-		err := client.List(ctx, tlsRoutes)
+		err := client.List(ctx, tlsRoutes, listOpts...)
 		return util.ToClientObjects(tlsRoutes.Items), err
 	case *gatewayv1beta1.ReferenceGrant:
 		referenceGrants := &gatewayv1beta1.ReferenceGrantList{}
-		err := client.List(ctx, referenceGrants)
+		err := client.List(ctx, referenceGrants, listOpts...)
 		return util.ToClientObjects(referenceGrants.Items), err
 
 	// ----------------------------------------------------------------------------
@@ -258,19 +258,19 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		domains := &ingressv1alpha1.DomainList{}
-		err := client.List(ctx, domains)
+		err := client.List(ctx, domains, listOpts...)
 		return util.ToClientObjects(domains.Items), err
 	case *ngrokv1alpha1.NgrokTrafficPolicy:
 		policies := &ngrokv1alpha1.NgrokTrafficPolicyList{}
-		err := client.List(ctx, policies)
+		err := client.List(ctx, policies, listOpts...)
 		return util.ToClientObjects(policies.Items), err
 	case *ngrokv1alpha1.AgentEndpoint:
 		agentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
-		err := client.List(ctx, agentEndpoints)
+		err := client.List(ctx, agentEndpoints, listOpts...)
 		return util.ToClientObjects(agentEndpoints.Items), err
 	case *ngrokv1alpha1.CloudEndpoint:
 		cloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
-		err := client.List(ctx, cloudEndpoints)
+		err := client.List(ctx, cloudEndpoints, listOpts...)
 		return util.ToClientObjects(cloudEndpoints.Items), err
 	}
 	return nil, fmt.Errorf("unsupported type %T", v)
@@ -298,7 +298,7 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 // - AgentEndpoints
 // - CloudEndpoints
 // When the sync method becomes a background process, this likely won't be needed anymore
-func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
+func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.ListOption) error {
 	typesToSeed := []interface{}{
 		&netv1.Ingress{},
 		&netv1.IngressClass{},
@@ -331,7 +331,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader) error {
 	}
 
 	for _, v := range typesToSeed {
-		objects, err := listObjectsForType(ctx, c, v)
+		objects, err := listObjectsForType(ctx, c, v, listOpts...)
 		if err != nil {
 			return err
 		}
