@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: '{{ include "ngrok-operator.fullname" . }}-manager-role'
+  name: api-manager-role
 rules:
 - apiGroups:
   - ""
@@ -36,16 +36,7 @@ rules:
   resources:
   - secrets
   verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
   - create
-  - delete
   - get
   - list
   - patch
@@ -54,6 +45,7 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - services
   - services/status
   verbs:
   - get
@@ -189,6 +181,16 @@ rules:
   - ngrok.k8s.ngrok.com
   resources:
   - agentendpoints
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
   - cloudendpoints
   - kubernetesoperators
   - ngroktrafficpolicies
@@ -203,7 +205,6 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - agentendpoints/finalizers
   - cloudendpoints/finalizers
   - kubernetesoperators/finalizers
   - ngroktrafficpolicies/finalizers
@@ -212,7 +213,6 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - agentendpoints/status
   - cloudendpoints/status
   - kubernetesoperators/status
   - ngroktrafficpolicies/status

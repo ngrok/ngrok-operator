@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package bindings
+package forwarder
 
 import (
 	"context"
@@ -135,6 +135,12 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	err = mgr.Add(cont)
 	return
 }
+
+// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints,verbs=get;list;watch;patch;update
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 
 func (r *ForwarderReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.Reconcile(ctx, req, new(bindingsv1alpha1.BoundEndpoint))

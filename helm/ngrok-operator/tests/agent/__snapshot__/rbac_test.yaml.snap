@@ -6,39 +6,44 @@ Should match snapshot:
       name: RELEASE-NAME-ngrok-operator-agent-role
     rules:
       - apiGroups:
-          - ingress.k8s.ngrok.com
+          - ""
         resources:
-          - tunnels
+          - events
+        verbs:
+          - create
+          - patch
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
         verbs:
           - get
           - list
           - watch
-          - patch
-          - update
       - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
-          - tunnels/finalizers
+          - domains
         verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/status
-        verbs:
+          - create
+          - delete
           - get
+          - list
           - patch
           - update
+          - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints
         verbs:
+          - create
+          - delete
           - get
           - list
-          - watch
           - patch
           - update
+          - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
@@ -56,23 +61,33 @@ Should match snapshot:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
+          - kubernetesoperators
           - ngroktrafficpolicies
         verbs:
           - get
           - list
           - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains
-        verbs:
-          - get
-          - list
-          - watch
-          - create
-          - patch
-          - delete
-          - update
+  2: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-rolebinding
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: RELEASE-NAME-ngrok-operator-agent-role
+    subjects:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-agent
+        namespace: NAMESPACE
+should match snapshot when watchNamespace is set:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-role
+      namespace: my-namespace
+    rules:
       - apiGroups:
           - ""
         resources:
@@ -89,21 +104,61 @@ Should match snapshot:
           - list
           - watch
       - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - kubernetesoperators
+          - ngroktrafficpolicies
         verbs:
           - get
           - list
           - watch
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
+    kind: RoleBinding
     metadata:
       name: RELEASE-NAME-ngrok-operator-agent-rolebinding
+      namespace: my-namespace
     roleRef:
       apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
+      kind: Role
       name: RELEASE-NAME-ngrok-operator-agent-role
     subjects:
       - kind: ServiceAccount

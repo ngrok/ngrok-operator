@@ -121,6 +121,14 @@ Create the name of the bindings-forwarder service account to use
 {{- end -}}
 
 {{/*
+Return the effective watch namespace.
+Empty string means watch all namespaces.
+*/}}
+{{- define "ngrok-operator.watchNamespace" -}}
+{{- .Values.watchNamespace | default .Values.ingress.watchNamespace -}}
+{{- end -}}
+
+{{/*
 Return the ngrok operator image name
 */}}
 {{- define "ngrok-operator.image" -}}

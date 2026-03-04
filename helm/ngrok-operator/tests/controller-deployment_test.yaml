@@ -8,7 +8,7 @@ templates:
 # deployment at this time.
 - controller-rbac.yaml
 - credentials-secret.yaml
-- rbac/role.yaml
+- rbac/api-manager.yaml
 tests:
 - it: Should match default snapshot
   asserts:

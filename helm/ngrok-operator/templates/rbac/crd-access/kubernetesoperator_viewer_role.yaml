@@ -1,4 +1,4 @@
-# permissions for end users to view operatorconfigurations
+# permissions for end users to view kubernetesoperators
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -9,12 +9,12 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-operatorconfiguration-viewer-role
+  name: {{ include "ngrok-operator.fullname" . }}-kubernetesoperator-viewer-role
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - operatorconfigurations
+  - kubernetesoperators
   verbs:
   - get
   - list
@@ -22,6 +22,6 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - operatorconfigurations/status
+  - kubernetesoperators/status
   verbs:
   - get

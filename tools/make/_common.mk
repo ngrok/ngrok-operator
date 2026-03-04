@@ -35,6 +35,11 @@ SCRIPT_DIR = ./scripts
 
 CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/..., ./internal/drain/...}
 
+# Per-deployment RBAC paths for controller-gen
+API_MANAGER_RBAC_PATHS = {./internal/controller/ingress/..., ./internal/controller/ngrok/..., ./internal/controller/gateway/..., ./internal/controller/service/..., ./internal/controller/bindings, ./internal/drain/...}
+AGENT_MANAGER_RBAC_PATHS = ./internal/controller/agent/...
+BINDINGS_FORWARDER_RBAC_PATHS = ./internal/controller/bindings/forwarder/...
+
 # when true, deploy with --set oneClickDemoMode=true
 DEPLOY_ONE_CLICK_DEMO_MODE ?= false
 

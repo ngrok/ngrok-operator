@@ -1,7 +1,7 @@
 suite: test bindings forwarder deployment
 templates:
 - bindings-forwarder/deployment.yaml
-- bindings-forwarder/rbac.yaml
+- rbac/bindings-forwarder.yaml
 set:
   bindings.enabled: true
 tests:

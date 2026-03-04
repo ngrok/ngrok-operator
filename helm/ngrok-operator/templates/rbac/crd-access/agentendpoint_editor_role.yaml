@@ -1,4 +1,4 @@
-# permissions for end users to edit operatorconfigurations
+# permissions for end users to edit agentendpoints
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -9,12 +9,12 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-operatorconfiguration-editor-role
+  name: {{ include "ngrok-operator.fullname" . }}-agentendpoint-editor-role
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - operatorconfigurations
+  - agentendpoints
   verbs:
   - create
   - delete
@@ -26,6 +26,6 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - operatorconfigurations/status
+  - agentendpoints/status
   verbs:
   - get

@@ -1,4 +1,4 @@
-# permissions for end users to edit domains.
+# permissions for end users to edit kubernetesoperators
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -9,12 +9,12 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-domain-editor-role
+  name: {{ include "ngrok-operator.fullname" . }}-kubernetesoperator-editor-role
 rules:
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ngrok.k8s.ngrok.com
   resources:
-  - domains
+  - kubernetesoperators
   verbs:
   - create
   - delete
@@ -24,8 +24,8 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ngrok.k8s.ngrok.com
   resources:
-  - domains/status
+  - kubernetesoperators/status
   verbs:
   - get

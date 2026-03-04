@@ -1,4 +1,4 @@
-# permissions for end users to view cloudendpoints
+# permissions for end users to edit ippolicies
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -9,20 +9,23 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-cloudendpoint-viewer-role
+  name: {{ include "ngrok-operator.fullname" . }}-ippolicy-editor-role
 rules:
 - apiGroups:
-  - ngrok.k8s.ngrok.com
+  - ingress.k8s.ngrok.com
   resources:
-  - cloudendpoints
+  - ippolicies
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
-  - ngrok.k8s.ngrok.com
+  - ingress.k8s.ngrok.com
   resources:
-  - cloudendpoints/status
+  - ippolicies/status
   verbs:
   - get
-

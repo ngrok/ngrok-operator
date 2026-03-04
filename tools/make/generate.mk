@@ -10,9 +10,14 @@ generate-mocks:
 
 .PHONY: manifests
 manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	controller-gen rbac:roleName='"{{ include \"ngrok-operator.fullname\" . }}-manager-role"' crd webhook paths="$(CONTROLLER_GEN_PATHS)" \
-		output:crd:artifacts:config=$(CRD_TEMPLATES_DIR) \
-		output:rbac:artifacts:config=$(HELM_TEMPLATES_DIR)/rbac
+	controller-gen crd webhook paths="./api/..." \
+		output:crd:artifacts:config=$(CRD_TEMPLATES_DIR)
+	controller-gen rbac:roleName=api-manager-role paths="$(API_MANAGER_RBAC_PATHS)" \
+		output:rbac:artifacts:config=$(HELM_CHART_DIR)/files/rbac/api-manager
+	controller-gen rbac:roleName=agent-manager-role paths="$(AGENT_MANAGER_RBAC_PATHS)" \
+		output:rbac:artifacts:config=$(HELM_CHART_DIR)/files/rbac/agent
+	controller-gen rbac:roleName=bindings-forwarder-role paths="$(BINDINGS_FORWARDER_RBAC_PATHS)" \
+		output:rbac:artifacts:config=$(HELM_CHART_DIR)/files/rbac/bindings-forwarder
 
 
 .PHONY: manifest-bundle

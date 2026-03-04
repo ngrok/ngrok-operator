@@ -1,0 +1,27 @@
+# permissions for end users to view ngroktrafficpolicies
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+  {{- with .Values.clusterRole.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ include "ngrok-operator.fullname" . }}-ngroktrafficpolicy-viewer-role
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies/status
+  verbs:
+  - get

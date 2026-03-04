@@ -1,6 +1,6 @@
 suite: test agent rbac
 templates:
-- agent/rbac.yaml
+- rbac/agent.yaml
 tests:
 - it: Should match snapshot
   asserts:
@@ -19,18 +19,49 @@ tests:
       of: ClusterRoleBinding
   - isAPIVersion:
       of: rbac.authorization.k8s.io/v1
-- it: should add annotations to agent ClusterRole when clusterRole.annotations is set
+# Tests for single-namespace (watchNamespace) mode
+- it: should create a Role when watchNamespace is set
   documentIndex: 0
   set:
-    clusterRole:
-      annotations:
-        rbac.authorization.k8s.io/aggregate-to-admin: "true"
-        rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    ingress.watchNamespace: my-namespace
   asserts:
   - isKind:
-      of: ClusterRole
+      of: Role
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
   - equal:
-      path: metadata.annotations
-      value:
-        rbac.authorization.k8s.io/aggregate-to-admin: "true"
-        rbac.authorization.k8s.io/aggregate-to-edit: "true"
+      path: metadata.namespace
+      value: my-namespace
+
+- it: should create a RoleBinding when watchNamespace is set
+  documentIndex: 1
+  set:
+    ingress.watchNamespace: my-namespace
+  asserts:
+  - isKind:
+      of: RoleBinding
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+  - equal:
+      path: metadata.namespace
+      value: my-namespace
+  - equal:
+      path: roleRef.kind
+      value: Role
+
+- it: should match snapshot when watchNamespace is set
+  set:
+    ingress.watchNamespace: my-namespace
+  asserts:
+  - matchSnapshot: {}
+
+- it: should support deprecated watchNamespace value
+  documentIndex: 0
+  set:
+    watchNamespace: legacy-ns
+  asserts:
+  - isKind:
+      of: Role
+  - equal:
+      path: metadata.namespace
+      value: legacy-ns

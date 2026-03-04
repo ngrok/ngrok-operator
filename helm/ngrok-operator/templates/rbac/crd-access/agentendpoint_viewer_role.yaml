@@ -1,4 +1,4 @@
-# permissions for end users to view ippolicies.
+# permissions for end users to view agentendpoints
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -9,19 +9,19 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-ippolicy-viewer-role
+  name: {{ include "ngrok-operator.fullname" . }}-agentendpoint-viewer-role
 rules:
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ngrok.k8s.ngrok.com
   resources:
-  - ippolicies
+  - agentendpoints
   verbs:
   - get
   - list
   - watch
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ngrok.k8s.ngrok.com
   resources:
-  - ippolicies/status
+  - agentendpoints/status
   verbs:
   - get

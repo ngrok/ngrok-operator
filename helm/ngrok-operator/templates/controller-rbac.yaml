@@ -1,3 +1,5 @@
+{{- $watchNamespace := include "ngrok-operator.watchNamespace" . -}}
+{{- $isNamespaced := ne $watchNamespace "" -}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -38,28 +40,6 @@ rules:
   - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "ngrok-operator.fullname" . }}-proxy-role
-  {{- with .Values.clusterRole.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-leader-election-rolebinding
@@ -73,13 +53,15 @@ subjects:
   name: {{ template "ngrok-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
 ---
+{{- if $isNamespaced }}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-manager-rolebinding
+  namespace: {{ $watchNamespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: {{ include "ngrok-operator.fullname" . }}-manager-role
 subjects:
 - kind: ServiceAccount
@@ -89,46 +71,24 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "ngrok-operator.fullname" . }}-proxy-rolebinding
+  name: {{ include "ngrok-operator.fullname" . }}-manager-cluster-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "ngrok-operator.fullname" . }}-proxy-role
+  name: {{ include "ngrok-operator.fullname" . }}-manager-cluster-role
 subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
-{{- if .Values.bindings.enabled }}
----
-# Can manage secrets in the same namespace. Needed for TLS certificate for bindings
+{{- else }}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRoleBinding
 metadata:
-  name: {{ include "ngrok-operator.fullname" . }}-secret-manager-role
-  namespace: {{ .Release.Namespace }}
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: {{ include "ngrok-operator.fullname" . }}-secret-manager-rolebinding
-  namespace: {{ .Release.Namespace }}
+  name: {{ include "ngrok-operator.fullname" . }}-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: {{ include "ngrok-operator.fullname" . }}-secret-manager-role
+  kind: ClusterRole
+  name: {{ include "ngrok-operator.fullname" . }}-manager-role
 subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.serviceAccountName" . }}

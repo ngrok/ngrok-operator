@@ -1,4 +1,4 @@
-# permissions for end users to edit boundendpoints
+# permissions for end users to edit ngroktrafficpolicies
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -9,12 +9,12 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-boundendpoint-editor-role
+  name: {{ include "ngrok-operator.fullname" . }}-ngroktrafficpolicy-editor-role
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - boundendpoints
+  - ngroktrafficpolicies
   verbs:
   - create
   - delete
@@ -26,6 +26,6 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - boundendpoints/status
+  - ngroktrafficpolicies/status
   verbs:
   - get

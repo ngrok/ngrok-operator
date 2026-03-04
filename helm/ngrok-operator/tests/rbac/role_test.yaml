@@ -1,0 +1,159 @@
+suite: test manager role
+templates:
+- rbac/api-manager.yaml
+tests:
+- it: Should match snapshot
+  asserts:
+  - matchSnapshot: {}
+
+- it: should create a ClusterRole by default
+  documentIndex: 0
+  asserts:
+  - isKind:
+      of: ClusterRole
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-manager-role
+
+- it: should include namespaces rules in ClusterRole by default
+  documentIndex: 0
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ""
+        resources:
+        - namespaces
+        verbs:
+        - get
+        - list
+        - update
+        - watch
+
+- it: should include ingressclasses rules in ClusterRole by default
+  documentIndex: 0
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - networking.k8s.io
+        resources:
+        - ingressclasses
+        verbs:
+        - get
+        - list
+        - watch
+
+# Tests for single-namespace (watchNamespace) mode
+- it: should create a Role when watchNamespace is set
+  documentIndex: 0
+  set:
+    ingress.watchNamespace: my-namespace
+  asserts:
+  - isKind:
+      of: Role
+  - equal:
+      path: metadata.namespace
+      value: my-namespace
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-manager-role
+
+- it: should not include namespaces rules in Role when watchNamespace is set
+  documentIndex: 0
+  set:
+    ingress.watchNamespace: my-namespace
+  asserts:
+  - notContains:
+      path: rules
+      content:
+        apiGroups:
+        - ""
+        resources:
+        - namespaces
+        verbs:
+        - get
+        - list
+        - update
+        - watch
+
+- it: should not include ingressclasses rules in Role when watchNamespace is set
+  documentIndex: 0
+  set:
+    ingress.watchNamespace: my-namespace
+  asserts:
+  - notContains:
+      path: rules
+      content:
+        apiGroups:
+        - networking.k8s.io
+        resources:
+        - ingressclasses
+        verbs:
+        - get
+        - list
+        - watch
+
+- it: should not include gatewayclasses rules in Role when watchNamespace is set
+  documentIndex: 0
+  set:
+    ingress.watchNamespace: my-namespace
+  asserts:
+  - notContains:
+      path: rules
+      content:
+        apiGroups:
+        - gateway.networking.k8s.io
+        resources:
+        - gatewayclasses
+        - gatewayclasses/status
+        verbs:
+        - get
+        - list
+        - patch
+        - update
+        - watch
+
+- it: should create a separate ClusterRole for cluster-scoped resources when watchNamespace is set
+  documentIndex: 1
+  set:
+    ingress.watchNamespace: my-namespace
+  asserts:
+  - isKind:
+      of: ClusterRole
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-manager-cluster-role
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ""
+        resources:
+        - namespaces
+        verbs:
+        - get
+        - list
+        - update
+        - watch
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - networking.k8s.io
+        resources:
+        - ingressclasses
+        verbs:
+        - get
+        - list
+        - watch
+
+- it: should match snapshot when watchNamespace is set
+  set:
+    ingress.watchNamespace: my-namespace
+  asserts:
+  - matchSnapshot: {}

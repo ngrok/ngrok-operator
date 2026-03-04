@@ -1,4 +1,4 @@
-# permissions for end users to edit bindingconfigurations
+# permissions for end users to view boundendpoints
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -9,23 +9,19 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-bindingconfiguration-editor-role
+  name: {{ include "ngrok-operator.fullname" . }}-boundendpoint-viewer-role
 rules:
 - apiGroups:
-  - ngrok.k8s.ngrok.com
+  - bindings.k8s.ngrok.com
   resources:
-  - bindingconfigurations
+  - boundendpoints
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
-  - ngrok.k8s.ngrok.com
+  - bindings.k8s.ngrok.com
   resources:
-  - bindingconfigurations/status
+  - boundendpoints/status
   verbs:
   - get

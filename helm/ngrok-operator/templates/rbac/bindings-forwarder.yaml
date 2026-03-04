@@ -1,0 +1,25 @@
+{{- if .Values.bindings.enabled }}
+{{- $generated := .Files.Get "files/rbac/bindings-forwarder/role.yaml" | fromYaml -}}
+{{ $roleName := printf "%s-bindings-forwarder-role" (include "ngrok-operator.fullname" .) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $roleName }}
+  namespace: {{ .Release.Namespace }}
+rules:
+{{- toYaml $generated.rules | nindent 0 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $roleName }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.bindings.forwarder.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

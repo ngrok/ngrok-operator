@@ -1,0 +1,61 @@
+{{- $watchNamespace := include "ngrok-operator.watchNamespace" . -}}
+{{- $isNamespaced := ne $watchNamespace "" -}}
+{{- $generated := .Files.Get "files/rbac/api-manager/role.yaml" | fromYaml -}}
+{{- $clusterScopedResources := list "namespaces" "ingressclasses" "gatewayclasses" "gatewayclasses/status" "gatewayclasses/finalizers" -}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+{{- if $isNamespaced }}
+kind: Role
+{{- else }}
+kind: ClusterRole
+{{- end }}
+metadata:
+  name: '{{ include "ngrok-operator.fullname" . }}-manager-role'
+  {{- if $isNamespaced }}
+  namespace: {{ $watchNamespace }}
+  {{- end }}
+rules:
+{{- if not $isNamespaced }}
+{{- toYaml $generated.rules | nindent 0 }}
+{{- else }}
+{{- range $generated.rules }}
+{{- $nsResources := list }}
+{{- range .resources }}
+{{- if not (has . $clusterScopedResources) }}
+{{- $nsResources = append $nsResources . }}
+{{- end }}
+{{- end }}
+{{- if $nsResources }}
+- apiGroups:
+  {{- toYaml .apiGroups | nindent 2 }}
+  resources:
+  {{- toYaml $nsResources | nindent 2 }}
+  verbs:
+  {{- toYaml .verbs | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if $isNamespaced }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: '{{ include "ngrok-operator.fullname" . }}-manager-cluster-role'
+rules:
+{{- range $generated.rules }}
+{{- $clResources := list }}
+{{- range .resources }}
+{{- if has . $clusterScopedResources }}
+{{- $clResources = append $clResources . }}
+{{- end }}
+{{- end }}
+{{- if $clResources }}
+- apiGroups:
+  {{- toYaml .apiGroups | nindent 2 }}
+  resources:
+  {{- toYaml $clResources | nindent 2 }}
+  verbs:
+  {{- toYaml .verbs | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- end }}

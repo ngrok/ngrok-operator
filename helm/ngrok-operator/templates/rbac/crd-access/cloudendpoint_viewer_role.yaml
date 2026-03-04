@@ -1,4 +1,4 @@
-# permissions for end users to view bindingconfigurations
+# permissions for end users to view cloudendpoints
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -9,12 +9,12 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-bindingconfiguration-viewer-role
+  name: {{ include "ngrok-operator.fullname" . }}-cloudendpoint-viewer-role
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - bindingconfigurations
+  - cloudendpoints
   verbs:
   - get
   - list
@@ -22,7 +22,6 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - bindingconfigurations/status
+  - cloudendpoints/status
   verbs:
   - get
-
