@@ -240,7 +240,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		var podIdentity *pb_agent.PodIdentity
 		if len(podList.Items) == 0 {
 			log.Info("no pods matched podIP; using default identity", "podIP", clientIp)
-			podIdentity = &pb_agent.PodIdentity{}
+			podIdentity = nil
 		} else {
 			if len(podList.Items) > 1 {
 				log.Info("multiple pods matched podIP; picking best candidate", "podIP", clientIp, "count", len(podList.Items))

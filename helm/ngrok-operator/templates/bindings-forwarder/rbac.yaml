@@ -69,4 +69,32 @@ subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.bindings.forwarder.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder-clusterrolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.bindings.forwarder.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
 {{- end }}
