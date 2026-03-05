@@ -267,6 +267,7 @@ func (m *Manager) createNewDomain(ctx context.Context, endpoint ngrokv1alpha1.En
 		},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: domain,
+			// TODO: inject kubernetes-operator-id into metadata when available
 		},
 	}
 

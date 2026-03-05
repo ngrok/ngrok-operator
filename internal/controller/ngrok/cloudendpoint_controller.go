@@ -32,6 +32,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -47,6 +48,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 const (
@@ -67,6 +69,10 @@ type CloudEndpointReconciler struct {
 	ControllerLabels           labels.ControllerLabelValues
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 	DomainManager              *domainpkg.Manager
+
+	// KubernetesOperatorName is the namespaced name of the KubernetesOperator CR
+	// used to look up the operator ID for metadata injection.
+	KubernetesOperatorName types.NamespacedName
 }
 
 // Define a custom error types to catch and handle requeuing logic for
@@ -183,6 +189,17 @@ func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.CloudEndpoint))
 }
 
+func (r *CloudEndpointReconciler) getKubernetesOperatorID(ctx context.Context) string {
+	if r.KubernetesOperatorName.Name == "" {
+		return ""
+	}
+	var ko ngrokv1alpha1.KubernetesOperator
+	if err := r.Client.Get(ctx, r.KubernetesOperatorName, &ko); err != nil {
+		return ""
+	}
+	return ko.Status.ID
+}
+
 // Create will make sure a domain is created before creating the Cloud Endpoint
 // It also looks up the Traffic Policy and creates the Cloud Endpoint using this Traffic Policy JSON
 func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
@@ -197,11 +214,12 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
+	metadata := util.InjectKubernetesOperatorID(clep.Spec.Metadata, r.getKubernetesOperatorID(ctx))
 	createParams := &ngrok.EndpointCreate{
 		Type:           "cloud",
 		URL:            clep.Spec.URL,
 		Description:    &clep.Spec.Description,
-		Metadata:       &clep.Spec.Metadata,
+		Metadata:       &metadata,
 		TrafficPolicy:  policy,
 		Bindings:       clep.Spec.Bindings,
 		PoolingEnabled: clep.Spec.PoolingEnabled,
@@ -232,11 +250,12 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
+	metadata := util.InjectKubernetesOperatorID(clep.Spec.Metadata, r.getKubernetesOperatorID(ctx))
 	updateParams := &ngrok.EndpointUpdate{
 		ID:             clep.Status.ID,
 		Url:            &clep.Spec.URL,
 		Description:    &clep.Spec.Description,
-		Metadata:       &clep.Spec.Metadata,
+		Metadata:       &metadata,
 		TrafficPolicy:  &policy,
 		Bindings:       clep.Spec.Bindings,
 		PoolingEnabled: clep.Spec.PoolingEnabled,

@@ -102,6 +102,7 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 
 			res, err := controllerutil.CreateOrPatch(ctx, c, domain, func() error {
 				domain.Spec.Domain = desiredDomain.Spec.Domain
+				domain.Spec.Metadata = desiredDomain.Spec.Metadata
 				// Only set the reclaim policy on create
 				if domain.CreationTimestamp.IsZero() && d.defaultDomainReclaimPolicy != nil {
 					domain.Spec.ReclaimPolicy = *d.defaultDomainReclaimPolicy

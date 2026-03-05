@@ -511,6 +511,10 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 		managerdriver.WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),
 		managerdriver.WithEventRecorder(mgr.GetEventRecorderFor("k8s-resource-driver")),
 		managerdriver.WithDrainState(drainState),
+		managerdriver.WithKubernetesOperatorName(types.NamespacedName{
+			Namespace: options.namespace,
+			Name:      options.releaseName,
+		}),
 	}
 
 	if tcpRouteCRDInstalled {
@@ -629,6 +633,10 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		DefaultDomainReclaimPolicy: ptr.To(defaultDomainReclaimPolicy),
 		ControllerLabels:           controllerLabels,
 		DrainState:                 drainState,
+		KubernetesOperatorName: types.NamespacedName{
+			Namespace: opts.namespace,
+			Name:      opts.releaseName,
+		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudEndpoint")
 		os.Exit(1)

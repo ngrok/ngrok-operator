@@ -46,6 +46,12 @@ type Driver struct {
 	scheme               *runtime.Scheme
 	ingressNgrokMetadata string
 	gatewayNgrokMetadata string
+	// customNgrokMetadata stores the raw custom metadata map for rebuilding metadata strings
+	customNgrokMetadata map[string]string
+	// kubernetesOperatorID is the ID of the KubernetesOperator resource in the ngrok API
+	kubernetesOperatorID string
+	// koName is the namespaced name of the KubernetesOperator CR to look up the operator ID
+	koName types.NamespacedName
 	// controller labels to identify resources managed by the driver
 	controllerLabels labels.ControllerLabelValues
 	clusterDomain    string
@@ -129,6 +135,12 @@ func WithDrainState(state DrainState) DriverOpt {
 	}
 }
 
+func WithKubernetesOperatorName(name types.NamespacedName) DriverOpt {
+	return func(d *Driver) {
+		d.koName = name
+	}
+}
+
 // NewDriver creates a new driver with a basic logger and cache store setup
 func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName, opts ...DriverOpt) *Driver {
 	cacheStores := store.NewCacheStores(logger)
@@ -154,23 +166,50 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 
 // WithNgrokMetadata allows you to pass in custom ngrokmetadata to be added to all resources created by the controller
 func (d *Driver) WithNgrokMetadata(customNgrokMetadata map[string]string) *Driver {
-	ingressNgrokMetadata, err := d.setNgrokMetadataOwner("kubernetes-ingress-controller", customNgrokMetadata)
+	d.customNgrokMetadata = customNgrokMetadata
+	d.rebuildNgrokMetadata()
+	return d
+}
+
+// rebuildNgrokMetadata recomputes the ingress and gateway metadata strings
+// from the stored custom metadata and the current kubernetes operator ID.
+func (d *Driver) rebuildNgrokMetadata() {
+	ingressNgrokMetadata, err := d.setNgrokMetadataOwner("ngrok-operator", d.customNgrokMetadata)
 	if err != nil {
 		d.log.Error(err, "error marshalling custom ngrokmetadata", "customNgrokMetadata", d.ingressNgrokMetadata)
-		return d
+		return
 	}
 	d.ingressNgrokMetadata = ingressNgrokMetadata
 
 	if d.gatewayEnabled {
-		gatewayNgrokMetadata, err := d.setNgrokMetadataOwner("kubernetes-gateway-api", customNgrokMetadata)
+		gatewayNgrokMetadata, err := d.setNgrokMetadataOwner("kubernetes-gateway-api", d.customNgrokMetadata)
 		if err != nil {
 			d.log.Error(err, "error marshalling custom ngrokmetadata", "customNgrokMetadata", d.gatewayNgrokMetadata)
-			return d
+			return
 		}
 		d.gatewayNgrokMetadata = gatewayNgrokMetadata
-
 	}
-	return d
+}
+
+// refreshKubernetesOperatorID looks up the KubernetesOperator CR and updates
+// the cached operator ID. If the ID changes, it rebuilds the metadata strings.
+func (d *Driver) refreshKubernetesOperatorID(ctx context.Context, c client.Reader) {
+	if d.koName.Name == "" {
+		return
+	}
+
+	var ko ngrokv1alpha1.KubernetesOperator
+	if err := c.Get(ctx, d.koName, &ko); err != nil {
+		return
+	}
+
+	newID := ko.Status.ID
+	if newID == d.kubernetesOperatorID {
+		return
+	}
+
+	d.kubernetesOperatorID = newID
+	d.rebuildNgrokMetadata()
 }
 
 // Useful for tests
@@ -185,6 +224,9 @@ func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[str
 	}
 	if _, ok := metaData["owned-by"]; !ok {
 		metaData["owned-by"] = owner
+	}
+	if d.kubernetesOperatorID != "" {
+		metaData[util.KubernetesOperatorIDMetadataKey] = d.kubernetesOperatorID
 	}
 	jsonString, err := json.Marshal(metaData)
 	if err != nil {
@@ -585,6 +627,8 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing driver state!!")
+
+	d.refreshKubernetesOperatorID(ctx, c)
 
 	// TODO (Alice): move domains, edges, tunnels to translator
 	domains := d.calculateDomainSet()

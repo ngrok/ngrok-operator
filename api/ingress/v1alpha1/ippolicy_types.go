@@ -30,10 +30,10 @@ import (
 
 type IPPolicyRule struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`Created by kubernetes-ingress-controller`
+	// +kubebuilder:default:=`Created by ngrok-operator`
 	Description string `json:"description,omitempty"`
 	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`{"owned-by":"kubernetes-ingress-controller"}`
+	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
 	Metadata string `json:"metadata,omitempty"`
 	// +kubebuilder:validation:Required
 	CIDR string `json:"cidr,omitempty"`
@@ -55,10 +55,10 @@ type IPPolicyRuleStatus struct {
 // IPPolicySpec defines the desired state of IPPolicy
 type IPPolicySpec struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`Created by kubernetes-ingress-controller`
+	// +kubebuilder:default:=`Created by ngrok-operator`
 	Description string `json:"description,omitempty"`
 	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`{"owned-by":"kubernetes-ingress-controller"}`
+	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
 	Metadata string `json:"metadata,omitempty"`
 	// Rules is a list of rules that belong to the policy
 	Rules []IPPolicyRule `json:"rules,omitempty"`

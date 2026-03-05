@@ -33,6 +33,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -210,6 +211,10 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		DefaultDomainReclaimPolicy: defaultDomainReclaimPolicy,
 		ControllerLabels:           labels.NewControllerLabelValues(opts.namespace, opts.managerName),
 		DrainState:                 drainState,
+		KubernetesOperatorName: types.NamespacedName{
+			Namespace: opts.namespace,
+			Name:      opts.releaseName,
+		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")
 		os.Exit(1)

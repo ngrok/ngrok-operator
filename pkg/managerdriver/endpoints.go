@@ -20,6 +20,9 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 	}
 
 	d.log.Info("syncing cloud and agent endpoints state!!")
+
+	d.refreshKubernetesOperatorID(ctx, c)
+
 	translator := NewTranslator(
 		d.log,
 		d.store,

@@ -42,6 +42,7 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -102,6 +103,10 @@ type AgentEndpointReconciler struct {
 	// DrainState is used to check if the operator is draining.
 	// If draining, non-delete reconciles are skipped to prevent new finalizers.
 	DrainState controller.DrainState
+
+	// KubernetesOperatorName is the namespaced name of the KubernetesOperator CR
+	// used to look up the operator ID for metadata injection.
+	KubernetesOperatorName types.NamespacedName
 }
 
 // SetupWithManager sets up the controller with the Manager
@@ -223,6 +228,17 @@ func (r *AgentEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.AgentEndpoint))
 }
 
+func (r *AgentEndpointReconciler) getKubernetesOperatorID(ctx context.Context) string {
+	if r.KubernetesOperatorName.Name == "" {
+		return ""
+	}
+	var ko ngrokv1alpha1.KubernetesOperator
+	if err := r.Client.Get(ctx, r.KubernetesOperatorName, &ko); err != nil {
+		return ""
+	}
+	return ko.Status.ID
+}
+
 func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
 
 	// EnsureDomainExists checks if the domain exists, creates it if needed, and sets conditions/domainRef
@@ -243,9 +259,15 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 
+	// Inject the kubernetes operator ID into the metadata before creating the endpoint
+	spec := endpoint.Spec
+	if koID := r.getKubernetesOperatorID(ctx); koID != "" {
+		spec.Metadata = util.InjectKubernetesOperatorID(spec.Metadata, koID)
+	}
+
 	// Create the endpoint
 	tunnelName := r.statusID(endpoint)
-	result, err := r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts)
+	result, err := r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, spec, trafficPolicy, clientCerts)
 	if err != nil {
 		// Mark the endpoint as failed creation
 		setEndpointCreatedCondition(endpoint, false, ReasonNgrokAPIError, fmt.Sprintf("Failed to create endpoint: %v", err))
