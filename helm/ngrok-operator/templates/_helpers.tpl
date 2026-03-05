@@ -121,6 +121,14 @@ Create the name of the bindings-forwarder service account to use
 {{- end -}}
 
 {{/*
+Resolve the effective watchNamespace value.
+Prefers .Values.watchNamespace (deprecated) over .Values.ingress.watchNamespace for backwards compatibility.
+*/}}
+{{- define "ngrok-operator.watchNamespace" -}}
+{{- .Values.watchNamespace | default .Values.ingress.watchNamespace -}}
+{{- end -}}
+
+{{/*
 Return the ngrok operator image name
 */}}
 {{- define "ngrok-operator.image" -}}

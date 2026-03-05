@@ -1,0 +1,73 @@
+{{- $watchNamespace := include "ngrok-operator.watchNamespace" . -}}
+{{- $isNamespaced := ne $watchNamespace "" -}}
+{{- if $isNamespaced }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-agent-role
+  namespace: {{ $watchNamespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  - ngroktrafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}

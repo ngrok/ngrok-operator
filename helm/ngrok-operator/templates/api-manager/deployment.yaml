@@ -8,8 +8,8 @@ metadata:
   name: {{ include "ngrok-operator.fullname" . }}-manager
   namespace: {{ .Release.Namespace }}
   annotations:
-    checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/role.yaml") . | sha256sum }}
-    checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
+    checksum/role: {{ include (print $.Template.BasePath "/api-manager/role.yaml") . | sha256sum }}
+    checksum/leader-election: {{ include (print $.Template.BasePath "/api-manager/leader-election-role.yaml") . | sha256sum }}
 spec:
   replicas: {{.Values.replicaCount}}
   selector:
@@ -25,8 +25,8 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: {{ include (print $.Template.BasePath "/rbac/role.yaml") . | sha256sum }}
-        checksum/rbac: {{ include (print $.Template.BasePath "/controller-rbac.yaml") . | sha256sum }}
+        checksum/role: {{ include (print $.Template.BasePath "/api-manager/role.yaml") . | sha256sum }}
+        checksum/leader-election: {{ include (print $.Template.BasePath "/api-manager/leader-election-role.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
       labels:
         {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}

@@ -7,16 +7,6 @@ Should match snapshot:
       namespace: NAMESPACE
     rules:
       - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints
-        verbs:
-          - get
-          - list
-          - watch
-          - patch
-          - update
-      - apiGroups:
           - ""
         resources:
           - events
@@ -24,9 +14,9 @@ Should match snapshot:
           - create
           - patch
       - apiGroups:
-          - ngrok.k8s.ngrok.com
+          - ""
         resources:
-          - kubernetesoperators
+          - pods
         verbs:
           - get
           - list
@@ -40,16 +30,19 @@ Should match snapshot:
           - list
           - watch
       - apiGroups:
-          - ""
+          - bindings.k8s.ngrok.com
         resources:
-          - events
+          - boundendpoints
         verbs:
-          - create
+          - get
+          - list
           - patch
+          - update
+          - watch
       - apiGroups:
-          - ""
+          - ngrok.k8s.ngrok.com
         resources:
-          - pods
+          - kubernetesoperators
         verbs:
           - get
           - list

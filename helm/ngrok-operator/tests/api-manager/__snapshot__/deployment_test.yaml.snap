@@ -4,8 +4,8 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
-        checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
+        checksum/leader-election: 24615ccdc6f12e18fdf93ed10eec6d422e10bb985b6c6fd4cb46e4de9461965f
+        checksum/role: be5b4b8a798c82ac9cb4768f56327c9d660e134733fc8a58a13d95b79ed54ef4
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
@@ -26,8 +26,8 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
-            checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
+            checksum/leader-election: 24615ccdc6f12e18fdf93ed10eec6d422e10bb985b6c6fd4cb46e4de9461965f
+            checksum/role: be5b4b8a798c82ac9cb4768f56327c9d660e134733fc8a58a13d95b79ed54ef4
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -158,24 +158,6 @@ Should match all-options snapshot:
           - patch
   3: |
     apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRole
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-proxy-role
-    rules:
-      - apiGroups:
-          - authentication.k8s.io
-        resources:
-          - tokenreviews
-        verbs:
-          - create
-      - apiGroups:
-          - authorization.k8s.io
-        resources:
-          - subjectaccessreviews
-        verbs:
-          - create
-  4: |
-    apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
       name: RELEASE-NAME-ngrok-operator-leader-election-rolebinding
@@ -188,33 +170,7 @@ Should match all-options snapshot:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
-  5: |
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-manager-rolebinding
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: RELEASE-NAME-ngrok-operator-manager-role
-    subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME-ngrok-operator
-        namespace: NAMESPACE
-  6: |
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-proxy-rolebinding
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: RELEASE-NAME-ngrok-operator-proxy-role
-    subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME-ngrok-operator
-        namespace: NAMESPACE
-  7: |
+  4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -252,16 +208,7 @@ Should match all-options snapshot:
         resources:
           - secrets
         verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - ""
-        resources:
-          - services
-        verbs:
           - create
-          - delete
           - get
           - list
           - patch
@@ -270,6 +217,7 @@ Should match all-options snapshot:
       - apiGroups:
           - ""
         resources:
+          - services
           - services/status
         verbs:
           - get
@@ -308,10 +256,6 @@ Should match all-options snapshot:
         resources:
           - gatewayclasses
           - gatewayclasses/status
-          - gateways
-          - httproutes
-          - tcproutes
-          - tlsroutes
         verbs:
           - get
           - list
@@ -325,6 +269,19 @@ Should match all-options snapshot:
         verbs:
           - patch
           - update
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways
+          - httproutes
+          - tcproutes
+          - tlsroutes
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -405,6 +362,16 @@ Should match all-options snapshot:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints
+        verbs:
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - cloudendpoints
           - kubernetesoperators
           - ngroktrafficpolicies
@@ -419,7 +386,6 @@ Should match all-options snapshot:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
-          - agentendpoints/finalizers
           - cloudendpoints/finalizers
           - kubernetesoperators/finalizers
           - ngroktrafficpolicies/finalizers
@@ -428,7 +394,6 @@ Should match all-options snapshot:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
-          - agentendpoints/status
           - cloudendpoints/status
           - kubernetesoperators/status
           - ngroktrafficpolicies/status
@@ -442,8 +407,8 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
-        checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
+        checksum/leader-election: 24615ccdc6f12e18fdf93ed10eec6d422e10bb985b6c6fd4cb46e4de9461965f
+        checksum/role: be5b4b8a798c82ac9cb4768f56327c9d660e134733fc8a58a13d95b79ed54ef4
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
@@ -464,8 +429,8 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
-            checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
+            checksum/leader-election: 24615ccdc6f12e18fdf93ed10eec6d422e10bb985b6c6fd4cb46e4de9461965f
+            checksum/role: be5b4b8a798c82ac9cb4768f56327c9d660e134733fc8a58a13d95b79ed54ef4
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -583,24 +548,6 @@ Should match default snapshot:
           - patch
   3: |
     apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRole
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-proxy-role
-    rules:
-      - apiGroups:
-          - authentication.k8s.io
-        resources:
-          - tokenreviews
-        verbs:
-          - create
-      - apiGroups:
-          - authorization.k8s.io
-        resources:
-          - subjectaccessreviews
-        verbs:
-          - create
-  4: |
-    apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
       name: RELEASE-NAME-ngrok-operator-leader-election-rolebinding
@@ -613,33 +560,7 @@ Should match default snapshot:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator
         namespace: NAMESPACE
-  5: |
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-manager-rolebinding
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: RELEASE-NAME-ngrok-operator-manager-role
-    subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME-ngrok-operator
-        namespace: NAMESPACE
-  6: |
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-proxy-rolebinding
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: RELEASE-NAME-ngrok-operator-proxy-role
-    subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME-ngrok-operator
-        namespace: NAMESPACE
-  7: |
+  4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -677,16 +598,7 @@ Should match default snapshot:
         resources:
           - secrets
         verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - ""
-        resources:
-          - services
-        verbs:
           - create
-          - delete
           - get
           - list
           - patch
@@ -695,6 +607,7 @@ Should match default snapshot:
       - apiGroups:
           - ""
         resources:
+          - services
           - services/status
         verbs:
           - get
@@ -733,10 +646,6 @@ Should match default snapshot:
         resources:
           - gatewayclasses
           - gatewayclasses/status
-          - gateways
-          - httproutes
-          - tcproutes
-          - tlsroutes
         verbs:
           - get
           - list
@@ -750,6 +659,19 @@ Should match default snapshot:
         verbs:
           - patch
           - update
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways
+          - httproutes
+          - tcproutes
+          - tlsroutes
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -830,6 +752,16 @@ Should match default snapshot:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints
+        verbs:
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - cloudendpoints
           - kubernetesoperators
           - ngroktrafficpolicies
@@ -844,7 +776,6 @@ Should match default snapshot:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
-          - agentendpoints/finalizers
           - cloudendpoints/finalizers
           - kubernetesoperators/finalizers
           - ngroktrafficpolicies/finalizers
@@ -853,7 +784,6 @@ Should match default snapshot:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
-          - agentendpoints/status
           - cloudendpoints/status
           - kubernetesoperators/status
           - ngroktrafficpolicies/status

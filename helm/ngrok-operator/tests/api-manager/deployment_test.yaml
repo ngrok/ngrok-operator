@@ -1,14 +1,14 @@
 suite: test controller-deployment
 templates:
-- controller-deployment.yaml
+- api-manager/deployment.yaml
 # The following included templates are needed due to the way helm unittest works.
 # It won't load the templates unless they are included here. Due to the checksums
 # we are including on the deployment, we need to include them here. It makes the
 # snapshot much larger than it needs to be, but it's the only way to test the
 # deployment at this time.
-- controller-rbac.yaml
+- api-manager/leader-election-role.yaml
 - credentials-secret.yaml
-- rbac/role.yaml
+- api-manager/role.yaml
 tests:
 - it: Should match default snapshot
   asserts:
@@ -32,7 +32,7 @@ tests:
 - it: Uses the new gateway.enabled value
   set:
     gateway.enabled: true
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -42,7 +42,7 @@ tests:
   set:
     gateway.enabled: true
     gateway.disableReferenceGrants: true
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -55,7 +55,7 @@ tests:
   set:
     useExperimentalGatewayApi: false
     gateway.enabled: true
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -65,7 +65,7 @@ tests:
   set:
     useExperimentalGatewayApi: false
     gateway.enabled: false
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -75,7 +75,7 @@ tests:
   set:
     useExperimentalGatewayApi: true
     gateway.enabled: false
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -84,7 +84,7 @@ tests:
 - it: Should use the specified cluster domain name
   set:
     clusterDomain: svc.example.com
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -93,7 +93,7 @@ tests:
 - it: Should use the specified secret name for the credentials secret
   set:
     credentials.secret.name: test-secret-name
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - matchRegex:
@@ -103,7 +103,7 @@ tests:
   set:
     ingress.enabled: true
     ingress.watchNamespace: test-namespace
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -113,7 +113,7 @@ tests:
   set:
     watchNamespace: "test-namespace"
     ingress.watchNamespace: "" # unset on purpose
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -123,7 +123,7 @@ tests:
   set:
     ingress.enabled: true
     ingress.controllerName: "my-controller"
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -133,7 +133,7 @@ tests:
   set:
     controllerName: "my-controller"
     ingress.controllerName: "" # unset on purpose
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -142,14 +142,14 @@ tests:
 - it: Should pass the region via container args to the controller if specified
   set:
     region: eu
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --region=eu
 - it: Should not pass the region via container args to the controller if not specified
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - notContains:
@@ -158,7 +158,7 @@ tests:
 - it: Should pass description
   set:
     description: "test description"
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -167,7 +167,7 @@ tests:
 - it: Should pass description when description has special characters
   set:
     description: 'lets-go: with spaces'
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -178,7 +178,7 @@ tests:
     metaData:
       metaDataKey1: metaDataValue1
       metaDataKey2: metaDataValue2
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -189,7 +189,7 @@ tests:
     ngrokMetadata:
       metaDataKey1: metaDataValue1
       metaDataKey2: metaDataValue2
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -205,7 +205,7 @@ tests:
       serviceLabels:
         serviceLabelKey1: serviceLabelValue1
         serviceLabelKey2: serviceLabelValue2
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -222,7 +222,7 @@ tests:
     extraVolumeMounts:
     - name: test-volume
       mountPath: /test-volume
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - matchRegex:
@@ -238,7 +238,7 @@ tests:
   set:
     log:
       level: error
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -251,7 +251,7 @@ tests:
       endpointSelectors:
       - "true"
       - "false"
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -260,7 +260,7 @@ tests:
 - it: Should pass one-click-demo mode if set
   set:
     oneClickDemoMode: true
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -270,7 +270,7 @@ tests:
   set:
     log:
       format: console
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -280,7 +280,7 @@ tests:
   set:
     log:
       stacktraceLevel: error
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
@@ -289,14 +289,14 @@ tests:
 - it: Should set the default domain reclaim policy arg
   set:
     defaultDomainReclaimPolicy: "Retain"
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --default-domain-reclaim-policy=Retain
 - it: Defaults to having "soft" pod anti-affinity
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - equal:
@@ -312,7 +312,7 @@ tests:
             topologyKey: kubernetes.io/hostname
           weight: 1
 - it: Easily allows for setting a "hard" pod anti-affinity
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
     podAntiAffinityPreset: "hard"
@@ -328,7 +328,7 @@ tests:
               app.kubernetes.io/name: ngrok-operator
           topologyKey: kubernetes.io/hostname
 - it: Allows overriding the full affinity
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
     affinity:
@@ -371,13 +371,13 @@ tests:
                 values:
                 - another-node-label-value
 - it: Defaults to not specifying a priority class
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - notExists:
       path: spec.template.spec.priorityClassName
 - it: Allows setting a priority class
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
     priorityClassName: "high-priority"
@@ -386,14 +386,14 @@ tests:
       path: spec.template.spec.priorityClassName
       value: high-priority
 - it: Sets terminationGracePeriodSeconds by default
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - equal:
       path: spec.template.spec.terminationGracePeriodSeconds
       value: 30
 - it: Allows overriding terminationGracePeriodSeconds
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
     terminationGracePeriodSeconds: 120
@@ -406,7 +406,7 @@ tests:
     podLabels:
       labelKey1: labelValue1
       labelKey2: labelValue2
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - isSubset:
@@ -419,7 +419,7 @@ tests:
     podLabels:
       labelKey1: labelValue1
       labelKey2: labelValue2
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
   - isNotSubset:
@@ -431,7 +431,7 @@ tests:
   set:
     nodeSelector: &nodeSelector
       disktype: ssd
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   asserts:
   - equal:
       path: spec.template.spec.nodeSelector
@@ -444,7 +444,7 @@ tests:
       operator: "Equal"
       value: "value1"
       effect: "NoSchedule"
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   asserts:
   - contains:
       path: spec.template.spec.tolerations
@@ -461,7 +461,7 @@ tests:
           app: foo
       matchLabelKeys:
         - pod-template-hash
-  template: controller-deployment.yaml
+  template: api-manager/deployment.yaml
   asserts:
   - contains:
       path: spec.template.spec.topologySpreadConstraints

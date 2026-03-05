@@ -1,0 +1,18 @@
+{{- $watchNamespace := include "ngrok-operator.watchNamespace" . -}}
+{{- $isNamespaced := ne $watchNamespace "" -}}
+{{- if $isNamespaced }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-agent-rolebinding
+  namespace: {{ $watchNamespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ngrok-operator.fullname" . }}-agent-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.agent.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

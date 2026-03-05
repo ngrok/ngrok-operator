@@ -1,6 +1,6 @@
 suite: test bindings forwarder rbac
 templates:
-- bindings-forwarder/rbac.yaml
+- bindings-forwarder/role.yaml
 set:
   bindings.enabled: true
 tests:

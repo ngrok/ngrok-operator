@@ -1,46 +1,11 @@
 {{- if .Values.bindings.enabled }}
-{{ $bindingForwarderRole := printf "%s-bindings-forwarder" (include "ngrok-operator.fullname" .) }}
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ $bindingForwarderRole }}
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
   namespace: {{ .Release.Namespace }}
 rules:
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - boundendpoints
-  verbs:
-  - get
-  - list
-  - watch
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -56,6 +21,32 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - boundendpoints
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -64,7 +55,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ $bindingForwarderRole }}
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
 subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.bindings.forwarder.serviceAccountName" . }}

@@ -1,6 +1,6 @@
 suite: test agent rbac
 templates:
-- agent/rbac.yaml
+- agent/role.yaml
 tests:
 - it: Should match snapshot
   asserts:
@@ -12,25 +12,3 @@ tests:
       of: ClusterRole
   - isAPIVersion:
       of: rbac.authorization.k8s.io/v1
-- it: should create a clusterrolebinding
-  documentIndex: 1
-  asserts:
-  - isKind:
-      of: ClusterRoleBinding
-  - isAPIVersion:
-      of: rbac.authorization.k8s.io/v1
-- it: should add annotations to agent ClusterRole when clusterRole.annotations is set
-  documentIndex: 0
-  set:
-    clusterRole:
-      annotations:
-        rbac.authorization.k8s.io/aggregate-to-admin: "true"
-        rbac.authorization.k8s.io/aggregate-to-edit: "true"
-  asserts:
-  - isKind:
-      of: ClusterRole
-  - equal:
-      path: metadata.annotations
-      value:
-        rbac.authorization.k8s.io/aggregate-to-admin: "true"
-        rbac.authorization.k8s.io/aggregate-to-edit: "true"

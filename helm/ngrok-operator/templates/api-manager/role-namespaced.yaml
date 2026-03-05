@@ -1,8 +1,13 @@
+{{- $watchNamespace := include "ngrok-operator.watchNamespace" . -}}
+{{- $isNamespaced := ne $watchNamespace "" -}}
+{{- if $isNamespaced }}
 ---
+# Namespace-scoped Role for resources in the watched namespace
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: '{{ include "ngrok-operator.fullname" . }}-manager-role'
+  name: {{ include "ngrok-operator.fullname" . }}-manager-role
+  namespace: {{ $watchNamespace }}
 rules:
 - apiGroups:
   - ""
@@ -25,27 +30,9 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - namespaces
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - secrets
   verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
   - create
-  - delete
   - get
   - list
   - patch
@@ -54,6 +41,7 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - services
   - services/status
   verbs:
   - get
@@ -61,6 +49,7 @@ rules:
   - patch
   - update
   - watch
+# --- bindings.k8s.ngrok.com ---
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
@@ -87,11 +76,10 @@ rules:
   - get
   - patch
   - update
+# --- gateway.networking.k8s.io (namespace-scoped only) ---
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
-  - gatewayclasses
-  - gatewayclasses/status
   - gateways
   - httproutes
   - tcproutes
@@ -102,13 +90,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
-  - gatewayclasses/finalizers
-  verbs:
-  - patch
-  - update
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
@@ -129,6 +110,7 @@ rules:
   - get
   - list
   - watch
+# --- ingress.k8s.ngrok.com ---
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
@@ -158,14 +140,7 @@ rules:
   - get
   - patch
   - update
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingressclasses
-  verbs:
-  - get
-  - list
-  - watch
+# --- networking.k8s.io ---
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -185,10 +160,21 @@ rules:
   - list
   - update
   - watch
+# --- ngrok.k8s.ngrok.com ---
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - agentendpoints
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
   - cloudendpoints
   - kubernetesoperators
   - ngroktrafficpolicies
@@ -203,7 +189,6 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - agentendpoints/finalizers
   - cloudendpoints/finalizers
   - kubernetesoperators/finalizers
   - ngroktrafficpolicies/finalizers
@@ -212,7 +197,6 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - agentendpoints/status
   - cloudendpoints/status
   - kubernetesoperators/status
   - ngroktrafficpolicies/status
@@ -220,3 +204,46 @@ rules:
   - get
   - patch
   - update
+---
+# Cluster-scoped ClusterRole for resources that are not namespace-scoped
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-manager-cluster-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  - gatewayclasses/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}

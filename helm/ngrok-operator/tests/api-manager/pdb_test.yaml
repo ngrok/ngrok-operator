@@ -1,6 +1,6 @@
 suite: test controller-pdb
 templates:
-- controller-pdb.yaml
+- api-manager/pdb.yaml
 release:
   name: test-release
   namespace: test-namespace
@@ -12,7 +12,7 @@ tests:
   asserts:
   - matchSnapshot: {}
 - it: Defaults to 1 maxUnavailable
-  template: controller-pdb.yaml
+  template: api-manager/pdb.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
     podDisruptionBudget:
@@ -22,7 +22,7 @@ tests:
       path: spec.maxUnavailable
       value: 1
 - it: Allows changing the minAvailable value
-  template: controller-pdb.yaml
+  template: api-manager/pdb.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
     podDisruptionBudget:

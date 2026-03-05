@@ -248,12 +248,12 @@
                 }
             }
         },
-        "clusterRole": {
+        "crdAccessRoles": {
             "type": "object",
             "properties": {
                 "annotations": {
                     "type": "object",
-                    "description": "Additional annotations to add to all ClusterRoles.",
+                    "description": "Additional annotations to add to CRD access ClusterRoles (editor/viewer).",
                     "default": {}
                 }
             }

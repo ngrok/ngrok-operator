@@ -48,8 +48,6 @@ type NamespaceReconciler struct {
 	Driver   *managerdriver.Driver
 }
 
-// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
-
 func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("Namespace", req.Name)
 	ctx = ctrl.LoggerInto(ctx, log)

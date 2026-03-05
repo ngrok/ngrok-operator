@@ -1,0 +1,24 @@
+# permissions for end users to view agentendpoints
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-agentendpoint-viewer-role
+  {{- with .Values.crdAccessRoles.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
