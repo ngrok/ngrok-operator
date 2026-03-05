@@ -254,19 +254,19 @@ type updateErrorClient struct {
 
 // Update returns an error for non-KubernetesOperator objects to simulate transient failures
 func (c *updateErrorClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-        // Allow KubernetesOperator status updates to succeed, but fail on other resources
-        if _, ok := obj.(*ngrokv1alpha1.KubernetesOperator); ok {
-                return c.Client.Update(ctx, obj, opts...)
-        }
-        return errors.New("conflict: object has been modified")
+	// Allow KubernetesOperator status updates to succeed, but fail on other resources
+	if _, ok := obj.(*ngrokv1alpha1.KubernetesOperator); ok {
+		return c.Client.Update(ctx, obj, opts...)
+	}
+	return errors.New("conflict: object has been modified")
 }
 
 // Patch returns an error for non-KubernetesOperator objects to simulate transient failures
 func (c *updateErrorClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-        if _, ok := obj.(*ngrokv1alpha1.KubernetesOperator); ok {
-                return c.Client.Patch(ctx, obj, patch, opts...)
-        }
-        return errors.New("conflict: object has been modified")
+	if _, ok := obj.(*ngrokv1alpha1.KubernetesOperator); ok {
+		return c.Client.Patch(ctx, obj, patch, opts...)
+	}
+	return errors.New("conflict: object has been modified")
 }
 
 func TestOrchestrator_HandleDrain_ListError_OutcomeRetry(t *testing.T) {
