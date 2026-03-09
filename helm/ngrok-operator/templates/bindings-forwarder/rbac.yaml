@@ -48,6 +48,26 @@ rules:
   verbs:
   - create
   - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $bindingForwarderRole }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.bindings.forwarder.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
+rules:
 - apiGroups:
   - ""
   resources:
@@ -58,13 +78,13 @@ rules:
   - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
-  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder-rolebinding
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder-clusterrolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: {{ $bindingForwarderRole }}
+  kind: ClusterRole
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
 subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.bindings.forwarder.serviceAccountName" . }}
