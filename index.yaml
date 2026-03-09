@@ -461,6 +461,25 @@ entries:
     version: 0.5.0
   ngrok-crds:
   - apiVersion: v2
+    appVersion: 0.2.1
+    created: "2026-03-09T20:29:41.6729121Z"
+    description: ngrok Custom Resource Definitions for Kubernetes.
+    digest: de43ed1b406057d043f72c750b02b3342831504b6824125631cff6aa405d25b2
+    home: https://ngrok.com
+    icon: https://charts.ngrok.com/assets/ngrok-favicon.svg
+    keywords:
+    - ngrok
+    - networking
+    - ingress
+    - edge
+    - api gateway
+    name: ngrok-crds
+    sources:
+    - https://github.com/ngrok/ngrok-operator
+    urls:
+    - https://github.com/ngrok/ngrok-operator/releases/download/helm-chart-ngrok-crds-0.2.1/ngrok-crds-0.2.1.tgz
+    version: 0.2.1
+  - apiVersion: v2
     appVersion: 0.2.0
     created: "2026-02-06T00:59:57.78687768Z"
     description: ngrok Custom Resource Definitions for Kubernetes.
@@ -633,6 +652,37 @@ entries:
     - https://github.com/ngrok/ngrok-ingress-controller/releases/download/ngrok-ingress-controller-0.1.0/ngrok-ingress-controller-0.1.0.tgz
     version: 0.1.0
   ngrok-operator:
+  - apiVersion: v2
+    appVersion: 0.20.2
+    created: "2026-03-09T20:29:41.891901291Z"
+    dependencies:
+    - name: common
+      repository: oci://registry-1.docker.io/bitnamicharts
+      tags:
+      - bitnami-common
+      version: 2.x.x
+    - condition: installCRDs
+      name: ngrok-crds
+      repository: file://../ngrok-crds
+      tags:
+      - install-crds
+      version: 0.2.1
+    description: The official ngrok Kubernetes Operator.
+    digest: bbe6d6a4c55afe0911909666e605225b3a773675cd5ac699cf33968a54dde6cf
+    home: https://ngrok.com
+    icon: https://charts.ngrok.com/assets/ngrok-favicon.svg
+    keywords:
+    - ngrok
+    - networking
+    - ingress
+    - edge
+    - api gateway
+    name: ngrok-operator
+    sources:
+    - https://github.com/ngrok/ngrok-operator
+    urls:
+    - https://github.com/ngrok/ngrok-operator/releases/download/helm-chart-ngrok-operator-0.22.1/ngrok-operator-0.22.1.tgz
+    version: 0.22.1
   - apiVersion: v2
     appVersion: 0.20.1
     created: "2026-02-17T18:25:16.053410949Z"
@@ -1207,4 +1257,4 @@ entries:
     urls:
     - https://github.com/ngrok/ngrok-operator/releases/download/helm-chart-0.16.0/ngrok-operator-0.16.0.tgz
     version: 0.16.0
-generated: "2026-02-17T18:25:16.05368021Z"
+generated: "2026-03-09T20:29:41.892122083Z"
