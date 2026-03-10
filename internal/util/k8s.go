@@ -30,19 +30,23 @@ func RemoveFinalizer(o client.Object) bool {
 }
 
 // RegisterAndSyncFinalizer adds the ngrok finalizer to the object if not already present.
-// If it adds the finalizer, it updates the object in the Kubernetes API.
+// If it adds the finalizer, it patches the object in the Kubernetes API.
+// Uses Patch instead of Update to avoid resourceVersion conflicts by only sending the diff.
 func RegisterAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
+	patch := client.MergeFrom(o.DeepCopyObject().(client.Object))
 	if AddFinalizer(o) {
-		return c.Update(ctx, o)
+		return c.Patch(ctx, o, patch)
 	}
 	return nil
 }
 
 // RemoveAndSyncFinalizer removes the ngrok finalizer from the object if present.
-// If it removes the finalizer, it updates the object in the Kubernetes API.
+// If it removes the finalizer, it patches the object in the Kubernetes API.
+// Uses Patch instead of Update to avoid resourceVersion conflicts by only sending the diff.
 func RemoveAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Object) error {
+	patch := client.MergeFrom(o.DeepCopyObject().(client.Object))
 	if RemoveFinalizer(o) {
-		return c.Update(ctx, o)
+		return c.Patch(ctx, o, patch)
 	}
 	return nil
 }

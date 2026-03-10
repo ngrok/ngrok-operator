@@ -4,7 +4,7 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/rbac: 94336522237136a2b00b911b63825c6d9b7816a19ff48c8ddddb768d1afa47bb
+        checksum/rbac: 2601d9f99e4dc306b02cf0cf2ec66f7b3f272fe30a4e28244795080b29b1c367
       labels:
         app.kubernetes.io/component: agent
         app.kubernetes.io/instance: RELEASE-NAME
@@ -27,7 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
-            checksum/rbac: 94336522237136a2b00b911b63825c6d9b7816a19ff48c8ddddb768d1afa47bb
+            checksum/rbac: 2601d9f99e4dc306b02cf0cf2ec66f7b3f272fe30a4e28244795080b29b1c367
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
@@ -121,6 +121,7 @@ Should match snapshot:
         resources:
           - tunnels/finalizers
         verbs:
+          - patch
           - update
       - apiGroups:
           - ingress.k8s.ngrok.com
@@ -145,6 +146,7 @@ Should match snapshot:
         resources:
           - agentendpoints/finalizers
         verbs:
+          - patch
           - update
       - apiGroups:
           - ngrok.k8s.ngrok.com

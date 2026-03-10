@@ -261,6 +261,14 @@ func (c *updateErrorClient) Update(ctx context.Context, obj client.Object, opts 
 	return errors.New("conflict: object has been modified")
 }
 
+// Patch returns an error for non-KubernetesOperator objects to simulate transient failures
+func (c *updateErrorClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+	if _, ok := obj.(*ngrokv1alpha1.KubernetesOperator); ok {
+		return c.Client.Patch(ctx, obj, patch, opts...)
+	}
+	return errors.New("conflict: object has been modified")
+}
+
 func TestOrchestrator_HandleDrain_ListError_OutcomeRetry(t *testing.T) {
 	scheme := setupTestScheme(t)
 

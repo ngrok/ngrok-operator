@@ -24,6 +24,7 @@ rules:
   resources:
   - tunnels/finalizers
   verbs:
+  - patch
   - update
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -48,6 +49,7 @@ rules:
   resources:
   - agentendpoints/finalizers
   verbs:
+  - patch
   - update
 - apiGroups:
   - ngrok.k8s.ngrok.com
