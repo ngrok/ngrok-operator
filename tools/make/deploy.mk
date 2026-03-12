@@ -42,7 +42,7 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
 		--set metaData.env=local,metaData.from=makefile \
-		--set useExperimentalGatewayApi=true \
+		--set gateway.enabled=true \
 		--set drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
