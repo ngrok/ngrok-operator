@@ -15,8 +15,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.endpointURI
-      name: URI
+    - jsonPath: .spec.endpointURL
+      name: URL
       type: string
     - jsonPath: .spec.port
       name: Port
@@ -59,9 +59,9 @@ spec:
           spec:
             description: BoundEndpointSpec defines the desired state of BoundEndpoint
             properties:
-              endpointURI:
+              endpointURL:
                 description: |-
-                  EndpointURI is the unique identifier
+                  EndpointURL is the unique identifier
                   representing the BoundEndpoint + its Endpoints
                   Format: <scheme>://<service>.<namespace>:<port>
 
@@ -136,7 +136,7 @@ spec:
                 - service
                 type: object
             required:
-            - endpointURI
+            - endpointURL
             - port
             - scheme
             - target
