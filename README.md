@@ -20,7 +20,7 @@
     <img src="https://img.shields.io/badge/Status-Beta-orange.svg" alt="Status"/>
   </a>
    <a href="#gateway-api-status">
-    <img src="https://img.shields.io/badge/Gateway_API-preview-rgba(159%2C122%2C234)" alt="Gateway API Preivew"/>
+    <img src="https://img.shields.io/badge/Gateway_API-supported-rgba(159%2C122%2C234)" alt="Gateway API Supported"/>
   </a>
   <a href="https://ngrok.com/slack">
     <img src="https://img.shields.io/badge/Join%20Our%20Community-Slack-blue" alt="Slack"/>

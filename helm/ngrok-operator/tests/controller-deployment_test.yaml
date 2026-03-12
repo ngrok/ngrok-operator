@@ -51,19 +51,8 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --disable-reference-grants=true
-- it: Uses the new gateway.enabled value when the old one is disabled
+- it: Disables the gateway feature when gateway.enabled is false
   set:
-    useExperimentalGatewayApi: false
-    gateway.enabled: true
-  template: controller-deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=true
-- it: Disables the gateway feature when both are false
-  set:
-    useExperimentalGatewayApi: false
     gateway.enabled: false
   template: controller-deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
@@ -71,16 +60,6 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --enable-feature-gateway=false
-- it: Enables the gateway feature when the old value is true (backwards compatibility)
-  set:
-    useExperimentalGatewayApi: true
-    gateway.enabled: false
-  template: controller-deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=true
 - it: Should use the specified cluster domain name
   set:
     clusterDomain: svc.example.com
