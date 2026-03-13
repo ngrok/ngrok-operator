@@ -1192,7 +1192,7 @@ var _ = Describe("Driver", func() {
 			driver.syncDone()
 		})
 
-		It("second waits, then returns error", func() {
+		It("second waits, last waiter returns ErrSyncRequeue", func() {
 			firstProceed, _ := driver.syncStart(false)
 			Expect(firstProceed).To(BeTrue())
 
@@ -1203,10 +1203,10 @@ var _ = Describe("Driver", func() {
 			driver.syncDone()
 
 			err := secondWait(GinkgoT().Context())
-			Expect(err).To(Equal(errSyncDone))
+			Expect(err).To(Equal(ErrSyncRequeue))
 		})
 
-		It("third releases second, no error", func() {
+		It("third releases second, second returns nil", func() {
 			firstProceed, _ := driver.syncStart(false)
 			Expect(firstProceed).To(BeTrue())
 
@@ -1224,7 +1224,7 @@ var _ = Describe("Driver", func() {
 			driver.syncDone()
 
 			err := thirdWait(GinkgoT().Context())
-			Expect(err).To(Equal(errSyncDone))
+			Expect(err).To(Equal(ErrSyncRequeue))
 		})
 
 		It("partial third does not wait, no error", func() {
@@ -1245,7 +1245,26 @@ var _ = Describe("Driver", func() {
 			driver.syncDone()
 
 			err := secondWait(GinkgoT().Context())
-			Expect(err).To(Equal(errSyncDone))
+			Expect(err).To(Equal(ErrSyncRequeue))
+		})
+
+		It("HandleSyncResult converts ErrSyncRequeue to Requeue", func() {
+			result, err := HandleSyncResult(ErrSyncRequeue)
+			Expect(err).To(BeNil())
+			Expect(result.Requeue).To(BeTrue())
+		})
+
+		It("HandleSyncResult passes through real errors", func() {
+			realErr := errors.New("something went wrong")
+			result, err := HandleSyncResult(realErr)
+			Expect(err).To(Equal(realErr))
+			Expect(result.Requeue).To(BeFalse())
+		})
+
+		It("HandleSyncResult passes through nil", func() {
+			result, err := HandleSyncResult(nil)
+			Expect(err).To(BeNil())
+			Expect(result.Requeue).To(BeFalse())
 		})
 	})
 

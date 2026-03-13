@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -52,8 +53,8 @@ type Driver struct {
 
 	syncMu              sync.Mutex
 	syncRunning         bool
-	syncFullCh          chan error
-	syncPartialCh       chan error
+	syncFullCh          chan struct{}
+	syncPartialCh       chan struct{}
 	syncAllowConcurrent bool
 
 	gatewayEnabled                bool
@@ -495,7 +496,8 @@ func (d *Driver) DeleteNamespace(name string) error {
 //   - let the first caller proceed, indicated by returning true
 //   - while the first one is running any subsequent calls will be batched to the last call
 //   - the callers between first and last will be assumed "success" and wait will return nil
-//   - the last one will return an error, which will retrigger reconciliation
+//   - the last caller will return ErrSyncRequeue so the reconciler requeues to
+//     ensure its store changes are captured in a subsequent sync
 func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error) {
 	d.log.Info("sync start")
 	d.syncMu.Lock()
@@ -524,7 +526,7 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 	}
 
 	// put yourself in waiting position
-	ch := make(chan error, 1)
+	ch := make(chan struct{}, 1)
 	if partial {
 		d.syncPartialCh = ch
 	} else {
@@ -533,16 +535,39 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 
 	return false, func(ctx context.Context) error {
 		select {
-		case err := <-ch:
-			d.log.Error(err, "sync finished with error")
-			return err
+		case _, ok := <-ch:
+			if !ok {
+				// channel was closed without a send — this waiter was
+				// overtaken by a later caller and can return success
+				return nil
+			}
+			// syncDone sent a value — we are the last waiter and should
+			// requeue so our store changes get picked up by the next sync
+			return ErrSyncRequeue
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
 }
 
-var errSyncDone = errors.New("sync done")
+// ErrSyncRequeue is a sentinel returned by the sync debouncer to indicate that
+// a sync completed while the caller was waiting, and the caller should requeue
+// to ensure its store changes are captured in a subsequent sync. This is not a
+// real error — reconcilers should convert it to ctrl.Result{Requeue: true}
+// using HandleSyncResult.
+var ErrSyncRequeue = errors.New("sync requeue requested")
+
+// HandleSyncResult converts a Sync or SyncEndpoints error into a
+// controller-runtime reconcile result. If the error is ErrSyncRequeue it
+// returns ctrl.Result{Requeue: true} with a nil error so controller-runtime
+// requeues without logging an error or applying exponential backoff. Real
+// errors are passed through unchanged.
+func HandleSyncResult(err error) (ctrl.Result, error) {
+	if err == ErrSyncRequeue {
+		return ctrl.Result{Requeue: true}, nil
+	}
+	return ctrl.Result{}, err
+}
 
 func (d *Driver) syncDone() {
 	d.log.Info("sync done")
@@ -550,12 +575,12 @@ func (d *Driver) syncDone() {
 	defer d.syncMu.Unlock()
 
 	if d.syncFullCh != nil {
-		d.syncFullCh <- errSyncDone
+		d.syncFullCh <- struct{}{}
 		close(d.syncFullCh)
 		d.syncFullCh = nil
 	}
 	if d.syncPartialCh != nil {
-		d.syncPartialCh <- errSyncDone
+		d.syncPartialCh <- struct{}{}
 		close(d.syncPartialCh)
 		d.syncPartialCh = nil
 	}
