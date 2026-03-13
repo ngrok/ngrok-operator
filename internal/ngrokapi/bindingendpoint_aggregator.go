@@ -35,18 +35,18 @@ func AggregateBindingEndpoints(endpoints []ngrok.Endpoint) (AggregatedEndpoints,
 			return nil, fmt.Errorf("failed to parse endpoint: %s: %w", endpoint.ID, err)
 		}
 
-		endpointURI := parsed.String()
+		endpointURL := parsed.String()
 
 		// Create a new BindingEndpoint if one doesn't exist
 		var bindingEndpoint bindingsv1alpha1.BoundEndpoint
-		if val, ok := aggregated[endpointURI]; ok {
+		if val, ok := aggregated[endpointURL]; ok {
 			bindingEndpoint = val
 		} else {
 			// newly found hostport, create a new BoundEndpoint
 			bindingEndpoint = bindingsv1alpha1.BoundEndpoint{
 				// parsed bits are shared across endpoints with the same hostport
 				Spec: bindingsv1alpha1.BoundEndpointSpec{
-					EndpointURI: endpointURI,
+					EndpointURL: endpointURL,
 					Scheme:      parsed.Scheme,
 					Target: bindingsv1alpha1.EndpointTarget{
 						Service:   parsed.ServiceName,
@@ -70,7 +70,7 @@ func AggregateBindingEndpoints(endpoints []ngrok.Endpoint) (AggregatedEndpoints,
 		})
 
 		// update the aggregated map
-		aggregated[endpointURI] = bindingEndpoint
+		aggregated[endpointURL] = bindingEndpoint
 	}
 
 	return aggregated, nil
@@ -84,7 +84,7 @@ type parsedHostport struct {
 	Port        int32
 }
 
-// String prints the parsed hostport as a EndpointURI in the format: <scheme>://<service>.<namespace>:<port>
+// String prints the parsed hostport as a EndpointURL in the format: <scheme>://<service>.<namespace>:<port>
 func (p *parsedHostport) String() string {
 	return fmt.Sprintf("%s://%s.%s:%d", p.Scheme, p.ServiceName, p.Namespace, p.Port)
 }

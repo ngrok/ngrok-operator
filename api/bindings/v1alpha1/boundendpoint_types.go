@@ -35,14 +35,14 @@ import (
 
 // BoundEndpointSpec defines the desired state of BoundEndpoint
 type BoundEndpointSpec struct {
-	// EndpointURI is the unique identifier
+	// EndpointURL is the unique identifier
 	// representing the BoundEndpoint + its Endpoints
 	// Format: <scheme>://<service>.<namespace>:<port>
 	//
 	// +kubebuilder:validation:Required
 	// See: https://regex101.com/r/9QkXWl/1
 	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$`
-	EndpointURI string `json:"endpointURI"`
+	EndpointURL string `json:"endpointURL"`
 
 	// Scheme is a user-defined field for endpoints that describe how the data packets
 	// are framed by the pod forwarders mTLS connection to the ngrok edge
@@ -138,7 +138,7 @@ type BindingEndpoint struct {
 // +kubebuilder:subresource:status
 
 // BoundEndpoint is the Schema for the boundendpoints API
-// +kubebuilder:printcolumn:name="URI",type="string",JSONPath=".spec.endpointURI"
+// +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".spec.endpointURL"
 // +kubebuilder:printcolumn:name="Port",type="string",JSONPath=".spec.port"
 // +kubebuilder:printcolumn:name="Endpoints",type="string",JSONPath=".status.endpointsSummary"
 // +kubebuilder:printcolumn:name="Services",type="string",JSONPath=".status.conditions[?(@.type==\"ServicesCreated\")].status"

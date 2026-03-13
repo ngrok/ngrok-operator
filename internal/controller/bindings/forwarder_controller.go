@@ -197,13 +197,13 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		tlsDialer.Config.RootCAs = r.RootCAs
 	}
 
-	endpointURI, err := url.Parse(epb.Spec.EndpointURI)
+	endpointURL, err := url.Parse(epb.Spec.EndpointURL)
 	if err != nil {
 		return err
 	}
 
-	host := endpointURI.Hostname()
-	port, err := strconv.Atoi(endpointURI.Port())
+	host := endpointURL.Hostname()
+	port, err := strconv.Atoi(endpointURL.Port())
 	if err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 			},
 			"binding", map[string]string{
 				"host": host,
-				"port": endpointURI.Port(),
+				"port": endpointURL.Port(),
 			},
 		)
 

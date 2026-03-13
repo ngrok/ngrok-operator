@@ -142,13 +142,13 @@ spec:
               BE_NAME=$(kubectl get boundendpoint -n uninstall-test -o jsonpath='{.items[0].metadata.name}')
               echo "BoundEndpoint name: $BE_NAME"
               
-              # Verify the endpoint URI matches our CloudEndpoint
-              ENDPOINT_URI=$(kubectl get boundendpoint "$BE_NAME" -n uninstall-test -o jsonpath='{.spec.endpointURI}')
-              echo "Endpoint URI: $ENDPOINT_URI"
-              if echo "$ENDPOINT_URI" | grep -q "bound-test-svc.bound-target-ns"; then
-                echo "✓ BoundEndpoint has correct endpoint URI"
+              # Verify the endpoint URL matches our CloudEndpoint
+              ENDPOINT_URL=$(kubectl get boundendpoint "$BE_NAME" -n uninstall-test -o jsonpath='{.spec.endpointURL}')
+              echo "Endpoint URL: $ENDPOINT_URL"
+              if echo "$ENDPOINT_URL" | grep -q "bound-test-svc.bound-target-ns"; then
+                echo "✓ BoundEndpoint has correct endpoint URL"
               else
-                echo "✗ BoundEndpoint has unexpected endpoint URI: $ENDPOINT_URI"
+                echo "✗ BoundEndpoint has unexpected endpoint URL: $ENDPOINT_URL"
                 exit 1
               fi
               
