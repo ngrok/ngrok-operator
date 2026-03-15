@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -21,15 +23,38 @@ import (
 const (
 	// LabelNgrokID is the label used to associate managed resources with vault objects.
 	LabelNgrokID = "ngrok-id"
+
+	// runnerID is the runner ID this operator instance matches against.
+	runnerID = "default"
 )
+
+// replicaEndpoint represents a single endpoint with its URL and optional traffic policy.
+type replicaEndpoint struct {
+	URL           string `json:"url"`
+	TrafficPolicy string `json:"traffic_policy"`
+}
 
 // vaultAppReplica is the parsed metadata shape we look for in vault objects.
 type vaultAppReplica struct {
-	Type  string `json:"type"`
-	Name  string `json:"name"`
-	Image string `json:"image"`
-	ID    string `json:"id"`
-	Ports []int  `json:"ports"`
+	ID              string            `json:"id"`
+	Image           string            `json:"image"`
+	Endpoints       []replicaEndpoint `json:"endpoints"`
+	RunnerID        string            `json:"runner_id"`
+	EnvironmentVars map[string]string `json:"environment_vars"`
+}
+
+// urlPort extracts the port from a URL string. If no port is specified, returns 443.
+func urlPort(rawURL string) (int, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return 0, err
+	}
+	if p := u.Port(); p != "" {
+		var port int
+		_, err := fmt.Sscanf(p, "%d", &port)
+		return port, err
+	}
+	return 443, nil
 }
 
 func deploymentName(id string) string {
@@ -131,7 +156,7 @@ func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger) error
 		if _, exists := existingByID[id]; exists {
 			continue
 		}
-		log.Info("Creating resources for app-replica", "id", id, "name", replica.Name, "image", replica.Image, "ports", replica.Ports)
+		log.Info("Creating resources for app-replica", "id", id, "image", replica.Image)
 		if err := r.createResources(ctx, log, replica); err != nil {
 			log.Error(err, "failed to create resources", "id", id)
 		}
@@ -167,14 +192,15 @@ func (r *AppReplicaPoller) fetchDesiredReplicas(ctx context.Context, log logr.Lo
 			continue
 		}
 
-		if parsed.Type != "app-replica" {
+		if parsed.RunnerID != runnerID {
 			continue
 		}
-		if parsed.Image == "" || parsed.ID == "" || parsed.Name == "" || len(parsed.Ports) == 0 {
-			log.V(3).Info("Skipping app-replica vault with missing required fields", "vault_id", vault.ID)
+		if parsed.Image == "" || parsed.ID == "" || len(parsed.Endpoints) == 0 {
+			log.V(3).Info("Skipping vault with missing required fields", "vault_id", vault.ID)
 			continue
 		}
 
+		parsed.ID = strings.ToLower(parsed.ID)
 		replicas = append(replicas, parsed)
 	}
 
@@ -189,24 +215,49 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 	name := deploymentName(replica.ID)
 	labels := map[string]string{LabelNgrokID: replica.ID}
 
-	// Build container ports and service ports from the replica's port list.
+	// Derive ports from endpoint URLs.
+	type endpointWithPort struct {
+		endpoint replicaEndpoint
+		port     int
+	}
+	var epPorts []endpointWithPort
+	for _, ep := range replica.Endpoints {
+		port, err := urlPort(ep.URL)
+		if err != nil {
+			return fmt.Errorf("parsing URL %q: %w", ep.URL, err)
+		}
+		epPorts = append(epPorts, endpointWithPort{endpoint: ep, port: port})
+	}
+
+	// Build container ports and service ports.
 	var containerPorts []corev1.ContainerPort
 	var servicePorts []corev1.ServicePort
-	for _, port := range replica.Ports {
+	seenPorts := make(map[int]bool)
+	for _, up := range epPorts {
+		if seenPorts[up.port] {
+			continue
+		}
+		seenPorts[up.port] = true
 		containerPorts = append(containerPorts, corev1.ContainerPort{
-			ContainerPort: int32(port),
+			ContainerPort: int32(up.port),
 			Protocol:      corev1.ProtocolTCP,
 		})
 		servicePorts = append(servicePorts, corev1.ServicePort{
-			Name:       fmt.Sprintf("port-%d", port),
-			Port:       int32(port),
-			TargetPort: intstr.FromInt32(int32(port)),
+			Name:       fmt.Sprintf("port-%d", up.port),
+			Port:       int32(up.port),
+			TargetPort: intstr.FromInt32(int32(up.port)),
 			Protocol:   corev1.ProtocolTCP,
 		})
 	}
 
+	// Build environment variables for the container.
+	var envVars []corev1.EnvVar
+	for k, v := range replica.EnvironmentVars {
+		envVars = append(envVars, corev1.EnvVar{Name: k, Value: v})
+	}
+
 	// Deployment
-	replicas := int32(1)
+	replicaCount := int32(1)
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -214,7 +265,7 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
+			Replicas: &replicaCount,
 			Selector: &metav1.LabelSelector{MatchLabels: labels},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
@@ -224,6 +275,7 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 							Name:  "app",
 							Image: replica.Image,
 							Ports: containerPorts,
+							Env:   envVars,
 						},
 					},
 				},
@@ -250,9 +302,9 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 		return fmt.Errorf("creating service: %w", err)
 	}
 
-	// AgentEndpoint per port
-	for _, port := range replica.Ports {
-		aepName := agentEndpointName(replica.ID, port)
+	// AgentEndpoint per endpoint
+	for _, up := range epPorts {
+		aepName := agentEndpointName(replica.ID, up.port)
 		aep := &ngrokv1alpha1.AgentEndpoint{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      aepName,
@@ -260,18 +312,23 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 				Labels:    labels,
 			},
 			Spec: ngrokv1alpha1.AgentEndpointSpec{
-				URL: fmt.Sprintf("https://%s.internal:%d", replica.Name, port),
+				URL: up.endpoint.URL,
 				Upstream: ngrokv1alpha1.EndpointUpstream{
-					URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", name, r.Namespace, port),
+					URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", name, r.Namespace, up.port),
 				},
 			},
 		}
+		if up.endpoint.TrafficPolicy != "" {
+			aep.Spec.TrafficPolicy = &ngrokv1alpha1.TrafficPolicyCfg{
+				Inline: json.RawMessage(up.endpoint.TrafficPolicy),
+			}
+		}
 		if err := r.Create(ctx, aep); err != nil {
-			return fmt.Errorf("creating agent endpoint for port %d: %w", port, err)
+			return fmt.Errorf("creating agent endpoint for URL %s: %w", up.endpoint.URL, err)
 		}
 	}
 
-	log.Info("Created deployment, service, and agent endpoints", "id", replica.ID, "name", name, "ports", replica.Ports)
+	log.Info("Created deployment, service, and agent endpoints", "id", replica.ID, "name", name)
 	return nil
 }
 
