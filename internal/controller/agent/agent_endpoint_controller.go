@@ -147,6 +147,10 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 		Update:     r.update,
 		Delete:     r.delete,
 		StatusID:   r.statusID,
+		DeleteByKey: func(ctx context.Context, key client.ObjectKey) error {
+			name := fmt.Sprintf("%s/%s", key.Namespace, key.Name)
+			return r.AgentDriver.DeleteAgentEndpoint(ctx, name)
+		},
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
 			if errors.Is(err, domainpkg.ErrDomainNotReady) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil

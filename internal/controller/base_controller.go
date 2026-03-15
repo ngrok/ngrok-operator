@@ -64,12 +64,27 @@ type BaseController[T client.Object] struct {
 	Update    func(ctx context.Context, obj T) error
 	Delete    func(ctx context.Context, obj T) error
 	ErrResult func(op BaseControllerOp, obj T, err error) (ctrl.Result, error)
+
+	// DeleteByKey is an optional callback invoked when the object is not found
+	// during reconcile (already deleted from the API server). This allows
+	// controllers to clean up local resources (e.g., in-memory forwarders)
+	// that would otherwise be stranded when the object is fully removed
+	// before this controller can process the deletion.
+	DeleteByKey func(ctx context.Context, key client.ObjectKey) error
 }
 
 // reconcile is the primary function that a manager calls for this controller to reconcile an event for the give client.Object
 func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, obj T) (ctrl.Result, error) {
 	// fill in the obj
 	if err := self.Kube.Get(ctx, req.NamespacedName, obj); err != nil {
+		if client.IgnoreNotFound(err) == nil && self.DeleteByKey != nil {
+			if deleteErr := self.DeleteByKey(ctx, req.NamespacedName); deleteErr != nil {
+				self.Log.Error(deleteErr, "DeleteByKey failed for missing object",
+					"name", req.Name,
+					"namespace", req.Namespace,
+				)
+			}
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
