@@ -39,10 +39,15 @@ type BoundEndpointSpec struct {
 	// representing the BoundEndpoint + its Endpoints
 	// Format: <scheme>://<service>.<namespace>:<port>
 	//
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	// See: https://regex101.com/r/9QkXWl/1
 	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$`
-	EndpointURL string `json:"endpointURL"`
+	EndpointURL string `json:"endpointURL,omitempty"`
+
+	// Deprecated: Use EndpointURL instead. Will be removed in a future release.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$`
+	EndpointURI string `json:"endpointURI,omitempty"`
 
 	// Scheme is a user-defined field for endpoints that describe how the data packets
 	// are framed by the pod forwarders mTLS connection to the ngrok edge
@@ -58,6 +63,14 @@ type BoundEndpointSpec struct {
 	// EndpointTarget is the target Service that this Endpoint projects
 	// +kubebuilder:validation:Required
 	Target EndpointTarget `json:"target"`
+}
+
+// GetEndpointURL returns EndpointURL if set, falling back to the deprecated EndpointURI field.
+func (s *BoundEndpointSpec) GetEndpointURL() string {
+	if s.EndpointURL != "" {
+		return s.EndpointURL
+	}
+	return s.EndpointURI
 }
 
 // BoundEndpointStatus defines the observed state of BoundEndpoint

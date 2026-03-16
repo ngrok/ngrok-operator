@@ -254,7 +254,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			// real error
-			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "url", cr.Spec.EndpointURL)
+			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "url", cr.Spec.GetEndpointURL())
 			return r.updateStatus(ctx, cr, err)
 		}
 
@@ -284,7 +284,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			// real error
-			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "url", cr.Spec.EndpointURL)
+			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "url", cr.Spec.GetEndpointURL())
 			return r.updateStatus(ctx, cr, err)
 		}
 
@@ -528,7 +528,7 @@ func (r *BoundEndpointReconciler) findBoundEndpointsForService(ctx context.Conte
 
 // tryToBindEndpoint attempts a TCP connection through the provisioned services for the BoundEndpoint
 func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
-	log := ctrl.LoggerFrom(ctx).WithValues("url", boundEndpoint.Spec.EndpointURL)
+	log := ctrl.LoggerFrom(ctx).WithValues("url", boundEndpoint.Spec.GetEndpointURL())
 
 	bindErrMsg := fmt.Sprintf("connectivity check failed for BoundEndpoint %s", boundEndpoint.Name)
 
@@ -540,10 +540,10 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 	retries := 8
 
 	// rely on kube-dns to resolve the targetService's ExternalName
-	uri, err := url.Parse(boundEndpoint.Spec.EndpointURL)
+	uri, err := url.Parse(boundEndpoint.Spec.GetEndpointURL())
 	if err != nil {
-		wrappedErr := fmt.Errorf("failed to parse BoundEndpoint URL %s: %w", boundEndpoint.Spec.EndpointURL, err)
-		log.Error(wrappedErr, bindErrMsg, "url", boundEndpoint.Spec.EndpointURL)
+		wrappedErr := fmt.Errorf("failed to parse BoundEndpoint URL %s: %w", boundEndpoint.Spec.GetEndpointURL(), err)
+		log.Error(wrappedErr, bindErrMsg, "url", boundEndpoint.Spec.GetEndpointURL())
 		return wrappedErr
 	}
 

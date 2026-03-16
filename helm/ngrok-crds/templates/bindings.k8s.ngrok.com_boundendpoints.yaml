@@ -59,6 +59,11 @@ spec:
           spec:
             description: BoundEndpointSpec defines the desired state of BoundEndpoint
             properties:
+              endpointURI:
+                description: 'Deprecated: Use EndpointURL instead. Will be removed
+                  in a future release.'
+                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$
+                type: string
               endpointURL:
                 description: |-
                   EndpointURL is the unique identifier
@@ -136,7 +141,6 @@ spec:
                 - service
                 type: object
             required:
-            - endpointURL
             - port
             - scheme
             - target

@@ -197,7 +197,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		tlsDialer.Config.RootCAs = r.RootCAs
 	}
 
-	endpointURL, err := url.Parse(epb.Spec.EndpointURL)
+	endpointURL, err := url.Parse(epb.Spec.GetEndpointURL())
 	if err != nil {
 		return err
 	}
