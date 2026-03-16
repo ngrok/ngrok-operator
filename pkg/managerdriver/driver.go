@@ -60,6 +60,7 @@ type Driver struct {
 	gatewayTCPRouteEnabled        bool
 	gatewayTLSRouteEnabled        bool
 	disableGatewayReferenceGrants bool
+	gatewayControllerName         string
 
 	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 
@@ -78,6 +79,12 @@ type DriverOpt func(*Driver)
 func WithGatewayEnabled(enabled bool) DriverOpt {
 	return func(d *Driver) {
 		d.gatewayEnabled = enabled
+	}
+}
+
+func WithGatewayControllerName(name string) DriverOpt {
+	return func(d *Driver) {
+		d.gatewayControllerName = name
 	}
 }
 
@@ -131,11 +138,7 @@ func WithDrainState(state DrainState) DriverOpt {
 
 // NewDriver creates a new driver with a basic logger and cache store setup
 func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName, opts ...DriverOpt) *Driver {
-	cacheStores := store.NewCacheStores(logger)
-	s := store.New(cacheStores, controllerName, logger)
 	d := &Driver{
-		store:          s,
-		cacheStores:    cacheStores,
 		log:            logger,
 		scheme:         scheme,
 		gatewayEnabled: false,
@@ -149,6 +152,13 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 	for _, opt := range opts {
 		opt(d)
 	}
+
+	cacheStores := store.NewCacheStores(logger)
+	d.cacheStores = cacheStores
+	d.store = store.New(cacheStores, controllerName, logger,
+		store.WithGatewayControllerName(d.gatewayControllerName),
+	)
+
 	return d
 }
 
@@ -353,12 +363,10 @@ func (d *Driver) PrintState(setupLog logr.Logger) {
 
 	// Helpful debug information if someone doesn't have their ingress class set up correctly.
 	if len(ings) == 0 {
-		ingresses := d.store.ListIngressesV1()
 		ngrokIngresses := d.store.ListNgrokIngressesV1()
 		ingressClasses := d.store.ListIngressClassesV1()
 		ngrokIngressClasses := d.store.ListNgrokIngressClassesV1()
 		setupLog.Info("no matching ingresses found",
-			"all ingresses", ingresses,
 			"all ngrok ingresses", ngrokIngresses,
 			"all ingress classes", ingressClasses,
 			"all ngrok ingress classes", ngrokIngressClasses,
@@ -680,7 +688,7 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 
 	// Calculate the ingresses that need their status updated
 	needsUpdate := []*netv1.Ingress{}
-	for _, ingress := range d.store.ListIngressesV1() {
+	for _, ingress := range d.store.ListNgrokIngressesV1() {
 		if ingress == nil {
 			continue
 		}
@@ -758,7 +766,7 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 
 	needsUpdate := []*gatewayv1.Gateway{}
 
-	for _, gateway := range d.store.ListGateways() {
+	for _, gateway := range d.store.ListNgrokGateways() {
 		if gateway == nil {
 			continue
 		}

@@ -124,6 +124,7 @@ var _ = BeforeSuite(func() {
 			Namespace: "test-manager-namespace",
 		},
 		managerdriver.WithGatewayEnabled(true),
+		managerdriver.WithGatewayControllerName("ngrok.com/gateway-controller"),
 		managerdriver.WithSyncAllowConcurrent(true),
 	)
 

@@ -102,6 +102,60 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 
 					}, timeout, interval).Should(Succeed())
 				})
+
+				It("Should preserve parent statuses written by other controllers", func(ctx SpecContext) {
+					// Wait for the ngrok controller to accept the route first
+					kginkgo.EventuallyWithObject(ctx, route.DeepCopy(), func(g Gomega, obj client.Object) {
+						r := obj.(*gatewayv1.HTTPRoute)
+						g.Expect(r.Status.Parents).To(HaveLen(1))
+						g.Expect(r.Status.Parents[0].ControllerName).To(Equal(ManagedControllerName))
+					})
+
+					// Simulate another controller (e.g. Istio) writing its own parent status
+					Eventually(func(g Gomega) {
+						obj := &gatewayv1.HTTPRoute{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
+
+						obj.Status.Parents = append(obj.Status.Parents, gatewayv1.RouteParentStatus{
+							ParentRef:      gatewayv1.ParentReference{Name: "some-other-gw"},
+							ControllerName: UnmanagedControllerName,
+							Conditions: []metav1.Condition{
+								{
+									Type:               string(gatewayv1.RouteConditionAccepted),
+									Status:             metav1.ConditionTrue,
+									Reason:             string(gatewayv1.RouteReasonAccepted),
+									LastTransitionTime: metav1.Now(),
+								},
+							},
+						})
+						g.Expect(k8sClient.Status().Update(ctx, obj)).To(Succeed())
+					}, timeout, interval).Should(Succeed())
+
+					// Trigger a re-reconcile by updating the route's annotations
+					Eventually(func(g Gomega) {
+						obj := &gatewayv1.HTTPRoute{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
+						if obj.Annotations == nil {
+							obj.Annotations = map[string]string{}
+						}
+						obj.Annotations["test-trigger"] = "reconcile"
+						g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+					}, timeout, interval).Should(Succeed())
+
+					// Both controllers' statuses should be present
+					kginkgo.EventuallyWithObject(ctx, route.DeepCopy(), func(g Gomega, obj client.Object) {
+						r := obj.(*gatewayv1.HTTPRoute)
+						controllerNames := map[gatewayv1.GatewayController]bool{}
+						for _, parent := range r.Status.Parents {
+							controllerNames[parent.ControllerName] = true
+						}
+
+						g.Expect(controllerNames).To(HaveKey(ManagedControllerName),
+							"ngrok controller's parent status should be present")
+						g.Expect(controllerNames).To(HaveKey(gatewayv1.GatewayController(UnmanagedControllerName)),
+							"other controller's parent status should be preserved")
+					})
+				})
 			})
 
 			When("the gateway does not exist", func() {

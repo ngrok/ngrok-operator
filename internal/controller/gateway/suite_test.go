@@ -133,6 +133,7 @@ var _ = BeforeSuite(func() {
 			Namespace: "test-manager-namespace",
 		},
 		managerdriver.WithGatewayEnabled(true),
+		managerdriver.WithGatewayControllerName(string(ControllerName)),
 		managerdriver.WithSyncAllowConcurrent(true),
 	)
 

@@ -197,8 +197,12 @@ func (r *HTTPRouteReconciler) validateHTTPRoute(ctx context.Context, route *gate
 		return err
 	}
 
+	// Merge our parent statuses with existing ones from other controllers,
+	// rather than replacing the entire RouteStatus which would drop statuses
+	// written by other gateway controllers (e.g. Istio, AWS).
+	mergedParents := mergeParentStatuses(route.Status.RouteStatus.Parents, parentRefsAccepted)
 	route.Status.RouteStatus = gatewayv1.RouteStatus{
-		Parents: parentRefsAccepted,
+		Parents: mergedParents,
 	}
 
 	err = r.Client.Status().Update(ctx, route)
@@ -314,6 +318,22 @@ func (r *HTTPRouteReconciler) validateRouteParentRefs(ctx context.Context, route
 	return parentStatuses, nil
 }
 
+// mergeParentStatuses merges our (ngrok) parent statuses into the existing list,
+// preserving statuses from other controllers. It replaces entries with matching
+// ControllerName and updates/adds our entries.
+func mergeParentStatuses(existing, ours []gatewayv1.RouteParentStatus) []gatewayv1.RouteParentStatus {
+	// Build result starting with existing statuses not owned by us
+	result := make([]gatewayv1.RouteParentStatus, 0, len(existing)+len(ours))
+	for _, e := range existing {
+		if e.ControllerName == ControllerName {
+			continue // will be replaced by our new statuses
+		}
+		result = append(result, e)
+	}
+	result = append(result, ours...)
+	return result
+}
+
 func (r *HTTPRouteReconciler) newCondition(route *gatewayv1.HTTPRoute, t gatewayv1.RouteConditionType, reason gatewayv1.RouteConditionReason, msg string) metav1.Condition {
 	status := metav1.ConditionTrue
 	if reason != gatewayv1.RouteReasonAccepted && reason != gatewayv1.RouteReasonResolvedRefs {
@@ -356,7 +376,7 @@ func (r *HTTPRouteReconciler) findHTTPRouteForGateway(ctx context.Context, o cli
 	}
 
 	routes := &gatewayv1.HTTPRouteList{}
-	err = r.Client.List(ctx, &gatewayv1.HTTPRouteList{})
+	err = r.Client.List(ctx, routes)
 	if err != nil {
 		log.Error(err, "Failed to list HTTPRoutes")
 		return nil

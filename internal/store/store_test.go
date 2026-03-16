@@ -255,7 +255,7 @@ var _ = Describe("Store", func() {
 					"gateway-2",
 					"gateway-3",
 				}
-				gws := store.ListGateways()
+				gws := store.ListNgrokGateways()
 				Expect(len(gws)).To(Equal(3))
 
 				for _, expectedName := range expectedNames {
@@ -272,7 +272,7 @@ var _ = Describe("Store", func() {
 		})
 		Context("when there are no Gateways", func() {
 			It("doesn't error", func() {
-				gws := store.ListGateways()
+				gws := store.ListNgrokGateways()
 				Expect(len(gws)).To(Equal(0))
 			})
 		})

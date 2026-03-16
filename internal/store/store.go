@@ -62,10 +62,9 @@ type Storer interface {
 	ListIngressClassesV1() []*netv1.IngressClass
 	ListNgrokIngressClassesV1() []*netv1.IngressClass
 
-	ListIngressesV1() []*netv1.Ingress
 	ListNgrokIngressesV1() []*netv1.Ingress
 
-	ListGateways() []*gatewayv1.Gateway
+	ListNgrokGateways() []*gatewayv1.Gateway
 	ListGatewayClasses() []*gatewayv1.GatewayClass
 	ListHTTPRoutes() []*gatewayv1.HTTPRoute
 	ListTCPRoutes() []*gatewayv1alpha2.TCPRoute
@@ -80,20 +79,36 @@ type Storer interface {
 // be synced and updated by the caller.
 // It is ingressClass filter aware.
 type Store struct {
-	stores         CacheStores
-	controllerName string
-	log            logr.Logger
+	stores                CacheStores
+	controllerName        string
+	gatewayControllerName string
+	log                   logr.Logger
 }
 
 var _ Storer = Store{}
 
+// StoreOption is a functional option for configuring a Store.
+type StoreOption func(*Store)
+
+// WithGatewayControllerName sets the gateway controller name used to filter
+// Gateway resources to only those managed by this operator.
+func WithGatewayControllerName(name string) StoreOption {
+	return func(s *Store) {
+		s.gatewayControllerName = name
+	}
+}
+
 // New creates a new object store to be used in the ingress controller.
-func New(cs CacheStores, controllerName string, logger logr.Logger) Storer {
-	return Store{
+func New(cs CacheStores, controllerName string, logger logr.Logger, opts ...StoreOption) Storer {
+	s := Store{
 		stores:         cs,
 		controllerName: controllerName,
 		log:            logger,
 	}
+	for _, opt := range opts {
+		opt(&s)
+	}
+	return s
 }
 
 // Get proxies the call to the underlying store.
@@ -223,13 +238,36 @@ func (s Store) ListNgrokIngressClassesV1() []*netv1.IngressClass {
 	return filteredClasses
 }
 
-// ListIngressesV1 returns the list of Ingresses in the Ingress v1 store.
-func (s Store) ListIngressesV1() []*netv1.Ingress {
+// listIngressesV1 returns the list of all Ingresses in the Ingress v1 store.
+func (s Store) listIngressesV1() []*netv1.Ingress {
 	return genericListSorted[netv1.Ingress](s.log, s.stores.IngressV1)
 }
 
-func (s Store) ListGateways() []*gatewayv1.Gateway {
+func (s Store) listGateways() []*gatewayv1.Gateway {
 	return genericListSorted[gatewayv1.Gateway](s.log, s.stores.Gateway)
+}
+
+// ListNgrokGateways returns only the Gateways whose GatewayClass is managed by
+// this operator (i.e. the GatewayClass controllerName matches gatewayControllerName).
+func (s Store) ListNgrokGateways() []*gatewayv1.Gateway {
+	if s.gatewayControllerName == "" {
+		return s.listGateways()
+	}
+
+	ngrokClassNames := map[string]bool{}
+	for _, gwc := range s.ListGatewayClasses() {
+		if string(gwc.Spec.ControllerName) == s.gatewayControllerName {
+			ngrokClassNames[gwc.Name] = true
+		}
+	}
+
+	var filtered []*gatewayv1.Gateway
+	for _, gw := range s.listGateways() {
+		if ngrokClassNames[string(gw.Spec.GatewayClassName)] {
+			filtered = append(filtered, gw)
+		}
+	}
+	return filtered
 }
 
 func (s Store) ListGatewayClasses() []*gatewayv1.GatewayClass {
@@ -259,7 +297,7 @@ func (s Store) ListNamespaces() []*corev1.Namespace {
 }
 
 func (s Store) ListNgrokIngressesV1() []*netv1.Ingress {
-	ings := s.ListIngressesV1()
+	ings := s.listIngressesV1()
 
 	var ingresses []*netv1.Ingress
 	for _, ing := range ings {
