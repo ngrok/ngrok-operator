@@ -210,9 +210,12 @@ func (r *HTTPRouteReconciler) validateHTTPRoute(ctx context.Context, route *gate
 		return fmt.Errorf("failed to update httproute status: %w", err)
 	}
 
-	// Check to make sure that all parentRefs have been accepted
-	log.V(3).Info("Checking if all parentRefs have been accepted", "parents", route.Status.RouteStatus.Parents)
-	for _, parentStatus := range route.Status.RouteStatus.Parents {
+	// Check to make sure that all parentRefs have been accepted.
+	// Use only the parent statuses computed by this controller
+	// (parentRefsAccepted) to avoid being affected by conditions
+	// written by other controllers.
+	log.V(3).Info("Checking if all parentRefs have been accepted", "parents", parentRefsAccepted)
+	for _, parentStatus := range parentRefsAccepted {
 		for _, cond := range parentStatus.Conditions {
 			if cond.Status != metav1.ConditionTrue {
 				return fmt.Errorf("%w: route has not been accepted by all parentRefs", ErrValidation)
@@ -220,7 +223,7 @@ func (r *HTTPRouteReconciler) validateHTTPRoute(ctx context.Context, route *gate
 		}
 	}
 
-	log.V(3).Info("All parentRefs have been accepted", "parents", route.Status.RouteStatus.Parents)
+	log.V(3).Info("All parentRefs have been accepted", "parents", parentRefsAccepted)
 	return nil
 }
 

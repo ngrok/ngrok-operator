@@ -363,11 +363,9 @@ func (d *Driver) PrintState(setupLog logr.Logger) {
 
 	// Helpful debug information if someone doesn't have their ingress class set up correctly.
 	if len(ings) == 0 {
-		ngrokIngresses := d.store.ListNgrokIngressesV1()
 		ingressClasses := d.store.ListIngressClassesV1()
 		ngrokIngressClasses := d.store.ListNgrokIngressClassesV1()
 		setupLog.Info("no matching ingresses found",
-			"all ngrok ingresses", ngrokIngresses,
 			"all ingress classes", ingressClasses,
 			"all ngrok ingress classes", ngrokIngressClasses,
 		)
