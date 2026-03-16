@@ -251,7 +251,8 @@ func (s Store) listGateways() []*gatewayv1.Gateway {
 // this operator (i.e. the GatewayClass controllerName matches gatewayControllerName).
 func (s Store) ListNgrokGateways() []*gatewayv1.Gateway {
 	if s.gatewayControllerName == "" {
-		return s.listGateways()
+		s.log.Error(nil, "gatewayControllerName is not set, no gateways will be returned")
+		return nil
 	}
 
 	ngrokClassNames := map[string]bool{}
