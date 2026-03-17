@@ -154,7 +154,7 @@ func (d *Driver) calculateDomainSet() *domainSet {
 	}
 
 	// Calculate domains from gateway resources
-	gateways := d.store.ListGateways()
+	gateways := d.store.ListNgrokGateways()
 	for _, gateway := range gateways {
 		endpointDomains := gatewayToDomains(gateway, d.gatewayNgrokMetadata, ret.totalDomains)
 		for key, val := range endpointDomains {

@@ -506,6 +506,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 
 	driverOpts := []managerdriver.DriverOpt{
 		managerdriver.WithGatewayEnabled(options.enableFeatureGateway),
+		managerdriver.WithGatewayControllerName(string(gatewaycontroller.ControllerName)),
 		managerdriver.WithClusterDomain(options.clusterDomain),
 		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
 		managerdriver.WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),

@@ -530,6 +530,7 @@ func TestTranslate(t *testing.T) {
 				Namespace: "test-manager-namespace",
 			},
 			WithGatewayEnabled(true),
+			WithGatewayControllerName("ngrok.com/gateway-controller"),
 			WithSyncAllowConcurrent(true),
 			WithGatewayTCPRouteEnabled(true),
 			WithGatewayTLSRouteEnabled(true),
@@ -642,6 +643,7 @@ func TestTranslate(t *testing.T) {
 				Namespace: "test-manager-namespace",
 			},
 			WithGatewayEnabled(true),
+			WithGatewayControllerName("ngrok.com/gateway-controller"),
 			WithSyncAllowConcurrent(true),
 		)
 		t.Run(filepath.Base(file), func(t *testing.T) {

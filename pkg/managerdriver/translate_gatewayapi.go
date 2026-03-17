@@ -46,7 +46,7 @@ type GatewayMatch struct {
 func (t *translator) gatewayAPIToIR() []*ir.IRVirtualHost {
 	virtualHostsPerGateway := make(map[types.NamespacedName]map[ir.IRListener]*ir.IRVirtualHost) // We key the list of virtual hosts by the gateway they are for
 	upstreamCache := make(map[ir.IRServiceKey]*ir.IRUpstream)                                    // Each unique service/port combo corresponds to one IRUpstream
-	gateways := t.store.ListGateways()
+	gateways := t.store.ListNgrokGateways()
 
 	// Add all of the gateways to a map for efficient lookup
 	gatewayMap := make(map[types.NamespacedName]*gatewayv1.Gateway)
