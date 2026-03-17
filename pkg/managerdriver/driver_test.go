@@ -1535,7 +1535,7 @@ var _ = Describe("Driver", func() {
 			for _, gw := range storeGateways {
 				Expect(gw.Spec.GatewayClassName).ToNot(
 					Equal(gatewayv1.ObjectName(otherGWClass.Name)),
-					"non-ngrok gateways should not be returned by ListGateways for translation",
+					"non-ngrok gateways should not be returned by ListNgrokGateways for translation",
 				)
 			}
 		})

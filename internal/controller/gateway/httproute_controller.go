@@ -286,12 +286,17 @@ func (r *HTTPRouteReconciler) validateRouteParentRefs(ctx context.Context, route
 			Conditions:     []metav1.Condition{},
 		}
 
-		// Find & use existing conditions for this parentRef so we preserve previous conditions
+		// Find & use existing conditions for this parentRef so we preserve previous conditions.
+		// Only reuse conditions from our own controller to avoid picking up another controller's state.
 		for _, s := range route.Status.RouteStatus.Parents {
+			if s.ControllerName != ControllerName {
+				continue
+			}
 			if !reflect.DeepEqual(s.ParentRef, parentRef) {
 				continue
 			}
-			parentStatus.Conditions = s.Conditions
+			parentStatus.Conditions = append([]metav1.Condition(nil), s.Conditions...)
+			break
 		}
 
 		// Find the listener that matches the parentRef

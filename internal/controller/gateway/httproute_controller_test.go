@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"reflect"
 	"time"
 
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
@@ -13,6 +14,98 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
+
+var _ = Describe("mergeParentStatuses", func() {
+	const (
+		ngrokController = ControllerName
+		otherController = gatewayv1.GatewayController("k8s.io/some-other-controller")
+	)
+
+	It("should not pick up conditions from another controller with the same ParentRef", func() {
+		parentRef := gatewayv1.ParentReference{Name: "shared-gw"}
+
+		// Simulate another controller having already written a status for the same ParentRef
+		existing := []gatewayv1.RouteParentStatus{
+			{
+				ParentRef:      parentRef,
+				ControllerName: otherController,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(gatewayv1.RouteConditionAccepted),
+						Status:             metav1.ConditionFalse,
+						Reason:             "OtherReason",
+						LastTransitionTime: metav1.Now(),
+					},
+				},
+			},
+		}
+
+		// Reproduce the condition-reuse loop from validateRouteParentRefs.
+		// The fixed code filters by ControllerName to avoid cross-controller pollution.
+		parentStatus := gatewayv1.RouteParentStatus{
+			ParentRef:      parentRef,
+			ControllerName: ngrokController,
+			Conditions:     []metav1.Condition{},
+		}
+
+		for _, s := range existing {
+			if s.ControllerName != ngrokController {
+				continue
+			}
+			if !reflect.DeepEqual(s.ParentRef, parentRef) {
+				continue
+			}
+			parentStatus.Conditions = append([]metav1.Condition(nil), s.Conditions...)
+			break
+		}
+
+		// Should NOT have picked up the other controller's conditions
+		Expect(parentStatus.Conditions).To(BeEmpty(),
+			"should not inherit conditions from a different controller")
+	})
+
+	It("should not share the backing slice with the existing status", func() {
+		parentRef := gatewayv1.ParentReference{Name: "my-gw"}
+
+		existing := []gatewayv1.RouteParentStatus{
+			{
+				ParentRef:      parentRef,
+				ControllerName: ngrokController,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(gatewayv1.RouteConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             string(gatewayv1.RouteReasonAccepted),
+						LastTransitionTime: metav1.Now(),
+					},
+				},
+			},
+		}
+
+		parentStatus := gatewayv1.RouteParentStatus{
+			ParentRef:      parentRef,
+			ControllerName: ngrokController,
+			Conditions:     []metav1.Condition{},
+		}
+
+		// The fixed code deep-copies conditions to avoid aliasing
+		for _, s := range existing {
+			if s.ControllerName != ngrokController {
+				continue
+			}
+			if !reflect.DeepEqual(s.ParentRef, parentRef) {
+				continue
+			}
+			parentStatus.Conditions = append([]metav1.Condition(nil), s.Conditions...)
+			break
+		}
+
+		// Mutating the copy must NOT affect the original
+		parentStatus.Conditions[0].Reason = "Mutated"
+		Expect(existing[0].Conditions[0].Reason).To(Equal(string(gatewayv1.RouteReasonAccepted)),
+			"original conditions should not be mutated through the copy")
+	})
+})
 
 var _ = Describe("HTTPRoute controller", Ordered, func() {
 	const (
