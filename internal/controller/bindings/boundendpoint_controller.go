@@ -254,7 +254,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			// real error
-			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "url", cr.Spec.GetEndpointURL())
 			return r.updateStatus(ctx, cr, err)
 		}
 
@@ -284,7 +284,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			// real error
-			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "url", cr.Spec.GetEndpointURL())
 			return r.updateStatus(ctx, cr, err)
 		}
 
@@ -528,7 +528,7 @@ func (r *BoundEndpointReconciler) findBoundEndpointsForService(ctx context.Conte
 
 // tryToBindEndpoint attempts a TCP connection through the provisioned services for the BoundEndpoint
 func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
-	log := ctrl.LoggerFrom(ctx).WithValues("uri", boundEndpoint.Spec.EndpointURI)
+	log := ctrl.LoggerFrom(ctx).WithValues("url", boundEndpoint.Spec.GetEndpointURL())
 
 	bindErrMsg := fmt.Sprintf("connectivity check failed for BoundEndpoint %s", boundEndpoint.Name)
 
@@ -540,17 +540,17 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 	retries := 8
 
 	// rely on kube-dns to resolve the targetService's ExternalName
-	uri, err := url.Parse(boundEndpoint.Spec.EndpointURI)
+	uri, err := url.Parse(boundEndpoint.Spec.GetEndpointURL())
 	if err != nil {
-		wrappedErr := fmt.Errorf("failed to parse BoundEndpoint URI %s: %w", boundEndpoint.Spec.EndpointURI, err)
-		log.Error(wrappedErr, bindErrMsg, "uri", boundEndpoint.Spec.EndpointURI)
+		wrappedErr := fmt.Errorf("failed to parse BoundEndpoint URL %s: %w", boundEndpoint.Spec.GetEndpointURL(), err)
+		log.Error(wrappedErr, bindErrMsg, "url", boundEndpoint.Spec.GetEndpointURL())
 		return wrappedErr
 	}
 
 	for i := range retries {
 		select {
 		case <-ctx.Done():
-			err = errors.New("attempting to connect to BoundEndpoint URI timed out")
+			err = errors.New("attempting to connect to BoundEndpoint URL timed out")
 			log.Error(err, bindErrMsg)
 			return err
 
