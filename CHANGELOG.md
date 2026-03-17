@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.20.3
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.2...ngrok-operator-0.20.3
+
+### Fixed
+- Fixed several bugs where the operator would overwrite statuses and create resources for Ingress/Gateway objects managed by other controllers. This includes fixing HTTPRoute parent ref merging, Gateway status overwrites, and Domain CR creation for non-ngrok classes. by @alex-bezek in [#781](https://github.com/ngrok/ngrok-operator/pull/781)
+
 ## 0.20.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.1...ngrok-operator-0.20.2
 
