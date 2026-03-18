@@ -88,13 +88,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 
-		err = r.Driver.Sync(ctx, r.Client)
-		if err != nil {
-			log.Error(err, "Failed to sync after removing gateway from store")
-			return ctrl.Result{}, err
-		}
-
-		return ctrl.Result{}, nil
+		return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 	}
 
 	if err != nil {
@@ -146,12 +140,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if err := r.Driver.Sync(ctx, r.Client); err != nil {
-		log.Error(err, "Failed to sync")
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 }
 
 const (

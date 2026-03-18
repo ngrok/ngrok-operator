@@ -70,13 +70,7 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			return ctrl.Result{}, err
 		}
 
-		err = r.Driver.Sync(ctx, r.Client)
-		if err != nil {
-			log.Error(err, "failed to sync after removing TLSRoute from store")
-			return ctrl.Result{}, err
-		}
-
-		return ctrl.Result{}, nil
+		return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 	default:
 		return ctrl.Result{}, err
 	}
@@ -128,12 +122,7 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	if err := r.Driver.Sync(ctx, r.Client); err != nil {
-		log.Error(err, "failed to sync after reconciling TLSRoutes")
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 }
 
 // SetupWithManager sets up the controller with the Manager.
