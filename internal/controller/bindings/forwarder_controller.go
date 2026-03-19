@@ -95,7 +95,7 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 		StatusID: r.statusID,
 	}
 
-	cont, err := controllerruntime.NewUnmanaged("bindings-forwarder-controller", mgr, controllerruntime.Options{
+	cont, err := controllerruntime.NewUnmanaged("bindings-forwarder-controller", controllerruntime.Options{
 		Reconciler: r,
 		LogConstructor: func(_ *reconcile.Request) logr.Logger {
 			return r.Log
