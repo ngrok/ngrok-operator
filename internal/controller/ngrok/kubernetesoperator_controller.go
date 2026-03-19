@@ -42,7 +42,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -320,10 +319,10 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	// Update the KubernetesOperator in the ngrok API
 	updateParams := &ngrok.KubernetesOperatorUpdate{
 		ID:              ngrokKo.ID,
-		Description:     ptr.To(ko.Spec.Description),
-		Metadata:        ptr.To(r.tryMergeMetadata(ctx, ko)),
+		Description:     new(ko.Spec.Description),
+		Metadata:        new(r.tryMergeMetadata(ctx, ko)),
 		EnabledFeatures: calculateFeaturesEnabled(ko),
-		Region:          ptr.To(ko.Spec.Region),
+		Region:          new(ko.Spec.Region),
 		Deployment:      deployment,
 	}
 
@@ -338,7 +337,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
 			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
-			CSR:               ptr.To(string(tlsSecret.Data["tls.csr"])),
+			CSR:               new(string(tlsSecret.Data["tls.csr"])),
 		}
 	}
 

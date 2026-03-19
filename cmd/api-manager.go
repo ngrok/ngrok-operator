@@ -35,7 +35,6 @@ import (
 	// "main", they are all subcommands
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/ptr"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
@@ -490,7 +489,7 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 	// by making a dummy request to list API keys
 	// and checking for errors
 	cApiKeys := api_keys.NewClient(ngrokClientConfig)
-	cIter := cApiKeys.List(&ngrok.Paging{Limit: ptr.To("1")})
+	cIter := cApiKeys.List(&ngrok.Paging{Limit: new("1")})
 	cIter.Next(ctx)
 	if cIter.Err() != nil {
 		return nil, fmt.Errorf("Unable to verify API Key: %w", cIter.Err())
@@ -627,7 +626,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Scheme:                     mgr.GetScheme(),
 		Recorder:                   mgr.GetEventRecorderFor("cloud-endpoint-controller"),
 		NgrokClientset:             ngrokClientset,
-		DefaultDomainReclaimPolicy: ptr.To(defaultDomainReclaimPolicy),
+		DefaultDomainReclaimPolicy: new(defaultDomainReclaimPolicy),
 		ControllerLabels:           controllerLabels,
 		DrainState:                 drainState,
 	}).SetupWithManager(mgr); err != nil {

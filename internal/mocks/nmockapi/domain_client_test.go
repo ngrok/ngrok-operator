@@ -277,8 +277,8 @@ var _ = Describe("DomainClient", func() {
 			BeforeEach(func() {
 				domainUpdate = &ngrok.ReservedDomainUpdate{
 					ID:          createdDomain.ID,
-					Metadata:    ngrok.String("new-metadata"),
-					Description: ngrok.String("new-description"),
+					Metadata:    new("new-metadata"),
+					Description: new("new-description"),
 				}
 			})
 
@@ -295,8 +295,8 @@ var _ = Describe("DomainClient", func() {
 			BeforeEach(func() {
 				domainUpdate = &ngrok.ReservedDomainUpdate{
 					ID:          "non-existing-id",
-					Metadata:    ngrok.String("new-metadata"),
-					Description: ngrok.String("new-description"),
+					Metadata:    new("new-metadata"),
+					Description: new("new-description"),
 				}
 			})
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"sync"
@@ -191,9 +192,7 @@ func (d *Driver) GetStore() store.Storer {
 
 func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[string]string) (string, error) {
 	metaData := make(map[string]string)
-	for k, v := range customNgrokMetadata {
-		metaData[k] = v
-	}
+	maps.Copy(metaData, customNgrokMetadata)
 	if _, ok := metaData["owned-by"]; !ok {
 		metaData["owned-by"] = owner
 	}
@@ -205,7 +204,7 @@ func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[str
 	return string(jsonString), nil
 }
 
-func listObjectsForType(ctx context.Context, client client.Reader, v interface{}, listOpts ...client.ListOption) ([]client.Object, error) {
+func listObjectsForType(ctx context.Context, client client.Reader, v any, listOpts ...client.ListOption) ([]client.Object, error) {
 	switch v.(type) {
 
 	// ----------------------------------------------------------------------------
@@ -310,7 +309,7 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 // - CloudEndpoints
 // When the sync method becomes a background process, this likely won't be needed anymore
 func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.ListOption) error {
-	typesToSeed := []interface{}{
+	typesToSeed := []any{
 		&netv1.Ingress{},
 		&netv1.IngressClass{},
 		&corev1.Service{},
@@ -1120,9 +1119,7 @@ func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, 
 	}
 
 	if requestRedirectHeaders != nil {
-		for k, v := range config.Headers {
-			requestRedirectHeaders[k] = v
-		}
+		maps.Copy(requestRedirectHeaders, config.Headers)
 	}
 
 	addHeaders, err := json.Marshal(config)

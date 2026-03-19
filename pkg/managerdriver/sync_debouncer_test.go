@@ -83,7 +83,7 @@ func TestSyncDebouncer(t *testing.T) {
 	// how many requested a requeue vs succeeded without one.
 	collectResults := func(t *testing.T, ch <-chan reconcileResult, n int) (requeues, successes int) {
 		t.Helper()
-		for i := 0; i < n; i++ {
+		for i := range n {
 			select {
 			case res := <-ch:
 				require.NoError(t, res.err, "reconcile %d returned unexpected error", i)
@@ -103,7 +103,7 @@ func TestSyncDebouncer(t *testing.T) {
 		t.Parallel()
 		d := newDriver()
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			result, err := reconcileSync(d, context.Background())
 			require.NoError(t, err)
 			assert.False(t, result.Requeue, "iteration %d", i)
@@ -124,7 +124,7 @@ func TestSyncDebouncer(t *testing.T) {
 		var ready sync.WaitGroup
 		ready.Add(N)
 
-		for i := 0; i < N; i++ {
+		for range N {
 			go func() {
 				ready.Done()
 				r, e := reconcileSync(d, ctx)
@@ -237,7 +237,7 @@ func TestSyncDebouncer(t *testing.T) {
 		var ready sync.WaitGroup
 		ready.Add(N)
 
-		for i := 0; i < N; i++ {
+		for range N {
 			go func() {
 				ready.Done()
 				r, e := HandleSyncResult(d.Sync(ctx, c))

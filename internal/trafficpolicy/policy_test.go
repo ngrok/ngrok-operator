@@ -53,7 +53,7 @@ func TestTrafficPolicy(t *testing.T) {
 			Expressions: []string{"[1,2,3].all(x, x > 0)"},
 			Actions: []Action{
 				NewRestricIPsActionFromIPPolicies([]string{"ipp_123", "ipp_456"}),
-				NewTerminateTLSAction(TLSTerminationConfig{MinVersion: ptr.To("1.2")}),
+				NewTerminateTLSAction(TLSTerminationConfig{MinVersion: new("1.2")}),
 			},
 		},
 	)
@@ -265,7 +265,6 @@ func TestTrafficPolicyDeepCopy(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			copy, err := tc.original.DeepCopy()
 			require.NoError(t, err, "DeepCopy should not return an error")

@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/utils/ptr"
 )
 
 func TestSanitizeStringForURL(t *testing.T) {
@@ -65,7 +64,6 @@ func TestSanitizeStringForURL(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			actual := sanitizeStringForURL(tc.input)
 			assert.Equal(t, tc.expected, actual)
@@ -178,12 +176,11 @@ func TestBuildInternalEndpointURL(t *testing.T) {
 			port:          8080,
 			serviceUID:    "1234",
 			protocol:      "invalid",
-			expectedErr:   ptr.To("unable to get scheme for protocol \"invalid\", expected HTTP/HTTPS/TCP/TLS"),
+			expectedErr:   new("unable to get scheme for protocol \"invalid\", expected HTTP/HTTPS/TCP/TLS"),
 		},
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := buildInternalEndpointURL(tc.protocol, tc.serviceUID, tc.serviceName, tc.namespace, tc.clusterDomain, tc.port, tc.upstreamClientCertRefs)
 			if tc.expectedErr != nil {
@@ -277,7 +274,6 @@ func TestNetv1PathTypeToIR(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			logger := logr.New(logr.Discard().GetSink())
 			result := netv1PathTypeToIR(logger, tc.pathType)

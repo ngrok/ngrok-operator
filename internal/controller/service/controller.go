@@ -671,7 +671,6 @@ func (r serviceSubresourceReconcilers) GetOwnedResources(ctx context.Context, c 
 func (r serviceSubresourceReconcilers) Reconcile(ctx context.Context, c client.Client, objects []client.Object) error {
 	g, gctx := errgroup.WithContext(ctx)
 	for _, srr := range r {
-		srr := srr
 		g.Go(func() error {
 			return srr.Reconcile(gctx, c, objects)
 		})
@@ -682,7 +681,6 @@ func (r serviceSubresourceReconcilers) Reconcile(ctx context.Context, c client.C
 func (r serviceSubresourceReconcilers) UpdateServiceStatus(ctx context.Context, c client.Client, svc *corev1.Service, o client.Object) error {
 	g, gctx := errgroup.WithContext(ctx)
 	for _, srr := range r {
-		srr := srr
 		g.Go(func() error {
 			return srr.UpdateServiceStatus(gctx, c, svc, o)
 		})

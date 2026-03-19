@@ -350,7 +350,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is unknown", func() {
 				BeforeEach(func() {
 					// Set an unknown appProtocol on the httpService
-					httpService.Spec.Ports[0].AppProtocol = ptr.To("unknown")
+					httpService.Spec.Ports[0].AppProtocol = new("unknown")
 					// Modify the ingress to include the httpService
 					setIngressTargetService(ingress, httpService)
 				})
@@ -370,7 +370,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is http", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
-					httpService.Spec.Ports[0].AppProtocol = ptr.To("http")
+					httpService.Spec.Ports[0].AppProtocol = new("http")
 					// Modify the ingress to include the httpService
 					setIngressTargetService(ingress, httpService)
 				})
@@ -389,7 +389,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is k8s.ngrok.com/http2", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
-					httpsService.Spec.Ports[0].AppProtocol = ptr.To("k8s.ngrok.com/http2")
+					httpsService.Spec.Ports[0].AppProtocol = new("k8s.ngrok.com/http2")
 
 					// Modify the ingress to include the httpsService
 					setIngressTargetService(ingress, httpsService)
@@ -409,7 +409,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is kubernetes.io/h2c", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
-					httpsService.Spec.Ports[0].AppProtocol = ptr.To("kubernetes.io/h2c")
+					httpsService.Spec.Ports[0].AppProtocol = new("kubernetes.io/h2c")
 
 					// Modify the ingress to include the httpsService
 					setIngressTargetService(ingress, httpsService)
@@ -564,7 +564,7 @@ var _ = Describe("Driver", func() {
 								Actions: []trafficpolicy.Action{
 									{
 										Type:   "compress-response",
-										Config: map[string]interface{}{},
+										Config: map[string]any{},
 									},
 								},
 							},
@@ -599,7 +599,7 @@ var _ = Describe("Driver", func() {
 								Actions: []trafficpolicy.Action{
 									{
 										Type:   "compress-response",
-										Config: map[string]interface{}{},
+										Config: map[string]any{},
 									},
 								},
 							},
@@ -1773,7 +1773,7 @@ var _ = Describe("RecordDomainEventsForIngress", func() {
 		driver.recordDomainEventsForIngress(ingress, domains)
 
 		var events []string
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			var event string
 			Expect(fakeRecorder.Events).To(Receive(&event))
 			events = append(events, event)
