@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -219,22 +218,22 @@ var _ = Describe("IPPolicyDiff", func() {
 		Expect(diff.Next()).To(BeTrue())
 		Expect(diff.NeedsDelete()).To(BeEmpty())
 		Expect(diff.NeedsUpdate()).To(BeEmpty())
-		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[2].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)}}))
+		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[2].CIDR, Action: new(IPPolicyRuleActionDeny)}}))
 
 		Expect(diff.Next()).To(BeTrue())
 		Expect(diff.NeedsUpdate()).To(BeEmpty())
 		Expect(diff.NeedsDelete()).To(Equal([]*ngrok.IPPolicyRule{remoteRules[0]}))
-		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[0].CIDR, Action: ptr.To(IPPolicyRuleActionDeny)}}))
+		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[0].CIDR, Action: new(IPPolicyRuleActionDeny)}}))
 
 		Expect(diff.Next()).To(BeTrue())
 		Expect(diff.NeedsUpdate()).To(BeEmpty())
 		Expect(diff.NeedsDelete()).To(Equal([]*ngrok.IPPolicyRule{remoteRules[1]}))
-		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[1].CIDR, Action: ptr.To(IPPolicyRuleActionAllow)}}))
+		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[1].CIDR, Action: new(IPPolicyRuleActionAllow)}}))
 
 		Expect(diff.Next()).To(BeTrue())
 		Expect(diff.NeedsUpdate()).To(BeEmpty())
 		Expect(diff.NeedsDelete()).To(BeEmpty())
-		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[3].CIDR, Action: ptr.To(IPPolicyRuleActionAllow)}}))
+		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[3].CIDR, Action: new(IPPolicyRuleActionAllow)}}))
 
 		Expect(diff.Next()).To(BeTrue())
 		Expect(diff.NeedsUpdate()).To(BeEmpty())
@@ -244,7 +243,7 @@ var _ = Describe("IPPolicyDiff", func() {
 		Expect(diff.Next()).To(BeTrue())
 		Expect(diff.NeedsDelete()).To(BeEmpty())
 		Expect(diff.NeedsCreate()).To(BeEmpty())
-		Expect(diff.NeedsUpdate()).To(Equal([]*ngrok.IPPolicyRuleUpdate{{ID: "5", CIDR: ptr.To("172.19.0.0/16"), Description: ptr.To("b"), Metadata: ptr.To("")}}))
+		Expect(diff.NeedsUpdate()).To(Equal([]*ngrok.IPPolicyRuleUpdate{{ID: "5", CIDR: new("172.19.0.0/16"), Description: new("b"), Metadata: new("")}}))
 
 		Expect(diff.Next()).To(BeFalse())
 	})

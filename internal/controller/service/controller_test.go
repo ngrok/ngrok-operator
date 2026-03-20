@@ -98,7 +98,7 @@ func SetServiceType(svcType corev1.ServiceType) ServiceModifier {
 
 func SetLoadBalancerClass(lbClass string) ServiceModifier {
 	return func(svc *corev1.Service) {
-		svc.Spec.LoadBalancerClass = ptr.To(lbClass)
+		svc.Spec.LoadBalancerClass = new(lbClass)
 	}
 }
 
@@ -627,7 +627,7 @@ var _ = Describe("ServiceController", func() {
 						fetchedAep := &aeps.Items[0]
 						fetchedAep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 							Name:      domainName,
-							Namespace: ptr.To(namespace),
+							Namespace: new(namespace),
 						}
 						return k8sClient.Status().Update(ctx, fetchedAep)
 					}, timeout, interval).Should(Succeed())
@@ -740,7 +740,7 @@ var _ = Describe("ServiceController", func() {
 						fetchedClep := &cleps.Items[0]
 						fetchedClep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 							Name:      domainName,
-							Namespace: ptr.To(namespace),
+							Namespace: new(namespace),
 						}
 						return k8sClient.Status().Update(ctx, fetchedClep)
 					}, timeout, interval).Should(Succeed())
@@ -859,7 +859,7 @@ var _ = Describe("ServiceController", func() {
 									Kind:       "Service",
 									Name:       fetched.Name,
 									UID:        fetched.UID,
-									Controller: ptr.To(true),
+									Controller: new(true),
 								},
 							},
 						},

@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -22,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/events"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
@@ -350,7 +350,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is unknown", func() {
 				BeforeEach(func() {
 					// Set an unknown appProtocol on the httpService
-					httpService.Spec.Ports[0].AppProtocol = ptr.To("unknown")
+					httpService.Spec.Ports[0].AppProtocol = new("unknown")
 					// Modify the ingress to include the httpService
 					setIngressTargetService(ingress, httpService)
 				})
@@ -370,7 +370,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is http", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
-					httpService.Spec.Ports[0].AppProtocol = ptr.To("http")
+					httpService.Spec.Ports[0].AppProtocol = new("http")
 					// Modify the ingress to include the httpService
 					setIngressTargetService(ingress, httpService)
 				})
@@ -389,7 +389,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is k8s.ngrok.com/http2", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
-					httpsService.Spec.Ports[0].AppProtocol = ptr.To("k8s.ngrok.com/http2")
+					httpsService.Spec.Ports[0].AppProtocol = new("k8s.ngrok.com/http2")
 
 					// Modify the ingress to include the httpsService
 					setIngressTargetService(ingress, httpsService)
@@ -409,7 +409,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is kubernetes.io/h2c", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
-					httpsService.Spec.Ports[0].AppProtocol = ptr.To("kubernetes.io/h2c")
+					httpsService.Spec.Ports[0].AppProtocol = new("kubernetes.io/h2c")
 
 					// Modify the ingress to include the httpsService
 					setIngressTargetService(ingress, httpsService)
@@ -564,7 +564,7 @@ var _ = Describe("Driver", func() {
 								Actions: []trafficpolicy.Action{
 									{
 										Type:   "compress-response",
-										Config: map[string]interface{}{},
+										Config: map[string]any{},
 									},
 								},
 							},
@@ -599,7 +599,7 @@ var _ = Describe("Driver", func() {
 								Actions: []trafficpolicy.Action{
 									{
 										Type:   "compress-response",
-										Config: map[string]interface{}{},
+										Config: map[string]any{},
 									},
 								},
 							},
@@ -1253,20 +1253,20 @@ var _ = Describe("Driver", func() {
 		It("HandleSyncResult converts ErrSyncRequeue to Requeue", func() {
 			result, err := HandleSyncResult(ErrSyncRequeue)
 			Expect(err).To(BeNil())
-			Expect(result.Requeue).To(BeTrue())
+			Expect(result.RequeueAfter).To(BeNumerically(">", 0))
 		})
 
 		It("HandleSyncResult passes through real errors", func() {
 			realErr := errors.New("something went wrong")
 			result, err := HandleSyncResult(realErr)
 			Expect(err).To(Equal(realErr))
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.RequeueAfter).To(BeZero())
 		})
 
 		It("HandleSyncResult passes through nil", func() {
 			result, err := HandleSyncResult(nil)
 			Expect(err).To(BeNil())
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.RequeueAfter).To(BeZero())
 		})
 	})
 
@@ -1698,14 +1698,14 @@ func TestExtractPolicy(t *testing.T) {
 
 var _ = Describe("RecordDomainEventsForIngress", func() {
 	var driver *Driver
-	var fakeRecorder *record.FakeRecorder
+	var fakeRecorder *events.FakeRecorder
 	var scheme = runtime.NewScheme()
 
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 
 	BeforeEach(func() {
-		fakeRecorder = record.NewFakeRecorder(10)
+		fakeRecorder = events.NewFakeRecorder(10)
 		driver = NewDriver(
 			GinkgoLogr,
 			scheme,
@@ -1773,7 +1773,7 @@ var _ = Describe("RecordDomainEventsForIngress", func() {
 		driver.recordDomainEventsForIngress(ingress, domains)
 
 		var events []string
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			var event string
 			Expect(fakeRecorder.Events).To(Receive(&event))
 			events = append(events, event)

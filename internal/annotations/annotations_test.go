@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 )
 
 func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
@@ -94,7 +93,7 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 			annotations: map[string]string{
 				"k8s.ngrok.com/pooling-enabled": "true",
 			},
-			expected:    ptr.To(true),
+			expected:    new(true),
 			expectedErr: nil,
 		},
 		{
@@ -102,7 +101,7 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 			annotations: map[string]string{
 				"k8s.ngrok.com/pooling-enabled": "false",
 			},
-			expected:    ptr.To(false),
+			expected:    new(false),
 			expectedErr: nil,
 		},
 		{
@@ -110,7 +109,7 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 			annotations: map[string]string{
 				"k8s.ngrok.com/pooling-enabled": "foo",
 			},
-			expected:    ptr.To(false),
+			expected:    new(false),
 			expectedErr: nil,
 		},
 		{

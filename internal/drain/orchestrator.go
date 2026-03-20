@@ -32,7 +32,7 @@ import (
 	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -54,7 +54,7 @@ type OrchestratorConfig struct {
 	// respects cache.Options.DefaultNamespaces if configured)
 	Client client.Client
 	// Recorder is the event recorder for drain-related events
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 	// Log is the logger for drain operations
 	Log logr.Logger
 	// K8sOpNamespace is the operator's namespace (used for StateChecker)
@@ -68,7 +68,7 @@ type OrchestratorConfig struct {
 // the drain workflow and the KubernetesOperator lifecycle management.
 type Orchestrator struct {
 	client       client.Client
-	recorder     record.EventRecorder
+	recorder     events.EventRecorder
 	log          logr.Logger
 	stateChecker *StateChecker
 }
@@ -118,7 +118,7 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 	time.Sleep(2 * time.Second)
 
 	log.Info("Running drain process")
-	o.recorder.Event(ko, v1.EventTypeNormal, "DrainStarted", "Starting drain of all managed resources")
+	o.recorder.Eventf(ko, nil, v1.EventTypeNormal, "DrainStarted", "Drain", "Starting drain of all managed resources")
 
 	// Create and run the drainer
 	drainer := &Drainer{
@@ -135,7 +135,7 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 		if statusErr := o.client.Status().Update(ctx, ko); statusErr != nil {
 			log.Error(statusErr, "Failed to update drain status after error")
 		}
-		o.recorder.Event(ko, v1.EventTypeWarning, "DrainFailed", fmt.Sprintf("Drain failed: %v", err))
+		o.recorder.Eventf(ko, nil, v1.EventTypeWarning, "DrainFailed", "Drain", fmt.Sprintf("Drain failed: %v", err))
 		return OutcomeFailed, err
 	}
 
@@ -162,7 +162,7 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 	if err := o.client.Status().Update(ctx, ko); err != nil {
 		return OutcomeFailed, fmt.Errorf("failed to update drain completed status: %w", err)
 	}
-	o.recorder.Event(ko, v1.EventTypeNormal, "DrainCompleted", "All managed resources have been drained")
+	o.recorder.Eventf(ko, nil, v1.EventTypeNormal, "DrainCompleted", "Drain", "All managed resources have been drained")
 	log.Info("Drain completed successfully", "progress", result.Progress())
 
 	return OutcomeComplete, nil

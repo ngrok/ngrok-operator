@@ -229,7 +229,7 @@ func NewHTTPRoute(name string, namespace string) gatewayv1.HTTPRoute {
 						{
 							Path: &gatewayv1.HTTPPathMatch{
 								Type:  ptr.To(gatewayv1.PathMatchPathPrefix),
-								Value: ptr.To("/"),
+								Value: new("/"),
 							},
 						},
 					},

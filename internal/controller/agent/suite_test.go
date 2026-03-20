@@ -100,7 +100,7 @@ var _ = BeforeSuite(func() {
 		Client:           envMgr.GetClient(),
 		Log:              logf.Log.WithName("env-agent-endpoint-controller"),
 		Scheme:           envMgr.GetScheme(),
-		Recorder:         envMgr.GetEventRecorderFor("env-agent-endpoint-controller"),
+		Recorder:         envMgr.GetEventRecorder("env-agent-endpoint-controller"),
 		AgentDriver:      envMockDriver,
 		ControllerLabels: labels.NewControllerLabelValues(controllerNamespace, controllerName),
 	}
@@ -163,7 +163,7 @@ var _ = BeforeSuite(func() {
 		Client:           nsMgr.GetClient(),
 		Log:              logf.Log.WithName("ns-filter-test-controller"),
 		Scheme:           nsMgr.GetScheme(),
-		Recorder:         nsMgr.GetEventRecorderFor("ns-filter-test-controller"),
+		Recorder:         nsMgr.GetEventRecorder("ns-filter-test-controller"),
 		AgentDriver:      nsMockDriver,
 		ControllerLabels: labels.NewControllerLabelValues(controllerNamespace, controllerName),
 	}

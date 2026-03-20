@@ -110,7 +110,7 @@ var _ = Describe("routeReferencesNgrokGateway", Ordered, func() {
 			refs := []gatewayv1.ParentReference{
 				{
 					Name:      gatewayv1.ObjectName(gw.Name),
-					Namespace: ptr.To(gatewayv1.Namespace(gw.Namespace)),
+					Namespace: new(gatewayv1.Namespace(gw.Namespace)),
 				},
 			}
 			// Pass a different default namespace to confirm the explicit ref namespace takes precedence.

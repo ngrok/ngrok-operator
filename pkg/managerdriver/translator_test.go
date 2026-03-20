@@ -127,7 +127,6 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := buildAgentEndpoint(tc.irVirtualHost, tc.irService, tc.clusterDomain, tc.metadata)
 			require.NoError(t, err)
@@ -186,7 +185,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 				Bindings:               []string{"public"},
 				Namespace:              "foo",
 				Metadata:               "test-metadata",
-				EndpointPoolingEnabled: ptr.To(true),
+				EndpointPoolingEnabled: new(true),
 				LabelsToAdd:            map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd:       map[string]string{"test-annotations": "test-annotation-val"},
 				Listener: ir.IRListener{
@@ -201,10 +200,10 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			testName: "Name prefix",
 			irVHost: &ir.IRVirtualHost{
 				Bindings:               []string{"public"},
-				NamePrefix:             ptr.To("prefix"),
+				NamePrefix:             new("prefix"),
 				Namespace:              "foo",
 				Metadata:               "test-metadata",
-				EndpointPoolingEnabled: ptr.To(true),
+				EndpointPoolingEnabled: new(true),
 				LabelsToAdd:            map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd:       map[string]string{"test-annotations": "test-annotation-val"},
 				Listener: ir.IRListener{
@@ -218,7 +217,6 @@ func TestBuildCloudEndpoint(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			result, err := buildCloudEndpoint(tc.irVHost)
 			require.NoError(t, err)
@@ -260,7 +258,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 									Actions: []trafficpolicy.Action{
 										{
 											Type: "custom-response",
-											Config: map[string]interface{}{
+											Config: map[string]any{
 												"content": "Fallback 404 page",
 												"headers": map[string]string{
 													"content-type": "text/plain",
@@ -282,7 +280,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 						Actions: []trafficpolicy.Action{
 							{
 								Type: "custom-response",
-								Config: map[string]interface{}{
+								Config: map[string]any{
 									"content": "Fallback 404 page",
 									"headers": map[string]string{
 										"content-type": "text/plain",
@@ -327,7 +325,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 						Actions: []trafficpolicy.Action{
 							{
 								Type: "forward-internal",
-								Config: map[string]interface{}{
+								Config: map[string]any{
 									"url": "https://62d2f-test-service-default-cluster-local-8080.internal",
 								},
 							},
@@ -344,7 +342,6 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			translator := &translator{
 				clusterDomain:          "cluster.local",
@@ -424,7 +421,6 @@ func TestGatewayMethodToIR(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			result := gatewayMethodToIR(tc.input)
 			if tc.expected == nil {
@@ -441,24 +437,24 @@ func TestGatewayMethodToIR(t *testing.T) {
 // with regular yaml marshalling so we need to be a little creative about how we process them.
 type TranslatorRawTestCase struct {
 	Input struct {
-		GatewayClasses  []map[string]interface{} `yaml:"gatewayClasses"`
-		Gateways        []map[string]interface{} `yaml:"gateways"`
-		HTTPRoutes      []map[string]interface{} `yaml:"httpRoutes"`
-		TCPRoutes       []map[string]interface{} `yaml:"tcpRoutes"`
-		TLSRoutes       []map[string]interface{} `yaml:"tlsRoutes"`
-		IngressClasses  []map[string]interface{} `yaml:"ingressClasses"`
-		Ingresses       []map[string]interface{} `yaml:"ingresses"`
-		TrafficPolicies []map[string]interface{} `yaml:"trafficPolicies"`
-		Services        []map[string]interface{} `yaml:"services"`
-		Secrets         []map[string]interface{} `yaml:"secrets"`
-		Configmaps      []map[string]interface{} `yaml:"configMaps"`
-		Namespaces      []map[string]interface{} `yaml:"namespaces"`
-		ReferenceGrants []map[string]interface{} `yaml:"referenceGrants"`
+		GatewayClasses  []map[string]any `yaml:"gatewayClasses"`
+		Gateways        []map[string]any `yaml:"gateways"`
+		HTTPRoutes      []map[string]any `yaml:"httpRoutes"`
+		TCPRoutes       []map[string]any `yaml:"tcpRoutes"`
+		TLSRoutes       []map[string]any `yaml:"tlsRoutes"`
+		IngressClasses  []map[string]any `yaml:"ingressClasses"`
+		Ingresses       []map[string]any `yaml:"ingresses"`
+		TrafficPolicies []map[string]any `yaml:"trafficPolicies"`
+		Services        []map[string]any `yaml:"services"`
+		Secrets         []map[string]any `yaml:"secrets"`
+		Configmaps      []map[string]any `yaml:"configMaps"`
+		Namespaces      []map[string]any `yaml:"namespaces"`
+		ReferenceGrants []map[string]any `yaml:"referenceGrants"`
 	} `yaml:"input"`
 
 	Expected struct {
-		CloudEndpoints []map[string]interface{} `yaml:"cloudEndpoints"`
-		AgentEndpoints []map[string]interface{} `yaml:"agentEndpoints"`
+		CloudEndpoints []map[string]any `yaml:"cloudEndpoints"`
+		AgentEndpoints []map[string]any `yaml:"agentEndpoints"`
 	} `yaml:"expected"`
 }
 
@@ -911,7 +907,7 @@ func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) Tran
 }
 
 // decodeViaScheme helps us decode raw objects loaded from test data yaml files into proper objects that can then be typecast
-func decodeViaScheme(s *runtime.Scheme, rawObj map[string]interface{}) (runtime.Object, error) {
+func decodeViaScheme(s *runtime.Scheme, rawObj map[string]any) (runtime.Object, error) {
 	// Convert map to YAML
 	y, err := yaml.Marshal(rawObj)
 	if err != nil {

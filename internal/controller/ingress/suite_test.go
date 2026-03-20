@@ -143,7 +143,7 @@ var _ = BeforeSuite(func() {
 	err = (&DomainReconciler{
 		Client:        k8sManager.GetClient(),
 		Log:           logf.Log.WithName("controllers").WithName("Domain"),
-		Recorder:      k8sManager.GetEventRecorderFor("domain-controller"),
+		Recorder:      k8sManager.GetEventRecorder("domain-controller"),
 		Scheme:        k8sManager.GetScheme(),
 		DomainsClient: domainClient,
 	}).SetupWithManager(k8sManager)
@@ -156,7 +156,7 @@ var _ = BeforeSuite(func() {
 	err = (&IPPolicyReconciler{
 		Client:              k8sManager.GetClient(),
 		Log:                 logf.Log.WithName("controllers").WithName("IPPolicy"),
-		Recorder:            k8sManager.GetEventRecorderFor("ippolicy-controller"),
+		Recorder:            k8sManager.GetEventRecorder("ippolicy-controller"),
 		Scheme:              k8sManager.GetScheme(),
 		IPPoliciesClient:    ipPolicyClient,
 		IPPolicyRulesClient: ipPolicyRuleClient,

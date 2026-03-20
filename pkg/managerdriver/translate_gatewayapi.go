@@ -867,13 +867,13 @@ func gwapiRequestHeaderFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter) (
 		Actions: []trafficpolicy.Action{
 			{
 				Type: trafficpolicy.ActionType_RemoveHeaders,
-				Config: map[string]interface{}{
+				Config: map[string]any{
 					"headers": headersToRemove,
 				},
 			},
 			{
 				Type: trafficpolicy.ActionType_AddHeaders,
-				Config: map[string]interface{}{
+				Config: map[string]any{
 					"headers": headersToAdd,
 				},
 			},
@@ -913,13 +913,13 @@ func gwapiResponseHeaderFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter) 
 		Actions: []trafficpolicy.Action{
 			{
 				Type: trafficpolicy.ActionType_RemoveHeaders,
-				Config: map[string]interface{}{
+				Config: map[string]any{
 					"headers": headersToRemove,
 				},
 			},
 			{
 				Type: trafficpolicy.ActionType_AddHeaders,
-				Config: map[string]interface{}{
+				Config: map[string]any{
 					"headers": headersToAdd,
 				},
 			},
@@ -1003,7 +1003,7 @@ func gwapiRedirectFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, matchC
 		Actions: []trafficpolicy.Action{
 			{
 				Type: trafficpolicy.ActionType_Redirect,
-				Config: map[string]interface{}{
+				Config: map[string]any{
 					"from": from,
 					"to": fmt.Sprintf("%s%s%s%s%s",
 						toScheme,
@@ -1074,7 +1074,7 @@ func gwapiURLRewriteFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter, matc
 		Actions: []trafficpolicy.Action{
 			{
 				Type: trafficpolicy.ActionType_URLRewrite,
-				Config: map[string]interface{}{
+				Config: map[string]any{
 					"from": from,
 					"to": fmt.Sprintf("%s%s%s%s%s",
 						toScheme,

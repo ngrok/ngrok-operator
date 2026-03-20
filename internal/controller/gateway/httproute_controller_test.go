@@ -292,7 +292,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 								{
 									Kind:      ptr.To(gatewayv1.Kind("Service")),
 									Group:     ptr.To(gatewayv1.Group("")),
-									Namespace: ptr.To(gatewayv1.Namespace(service.Namespace)),
+									Namespace: new(gatewayv1.Namespace(service.Namespace)),
 									Name:      gatewayv1.ObjectName(service.Name),
 								},
 							},

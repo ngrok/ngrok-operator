@@ -80,7 +80,7 @@
             with pkgs;
             [
               bashInteractive
-              go
+              go_1_26
               go-tools
               golangci-lint
               gotools
