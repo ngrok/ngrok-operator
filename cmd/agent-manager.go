@@ -205,7 +205,7 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		Client:                     mgr.GetClient(),
 		Log:                        ctrl.Log.WithName("controllers").WithName("agentendpoint"),
 		Scheme:                     mgr.GetScheme(),
-		Recorder:                   mgr.GetEventRecorderFor("agentendpoint-controller"),
+		Recorder:                   mgr.GetEventRecorder("agentendpoint-controller"),
 		AgentDriver:                ad,
 		DefaultDomainReclaimPolicy: defaultDomainReclaimPolicy,
 		ControllerLabels:           labels.NewControllerLabelValues(opts.namespace, opts.managerName),

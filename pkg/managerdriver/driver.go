@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
@@ -18,7 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -66,7 +67,7 @@ type Driver struct {
 
 	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 
 	// drainState is used to check if the operator is draining.
 	// If draining, Sync() returns early to prevent creating new resources.
@@ -126,7 +127,7 @@ func WithDefaultDomainReclaimPolicy(policy ingressv1alpha1.DomainReclaimPolicy) 
 	}
 }
 
-func WithEventRecorder(recorder record.EventRecorder) DriverOpt {
+func WithEventRecorder(recorder events.EventRecorder) DriverOpt {
 	return func(d *Driver) {
 		d.recorder = recorder
 	}
@@ -558,18 +559,23 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 // ErrSyncRequeue is a sentinel returned by the sync debouncer to indicate that
 // a sync completed while the caller was waiting, and the caller should requeue
 // to ensure its store changes are captured in a subsequent sync. This is not a
-// real error — reconcilers should convert it to ctrl.Result{Requeue: true}
+// real error — reconcilers should convert it to ctrl.Result{RequeueAfter: syncRequeueDelay}
 // using HandleSyncResult.
 var ErrSyncRequeue = errors.New("sync requeue requested")
 
+// syncRequeueDelay is the duration used by HandleSyncResult when requeueing
+// after a debounced sync. A short delay avoids tight retry loops while still
+// processing missed state changes promptly.
+const syncRequeueDelay = 100 * time.Millisecond
+
 // HandleSyncResult converts a Sync or SyncEndpoints error into a
 // controller-runtime reconcile result. If the error is ErrSyncRequeue it
-// returns ctrl.Result{Requeue: true} with a nil error so controller-runtime
-// requeues without logging an error or applying exponential backoff. Real
-// errors are passed through unchanged.
+// returns ctrl.Result{RequeueAfter: syncRequeueDelay} with a nil error so
+// controller-runtime requeues without logging an error or applying exponential
+// backoff. Real errors are passed through unchanged.
 func HandleSyncResult(err error) (ctrl.Result, error) {
 	if err == ErrSyncRequeue {
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: syncRequeueDelay}, nil
 	}
 	return ctrl.Result{}, err
 }
@@ -769,8 +775,10 @@ func (d *Driver) recordDomainEventsForIngress(ingress *netv1.Ingress, domains ma
 		if readyCondition.Status == metav1.ConditionFalse {
 			d.recorder.Eventf(
 				ingress,
+				nil,
 				corev1.EventTypeWarning,
 				"DomainNotReady",
+				"Reconcile",
 				"Domain %q is not ready: %s",
 				rule.Host,
 				readyCondition.Message,

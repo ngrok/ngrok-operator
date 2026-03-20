@@ -15,7 +15,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -37,7 +37,7 @@ type DrainState = drain.State
 type BoundEndpointPoller struct {
 	client.Client
 	Log      logr.Logger
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 
 	// Namespace is the namespace to manage for BoundEndpoints
 	Namespace string
@@ -413,7 +413,7 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 	if err := r.Create(ctx, toCreate); err != nil {
 		if client.IgnoreAlreadyExists(err) != nil {
 			log.Error(err, "Failed to create BoundEndpoint", "name", name, "url", toCreate.Spec.GetEndpointURL())
-			r.Recorder.Event(toCreate, v1.EventTypeWarning, "Created", fmt.Sprintf("Failed to create BoundEndpoint: %v", err))
+			r.Recorder.Eventf(toCreate, nil, v1.EventTypeWarning, "Created", "Create", fmt.Sprintf("Failed to create BoundEndpoint: %v", err))
 			return err
 		}
 
@@ -456,7 +456,7 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 		return err
 	}
 
-	r.Recorder.Event(toCreate, v1.EventTypeNormal, "Created", "BoundEndpoint created successfully")
+	r.Recorder.Eventf(toCreate, nil, v1.EventTypeNormal, "Created", "Create", "BoundEndpoint created successfully")
 	return nil
 }
 
@@ -498,7 +498,7 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 	log.Info("Updating BoundEndpoint", "name", toUpdate.Name, "url", toUpdate.Spec.GetEndpointURL())
 	if err := r.Update(ctx, toUpdate); err != nil {
 		log.Error(err, "Failed updating BoundEndpoint", "name", toUpdate.Name, "url", toUpdate.Spec.GetEndpointURL())
-		r.Recorder.Event(toUpdate, v1.EventTypeWarning, "Updated", fmt.Sprintf("Failed to update BoundEndpoint: %v", err))
+		r.Recorder.Eventf(toUpdate, nil, v1.EventTypeWarning, "Updated", "Update", fmt.Sprintf("Failed to update BoundEndpoint: %v", err))
 		return err
 	}
 
@@ -525,7 +525,7 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 		return err
 	}
 
-	r.Recorder.Event(toUpdate, v1.EventTypeNormal, "Updated", "BoundEndpoint updated successfully")
+	r.Recorder.Eventf(toUpdate, nil, v1.EventTypeNormal, "Updated", "Update", "BoundEndpoint updated successfully")
 	return nil
 }
 

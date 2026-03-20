@@ -342,7 +342,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	// - orchestrator is passed to KubernetesOperatorReconciler for executing drain
 	drainOrchestrator := drain.NewOrchestrator(drain.OrchestratorConfig{
 		Client:         mgr.GetClient(),
-		Recorder:       mgr.GetEventRecorderFor("drain-orchestrator"),
+		Recorder:       mgr.GetEventRecorder("drain-orchestrator"),
 		Log:            ctrl.Log.WithName("drain"),
 		K8sOpNamespace: opts.namespace,
 		K8sOpName:      opts.releaseName,
@@ -408,7 +408,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		Client:            mgr.GetClient(),
 		Log:               ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
 		Scheme:            mgr.GetScheme(),
-		Recorder:          mgr.GetEventRecorderFor("kubernetes-operator-controller"),
+		Recorder:          mgr.GetEventRecorder("kubernetes-operator-controller"),
 		K8sOpNamespace:    opts.namespace,
 		K8sOpName:         opts.releaseName,
 		NgrokClientset:    ngrokClientset,
@@ -509,7 +509,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 		managerdriver.WithClusterDomain(options.clusterDomain),
 		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
 		managerdriver.WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),
-		managerdriver.WithEventRecorder(mgr.GetEventRecorderFor("k8s-resource-driver")),
+		managerdriver.WithEventRecorder(mgr.GetEventRecorder("k8s-resource-driver")),
 		managerdriver.WithDrainState(drainState),
 	}
 
@@ -560,7 +560,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:     mgr.GetClient(),
 		Log:        ctrl.Log.WithName("controllers").WithName("ingress"),
 		Scheme:     mgr.GetScheme(),
-		Recorder:   mgr.GetEventRecorderFor("ingress-controller"),
+		Recorder:   mgr.GetEventRecorder("ingress-controller"),
 		Namespace:  opts.namespace,
 		Driver:     driver,
 		DrainState: drainState,
@@ -572,7 +572,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:           mgr.GetClient(),
 		Log:              ctrl.Log.WithName("controllers").WithName("service"),
 		Scheme:           mgr.GetScheme(),
-		Recorder:         mgr.GetEventRecorderFor("service-controller"),
+		Recorder:         mgr.GetEventRecorder("service-controller"),
 		ControllerLabels: controllerLabels,
 		ClusterDomain:    opts.clusterDomain,
 		// TODO(stacks): Once we have a way to support unqualified tcp addresses(i.e. 'tcp://') in the Cloud & Agent Endpoint CRs,
@@ -588,7 +588,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:        mgr.GetClient(),
 		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
 		Scheme:        mgr.GetScheme(),
-		Recorder:      mgr.GetEventRecorderFor("domain-controller"),
+		Recorder:      mgr.GetEventRecorder("domain-controller"),
 		DomainsClient: ngrokClientset.Domains(),
 		DrainState:    drainState,
 	}).SetupWithManager(mgr); err != nil {
@@ -600,7 +600,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:              mgr.GetClient(),
 		Log:                 ctrl.Log.WithName("controllers").WithName("ip-policy"),
 		Scheme:              mgr.GetScheme(),
-		Recorder:            mgr.GetEventRecorderFor("ip-policy-controller"),
+		Recorder:            mgr.GetEventRecorder("ip-policy-controller"),
 		IPPoliciesClient:    ngrokClientset.IPPolicies(),
 		IPPolicyRulesClient: ngrokClientset.IPPolicyRules(),
 		DrainState:          drainState,
@@ -613,7 +613,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("policy-controller"),
+		Recorder: mgr.GetEventRecorder("policy-controller"),
 		Driver:   driver,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TrafficPolicy")
@@ -624,7 +624,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:                     mgr.GetClient(),
 		Log:                        ctrl.Log.WithName("controllers").WithName("cloud-endpoint"),
 		Scheme:                     mgr.GetScheme(),
-		Recorder:                   mgr.GetEventRecorderFor("cloud-endpoint-controller"),
+		Recorder:                   mgr.GetEventRecorder("cloud-endpoint-controller"),
 		NgrokClientset:             ngrokClientset,
 		DefaultDomainReclaimPolicy: new(defaultDomainReclaimPolicy),
 		ControllerLabels:           controllerLabels,
@@ -643,7 +643,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("GatewayClass"),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("gateway-class"),
+		Recorder: mgr.GetEventRecorder("gateway-class"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
 		os.Exit(1)
@@ -653,7 +653,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:     mgr.GetClient(),
 		Log:        ctrl.Log.WithName("controllers").WithName("Gateway"),
 		Scheme:     mgr.GetScheme(),
-		Recorder:   mgr.GetEventRecorderFor("gateway-controller"),
+		Recorder:   mgr.GetEventRecorder("gateway-controller"),
 		Driver:     driver,
 		DrainState: drainState,
 	}).SetupWithManager(mgr); err != nil {
@@ -665,7 +665,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:     mgr.GetClient(),
 		Log:        ctrl.Log.WithName("controllers").WithName("Gateway"),
 		Scheme:     mgr.GetScheme(),
-		Recorder:   mgr.GetEventRecorderFor("gateway-controller"),
+		Recorder:   mgr.GetEventRecorder("gateway-controller"),
 		Driver:     driver,
 		DrainState: drainState,
 	}).SetupWithManager(mgr); err != nil {
@@ -678,7 +678,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 			Client:     mgr.GetClient(),
 			Log:        ctrl.Log.WithName("controllers").WithName("TCPRoute"),
 			Scheme:     mgr.GetScheme(),
-			Recorder:   mgr.GetEventRecorderFor("tcp-route"),
+			Recorder:   mgr.GetEventRecorder("tcp-route"),
 			Driver:     driver,
 			DrainState: drainState,
 		}).SetupWithManager(mgr); err != nil {
@@ -692,7 +692,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 			Client:     mgr.GetClient(),
 			Log:        ctrl.Log.WithName("controllers").WithName("TLSRoute"),
 			Scheme:     mgr.GetScheme(),
-			Recorder:   mgr.GetEventRecorderFor("tls-route"),
+			Recorder:   mgr.GetEventRecorder("tls-route"),
 			Driver:     driver,
 			DrainState: drainState,
 		}).SetupWithManager(mgr); err != nil {
@@ -706,7 +706,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("gateway-controller"),
+		Recorder: mgr.GetEventRecorder("gateway-controller"),
 		Driver:   driver,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Namespace")
@@ -719,7 +719,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 			Client:   mgr.GetClient(),
 			Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
 			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("gateway-controller"),
+			Recorder: mgr.GetEventRecorder("gateway-controller"),
 			Driver:   driver,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "ReferenceGrant")
@@ -749,7 +749,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		Log:           ctrl.Log.WithName("controllers").WithName("BoundEndpoint"),
-		Recorder:      mgr.GetEventRecorderFor("bindings-controller"),
+		Recorder:      mgr.GetEventRecorder("bindings-controller"),
 		ClusterDomain: opts.clusterDomain,
 		UpstreamServiceLabelSelector: map[string]string{
 			"app.kubernetes.io/component": "bindings-forwarder",
@@ -764,7 +764,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 	if err := mgr.Add(&bindingscontroller.BoundEndpointPoller{
 		Client:                       mgr.GetClient(),
 		Log:                          ctrl.Log.WithName("controllers").WithName("BoundEndpointPoller"),
-		Recorder:                     mgr.GetEventRecorderFor("endpoint-binding-poller"),
+		Recorder:                     mgr.GetEventRecorder("endpoint-binding-poller"),
 		Namespace:                    opts.namespace,
 		KubernetesOperatorConfigName: opts.releaseName,
 		TargetServiceAnnotations:     targetServiceAnnotations,

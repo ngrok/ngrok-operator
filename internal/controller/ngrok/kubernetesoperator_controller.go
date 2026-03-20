@@ -41,7 +41,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -72,7 +72,7 @@ type KubernetesOperatorReconciler struct {
 	controller *controller.BaseController[*ngrokv1alpha1.KubernetesOperator]
 
 	Log            logr.Logger
-	Recorder       record.EventRecorder
+	Recorder       events.EventRecorder
 	NgrokClientset ngrokapi.Clientset
 
 	// K8sOpNamespace where the ngrok-operator is managing its resources

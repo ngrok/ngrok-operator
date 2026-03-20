@@ -53,7 +53,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -79,7 +79,7 @@ type ServiceReconciler struct {
 	client.Client
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 
 	ControllerLabels labels.ControllerLabelValues
 
@@ -281,7 +281,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if len(svc.Spec.Ports) < 1 {
-		r.Recorder.Event(svc, corev1.EventTypeWarning, "NoPorts", "Unable to handle service with no ports")
+		r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "NoPorts", "Reconcile", "Unable to handle service with no ports")
 		return ctrl.Result{}, nil
 	}
 
@@ -297,13 +297,13 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// is not fatal, so just log it and an event and continue
 	if err != nil {
 		log.Error(err, "Failed to get mapping strategy annotation")
-		r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToGetMappingStrategy", err.Error())
+		r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "FailedToGetMappingStrategy", "Reconcile", err.Error())
 	}
 
 	desired, err = r.buildEndpoints(ctx, svc, mappingStrategy)
 	if err != nil {
 		log.Error(err, "Failed to build desired endpoints")
-		r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToBuildEndpoints", err.Error())
+		r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "FailedToBuildEndpoints", "Reconcile", err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -330,7 +330,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, fmt.Errorf("failed to update service status: %w", err)
 	}
 
-	r.Recorder.Event(svc, corev1.EventTypeNormal, "Reconciled", "Successfully reconciled service and its ngrok resources")
+	r.Recorder.Eventf(svc, nil, corev1.EventTypeNormal, "Reconciled", "Reconcile", "Successfully reconciled service and its ngrok resources")
 	return ctrl.Result{}, nil
 }
 
@@ -450,7 +450,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 
 	listenerEndpointURL, err := r.getListenerURL(svc)
 	if err != nil {
-		r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToGetListenerURL", err.Error())
+		r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "FailedToGetListenerURL", "Reconcile", err.Error())
 		return objects, err
 	}
 
@@ -472,7 +472,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				Metadata:    fmt.Sprintf(`{"namespace":"%s","name":"%s"}`, svc.Namespace, svc.Name),
 			})
 			if err != nil {
-				r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToReserveTCPAddr", err.Error())
+				r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "FailedToReserveTCPAddr", "Reconcile", err.Error())
 				return objects, err
 			}
 
@@ -487,7 +487,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 			// verifying that it exists.
 			parsedURL, parseErr := url.Parse(computedEndpointURL)
 			if parseErr != nil {
-				r.Recorder.Event(svc, corev1.EventTypeWarning, "FailedToParseComputedURL", parseErr.Error())
+				r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "FailedToParseComputedURL", "Reconcile", parseErr.Error())
 				// If we can't parse the URL, we need to clear the computed URL annotation
 				if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
 					return objects, err
@@ -502,7 +502,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 					return objects, err
 				}
 				if !reserved {
-					r.Recorder.Event(svc, corev1.EventTypeWarning, "TCPAddrNotReserved", "The computed TCP address is not reserved, recomputing")
+					r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "TCPAddrNotReserved", "Reconcile", "The computed TCP address is not reserved, recomputing")
 					if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
 						return objects, err
 					}

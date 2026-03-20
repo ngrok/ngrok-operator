@@ -124,7 +124,7 @@ var _ = BeforeSuite(func() {
 	err = (&ServiceReconciler{
 		Client:           k8sManager.GetClient(),
 		Log:              logf.Log.WithName("controllers").WithName("Service"),
-		Recorder:         k8sManager.GetEventRecorderFor("service-controller"),
+		Recorder:         k8sManager.GetEventRecorder("service-controller"),
 		Scheme:           k8sManager.GetScheme(),
 		TCPAddresses:     tcpAddrsClient,
 		ControllerLabels: labels.NewControllerLabelValues(controllerLabelNamespace, controllerLabelName),

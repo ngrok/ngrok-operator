@@ -31,7 +31,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -53,7 +53,7 @@ type IPPolicyReconciler struct {
 
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 
 	IPPoliciesClient    ngrokapi.IPPoliciesClient
 	IPPolicyRulesClient ngrokapi.IPPolicyRulesClient
@@ -141,7 +141,7 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 
 	if remotePolicy.Description != policy.Spec.Description ||
 		remotePolicy.Metadata != policy.Spec.Metadata {
-		r.Recorder.Event(policy, v1.EventTypeNormal, "Updating", fmt.Sprintf("Updating IPPolicy %s", policy.Name))
+		r.Recorder.Eventf(policy, nil, v1.EventTypeNormal, "Updating", "Update", fmt.Sprintf("Updating IPPolicy %s", policy.Name))
 		_, err := r.IPPoliciesClient.Update(ctx, &ngrok.IPPolicyUpdate{
 			ID:          policy.Status.ID,
 			Description: new(policy.Spec.Description),
@@ -151,7 +151,7 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 			setIPPolicyReadyCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
 			return err
 		}
-		r.Recorder.Event(policy, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated IPPolicy %s", policy.Name))
+		r.Recorder.Eventf(policy, nil, v1.EventTypeNormal, "Updated", "Update", fmt.Sprintf("Updated IPPolicy %s", policy.Name))
 	}
 
 	err = r.createOrUpdateIPPolicyRules(ctx, policy)
