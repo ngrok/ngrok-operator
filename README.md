@@ -11,7 +11,7 @@
 <!-- badges -->
 <p>
   <a href="https://github.com/ngrok/ngrok-operator/actions?query=branch%3Amain+event%3Apush">
-      <img src="https://github.com/ngrok/ngrok-operator/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
+    <img src="https://github.com/ngrok/ngrok-operator/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
   </a>
   <a href="https://github.com/ngrok/ngrok-operator/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"/>
@@ -19,7 +19,7 @@
   <a href="#features-and-beta-status">
     <img src="https://img.shields.io/badge/Status-Beta-orange.svg" alt="Status"/>
   </a>
-   <a href="#gateway-api-status">
+  <a href="#gateway-api-status">
     <img src="https://img.shields.io/badge/Gateway_API-supported-rgba(159%2C122%2C234)" alt="Gateway API Supported"/>
   </a>
   <a href="https://ngrok.com/slack">
@@ -31,9 +31,10 @@
   <a href="https://artifacthub.io/packages/search?repo=ngrok&operators=true&sort=relevance&page=1">
     <img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/ngrok" alt="Artifacthub"/>
   </a>
-    <a href="https://github.com/ngrok/ngrok-operator/actions/workflows/trivy-image-scan.yaml">
+  <!--
+  <a href="https://github.com/ngrok/ngrok-operator/actions/workflows/trivy-image-scan.yaml">
     <img src="https://github.com/ngrok/ngrok-operator/actions/workflows/trivy-image-scan.yaml/badge.svg" alt="Trivy"/>
-  </a>
+  </a> -->
 </p>
 
 # ngrok Kubernetes Operator
