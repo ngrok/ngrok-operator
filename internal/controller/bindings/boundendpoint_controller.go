@@ -92,7 +92,7 @@ type BoundEndpointReconciler struct {
 
 // +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints/finalizers,verbs=update
+// +kubebuilder:rbac:groups=bindings.k8s.ngrok.com,resources=boundendpoints/finalizers,verbs=update;patch
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *BoundEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
