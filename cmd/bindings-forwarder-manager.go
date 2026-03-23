@@ -148,7 +148,7 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("bindings-forwarder"),
 		Scheme:                 mgr.GetScheme(),
-		Recorder:               mgr.GetEventRecorderFor("bindings-forwarder-controller"),
+		Recorder:               mgr.GetEventRecorder("bindings-forwarder-controller"),
 		BindingsDriver:         bd,
 		KubernetesOperatorName: opts.releaseName,
 		RootCAs:                certPool,

@@ -83,11 +83,11 @@ func TestSyncDebouncer(t *testing.T) {
 	// how many requested a requeue vs succeeded without one.
 	collectResults := func(t *testing.T, ch <-chan reconcileResult, n int) (requeues, successes int) {
 		t.Helper()
-		for i := 0; i < n; i++ {
+		for i := range n {
 			select {
 			case res := <-ch:
 				require.NoError(t, res.err, "reconcile %d returned unexpected error", i)
-				if res.result.Requeue {
+				if res.result.RequeueAfter > 0 {
 					requeues++
 				} else {
 					successes++
@@ -103,10 +103,10 @@ func TestSyncDebouncer(t *testing.T) {
 		t.Parallel()
 		d := newDriver()
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			result, err := reconcileSync(d, context.Background())
 			require.NoError(t, err)
-			assert.False(t, result.Requeue, "iteration %d", i)
+			assert.Zero(t, result.RequeueAfter, "iteration %d", i)
 		}
 	})
 
@@ -124,7 +124,7 @@ func TestSyncDebouncer(t *testing.T) {
 		var ready sync.WaitGroup
 		ready.Add(N)
 
-		for i := 0; i < N; i++ {
+		for range N {
 			go func() {
 				ready.Done()
 				r, e := reconcileSync(d, ctx)
@@ -162,12 +162,12 @@ func TestSyncDebouncer(t *testing.T) {
 		// The waiter should get a requeue.
 		res := <-resCh
 		require.NoError(t, res.err)
-		require.True(t, res.result.Requeue)
+		require.Greater(t, res.result.RequeueAfter, time.Duration(0))
 
 		// On retry, the debouncer is idle — sync runs to completion.
 		result, err := reconcileSync(d, ctx)
 		require.NoError(t, err)
-		assert.False(t, result.Requeue)
+		assert.Zero(t, result.RequeueAfter)
 	})
 
 	t.Run("SyncEndpoints shares the debouncer with Sync", func(t *testing.T) {
@@ -190,7 +190,7 @@ func TestSyncDebouncer(t *testing.T) {
 
 		res := <-resCh
 		require.NoError(t, res.err)
-		assert.True(t, res.result.Requeue, "SyncEndpoints waiter should be requeued")
+		assert.Greater(t, res.result.RequeueAfter, time.Duration(0), "SyncEndpoints waiter should be requeued")
 	})
 
 	t.Run("context cancellation releases waiting reconciler", func(t *testing.T) {
@@ -237,7 +237,7 @@ func TestSyncDebouncer(t *testing.T) {
 		var ready sync.WaitGroup
 		ready.Add(N)
 
-		for i := 0; i < N; i++ {
+		for range N {
 			go func() {
 				ready.Done()
 				r, e := HandleSyncResult(d.Sync(ctx, c))

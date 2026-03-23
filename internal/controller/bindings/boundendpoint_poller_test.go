@@ -355,7 +355,7 @@ func Test_BoundEndpointPoller_hashURL(t *testing.T) {
 	endpointURL := "http://service.namespace:8080"
 
 	// hash must be consistent
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		hashed := hashURL(endpointURL)
 
 		// ensure hashed name meets k8s DNS naming requirements

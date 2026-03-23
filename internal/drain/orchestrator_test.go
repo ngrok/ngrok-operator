@@ -39,7 +39,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -68,7 +68,7 @@ func TestOrchestrator_State(t *testing.T) {
 
 	orchestrator := NewOrchestrator(OrchestratorConfig{
 		Client:         client,
-		Recorder:       record.NewFakeRecorder(10),
+		Recorder:       events.NewFakeRecorder(10),
 		Log:            logr.Discard(),
 		K8sOpNamespace: "ngrok-operator",
 		K8sOpName:      "my-release",
@@ -103,7 +103,7 @@ func TestOrchestrator_HandleDrain_CompletesSuccessfully(t *testing.T) {
 		WithStatusSubresource(ko).
 		Build()
 
-	recorder := record.NewFakeRecorder(10)
+	recorder := events.NewFakeRecorder(10)
 	orchestrator := NewOrchestrator(OrchestratorConfig{
 		Client:         client,
 		Recorder:       recorder,
@@ -143,7 +143,7 @@ func TestOrchestrator_HandleDrain_SetsStatusToDraining(t *testing.T) {
 		WithStatusSubresource(ko).
 		Build()
 
-	recorder := record.NewFakeRecorder(10)
+	recorder := events.NewFakeRecorder(10)
 	orchestrator := NewOrchestrator(OrchestratorConfig{
 		Client:         client,
 		Recorder:       recorder,
@@ -185,7 +185,7 @@ func TestOrchestrator_HandleDrain_AlreadyCompleted(t *testing.T) {
 		WithStatusSubresource(ko).
 		Build()
 
-	recorder := record.NewFakeRecorder(10)
+	recorder := events.NewFakeRecorder(10)
 	orchestrator := NewOrchestrator(OrchestratorConfig{
 		Client:         fakeClient,
 		Recorder:       recorder,
@@ -233,7 +233,7 @@ func TestOrchestrator_HandleDrain_TransientErrors_OutcomeRetry(t *testing.T) {
 		Client: fakeClient,
 	}
 
-	recorder := record.NewFakeRecorder(10)
+	recorder := events.NewFakeRecorder(10)
 	orchestrator := NewOrchestrator(OrchestratorConfig{
 		Client:         errClient,
 		Recorder:       recorder,
@@ -279,7 +279,7 @@ func TestOrchestrator_HandleDrain_ListError_OutcomeRetry(t *testing.T) {
 
 	errClient := &listErrorClient{Client: fakeClient}
 
-	recorder := record.NewFakeRecorder(10)
+	recorder := events.NewFakeRecorder(10)
 	orchestrator := NewOrchestrator(OrchestratorConfig{
 		Client:         errClient,
 		Recorder:       recorder,

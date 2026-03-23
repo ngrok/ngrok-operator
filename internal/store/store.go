@@ -112,7 +112,7 @@ func New(cs CacheStores, controllerName string, logger logr.Logger, opts ...Stor
 }
 
 // Get proxies the call to the underlying store.
-func (s Store) Get(obj runtime.Object) (interface{}, bool, error) {
+func (s Store) Get(obj runtime.Object) (any, bool, error) {
 	return s.stores.Get(obj)
 }
 

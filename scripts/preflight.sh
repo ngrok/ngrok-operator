@@ -4,8 +4,8 @@ set -eu -o pipefail
 
 GOVERSION="$(go env GOVERSION || echo "not installed")"
 
-if ! [[ "$GOVERSION" == "go1.25" ||  "$GOVERSION" = "go1.25."* ]]; then
-  echo "Detected go version $GOVERSION, but 1.25 is required"
+if ! [[ "$GOVERSION" == "go1.26" ||  "$GOVERSION" = "go1.26."* ]]; then
+  echo "Detected go version $GOVERSION, but 1.26 is required"
   exit 1
 fi
 

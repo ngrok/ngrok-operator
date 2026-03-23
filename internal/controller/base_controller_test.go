@@ -42,7 +42,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -57,7 +57,7 @@ func TestBaseController_Reconcile_ObjectNotFound(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:     c,
 		Log:      logr.Discard(),
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 		StatusID: func(_ *netv1.Ingress) string { return "" },
 	}
 
@@ -87,7 +87,7 @@ func TestBaseController_Reconcile_DrainState(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:       c,
 		Log:        logr.Discard(),
-		Recorder:   record.NewFakeRecorder(10),
+		Recorder:   events.NewFakeRecorder(10),
 		DrainState: drain.AlwaysDraining{},
 		StatusID:   func(_ *netv1.Ingress) string { return "" },
 		Create: func(_ context.Context, _ *netv1.Ingress) error {
@@ -126,7 +126,7 @@ func TestBaseController_Reconcile_DrainState_AllowsDelete(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:       c,
 		Log:        logr.Discard(),
-		Recorder:   record.NewFakeRecorder(10),
+		Recorder:   events.NewFakeRecorder(10),
 		DrainState: drain.AlwaysDraining{},
 		StatusID:   func(_ *netv1.Ingress) string { return "existing-id" },
 		Delete: func(_ context.Context, _ *netv1.Ingress) error {
@@ -162,7 +162,7 @@ func TestBaseController_Reconcile_Create(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:     c,
 		Log:      logr.Discard(),
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 		StatusID: func(_ *netv1.Ingress) string { return "" },
 		Create: func(_ context.Context, _ *netv1.Ingress) error {
 			createCalled = true
@@ -201,7 +201,7 @@ func TestBaseController_Reconcile_Update(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:     c,
 		Log:      logr.Discard(),
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 		StatusID: func(_ *netv1.Ingress) string { return "existing-id" },
 		Create: func(_ context.Context, _ *netv1.Ingress) error {
 			t.Error("Create should not be called")
@@ -243,7 +243,7 @@ func TestBaseController_Reconcile_Delete(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:     c,
 		Log:      logr.Discard(),
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 		StatusID: func(_ *netv1.Ingress) string { return "existing-id" },
 		Delete: func(_ context.Context, _ *netv1.Ingress) error {
 			deleteCalled = true
@@ -280,7 +280,7 @@ func TestBaseController_Reconcile_Delete_NotFound(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:     c,
 		Log:      logr.Discard(),
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 		StatusID: func(_ *netv1.Ingress) string { return "existing-id" },
 		Delete: func(_ context.Context, _ *netv1.Ingress) error {
 			return &ngrok.Error{
@@ -438,7 +438,7 @@ func TestBaseController_Reconcile_CreateError(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:     c,
 		Log:      logr.Discard(),
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 		StatusID: func(_ *netv1.Ingress) string { return "" },
 		Create: func(_ context.Context, _ *netv1.Ingress) error {
 			return createErr
@@ -471,7 +471,7 @@ func TestBaseController_Reconcile_UpdateError(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:     c,
 		Log:      logr.Discard(),
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 		StatusID: func(_ *netv1.Ingress) string { return "existing-id" },
 		Update: func(_ context.Context, _ *netv1.Ingress) error {
 			return updateErr
@@ -504,7 +504,7 @@ func TestBaseController_Reconcile_CustomErrResult(t *testing.T) {
 	bc := &BaseController[*netv1.Ingress]{
 		Kube:     c,
 		Log:      logr.Discard(),
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 		StatusID: func(_ *netv1.Ingress) string { return "" },
 		Create: func(_ context.Context, _ *netv1.Ingress) error {
 			return errors.New("some error")

@@ -26,6 +26,8 @@ SOFTWARE.
 package controller
 
 import (
+	"maps"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -50,9 +52,7 @@ func AddAnnotations(o client.Object, annotations map[string]string) {
 		existing = make(map[string]string)
 	}
 
-	for k, v := range annotations {
-		existing[k] = v
-	}
+	maps.Copy(existing, annotations)
 
 	o.SetAnnotations(existing)
 }
