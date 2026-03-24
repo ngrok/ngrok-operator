@@ -170,6 +170,20 @@ func (t *translator) findMatchingVHostsForXRoute(
 			)
 			continue
 		}
+
+		gatewayMetadata, err := annotations.ExtractMetadata(gateway)
+		if err != nil {
+			t.log.Error(err, "failed to read k8s.ngrok.com/metadata annotation for gateway",
+				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
+			)
+		}
+
+		gatewayDescription, err := annotations.ExtractDescription(gateway)
+		if err != nil {
+			t.log.Error(err, "failed to read k8s.ngrok.com/description annotation for gateway",
+				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
+			)
+		}
 		upstreamClientCertRefs := []ir.IRObjectRef{}
 		if gateway.Spec.BackendTLS != nil && gateway.Spec.BackendTLS.ClientCertificateRef != nil {
 			certRef := gateway.Spec.BackendTLS.ClientCertificateRef
@@ -282,7 +296,8 @@ func (t *translator) findMatchingVHostsForXRoute(
 						EndpointPoolingEnabled: useEndpointPooling,
 						TrafficPolicy:          annotationTrafficPolicy,
 						TrafficPolicyObjRef:    tpObjRef,
-						Metadata:               t.defaultGatewayMetadata,
+						Metadata:               ir.MergeMetadata(t.defaultGatewayMetadata, gatewayMetadata),
+						Description:            gatewayDescription,
 						Bindings:               bindings,
 						ClientCertRefs:         upstreamClientCertRefs,
 						MappingStrategy:        mappingStrategy,

@@ -69,6 +69,20 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			continue
 		}
 
+		resourceMetadata, err := annotations.ExtractMetadata(ingress)
+		if err != nil {
+			t.log.Error(err, "failed to read k8s.ngrok.com/metadata annotation for ingress",
+				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			)
+		}
+
+		resourceDescription, err := annotations.ExtractDescription(ingress)
+		if err != nil {
+			t.log.Error(err, "failed to read k8s.ngrok.com/description annotation for ingress",
+				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+			)
+		}
+
 		t.ingressToIR(
 			ingress,
 			defaultDestination,
@@ -79,6 +93,8 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			tpObjRef,
 			bindings,
 			mappingStrategy,
+			resourceMetadata,
+			resourceDescription,
 		)
 	}
 
@@ -103,6 +119,8 @@ func (t *translator) ingressToIR(
 	annotationTrafficPolicyRef *ir.OwningResource,
 	bindings []string,
 	mappingStrategy ir.IRMappingStrategy,
+	resourceMetadata string,
+	resourceDescription string,
 ) {
 	for _, rule := range ingress.Spec.Rules {
 		ruleHostname := rule.Host
@@ -161,7 +179,22 @@ func (t *translator) ingressToIR(
 				continue
 			}
 
-			// The current and existing configurations match, add the new owning ingress reference and keep going
+			// The current and existing configurations match, add the new owning ingress reference and keep going.
+			// Warn if this ingress has annotation values that differ from what was already set on the vhost;
+			// the first-processed resource's values win for both metadata and description.
+			mergedMetadata := ir.MergeMetadata(t.defaultIngressMetadata, resourceMetadata)
+			if mergedMetadata != "" && irVHost.Metadata != "" && mergedMetadata != irVHost.Metadata {
+				t.log.Info("multiple ingresses sharing the same hostname have different k8s.ngrok.com/metadata annotations; the metadata from the first-processed ingress will be used",
+					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+					"hostname", ruleHostname,
+				)
+			}
+			if resourceDescription != "" && irVHost.Description != "" && resourceDescription != irVHost.Description {
+				t.log.Info("multiple ingresses sharing the same hostname have different k8s.ngrok.com/description annotations; the description from the first-processed ingress will be used",
+					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
+					"hostname", ruleHostname,
+				)
+			}
 			irVHost.AddOwningResource(owningResource)
 		} else {
 			// Make a deep copy of the ingress traffic policy so that we don't taint it for subsequent rules
@@ -191,7 +224,8 @@ func (t *translator) ingressToIR(
 				Routes:                 []*ir.IRRoute{},
 				DefaultDestination:     defaultDestination,
 				EndpointPoolingEnabled: endpointPoolingEnabled,
-				Metadata:               t.defaultIngressMetadata,
+				Metadata:               ir.MergeMetadata(t.defaultIngressMetadata, resourceMetadata),
+				Description:            resourceDescription,
 				Bindings:               bindings,
 				MappingStrategy:        mappingStrategy,
 			}
