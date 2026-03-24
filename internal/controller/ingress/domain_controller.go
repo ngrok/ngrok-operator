@@ -183,6 +183,26 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 		if err != nil {
 			return r.updateStatus(ctx, domain, resp, err)
 		}
+	} else {
+		// Domain already exists in ngrok but we don't have its ID in status yet (e.g. a
+		// prior status update was lost due to a conflict). Sync any spec fields that differ
+		// so we don't silently drop changes like ResolvesTo that were applied to the spec
+		// before this reconcile ran.
+		specResolvesTo := buildResolvesToRequest(domain.Spec.ResolvesTo)
+		if domain.Spec.Description != resp.Description ||
+			domain.Spec.Metadata != resp.Metadata ||
+			!reflect.DeepEqual(specResolvesTo, resp.ResolvesTo) {
+			updateReq := &ngrok.ReservedDomainUpdate{
+				ID:          resp.ID,
+				Description: &domain.Spec.Description,
+				Metadata:    &domain.Spec.Metadata,
+				ResolvesTo:  specResolvesTo,
+			}
+			resp, err = r.DomainsClient.Update(ctx, updateReq)
+			if err != nil {
+				return r.updateStatus(ctx, domain, resp, err)
+			}
+		}
 	}
 
 	return r.updateStatus(ctx, domain, resp, nil)
