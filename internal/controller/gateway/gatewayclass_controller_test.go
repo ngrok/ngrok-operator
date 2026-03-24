@@ -123,7 +123,7 @@ var _ = Describe("GatewayClass controller", func() {
 				obj := &gatewayv1.GatewayClass{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gatewayClass), obj)).To(Succeed())
 				g.Expect(controllerutil.ContainsFinalizer(obj, gatewayv1.GatewayClassFinalizerGatewaysExist)).To(BeFalse())
-			}).Should(Succeed())
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 })
