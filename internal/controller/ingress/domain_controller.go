@@ -236,7 +236,7 @@ func (r *DomainReconciler) delete(ctx context.Context, domain *v1alpha1.Domain) 
 // finds the reserved domain by the hostname. If it doesn't exist, returns nil
 func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, domainName string) (*ngrok.ReservedDomain, error) {
 	iter := r.DomainsClient.List(&ngrok.FilteredPaging{
-		Filter: ngrok.String(fmt.Sprintf("domain == '%s'", ngrokapi.CELEscape(domainName))),
+		Filter: ngrok.String(fmt.Sprintf("obj.domain == '%s'", ngrokapi.CELEscape(domainName))),
 	})
 	if iter.Next(ctx) {
 		return iter.Item(), nil
