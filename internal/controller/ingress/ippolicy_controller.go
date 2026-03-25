@@ -235,7 +235,7 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 
 func (r *IPPolicyReconciler) getRemotePolicyRules(ctx context.Context, policyID string) ([]*ngrok.IPPolicyRule, error) {
 	iter := r.IPPolicyRulesClient.List(&ngrok.FilteredPaging{
-		Filter: ngrok.String(fmt.Sprintf("ip_policy.id == '%s'", policyID)),
+		Filter: ngrok.String(fmt.Sprintf("ip_policy.id == '%s'", ngrokapi.CELEscape(policyID))),
 	})
 	rules := make([]*ngrok.IPPolicyRule, 0)
 

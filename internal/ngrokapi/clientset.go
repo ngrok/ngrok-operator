@@ -2,6 +2,7 @@ package ngrokapi
 
 import (
 	"context"
+	"strings"
 
 	"github.com/ngrok/ngrok-api-go/v8"
 	"github.com/ngrok/ngrok-api-go/v8/endpoints"
@@ -133,4 +134,12 @@ type TCPAddressesClient interface {
 
 func (c *DefaultClientset) TCPAddresses() TCPAddressesClient {
 	return c.tcpAddrsClient
+}
+
+// CELEscape escapes a string value for safe use in a CEL filter expression
+// single-quoted string literal. It escapes backslashes and single quotes.
+func CELEscape(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `'`, `\'`)
+	return s
 }

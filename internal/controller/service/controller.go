@@ -390,7 +390,7 @@ func (r *ServiceReconciler) setComputedURLAnnotation(ctx context.Context, svc *c
 
 func (r *ServiceReconciler) tcpAddressIsReserved(ctx context.Context, hostport string) (bool, error) {
 	iter := r.TCPAddresses.List(&ngrok.FilteredPaging{
-		Filter: ngrok.String(fmt.Sprintf("addr == '%s'", hostport)),
+		Filter: ngrok.String(fmt.Sprintf("addr == '%s'", ngrokapi.CELEscape(hostport))),
 	})
 	if iter.Next(ctx) {
 		return true, nil
