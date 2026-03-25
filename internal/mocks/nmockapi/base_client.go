@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	"github.com/segmentio/ksuid"
 )
 
@@ -42,6 +42,11 @@ func (m *baseClient[T]) Get(_ context.Context, id string) (T, error) {
 }
 
 func (m *baseClient[T]) List(_ *ngrok.Paging) ngrok.Iter[T] {
+	items := slices.Collect(maps.Values(m.items))
+	return NewIter(items, nil)
+}
+
+func (m *baseClient[T]) FilteredList(_ *ngrok.FilteredPaging) ngrok.Iter[T] {
 	items := slices.Collect(maps.Values(m.items))
 	return NewIter(items, nil)
 }

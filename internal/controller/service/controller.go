@@ -33,7 +33,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -389,12 +389,11 @@ func (r *ServiceReconciler) setComputedURLAnnotation(ctx context.Context, svc *c
 }
 
 func (r *ServiceReconciler) tcpAddressIsReserved(ctx context.Context, hostport string) (bool, error) {
-	iter := r.TCPAddresses.List(&ngrok.Paging{})
-	for iter.Next(ctx) {
-		addr := iter.Item()
-		if addr.Addr == hostport {
-			return true, nil
-		}
+	iter := r.TCPAddresses.List(&ngrok.FilteredPaging{
+		Filter: ngrok.String(fmt.Sprintf("addr == '%s'", hostport)),
+	})
+	if iter.Next(ctx) {
+		return true, nil
 	}
 	return false, iter.Err()
 }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	"k8s.io/utils/ptr"
 )
 

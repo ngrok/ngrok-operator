@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )

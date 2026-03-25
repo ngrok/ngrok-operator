@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 )
 
 type IPPolicyRuleClient struct {
@@ -154,4 +154,8 @@ func (m *IPPolicyRuleClient) Items() []*ngrok.IPPolicyRule {
 		out = append(out, v)
 	}
 	return out
+}
+
+func (m *IPPolicyRuleClient) List(paging *ngrok.FilteredPaging) ngrok.Iter[*ngrok.IPPolicyRule] {
+	return m.FilteredList(paging)
 }

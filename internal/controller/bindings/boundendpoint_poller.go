@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/drain"

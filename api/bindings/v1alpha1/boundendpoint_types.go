@@ -25,7 +25,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
-	v6 "github.com/ngrok/ngrok-api-go/v7"
+	v6 "github.com/ngrok/ngrok-api-go/v8"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

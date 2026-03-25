@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 )
 

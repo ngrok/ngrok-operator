@@ -4,7 +4,7 @@ import (
 	context "context"
 	"errors"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

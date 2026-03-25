@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
@@ -115,4 +115,8 @@ func isNgrokManagedDomain(domain *ngrok.ReservedDomain) bool {
 	return slices.ContainsFunc(ngrokManagedDomainSuffixes, func(suffix string) bool {
 		return strings.HasSuffix(domain.Domain, suffix)
 	})
+}
+
+func (m *DomainClient) List(paging *ngrok.FilteredPaging) ngrok.Iter[*ngrok.ReservedDomain] {
+	return m.FilteredList(paging)
 }

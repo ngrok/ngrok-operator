@@ -3,13 +3,13 @@ package ngrokapi
 import (
 	"context"
 
-	"github.com/ngrok/ngrok-api-go/v7"
-	"github.com/ngrok/ngrok-api-go/v7/endpoints"
-	"github.com/ngrok/ngrok-api-go/v7/ip_policies"
-	"github.com/ngrok/ngrok-api-go/v7/ip_policy_rules"
-	"github.com/ngrok/ngrok-api-go/v7/kubernetes_operators"
-	"github.com/ngrok/ngrok-api-go/v7/reserved_addrs"
-	"github.com/ngrok/ngrok-api-go/v7/reserved_domains"
+	"github.com/ngrok/ngrok-api-go/v8"
+	"github.com/ngrok/ngrok-api-go/v8/endpoints"
+	"github.com/ngrok/ngrok-api-go/v8/ip_policies"
+	"github.com/ngrok/ngrok-api-go/v8/ip_policy_rules"
+	"github.com/ngrok/ngrok-api-go/v8/kubernetes_operators"
+	"github.com/ngrok/ngrok-api-go/v8/reserved_addrs"
+	"github.com/ngrok/ngrok-api-go/v8/reserved_domains"
 )
 
 type Clientset interface {
@@ -62,12 +62,16 @@ type Lister[T any] interface {
 	List(*ngrok.Paging) ngrok.Iter[T]
 }
 
+type FilteredLister[T any] interface {
+	List(*ngrok.FilteredPaging) ngrok.Iter[T]
+}
+
 type DomainClient interface {
 	Creator[*ngrok.ReservedDomainCreate, *ngrok.ReservedDomain]
 	Reader[*ngrok.ReservedDomain]
 	Updater[*ngrok.ReservedDomainUpdate, *ngrok.ReservedDomain]
 	Deletor
-	Lister[*ngrok.ReservedDomain]
+	FilteredLister[*ngrok.ReservedDomain]
 }
 
 func (c *DefaultClientset) Domains() DomainClient {
@@ -101,7 +105,7 @@ type IPPolicyRulesClient interface {
 	Creator[*ngrok.IPPolicyRuleCreate, *ngrok.IPPolicyRule]
 	Deletor
 	Updater[*ngrok.IPPolicyRuleUpdate, *ngrok.IPPolicyRule]
-	Lister[*ngrok.IPPolicyRule]
+	FilteredLister[*ngrok.IPPolicyRule]
 }
 
 func (c *DefaultClientset) IPPolicyRules() IPPolicyRulesClient {
@@ -124,7 +128,7 @@ func (c *DefaultClientset) KubernetesOperators() KubernetesOperatorsClient {
 type TCPAddressesClient interface {
 	Creator[*ngrok.ReservedAddrCreate, *ngrok.ReservedAddr]
 	Updater[*ngrok.ReservedAddrUpdate, *ngrok.ReservedAddr]
-	Lister[*ngrok.ReservedAddr]
+	FilteredLister[*ngrok.ReservedAddr]
 }
 
 func (c *DefaultClientset) TCPAddresses() TCPAddressesClient {

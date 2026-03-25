@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	. "github.com/onsi/ginkgo/v2"
@@ -655,7 +655,7 @@ var _ = Describe("DomainReconciler", func() {
 				})
 
 				It("The domain is still missing in ngrok", func() {
-					iter := domainClient.List(&ngrok.Paging{})
+					iter := domainClient.List(&ngrok.FilteredPaging{})
 					for iter.Next(ctx) {
 						d := iter.Item()
 						if d.Domain == domain.Spec.Domain {
@@ -835,7 +835,7 @@ var _ = Describe("DomainReconciler", func() {
 			}, timeout, interval).Should(Succeed())
 
 			// Verify the domain was never created in ngrok
-			iter := domainClient.List(&ngrok.Paging{})
+			iter := domainClient.List(&ngrok.FilteredPaging{})
 			for iter.Next(ctx) {
 				d := iter.Item()
 				Expect(d.Domain).ToNot(Equal("my-service.namespace.internal"),

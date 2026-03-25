@@ -3,7 +3,7 @@ package nmockapi
 import (
 	context "context"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

@@ -36,7 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -234,15 +234,13 @@ func (r *IPPolicyReconciler) createOrUpdateIPPolicyRules(ctx context.Context, po
 }
 
 func (r *IPPolicyReconciler) getRemotePolicyRules(ctx context.Context, policyID string) ([]*ngrok.IPPolicyRule, error) {
-	iter := r.IPPolicyRulesClient.List(&ngrok.Paging{})
+	iter := r.IPPolicyRulesClient.List(&ngrok.FilteredPaging{
+		Filter: ngrok.String(fmt.Sprintf("ip_policy.id == '%s'", policyID)),
+	})
 	rules := make([]*ngrok.IPPolicyRule, 0)
 
 	for iter.Next(ctx) {
-		rule := iter.Item()
-		// Filter to only rules that contain this policy ID
-		if rule.IPPolicy.ID == policyID {
-			rules = append(rules, rule)
-		}
+		rules = append(rules, iter.Item())
 	}
 
 	return rules, iter.Err()

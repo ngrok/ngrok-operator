@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 )
 
 // KubernetesOperatorsClient is a mock implementation of the ngrok API client for managing kubernetes operators.

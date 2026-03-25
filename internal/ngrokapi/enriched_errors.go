@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 )
 
 // whitespaceRegex is compiled once to avoid repeated compilation

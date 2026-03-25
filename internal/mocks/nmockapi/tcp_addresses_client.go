@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 )
 
 type TCPAddressesClient struct {
@@ -42,4 +42,8 @@ func (m *TCPAddressesClient) Create(_ context.Context, item *ngrok.ReservedAddrC
 
 func (m *TCPAddressesClient) Update(_ context.Context, _ *ngrok.ReservedAddrUpdate) (*ngrok.ReservedAddr, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (m *TCPAddressesClient) List(paging *ngrok.FilteredPaging) ngrok.Iter[*ngrok.ReservedAddr] {
+	return m.FilteredList(paging)
 }

@@ -52,8 +52,8 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/ngrok/ngrok-api-go/v7"
-	"github.com/ngrok/ngrok-api-go/v7/api_keys"
+	"github.com/ngrok/ngrok-api-go/v8"
+	"github.com/ngrok/ngrok-api-go/v8/api_keys"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
@@ -489,7 +489,7 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 	// by making a dummy request to list API keys
 	// and checking for errors
 	cApiKeys := api_keys.NewClient(ngrokClientConfig)
-	cIter := cApiKeys.List(&ngrok.Paging{Limit: new("1")})
+	cIter := cApiKeys.List(&ngrok.FilteredPaging{Limit: ngrok.String("1")})
 	cIter.Next(ctx)
 	if cIter.Err() != nil {
 		return nil, fmt.Errorf("Unable to verify API Key: %w", cIter.Err())

@@ -48,7 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v8"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/drain"

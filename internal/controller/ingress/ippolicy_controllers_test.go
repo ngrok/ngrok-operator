@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	ngrok "github.com/ngrok/ngrok-api-go/v7"
+	ngrok "github.com/ngrok/ngrok-api-go/v8"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
