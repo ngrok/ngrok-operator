@@ -57,7 +57,7 @@ const (
 	// MetadataAnnotation allows setting ngrok metadata on the endpoint created from this resource.
 	// The value must be a JSON object string, e.g. '{"env":"prod","team":"platform"}'.
 	// This metadata is merged with the operator-level default metadata; keys in this annotation take precedence.
-	// When multiple Ingress/HTTPRoute objects share the same endpoint, the metadata from the
+	// When multiple annotated resources share the same endpoint, the metadata from the
 	// alphabetically-first resource (by namespace/name) takes precedence per key.
 	MetadataAnnotation = "k8s.ngrok.com/metadata"
 	MetadataKey        = "metadata"
