@@ -75,7 +75,7 @@ jobs:
     - uses: actions/checkout@v6
     - uses: nixbuild/nix-quick-install-action@v34
     - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
-    - run: go mod tidy
+    - run: nix develop --command go mod tidy
     - run: git diff --exit-code go.mod
     - run: git diff --exit-code go.sum
 
@@ -134,15 +134,18 @@ jobs:
     - go-mod-tidy
     - go-fix
     if: |
-      (github.event_name == 'push' && github.ref_name == 'main')
-      ||
+      always() && !failure() && !cancelled() &&
       (
-        (needs.changes.outputs.actions == 'true') ||
-        (needs.changes.outputs.go == 'true') ||
-        (needs.changes.outputs.charts == 'true') ||
-        (needs.changes.outputs.chartyaml == 'true') ||
-        (needs.changes.outputs.tests == 'true') ||
-        (needs.changes.outputs.make == 'true')
+        (github.event_name == 'push' && github.ref_name == 'main')
+        ||
+        (
+          (needs.changes.outputs.actions == 'true') ||
+          (needs.changes.outputs.go == 'true') ||
+          (needs.changes.outputs.charts == 'true') ||
+          (needs.changes.outputs.chartyaml == 'true') ||
+          (needs.changes.outputs.tests == 'true') ||
+          (needs.changes.outputs.make == 'true')
+        )
       )
     permissions:
       contents: read
@@ -194,6 +197,7 @@ jobs:
     # Only run the e2e tests if on the main branch or in a merge queue and
     # files have changed that require e2e tests
     if: |
+      always() && !failure() && !cancelled() &&
       (github.repository == 'ngrok/ngrok-operator') &&
       (
         (github.event_name == 'push' && github.ref_name == 'main') ||
@@ -229,6 +233,7 @@ jobs:
       cancel-in-progress: false
     timeout-minutes: 30
     if: |
+      always() && !failure() && !cancelled() &&
       (github.repository == 'ngrok/ngrok-operator') &&
       (
         (github.event_name == 'push' && github.ref_name == 'main') ||
@@ -277,6 +282,7 @@ jobs:
       cancel-in-progress: false
     timeout-minutes: 60
     if: |
+      always() && !failure() && !cancelled() &&
       (github.repository == 'ngrok/ngrok-operator') &&
       (
         (github.event_name == 'push' && github.ref_name == 'main') ||
