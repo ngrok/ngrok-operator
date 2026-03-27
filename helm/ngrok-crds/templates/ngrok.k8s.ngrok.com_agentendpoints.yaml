@@ -142,8 +142,8 @@ spec:
                     description: Optionally specify the version of proxy protocol
                       to use if the upstream requires it
                     enum:
-                    - 1
-                    - 2
+                    - "1"
+                    - "2"
                     type: string
                   url:
                     description: |-
