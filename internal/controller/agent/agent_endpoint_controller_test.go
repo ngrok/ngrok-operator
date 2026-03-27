@@ -1210,6 +1210,12 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
 			}, timeout, interval).Should(Succeed())
 
+			// Set up mock before creating the secret so it's ready when the secret-watch
+			// triggers the AgentEndpoint reconcile.
+			envMockDriver.SetEndpointResult(namespace+"/cert-watch-endpoint", &agent.EndpointResult{
+				URL: "tcp://cert-watch.tcp.ngrok.io:12345",
+			})
+
 			By("Creating the client certificate secret")
 			certSecret := &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1223,11 +1229,6 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				},
 			}
 			Expect(k8sClient.Create(ctx, certSecret)).To(Succeed())
-
-			// Mock successful endpoint creation for when certificate becomes available
-			envMockDriver.SetEndpointResult(namespace+"/cert-watch-endpoint", &agent.EndpointResult{
-				URL: "tcp://cert-watch.tcp.ngrok.io:12345",
-			})
 
 			By("Waiting for controller to automatically reconcile AgentEndpoint when secret is created")
 			Eventually(func(g Gomega) {
