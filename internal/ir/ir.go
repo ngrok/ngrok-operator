@@ -3,6 +3,7 @@ package ir
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -494,24 +495,22 @@ func MergeMetadata(base, override string) string {
 		return base
 	}
 
-	var b map[string]interface{}
+	var b map[string]any
 	if base != "" {
 		// Ignore parse errors — treat invalid base as empty object
 		_ = json.Unmarshal([]byte(base), &b)
 	}
 	if b == nil {
-		b = map[string]interface{}{}
+		b = map[string]any{}
 	}
 
-	var o map[string]interface{}
+	var o map[string]any
 	if err := json.Unmarshal([]byte(override), &o); err != nil {
 		// Override is not valid JSON; return base unchanged
 		return base
 	}
 
-	for k, v := range o {
-		b[k] = v
-	}
+	maps.Copy(b, o)
 
 	out, err := json.Marshal(b)
 	if err != nil {
