@@ -4,6 +4,39 @@ This directory contains custom GitHub Copilot agents that provide specialized as
 
 ## Available Agents
 
+### Test Agent (`test-agent.agent.md`)
+
+A specialized AI agent with expert knowledge of testing the ngrok Kubernetes Operator. It writes new tests following best practices, finds and fixes flakey tests, and verifies new tests are stable and well-structured.
+
+**What it does:**
+- Writes new tests following Ginkgo v2 / Gomega best practices for this codebase
+- Verifies new tests are stable by running them repeatedly (`--repeat=N`) and with `-race`
+- Reproduces flakey test failures and identifies root causes: missing `Eventually`, race conditions, shared state, insufficient timeouts
+- Prefers fixing test code over production code unless a real bug is demonstrated
+- Confirms fixes are stable by re-running tests multiple times
+
+**How to use it:**
+
+```
+@test-agent write tests for the new MyController in internal/controller/ngrok
+```
+
+```
+@test-agent investigate why TestFooController is flakey
+```
+
+```
+@test-agent verify that the new tests I just added are not flakey
+```
+
+The agent will:
+1. Analyze the code and existing test patterns
+2. Write or fix tests following codebase conventions
+3. Run tests repeatedly to confirm stability
+4. Fix any flakiness found before finishing
+
+---
+
 ### Release Agent (`release-agent.agent.md`)
 
 A specialized AI agent that automates the release process for the ngrok Kubernetes Operator.
