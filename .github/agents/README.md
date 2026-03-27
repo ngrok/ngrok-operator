@@ -4,6 +4,36 @@ This directory contains custom GitHub Copilot agents that provide specialized as
 
 ## Available Agents
 
+### Flakey Test Agent (`flakey-test-agent.agent.md`)
+
+A specialized AI agent for identifying and fixing flakey (intermittently failing) tests in the ngrok Kubernetes Operator.
+
+**What it does:**
+- Reproduces flakey test failures by running tests repeatedly
+- Identifies common causes: missing `Eventually`, race conditions, shared state, insufficient timeouts
+- Prefers fixing test code over production code unless a real bug is demonstrated
+- Verifies fixes are stable by re-running tests multiple times
+
+**How to use it:**
+
+```
+@flakey-test-agent investigate why TestFooController is flakey
+```
+
+Or:
+
+```
+@flakey-test-agent fix the flakey tests in internal/controller/ingress
+```
+
+The agent will:
+1. Run the tests multiple times to reproduce the failure
+2. Analyze the test and production code to find the root cause
+3. Fix the test (or production code if a real bug is found)
+4. Re-run with `--repeat=20` or more to confirm the fix is stable
+
+---
+
 ### Release Agent (`release-agent.agent.md`)
 
 A specialized AI agent that automates the release process for the ngrok Kubernetes Operator.

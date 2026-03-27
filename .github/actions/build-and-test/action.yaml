@@ -32,14 +32,6 @@ runs:
         kubectl get nodes
         kubectl get pods -A
 
-    - name: Build
-      shell: bash
-      run: nix develop --command make build
-
-    - name: Test
-      shell: bash
-      run: nix develop --command make test
-
     - name: Build the Docker image
       shell: bash
       run: nix develop --command make docker-build

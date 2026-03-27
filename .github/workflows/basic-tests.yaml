@@ -1,0 +1,90 @@
+name: Basic Tests
+
+on:
+  workflow_call:
+    inputs:
+      go-changed:
+        description: "Whether Go files have changed"
+        required: false
+        type: boolean
+        default: true
+      make-changed:
+        description: "Whether Makefile has changed"
+        required: false
+        type: boolean
+        default: true
+  schedule:
+    # Run every 8 hours on the main branch to catch flakey tests
+    - cron: '0 */8 * * *'
+
+jobs:
+
+  kubebuilder-diff:
+    name: Kubebuilder Diff
+    runs-on: ubuntu-latest
+    if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Generate manifests
+      run: nix develop --command make manifests
+    - name: Fail if there are uncommitted manifest changes
+      run: |
+        git diff --exit-code
+        git diff --cached --exit-code
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Lint
+      run: nix develop --command make lint
+
+  go-mod-tidy:
+    name: Go Mod Tidy Check
+    runs-on: ubuntu-latest
+    if: ${{ inputs.go-changed || github.event_name == 'schedule' }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - run: nix develop --command go mod tidy
+    - run: git diff --exit-code go.mod
+    - run: git diff --exit-code go.sum
+
+  go-fix:
+    name: Go Fix Check
+    runs-on: ubuntu-latest
+    if: ${{ inputs.go-changed || github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Run go fix
+      run: nix develop --command make go-fix
+    - name: Fail if there are uncommitted changes
+      run: git diff --exit-code
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Run unit tests
+      run: nix develop --command make test
+    - if: github.repository == 'ngrok/ngrok-operator'
+      name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
