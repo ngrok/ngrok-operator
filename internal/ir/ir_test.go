@@ -455,20 +455,20 @@ func TestMergeMetadata(t *testing.T) {
 		name     string
 		base     string
 		override string
-		wantKeys map[string]interface{} // expected keys in merged result
-		wantRaw  string                 // when we want exact raw equality (empty string cases)
+		wantKeys map[string]any // expected keys in merged result
+		wantRaw  string         // when we want exact raw equality (empty string cases)
 	}{
 		{
 			name:     "empty override returns base unchanged",
 			base:     `{"owned-by":"ngrok-operator"}`,
 			override: "",
-			wantKeys: map[string]interface{}{"owned-by": "ngrok-operator"},
+			wantKeys: map[string]any{"owned-by": "ngrok-operator"},
 		},
 		{
 			name:     "empty base returns override",
 			base:     "",
 			override: `{"env":"prod"}`,
-			wantKeys: map[string]interface{}{"env": "prod"},
+			wantKeys: map[string]any{"env": "prod"},
 		},
 		{
 			name:     "both empty returns empty string",
@@ -480,25 +480,25 @@ func TestMergeMetadata(t *testing.T) {
 			name:     "override keys take precedence over base",
 			base:     `{"owned-by":"ngrok-operator","env":"dev"}`,
 			override: `{"env":"prod"}`,
-			wantKeys: map[string]interface{}{"owned-by": "ngrok-operator", "env": "prod"},
+			wantKeys: map[string]any{"owned-by": "ngrok-operator", "env": "prod"},
 		},
 		{
 			name:     "base and override are merged - no overlap",
 			base:     `{"owned-by":"ngrok-operator"}`,
 			override: `{"team":"platform","region":"us-east-1"}`,
-			wantKeys: map[string]interface{}{"owned-by": "ngrok-operator", "team": "platform", "region": "us-east-1"},
+			wantKeys: map[string]any{"owned-by": "ngrok-operator", "team": "platform", "region": "us-east-1"},
 		},
 		{
 			name:     "invalid override JSON returns base unchanged",
 			base:     `{"owned-by":"ngrok-operator"}`,
 			override: `not-valid-json`,
-			wantKeys: map[string]interface{}{"owned-by": "ngrok-operator"},
+			wantKeys: map[string]any{"owned-by": "ngrok-operator"},
 		},
 		{
 			name:     "invalid base JSON is treated as empty object",
 			base:     `not-valid-json`,
 			override: `{"env":"prod"}`,
-			wantKeys: map[string]interface{}{"env": "prod"},
+			wantKeys: map[string]any{"env": "prod"},
 		},
 	}
 
@@ -511,7 +511,7 @@ func TestMergeMetadata(t *testing.T) {
 				return
 			}
 
-			var got map[string]interface{}
+			var got map[string]any
 			require.NoError(t, json.Unmarshal([]byte(result), &got), "result should be valid JSON: %s", result)
 			assert.Equal(t, tc.wantKeys, got)
 		})
