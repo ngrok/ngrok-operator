@@ -24,23 +24,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Install Nix
-        uses: nixbuild/nix-quick-install-action@v34
-
-      - name: Setup Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c # main commit
-
-      - name: Install direnv
-        run: |
-          curl -sfL https://direnv.net/install.sh | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.local/bin:$PATH"
-
-      - name: Allow direnv and export environment variables
-        shell: bash
-        run: |
-          direnv allow .
-          direnv export gha >> "$GITHUB_ENV"
+      - name: Setup Nix
+        uses: ./.github/actions/nix-setup
 
       - name: Verify environment
         run: make preflight
