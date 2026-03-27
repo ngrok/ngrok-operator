@@ -64,7 +64,7 @@ var _ = Describe("MyController", func() {
     )
 
     BeforeEach(func() {
-        ctx = context.Background()
+        ctx = GinkgoT().Context()
         namespace = "test-" + rand.String(8)
         kginkgo.ExpectCreateNamespace(ctx, namespace)
     })
@@ -104,14 +104,22 @@ Eventually(func(g Gomega) {
 }).Should(Succeed())
 ```
 
-### 2. Missing `WithContext` on `Eventually`/`Consistently`
+### 2. Missing Timeout/Interval Arguments or Not Using KGinkgo Helpers
 
-Always pass the context to `Eventually` and `Consistently` so tests respect cancellation and timeouts:
+This repo's tests pass a `SpecContext` (via `GinkgoT().Context()`) to k8s client calls, but do **not** pass it as the first argument to `Eventually`/`Consistently`. Instead, always use explicit timeout/polling durations or the `kginkgo` helpers:
 
 ```go
-Eventually(ctx, func(g Gomega) {
-    // ...
-}).Should(Succeed())
+// Pass ctx to k8s client calls inside the Eventually body, not as the first argument
+Eventually(func(g Gomega) {
+    obj := &v1alpha1.MyResource{}
+    g.Expect(k8sClient.Get(ctx, key, obj)).To(Succeed())
+    g.Expect(obj.Status.Condition).To(Equal("Ready"))
+}, timeout, interval).Should(Succeed())
+
+// Or use a KGinkgo helper that handles timeouts internally
+kginkgo.EventuallyWithObject(ctx, myObject, func(g Gomega, obj client.Object) {
+    g.Expect(obj.(*v1alpha1.MyResource).Status.Condition).To(Equal("Ready"))
+})
 ```
 
 ### 3. Shared State Pollution
@@ -130,7 +138,7 @@ Eventually(ctx, func(g Gomega) {
 
 **Problem**: Background goroutines from previous tests interfere with later ones.
 
-**Fix**: Ensure `AfterSuite` properly calls `cancel()` and waits for the manager to stop. Use `DeferCleanup` for resource cleanup.
+**Fix**: Ensure `AfterSuite` properly calls `cancel()` and waits for the manager to stop. Use `AfterEach`/`AfterAll` for resource cleanup.
 
 ### 6. Order-Dependent Tests
 
@@ -200,9 +208,9 @@ go test -race -count=5 ./internal/controller/ingress/...
 
 Look for:
 - Direct `Expect` calls on eventually-consistent state (missing `Eventually`)
-- Missing `WithContext` on `Eventually`/`Consistently`
+- `Eventually`/`Consistently` without explicit timeout/interval (or not using KGinkgo helpers)
 - Shared variables modified in `It` blocks without reset in `BeforeEach`
-- Missing `DeferCleanup` or `AfterEach` teardown
+- Missing `AfterEach`/`AfterAll` teardown
 
 ### Step 3: Fix the test
 
@@ -224,10 +232,10 @@ go tool ginkgo --repeat=10 -v ./internal/controller/ingress/...
 ## Ginkgo v2 Best Practices for This Codebase
 
 1. **Always use `Eventually` for Kubernetes state**: Controllers are asynchronous; never use `Expect` directly on resource state that a reconciler changes.
-2. **Always pass `ctx` to `Eventually`/`Consistently`**: `Eventually(ctx, func(g Gomega) { ... }).Should(Succeed())`
-3. **Use `DeferCleanup` instead of `AfterEach`** when cleanup is defined at the same place as creation.
+2. **Use explicit timeout/interval with `Eventually`/`Consistently`**: Pass `timeout` and `interval` durations (or use KGinkgo helpers). Pass `ctx` only to k8s client calls inside the body, not as the first argument to `Eventually`.
+3. **You may use `DeferCleanup` instead of `AfterEach`** when cleanup is defined at the same place as creation. Existing controller tests predominantly use `AfterEach`/`AfterAll`, so prefer matching the surrounding style unless you are intentionally refactoring the suite.
 4. **Use `GinkgoWriter` for debug output** instead of `fmt.Println`.
-5. **Label slow tests** with `Label("slow")` so they can be filtered in fast runs.
+5. **If you introduce particularly slow tests, consider labeling them** with `Label("slow")` so they can be filtered in fast runs. Current tests rarely use labels, so keep consistency with nearby tests unless there is a clear benefit.
 6. **Never share mutable state between `It` blocks** without resetting in `BeforeEach`.
 7. **Use unique names** (e.g., append `rand.String(5)` or use `GinkgoT().TempDir()`) for resources to avoid cross-test contamination.
 
@@ -241,9 +249,9 @@ Place tests in the same package as the controller under test (e.g., `internal/co
 
 ### 2. Apply best practices from the start
 
-- Use `Eventually(ctx, func(g Gomega) { ... }).Should(Succeed())` for all Kubernetes state assertions — controllers are asynchronous.
+- Use `Eventually(func(g Gomega) { ... }, timeout, interval).Should(Succeed())` for all Kubernetes state assertions — controllers are asynchronous. Pass `ctx` to k8s client calls inside the body, not as the first argument.
 - Create a unique namespace per `It` block (or per `Describe` with `BeforeEach`/`AfterEach`).
-- Use `DeferCleanup` to register teardown at the point of resource creation.
+- Use `AfterEach`/`AfterAll` for cleanup, matching the surrounding test suite style. `DeferCleanup` may also be used when cleanup is defined at the point of creation.
 - Use `kginkgo` helpers (`ExpectCreateNamespace`, `ExpectDeleteNamespace`, etc.) from `internal/testutils/`.
 
 ### 3. Verify new tests are not flaky
@@ -270,12 +278,13 @@ var _ = Describe("MyNewController", func() {
     )
 
     BeforeEach(func() {
-        ctx = context.Background()
+        ctx = GinkgoT().Context()
         namespace = "test-" + rand.String(8)
         kginkgo.ExpectCreateNamespace(ctx, namespace)
-        DeferCleanup(func() {
-            kginkgo.ExpectDeleteNamespace(ctx, namespace)
-        })
+    })
+
+    AfterEach(func() {
+        kginkgo.ExpectDeleteNamespace(ctx, namespace)
     })
 
     It("should set status to Ready after reconcile", func() {
@@ -285,13 +294,13 @@ var _ = Describe("MyNewController", func() {
             Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
         })
 
-        Eventually(ctx, func(g Gomega) {
+        Eventually(func(g Gomega) {
             obj := &v1alpha1.MyResource{}
             g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(resource), obj)).To(Succeed())
             g.Expect(obj.Status.Conditions).To(ContainElement(
                 HaveField("Type", "Ready"),
             ))
-        }).Should(Succeed())
+        }, timeout, interval).Should(Succeed())
     })
 })
 ```

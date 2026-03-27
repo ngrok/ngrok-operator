@@ -6,12 +6,12 @@ This directory contains custom GitHub Copilot agents that provide specialized as
 
 ### Test Agent (`test-agent.agent.md`)
 
-A specialized AI agent with expert knowledge of testing the ngrok Kubernetes Operator. It writes new tests following best practices, finds and fixes flakey tests, and verifies new tests are stable and well-structured.
+A specialized AI agent with expert knowledge of testing the ngrok Kubernetes Operator. It writes new tests following best practices, finds and fixes flaky tests, and verifies new tests are stable and well-structured.
 
 **What it does:**
 - Writes new tests following Ginkgo v2 / Gomega best practices for this codebase
 - Verifies new tests are stable by running them repeatedly (`--repeat=N`) and with `-race`
-- Reproduces flakey test failures and identifies root causes: missing `Eventually`, race conditions, shared state, insufficient timeouts
+- Reproduces flaky test failures and identifies root causes: missing `Eventually`, race conditions, shared state, insufficient timeouts
 - Prefers fixing test code over production code unless a real bug is demonstrated
 - Confirms fixes are stable by re-running tests multiple times
 
@@ -22,11 +22,11 @@ A specialized AI agent with expert knowledge of testing the ngrok Kubernetes Ope
 ```
 
 ```
-@test-agent investigate why TestFooController is flakey
+@test-agent investigate why TestFooController is flaky
 ```
 
 ```
-@test-agent verify that the new tests I just added are not flakey
+@test-agent verify that the new tests I just added are not flaky
 ```
 
 The agent will:
