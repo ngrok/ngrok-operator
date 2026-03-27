@@ -90,7 +90,7 @@ type EndpointUpstream struct {
 
 	// Optionally specify the version of proxy protocol to use if the upstream requires it
 	//
-	// +kubebuilder:validation:Enum=1;2
+	// +kubebuilder:validation:Enum="1";"2"
 	// +kubebuilder:validation:Optional
 	ProxyProtocolVersion *commonv1alpha1.ProxyProtocolVersion `json:"proxyProtocolVersion"`
 }
