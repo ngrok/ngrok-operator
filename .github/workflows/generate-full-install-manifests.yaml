@@ -1,18 +1,11 @@
 name: 'Generate full install manifests'
 
 on:
-  push:
-    # TODO(operator-rename): Change this to main at some point so that we update the manifest bundle.
-    # This will need to be run post-release.
+  pull_request_target:
     branches:
-    - alex/single-manifest-file
-    # paths:
-    # - 'helm/**/*'
-  # pull_request_target:
-  #   branches:
-  #   - main
-  #   paths:
-  #   - 'helm/**/*'
+    - main
+    paths:
+    - 'helm/**/*'
 permissions:
   contents: write
 jobs:
