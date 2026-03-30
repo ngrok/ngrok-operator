@@ -40,10 +40,10 @@ jobs:
       (needs.changes.outputs.make == 'true')
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
     - name: Generate manifests
-      run: nix develop --command make manifests
+      run: make manifests
     - name: Fail if there are uncommited manifest changes
       run: |
         git diff --exit-code
@@ -59,10 +59,10 @@ jobs:
       (needs.changes.outputs.make == 'true')
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
     - name: Lint
-      run: nix develop --command make lint
+      run: make lint
 
   go-mod-tidy:
     name: Go Mod Tidy Check
@@ -73,9 +73,9 @@ jobs:
       (needs.changes.outputs.go == 'true')
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
-    - run: nix develop --command go mod tidy
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
+    - run: go mod tidy
     - run: git diff --exit-code go.mod
     - run: git diff --exit-code go.sum
 
@@ -90,10 +90,10 @@ jobs:
       contents: read
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
     - name: Run go fix
-      run: nix develop --command make go-fix
+      run: make go-fix
     - name: Fail if there are uncommitted changes
       run: git diff --exit-code
 
@@ -152,8 +152,8 @@ jobs:
       pull-requests: read
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
     - uses: "./.github/actions/build-and-test"
       with:
         # this workflow is for incoming PRs, so we want to skip e2e tests
@@ -173,12 +173,12 @@ jobs:
     if: needs.changes.outputs.charts == 'true'
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
     - name: Lint Helm Chart
-      run: nix develop --command make helm-lint
+      run: make helm-lint
     - name: Helm Unit Tests
-      run: nix develop --command make helm-test
+      run: make helm-test
 
   e2e:
     runs-on: ubuntu-latest
@@ -212,8 +212,8 @@ jobs:
       )
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
     - uses: "./.github/actions/build-and-test"
       with:
         run-e2e: true
@@ -248,17 +248,17 @@ jobs:
       )
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
     - name: Create Kind Cluster
-      run: nix develop --command make kind-create
+      run: make kind-create
     - name: Deploy
-      run: nix develop --command make deploy_multi_namespace
+      run: make deploy_multi_namespace
       env:
         NGROK_API_KEY: ${{ secrets.NGROK_CI_API_KEY }}
         NGROK_AUTHTOKEN: ${{ secrets.NGROK_CI_AUTHTOKEN }}
     - name: Test
-      run: nix develop --command make e2e-tests-multi-ns
+      run: make e2e-tests-multi-ns
     - name: Cleanup
       if: always()
       run: |
@@ -297,15 +297,15 @@ jobs:
       )
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
     - name: Create Kind Cluster
-      run: nix develop --command make kind-create
+      run: make kind-create
     - name: Run Uninstall E2E Tests
       env:
         NGROK_API_KEY: ${{ secrets.NGROK_CI_API_KEY }}
         NGROK_AUTHTOKEN: ${{ secrets.NGROK_CI_AUTHTOKEN }}
-      run: nix develop --command make e2e-uninstall-all
+      run: make e2e-uninstall-all
     - name: Cleanup
       if: always()
-      run: nix develop --command make e2e-clean-uninstall
+      run: make e2e-clean-uninstall
