@@ -1,0 +1,14 @@
+# Argo Rollouts plugin configuration.
+# Applied to the argo-rollouts namespace during `make argo-rollouts-install`.
+#
+# The plugin stanza is commented out until the binary is built. Once built,
+# uncomment and set the correct location (file:// for local dev, https:// for releases).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-rollouts-config
+  namespace: argo-rollouts
+data:
+  trafficRouterPlugins: |
+    - name: "ngrok/ngrok"
+      location: "file:///tmp/rollouts-plugins/ngrok-traffic-router"

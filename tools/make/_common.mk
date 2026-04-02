@@ -68,3 +68,4 @@ include tools/make/build.mk
 include tools/make/deploy.mk
 include tools/make/kind.mk
 include tools/make/release.mk
+include tools/make/argo-rollouts.mk

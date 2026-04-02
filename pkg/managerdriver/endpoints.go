@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/annotations"
 
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -73,6 +74,16 @@ func (d *Driver) applyAgentEndpoints(ctx context.Context, c client.Client, desir
 		}
 		if desiredAEP, exists := desired[objectKey]; exists {
 			needsUpdate := false
+
+			// When the rollout plugin owns the traffic policy, preserve it and the ownership annotation
+			// so each operator reconcile doesn't overwrite the plugin's rand.double() routing rules.
+			if currAEP.Annotations[annotations.RolloutManagedAnnotation] == "true" {
+				desiredAEP.Spec.TrafficPolicy = currAEP.Spec.TrafficPolicy
+				if desiredAEP.Annotations == nil {
+					desiredAEP.Annotations = make(map[string]string)
+				}
+				desiredAEP.Annotations[annotations.RolloutManagedAnnotation] = "true"
+			}
 
 			if !reflect.DeepEqual(desiredAEP.Spec, currAEP.Spec) {
 				currAEP.Spec = desiredAEP.Spec
@@ -155,6 +166,17 @@ func (d *Driver) applyCloudEndpoints(ctx context.Context, c client.Client, desir
 			// The ID is set by controller in the operator-agent pod and so we don't want the controller from the
 			// operator-manager pod (which this code runs in) to erase it
 			desiredCLEP.Status.ID = currCLEP.Status.ID
+
+			// When the rollout plugin owns the traffic policy, preserve it and the ownership
+			// annotation so each operator reconcile doesn't overwrite the plugin-managed routing rules.
+			if currCLEP.Annotations[annotations.RolloutManagedAnnotation] == "true" {
+				desiredCLEP.Spec.TrafficPolicy = currCLEP.Spec.TrafficPolicy
+				if desiredCLEP.Annotations == nil {
+					desiredCLEP.Annotations = make(map[string]string)
+				}
+				desiredCLEP.Annotations[annotations.RolloutManagedAnnotation] = "true"
+			}
+
 			if !reflect.DeepEqual(desiredCLEP.Spec, currCLEP.Spec) {
 				currCLEP.Spec = desiredCLEP.Spec
 				needsUpdate = true

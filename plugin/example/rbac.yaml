@@ -1,0 +1,34 @@
+# RBAC for the ngrok Argo Rollouts traffic router plugin.
+#
+# The plugin runs as a child process of the Argo Rollouts controller and inherits
+# its service account. These rules extend the controller's permissions to allow
+# the plugin to manage AgentEndpoints and CloudEndpoints.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-rollouts-ngrok-plugin
+rules:
+- apiGroups: ["ngrok.k8s.ngrok.com"]
+  resources: ["agentendpoints"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["ngrok.k8s.ngrok.com"]
+  resources: ["cloudendpoints"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+# Phase 2: plugin will set the rollout-managed annotation on Ingresses
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-rollouts-ngrok-plugin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-rollouts-ngrok-plugin
+subjects:
+- kind: ServiceAccount
+  name: argo-rollouts
+  namespace: argo-rollouts

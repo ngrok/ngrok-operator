@@ -1,0 +1,30 @@
+# Strategic merge patch applied to the argo-rollouts Deployment to:
+#   1. Add an initContainer that copies the ngrok plugin binary from the plugin image
+#      into a shared emptyDir volume.
+#   2. Mount that volume at /tmp/rollouts-plugins/ in the main controller container.
+#
+# Applied by: make plugin-deploy
+# The ConfigMap (argo-rollouts-config.yaml) points the controller at:
+#   file:///tmp/rollouts-plugins/ngrok-traffic-router
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: copy-ngrok-plugin
+        image: ngrok-rollouts-plugin:latest
+        imagePullPolicy: Never
+        command: ["cp", "/ngrok-traffic-router", "/plugins/ngrok-traffic-router"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+        volumeMounts:
+        - name: rollouts-plugins
+          mountPath: /plugins
+      containers:
+      - name: argo-rollouts
+        volumeMounts:
+        - name: rollouts-plugins
+          mountPath: /tmp/rollouts-plugins
+      volumes:
+      - name: rollouts-plugins
+        emptyDir: {}

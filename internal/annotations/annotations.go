@@ -53,6 +53,13 @@ const (
 	//
 	URLAnnotation = "k8s.ngrok.com/url"
 	URLKey        = "url"
+
+	// RolloutManagedAnnotation is set on an AgentEndpoint (by the Argo Rollouts plugin) to signal
+	// that the traffic policy on that endpoint is owned by the plugin for the duration of a canary rollout.
+	// While this annotation is present, the operator's reconciler will not overwrite the traffic policy
+	// or remove this annotation, allowing the plugin to manage the forwarding rules (rand.double() routing).
+	// The plugin removes the annotation when the rollout completes or is aborted.
+	RolloutManagedAnnotation = "k8s.ngrok.com/rollout-managed"
 )
 
 type MappingStrategy string

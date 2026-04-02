@@ -1,0 +1,88 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rollout-demo
+---
+# The Rollout resource replaces a Deployment for progressive delivery.
+# Argo Rollouts manages two ReplicaSets (stable and canary) and pins
+# the stable/canary Services to each via pod-template-hash selectors.
+#
+# Trigger a canary: make argo-rollouts-example-update
+# Watch progress:   make argo-rollouts-example-status
+# Promote:          make argo-rollouts-example-promote
+# Abort/rollback:   make argo-rollouts-example-abort
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: rollout-demo
+  namespace: rollout-demo
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: rollout-demo
+  template:
+    metadata:
+      labels:
+        app: rollout-demo
+    spec:
+      containers:
+      - name: rollout-demo
+        image: hashicorp/http-echo:0.2.3
+        args:
+        - "-text=stable-v1"
+        - "-listen=:5678"
+        ports:
+        - name: http
+          containerPort: 5678
+  strategy:
+    canary:
+      # Argo pins these selectors to the stable/canary ReplicaSets respectively.
+      stableService: rollout-demo-stable
+      canaryService: rollout-demo-canary
+      trafficRouting:
+        plugins:
+          ngrok/ngrok:
+            # useTrafficPolicy: true enables Phase 2 — exact rand.double() routing via
+            # Traffic Policy, using a single canary AgentEndpoint instead of a pool.
+            # Requires operator support for the rollout-managed annotation.
+            # Set to false (or omit) to use Phase 1 pool-scaling instead.
+            useTrafficPolicy: true
+            # totalPoolSize is only used in Phase 1 (useTrafficPolicy: false).
+            totalPoolSize: 10
+      steps:
+      - setWeight: 25
+      - pause: {duration: 10s}
+      - setWeight: 50
+      - pause: {duration: 10s}
+      - setWeight: 75
+      - pause: {duration: 10s}
+---
+# Argo Rollouts pins this Service's selector to the stable ReplicaSet.
+# The ngrok Ingress points at this service so stable traffic is always correct.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rollout-demo-stable
+  namespace: rollout-demo
+spec:
+  selector:
+    app: rollout-demo
+  ports:
+  - port: 80
+    targetPort: 5678
+---
+# Argo Rollouts updates this Service's selector to point at the canary ReplicaSet
+# as the rollout progresses. The ngrok plugin will use this for canary traffic routing.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rollout-demo-canary
+  namespace: rollout-demo
+spec:
+  selector:
+    app: rollout-demo
+  ports:
+  - port: 80
+    targetPort: 5678

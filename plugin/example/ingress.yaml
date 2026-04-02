@@ -1,0 +1,30 @@
+# Ingress for the rollout demo. The operator will create a CloudEndpoint and
+# AgentEndpoint from this — those are the resources the plugin will manipulate.
+#
+# Deploy with: ROLLOUT_DEMO_HOST=your-subdomain.ngrok.app make argo-rollouts-example-apply
+# The ROLLOUT_DEMO_HOST variable is substituted by envsubst in the Makefile.
+#
+# The Ingress points at rollout-demo-stable — Argo Rollouts pins that Service's
+# selector to the stable ReplicaSet, so stable traffic is always correct without
+# the plugin. Once the plugin is wired in, it will manage the AgentEndpoint pool
+# to split traffic between stable and canary.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rollout-demo
+  namespace: rollout-demo
+  annotations:
+    k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
+spec:
+  ingressClassName: ngrok
+  rules:
+  - host: "${ROLLOUT_DEMO_HOST}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: rollout-demo-stable
+            port:
+              number: 80
