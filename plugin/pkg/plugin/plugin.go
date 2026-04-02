@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
@@ -533,18 +534,6 @@ func (r *NgrokTrafficRouter) verifyWeightPhase2(ctx context.Context, rollout *v1
 // =============================================================================
 
 func (r *NgrokTrafficRouter) removeManagedRoutesPhase2(ctx context.Context, rollout *v1alpha1.Rollout, cfg PluginConfig) pluginTypes.RpcError {
-	// Delete the plugin-created canary AgentEndpoint.
-	canaryName := phase2CanaryEndpointName(rollout)
-	canary := &ngrokv1alpha1.AgentEndpoint{}
-	if err := r.k8sClient.Get(ctx, client.ObjectKey{Name: canaryName, Namespace: rollout.Namespace}, canary); err == nil {
-		if err := r.k8sClient.Delete(ctx, canary); err != nil && !errors.IsNotFound(err) {
-			return rpcErrorf("failed to delete canary AgentEndpoint: %v", err)
-		}
-	} else if !errors.IsNotFound(err) {
-		return rpcErrorf("failed to get canary AgentEndpoint: %v", err)
-	}
-
-	// Remove ownership annotation from whichever resource the plugin was managing.
 	stableAEP, err := r.findSourceEndpoint(ctx, rollout.Namespace, rollout.Spec.Strategy.Canary.StableService)
 	if err != nil {
 		return pluginTypes.RpcError{} // source gone — nothing to clean up
@@ -556,9 +545,12 @@ func (r *NgrokTrafficRouter) removeManagedRoutesPhase2(ctx context.Context, roll
 			return pluginTypes.RpcError{} // cloud endpoint gone — nothing to clean up
 		}
 		if ce.Annotations[rolloutManagedAnnotation] == "true" {
-			// Restore the CloudEndpoint policy to all-stable (weight=0) and remove rollout
-			// annotations in one update. This ensures traffic is correct immediately and that
-			// the operator's next reconcile will find no annotation and restore its own policy.
+			// Restore the CloudEndpoint policy to all-stable FIRST, before deleting the canary
+			// AgentEndpoint. The canary tunnel drops instantly on delete, but the CloudEndpoint
+			// policy update is an eventually-consistent ngrok API call. Updating the policy first
+			// gives the controller time to push the change to the ngrok edge before the canary
+			// tunnel disappears, eliminating the brief window where the policy still routes some
+			// traffic to a dead tunnel.
 			prefixRules, _ := loadPrefixFromAnnotation(ce.Annotations[rolloutPolicyPrefixAnnotation])
 			stableURL := ce.Annotations[rolloutStableURLAnnotation]
 			if stableURL == "" {
@@ -575,6 +567,10 @@ func (r *NgrokTrafficRouter) removeManagedRoutesPhase2(ctx context.Context, roll
 			if err := r.k8sClient.Update(ctx, patch); err != nil {
 				return rpcErrorf("failed to restore CloudEndpoint policy and remove rollout annotations: %v", err)
 			}
+
+			// Brief pause to let the CloudEndpoint controller reconcile and push the updated
+			// policy to the ngrok API before the canary tunnel disappears.
+			time.Sleep(2 * time.Second)
 		}
 	} else {
 		if stableAEP.Annotations[rolloutManagedAnnotation] == "true" {
@@ -583,7 +579,20 @@ func (r *NgrokTrafficRouter) removeManagedRoutesPhase2(ctx context.Context, roll
 			if err := r.k8sClient.Update(ctx, patch); err != nil {
 				return rpcErrorf("failed to remove rollout-managed annotation from AgentEndpoint: %v", err)
 			}
+			time.Sleep(2 * time.Second)
 		}
+	}
+
+	// Delete the plugin-created canary AgentEndpoint now that the routing policy
+	// has been updated and had time to propagate.
+	canaryName := phase2CanaryEndpointName(rollout)
+	canary := &ngrokv1alpha1.AgentEndpoint{}
+	if err := r.k8sClient.Get(ctx, client.ObjectKey{Name: canaryName, Namespace: rollout.Namespace}, canary); err == nil {
+		if err := r.k8sClient.Delete(ctx, canary); err != nil && !errors.IsNotFound(err) {
+			return rpcErrorf("failed to delete canary AgentEndpoint: %v", err)
+		}
+	} else if !errors.IsNotFound(err) {
+		return rpcErrorf("failed to get canary AgentEndpoint: %v", err)
 	}
 
 	return pluginTypes.RpcError{}
