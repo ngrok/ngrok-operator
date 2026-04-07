@@ -1,20 +1,20 @@
-# permissions for end users to edit domains.
+{{- if .Values.crdAccessRoles.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-agentendpoint-editor-role
   labels:
-    {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: rbac
-  {{- with .Values.clusterRole.annotations }}
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+  {{- with .Values.crdAccessRoles.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-domain-editor-role
 rules:
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ngrok.k8s.ngrok.com
   resources:
-  - domains
+  - agentendpoints
   verbs:
   - create
   - delete
@@ -24,8 +24,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ngrok.k8s.ngrok.com
   resources:
-  - domains/status
+  - agentendpoints/status
   verbs:
   - get
+{{- end }}

@@ -1,20 +1,20 @@
-# permissions for end users to edit cloudendpoints
+{{- if .Values.crdAccessRoles.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-kubernetesoperator-editor-role
   labels:
-    {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: rbac
-  {{- with .Values.clusterRole.annotations }}
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+  {{- with .Values.crdAccessRoles.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  name: {{ include "ngrok-operator.fullname" . }}-cloudendpoint-editor-role
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - cloudendpoints
+  - kubernetesoperators
   verbs:
   - create
   - delete
@@ -26,6 +26,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - cloudendpoints/status
+  - kubernetesoperators/status
   verbs:
   - get
+{{- end }}
