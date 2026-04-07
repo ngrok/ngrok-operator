@@ -1,8 +1,8 @@
 # RBAC Overhaul
 
 **Date**: 2026-04-07
-**Status**: Proposed
-**Spec**: [specs/rbac.md](../rbac.md)
+**Status**: Implemented
+**Spec**: [specs/rbac/requirements.md](../rbac/requirements.md)
 
 ## Goal
 
@@ -88,18 +88,7 @@ New `isNamespaced` helper in `_helpers.tpl`. Each component gets `role.yaml` (Cl
 
 ## Verification
 
-### Baseline (captured)
-
-RBAC baseline from a kind cluster deployment of main, stored in `specs/rbac/baseline/`:
-- Effective permissions per SA via `kubectl auth can-i --list`
-- Individual role definitions as YAML
-
-### After refactor
-
 1. Deploy refactored chart to kind
-2. Run `kubectl auth can-i --list` per SA, diff against baseline
-3. Expected intentional diffs:
-   - **Removed**: proxy-role (tokenreviews, subjectaccessreviews), tunnel rules from agent
-   - **Added**: secret create/update/patch on api-manager (folded from secret-manager-role)
-4. Deploy with `--set watchNamespace=<ns>`, confirm Roles instead of ClusterRoles, same effective permissions
-5. `make build && make test && make helm-update-snapshots && make manifest-bundle`
+2. Run `kubectl auth can-i --list` per SA, verify permissions match the Helm templates
+3. Deploy with `--set watchNamespace=<ns>`, confirm Roles instead of ClusterRoles
+4. `make build && make test && make helm-update-snapshots && make manifest-bundle`
