@@ -1,7 +1,9 @@
 package healthcheck
 
 import (
+	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,4 +47,33 @@ func TestChannelHealthChecker(t *testing.T) {
 	// After closing the channels, the last error should still be returned
 	assert.Error(t, chc.Ready(ctx, nil), "Expected Ready check to return last error after channel close")
 	assert.Error(t, chc.Alive(ctx, nil), "Expected Alive check to return last error after channel close")
+}
+
+func TestAliveDataRace(t *testing.T) {
+	aliveChan := make(chan error)
+	readyChan := make(chan error)
+
+	chc := NewChannelHealthChecker(readyChan, aliveChan)
+
+	var wg sync.WaitGroup
+	const iterations = 1000
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			aliveChan <- errors.New("not alive")
+			aliveChan <- nil
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations*2; i++ {
+			_ = chc.Alive(context.Background(), nil)
+		}
+	}()
+
+	wg.Wait()
 }
