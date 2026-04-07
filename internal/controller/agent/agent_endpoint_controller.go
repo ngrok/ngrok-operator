@@ -41,6 +41,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -260,6 +261,9 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	setEndpointCreatedCondition(endpoint, true, ReasonEndpointCreated, "Endpoint successfully created")
 	if trafficPolicy != "" {
 		setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
+	} else {
+		// Clear any stale TrafficPolicyApplied condition from a previous reconcile
+		meta.RemoveStatusCondition(&endpoint.Status.Conditions, ConditionTrafficPolicy)
 	}
 
 	return r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil)
