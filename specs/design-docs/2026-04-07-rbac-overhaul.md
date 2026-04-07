@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-07
 **Status**: Proposed
-**Spec**: [specs/rbac.md](../../specs/rbac.md)
+**Spec**: [specs/rbac.md](../rbac.md)
 
 ## Goal
 
