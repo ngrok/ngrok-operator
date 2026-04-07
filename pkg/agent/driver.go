@@ -271,7 +271,7 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 		endpointOpts = append(endpointOpts, ngrok.WithTrafficPolicy(trafficPolicy))
 	}
 
-	epf, err := d.agent.Forward(context.Background(), upstream, endpointOpts...)
+	epf, err := d.agent.Forward(ctx, upstream, endpointOpts...)
 	if err != nil {
 		return &EndpointResult{Ready: false}, err
 	}
