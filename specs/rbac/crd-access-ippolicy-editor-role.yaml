@@ -1,0 +1,40 @@
+# ClusterRole: ngrok-operator-ippolicy-editor-role
+# Generated: 2026-04-07T15:32:47Z
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    meta.helm.sh/release-name: ngrok-operator
+    meta.helm.sh/release-namespace: ngrok-operator
+  creationTimestamp: "2026-04-07T15:25:18Z"
+  labels:
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/version: 0.20.3
+    helm.sh/chart: ngrok-operator-0.22.2
+  name: ngrok-operator-ippolicy-editor-role
+  resourceVersion: "630"
+  uid: ff646fdc-9b9e-418c-aa16-7b2cfab48f48
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies/status
+  verbs:
+  - get
