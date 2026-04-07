@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -1449,6 +1450,68 @@ var _ = Describe("Driver", func() {
 			Expect(updatedOtherGW.Status.Addresses[0].Value).To(
 				Equal("istio-ingressgateway.istio-system.svc.cluster.local"),
 			)
+		})
+
+		It("Should set Programmed condition on accepted listener statuses", func() {
+			ngrokGWClass := testutils.NewGatewayClass(true)
+
+			// Create an ngrok gateway with a listener
+			ngrokGateway := testutils.NewGatewayWithHostnames("ngrok-gw", "test-namespace", "ngrok.example.com")
+			ngrokGateway.Spec.GatewayClassName = gatewayv1.ObjectName(ngrokGWClass.Name)
+			// Pre-populate listener status with Accepted=True
+			ngrokGateway.Status.Listeners = []gatewayv1.ListenerStatus{
+				{
+					Name: "listener-0",
+					Conditions: []metav1.Condition{
+						{
+							Type:               string(gatewayv1.ListenerConditionAccepted),
+							Status:             metav1.ConditionTrue,
+							Reason:             string(gatewayv1.ListenerReasonAccepted),
+							LastTransitionTime: metav1.Now(),
+						},
+					},
+				},
+			}
+
+			// Create a domain matching the listener hostname with a CNAME target
+			domain := testutils.NewDomainV1("ngrok.example.com", "test-namespace")
+			domain.Status.CNAMETarget = ptr.To("cname.ngrok.example.com")
+
+			gwDriver := NewDriver(
+				GinkgoLogr,
+				scheme,
+				testutils.DefaultControllerName,
+				types.NamespacedName{Name: defaultManagerName},
+				WithGatewayEnabled(true),
+				WithGatewayControllerName("ngrok.com/gateway-controller"),
+				WithSyncAllowConcurrent(true),
+			)
+
+			obs := []runtime.Object{ngrokGWClass, ngrokGateway, domain}
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(obs...).
+				WithStatusSubresource(&gatewayv1.Gateway{}).
+				Build()
+
+			err := gwDriver.Seed(GinkgoT().Context(), c)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = gwDriver.updateGatewayStatuses(GinkgoT().Context(), c)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Fetch the updated gateway and verify the Programmed condition on the listener
+			updatedGW := &gatewayv1.Gateway{}
+			err = c.Get(GinkgoT().Context(), types.NamespacedName{
+				Namespace: "test-namespace",
+				Name:      "ngrok-gw",
+			}, updatedGW)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(updatedGW.Status.Listeners).To(HaveLen(1))
+			programmedCond := meta.FindStatusCondition(updatedGW.Status.Listeners[0].Conditions, string(gatewayv1.ListenerConditionProgrammed))
+			Expect(programmedCond).ToNot(BeNil(), "Programmed condition should be set on accepted listener")
+			Expect(programmedCond.Status).To(Equal(metav1.ConditionTrue))
 		})
 	})
 

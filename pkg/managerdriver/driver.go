@@ -837,7 +837,8 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 			})
 		}
 
-		for _, listener := range newStatus.Listeners {
+		for i := range newStatus.Listeners {
+			listener := &newStatus.Listeners[i]
 			if meta.IsStatusConditionFalse(listener.Conditions, string(gatewayv1.ListenerConditionAccepted)) {
 				continue
 			}
