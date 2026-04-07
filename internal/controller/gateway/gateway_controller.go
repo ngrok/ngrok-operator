@@ -302,7 +302,7 @@ func (r *GatewayReconciler) validateGateway(ctx context.Context, gw *gatewayv1.G
 	}
 
 	var gatewayValidationError error
-	if meta.IsStatusConditionTrue(newStatus.Conditions, string(gatewayv1.GatewayConditionAccepted)) {
+	if !meta.IsStatusConditionTrue(newStatus.Conditions, string(gatewayv1.GatewayConditionAccepted)) {
 		gatewayValidationError = errors.New("gateway validation failed")
 	}
 
