@@ -539,7 +539,9 @@ func (r *BoundEndpointPoller) deleteBinding(ctx context.Context, boundEndpoint b
 	log.Info("Deleted BoundEndpoint", "name", boundEndpoint.Name, "url", boundEndpoint.Spec.GetEndpointURL())
 
 	// unset the port allocation
-	r.portAllocator.Unset(boundEndpoint.Spec.Port)
+	if err := r.portAllocator.Unset(boundEndpoint.Spec.Port); err != nil {
+		log.Error(err, "Failed to unset port allocation", "port", boundEndpoint.Spec.Port, "name", boundEndpoint.Name)
+	}
 
 	return nil
 }
