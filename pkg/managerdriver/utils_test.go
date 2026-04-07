@@ -4,10 +4,12 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/utils/ptr"
 )
 
 func TestSanitizeStringForURL(t *testing.T) {
@@ -421,5 +423,47 @@ func TestDoHostGlobsMatch(t *testing.T) {
 				assert.Equal(t, tc.expected, result, "unexpected result for test case: %s", tc.name)
 			}
 		})
+	}
+}
+
+func TestCalculateIngressLoadBalancerIPStatus_DeterministicOrder(t *testing.T) {
+	ing := &netv1.Ingress{
+		Spec: netv1.IngressSpec{
+			Rules: []netv1.IngressRule{
+				{Host: "charlie.example.com"},
+				{Host: "alpha.example.com"},
+				{Host: "bravo.example.com"},
+			},
+		},
+	}
+
+	domains := map[string]ingressv1alpha1.Domain{
+		"charlie.example.com": {
+			Status: ingressv1alpha1.DomainStatus{
+				CNAMETarget: ptr.To("charlie.cname.ngrok.io"),
+			},
+		},
+		"alpha.example.com": {
+			Status: ingressv1alpha1.DomainStatus{
+				CNAMETarget: ptr.To("alpha.cname.ngrok.io"),
+			},
+		},
+		"bravo.example.com": {
+			Status: ingressv1alpha1.DomainStatus{
+				CNAMETarget: ptr.To("bravo.cname.ngrok.io"),
+			},
+		},
+	}
+
+	expected := []netv1.IngressLoadBalancerIngress{
+		{Hostname: "alpha.cname.ngrok.io"},
+		{Hostname: "bravo.cname.ngrok.io"},
+		{Hostname: "charlie.cname.ngrok.io"},
+	}
+
+	// Run multiple times to catch nondeterminism
+	for i := 0; i < 20; i++ {
+		result := calculateIngressLoadBalancerIPStatus(ing, domains)
+		assert.Equal(t, expected, result, "iteration %d: status should be sorted by hostname", i)
 	}
 }
