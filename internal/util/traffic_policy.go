@@ -198,7 +198,7 @@ func (t *trafficPolicyImpl) ConvertLegacyDirectionsToPhases() {
 }
 
 // mergeEnabled applies the supplied "enabled" value to the traffic policy. If there is a value set for both,
-// we set to "false" is present in either.
+// we set to "true" if present in either (OR logic) to avoid accidentally disabling something important.
 func (t *trafficPolicyImpl) mergeEnabled(incomingEnabled *bool) {
 	if incomingEnabled == nil {
 		return
@@ -209,6 +209,7 @@ func (t *trafficPolicyImpl) mergeEnabled(incomingEnabled *bool) {
 		// don't want to copy the pointer, as the value will still be linked to a different policy
 		temp := *incomingEnabled
 		t.enabled = &temp
+		return
 	}
 
 	// both being set likely won't happen. However, if we have a mismatch, we should keep it enabled. Otherwise,
