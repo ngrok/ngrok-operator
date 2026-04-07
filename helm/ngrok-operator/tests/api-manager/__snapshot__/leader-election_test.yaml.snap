@@ -1,4 +1,4 @@
-Should match snapshot:
+should match snapshot:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
@@ -11,25 +11,25 @@ Should match snapshot:
         resources:
           - configmaps
         verbs:
+          - create
+          - delete
           - get
           - list
-          - watch
-          - create
-          - update
           - patch
-          - delete
+          - update
+          - watch
       - apiGroups:
           - coordination.k8s.io
         resources:
           - leases
         verbs:
+          - create
+          - delete
           - get
           - list
-          - watch
-          - create
-          - update
           - patch
-          - delete
+          - update
+          - watch
       - apiGroups:
           - ""
         resources:
@@ -47,19 +47,6 @@ Should match snapshot:
       apiGroup: rbac.authorization.k8s.io
       kind: Role
       name: RELEASE-NAME-ngrok-operator-leader-election-role
-    subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME-ngrok-operator
-        namespace: NAMESPACE
-  3: |
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-manager-rolebinding
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: RELEASE-NAME-ngrok-operator-manager-role
     subjects:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator

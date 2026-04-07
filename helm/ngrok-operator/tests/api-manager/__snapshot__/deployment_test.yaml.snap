@@ -4,8 +4,8 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: f8aeb2c8161217084181c9846ed78df9d1ab864d6117922dcc4f9245b59ebd56
-        checksum/rbac: 72925c34a6d79d428c2f477f7d58d5953530a62f1f4223294bd89b42c8b8edb7
+        checksum/controller-role: 5c7d8f0261e7b8f90678f98eae18571f3cda06ec769abea95be99c686844f8eb
+        checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
@@ -26,8 +26,8 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: f8aeb2c8161217084181c9846ed78df9d1ab864d6117922dcc4f9245b59ebd56
-            checksum/rbac: 72925c34a6d79d428c2f477f7d58d5953530a62f1f4223294bd89b42c8b8edb7
+            checksum/controller-role: 5c7d8f0261e7b8f90678f98eae18571f3cda06ec769abea95be99c686844f8eb
+            checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -130,25 +130,25 @@ Should match all-options snapshot:
         resources:
           - configmaps
         verbs:
+          - create
+          - delete
           - get
           - list
-          - watch
-          - create
-          - update
           - patch
-          - delete
+          - update
+          - watch
       - apiGroups:
           - coordination.k8s.io
         resources:
           - leases
         verbs:
+          - create
+          - delete
           - get
           - list
-          - watch
-          - create
-          - update
           - patch
-          - delete
+          - update
+          - watch
       - apiGroups:
           - ""
         resources:
@@ -172,19 +172,6 @@ Should match all-options snapshot:
         namespace: NAMESPACE
   4: |
     apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-manager-rolebinding
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: RELEASE-NAME-ngrok-operator-manager-role
-    subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME-ngrok-operator
-        namespace: NAMESPACE
-  5: |
-    apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
       name: RELEASE-NAME-ngrok-operator-manager-role
@@ -198,6 +185,7 @@ Should match all-options snapshot:
           - delete
           - get
           - list
+          - patch
           - update
           - watch
       - apiGroups:
@@ -250,103 +238,6 @@ Should match all-options snapshot:
           - update
           - watch
       - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses
-          - gatewayclasses/status
-          - gateways
-          - httproutes
-          - tcproutes
-          - tlsroutes
-        verbs:
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses/finalizers
-        verbs:
-          - patch
-          - update
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gateways/status
-          - httproutes/status
-          - tcproutes/status
-          - tlsroutes/status
-        verbs:
-          - get
-          - list
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - referencegrants
-        verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains
-          - ippolicies
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains/finalizers
-          - ippolicies/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains/status
-          - ippolicies/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
           - networking.k8s.io
         resources:
           - ingressclasses
@@ -374,12 +265,198 @@ Should match all-options snapshot:
           - update
           - watch
       - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/status
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tcproutes
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tcproutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tlsroutes
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tlsroutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - referencegrants
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - bindings.k8s.ngrok.com
+        resources:
+          - boundendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - bindings.k8s.ngrok.com
+        resources:
+          - boundendpoints/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - bindings.k8s.ngrok.com
+        resources:
+          - boundendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints
-          - cloudendpoints
-          - kubernetesoperators
-          - ngroktrafficpolicies
         verbs:
           - create
           - delete
@@ -392,17 +469,89 @@ Should match all-options snapshot:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints/finalizers
-          - cloudendpoints/finalizers
-          - kubernetesoperators/finalizers
-          - ngroktrafficpolicies/finalizers
         verbs:
           - update
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - cloudendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - cloudendpoints/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - cloudendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - kubernetesoperators/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - ngroktrafficpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - ngroktrafficpolicies/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - ngroktrafficpolicies/status
         verbs:
           - get
@@ -414,8 +563,8 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: f8aeb2c8161217084181c9846ed78df9d1ab864d6117922dcc4f9245b59ebd56
-        checksum/rbac: 72925c34a6d79d428c2f477f7d58d5953530a62f1f4223294bd89b42c8b8edb7
+        checksum/controller-role: 5c7d8f0261e7b8f90678f98eae18571f3cda06ec769abea95be99c686844f8eb
+        checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: RELEASE-NAME
@@ -436,8 +585,8 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: f8aeb2c8161217084181c9846ed78df9d1ab864d6117922dcc4f9245b59ebd56
-            checksum/rbac: 72925c34a6d79d428c2f477f7d58d5953530a62f1f4223294bd89b42c8b8edb7
+            checksum/controller-role: 5c7d8f0261e7b8f90678f98eae18571f3cda06ec769abea95be99c686844f8eb
+            checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -527,25 +676,25 @@ Should match default snapshot:
         resources:
           - configmaps
         verbs:
+          - create
+          - delete
           - get
           - list
-          - watch
-          - create
-          - update
           - patch
-          - delete
+          - update
+          - watch
       - apiGroups:
           - coordination.k8s.io
         resources:
           - leases
         verbs:
+          - create
+          - delete
           - get
           - list
-          - watch
-          - create
-          - update
           - patch
-          - delete
+          - update
+          - watch
       - apiGroups:
           - ""
         resources:
@@ -569,19 +718,6 @@ Should match default snapshot:
         namespace: NAMESPACE
   4: |
     apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-manager-rolebinding
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: RELEASE-NAME-ngrok-operator-manager-role
-    subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME-ngrok-operator
-        namespace: NAMESPACE
-  5: |
-    apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
       name: RELEASE-NAME-ngrok-operator-manager-role
@@ -595,6 +731,7 @@ Should match default snapshot:
           - delete
           - get
           - list
+          - patch
           - update
           - watch
       - apiGroups:
@@ -647,103 +784,6 @@ Should match default snapshot:
           - update
           - watch
       - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses
-          - gatewayclasses/status
-          - gateways
-          - httproutes
-          - tcproutes
-          - tlsroutes
-        verbs:
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses/finalizers
-        verbs:
-          - patch
-          - update
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gateways/status
-          - httproutes/status
-          - tcproutes/status
-          - tlsroutes/status
-        verbs:
-          - get
-          - list
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - referencegrants
-        verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains
-          - ippolicies
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains/finalizers
-          - ippolicies/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains/status
-          - ippolicies/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
           - networking.k8s.io
         resources:
           - ingressclasses
@@ -771,12 +811,198 @@ Should match default snapshot:
           - update
           - watch
       - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/status
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gateways/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tcproutes
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tcproutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tlsroutes
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - tlsroutes/status
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - referencegrants
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - ippolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - bindings.k8s.ngrok.com
+        resources:
+          - boundendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - bindings.k8s.ngrok.com
+        resources:
+          - boundendpoints/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - bindings.k8s.ngrok.com
+        resources:
+          - boundendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints
-          - cloudendpoints
-          - kubernetesoperators
-          - ngroktrafficpolicies
         verbs:
           - create
           - delete
@@ -789,17 +1015,89 @@ Should match default snapshot:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints/finalizers
-          - cloudendpoints/finalizers
-          - kubernetesoperators/finalizers
-          - ngroktrafficpolicies/finalizers
         verbs:
           - update
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - cloudendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - cloudendpoints/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - cloudendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - kubernetesoperators/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - ngroktrafficpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - ngroktrafficpolicies/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
           - ngroktrafficpolicies/status
         verbs:
           - get
