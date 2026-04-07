@@ -1,43 +1,43 @@
-# ClusterRole: ngrok-operator-agent-role
-# Generated: 2026-04-07T15:32:46Z
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   annotations:
     meta.helm.sh/release-name: ngrok-operator
     meta.helm.sh/release-namespace: ngrok-operator
-  creationTimestamp: "2026-04-07T15:25:18Z"
+  creationTimestamp: "2026-04-07T17:14:32Z"
   labels:
     app.kubernetes.io/managed-by: Helm
   name: ngrok-operator-agent-role
-  resourceVersion: "617"
-  uid: 695b05f1-48d8-4fc7-921b-fa394a85f622
+  resourceVersion: "844"
+  uid: c6b95f79-abad-4697-8631-8f956f5ffcd9
 rules:
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ""
   resources:
-  - tunnels
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
   verbs:
   - get
   - list
   - watch
-  - patch
-  - update
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
-  - tunnels/finalizers
+  - domains
   verbs:
-  - update
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - tunnels/status
-  verbs:
+  - create
+  - delete
   - get
+  - list
   - patch
   - update
+  - watch
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -45,9 +45,9 @@ rules:
   verbs:
   - get
   - list
-  - watch
   - patch
   - update
+  - watch
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -65,34 +65,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - domains
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - patch
-  - delete
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-- apiGroups:
-  - ""
-  resources:
-  - secrets
+  - kubernetesoperators
   verbs:
   - get
   - list
@@ -100,7 +73,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - kubernetesoperators
+  - ngroktrafficpolicies
   verbs:
   - get
   - list
