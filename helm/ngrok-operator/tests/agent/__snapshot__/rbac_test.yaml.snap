@@ -6,30 +6,6 @@ Should match snapshot:
       name: RELEASE-NAME-ngrok-operator-agent-role
     rules:
       - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels
-        verbs:
-          - get
-          - list
-          - watch
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/finalizers
-        verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints

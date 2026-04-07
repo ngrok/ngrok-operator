@@ -4,35 +4,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ $clusterRoleName }}
-  {{- with .Values.clusterRole.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
 rules:
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - tunnels
-  verbs:
-  - get
-  - list
-  - watch
-  - patch
-  - update
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - tunnels/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - tunnels/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -93,13 +65,13 @@ rules:
   - list
   - watch
 - apiGroups:
-    - ngrok.k8s.ngrok.com
+  - ngrok.k8s.ngrok.com
   resources:
-    - kubernetesoperators
+  - kubernetesoperators
   verbs:
-    - get
-    - list
-    - watch
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
