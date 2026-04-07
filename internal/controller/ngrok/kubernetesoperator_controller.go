@@ -173,6 +173,10 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
+		if ko.Spec.Binding == nil {
+			return r.updateStatus(ctx, ko, nil, fmt.Errorf("bindings feature enabled but spec.binding is not configured"))
+		}
+
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateCSR, "failed to create TLS secret for CSR")
@@ -331,6 +335,10 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
+		if ko.Spec.Binding == nil {
+			return r.updateStatus(ctx, ko, nil, fmt.Errorf("bindings feature enabled but spec.binding is not configured"))
+		}
+
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return r.updateStatus(ctx, ko, nil, err)
@@ -378,7 +386,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 
 		iterLogger.V(5).Info("checking if KubernetesOperator matches")
 
-		if item.Deployment.Name != ko.Spec.Deployment.Name {
+		if ko.Spec.Deployment == nil || item.Deployment.Name != ko.Spec.Deployment.Name {
 			continue
 		}
 		if item.Deployment.Namespace != ko.GetNamespace() {
