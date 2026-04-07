@@ -173,12 +173,12 @@ func (t *translator) findMatchingVHostsForXRoute(
 		upstreamClientCertRefs := []ir.IRObjectRef{}
 		if gateway.Spec.BackendTLS != nil && gateway.Spec.BackendTLS.ClientCertificateRef != nil {
 			certRef := gateway.Spec.BackendTLS.ClientCertificateRef
-			if certRef.Namespace == nil {
-				certNs := gatewayv1.Namespace(gateway.Namespace)
-				certRef.Namespace = &certNs
+			certNs := gateway.Namespace
+			if certRef.Namespace != nil {
+				certNs = string(*certRef.Namespace)
 			}
 
-			if !t.isRefToNamespaceAllowed(gateway.Namespace, "gateway.networking.k8s.io", "Gateway", string(certRef.Name), string(*certRef.Namespace), "", "Secret") {
+			if !t.isRefToNamespaceAllowed(gateway.Namespace, "gateway.networking.k8s.io", "Gateway", string(certRef.Name), certNs, "", "Secret") {
 				t.log.Error(fmt.Errorf("reference to Secret %q is not allowed without a valid ReferenceGrant", fmt.Sprintf("%s.%s", certRef.Name, refNamespace)),
 					"Gateway backendTLS.clientCertificateRef is invalid without a ReferenceGrant",
 				)
@@ -187,7 +187,7 @@ func (t *translator) findMatchingVHostsForXRoute(
 
 			upstreamClientCertRefs = append(upstreamClientCertRefs, ir.IRObjectRef{
 				Name:      string(certRef.Name),
-				Namespace: string(*certRef.Namespace),
+				Namespace: certNs,
 			})
 		}
 
