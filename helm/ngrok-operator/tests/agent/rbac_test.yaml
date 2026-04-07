@@ -1,21 +1,80 @@
 suite: test agent rbac
 templates:
-- agent/rbac.yaml
+- agent/role.yaml
+- agent/rolebinding.yaml
+- agent/role-namespaced.yaml
+- agent/rolebinding-namespaced.yaml
 tests:
-- it: Should match snapshot
+- it: should render ClusterRole in default mode
+  template: agent/role.yaml
   asserts:
-  - matchSnapshot: {}
-- it: should create a clusterrole
-  documentIndex: 0
-  asserts:
+  - hasDocuments:
+      count: 1
   - isKind:
       of: ClusterRole
-  - isAPIVersion:
-      of: rbac.authorization.k8s.io/v1
-- it: should create a clusterrolebinding
-  documentIndex: 1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-agent-role
+- it: should render ClusterRoleBinding in default mode
+  template: agent/rolebinding.yaml
   asserts:
+  - hasDocuments:
+      count: 1
   - isKind:
       of: ClusterRoleBinding
-  - isAPIVersion:
-      of: rbac.authorization.k8s.io/v1
+- it: should not render namespaced role in default mode
+  template: agent/role-namespaced.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: should not render namespaced rolebinding in default mode
+  template: agent/rolebinding-namespaced.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: should render Role in namespaced mode
+  template: agent/role-namespaced.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 1
+  - isKind:
+      of: Role
+  - equal:
+      path: metadata.namespace
+      value: test-ns
+- it: should render RoleBinding in namespaced mode
+  template: agent/rolebinding-namespaced.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 1
+  - isKind:
+      of: RoleBinding
+  - equal:
+      path: metadata.namespace
+      value: test-ns
+- it: should not render default role in namespaced mode
+  template: agent/role.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: should not render default rolebinding in namespaced mode
+  template: agent/rolebinding.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: should match snapshot in default mode
+  asserts:
+  - matchSnapshot: {}
+- it: should match snapshot in namespaced mode
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - matchSnapshot: {}

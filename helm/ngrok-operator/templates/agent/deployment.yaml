@@ -1,6 +1,6 @@
 {{- if and .Values.ingress.enabled (not .Values.oneClickDemoMode) }}
 {{- $component := "agent" }}
-{{- $rbacChecksum := include (print $.Template.BasePath "/agent/rbac.yaml") . | sha256sum }}
+{{- $rbacChecksum := include (print $.Template.BasePath "/agent/role.yaml") . | sha256sum }}
 {{- $agent := .Values.agent }}
 ---
 apiVersion: apps/v1
