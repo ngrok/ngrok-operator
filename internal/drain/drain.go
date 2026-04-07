@@ -87,9 +87,6 @@ type resourceHandler struct {
 	drainFunc   func(context.Context, client.Object) error // drainUserResource or drainOperatorResource
 }
 
-// RBAC permissions needed by the Drainer to list, update, and delete resources during drain.
-// These are aggregated with the KubernetesOperator controller's RBAC.
-
 func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error) {
 	result := &DrainResult{}
 
