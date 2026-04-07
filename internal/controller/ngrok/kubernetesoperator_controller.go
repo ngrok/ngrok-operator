@@ -34,6 +34,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -362,7 +363,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 
 	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
 	if err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("getting namespace UID: %w", err)
 	}
 
 	iter := r.NgrokClientset.KubernetesOperators().List(&ngrok.Paging{})
