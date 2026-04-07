@@ -218,7 +218,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		log := log.WithValues(
 			"remoteAddr", conn.RemoteAddr(),
 			"ingress", map[string]string{
-				"endpoint": *op.Spec.Binding.IngressEndpoint,
+				"endpoint": derefString(op.Spec.Binding.IngressEndpoint),
 			},
 			"binding", map[string]string{
 				"host": host,
@@ -361,4 +361,11 @@ func podIdentityFromPod(pod *v1.Pod) *pb_agent.PodIdentity {
 		Namespace:   pod.Namespace,
 		Annotations: anns,
 	}
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
