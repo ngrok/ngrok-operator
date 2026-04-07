@@ -49,9 +49,6 @@ type IPPolicyRuleStatus struct {
 	Action string `json:"action,omitempty"`
 }
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // IPPolicySpec defines the desired state of IPPolicy
 type IPPolicySpec struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
@@ -66,8 +63,6 @@ type IPPolicySpec struct {
 
 // IPPolicyStatus defines the observed state of IPPolicy
 type IPPolicyStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 	ID string `json:"id,omitempty"`
 
 	// Conditions represent the latest available observations of the IP policy's state
