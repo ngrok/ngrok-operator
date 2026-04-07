@@ -247,7 +247,9 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		// Couldn't find endpoint by ID to update, so blank it out and create a new one
 		r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "EndpointNotFound", "Reconcile", fmt.Sprintf("Failed to update endpoint %s by ID because it was not found. Creating a new one", clep.Status.ID))
 		clep.Status.ID = ""
-		_ = r.Client.Status().Update(ctx, clep)
+		if err := r.controller.ReconcileStatus(ctx, clep, nil); err != nil {
+			return err
+		}
 		return r.create(ctx, clep)
 	}
 	if err != nil {
