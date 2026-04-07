@@ -430,11 +430,9 @@ func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
 func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (secret *v1.Secret, err error) {
 	secret = &v1.Secret{}
 	err = r.Client.Get(ctx, client.ObjectKey{Namespace: ko.GetNamespace(), Name: ko.Spec.Binding.TlsSecretName}, secret)
-	if !apierrors.IsNotFound(err) {
-		return
-	}
-
-	if err == nil {
+	switch {
+	case err == nil:
+		// Found — validate it
 		isValid := secret.Type == v1.SecretTypeTLS &&
 			// tls.crt is managed by updateTLSSecretCert
 			// secret.Data["tls.crt"] != nil &&
@@ -444,9 +442,12 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 		if isValid {
 			return
 		}
-
 		// otherwise fallthrough to generate the CSR
+	case !apierrors.IsNotFound(err):
+		// Real error
+		return
 	}
+	// IsNotFound or invalid existing secret — create/update
 
 	// If the secret doesn't exist, create it with a new private key and a CSR
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
