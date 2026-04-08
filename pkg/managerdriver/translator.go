@@ -189,7 +189,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 		}
 
 		if irTLSCfg := irVHost.TLSTermination; irTLSCfg != nil {
-			tlsCfg := map[string]interface{}{}
+			tlsCfg := map[string]any{}
 
 			if len(irTLSCfg.MutualTLSCertificateAuthorities) > 0 {
 				tlsCfg["mutual_tls_certificate_authorities"] = irTLSCfg.MutualTLSCertificateAuthorities
@@ -372,8 +372,8 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, agentEndpoint
 			Name: "Capture-Original-Request-Data",
 			Actions: []trafficpolicy.Action{{
 				Type: trafficpolicy.ActionType_SetVars,
-				Config: map[string]interface{}{
-					"vars": []map[string]interface{}{{
+				Config: map[string]any{
+					"vars": []map[string]any{{
 						"original_path": "${req.url.path}",
 					}, {
 						"original_headers": "${req.headers.encodeJson()}",
@@ -435,8 +435,8 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, agentEndpoint
 			}
 
 			// Make sure the weighted routes set-vars action that stores a random number doesn't erase our captured request data
-			setvarWeightCfg := map[string]interface{}{
-				"vars": []map[string]interface{}{{
+			setvarWeightCfg := map[string]any{
+				"vars": []map[string]any{{
 					"weighted_route_random_num": fmt.Sprintf("${rand.int(0,%d)}", routeTotalWeight-1),
 				}},
 			}
@@ -666,7 +666,7 @@ func buildEndpointServiceRouteRule(name string, url string) trafficpolicy.Rule {
 		Actions: []trafficpolicy.Action{
 			{
 				Type: trafficpolicy.ActionType_ForwardInternal,
-				Config: map[string]interface{}{
+				Config: map[string]any{
 					"url": url,
 				},
 			},
@@ -684,8 +684,8 @@ func buildRouteLocallyVarRule(name string, value bool) trafficpolicy.Rule {
 		Actions: []trafficpolicy.Action{
 			{
 				Type: trafficpolicy.ActionType_SetVars,
-				Config: map[string]interface{}{
-					"vars": []map[string]interface{}{{
+				Config: map[string]any{
+					"vars": []map[string]any{{
 						"request_matched_local_svc": value,
 					}},
 				},
@@ -883,7 +883,7 @@ func buildDefault404TPRule() trafficpolicy.Rule {
 			{
 				// Basic text for now, but we can add styling/branding later
 				Type: trafficpolicy.ActionType_CustomResponse,
-				Config: map[string]interface{}{
+				Config: map[string]any{
 					"status_code": 404,
 					"content":     "No route was found for this ngrok Endpoint",
 					"headers": map[string]string{

@@ -22,12 +22,10 @@ jobs:
         uses: actions/checkout@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Nix
-        uses: nixbuild/nix-quick-install-action@v34
-      - name: Setup Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+      - name: Setup nix
+        uses: ./.github/actions/nix-setup
       - name: Run helm template
-        run: nix develop --command make manifest-bundle
+        run: make manifest-bundle
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:

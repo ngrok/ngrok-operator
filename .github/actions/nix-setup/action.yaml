@@ -1,0 +1,26 @@
+name: Action - Nix Setup
+description: "Sets up Nix with caching and puts tools in PATH for use in later steps"
+
+runs:
+  using: "composite"
+  steps:
+  - uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
+  - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+  - name: Install direnv
+    shell: bash
+    run: |
+      DIRENV_VERSION="2.37.1"
+      DIRENV_SHA256="1f1b93dd6f38523fde26dfac96151ef9d31a374e3005cd3345fb93555ae0c9b5"
+      curl -sfL "https://github.com/direnv/direnv/releases/download/v${DIRENV_VERSION}/direnv.linux-amd64" -o /tmp/direnv
+      echo "${DIRENV_SHA256}  /tmp/direnv" | sha256sum -c
+      chmod +x /tmp/direnv
+      mkdir -p "$HOME/.local/bin"
+      mv /tmp/direnv "$HOME/.local/bin/direnv"
+      echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      export PATH="$HOME/.local/bin:$PATH"
+  - name: Allow direnv and export environment variables
+    shell: bash
+    run: |
+      direnv allow .
+      direnv export gha >> "$GITHUB_ENV"
+

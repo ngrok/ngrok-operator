@@ -34,15 +34,15 @@ runs:
 
     - name: Build
       shell: bash
-      run: nix develop --command make build
+      run: make build
 
     - name: Test
       shell: bash
-      run: nix develop --command make test
+      run: make test
 
     - name: Build the Docker image
       shell: bash
-      run: nix develop --command make docker-build
+      run: make docker-build
 
     - name: Deploy controller to local cluster
       shell: bash
@@ -57,7 +57,7 @@ runs:
         kubectl create ns e2e || true
 
         # deploy ngrok-op for e2e tests
-        nix develop --command make deploy_for_e2e
+        make deploy_for_e2e
 
     - name: Check if operator is up
       shell: bash
@@ -71,7 +71,7 @@ runs:
     - name: Run e2e tests
       shell: bash
       if: ${{ inputs.run-e2e == 'true' }}
-      run: nix develop --command make e2e-tests
+      run: make e2e-tests
 
     # best effort to remove ngrok k8s resources from cluster
     # this allows our finalizers to delete upstream ngrok API resources too
@@ -80,4 +80,4 @@ runs:
       shell: bash
       if: ${{ always() && inputs.run-e2e == 'true' }}
       run: |
-        nix develop --command make e2e-clean
+        make e2e-clean

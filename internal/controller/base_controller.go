@@ -13,7 +13,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -50,7 +50,7 @@ type BaseController[T client.Object] struct {
 	Log logr.Logger
 
 	// Recorder is the event recorder for the controller
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 
 	// Namespace is optional for controllers
 	Namespace *string
@@ -95,32 +95,32 @@ func (self *BaseController[T]) Reconcile(ctx context.Context, req ctrl.Request, 
 		}
 
 		if self.StatusID != nil && self.StatusID(obj) == "" {
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Creating", fmt.Sprintf("Creating %s", objName))
+			self.Recorder.Eventf(obj, nil, v1.EventTypeNormal, "Creating", "Create", fmt.Sprintf("Creating %s", objName))
 			if err := self.Create(ctx, obj); err != nil {
-				self.Recorder.Event(obj, v1.EventTypeWarning, "CreateError", fmt.Sprintf("Failed to Create %s: %s", objName, err.Error()))
+				self.Recorder.Eventf(obj, nil, v1.EventTypeWarning, "CreateError", "Create", fmt.Sprintf("Failed to Create %s: %s", objName, err.Error()))
 				return self.handleErr(CreateOp, obj, err)
 			}
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Created", fmt.Sprintf("Created %s", objName))
+			self.Recorder.Eventf(obj, nil, v1.EventTypeNormal, "Created", "Create", fmt.Sprintf("Created %s", objName))
 		} else {
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Updating", fmt.Sprintf("Updating %s", objName))
+			self.Recorder.Eventf(obj, nil, v1.EventTypeNormal, "Updating", "Update", fmt.Sprintf("Updating %s", objName))
 			if err := self.Update(ctx, obj); err != nil {
-				self.Recorder.Event(obj, v1.EventTypeWarning, "UpdateError", fmt.Sprintf("Failed to update %s: %s", objName, err.Error()))
+				self.Recorder.Eventf(obj, nil, v1.EventTypeWarning, "UpdateError", "Update", fmt.Sprintf("Failed to update %s: %s", objName, err.Error()))
 				return self.handleErr(UpdateOp, obj, err)
 			}
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated %s", objName))
+			self.Recorder.Eventf(obj, nil, v1.EventTypeNormal, "Updated", "Update", fmt.Sprintf("Updated %s", objName))
 		}
 	} else if util.HasFinalizer(obj) {
 		if self.StatusID != nil && self.StatusID(obj) != "" {
 			sid := self.StatusID(obj)
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleting", fmt.Sprintf("Deleting %s", objName))
+			self.Recorder.Eventf(obj, nil, v1.EventTypeNormal, "Deleting", "Delete", fmt.Sprintf("Deleting %s", objName))
 			if err := self.Delete(ctx, obj); err != nil {
 				if !ngrok.IsNotFound(err) {
-					self.Recorder.Event(obj, v1.EventTypeWarning, "DeleteError", fmt.Sprintf("Failed to delete %s: %s", objName, err.Error()))
+					self.Recorder.Eventf(obj, nil, v1.EventTypeWarning, "DeleteError", "Delete", fmt.Sprintf("Failed to delete %s: %s", objName, err.Error()))
 					return self.handleErr(DeleteOp, obj, err)
 				}
 				log.Info(fmt.Sprintf("%s not found, assuming it was already deleted", objFullName), "ID", sid)
 			}
-			self.Recorder.Event(obj, v1.EventTypeNormal, "Deleted", fmt.Sprintf("Deleted %s", objName))
+			self.Recorder.Eventf(obj, nil, v1.EventTypeNormal, "Deleted", "Delete", fmt.Sprintf("Deleted %s", objName))
 		}
 
 		if err := util.RemoveAndSyncFinalizer(ctx, self.Kube, obj); err != nil {
@@ -157,12 +157,12 @@ func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T, origE
 	log := ctrl.LoggerFrom(ctx).WithValues("originalError", origErr)
 
 	if err := self.Kube.Status().Update(ctx, obj); err != nil {
-		self.Recorder.Event(obj, v1.EventTypeWarning, "StatusError", fmt.Sprintf("Failed to reconcile status: %s", err.Error()))
+		self.Recorder.Eventf(obj, nil, v1.EventTypeWarning, "StatusError", "UpdateStatus", fmt.Sprintf("Failed to reconcile status: %s", err.Error()))
 		log.V(1).Error(err, "Failed to update status")
 		return StatusError{origErr, err}
 	}
 
-	self.Recorder.Event(obj, v1.EventTypeNormal, "Status", "Successfully reconciled status")
+	self.Recorder.Eventf(obj, nil, v1.EventTypeNormal, "Status", "UpdateStatus", "Successfully reconciled status")
 	log.V(1).Info("Successfully updated status")
 	return origErr
 }

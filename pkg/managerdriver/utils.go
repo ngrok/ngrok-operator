@@ -17,7 +17,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/utils/ptr"
 )
 
 // internalAgentEndpointName builds a string for the name of an internal AgentEndpoint
@@ -30,12 +29,12 @@ func internalAgentEndpointName(serviceUID, serviceName, namespace, clusterDomain
 	// This is an unlikely but valid use-case
 	tlsSuffix := ""
 	if len(clientCertRefs) > 0 {
-		tlsStr := ""
+		var tlsStr strings.Builder
 		for _, certRef := range clientCertRefs {
-			tlsStr += fmt.Sprintf("%s.%s", certRef.Name, certRef.Namespace)
+			tlsStr.WriteString(fmt.Sprintf("%s.%s", certRef.Name, certRef.Namespace))
 		}
 
-		tlsHash := sha256.Sum256([]byte(tlsStr))
+		tlsHash := sha256.Sum256([]byte(tlsStr.String()))
 		tlsHashHex := hex.EncodeToString(tlsHash[:])
 		tlsSuffix = fmt.Sprintf("mtls-%s", tlsHashHex[:5])
 	}
@@ -79,12 +78,12 @@ func buildInternalEndpointURL(protocol ir.IRProtocol, serviceUID, serviceName, n
 
 	tlsSuffix := ""
 	if len(clientCertRefs) > 0 {
-		tlsStr := ""
+		var tlsStr strings.Builder
 		for _, certRef := range clientCertRefs {
-			tlsStr += fmt.Sprintf("%s.%s", certRef.Name, certRef.Namespace)
+			tlsStr.WriteString(fmt.Sprintf("%s.%s", certRef.Name, certRef.Namespace))
 		}
 
-		tlsHash := sha256.Sum256([]byte(tlsStr))
+		tlsHash := sha256.Sum256([]byte(tlsStr.String()))
 		tlsHashHex := hex.EncodeToString(tlsHash[:])
 		tlsSuffix = fmt.Sprintf("mtls-%s", tlsHashHex[:5])
 	}
@@ -199,7 +198,7 @@ func getPortAppProtocol(log logr.Logger, service *corev1.Service, port *corev1.S
 
 	proto := *port.AppProtocol
 	if knownProto, ok := knownApplicationProtocols[proto]; ok {
-		return ptr.To(knownProto)
+		return new(knownProto)
 	}
 
 	log.WithValues(

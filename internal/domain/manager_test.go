@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -31,7 +31,7 @@ func newTestManager(t *testing.T, objs ...client.Object) (*Manager, client.Clien
 	t.Helper()
 	scheme := setupScheme()
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
-	m, err := NewManager(c, record.NewFakeRecorder(10),
+	m, err := NewManager(c, events.NewFakeRecorder(10),
 		WithControllerLabels(
 			labels.ControllerLabelValues{
 				Namespace: "test-namespace",

@@ -38,7 +38,7 @@ var (
 
 // Annotation has a method to parse annotations located in client.Object
 type Annotation interface {
-	Parse(obj client.Object) (interface{}, error)
+	Parse(obj client.Object) (any, error)
 }
 
 type annotations map[string]string
@@ -78,7 +78,7 @@ func (a annotations) parseStringSlice(name string) ([]string, error) {
 
 		// Remove spaces around each element
 		values := []string{}
-		for _, v := range strings.Split(s, ",") {
+		for v := range strings.SplitSeq(s, ",") {
 			values = append(values, strings.TrimSpace(v))
 		}
 
@@ -205,7 +205,7 @@ func GetAnnotationWithPrefix(suffix string) string {
 
 func normalizeString(input string) string {
 	trimmedContent := []string{}
-	for _, line := range strings.Split(input, "\n") {
+	for line := range strings.SplitSeq(input, "\n") {
 		trimmedContent = append(trimmedContent, strings.TrimSpace(line))
 	}
 

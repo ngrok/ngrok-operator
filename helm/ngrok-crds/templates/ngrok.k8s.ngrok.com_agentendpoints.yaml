@@ -32,6 +32,14 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - jsonPath: .status.conditions[?(@.type=='Ready')].reason
+      name: Reason
+      priority: 1
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].message
+      name: Message
+      priority: 1
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -134,8 +142,8 @@ spec:
                     description: Optionally specify the version of proxy protocol
                       to use if the upstream requires it
                     enum:
-                    - 1
-                    - 2
+                    - "1"
+                    - "2"
                     type: string
                   url:
                     description: |-

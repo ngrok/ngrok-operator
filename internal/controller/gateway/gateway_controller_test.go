@@ -67,7 +67,7 @@ var _ = Describe("Gateway controller", Ordered, func() {
 					gw.Spec.Listeners = []gatewayv1.Listener{
 						{
 							Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
-							Hostname: ptr.To(gatewayv1.Hostname(domain)),
+							Hostname: new(gatewayv1.Hostname(domain)),
 							Port:     443,
 							Protocol: gatewayv1.HTTPSProtocolType,
 						},
@@ -93,7 +93,7 @@ var _ = Describe("Gateway controller", Ordered, func() {
 					gw.Spec.Listeners = []gatewayv1.Listener{
 						{
 							Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
-							Hostname: ptr.To(gatewayv1.Hostname(domain)),
+							Hostname: new(gatewayv1.Hostname(domain)),
 							Port:     443,
 							Protocol: gatewayv1.HTTPSProtocolType,
 						},

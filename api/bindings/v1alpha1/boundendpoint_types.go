@@ -35,14 +35,19 @@ import (
 
 // BoundEndpointSpec defines the desired state of BoundEndpoint
 type BoundEndpointSpec struct {
-	// EndpointURI is the unique identifier
+	// EndpointURL is the unique identifier
 	// representing the BoundEndpoint + its Endpoints
 	// Format: <scheme>://<service>.<namespace>:<port>
 	//
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	// See: https://regex101.com/r/9QkXWl/1
 	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$`
-	EndpointURI string `json:"endpointURI"`
+	EndpointURL string `json:"endpointURL,omitempty"`
+
+	// Deprecated: Use EndpointURL instead. Will be removed in a future release.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$`
+	EndpointURI string `json:"endpointURI,omitempty"`
 
 	// Scheme is a user-defined field for endpoints that describe how the data packets
 	// are framed by the pod forwarders mTLS connection to the ngrok edge
@@ -58,6 +63,14 @@ type BoundEndpointSpec struct {
 	// EndpointTarget is the target Service that this Endpoint projects
 	// +kubebuilder:validation:Required
 	Target EndpointTarget `json:"target"`
+}
+
+// GetEndpointURL returns EndpointURL if set, falling back to the deprecated EndpointURI field.
+func (s *BoundEndpointSpec) GetEndpointURL() string {
+	if s.EndpointURL != "" {
+		return s.EndpointURL
+	}
+	return s.EndpointURI
 }
 
 // BoundEndpointStatus defines the observed state of BoundEndpoint
@@ -138,12 +151,14 @@ type BindingEndpoint struct {
 // +kubebuilder:subresource:status
 
 // BoundEndpoint is the Schema for the boundendpoints API
-// +kubebuilder:printcolumn:name="URI",type="string",JSONPath=".spec.endpointURI"
+// +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".spec.endpointURL"
 // +kubebuilder:printcolumn:name="Port",type="string",JSONPath=".spec.port"
 // +kubebuilder:printcolumn:name="Endpoints",type="string",JSONPath=".status.endpointsSummary"
 // +kubebuilder:printcolumn:name="Services",type="string",JSONPath=".status.conditions[?(@.type==\"ServicesCreated\")].status"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+// +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].reason",priority=1
+// +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].message",priority=1
 type BoundEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

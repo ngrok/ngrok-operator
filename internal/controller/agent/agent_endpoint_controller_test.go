@@ -40,7 +40,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -1211,6 +1210,12 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
 			}, timeout, interval).Should(Succeed())
 
+			// Set up mock before creating the secret so it's ready when the secret-watch
+			// triggers the AgentEndpoint reconcile.
+			envMockDriver.SetEndpointResult(namespace+"/cert-watch-endpoint", &agent.EndpointResult{
+				URL: "tcp://cert-watch.tcp.ngrok.io:12345",
+			})
+
 			By("Creating the client certificate secret")
 			certSecret := &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1224,11 +1229,6 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				},
 			}
 			Expect(k8sClient.Create(ctx, certSecret)).To(Succeed())
-
-			// Mock successful endpoint creation for when certificate becomes available
-			envMockDriver.SetEndpointResult(namespace+"/cert-watch-endpoint", &agent.EndpointResult{
-				URL: "tcp://cert-watch.tcp.ngrok.io:12345",
-			})
 
 			By("Waiting for controller to automatically reconcile AgentEndpoint when secret is created")
 			Eventually(func(g Gomega) {
@@ -1350,7 +1350,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 					Status: ngrokv1alpha1.AgentEndpointStatus{
 						DomainRef: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 							Name:      staleDomain.GetName(),
-							Namespace: ptr.To(staleDomain.GetNamespace()),
+							Namespace: new(staleDomain.GetNamespace()),
 						},
 					},
 				}
@@ -1520,7 +1520,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				latestDomain := &ingressv1alpha1.Domain{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), latestDomain)).To(Succeed())
 				latestDomain.Status.ID = "dom_456"
-				latestDomain.Status.CNAMETarget = ptr.To("test.ngrok-cname.com")
+				latestDomain.Status.CNAMETarget = new("test.ngrok-cname.com")
 				latestDomain.Status.Conditions = []metav1.Condition{
 					{
 						Type:               "Ready",
@@ -1590,7 +1590,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				obj.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 					Name:      "stale-example-com",
-					Namespace: ptr.To(namespace),
+					Namespace: new(namespace),
 				}
 				g.Expect(k8sClient.Status().Update(ctx, obj)).To(Succeed())
 			}, timeout, interval).Should(Succeed())
@@ -1664,7 +1664,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				obj.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 					Name:      staleDomain.Name,
-					Namespace: ptr.To(namespace),
+					Namespace: new(namespace),
 				}
 				g.Expect(k8sClient.Status().Update(ctx, obj)).To(Succeed())
 			}, timeout, interval).Should(Succeed())

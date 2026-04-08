@@ -22,30 +22,30 @@ func Test_BoundEndpointPoller_filterBoundEndpointActions(t *testing.T) {
 	uriExample1 := "http://service1.namespace1:8080"
 	epdExample1 := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: hashURI(uriExample1),
+			Name: hashURL(uriExample1),
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURI: uriExample1,
+			EndpointURL: uriExample1,
 		},
 	}
 
 	uriExample2 := "https://service2.namespace2:443"
 	epdExample2 := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: hashURI(uriExample2),
+			Name: hashURL(uriExample2),
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURI: uriExample2,
+			EndpointURL: uriExample2,
 		},
 	}
 
 	uriExample3 := "https://service3.namespace3:443"
 	epdExample3 := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: hashURI(uriExample3),
+			Name: hashURL(uriExample3),
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURI: uriExample3,
+			EndpointURL: uriExample3,
 		},
 	}
 
@@ -56,7 +56,7 @@ func Test_BoundEndpointPoller_filterBoundEndpointActions(t *testing.T) {
 			Name: "abcd1234-abcd-1234-abcd-1234abcd1234",
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURI: uriExample3, // example 3 on purpose, see Name
+			EndpointURL: uriExample3, // example 3 on purpose, see Name
 		},
 	}
 
@@ -168,10 +168,10 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 	uriExample1 := "http://service1.namespace1:8080"
 	epdExample1 := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: hashURI(uriExample1),
+			Name: hashURL(uriExample1),
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURI: uriExample1,
+			EndpointURL: uriExample1,
 			Target: bindingsv1alpha1.EndpointTarget{
 				Namespace: "namespace1",
 				Service:   "service1",
@@ -180,7 +180,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			},
 		},
 		Status: bindingsv1alpha1.BoundEndpointStatus{
-			HashedName: hashURI(uriExample1),
+			HashedName: hashURL(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
 					Ref: ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
@@ -191,10 +191,10 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 
 	epdExample1NewMetadata := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: hashURI(uriExample1),
+			Name: hashURL(uriExample1),
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURI: uriExample1,
+			EndpointURL: uriExample1,
 			Target: bindingsv1alpha1.EndpointTarget{
 				Namespace: "namespace1",
 				Service:   "service1",
@@ -211,7 +211,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			},
 		},
 		Status: bindingsv1alpha1.BoundEndpointStatus{
-			HashedName: hashURI(uriExample1),
+			HashedName: hashURL(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
 					Ref: ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
@@ -222,10 +222,10 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 
 	epdExample1EmptyMetadata := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: hashURI(uriExample1),
+			Name: hashURL(uriExample1),
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURI: uriExample1,
+			EndpointURL: uriExample1,
 			Target: bindingsv1alpha1.EndpointTarget{
 				Namespace: "namespace1",
 				Service:   "service1",
@@ -238,7 +238,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			},
 		},
 		Status: bindingsv1alpha1.BoundEndpointStatus{
-			HashedName: hashURI(uriExample1),
+			HashedName: hashURL(uriExample1),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
 					Ref: ngrok.Ref{ID: "ep_abc123", URI: "example-uri"},
@@ -250,10 +250,10 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 	uriExample2 := "https://service2.namespace2:443"
 	epdExample2 := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: hashURI(uriExample2),
+			Name: hashURL(uriExample2),
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURI: uriExample2,
+			EndpointURL: uriExample2,
 			Target: bindingsv1alpha1.EndpointTarget{
 				Namespace: "namespace2",
 				Service:   "service2",
@@ -262,7 +262,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			},
 		},
 		Status: bindingsv1alpha1.BoundEndpointStatus{
-			HashedName: hashURI(uriExample2),
+			HashedName: hashURL(uriExample2),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
 					Ref: ngrok.Ref{ID: "ep_def456", URI: "example-uri"},
@@ -273,10 +273,10 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 
 	epdExample2NewStatus := bindingsv1alpha1.BoundEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: hashURI(uriExample2),
+			Name: hashURL(uriExample2),
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURI: uriExample2,
+			EndpointURL: uriExample2,
 			Target: bindingsv1alpha1.EndpointTarget{
 				Namespace: "namespace2",
 				Service:   "service2",
@@ -285,7 +285,7 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 			},
 		},
 		Status: bindingsv1alpha1.BoundEndpointStatus{
-			HashedName: hashURI(uriExample2),
+			HashedName: hashURL(uriExample2),
 			Endpoints: []bindingsv1alpha1.BindingEndpoint{
 				{
 					Ref: ngrok.Ref{ID: "ep_def456", URI: "example-uri"},
@@ -349,14 +349,14 @@ func Test_BoundEndpointPoller_boundEndpointNeedsUpdate(t *testing.T) {
 	}
 }
 
-func Test_BoundEndpointPoller_hashURI(t *testing.T) {
+func Test_BoundEndpointPoller_hashURL(t *testing.T) {
 	assert := assert.New(t)
 
-	endpointURI := "http://service.namespace:8080"
+	endpointURL := "http://service.namespace:8080"
 
 	// hash must be consistent
-	for i := 0; i < 100; i++ {
-		hashed := hashURI(endpointURI)
+	for range 100 {
+		hashed := hashURL(endpointURL)
 
 		// ensure hashed name meets k8s DNS naming requirements
 		assert.True(len(hashed) <= 63)

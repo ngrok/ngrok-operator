@@ -32,7 +32,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,7 +60,7 @@ type CloudEndpointReconciler struct {
 	controller *controller.BaseController[*ngrokv1alpha1.CloudEndpoint]
 
 	Log            logr.Logger
-	Recorder       record.EventRecorder
+	Recorder       events.EventRecorder
 	NgrokClientset ngrokapi.Clientset
 	DrainState     controller.DrainState
 
@@ -133,7 +133,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
-				r.Recorder.Event(cr, v1.EventTypeWarning, "ConfigError", err.Error())
+				r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "ConfigError", "Reconcile", err.Error())
 				r.Log.Error(err, "invalid TrafficPolicy configuration", "name", cr.Name, "namespace", cr.Namespace)
 				return ctrl.Result{}, nil // Do not requeue
 			}
@@ -245,7 +245,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	ngrokClep, err := r.NgrokClientset.Endpoints().Update(ctx, updateParams)
 	if ngrok.IsNotFound(err) {
 		// Couldn't find endpoint by ID to update, so blank it out and create a new one
-		r.Recorder.Event(clep, v1.EventTypeWarning, "EndpointNotFound", fmt.Sprintf("Failed to update endpoint %s by ID because it was not found. Creating a new one", clep.Status.ID))
+		r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "EndpointNotFound", "Reconcile", fmt.Sprintf("Failed to update endpoint %s by ID because it was not found. Creating a new one", clep.Status.ID))
 		clep.Status.ID = ""
 		_ = r.Client.Status().Update(ctx, clep)
 		return r.create(ctx, clep)
@@ -380,7 +380,7 @@ func (r *CloudEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 
 	// Attempt to get the TrafficPolicy from the API server
 	if err := r.Client.Get(ctx, key, tp); err != nil {
-		r.Recorder.Event(tp, v1.EventTypeWarning, "TrafficPolicyNotFound", fmt.Sprintf("Failed to find TrafficPolicy %s", tpName))
+		r.Recorder.Eventf(tp, nil, v1.EventTypeWarning, "TrafficPolicyNotFound", "Reconcile", fmt.Sprintf("Failed to find TrafficPolicy %s", tpName))
 		return "", err
 	}
 

@@ -29,16 +29,20 @@ import (
 
 	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/events"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+)
+
+const (
+	EventPolicyDeprecation        = "PolicyDeprecation"
+	EventTrafficPolicyParseFailed = "TrafficPolicyParseFailed"
 )
 
 // NgrokTrafficPolicyReconciler reconciles a NgrokTrafficPolicy object
@@ -46,7 +50,7 @@ type NgrokTrafficPolicyReconciler struct {
 	client.Client
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 	Driver   *managerdriver.Driver
 }
 
@@ -73,19 +77,19 @@ func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	parsedTrafficPolicy, err := util.NewTrafficPolicyFromJson(policy.Spec.Policy)
 	if err != nil {
-		r.Recorder.Eventf(policy, v1.EventTypeWarning, events.TrafficPolicyParseFailed, "Failed to parse Traffic Policy, possibly malformed.")
+		r.Recorder.Eventf(policy, nil, v1.EventTypeWarning, EventTrafficPolicyParseFailed, "Validate", "Failed to parse Traffic Policy, possibly malformed.")
 		return ctrl.Result{}, err
 	}
 
 	if parsedTrafficPolicy.IsLegacyPolicy() {
-		r.Recorder.Eventf(policy, v1.EventTypeWarning, events.PolicyDeprecation, "Traffic Policy is using legacy directions: ['inbound', 'outbound']. Update to new phases: ['on_tcp_connect', 'on_http_request', 'on_http_response']")
+		r.Recorder.Eventf(policy, nil, v1.EventTypeWarning, EventPolicyDeprecation, "Validate", "Traffic Policy is using legacy directions: ['inbound', 'outbound']. Update to new phases: ['on_tcp_connect', 'on_http_request', 'on_http_response']")
 	}
 
 	if parsedTrafficPolicy.Enabled() != nil {
-		r.Recorder.Eventf(policy, v1.EventTypeWarning, events.PolicyDeprecation, "Traffic Policy has 'enabled' set. This is a legacy option that will stop being supported soon.")
+		r.Recorder.Eventf(policy, nil, v1.EventTypeWarning, EventPolicyDeprecation, "Validate", "Traffic Policy has 'enabled' set. This is a legacy option that will stop being supported soon.")
 	}
 
-	return ctrl.Result{}, r.Driver.SyncEndpoints(ctx, r.Client)
+	return managerdriver.HandleSyncResult(r.Driver.SyncEndpoints(ctx, r.Client))
 }
 
 // SetupWithManager sets up the controller with the Manager.

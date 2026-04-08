@@ -86,7 +86,7 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 	}
 }
 
-func keyFunc(obj interface{}) (string, error) {
+func keyFunc(obj any) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(obj))
 	name := v.FieldByName("Name")
 	namespace := v.FieldByName("Namespace")
@@ -97,14 +97,14 @@ func getKey(name, namespace string) string {
 	return namespace + "/" + name
 }
 
-func clusterResourceKeyFunc(obj interface{}) (string, error) {
+func clusterResourceKeyFunc(obj any) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(obj))
 	return v.FieldByName("Name").String(), nil
 }
 
 // Get checks whether or not there's already some version of the provided object present in the cache.
 // The CacheStore must be initialized (see NewCacheStores()) or this will panic.
-func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err error) {
+func (c CacheStores) Get(obj runtime.Object) (item any, exists bool, err error) {
 	c.l.RLock()
 	defer c.l.RUnlock()
 

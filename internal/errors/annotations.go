@@ -39,7 +39,7 @@ func NewInvalidAnnotationConfiguration(name string, reason string) error {
 }
 
 // NewInvalidAnnotationContent returns a new InvalidContent error
-func NewInvalidAnnotationContent(name string, val interface{}) error {
+func NewInvalidAnnotationContent(name string, val any) error {
 	return InvalidContent{
 		Name: fmt.Sprintf("the annotation %v does not contain a valid value (%v)", name, val),
 	}
@@ -99,6 +99,6 @@ func New(m string) error {
 
 // Errorf formats according to a format specifier and returns the string
 // as a value that satisfies error.
-func Errorf(format string, args ...interface{}) error {
+func Errorf(format string, args ...any) error {
 	return fmt.Errorf(format, args...)
 }
