@@ -1,13 +1,17 @@
 name: 'Generate full install manifests'
 
 on:
-  pull_request_target:
+  push:
     branches:
     - main
     paths:
     - 'helm/**/*'
+    - 'Makefile'
+    - 'tools/make/**'
+
 permissions:
   contents: write
+
 jobs:
   update-full-install:
     name: Update full install
@@ -17,8 +21,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
         with:
-          ref: ${{github.event.pull_request.head.ref}}
-          repository: ${{github.event.pull_request.head.repo.full_name}}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@v34
