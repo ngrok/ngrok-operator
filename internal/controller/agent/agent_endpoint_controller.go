@@ -496,7 +496,12 @@ func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ng
 		}
 	} else {
 		endpoint.Status.AttachedTrafficPolicy = "none"
-		meta.RemoveStatusCondition(&endpoint.Status.Conditions, ConditionTrafficPolicy)
+		// Only clear the traffic policy condition if no policy is configured.
+		// When a policy is configured but failed to resolve, getTrafficPolicy
+		// already set the condition to false with the error — don't remove it.
+		if endpoint.Spec.TrafficPolicy == nil {
+			meta.RemoveStatusCondition(&endpoint.Status.Conditions, ConditionTrafficPolicy)
+		}
 	}
 
 	// Calculate overall Ready condition based on other conditions and domain status
