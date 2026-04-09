@@ -2,14 +2,16 @@ name: 'Generate full install manifests'
 
 on:
   push:
-    # TODO(operator-rename): Change this to main at some point so that we update the manifest bundle.
-    # This will need to be run post-release.
     branches:
-    - alex/single-manifest-file
-    # paths:
-    # - 'helm/**/*'
+    - main
+    paths:
+    - 'helm/**/*'
+    - 'Makefile'
+    - 'tools/make/**'
+
 permissions:
   contents: write
+
 jobs:
   update-full-install:
     name: Update full install
@@ -19,8 +21,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
         with:
-          ref: ${{github.event.pull_request.head.ref}}
-          repository: ${{github.event.pull_request.head.repo.full_name}}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup nix
         uses: ./.github/actions/nix-setup
