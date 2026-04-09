@@ -129,3 +129,20 @@ Return the ngrok operator image name
 {{- $tag := .Values.image.tag | default .Chart.AppVersion | toString -}}
 {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
 {{- end -}}
+
+{{/*
+Whether RBAC should use namespace-scoped Roles instead of ClusterRoles.
+True when watchNamespace is set (either via deprecated top-level or ingress.watchNamespace).
+*/}}
+{{- define "ngrok-operator.isNamespaced" -}}
+{{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+The namespace to watch. Returns the watchNamespace value (deprecated top-level takes precedence).
+*/}}
+{{- define "ngrok-operator.watchNamespace" -}}
+{{- .Values.watchNamespace | default .Values.ingress.watchNamespace -}}
+{{- end -}}

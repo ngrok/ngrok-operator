@@ -4,7 +4,7 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/rbac: 94336522237136a2b00b911b63825c6d9b7816a19ff48c8ddddb768d1afa47bb
+        checksum/rbac: a8f667ff81c9d748a5995659550ba7faed5c8d62070dba33bbb5e4a9c5e7ab29
       labels:
         app.kubernetes.io/component: agent
         app.kubernetes.io/instance: RELEASE-NAME
@@ -27,7 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
-            checksum/rbac: 94336522237136a2b00b911b63825c6d9b7816a19ff48c8ddddb768d1afa47bb
+            checksum/rbac: a8f667ff81c9d748a5995659550ba7faed5c8d62070dba33bbb5e4a9c5e7ab29
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
@@ -107,29 +107,32 @@ Should match snapshot:
       name: RELEASE-NAME-ngrok-operator-agent-role
     rules:
       - apiGroups:
-          - ingress.k8s.ngrok.com
+          - ""
         resources:
-          - tunnels
+          - events
+        verbs:
+          - create
+          - patch
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
         verbs:
           - get
           - list
           - watch
-          - patch
-          - update
       - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
-          - tunnels/finalizers
+          - domains
         verbs:
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/status
-        verbs:
+          - create
+          - delete
           - get
+          - list
           - patch
           - update
+          - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
@@ -137,9 +140,9 @@ Should match snapshot:
         verbs:
           - get
           - list
-          - watch
           - patch
           - update
+          - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
@@ -157,34 +160,7 @@ Should match snapshot:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
-          - ngroktrafficpolicies
-        verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains
-        verbs:
-          - get
-          - list
-          - watch
-          - create
-          - patch
-          - delete
-          - update
-      - apiGroups:
-          - ""
-        resources:
-          - events
-        verbs:
-          - create
-          - patch
-      - apiGroups:
-          - ""
-        resources:
-          - secrets
+          - kubernetesoperators
         verbs:
           - get
           - list
@@ -192,21 +168,8 @@ Should match snapshot:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
-          - kubernetesoperators
+          - ngroktrafficpolicies
         verbs:
           - get
           - list
           - watch
-  3: |
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-agent-rolebinding
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: RELEASE-NAME-ngrok-operator-agent-role
-    subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME-ngrok-operator-agent
-        namespace: NAMESPACE

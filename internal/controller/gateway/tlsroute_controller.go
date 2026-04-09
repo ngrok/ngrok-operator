@@ -52,9 +52,6 @@ type TLSRouteReconciler struct {
 	DrainState controller.DrainState
 }
 
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tlsroutes,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tlsroutes/status,verbs=get;list;watch;update
-
 func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("TLSRoute", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)

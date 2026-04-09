@@ -248,12 +248,17 @@
                 }
             }
         },
-        "clusterRole": {
+        "crdAccessRoles": {
             "type": "object",
             "properties": {
+                "create": {
+                    "type": "boolean",
+                    "description": "Whether to create editor/viewer ClusterRoles for CRDs",
+                    "default": true
+                },
                 "annotations": {
                     "type": "object",
-                    "description": "Additional annotations to add to all ClusterRoles.",
+                    "description": "Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)",
                     "default": {}
                 }
             }

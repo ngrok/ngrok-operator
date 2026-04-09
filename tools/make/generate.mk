@@ -9,10 +9,9 @@ generate-mocks:
 	go generate ./...
 
 .PHONY: manifests
-manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	controller-gen rbac:roleName='"{{ include \"ngrok-operator.fullname\" . }}-manager-role"' crd webhook paths="$(CONTROLLER_GEN_PATHS)" \
-		output:crd:artifacts:config=$(CRD_TEMPLATES_DIR) \
-		output:rbac:artifacts:config=$(HELM_TEMPLATES_DIR)/rbac
+manifests: ## Generate WebhookConfiguration and CustomResourceDefinition objects.
+	controller-gen crd webhook paths="$(CONTROLLER_GEN_PATHS)" \
+		output:crd:artifacts:config=$(CRD_TEMPLATES_DIR)
 
 
 .PHONY: manifest-bundle

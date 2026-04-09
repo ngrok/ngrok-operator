@@ -1,0 +1,28 @@
+{{- if .Values.crdAccessRoles.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-ippolicy-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+  {{- with .Values.crdAccessRoles.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies/status
+  verbs:
+  - get
+{{- end }}
