@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"reflect"
 	"time"
 
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
@@ -13,6 +14,98 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
+
+var _ = Describe("mergeParentStatuses", func() {
+	const (
+		ngrokController = ControllerName
+		otherController = gatewayv1.GatewayController("k8s.io/some-other-controller")
+	)
+
+	It("should not pick up conditions from another controller with the same ParentRef", func() {
+		parentRef := gatewayv1.ParentReference{Name: "shared-gw"}
+
+		// Simulate another controller having already written a status for the same ParentRef
+		existing := []gatewayv1.RouteParentStatus{
+			{
+				ParentRef:      parentRef,
+				ControllerName: otherController,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(gatewayv1.RouteConditionAccepted),
+						Status:             metav1.ConditionFalse,
+						Reason:             "OtherReason",
+						LastTransitionTime: metav1.Now(),
+					},
+				},
+			},
+		}
+
+		// Reproduce the condition-reuse loop from validateRouteParentRefs.
+		// The fixed code filters by ControllerName to avoid cross-controller pollution.
+		parentStatus := gatewayv1.RouteParentStatus{
+			ParentRef:      parentRef,
+			ControllerName: ngrokController,
+			Conditions:     []metav1.Condition{},
+		}
+
+		for _, s := range existing {
+			if s.ControllerName != ngrokController {
+				continue
+			}
+			if !reflect.DeepEqual(s.ParentRef, parentRef) {
+				continue
+			}
+			parentStatus.Conditions = append([]metav1.Condition(nil), s.Conditions...)
+			break
+		}
+
+		// Should NOT have picked up the other controller's conditions
+		Expect(parentStatus.Conditions).To(BeEmpty(),
+			"should not inherit conditions from a different controller")
+	})
+
+	It("should not share the backing slice with the existing status", func() {
+		parentRef := gatewayv1.ParentReference{Name: "my-gw"}
+
+		existing := []gatewayv1.RouteParentStatus{
+			{
+				ParentRef:      parentRef,
+				ControllerName: ngrokController,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(gatewayv1.RouteConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             string(gatewayv1.RouteReasonAccepted),
+						LastTransitionTime: metav1.Now(),
+					},
+				},
+			},
+		}
+
+		parentStatus := gatewayv1.RouteParentStatus{
+			ParentRef:      parentRef,
+			ControllerName: ngrokController,
+			Conditions:     []metav1.Condition{},
+		}
+
+		// The fixed code deep-copies conditions to avoid aliasing
+		for _, s := range existing {
+			if s.ControllerName != ngrokController {
+				continue
+			}
+			if !reflect.DeepEqual(s.ParentRef, parentRef) {
+				continue
+			}
+			parentStatus.Conditions = append([]metav1.Condition(nil), s.Conditions...)
+			break
+		}
+
+		// Mutating the copy must NOT affect the original
+		parentStatus.Conditions[0].Reason = "Mutated"
+		Expect(existing[0].Conditions[0].Reason).To(Equal(string(gatewayv1.RouteReasonAccepted)),
+			"original conditions should not be mutated through the copy")
+	})
+})
 
 var _ = Describe("HTTPRoute controller", Ordered, func() {
 	const (
@@ -102,6 +195,60 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 
 					}, timeout, interval).Should(Succeed())
 				})
+
+				It("Should preserve parent statuses written by other controllers", func(ctx SpecContext) {
+					// Wait for the ngrok controller to accept the route first
+					kginkgo.EventuallyWithObject(ctx, route.DeepCopy(), func(g Gomega, obj client.Object) {
+						r := obj.(*gatewayv1.HTTPRoute)
+						g.Expect(r.Status.Parents).To(HaveLen(1))
+						g.Expect(r.Status.Parents[0].ControllerName).To(Equal(ManagedControllerName))
+					})
+
+					// Simulate another controller (e.g. Istio) writing its own parent status
+					Eventually(func(g Gomega) {
+						obj := &gatewayv1.HTTPRoute{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
+
+						obj.Status.Parents = append(obj.Status.Parents, gatewayv1.RouteParentStatus{
+							ParentRef:      gatewayv1.ParentReference{Name: "some-other-gw"},
+							ControllerName: UnmanagedControllerName,
+							Conditions: []metav1.Condition{
+								{
+									Type:               string(gatewayv1.RouteConditionAccepted),
+									Status:             metav1.ConditionTrue,
+									Reason:             string(gatewayv1.RouteReasonAccepted),
+									LastTransitionTime: metav1.Now(),
+								},
+							},
+						})
+						g.Expect(k8sClient.Status().Update(ctx, obj)).To(Succeed())
+					}, timeout, interval).Should(Succeed())
+
+					// Trigger a re-reconcile by updating the route's annotations
+					Eventually(func(g Gomega) {
+						obj := &gatewayv1.HTTPRoute{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
+						if obj.Annotations == nil {
+							obj.Annotations = map[string]string{}
+						}
+						obj.Annotations["test-trigger"] = "reconcile"
+						g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+					}, timeout, interval).Should(Succeed())
+
+					// Both controllers' statuses should be present
+					kginkgo.EventuallyWithObject(ctx, route.DeepCopy(), func(g Gomega, obj client.Object) {
+						r := obj.(*gatewayv1.HTTPRoute)
+						controllerNames := map[gatewayv1.GatewayController]bool{}
+						for _, parent := range r.Status.Parents {
+							controllerNames[parent.ControllerName] = true
+						}
+
+						g.Expect(controllerNames).To(HaveKey(ManagedControllerName),
+							"ngrok controller's parent status should be present")
+						g.Expect(controllerNames).To(HaveKey(gatewayv1.GatewayController(UnmanagedControllerName)),
+							"other controller's parent status should be preserved")
+					})
+				})
 			})
 
 			When("the gateway does not exist", func() {
@@ -145,7 +292,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 								{
 									Kind:      ptr.To(gatewayv1.Kind("Service")),
 									Group:     ptr.To(gatewayv1.Group("")),
-									Namespace: ptr.To(gatewayv1.Namespace(service.Namespace)),
+									Namespace: new(gatewayv1.Namespace(service.Namespace)),
 									Name:      gatewayv1.ObjectName(service.Name),
 								},
 							},

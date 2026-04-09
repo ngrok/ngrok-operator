@@ -114,7 +114,7 @@ var _ = BeforeSuite(func() {
 		Client:         k8sManager.GetClient(),
 		Scheme:         k8sManager.GetScheme(),
 		Log:            logf.Log.WithName("cloudendpoint-controller"),
-		Recorder:       k8sManager.GetEventRecorderFor("cloudendpoint-controller"),
+		Recorder:       k8sManager.GetEventRecorder("cloudendpoint-controller"),
 		NgrokClientset: mockClientset,
 		// Let SetupWithManager create the default domain manager
 		// We'll use internal domains in tests to bypass actual domain creation

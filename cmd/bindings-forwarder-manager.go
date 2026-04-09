@@ -32,10 +32,12 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -113,6 +115,9 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 			DefaultNamespaces: map[string]cache.Config{
 				opts.namespace: {},
 			},
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.Pod{}: {Namespaces: map[string]cache.Config{cache.AllNamespaces: {}}},
+			},
 		},
 		Metrics: server.Options{
 			BindAddress: opts.metricsAddr,
@@ -143,7 +148,7 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("bindings-forwarder"),
 		Scheme:                 mgr.GetScheme(),
-		Recorder:               mgr.GetEventRecorderFor("bindings-forwarder-controller"),
+		Recorder:               mgr.GetEventRecorder("bindings-forwarder-controller"),
 		BindingsDriver:         bd,
 		KubernetesOperatorName: opts.releaseName,
 		RootCAs:                certPool,

@@ -48,8 +48,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/ptr"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	controllerruntime "sigs.k8s.io/controller-runtime/pkg/controller"
@@ -65,7 +64,7 @@ type ForwarderReconciler struct {
 	controller *controller.BaseController[*bindingsv1alpha1.BoundEndpoint]
 	Log        logr.Logger
 	Scheme     *runtime.Scheme
-	Recorder   record.EventRecorder
+	Recorder   events.EventRecorder
 
 	BindingsDriver         *bindingsdriver.BindingsDriver
 	KubernetesOperatorName string
@@ -96,12 +95,12 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 		StatusID: r.statusID,
 	}
 
-	cont, err := controllerruntime.NewUnmanaged("bindings-forwarder-controller", mgr, controllerruntime.Options{
+	cont, err := controllerruntime.NewUnmanaged("bindings-forwarder-controller", controllerruntime.Options{
 		Reconciler: r,
 		LogConstructor: func(_ *reconcile.Request) logr.Logger {
 			return r.Log
 		},
-		NeedLeaderElection: ptr.To(false),
+		NeedLeaderElection: new(false),
 	})
 	if err != nil {
 		return
@@ -197,13 +196,13 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		tlsDialer.Config.RootCAs = r.RootCAs
 	}
 
-	endpointURI, err := url.Parse(epb.Spec.EndpointURI)
+	endpointURL, err := url.Parse(epb.Spec.GetEndpointURL())
 	if err != nil {
 		return err
 	}
 
-	host := endpointURI.Hostname()
-	port, err := strconv.Atoi(endpointURI.Port())
+	host := endpointURL.Hostname()
+	port, err := strconv.Atoi(endpointURL.Port())
 	if err != nil {
 		return err
 	}
@@ -223,7 +222,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 			},
 			"binding", map[string]string{
 				"host": host,
-				"port": endpointURI.Port(),
+				"port": endpointURL.Port(),
 			},
 		)
 

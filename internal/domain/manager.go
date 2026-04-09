@@ -9,7 +9,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -72,12 +72,12 @@ func WithControllerLabels(clv labels.ControllerLabelValues) ManagerOption {
 // Manager handles domain creation and condition management
 type Manager struct {
 	Client                     client.Client
-	Recorder                   record.EventRecorder
+	Recorder                   events.EventRecorder
 	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 	controllerLabels           *labels.ControllerLabelValues
 }
 
-func NewManager(client client.Client, recorder record.EventRecorder, opts ...ManagerOption) (*Manager, error) {
+func NewManager(client client.Client, recorder events.EventRecorder, opts ...ManagerOption) (*Manager, error) {
 	m := &Manager{
 		Client:   client,
 		Recorder: recorder,

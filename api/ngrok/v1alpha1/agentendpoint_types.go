@@ -43,6 +43,8 @@ import (
 // +kubebuilder:printcolumn:name="Bindings",type="string",JSONPath=".spec.bindings"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason",priority=1
+// +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message",priority=1
 type AgentEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -88,7 +90,7 @@ type EndpointUpstream struct {
 
 	// Optionally specify the version of proxy protocol to use if the upstream requires it
 	//
-	// +kubebuilder:validation:Enum=1;2
+	// +kubebuilder:validation:Enum="1";"2"
 	// +kubebuilder:validation:Optional
 	ProxyProtocolVersion *commonv1alpha1.ProxyProtocolVersion `json:"proxyProtocolVersion"`
 }

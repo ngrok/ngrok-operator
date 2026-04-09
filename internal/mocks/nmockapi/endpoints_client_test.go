@@ -7,7 +7,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/utils/ptr"
 )
 
 var _ = Describe("EndpointsClient", func() {
@@ -37,7 +36,7 @@ var _ = Describe("EndpointsClient", func() {
 		When("the endpoint exists", func() {
 			BeforeEach(func() {
 				endpoint, err := endpointsClient.Create(ctx, &ngrok.EndpointCreate{
-					Description: ptr.To("test-endpoint"),
+					Description: new("test-endpoint"),
 				})
 				Expect(err).NotTo(HaveOccurred())
 				id = endpoint.ID
@@ -81,12 +80,12 @@ var _ = Describe("EndpointsClient", func() {
 			BeforeEach(func() {
 				_, err := endpointsClient.Create(ctx, &ngrok.EndpointCreate{
 					URL:         "http://example1.com",
-					Description: ptr.To("test-endpoint-1"),
+					Description: new("test-endpoint-1"),
 				})
 				Expect(err).NotTo(HaveOccurred())
 				_, err = endpointsClient.Create(ctx, &ngrok.EndpointCreate{
 					URL:         "http://example2.com",
-					Description: ptr.To("test-endpoint-2"),
+					Description: new("test-endpoint-2"),
 				})
 				Expect(err).NotTo(HaveOccurred())
 			})
@@ -120,7 +119,7 @@ var _ = Describe("EndpointsClient", func() {
 			BeforeEach(func() {
 				endpointCreate = &ngrok.EndpointCreate{
 					URL:         "http://example.com",
-					Description: ptr.To("valid-endpoint"),
+					Description: new("valid-endpoint"),
 				}
 			})
 
@@ -136,7 +135,7 @@ var _ = Describe("EndpointsClient", func() {
 			BeforeEach(func(ctx SpecContext) {
 				endpointCreate = &ngrok.EndpointCreate{
 					URL:         "http://example.com",
-					Description: ptr.To("endpoint-1"),
+					Description: new("endpoint-1"),
 				}
 				_, err := endpointsClient.Create(ctx, endpointCreate)
 				Expect(err).NotTo(HaveOccurred())
@@ -161,7 +160,7 @@ var _ = Describe("EndpointsClient", func() {
 		When("the endpoint exists", func() {
 			BeforeEach(func() {
 				endpoint, err := endpointsClient.Create(ctx, &ngrok.EndpointCreate{
-					Description: ptr.To("endpoint-to-delete"),
+					Description: new("endpoint-to-delete"),
 				})
 				Expect(err).NotTo(HaveOccurred())
 				id = endpoint.ID

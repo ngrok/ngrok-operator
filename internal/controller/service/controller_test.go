@@ -98,7 +98,7 @@ func SetServiceType(svcType corev1.ServiceType) ServiceModifier {
 
 func SetLoadBalancerClass(lbClass string) ServiceModifier {
 	return func(svc *corev1.Service) {
-		svc.Spec.LoadBalancerClass = ptr.To(lbClass)
+		svc.Spec.LoadBalancerClass = new(lbClass)
 	}
 }
 
@@ -581,14 +581,11 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should set computed-url annotation and update service status after domainRef is set", func() {
-					var agentEndpoint *ngrokv1alpha1.AgentEndpoint
-
 					By("waiting for agent endpoint to be created")
 					Eventually(func(g Gomega) {
 						aeps, err := getAgentEndpoints(k8sClient, namespace)
 						g.Expect(err).NotTo(HaveOccurred())
 						g.Expect(aeps.Items).To(HaveLen(1))
-						agentEndpoint = &aeps.Items[0]
 					}, timeout, interval).Should(Succeed())
 
 					By("creating a Domain CRD for the ngrok domain")
@@ -617,13 +614,20 @@ var _ = Describe("ServiceController", func() {
 
 					By("updating the AgentEndpoint status with domainRef")
 					Eventually(func(_ Gomega) error {
-						fetchedAep := &ngrokv1alpha1.AgentEndpoint{}
-						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), fetchedAep); err != nil {
+						// Re-list agent endpoints to find the current one, since the
+						// reconciler may have deleted and recreated it with a new name
+						// due to informer cache races.
+						aeps, err := getAgentEndpoints(k8sClient, namespace)
+						if err != nil {
 							return err
 						}
+						if len(aeps.Items) != 1 {
+							return fmt.Errorf("expected 1 agent endpoint, got %d", len(aeps.Items))
+						}
+						fetchedAep := &aeps.Items[0]
 						fetchedAep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 							Name:      domainName,
-							Namespace: ptr.To(namespace),
+							Namespace: new(namespace),
 						}
 						return k8sClient.Status().Update(ctx, fetchedAep)
 					}, timeout, interval).Should(Succeed())
@@ -736,7 +740,7 @@ var _ = Describe("ServiceController", func() {
 						fetchedClep := &cleps.Items[0]
 						fetchedClep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 							Name:      domainName,
-							Namespace: ptr.To(namespace),
+							Namespace: new(namespace),
 						}
 						return k8sClient.Status().Update(ctx, fetchedClep)
 					}, timeout, interval).Should(Succeed())
@@ -855,7 +859,7 @@ var _ = Describe("ServiceController", func() {
 									Kind:       "Service",
 									Name:       fetched.Name,
 									UID:        fetched.UID,
-									Controller: ptr.To(true),
+									Controller: new(true),
 								},
 							},
 						},

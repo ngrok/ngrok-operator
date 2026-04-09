@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
@@ -17,9 +19,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -52,18 +55,19 @@ type Driver struct {
 
 	syncMu              sync.Mutex
 	syncRunning         bool
-	syncFullCh          chan error
-	syncPartialCh       chan error
+	syncFullCh          chan struct{}
+	syncPartialCh       chan struct{}
 	syncAllowConcurrent bool
 
 	gatewayEnabled                bool
 	gatewayTCPRouteEnabled        bool
 	gatewayTLSRouteEnabled        bool
 	disableGatewayReferenceGrants bool
+	gatewayControllerName         string
 
 	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 
 	// drainState is used to check if the operator is draining.
 	// If draining, Sync() returns early to prevent creating new resources.
@@ -78,6 +82,12 @@ type DriverOpt func(*Driver)
 func WithGatewayEnabled(enabled bool) DriverOpt {
 	return func(d *Driver) {
 		d.gatewayEnabled = enabled
+	}
+}
+
+func WithGatewayControllerName(name string) DriverOpt {
+	return func(d *Driver) {
+		d.gatewayControllerName = name
 	}
 }
 
@@ -117,7 +127,7 @@ func WithDefaultDomainReclaimPolicy(policy ingressv1alpha1.DomainReclaimPolicy) 
 	}
 }
 
-func WithEventRecorder(recorder record.EventRecorder) DriverOpt {
+func WithEventRecorder(recorder events.EventRecorder) DriverOpt {
 	return func(d *Driver) {
 		d.recorder = recorder
 	}
@@ -131,11 +141,7 @@ func WithDrainState(state DrainState) DriverOpt {
 
 // NewDriver creates a new driver with a basic logger and cache store setup
 func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string, managerName types.NamespacedName, opts ...DriverOpt) *Driver {
-	cacheStores := store.NewCacheStores(logger)
-	s := store.New(cacheStores, controllerName, logger)
 	d := &Driver{
-		store:          s,
-		cacheStores:    cacheStores,
 		log:            logger,
 		scheme:         scheme,
 		gatewayEnabled: false,
@@ -149,6 +155,13 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 	for _, opt := range opts {
 		opt(d)
 	}
+
+	cacheStores := store.NewCacheStores(logger)
+	d.cacheStores = cacheStores
+	d.store = store.New(cacheStores, controllerName, logger,
+		store.WithGatewayControllerName(d.gatewayControllerName),
+	)
+
 	return d
 }
 
@@ -180,9 +193,7 @@ func (d *Driver) GetStore() store.Storer {
 
 func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[string]string) (string, error) {
 	metaData := make(map[string]string)
-	for k, v := range customNgrokMetadata {
-		metaData[k] = v
-	}
+	maps.Copy(metaData, customNgrokMetadata)
 	if _, ok := metaData["owned-by"]; !ok {
 		metaData["owned-by"] = owner
 	}
@@ -194,7 +205,7 @@ func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[str
 	return string(jsonString), nil
 }
 
-func listObjectsForType(ctx context.Context, client client.Reader, v interface{}, listOpts ...client.ListOption) ([]client.Object, error) {
+func listObjectsForType(ctx context.Context, client client.Reader, v any, listOpts ...client.ListOption) ([]client.Object, error) {
 	switch v.(type) {
 
 	// ----------------------------------------------------------------------------
@@ -299,7 +310,7 @@ func listObjectsForType(ctx context.Context, client client.Reader, v interface{}
 // - CloudEndpoints
 // When the sync method becomes a background process, this likely won't be needed anymore
 func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.ListOption) error {
-	typesToSeed := []interface{}{
+	typesToSeed := []any{
 		&netv1.Ingress{},
 		&netv1.IngressClass{},
 		&corev1.Service{},
@@ -353,13 +364,9 @@ func (d *Driver) PrintState(setupLog logr.Logger) {
 
 	// Helpful debug information if someone doesn't have their ingress class set up correctly.
 	if len(ings) == 0 {
-		ingresses := d.store.ListIngressesV1()
-		ngrokIngresses := d.store.ListNgrokIngressesV1()
 		ingressClasses := d.store.ListIngressClassesV1()
 		ngrokIngressClasses := d.store.ListNgrokIngressClassesV1()
 		setupLog.Info("no matching ingresses found",
-			"all ingresses", ingresses,
-			"all ngrok ingresses", ngrokIngresses,
 			"all ingress classes", ingressClasses,
 			"all ngrok ingress classes", ngrokIngressClasses,
 		)
@@ -495,7 +502,8 @@ func (d *Driver) DeleteNamespace(name string) error {
 //   - let the first caller proceed, indicated by returning true
 //   - while the first one is running any subsequent calls will be batched to the last call
 //   - the callers between first and last will be assumed "success" and wait will return nil
-//   - the last one will return an error, which will retrigger reconciliation
+//   - the last caller will return ErrSyncRequeue so the reconciler requeues to
+//     ensure its store changes are captured in a subsequent sync
 func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error) {
 	d.log.Info("sync start")
 	d.syncMu.Lock()
@@ -524,7 +532,7 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 	}
 
 	// put yourself in waiting position
-	ch := make(chan error, 1)
+	ch := make(chan struct{}, 1)
 	if partial {
 		d.syncPartialCh = ch
 	} else {
@@ -533,16 +541,44 @@ func (d *Driver) syncStart(partial bool) (bool, func(ctx context.Context) error)
 
 	return false, func(ctx context.Context) error {
 		select {
-		case err := <-ch:
-			d.log.Error(err, "sync finished with error")
-			return err
+		case _, ok := <-ch:
+			if !ok {
+				// channel was closed without a send — this waiter was
+				// overtaken by a later caller and can return success
+				return nil
+			}
+			// syncDone sent a value — we are the last waiter and should
+			// requeue so our store changes get picked up by the next sync
+			return ErrSyncRequeue
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
 }
 
-var errSyncDone = errors.New("sync done")
+// ErrSyncRequeue is a sentinel returned by the sync debouncer to indicate that
+// a sync completed while the caller was waiting, and the caller should requeue
+// to ensure its store changes are captured in a subsequent sync. This is not a
+// real error — reconcilers should convert it to ctrl.Result{RequeueAfter: syncRequeueDelay}
+// using HandleSyncResult.
+var ErrSyncRequeue = errors.New("sync requeue requested")
+
+// syncRequeueDelay is the duration used by HandleSyncResult when requeueing
+// after a debounced sync. A short delay avoids tight retry loops while still
+// processing missed state changes promptly.
+const syncRequeueDelay = 100 * time.Millisecond
+
+// HandleSyncResult converts a Sync or SyncEndpoints error into a
+// controller-runtime reconcile result. If the error is ErrSyncRequeue it
+// returns ctrl.Result{RequeueAfter: syncRequeueDelay} with a nil error so
+// controller-runtime requeues without logging an error or applying exponential
+// backoff. Real errors are passed through unchanged.
+func HandleSyncResult(err error) (ctrl.Result, error) {
+	if err == ErrSyncRequeue {
+		return ctrl.Result{RequeueAfter: syncRequeueDelay}, nil
+	}
+	return ctrl.Result{}, err
+}
 
 func (d *Driver) syncDone() {
 	d.log.Info("sync done")
@@ -550,12 +586,12 @@ func (d *Driver) syncDone() {
 	defer d.syncMu.Unlock()
 
 	if d.syncFullCh != nil {
-		d.syncFullCh <- errSyncDone
+		d.syncFullCh <- struct{}{}
 		close(d.syncFullCh)
 		d.syncFullCh = nil
 	}
 	if d.syncPartialCh != nil {
-		d.syncPartialCh <- errSyncDone
+		d.syncPartialCh <- struct{}{}
 		close(d.syncPartialCh)
 		d.syncPartialCh = nil
 	}
@@ -680,7 +716,7 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 
 	// Calculate the ingresses that need their status updated
 	needsUpdate := []*netv1.Ingress{}
-	for _, ingress := range d.store.ListIngressesV1() {
+	for _, ingress := range d.store.ListNgrokIngressesV1() {
 		if ingress == nil {
 			continue
 		}
@@ -706,7 +742,7 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 
 	for _, ingress := range needsUpdate {
 		g.Go(func() error {
-			return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				current := new(netv1.Ingress)
 				if err := c.Get(ctx, client.ObjectKeyFromObject(ingress), current); err != nil {
 					if apierrors.IsNotFound(err) {
@@ -721,7 +757,10 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 
 				current.Status.LoadBalancer.Ingress = ingress.Status.LoadBalancer.Ingress
 				return c.Status().Update(ctx, current)
-			})
+			}); err != nil {
+				return fmt.Errorf("update ingress status %s/%s: %w", ingress.Namespace, ingress.Name, err)
+			}
+			return nil
 		})
 	}
 
@@ -750,8 +789,10 @@ func (d *Driver) recordDomainEventsForIngress(ingress *netv1.Ingress, domains ma
 		if readyCondition.Status == metav1.ConditionFalse {
 			d.recorder.Eventf(
 				ingress,
+				nil,
 				corev1.EventTypeWarning,
 				"DomainNotReady",
+				"Reconcile",
 				"Domain %q is not ready: %s",
 				rule.Host,
 				readyCondition.Message,
@@ -769,7 +810,7 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 
 	needsUpdate := []*gatewayv1.Gateway{}
 
-	for _, gateway := range d.store.ListGateways() {
+	for _, gateway := range d.store.ListNgrokGateways() {
 		if gateway == nil {
 			continue
 		}
@@ -1100,9 +1141,7 @@ func (d *Driver) handleHTTPHeaderFilterAdd(headersToAdd []gatewayv1.HTTPHeader, 
 	}
 
 	if requestRedirectHeaders != nil {
-		for k, v := range config.Headers {
-			requestRedirectHeaders[k] = v
-		}
+		maps.Copy(requestRedirectHeaders, config.Headers)
 	}
 
 	addHeaders, err := json.Marshal(config)

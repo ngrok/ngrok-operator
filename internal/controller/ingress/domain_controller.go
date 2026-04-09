@@ -32,7 +32,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,7 +54,7 @@ type DomainReconciler struct {
 
 	Log           logr.Logger
 	Scheme        *runtime.Scheme
-	Recorder      record.EventRecorder
+	Recorder      events.EventRecorder
 	DomainsClient ngrokapi.DomainClient
 	DrainState    basecontroller.DrainState
 

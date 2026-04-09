@@ -2,7 +2,9 @@ package ir
 
 import (
 	"fmt"
+	"slices"
 	"sort"
+	"strings"
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
@@ -271,14 +273,15 @@ const (
 type IRServiceKey string
 
 func (s IRService) Key() IRServiceKey {
-	key := fmt.Sprintf("%s/%s/%s/%d", s.UID, s.Namespace, s.Name, s.Port)
+	var key strings.Builder
+	key.WriteString(fmt.Sprintf("%s/%s/%s/%d", s.UID, s.Namespace, s.Name, s.Port))
 	if s.Protocol != nil {
-		key += fmt.Sprintf("/%s", *s.Protocol)
+		key.WriteString(fmt.Sprintf("/%s", *s.Protocol))
 	}
 	for _, clientCertRef := range s.ClientCertRefs {
-		key += fmt.Sprintf("/%s.%s", clientCertRef.Name, clientCertRef.Namespace)
+		key.WriteString(fmt.Sprintf("/%s.%s", clientCertRef.Name, clientCertRef.Namespace))
 	}
-	return IRServiceKey(key)
+	return IRServiceKey(key.String())
 }
 
 type IRObjectRef struct {
@@ -432,11 +435,11 @@ func headersToString(headers []IRHeaderMatch) string {
 		}
 		return hCopy[i].Value < hCopy[j].Value
 	})
-	s := ""
+	var s strings.Builder
 	for _, h := range hCopy {
-		s += h.Name + ":" + string(h.ValueType) + ":" + h.Value + ";"
+		s.WriteString(h.Name + ":" + string(h.ValueType) + ":" + h.Value + ";")
 	}
-	return s
+	return s.String()
 }
 
 // queryParamsToString produces a normalized string representation for query parameter matchers.
@@ -454,29 +457,25 @@ func queryParamsToString(qps []IRQueryParamMatch) string {
 		}
 		return qpCopy[i].Value < qpCopy[j].Value
 	})
-	s := ""
+	var s strings.Builder
 	for _, qp := range qpCopy {
-		s += qp.Name + ":" + string(qp.ValueType) + ":" + qp.Value + ";"
+		s.WriteString(qp.Name + ":" + string(qp.ValueType) + ":" + qp.Value + ";")
 	}
-	return s
+	return s.String()
 }
 
 // addOwningIngress will append a new namespaced name to the list of owning ingresses for a virtual host
 func (h *IRVirtualHost) AddOwningResource(new OwningResource) {
-	for _, current := range h.OwningResources {
-		if current == new {
-			return
-		}
+	if slices.Contains(h.OwningResources, new) {
+		return
 	}
 	h.OwningResources = append(h.OwningResources, new)
 }
 
 // addOwningIngress will append a new namespaced name to the list of owning ingresses for an upstream
 func (h *IRUpstream) AddOwningResource(new OwningResource) {
-	for _, current := range h.OwningResources {
-		if current == new {
-			return
-		}
+	if slices.Contains(h.OwningResources, new) {
+		return
 	}
 	h.OwningResources = append(h.OwningResources, new)
 }

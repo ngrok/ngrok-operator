@@ -72,7 +72,7 @@ Ngrok Operator manager cli feature flags
 {{- if .Values.ingress.enabled -}}
 - --enable-feature-ingress={{ .Values.ingress.enabled }}
 {{- end }}
-{{- if .Values.useExperimentalGatewayApi | default .Values.gateway.enabled }}
+{{- if .Values.gateway.enabled }}
 - --enable-feature-gateway=true
 {{- else }}
 - --enable-feature-gateway=false

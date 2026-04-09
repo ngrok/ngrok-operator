@@ -87,7 +87,7 @@ make undeploy               # Remove from cluster
 ## Configuration
 
 - **Credentials**: `helm install` requires `credentials.apiKey` and `credentials.authtoken`
-- **Feature Flags**: `useExperimentalGatewayApi=true` enables Gateway API support
+- **Feature Flags**: `gateway.enabled=true` enables Gateway API support
 
 ## Rules
 

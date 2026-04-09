@@ -38,7 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -79,7 +79,7 @@ type BoundEndpointReconciler struct {
 	controller *controller.BaseController[*bindingsv1alpha1.BoundEndpoint]
 
 	Log      logr.Logger
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 
 	// ClusterDomain is the last part of the FQDN for Service DNS in-cluster
 	ClusterDomain string
@@ -206,7 +206,7 @@ func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner
 	log := ctrl.LoggerFrom(ctx)
 
 	if err := r.Client.Create(ctx, service); err != nil {
-		r.Recorder.Event(owner, v1.EventTypeWarning, "Created", "Failed to create Target Service")
+		r.Recorder.Eventf(owner, nil, v1.EventTypeWarning, "Created", "Create", "Failed to create Target Service")
 		log.Error(err, "Failed to create Target Service")
 
 		ngrokErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateTargetService, "Failed to create Target Service")
@@ -215,8 +215,7 @@ func (r *BoundEndpointReconciler) createTargetService(ctx context.Context, owner
 		return ngrokErr
 	}
 
-	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Target Service")
-	r.Recorder.Event(owner, v1.EventTypeNormal, "Created", "Created Target Service")
+	r.Recorder.Eventf(owner, service, v1.EventTypeNormal, "Created", "Create", "Created Target Service")
 	log.Info("Created Target Service", "service", service.Name)
 	return nil
 }
@@ -225,7 +224,7 @@ func (r *BoundEndpointReconciler) createUpstreamService(ctx context.Context, own
 	log := ctrl.LoggerFrom(ctx)
 
 	if err := r.Client.Create(ctx, service); err != nil {
-		r.Recorder.Event(owner, v1.EventTypeWarning, "Created", "Failed to create Upstream Service")
+		r.Recorder.Eventf(owner, nil, v1.EventTypeWarning, "Created", "Create", "Failed to create Upstream Service")
 		log.Error(err, "Failed to create Upstream Service")
 
 		ngrokErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateUpstreamService, "Failed to create Upstream Service")
@@ -234,8 +233,7 @@ func (r *BoundEndpointReconciler) createUpstreamService(ctx context.Context, own
 		return ngrokErr
 	}
 
-	r.Recorder.Event(service, v1.EventTypeNormal, "Created", "Created Upstream Service")
-	r.Recorder.Event(owner, v1.EventTypeNormal, "Created", "Created Upstream Service")
+	r.Recorder.Eventf(owner, service, v1.EventTypeNormal, "Created", "Create", "Created Upstream Service")
 	log.Info("Created Upstream Service", "service", service.Name)
 
 	return nil
@@ -254,7 +252,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			// real error
-			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			log.Error(err, "Failed to find existing Upstream Service", "name", cr.Name, "url", cr.Spec.GetEndpointURL())
 			return r.updateStatus(ctx, cr, err)
 		}
 
@@ -271,12 +269,12 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 		// don't update status
 
 		if err := r.Client.Update(ctx, &existingUpstreamService); err != nil {
-			r.Recorder.Event(&existingUpstreamService, v1.EventTypeWarning, "UpdateFailed", "Failed to update Upstream Service")
-			r.Recorder.Event(cr, v1.EventTypeWarning, "UpdateFailed", "Failed to update Upstream Service")
+			r.Recorder.Eventf(&existingUpstreamService, nil, v1.EventTypeWarning, "UpdateFailed", "Update", "Failed to update Upstream Service")
+			r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "UpdateFailed", "Update", "Failed to update Upstream Service")
 			log.Error(err, "Failed to update Upstream Service")
 			return r.updateStatus(ctx, cr, err)
 		}
-		r.Recorder.Event(&existingUpstreamService, v1.EventTypeNormal, "Updated", "Updated Upstream Service")
+		r.Recorder.Eventf(&existingUpstreamService, nil, v1.EventTypeNormal, "Updated", "Update", "Updated Upstream Service")
 	}
 
 	// target service
@@ -284,7 +282,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			// real error
-			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "uri", cr.Spec.EndpointURI)
+			log.Error(err, "Failed to find existing Target Service", "name", cr.Name, "url", cr.Spec.GetEndpointURL())
 			return r.updateStatus(ctx, cr, err)
 		}
 
@@ -301,12 +299,12 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 		// don't update status
 
 		if err := r.Client.Update(ctx, &existingTargetService); err != nil {
-			r.Recorder.Event(&existingTargetService, v1.EventTypeWarning, "UpdateFailed", "Failed to update Target Service")
-			r.Recorder.Event(cr, v1.EventTypeWarning, "UpdateFailed", "Failed to update Target Service")
+			r.Recorder.Eventf(&existingTargetService, nil, v1.EventTypeWarning, "UpdateFailed", "Update", "Failed to update Target Service")
+			r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "UpdateFailed", "Update", "Failed to update Target Service")
 			log.Error(err, "Failed to update Target Service")
 			return r.updateStatus(ctx, cr, err)
 		}
-		r.Recorder.Event(&existingTargetService, v1.EventTypeNormal, "Updated", "Updated Target Service")
+		r.Recorder.Eventf(&existingTargetService, nil, v1.EventTypeNormal, "Updated", "Update", "Updated Target Service")
 	}
 
 	// Both services exist and are up to date
@@ -320,7 +318,7 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 	err = r.testBoundEndpointConnectivity(timeoutCtx, cr)
 	r.setConnectivityStatus(cr, err)
 
-	r.Recorder.Event(cr, v1.EventTypeNormal, "Updated", "Updated Services")
+	r.Recorder.Eventf(cr, nil, v1.EventTypeNormal, "Updated", "Update", "Updated Services")
 	return r.updateStatus(ctx, cr, nil)
 }
 
@@ -348,7 +346,7 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 			if client.IgnoreNotFound(err) == nil {
 				return nil
 			}
-			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Target Service")
+			r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "Delete", "Delete", "Failed to delete Target Service")
 			log.Error(err, "Failed to delete Target Service")
 			return err
 		}
@@ -356,7 +354,7 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 
 	if err := r.Client.Delete(ctx, upstreamService); err != nil {
 		if client.IgnoreNotFound(err) != nil {
-			r.Recorder.Event(cr, v1.EventTypeWarning, "Delete", "Failed to delete Upstream Service")
+			r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "Delete", "Delete", "Failed to delete Upstream Service")
 			log.Error(err, "Failed to delete Upstream Service")
 			return err
 		}
@@ -528,7 +526,7 @@ func (r *BoundEndpointReconciler) findBoundEndpointsForService(ctx context.Conte
 
 // tryToBindEndpoint attempts a TCP connection through the provisioned services for the BoundEndpoint
 func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Context, boundEndpoint *bindingsv1alpha1.BoundEndpoint) error {
-	log := ctrl.LoggerFrom(ctx).WithValues("uri", boundEndpoint.Spec.EndpointURI)
+	log := ctrl.LoggerFrom(ctx).WithValues("url", boundEndpoint.Spec.GetEndpointURL())
 
 	bindErrMsg := fmt.Sprintf("connectivity check failed for BoundEndpoint %s", boundEndpoint.Name)
 
@@ -540,17 +538,17 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 	retries := 8
 
 	// rely on kube-dns to resolve the targetService's ExternalName
-	uri, err := url.Parse(boundEndpoint.Spec.EndpointURI)
+	uri, err := url.Parse(boundEndpoint.Spec.GetEndpointURL())
 	if err != nil {
-		wrappedErr := fmt.Errorf("failed to parse BoundEndpoint URI %s: %w", boundEndpoint.Spec.EndpointURI, err)
-		log.Error(wrappedErr, bindErrMsg, "uri", boundEndpoint.Spec.EndpointURI)
+		wrappedErr := fmt.Errorf("failed to parse BoundEndpoint URL %s: %w", boundEndpoint.Spec.GetEndpointURL(), err)
+		log.Error(wrappedErr, bindErrMsg, "url", boundEndpoint.Spec.GetEndpointURL())
 		return wrappedErr
 	}
 
 	for i := range retries {
 		select {
 		case <-ctx.Done():
-			err = errors.New("attempting to connect to BoundEndpoint URI timed out")
+			err = errors.New("attempting to connect to BoundEndpoint URL timed out")
 			log.Error(err, bindErrMsg)
 			return err
 

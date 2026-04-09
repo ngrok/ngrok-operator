@@ -13,7 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -24,7 +24,7 @@ type IngressReconciler struct {
 	client.Client
 	Log       logr.Logger
 	Scheme    *runtime.Scheme
-	Recorder  record.EventRecorder
+	Recorder  events.EventRecorder
 	Namespace string
 	Driver    *managerdriver.Driver
 	// DrainState is used to check if the operator is draining.
@@ -79,13 +79,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 
-		err = r.Driver.Sync(ctx, r.Client)
-		if err != nil {
-			log.Error(err, "Failed to sync after removing ingress from store")
-			return ctrl.Result{}, err
-		}
-
-		return ctrl.Result{}, nil
+		return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 	default:
 		return ctrl.Result{}, err
 	}
@@ -104,13 +98,13 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.Info("Ingress is not of type ngrok so skipping it")
 		return ctrl.Result{}, nil
 	case internalerrors.IsErrorNoDefaultIngressClassFound(err):
-		r.Recorder.Event(originalFoundIngress, "Warning", "NoDefaultIngressClassFound", "No ingress class found for this controller")
+		r.Recorder.Eventf(originalFoundIngress, nil, "Warning", "NoDefaultIngressClassFound", "Reconcile", "No ingress class found for this controller")
 		return ctrl.Result{}, nil
 	case internalerrors.IsErrInvalidIngressSpec(err):
-		r.Recorder.Eventf(originalFoundIngress, "Warning", "InvalidIngressSpec", "Ingress is not valid so skipping it: %v", err)
+		r.Recorder.Eventf(originalFoundIngress, nil, "Warning", "InvalidIngressSpec", "Reconcile", "Ingress is not valid so skipping it: %v", err)
 		return ctrl.Result{}, nil
 	default:
-		r.Recorder.Event(originalFoundIngress, "Warning", "FailedGetIngress", "Failed to get ingress from store")
+		r.Recorder.Eventf(originalFoundIngress, nil, "Warning", "FailedGetIngress", "Reconcile", "Failed to get ingress from store: %v", err)
 		return ctrl.Result{}, err
 	}
 
@@ -127,11 +121,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 
-		err = r.Driver.Sync(ctx, r.Client)
-		if err != nil {
-			log.Error(err, "Failed to sync")
-		}
-		return ctrl.Result{}, err
+		return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 	}
 
 	// Skip non-delete reconciles during drain to prevent adding new finalizers
@@ -151,10 +141,5 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	err = r.Driver.Sync(ctx, r.Client)
-	if err != nil {
-		log.Error(err, "Failed to sync")
-	}
-
-	return ctrl.Result{}, err
+	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 }

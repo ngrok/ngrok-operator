@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -22,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/events"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
@@ -33,6 +33,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 const defaultManagerName = "ngrok-ingress-controller"
@@ -46,6 +47,7 @@ var _ = Describe("Driver", func() {
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(gatewayv1alpha2.Install(scheme))
+	utilruntime.Must(gatewayv1beta1.Install(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 
 	BeforeEach(func() {
@@ -348,7 +350,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is unknown", func() {
 				BeforeEach(func() {
 					// Set an unknown appProtocol on the httpService
-					httpService.Spec.Ports[0].AppProtocol = ptr.To("unknown")
+					httpService.Spec.Ports[0].AppProtocol = new("unknown")
 					// Modify the ingress to include the httpService
 					setIngressTargetService(ingress, httpService)
 				})
@@ -368,7 +370,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is http", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
-					httpService.Spec.Ports[0].AppProtocol = ptr.To("http")
+					httpService.Spec.Ports[0].AppProtocol = new("http")
 					// Modify the ingress to include the httpService
 					setIngressTargetService(ingress, httpService)
 				})
@@ -387,7 +389,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is k8s.ngrok.com/http2", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
-					httpsService.Spec.Ports[0].AppProtocol = ptr.To("k8s.ngrok.com/http2")
+					httpsService.Spec.Ports[0].AppProtocol = new("k8s.ngrok.com/http2")
 
 					// Modify the ingress to include the httpsService
 					setIngressTargetService(ingress, httpsService)
@@ -407,7 +409,7 @@ var _ = Describe("Driver", func() {
 			When("The appProtocol is kubernetes.io/h2c", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
-					httpsService.Spec.Ports[0].AppProtocol = ptr.To("kubernetes.io/h2c")
+					httpsService.Spec.Ports[0].AppProtocol = new("kubernetes.io/h2c")
 
 					// Modify the ingress to include the httpsService
 					setIngressTargetService(ingress, httpsService)
@@ -562,7 +564,7 @@ var _ = Describe("Driver", func() {
 								Actions: []trafficpolicy.Action{
 									{
 										Type:   "compress-response",
-										Config: map[string]interface{}{},
+										Config: map[string]any{},
 									},
 								},
 							},
@@ -597,7 +599,7 @@ var _ = Describe("Driver", func() {
 								Actions: []trafficpolicy.Action{
 									{
 										Type:   "compress-response",
-										Config: map[string]interface{}{},
+										Config: map[string]any{},
 									},
 								},
 							},
@@ -1192,7 +1194,7 @@ var _ = Describe("Driver", func() {
 			driver.syncDone()
 		})
 
-		It("second waits, then returns error", func() {
+		It("second waits, last waiter returns ErrSyncRequeue", func() {
 			firstProceed, _ := driver.syncStart(false)
 			Expect(firstProceed).To(BeTrue())
 
@@ -1203,10 +1205,10 @@ var _ = Describe("Driver", func() {
 			driver.syncDone()
 
 			err := secondWait(GinkgoT().Context())
-			Expect(err).To(Equal(errSyncDone))
+			Expect(err).To(Equal(ErrSyncRequeue))
 		})
 
-		It("third releases second, no error", func() {
+		It("third releases second, second returns nil", func() {
 			firstProceed, _ := driver.syncStart(false)
 			Expect(firstProceed).To(BeTrue())
 
@@ -1224,7 +1226,7 @@ var _ = Describe("Driver", func() {
 			driver.syncDone()
 
 			err := thirdWait(GinkgoT().Context())
-			Expect(err).To(Equal(errSyncDone))
+			Expect(err).To(Equal(ErrSyncRequeue))
 		})
 
 		It("partial third does not wait, no error", func() {
@@ -1245,7 +1247,26 @@ var _ = Describe("Driver", func() {
 			driver.syncDone()
 
 			err := secondWait(GinkgoT().Context())
-			Expect(err).To(Equal(errSyncDone))
+			Expect(err).To(Equal(ErrSyncRequeue))
+		})
+
+		It("HandleSyncResult converts ErrSyncRequeue to Requeue", func() {
+			result, err := HandleSyncResult(ErrSyncRequeue)
+			Expect(err).To(BeNil())
+			Expect(result.RequeueAfter).To(BeNumerically(">", 0))
+		})
+
+		It("HandleSyncResult passes through real errors", func() {
+			realErr := errors.New("something went wrong")
+			result, err := HandleSyncResult(realErr)
+			Expect(err).To(Equal(realErr))
+			Expect(result.RequeueAfter).To(BeZero())
+		})
+
+		It("HandleSyncResult passes through nil", func() {
+			result, err := HandleSyncResult(nil)
+			Expect(err).To(BeNil())
+			Expect(result.RequeueAfter).To(BeZero())
 		})
 	})
 
@@ -1371,6 +1392,236 @@ var _ = Describe("Driver", func() {
 			Expect(domainSet.endpointIngressDomains).To(HaveKey("d.customdomain.com"))
 		})
 	})
+
+	Describe("updateGatewayStatuses", func() {
+		It("Should not overwrite status of non-ngrok gateways", func() {
+			// Create ngrok and non-ngrok gateway classes
+			ngrokGWClass := testutils.NewGatewayClass(true)
+			otherGWClass := testutils.NewGatewayClass(false)
+
+			// Create a non-ngrok gateway with an existing status address
+			otherGateway := testutils.NewGatewayWithHostnames("other-gw", "test-namespace", "other.example.com")
+			otherGateway.Spec.GatewayClassName = gatewayv1.ObjectName(otherGWClass.Name)
+			otherGateway.Status.Addresses = []gatewayv1.GatewayStatusAddress{
+				{
+					Type:  ptr.To(gatewayv1.HostnameAddressType),
+					Value: "istio-ingressgateway.istio-system.svc.cluster.local",
+				},
+			}
+
+			// Create an ngrok gateway
+			ngrokGateway := testutils.NewGatewayWithHostnames("ngrok-gw", "test-namespace", "ngrok.example.com")
+			ngrokGateway.Spec.GatewayClassName = gatewayv1.ObjectName(ngrokGWClass.Name)
+
+			svc := testutils.NewTestServiceV1("example", "test-namespace")
+
+			gwDriver := NewDriver(
+				GinkgoLogr,
+				scheme,
+				testutils.DefaultControllerName,
+				types.NamespacedName{Name: defaultManagerName},
+				WithGatewayEnabled(true),
+				WithGatewayControllerName("ngrok.com/gateway-controller"),
+				WithSyncAllowConcurrent(true),
+			)
+
+			obs := []runtime.Object{ngrokGWClass, otherGWClass, otherGateway, ngrokGateway, svc}
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(obs...).
+				WithStatusSubresource(&gatewayv1.Gateway{}).
+				Build()
+
+			err := gwDriver.Seed(GinkgoT().Context(), c)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = gwDriver.Sync(GinkgoT().Context(), c)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Verify the non-ngrok gateway still has its original status address
+			updatedOtherGW := &gatewayv1.Gateway{}
+			err = c.Get(GinkgoT().Context(), types.NamespacedName{
+				Namespace: "test-namespace",
+				Name:      "other-gw",
+			}, updatedOtherGW)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(updatedOtherGW.Status.Addresses).To(HaveLen(1))
+			Expect(updatedOtherGW.Status.Addresses[0].Value).To(
+				Equal("istio-ingressgateway.istio-system.svc.cluster.local"),
+			)
+		})
+	})
+
+	Describe("calculateDomainSet", func() {
+		It("Should not create domains for non-ngrok gateways", func() {
+			ngrokGWClass := testutils.NewGatewayClass(true)
+			otherGWClass := testutils.NewGatewayClass(false)
+
+			// Non-ngrok gateway with a hostname that should NOT produce a domain
+			otherGateway := testutils.NewGatewayWithHostnames("other-gw", "test-namespace", "istio.example.com")
+			otherGateway.Spec.GatewayClassName = gatewayv1.ObjectName(otherGWClass.Name)
+
+			// Ngrok gateway with a hostname that SHOULD produce a domain
+			ngrokGateway := testutils.NewGatewayWithHostnames("ngrok-gw", "test-namespace", "ngrok.example.com")
+			ngrokGateway.Spec.GatewayClassName = gatewayv1.ObjectName(ngrokGWClass.Name)
+
+			gwDriver := NewDriver(
+				GinkgoLogr,
+				scheme,
+				testutils.DefaultControllerName,
+				types.NamespacedName{Name: defaultManagerName},
+				WithGatewayEnabled(true),
+				WithGatewayControllerName("ngrok.com/gateway-controller"),
+				WithSyncAllowConcurrent(true),
+			)
+
+			obs := []runtime.Object{ngrokGWClass, otherGWClass, otherGateway, ngrokGateway}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
+
+			err := gwDriver.Seed(GinkgoT().Context(), c)
+			Expect(err).ToNot(HaveOccurred())
+
+			domainSet := gwDriver.calculateDomainSet()
+
+			// Should include the ngrok gateway domain
+			Expect(domainSet.endpointGatewayDomains).To(HaveKey("ngrok.example.com"))
+			// Should NOT include the non-ngrok gateway domain
+			Expect(domainSet.endpointGatewayDomains).ToNot(HaveKey("istio.example.com"))
+		})
+	})
+
+	Describe("gatewayAPIToIR", func() {
+		It("Should not translate non-ngrok gateways and their routes into endpoints", func() {
+			ngrokGWClass := testutils.NewGatewayClass(true)
+			otherGWClass := testutils.NewGatewayClass(false)
+
+			// Non-ngrok gateway
+			otherGateway := testutils.NewGatewayWithHostnames("other-gw", "test-namespace", "istio.example.com")
+			otherGateway.Spec.GatewayClassName = gatewayv1.ObjectName(otherGWClass.Name)
+
+			// Ngrok gateway
+			ngrokGateway := testutils.NewGatewayWithHostnames("ngrok-gw", "test-namespace", "ngrok.example.com")
+			ngrokGateway.Spec.GatewayClassName = gatewayv1.ObjectName(ngrokGWClass.Name)
+
+			// HTTPRoute referencing the non-ngrok gateway with a valid backend
+			otherRoute := testutils.NewHTTPRoute("other-route", "test-namespace")
+			otherRoute.Spec.CommonRouteSpec = gatewayv1.CommonRouteSpec{
+				ParentRefs: []gatewayv1.ParentReference{
+					{Name: "other-gw"},
+				},
+			}
+			otherRoute.Spec.Hostnames = []gatewayv1.Hostname{"istio.example.com"}
+			otherRoute.Spec.Rules = []gatewayv1.HTTPRouteRule{
+				{
+					BackendRefs: []gatewayv1.HTTPBackendRef{
+						{
+							BackendRef: gatewayv1.BackendRef{
+								BackendObjectReference: gatewayv1.BackendObjectReference{
+									Name: "example",
+									Port: ptr.To(gatewayv1.PortNumber(80)),
+								},
+							},
+						},
+					},
+				},
+			}
+
+			svc := testutils.NewTestServiceV1("example", "test-namespace")
+
+			gwDriver := NewDriver(
+				GinkgoLogr,
+				scheme,
+				testutils.DefaultControllerName,
+				types.NamespacedName{Name: defaultManagerName},
+				WithGatewayEnabled(true),
+				WithGatewayControllerName("ngrok.com/gateway-controller"),
+				WithSyncAllowConcurrent(true),
+			)
+
+			obs := []runtime.Object{ngrokGWClass, otherGWClass, otherGateway, ngrokGateway, &otherRoute, svc}
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(obs...).
+				Build()
+
+			err := gwDriver.Seed(GinkgoT().Context(), c)
+			Expect(err).ToNot(HaveOccurred())
+
+			// The non-ngrok gateway should NOT be in the store's gateway list
+			// used by the translator. If it is, the translator will process
+			// routes for non-ngrok gateways (creating wrong endpoints/domains).
+			storeGateways := gwDriver.GetStore().ListNgrokGateways()
+			for _, gw := range storeGateways {
+				Expect(gw.Spec.GatewayClassName).ToNot(
+					Equal(gatewayv1.ObjectName(otherGWClass.Name)),
+					"non-ngrok gateways should not be returned by ListNgrokGateways for translation",
+				)
+			}
+		})
+	})
+
+	Describe("updateIngressStatuses", func() {
+		It("Should not overwrite status of non-ngrok ingresses", func() {
+			// Create a non-ngrok ingress class (e.g. ALB controller)
+			albIngressClass := testutils.NewTestIngressClass("alb", false, false)
+
+			// Create a non-ngrok ingress with an existing LoadBalancer status
+			albIngress := testutils.NewTestIngressV1WithClass("alb-ingress", "test-namespace", "alb")
+			albIngress.Spec.Rules = []netv1.IngressRule{
+				{
+					Host: "alb.example.com",
+					IngressRuleValue: netv1.IngressRuleValue{
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "alb-service",
+											Port: netv1.ServiceBackendPort{Number: 80},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			albIngress.Status.LoadBalancer.Ingress = []netv1.IngressLoadBalancerIngress{
+				{Hostname: "internal-k8s-alb-123456.us-west-2.elb.amazonaws.com"},
+			}
+
+			// Create a ngrok ingress class and ingress
+			ngrokIngressClass := testutils.NewTestIngressClass("ngrok", true, true)
+			ngrokIngress := testutils.NewTestIngressV1WithClass("ngrok-ingress", "test-namespace", "ngrok")
+			svc := testutils.NewTestServiceV1("example", "test-namespace")
+
+			obs := []runtime.Object{albIngressClass, ngrokIngressClass, albIngress, ngrokIngress, svc}
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(obs...).
+				WithStatusSubresource(&netv1.Ingress{}).
+				Build()
+
+			err := driver.Seed(GinkgoT().Context(), c)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = driver.Sync(GinkgoT().Context(), c)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Verify the ALB ingress still has its original status
+			updatedAlbIngress := &netv1.Ingress{}
+			err = c.Get(GinkgoT().Context(), types.NamespacedName{
+				Namespace: "test-namespace",
+				Name:      "alb-ingress",
+			}, updatedAlbIngress)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(updatedAlbIngress.Status.LoadBalancer.Ingress).To(HaveLen(1))
+			Expect(updatedAlbIngress.Status.LoadBalancer.Ingress[0].Hostname).To(
+				Equal("internal-k8s-alb-123456.us-west-2.elb.amazonaws.com"),
+			)
+		})
+	})
 })
 
 func TestExtractPolicy(t *testing.T) {
@@ -1447,14 +1698,14 @@ func TestExtractPolicy(t *testing.T) {
 
 var _ = Describe("RecordDomainEventsForIngress", func() {
 	var driver *Driver
-	var fakeRecorder *record.FakeRecorder
+	var fakeRecorder *events.FakeRecorder
 	var scheme = runtime.NewScheme()
 
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 
 	BeforeEach(func() {
-		fakeRecorder = record.NewFakeRecorder(10)
+		fakeRecorder = events.NewFakeRecorder(10)
 		driver = NewDriver(
 			GinkgoLogr,
 			scheme,
@@ -1522,7 +1773,7 @@ var _ = Describe("RecordDomainEventsForIngress", func() {
 		driver.recordDomainEventsForIngress(ingress, domains)
 
 		var events []string
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			var event string
 			Expect(fakeRecorder.Events).To(Receive(&event))
 			events = append(events, event)

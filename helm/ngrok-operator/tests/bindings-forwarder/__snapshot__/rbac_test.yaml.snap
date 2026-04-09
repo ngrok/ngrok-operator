@@ -46,14 +46,6 @@ Should match snapshot:
         verbs:
           - create
           - patch
-      - apiGroups:
-          - ""
-        resources:
-          - pods
-        verbs:
-          - get
-          - list
-          - watch
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
@@ -62,6 +54,33 @@ Should match snapshot:
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role
+      name: RELEASE-NAME-ngrok-operator-bindings-forwarder
+    subjects:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-bindings-forwarder
+        namespace: NAMESPACE
+  3: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-bindings-forwarder
+    rules:
+      - apiGroups:
+          - ""
+        resources:
+          - pods
+        verbs:
+          - get
+          - list
+          - watch
+  4: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-bindings-forwarder-clusterrolebinding
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
       name: RELEASE-NAME-ngrok-operator-bindings-forwarder
     subjects:
       - kind: ServiceAccount

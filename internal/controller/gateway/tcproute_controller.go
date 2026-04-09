@@ -28,7 +28,7 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -45,7 +45,7 @@ type TCPRouteReconciler struct {
 
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 	Driver   *managerdriver.Driver
 	// DrainState is used to check if the operator is draining.
 	// If draining, non-delete reconciles are skipped to prevent new finalizers.
@@ -71,13 +71,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			return ctrl.Result{}, err
 		}
 
-		err = r.Driver.Sync(ctx, r.Client)
-		if err != nil {
-			log.Error(err, "failed to sync after removing TCPRoute from store")
-			return ctrl.Result{}, err
-		}
-
-		return ctrl.Result{}, nil
+		return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 	default:
 		return ctrl.Result{}, err
 	}
@@ -129,12 +123,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	if err := r.Driver.Sync(ctx, r.Client); err != nil {
-		log.Error(err, "failed to sync after reconciling TCPRoutes")
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 }
 
 // SetupWithManager sets up the controller with the Manager.

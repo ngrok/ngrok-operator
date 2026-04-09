@@ -239,41 +239,60 @@ var _ = Describe("Store", func() {
 		})
 	})
 
-	var _ = Describe("ListGateways", func() {
-		Context("when there are Gateways", func() {
-			BeforeEach(func() {
+	var _ = Describe("ListNgrokGateways", func() {
+		Context("when gatewayControllerName is not set", func() {
+			It("returns no gateways even if gateways exist", func() {
 				gw1 := testutils.NewGateway("gateway-1", "test-namespace")
 				Expect(store.Add(&gw1)).To(BeNil())
-				gw2 := testutils.NewGateway("gateway-2", "test-namespace")
-				Expect(store.Add(&gw2)).To(BeNil())
-				gw3 := testutils.NewGateway("gateway-3", "test-namespace")
-				Expect(store.Add(&gw3)).To(BeNil())
-			})
-			It("returns the Gateways", func() {
-				expectedNames := []string{
-					"gateway-1",
-					"gateway-2",
-					"gateway-3",
-				}
-				gws := store.ListGateways()
-				Expect(len(gws)).To(Equal(3))
-
-				for _, expectedName := range expectedNames {
-					found := false
-					for _, gw := range gws {
-						if gw.Name == expectedName {
-							found = true
-							break
-						}
-					}
-					Expect(found, true)
-				}
+				gws := store.ListNgrokGateways()
+				Expect(gws).To(BeEmpty())
 			})
 		})
-		Context("when there are no Gateways", func() {
-			It("doesn't error", func() {
-				gws := store.ListGateways()
-				Expect(len(gws)).To(Equal(0))
+
+		Context("when gatewayControllerName is set", func() {
+			const gwControllerName = "ngrok.com/gateway-controller"
+			var filteredStore Storer
+
+			BeforeEach(func() {
+				logger := logr.New(logr.Discard().GetSink())
+				cacheStores := NewCacheStores(logger)
+				filteredStore = New(cacheStores, testutils.DefaultControllerName, logger, WithGatewayControllerName(gwControllerName))
+
+				managedClass := testutils.NewGatewayClass(true)
+				managedClass.Name = "ngrok-class"
+				Expect(filteredStore.Add(managedClass)).To(BeNil())
+
+				unmanagedClass := testutils.NewGatewayClass(false)
+				unmanagedClass.Name = "other-class"
+				Expect(filteredStore.Add(unmanagedClass)).To(BeNil())
+			})
+
+			It("returns only gateways for managed gateway classes", func() {
+				managedGw := testutils.NewGateway("managed-gw", "test-namespace")
+				managedGw.Spec.GatewayClassName = "ngrok-class"
+				Expect(filteredStore.Add(&managedGw)).To(BeNil())
+
+				unmanagedGw := testutils.NewGateway("unmanaged-gw", "test-namespace")
+				unmanagedGw.Spec.GatewayClassName = "other-class"
+				Expect(filteredStore.Add(&unmanagedGw)).To(BeNil())
+
+				gws := filteredStore.ListNgrokGateways()
+				Expect(gws).To(HaveLen(1))
+				Expect(gws[0].Name).To(Equal("managed-gw"))
+			})
+
+			It("returns no gateways when none match", func() {
+				unmanagedGw := testutils.NewGateway("unmanaged-gw", "test-namespace")
+				unmanagedGw.Spec.GatewayClassName = "other-class"
+				Expect(filteredStore.Add(&unmanagedGw)).To(BeNil())
+
+				gws := filteredStore.ListNgrokGateways()
+				Expect(gws).To(BeEmpty())
+			})
+
+			It("returns no gateways when store is empty", func() {
+				gws := filteredStore.ListNgrokGateways()
+				Expect(gws).To(BeEmpty())
 			})
 		})
 	})

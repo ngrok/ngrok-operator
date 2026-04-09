@@ -178,7 +178,6 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 | Name                             | Description                                                                                                                    | Value   |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| `useExperimentalGatewayApi`      | DEPRECATED: Use gateway.enabled instead                                                                                        |         |
 | `gateway.enabled`                | When true, Gateway API support will be enabled if the CRDs are detected. When false, Gateway API support will never be enabled | `true`  |
 | `gateway.disableReferenceGrants` | When true, disables required ReferenceGrants for cross-namespace references. Does nothing when gateway.enabled is false        | `false` |
 

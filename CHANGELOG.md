@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.20.3
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.2...ngrok-operator-0.20.3
+
+### Fixed
+- Fixed several bugs where the operator would overwrite statuses and create resources for Ingress/Gateway objects managed by other controllers. This includes fixing HTTPRoute parent ref merging, Gateway status overwrites, and Domain CR creation for non-ngrok classes. by @alex-bezek in [#781](https://github.com/ngrok/ngrok-operator/pull/781)
+
+## 0.20.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.1...ngrok-operator-0.20.2
+
+### Added
+
+- Added emission of warning logs in the operator if Notices are passed from server-side through ConnResponse by @sabrina-ngrok [#766](https://github.com/ngrok/ngrok-operator/pull/766)
+
+### Fixed
+- Fixed the initial seeding of Ingress objects and other resources into the Operators internal driver respect filtering based on the `watchNamespace` value by @alex-bezek in [#771](https://github.com/ngrok/ngrok-operator/pull/771)
+- Fixed the operator to not apply finalizers to `HttpRoutes` for non-ngrok Gateway Classes by @jonstacks in [#770](https://github.com/ngrok/ngrok-operator/pull/770)
+- Fixed the Bindings Forwarder pod's k8s client to list pods across namespaces instead of just pods in the namespace its running in by @sabrina-ngrok in [#774](https://github.com/ngrok/ngrok-operator/pull/774/)
+
+
 ## 0.20.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.0...ngrok-operator-0.20.1
 

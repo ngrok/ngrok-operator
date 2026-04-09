@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/utils/ptr"
 )
 
 func TestSortRoutes(t *testing.T) {
@@ -18,28 +17,28 @@ func TestSortRoutes(t *testing.T) {
 			routes: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/foo"),
-						PathType: ptr.To(IRPathType_Prefix),
+						Path:     new("/foo"),
+						PathType: new(IRPathType_Prefix),
 					},
 				},
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/bar"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/bar"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 			},
 			expectedOrder: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/bar"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/bar"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/foo"),
-						PathType: ptr.To(IRPathType_Prefix),
+						Path:     new("/foo"),
+						PathType: new(IRPathType_Prefix),
 					},
 				},
 			},
@@ -49,28 +48,28 @@ func TestSortRoutes(t *testing.T) {
 			routes: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/longer"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/longer"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/short"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/short"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 			},
 			expectedOrder: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/longer"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/longer"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/short"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/short"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 			},
@@ -80,28 +79,28 @@ func TestSortRoutes(t *testing.T) {
 			routes: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/b"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/b"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/a"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/a"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 			},
 			expectedOrder: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/a"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/a"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/b"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/b"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 			},
@@ -165,7 +164,7 @@ func TestSortRoutes(t *testing.T) {
 			routes: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Method: ptr.To(IRMethodMatch_Get),
+						Method: new(IRMethodMatch_Get),
 					},
 				},
 				{
@@ -175,7 +174,7 @@ func TestSortRoutes(t *testing.T) {
 			expectedOrder: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Method: ptr.To(IRMethodMatch_Get),
+						Method: new(IRMethodMatch_Get),
 					},
 				},
 				{
@@ -189,15 +188,15 @@ func TestSortRoutes(t *testing.T) {
 				// Route A: has path "/a", exact, no headers, no query, no method.
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/a"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/a"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				// Route B: has path "/a", exact, with headers.
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/a"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/a"),
+						PathType: new(IRPathType_Exact),
 						Headers: []IRHeaderMatch{
 							{Name: "X", Value: "1", ValueType: IRStringValueType_Exact},
 						},
@@ -214,7 +213,7 @@ func TestSortRoutes(t *testing.T) {
 				// Route D: no path, no headers, with method.
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Method: ptr.To(IRMethodMatch_Get),
+						Method: new(IRMethodMatch_Get),
 					},
 				},
 				// Route E: no path, no headers, no method.
@@ -231,8 +230,8 @@ func TestSortRoutes(t *testing.T) {
 				// Route B: has path "/a", exact, with headers.
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/a"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/a"),
+						PathType: new(IRPathType_Exact),
 						Headers: []IRHeaderMatch{
 							{Name: "X", Value: "1", ValueType: IRStringValueType_Exact},
 						},
@@ -241,8 +240,8 @@ func TestSortRoutes(t *testing.T) {
 				// Route A: has path "/a", exact, no headers.
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/a"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/a"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				// Then, among routes with no path, route with headers (C)
@@ -256,7 +255,7 @@ func TestSortRoutes(t *testing.T) {
 				// Then, route with method (D)
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Method: ptr.To(IRMethodMatch_Get),
+						Method: new(IRMethodMatch_Get),
 					},
 				},
 				// Then, route with nothing (E)
@@ -274,16 +273,16 @@ func TestSortRoutes(t *testing.T) {
 				},
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/test"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/test"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 			},
 			expectedOrder: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/test"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/test"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				{
@@ -296,8 +295,8 @@ func TestSortRoutes(t *testing.T) {
 			routes: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/test"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/test"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				{
@@ -307,8 +306,8 @@ func TestSortRoutes(t *testing.T) {
 			expectedOrder: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/test"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/test"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				{
@@ -327,16 +326,16 @@ func TestSortRoutes(t *testing.T) {
 				},
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/test"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/test"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 			},
 			expectedOrder: []*IRRoute{
 				{
 					HTTPMatchCriteria: &IRHTTPMatch{
-						Path:     ptr.To("/test"),
-						PathType: ptr.To(IRPathType_Exact),
+						Path:     new("/test"),
+						PathType: new(IRPathType_Exact),
 					},
 				},
 				{
@@ -435,7 +434,6 @@ func TestAddOwningResource(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run("IRVirtualHost/"+tc.name, func(t *testing.T) {
 			host := &IRVirtualHost{OwningResources: tc.initial}
 			host.AddOwningResource(tc.newResource)

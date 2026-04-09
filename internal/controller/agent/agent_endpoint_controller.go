@@ -42,7 +42,7 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -90,7 +90,7 @@ type AgentEndpointReconciler struct {
 
 	Log         logr.Logger
 	Scheme      *runtime.Scheme
-	Recorder    record.EventRecorder
+	Recorder    events.EventRecorder
 	AgentDriver agent.Driver
 
 	controller *controller.BaseController[*ngrokv1alpha1.AgentEndpoint]
@@ -152,7 +152,7 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
-				r.Recorder.Event(cr, v1.EventTypeWarning, "ConfigError", err.Error())
+				r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "ConfigError", "Reconcile", err.Error())
 				r.Log.Error(err, "invalid TrafficPolicy configuration", "name", cr.Name, "namespace", cr.Namespace)
 				return ctrl.Result{}, nil // Do not requeue
 			}
@@ -432,7 +432,7 @@ func (r *AgentEndpointReconciler) getClientCerts(ctx context.Context, aep *ngrok
 		// Attempt to get the Secret from the API server
 		certSecret := &v1.Secret{}
 		if err := r.Client.Get(ctx, key, certSecret); err != nil {
-			r.Recorder.Event(certSecret, v1.EventTypeWarning, "SecretNotFound", fmt.Sprintf("Failed to find Secret %s", clientCertRef.Name))
+			r.Recorder.Eventf(certSecret, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s", clientCertRef.Name))
 			return nil, err
 		}
 
@@ -465,7 +465,7 @@ func (r *AgentEndpointReconciler) findTrafficPolicyByName(ctx context.Context, t
 
 	// Attempt to get the TrafficPolicy from the API server
 	if err := r.Client.Get(ctx, key, tp); err != nil {
-		r.Recorder.Event(tp, v1.EventTypeWarning, "TrafficPolicyNotFound", fmt.Sprintf("Failed to find TrafficPolicy %s", tpName))
+		r.Recorder.Eventf(tp, nil, v1.EventTypeWarning, "TrafficPolicyNotFound", "Reconcile", fmt.Sprintf("Failed to find TrafficPolicy %s", tpName))
 		return "", err
 	}
 
