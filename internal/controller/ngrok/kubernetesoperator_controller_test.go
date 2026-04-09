@@ -66,7 +66,7 @@ func TestFindExisting_GetNamespaceUIDError(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithInterceptorFuncs(interceptor.Funcs{
-			Get: func(_ context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
 				return injectedErr
 			},
 		}).
