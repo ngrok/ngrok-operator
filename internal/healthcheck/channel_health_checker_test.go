@@ -60,22 +60,18 @@ func TestAliveDataRace(t *testing.T) {
 	var wg sync.WaitGroup
 	const iterations = 1000
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < iterations; i++ {
+	wg.Go(func() {
+		for range iterations {
 			aliveChan <- errors.New("not alive")
 			aliveChan <- nil
 		}
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < iterations*2; i++ {
+	wg.Go(func() {
+		for range iterations * 2 {
 			_ = chc.Alive(context.Background(), nil)
 		}
-	}()
+	})
 
 	wg.Wait()
 }
