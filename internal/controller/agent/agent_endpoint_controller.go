@@ -496,10 +496,6 @@ func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ng
 		}
 	} else {
 		endpoint.Status.AttachedTrafficPolicy = "none"
-	}
-
-	// Clear stale TrafficPolicyApplied condition when no traffic policy is configured
-	if trafficPolicy == "" {
 		meta.RemoveStatusCondition(&endpoint.Status.Conditions, ConditionTrafficPolicy)
 	}
 
