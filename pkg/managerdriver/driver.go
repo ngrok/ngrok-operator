@@ -742,11 +742,25 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 
 	for _, ingress := range needsUpdate {
 		g.Go(func() error {
-			err := c.Status().Update(ctx, ingress)
-			if err != nil {
-				d.log.Error(err, "error updating ingress status", "ingress", ingress)
+			if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				current := new(netv1.Ingress)
+				if err := c.Get(ctx, client.ObjectKeyFromObject(ingress), current); err != nil {
+					if apierrors.IsNotFound(err) {
+						return nil
+					}
+					return err
+				}
+
+				if reflect.DeepEqual(current.Status.LoadBalancer.Ingress, ingress.Status.LoadBalancer.Ingress) {
+					return nil
+				}
+
+				current.Status.LoadBalancer.Ingress = ingress.Status.LoadBalancer.Ingress
+				return c.Status().Update(ctx, current)
+			}); err != nil {
+				return fmt.Errorf("update ingress status %s/%s: %w", ingress.Namespace, ingress.Name, err)
 			}
-			return err
+			return nil
 		})
 	}
 

@@ -54,6 +54,13 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - services/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
   - services/status
   verbs:
   - get
@@ -78,6 +85,7 @@ rules:
   resources:
   - boundendpoints/finalizers
   verbs:
+  - patch
   - update
 - apiGroups:
   - bindings.k8s.ngrok.com
@@ -106,6 +114,10 @@ rules:
   - gateway.networking.k8s.io
   resources:
   - gatewayclasses/finalizers
+  - gateways/finalizers
+  - httproutes/finalizers
+  - tcproutes/finalizers
+  - tlsroutes/finalizers
   verbs:
   - patch
   - update
@@ -148,6 +160,7 @@ rules:
   - domains/finalizers
   - ippolicies/finalizers
   verbs:
+  - patch
   - update
 - apiGroups:
   - ingress.k8s.ngrok.com
@@ -176,6 +189,13 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/finalizers
+  verbs:
+  - patch
+  - update
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -208,6 +228,7 @@ rules:
   - kubernetesoperators/finalizers
   - ngroktrafficpolicies/finalizers
   verbs:
+  - patch
   - update
 - apiGroups:
   - ngrok.k8s.ngrok.com
