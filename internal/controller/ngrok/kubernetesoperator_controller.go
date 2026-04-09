@@ -174,7 +174,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 
 	if bindingsEnabled {
 		if ko.Spec.Binding == nil {
-			return r.updateStatus(ctx, ko, nil, fmt.Errorf("bindings feature enabled but spec.binding is not configured"))
+			return r.updateStatus(ctx, ko, nil, errors.New("bindings feature enabled but spec.binding is not configured"))
 		}
 
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
@@ -336,7 +336,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 
 	if bindingsEnabled {
 		if ko.Spec.Binding == nil {
-			return r.updateStatus(ctx, ko, nil, fmt.Errorf("bindings feature enabled but spec.binding is not configured"))
+			return r.updateStatus(ctx, ko, nil, errors.New("bindings feature enabled but spec.binding is not configured"))
 		}
 
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)

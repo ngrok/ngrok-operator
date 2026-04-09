@@ -2,7 +2,7 @@ package ngrok
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -61,12 +61,12 @@ func TestFindExisting_GetNamespaceUIDError(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
-	injectedErr := fmt.Errorf("simulated RBAC error")
+	injectedErr := errors.New("simulated RBAC error")
 
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithInterceptorFuncs(interceptor.Funcs{
-			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			Get: func(_ context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 				return injectedErr
 			},
 		}).
