@@ -261,9 +261,6 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	setEndpointCreatedCondition(endpoint, true, ReasonEndpointCreated, "Endpoint successfully created")
 	if trafficPolicy != "" {
 		setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
-	} else {
-		// Clear any stale TrafficPolicyApplied condition from a previous reconcile
-		meta.RemoveStatusCondition(&endpoint.Status.Conditions, ConditionTrafficPolicy)
 	}
 
 	return r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil)
@@ -499,6 +496,11 @@ func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ng
 		}
 	} else {
 		endpoint.Status.AttachedTrafficPolicy = "none"
+	}
+
+	// Clear stale TrafficPolicyApplied condition when no traffic policy is configured
+	if trafficPolicy == "" {
+		meta.RemoveStatusCondition(&endpoint.Status.Conditions, ConditionTrafficPolicy)
 	}
 
 	// Calculate overall Ready condition based on other conditions and domain status

@@ -215,41 +215,6 @@ func TestCalculateAgentEndpointReadyCondition_TrafficPolicyNotSet(t *testing.T) 
 	assert.Equal(t, "AgentEndpoint is active and ready", readyCondition.Message)
 }
 
-func TestCalculateAgentEndpointReadyCondition_StaleTrafficPolicyConditionCleared(t *testing.T) {
-	// Simulate bug 2.15: a stale TrafficPolicyApplied=False condition left from a
-	// previous reconcile should not block Ready=True after the traffic policy is removed.
-	endpoint := createTestAgentEndpointWithConditions("test-endpoint", "default", []metav1.Condition{
-		{
-			Type:   ConditionEndpointCreated,
-			Status: metav1.ConditionTrue,
-			Reason: ReasonEndpointCreated,
-		},
-		{
-			Type:    ConditionTrafficPolicy,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonTrafficPolicyError,
-			Message: "Traffic policy validation failed",
-		},
-	})
-	domainResult := createReadyDomainResult()
-
-	// Simulate the fix: remove stale condition when trafficPolicy is empty
-	meta.RemoveStatusCondition(&endpoint.Status.Conditions, ConditionTrafficPolicy)
-
-	calculateAgentEndpointReadyCondition(endpoint, domainResult)
-
-	// Verify the TrafficPolicyApplied condition is gone
-	trafficPolicyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionTrafficPolicy)
-	assert.Nil(t, trafficPolicyCondition)
-
-	// Verify Ready is True
-	readyCondition := meta.FindStatusCondition(endpoint.Status.Conditions, ConditionReady)
-	assert.NotNil(t, readyCondition)
-	assert.Equal(t, metav1.ConditionTrue, readyCondition.Status)
-	assert.Equal(t, ReasonEndpointActive, readyCondition.Reason)
-	assert.Equal(t, "AgentEndpoint is active and ready", readyCondition.Message)
-}
-
 func TestCalculateAgentEndpointReadyCondition_MultipleIssues(t *testing.T) {
 	// Domain not ready should take precedence over other issues
 	endpoint := createTestAgentEndpointWithConditions("test-endpoint", "default", []metav1.Condition{
