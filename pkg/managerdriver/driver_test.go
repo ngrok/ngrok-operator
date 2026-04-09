@@ -1475,7 +1475,7 @@ var _ = Describe("Driver", func() {
 
 			// Create a domain matching the listener hostname with a CNAME target
 			domain := testutils.NewDomainV1("ngrok.example.com", "test-namespace")
-			domain.Status.CNAMETarget = ptr.To("cname.ngrok.example.com")
+			domain.Status.CNAMETarget = new("cname.ngrok.example.com")
 
 			gwDriver := NewDriver(
 				GinkgoLogr,

@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/utils/ptr"
 )
 
 func TestSanitizeStringForURL(t *testing.T) {
@@ -440,17 +439,17 @@ func TestCalculateIngressLoadBalancerIPStatus_DeterministicOrder(t *testing.T) {
 	domains := map[string]ingressv1alpha1.Domain{
 		"charlie.example.com": {
 			Status: ingressv1alpha1.DomainStatus{
-				CNAMETarget: ptr.To("charlie.cname.ngrok.io"),
+				CNAMETarget: new("charlie.cname.ngrok.io"),
 			},
 		},
 		"alpha.example.com": {
 			Status: ingressv1alpha1.DomainStatus{
-				CNAMETarget: ptr.To("alpha.cname.ngrok.io"),
+				CNAMETarget: new("alpha.cname.ngrok.io"),
 			},
 		},
 		"bravo.example.com": {
 			Status: ingressv1alpha1.DomainStatus{
-				CNAMETarget: ptr.To("bravo.cname.ngrok.io"),
+				CNAMETarget: new("bravo.cname.ngrok.io"),
 			},
 		},
 	}
@@ -462,7 +461,7 @@ func TestCalculateIngressLoadBalancerIPStatus_DeterministicOrder(t *testing.T) {
 	}
 
 	// Run multiple times to catch nondeterminism
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		result := calculateIngressLoadBalancerIPStatus(ing, domains)
 		assert.Equal(t, expected, result, "iteration %d: status should be sorted by hostname", i)
 	}
