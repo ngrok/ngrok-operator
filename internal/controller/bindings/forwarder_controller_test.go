@@ -15,23 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
-func TestDerefString(t *testing.T) {
-	s := "hello"
-	cases := []struct {
-		name     string
-		input    *string
-		expected string
-	}{
-		{"nil pointer", nil, ""},
-		{"non-nil pointer", &s, "hello"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			assert.Equal(t, c.expected, derefString(c.input))
-		})
-	}
-}
-
 func TestGetIngressEndpointWithFallback(t *testing.T) {
 	cases := []struct {
 		input            string
