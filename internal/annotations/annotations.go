@@ -53,6 +53,20 @@ const (
 	//
 	URLAnnotation = "k8s.ngrok.com/url"
 	URLKey        = "url"
+
+	// MetadataAnnotation allows setting ngrok metadata on the endpoint created from this resource.
+	// The value must be a JSON object string, e.g. '{"env":"prod","team":"platform"}'.
+	// This metadata is merged with the operator-level default metadata; keys in this annotation take precedence.
+	// When multiple annotated resources share the same endpoint, the metadata from the
+	// alphabetically-first resource (by namespace/name) takes precedence per key.
+	MetadataAnnotation = "k8s.ngrok.com/metadata"
+	MetadataKey        = "metadata"
+
+	// DescriptionAnnotation sets a human-readable description on the endpoint created from this resource.
+	// When multiple resources share the same endpoint, the description from the alphabetically-first
+	// resource (by namespace/name) is used; if none is set, the operator default is used.
+	DescriptionAnnotation = "k8s.ngrok.com/description"
+	DescriptionKey        = "description"
 )
 
 type MappingStrategy string
@@ -134,4 +148,30 @@ func ExtractURL(obj client.Object) (string, error) {
 // an error.
 func ExtractComputedURL(obj client.Object) (string, error) {
 	return parser.GetStringAnnotation(ComputedURLKey, obj)
+}
+
+// ExtractMetadata extracts the ngrok metadata JSON string from the annotation "k8s.ngrok.com/metadata".
+// Returns ("", nil) if the annotation is not set.
+func ExtractMetadata(obj client.Object) (string, error) {
+	val, err := parser.GetStringAnnotation(MetadataKey, obj)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return val, nil
+}
+
+// ExtractDescription extracts the description string from the annotation "k8s.ngrok.com/description".
+// Returns ("", nil) if the annotation is not set.
+func ExtractDescription(obj client.Object) (string, error) {
+	val, err := parser.GetStringAnnotation(DescriptionKey, obj)
+	if err != nil {
+		if errors.IsMissingAnnotations(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return val, nil
 }
