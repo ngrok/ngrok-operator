@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -278,7 +277,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 
 		When("the parent ref is an unsupported type", func() {
 			var (
-				service *v1.Service
+				service *corev1.Service
 			)
 
 			BeforeEach(func(ctx SpecContext) {
