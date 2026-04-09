@@ -253,12 +253,12 @@
             "properties": {
                 "create": {
                     "type": "boolean",
-                    "description": "Whether to create editor/viewer ClusterRoles for CRDs.",
+                    "description": "Whether to create editor/viewer ClusterRoles for CRDs",
                     "default": true
                 },
                 "annotations": {
                     "type": "object",
-                    "description": "Annotations for CRD access ClusterRoles (e.g., RBAC aggregation).",
+                    "description": "Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)",
                     "default": {}
                 }
             }
