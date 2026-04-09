@@ -50,6 +50,8 @@ func TestChannelHealthChecker(t *testing.T) {
 }
 
 func TestAliveDataRace(t *testing.T) {
+	t.Parallel()
+
 	aliveChan := make(chan error)
 	readyChan := make(chan error)
 
