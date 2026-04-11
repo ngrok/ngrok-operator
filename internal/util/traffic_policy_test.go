@@ -576,6 +576,90 @@ func TestMergeSinglePhase(t *testing.T) {
 }
 
 // newBaseTrafficPolicy gives a simple base that the "merge" functions can use for testing.
+func TestMergeEnabled(t *testing.T) {
+	t.Parallel()
+
+	trueVal := true
+	falseVal := false
+
+	testCases := []struct {
+		name            string
+		initial         *bool
+		incoming        *bool
+		expectedEnabled *bool
+	}{
+		{
+			name:            "nil incoming is no-op",
+			initial:         &trueVal,
+			incoming:        nil,
+			expectedEnabled: &trueVal,
+		},
+		{
+			name:            "nil initial takes incoming true",
+			initial:         nil,
+			incoming:        &trueVal,
+			expectedEnabled: &trueVal,
+		},
+		{
+			name:            "nil initial takes incoming false",
+			initial:         nil,
+			incoming:        &falseVal,
+			expectedEnabled: &falseVal,
+		},
+		{
+			name:            "both true stays true",
+			initial:         &trueVal,
+			incoming:        &trueVal,
+			expectedEnabled: &trueVal,
+		},
+		{
+			name:            "true OR false is true",
+			initial:         &trueVal,
+			incoming:        &falseVal,
+			expectedEnabled: &trueVal,
+		},
+		{
+			name:            "false OR true is true",
+			initial:         &falseVal,
+			incoming:        &trueVal,
+			expectedEnabled: &trueVal,
+		},
+		{
+			name:            "both false stays false",
+			initial:         &falseVal,
+			incoming:        &falseVal,
+			expectedEnabled: &falseVal,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tp := &trafficPolicyImpl{}
+			if tc.initial != nil {
+				v := *tc.initial
+				tp.enabled = &v
+			}
+
+			var incoming *bool
+			if tc.incoming != nil {
+				v := *tc.incoming
+				incoming = &v
+			}
+
+			tp.mergeEnabled(incoming)
+
+			if tc.expectedEnabled == nil {
+				assert.Nil(t, tp.enabled)
+			} else {
+				assert.NotNil(t, tp.enabled)
+				assert.Equal(t, *tc.expectedEnabled, *tp.enabled)
+			}
+		})
+	}
+}
+
 func newBaseTrafficPolicy(t *testing.T, enabled *bool) *trafficPolicyImpl {
 	t.Helper()
 

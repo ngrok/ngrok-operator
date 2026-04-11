@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -95,7 +96,8 @@ type driver struct {
 	agent      ngrok.Agent
 	forwarders *endpointForwarderMap
 	healthcheck.HealthChecker
-	done chan bool
+	done      chan bool
+	closeOnce sync.Once
 }
 
 // NewDriver creates a new Driver instance with the provided options.
@@ -146,7 +148,7 @@ func NewDriver(driverOpts ...DriverOption) (Driver, error) {
 				}()
 				logger.Info("ngrok session stopping or restarting due to rpc request")
 				aliveChan <- errors.New("ngrok session stopping or restarting")
-				close(d.done) // Signal that the agent is stopping
+				d.closeOnce.Do(func() { close(d.done) }) // Signal that the agent is stopping
 				return []byte("ngrok session stopping or restarting"), nil
 			default:
 				// For any other method, we just return an error.
@@ -271,7 +273,7 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 		endpointOpts = append(endpointOpts, ngrok.WithTrafficPolicy(trafficPolicy))
 	}
 
-	epf, err := d.agent.Forward(context.Background(), upstream, endpointOpts...)
+	epf, err := d.agent.Forward(ctx, upstream, endpointOpts...)
 	if err != nil {
 		return &EndpointResult{Ready: false}, err
 	}
