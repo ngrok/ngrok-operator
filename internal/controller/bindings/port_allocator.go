@@ -53,7 +53,7 @@ func (pb *portBitmap) IsSet(port uint16) bool {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 	if port < pb.start {
-		panic(fmt.Sprintf("portBitmap.Set called with port before start of port range; port=%v, start=%v", port, pb.start))
+		panic(fmt.Sprintf("portBitmap.IsSet called with port before start of port range; port=%v, start=%v", port, pb.start))
 	}
 	return pb.ports.IsSet(uint64(port - pb.start))
 }
@@ -63,7 +63,7 @@ func (pb *portBitmap) Unset(port uint16) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 	if port < pb.start {
-		panic(fmt.Sprintf("portBitmap.Set called with port before start of port range; port=%v, start=%v", port, pb.start))
+		panic(fmt.Sprintf("portBitmap.Unset called with port before start of port range; port=%v, start=%v", port, pb.start))
 	}
 	if err := pb.ports.Unset(uint64(port - pb.start)); err != nil {
 		panic(fmt.Sprintf("error unsetting port %d: %s", port, err))

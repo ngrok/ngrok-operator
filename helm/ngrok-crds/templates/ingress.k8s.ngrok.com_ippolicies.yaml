@@ -165,9 +165,6 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               id:
-                description: |-
-                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
                 type: string
               rules:
                 items:

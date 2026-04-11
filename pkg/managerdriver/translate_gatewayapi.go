@@ -179,7 +179,7 @@ func (t *translator) findMatchingVHostsForXRoute(
 			}
 
 			if !t.isRefToNamespaceAllowed(gateway.Namespace, "gateway.networking.k8s.io", "Gateway", string(certRef.Name), string(*certRef.Namespace), "", "Secret") {
-				t.log.Error(fmt.Errorf("reference to Secret %q is not allowed without a valid ReferenceGrant", fmt.Sprintf("%s.%s", certRef.Name, refNamespace)),
+				t.log.Error(fmt.Errorf("reference to Secret %q is not allowed without a valid ReferenceGrant", fmt.Sprintf("%s.%s", certRef.Name, *certRef.Namespace)),
 					"Gateway backendTLS.clientCertificateRef is invalid without a ReferenceGrant",
 				)
 				continue

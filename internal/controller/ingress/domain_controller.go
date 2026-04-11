@@ -241,7 +241,7 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 			return domain, nil
 		}
 	}
-	return nil, nil
+	return nil, iter.Err()
 }
 
 // updateStatus updates the status fields of the domain resource only if any values have changed
