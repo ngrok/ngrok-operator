@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -63,6 +64,10 @@ type BoundEndpointPoller struct {
 	// DrainState is used to check if the operator is draining.
 	// If draining, polling is skipped to prevent creating new resources.
 	DrainState DrainState
+
+	// portAllocatorMu protects concurrent access to portAllocator.
+	// The polling goroutine reassigns it while reconcile action goroutines call methods on it.
+	portAllocatorMu sync.Mutex
 
 	// portAllocator manages the unique port allocations
 	portAllocator *portBitmap
@@ -244,7 +249,9 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 	}
 
 	// reassign port allocations
+	r.portAllocatorMu.Lock()
 	r.portAllocator = currentPortAllocations
+	r.portAllocatorMu.Unlock()
 
 	toCreate, toUpdate, toDelete := r.filterBoundEndpointActions(ctx, existingBoundEndpoints, desiredBoundEndpoints)
 
@@ -377,7 +384,9 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 	name := hashURL(desired.Spec.GetEndpointURL())
 
 	// allocate a port
+	r.portAllocatorMu.Lock()
 	port, err := r.portAllocator.SetAny()
+	r.portAllocatorMu.Unlock()
 	if err != nil {
 		r.Log.Error(err, "Failed to allocate port for BoundEndpoint", "name", name, "url", desired.Spec.GetEndpointURL())
 		return err
@@ -539,7 +548,11 @@ func (r *BoundEndpointPoller) deleteBinding(ctx context.Context, boundEndpoint b
 	log.Info("Deleted BoundEndpoint", "name", boundEndpoint.Name, "url", boundEndpoint.Spec.GetEndpointURL())
 
 	// unset the port allocation
-	r.portAllocator.Unset(boundEndpoint.Spec.Port)
+	r.portAllocatorMu.Lock()
+	if err := r.portAllocator.Unset(boundEndpoint.Spec.Port); err != nil {
+		log.Error(err, "Failed to unset port allocation", "port", boundEndpoint.Spec.Port, "name", boundEndpoint.Name)
+	}
+	r.portAllocatorMu.Unlock()
 
 	return nil
 }
