@@ -340,6 +340,71 @@ func newGateway(gwc *gatewayv1.GatewayClass) *gatewayv1.Gateway {
 	return &gw
 }
 
+var _ = Describe("validateGateway", Ordered, func() {
+	const (
+		timeout  = 10 * time.Second
+		interval = 250 * time.Millisecond
+	)
+
+	var gatewayClass *gatewayv1.GatewayClass
+
+	BeforeAll(func(ctx SpecContext) {
+		gatewayClass = testutils.NewGatewayClass(true)
+		CreateGatewayClassAndWaitForAcceptance(ctx, gatewayClass, timeout, interval)
+	})
+
+	AfterAll(func(ctx SpecContext) {
+		DeleteAllGatewayClasses(ctx, timeout, interval)
+	})
+
+	It("should return nil for a valid accepted gateway", func(ctx SpecContext) {
+		gw := newGateway(gatewayClass)
+		gw.Spec.Listeners = []gatewayv1.Listener{
+			{
+				Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
+				Hostname: ptr.To(gatewayv1.Hostname("example.ngrok.io")),
+				Port:     443,
+				Protocol: gatewayv1.HTTPSProtocolType,
+			},
+		}
+
+		reconciler := &GatewayReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+			Driver: driver,
+		}
+
+		err := reconciler.validateGateway(ctx, gw)
+		Expect(err).NotTo(HaveOccurred(), "validateGateway should return nil for a valid gateway")
+		cond := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayv1.GatewayConditionAccepted))
+		Expect(cond).NotTo(BeNil())
+		Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+	})
+
+	It("should return an error for an invalid gateway with no valid listeners", func(ctx SpecContext) {
+		gw := newGateway(gatewayClass)
+		gw.Spec.Listeners = []gatewayv1.Listener{
+			{
+				Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
+				Port:     80,
+				Protocol: gatewayv1.HTTPProtocolType,
+			},
+		}
+
+		reconciler := &GatewayReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+			Driver: driver,
+		}
+
+		err := reconciler.validateGateway(ctx, gw)
+		Expect(err).To(HaveOccurred(), "validateGateway should return an error for an invalid gateway")
+		cond := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayv1.GatewayConditionAccepted))
+		Expect(cond).NotTo(BeNil())
+		Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+	})
+})
+
 var _ = Describe("secretReferencedByGateway", func() {
 	It("should return true when a TLS secret is referenced by a gateway listener in the same namespace", func(ctx SpecContext) {
 		namespace := "test-ns-" + rand.String(5)

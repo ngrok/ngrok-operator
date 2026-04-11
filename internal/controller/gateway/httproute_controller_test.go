@@ -4,14 +4,17 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/go-logr/logr"
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -274,7 +277,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 
 		When("the parent ref is an unsupported type", func() {
 			var (
-				service *v1.Service
+				service *corev1.Service
 			)
 
 			BeforeEach(func(ctx SpecContext) {
@@ -378,5 +381,81 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 				}, duration, interval).Should(Succeed())
 			})
 		})
+	})
+})
+
+var _ = Describe("findHTTPRouteForGateway", Ordered, func() {
+	var (
+		gatewayClass *gatewayv1.GatewayClass
+		otherNS      string
+	)
+
+	BeforeAll(func(ctx SpecContext) {
+		gatewayClass = testutils.NewGatewayClass(true)
+		CreateGatewayClassAndWaitForAcceptance(ctx, gatewayClass, 10*time.Second, 250*time.Millisecond)
+
+		otherNS = "other-ns-" + rand.String(5)
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: otherNS},
+		}
+		Expect(k8sClient.Create(ctx, ns)).To(Succeed())
+	})
+
+	AfterAll(func(ctx SpecContext) {
+		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, gatewayClass))).To(Succeed())
+	})
+
+	It("should not match a gateway in a different namespace when parentRef.Namespace is nil", func(ctx SpecContext) {
+		// Create two gateways with the same name in different namespaces
+		gwName := "shared-gw-" + rand.String(5)
+
+		gwDefault := testutils.NewGateway(gwName, "default")
+		gwDefault.Spec.GatewayClassName = gatewayv1.ObjectName(gatewayClass.Name)
+		Expect(k8sClient.Create(ctx, &gwDefault)).To(Succeed())
+		defer func() { _ = k8sClient.Delete(ctx, &gwDefault) }()
+
+		gwOther := testutils.NewGateway(gwName, otherNS)
+		gwOther.Spec.GatewayClassName = gatewayv1.ObjectName(gatewayClass.Name)
+		Expect(k8sClient.Create(ctx, &gwOther)).To(Succeed())
+		defer func() { _ = k8sClient.Delete(ctx, &gwOther) }()
+
+		// Create an HTTPRoute in "default" with nil parentRef.Namespace
+		route := &gatewayv1.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "route-nil-ns-" + rand.String(5),
+				Namespace: "default",
+			},
+			Spec: gatewayv1.HTTPRouteSpec{
+				CommonRouteSpec: gatewayv1.CommonRouteSpec{
+					ParentRefs: []gatewayv1.ParentReference{
+						{
+							Name: gatewayv1.ObjectName(gwName),
+							// Namespace intentionally nil — should default to route's namespace ("default")
+						},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, route)).To(Succeed())
+		defer func() { _ = k8sClient.Delete(ctx, route) }()
+
+		reconciler := &HTTPRouteReconciler{
+			Client: k8sClient,
+			Log:    logr.Discard(),
+		}
+
+		// When triggered by the gateway in the OTHER namespace, it should NOT match
+		requests := reconciler.findHTTPRouteForGateway(ctx, &gwOther)
+		Expect(requests).To(BeEmpty(),
+			"route with nil parentRef.Namespace in 'default' should not match gateway in '%s'", otherNS)
+
+		// When triggered by the gateway in "default", it SHOULD match
+		requests = reconciler.findHTTPRouteForGateway(ctx, &gwDefault)
+		Expect(requests).To(ContainElement(reconcile.Request{
+			NamespacedName: client.ObjectKey{
+				Namespace: "default",
+				Name:      route.Name,
+			},
+		}), "route with nil parentRef.Namespace should match gateway in the same namespace")
 	})
 })

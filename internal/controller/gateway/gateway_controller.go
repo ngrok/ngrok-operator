@@ -303,7 +303,7 @@ func (r *GatewayReconciler) validateGateway(ctx context.Context, gw *gatewayv1.G
 	}
 
 	var gatewayValidationError error
-	if meta.IsStatusConditionTrue(newStatus.Conditions, string(gatewayv1.GatewayConditionAccepted)) {
+	if !meta.IsStatusConditionTrue(newStatus.Conditions, string(gatewayv1.GatewayConditionAccepted)) {
 		gatewayValidationError = errors.New("gateway validation failed")
 	}
 
@@ -450,13 +450,13 @@ func secretReferencedByGateway(secret *v1.Secret, c client.Client) bool {
 		// in the same layer as the rest of the translation offers a better user experience with understanding errors with their resources and why they happened.
 		if gw.Spec.BackendTLS != nil && gw.Spec.BackendTLS.ClientCertificateRef != nil {
 			certRef := gw.Spec.BackendTLS.ClientCertificateRef
-			if certRef.Namespace == nil {
-				certNs := gatewayv1.Namespace(gw.Namespace)
-				certRef.Namespace = &certNs
+			certNs := gw.Namespace
+			if certRef.Namespace != nil {
+				certNs = string(*certRef.Namespace)
 			}
 
 			if string(certRef.Name) == secret.Name &&
-				string(*certRef.Namespace) == secret.Namespace &&
+				certNs == secret.Namespace &&
 				secret.Type == v1.SecretTypeTLS {
 				return true
 			}
@@ -466,12 +466,12 @@ func secretReferencedByGateway(secret *v1.Secret, c client.Client) bool {
 				continue
 			}
 			for _, certRef := range listener.TLS.CertificateRefs {
-				if certRef.Namespace == nil {
-					certNs := gatewayv1.Namespace(gw.Namespace)
-					certRef.Namespace = &certNs
+				certNs := gw.Namespace
+				if certRef.Namespace != nil {
+					certNs = string(*certRef.Namespace)
 				}
 				if string(certRef.Name) == secret.Name &&
-					string(*certRef.Namespace) == secret.Namespace &&
+					certNs == secret.Namespace &&
 					secret.Type == v1.SecretTypeTLS {
 					return true
 				}
@@ -494,12 +494,12 @@ func configMapReferencedByGateway(cm *v1.ConfigMap, c client.Client) bool {
 				continue
 			}
 			for _, certRef := range listener.TLS.FrontendValidation.CACertificateRefs {
-				if certRef.Namespace == nil {
-					certNs := gatewayv1.Namespace(gw.Namespace)
-					certRef.Namespace = &certNs
+				certNs := gw.Namespace
+				if certRef.Namespace != nil {
+					certNs = string(*certRef.Namespace)
 				}
 				if string(certRef.Name) == cm.Name &&
-					string(*certRef.Namespace) == cm.Namespace &&
+					certNs == cm.Namespace &&
 					string(certRef.Kind) == "ConfigMap" {
 					return true
 				}
