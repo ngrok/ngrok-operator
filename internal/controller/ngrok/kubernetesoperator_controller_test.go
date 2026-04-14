@@ -12,7 +12,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -68,16 +67,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 	BeforeAll(func() {
 		kginkgo = testutils.NewKGinkgo(k8sClient)
 
-		// Ensure the controller namespace exists
-		ns := &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: controllerNamespace,
-			},
-		}
-		err := k8sClient.Create(context.Background(), ns)
-		if err != nil {
-			Expect(client.IgnoreAlreadyExists(err)).To(Succeed())
-		}
+		kginkgo.ExpectCreateNamespace(context.Background(), controllerNamespace)
 	})
 
 	// forceDeleteKO removes the finalizer and deletes the KubernetesOperator to
