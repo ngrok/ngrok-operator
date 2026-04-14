@@ -76,3 +76,11 @@ func (pb *portBitmap) NumFree() uint64 {
 	defer pb.mu.Unlock()
 	return pb.ports.Unselected()
 }
+
+// Replace atomically swaps the internal bitmap state with that of another portBitmap.
+// The other portBitmap should not be used concurrently during this call.
+func (pb *portBitmap) Replace(other *portBitmap) {
+	pb.mu.Lock()
+	defer pb.mu.Unlock()
+	pb.ports = other.ports
+}
