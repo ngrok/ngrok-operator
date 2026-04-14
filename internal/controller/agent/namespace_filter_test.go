@@ -76,12 +76,19 @@ var _ = Describe("AgentEndpoint Controller Namespace Filtering", func() {
 				},
 			}
 
-			// Set up mock driver to return success for endpoints
+			// Set up mock drivers to return success for endpoints.
+			// Both envMockDriver and nsMockDriver need the same results because
+			// envMgr (all-namespace) and nsMgr (filtered) both reconcile watched
+			// endpoints concurrently. If envMockDriver doesn't have a result, it
+			// writes empty status that clobbers nsMgr's correct status.
 			nsMockDriver.SetEndpointResult(watchedNamespace+"/watched-endpoint", &agent.EndpointResult{
 				URL: "tcp://1.tcp.ngrok.io:12345",
 			})
 			nsMockDriver.SetEndpointResult(unwatchedNamespace+"/unwatched-endpoint", &agent.EndpointResult{
 				URL: "tcp://2.tcp.ngrok.io:12346",
+			})
+			envMockDriver.SetEndpointResult(watchedNamespace+"/watched-endpoint", &agent.EndpointResult{
+				URL: "tcp://1.tcp.ngrok.io:12345",
 			})
 
 			By("Creating AgentEndpoint in watched namespace")

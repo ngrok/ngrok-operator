@@ -55,7 +55,7 @@ func (chc *ChannelHealthChecker) Ready(_ context.Context, _ *http.Request) error
 }
 
 func (chc *ChannelHealthChecker) Alive(_ context.Context, _ *http.Request) error {
-	chc.readyMu.Lock()
-	defer chc.readyMu.Unlock()
+	chc.aliveMu.Lock()
+	defer chc.aliveMu.Unlock()
 	return chc.aliveErr
 }
