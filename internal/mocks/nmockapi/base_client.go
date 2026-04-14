@@ -43,7 +43,7 @@ func (m *baseClient[T]) Get(_ context.Context, id string) (T, error) {
 
 func (m *baseClient[T]) List(_ *ngrok.Paging) ngrok.Iter[T] {
 	items := slices.Collect(maps.Values(m.items))
-	return NewIter(items, nil)
+	return NewIter(items, m.listError)
 }
 
 func (m *baseClient[T]) Delete(ctx context.Context, id string) error {
