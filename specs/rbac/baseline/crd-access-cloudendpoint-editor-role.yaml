@@ -1,0 +1,40 @@
+# ClusterRole: ngrok-operator-cloudendpoint-editor-role
+# Generated: 2026-04-07T15:32:46Z
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    meta.helm.sh/release-name: ngrok-operator
+    meta.helm.sh/release-namespace: ngrok-operator
+  creationTimestamp: "2026-04-07T15:25:18Z"
+  labels:
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/version: 0.20.3
+    helm.sh/chart: ngrok-operator-0.22.2
+  name: ngrok-operator-cloudendpoint-editor-role
+  resourceVersion: "624"
+  uid: a2fc0979-c86d-451a-9a88-160aea665f3f
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get

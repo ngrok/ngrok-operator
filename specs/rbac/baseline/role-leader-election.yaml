@@ -1,0 +1,48 @@
+# Role: ngrok-operator-leader-election-role
+# Generated: 2026-04-07T15:32:46Z
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    meta.helm.sh/release-name: ngrok-operator
+    meta.helm.sh/release-namespace: ngrok-operator
+  creationTimestamp: "2026-04-07T15:25:18Z"
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  name: ngrok-operator-leader-election-role
+  namespace: ngrok-operator
+  resourceVersion: "640"
+  uid: 76b0b7d3-815a-436f-b35e-595abc0e6eac
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
