@@ -177,7 +177,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints/finalizers,verbs=update;patch
 
 func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.CloudEndpoint))
@@ -247,7 +247,9 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		// Couldn't find endpoint by ID to update, so blank it out and create a new one
 		r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "EndpointNotFound", "Reconcile", fmt.Sprintf("Failed to update endpoint %s by ID because it was not found. Creating a new one", clep.Status.ID))
 		clep.Status.ID = ""
-		_ = r.Client.Status().Update(ctx, clep)
+		if err := r.controller.ReconcileStatus(ctx, clep, nil); err != nil {
+			return err
+		}
 		return r.create(ctx, clep)
 	}
 	if err != nil {

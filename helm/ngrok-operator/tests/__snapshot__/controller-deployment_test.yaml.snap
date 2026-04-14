@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
+        checksum/controller-role: 47b1f95335801feae5954e9d4699f388dec1211cff3cb4cb3783d8da088bb636
         checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
       labels:
         app.kubernetes.io/component: controller
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
+            checksum/controller-role: 47b1f95335801feae5954e9d4699f388dec1211cff3cb4cb3783d8da088bb636
             checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -270,6 +270,13 @@ Should match all-options snapshot:
       - apiGroups:
           - ""
         resources:
+          - services/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
           - services/status
         verbs:
           - get
@@ -294,6 +301,7 @@ Should match all-options snapshot:
         resources:
           - boundendpoints/finalizers
         verbs:
+          - patch
           - update
       - apiGroups:
           - bindings.k8s.ngrok.com
@@ -322,6 +330,10 @@ Should match all-options snapshot:
           - gateway.networking.k8s.io
         resources:
           - gatewayclasses/finalizers
+          - gateways/finalizers
+          - httproutes/finalizers
+          - tcproutes/finalizers
+          - tlsroutes/finalizers
         verbs:
           - patch
           - update
@@ -364,6 +376,7 @@ Should match all-options snapshot:
           - domains/finalizers
           - ippolicies/finalizers
         verbs:
+          - patch
           - update
       - apiGroups:
           - ingress.k8s.ngrok.com
@@ -392,6 +405,13 @@ Should match all-options snapshot:
           - patch
           - update
           - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingresses/finalizers
+        verbs:
+          - patch
+          - update
       - apiGroups:
           - networking.k8s.io
         resources:
@@ -424,6 +444,7 @@ Should match all-options snapshot:
           - kubernetesoperators/finalizers
           - ngroktrafficpolicies/finalizers
         verbs:
+          - patch
           - update
       - apiGroups:
           - ngrok.k8s.ngrok.com
@@ -442,7 +463,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
+        checksum/controller-role: 47b1f95335801feae5954e9d4699f388dec1211cff3cb4cb3783d8da088bb636
         checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
       labels:
         app.kubernetes.io/component: controller
@@ -464,7 +485,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 26c86c1b12d8a0f5537f5f1043a0a041ba532d81ff173fe31fb50861ec536d5d
+            checksum/controller-role: 47b1f95335801feae5954e9d4699f388dec1211cff3cb4cb3783d8da088bb636
             checksum/rbac: d9cc65d2f7cff9b5157369f970cf16bc88fb14df6802d580e5cb7ef57b569bcd
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -695,6 +716,13 @@ Should match default snapshot:
       - apiGroups:
           - ""
         resources:
+          - services/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
           - services/status
         verbs:
           - get
@@ -719,6 +747,7 @@ Should match default snapshot:
         resources:
           - boundendpoints/finalizers
         verbs:
+          - patch
           - update
       - apiGroups:
           - bindings.k8s.ngrok.com
@@ -747,6 +776,10 @@ Should match default snapshot:
           - gateway.networking.k8s.io
         resources:
           - gatewayclasses/finalizers
+          - gateways/finalizers
+          - httproutes/finalizers
+          - tcproutes/finalizers
+          - tlsroutes/finalizers
         verbs:
           - patch
           - update
@@ -789,6 +822,7 @@ Should match default snapshot:
           - domains/finalizers
           - ippolicies/finalizers
         verbs:
+          - patch
           - update
       - apiGroups:
           - ingress.k8s.ngrok.com
@@ -817,6 +851,13 @@ Should match default snapshot:
           - patch
           - update
           - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingresses/finalizers
+        verbs:
+          - patch
+          - update
       - apiGroups:
           - networking.k8s.io
         resources:
@@ -849,6 +890,7 @@ Should match default snapshot:
           - kubernetesoperators/finalizers
           - ngroktrafficpolicies/finalizers
         verbs:
+          - patch
           - update
       - apiGroups:
           - ngrok.k8s.ngrok.com

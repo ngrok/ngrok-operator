@@ -89,7 +89,7 @@ type CloudEndpointStatus struct {
 	// +nullable
 	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
 
-	// Conditions describe the current conditions of the AgentEndpoint.
+	// Conditions describe the current conditions of the CloudEndpoint.
 	//
 	// +listType=map
 	// +listMapKey=type
