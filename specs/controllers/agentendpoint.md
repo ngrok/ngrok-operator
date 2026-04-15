@@ -9,7 +9,7 @@ The AgentEndpoint controller reconciles `AgentEndpoint` resources by creating an
 | Resource              | Relation   | Predicate                                    |
 |-----------------------|------------|----------------------------------------------|
 | `AgentEndpoint`       | Primary    | AnnotationChanged or GenerationChanged       |
-| `NgrokTrafficPolicy`  | Secondary  | Indexed by `spec.trafficPolicyName`; DELETE events filtered |
+| `TrafficPolicy`  | Secondary  | Indexed by `spec.trafficPolicyName`; DELETE events filtered |
 | `Secret`              | Secondary  | Indexed by client certificate refs; DELETE events filtered |
 | `Domain`              | Owned      | All events                                   |
 

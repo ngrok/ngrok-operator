@@ -11,51 +11,71 @@ The ngrok-operator ships as two Helm charts:
 
 The CRD chart can be installed automatically via `installCRDs: true` (default) or separately.
 
-**Dependencies:** Bitnami common library (`common-2.36.0.tgz`).
+## Top-Level Structure
 
-## Common Parameters
+```yaml
+global:              # Shared k8s deployment defaults (deep-merged into each component)
+ngrok:               # ngrok platform connection config (shared by all components)
+credentials:         # Secret for API key + authtoken
+features:            # Feature flags and feature-specific config (single source of truth)
+apiManager:          # K8s deployment settings + app config for api-manager
+agent:               # K8s deployment settings + app config for agent
+bindingsForwarder:   # K8s deployment settings for bindings-forwarder
+nameOverride: ""
+fullnameOverride: ""
+installCRDs: true
+cleanupHook:         # Pre-delete cleanup job
+```
 
-| Parameter            | Description                                             | Default                                    |
-|----------------------|---------------------------------------------------------|--------------------------------------------|
-| `nameOverride`       | Partially override generated resource names             | `""`                                       |
-| `fullnameOverride`   | Fully override generated resource names                 | `""`                                       |
-| `description`        | Operator description in ngrok dashboard                 | `"The official ngrok Kubernetes Operator."` |
-| `commonLabels`       | Labels applied to all deployed objects                  | `{}`                                       |
-| `commonAnnotations`  | Annotations applied to all deployed objects             | `{}`                                       |
-| `podAnnotations`     | Custom pod annotations for all pods                     | `{}`                                       |
-| `podLabels`          | Custom pod labels for all pods                          | `{}`                                       |
-| `oneClickDemoMode`   | Start without credentials for demo purposes             | `false`                                    |
+## `global:`
 
-## Image Configuration
+Contains k8s deployment defaults that are **deep-merged** into each component section. Component values win on conflicts.
 
-| Parameter             | Description                              | Default                  |
-|-----------------------|------------------------------------------|--------------------------|
-| `image.registry`      | Docker registry                          | `docker.io`              |
-| `image.repository`    | Image repository                         | `ngrok/ngrok-operator`   |
-| `image.tag`           | Image tag (defaults to chart appVersion) | `""`                     |
-| `image.pullPolicy`    | Image pull policy                        | `IfNotPresent`           |
-| `image.pullSecrets`   | Array of imagePullSecrets                | `[]`                     |
+| Parameter                                | Description                                      | Default        |
+|------------------------------------------|--------------------------------------------------|----------------|
+| `global.image.registry`                  | Docker registry                                  | `docker.io`    |
+| `global.image.repository`               | Image repository                                 | `ngrok/ngrok-operator` |
+| `global.image.tag`                       | Image tag (defaults to chart appVersion)         | `""`           |
+| `global.image.pullPolicy`               | Image pull policy                                | `IfNotPresent` |
+| `global.image.pullSecrets`              | Array of imagePullSecrets                        | `[]`           |
+| `global.commonLabels`                    | Labels applied to all k8s resources              | `{}`           |
+| `global.commonAnnotations`              | Annotations applied to all k8s resources         | `{}`           |
+| `global.podAnnotations`                 | Pod annotations (merged into each component)     | `{}`           |
+| `global.podLabels`                       | Pod labels (merged into each component)          | `{}`           |
+| `global.nodeSelector`                    | Node labels for pod assignment                   | `{}`           |
+| `global.tolerations`                     | Pod tolerations                                  | `[]`           |
+| `global.affinity`                        | Affinity rules                                   | `{}`           |
+| `global.topologySpreadConstraints`      | Topology spread constraints                      | `[]`           |
+| `global.priorityClassName`              | Pod priority class                               | `""`           |
+| `global.resources`                       | Container resource requests/limits               | `{}`           |
+| `global.extraVolumes`                    | Additional volumes                               | `[]`           |
+| `global.extraVolumeMounts`              | Additional volume mounts                         | `[]`           |
+| `global.extraEnv`                        | Additional environment variables                 | `{}`           |
+| `global.lifecycle`                       | Container lifecycle hooks                        | `{}`           |
+| `global.terminationGracePeriodSeconds`  | Graceful shutdown time                           | `30`           |
 
-## ngrok Configuration
+### Override Semantics
 
-| Parameter        | Description                                              | Default             |
-|------------------|----------------------------------------------------------|---------------------|
-| `region`         | ngrok region for tunnels (empty = closest region)        | `""`                |
-| `rootCAs`        | CA trust mode: `"trusted"` or `"host"`                   | `""`                |
-| `serverAddr`     | Custom ngrok server address                              | `""`                |
-| `apiURL`         | Custom ngrok API URL                                     | `""`                |
-| `ngrokMetadata`  | Key-value metadata for all ngrok API resources           | `{}`                |
-| `clusterDomain`  | Kubernetes cluster domain for DNS resolution             | `svc.cluster.local` |
+Maps (`podAnnotations`, `nodeSelector`, `extraEnv`, etc.) use **deep merge** — component values are merged on top of global, with the component winning on key conflicts. Arrays (`tolerations`, `topologySpreadConstraints`, `extraVolumes`, etc.) use **replace** — if the component sets them, the global value is ignored entirely.
 
-## Logging
+## `ngrok:`
 
-| Parameter              | Description                            | Default  |
-|------------------------|----------------------------------------|----------|
-| `log.level`            | Log level: `debug`, `info`, `error`    | `info`   |
-| `log.stacktraceLevel`  | Stacktrace level: `info`, `error`      | `error`  |
-| `log.format`           | Log format: `console`, `json`          | `json`   |
+Platform connection config shared by all components. Rendered into a common ConfigMap.
 
-## Credentials
+| Parameter              | Description                                           | Default             |
+|------------------------|-------------------------------------------------------|---------------------|
+| `ngrok.description`    | Operator description in ngrok dashboard               | `"The official ngrok Kubernetes Operator."` |
+| `ngrok.region`         | ngrok region (empty = closest region)                 | `""`                |
+| `ngrok.rootCAs`        | CA trust mode: `"trusted"` or `"host"`                | `""`                |
+| `ngrok.serverAddr`     | Custom ngrok server address                           | `""`                |
+| `ngrok.apiURL`         | Custom ngrok API URL                                  | `""`                |
+| `ngrok.metadata`       | Key-value metadata for all ngrok API resources        | `{}`                |
+| `ngrok.clusterDomain`  | Kubernetes cluster domain for DNS resolution          | `svc.cluster.local` |
+| `ngrok.log.level`      | Log level: `debug`, `info`, `error`                   | `info`              |
+| `ngrok.log.format`     | Log format: `console`, `json`                         | `json`              |
+| `ngrok.log.stacktraceLevel` | Stacktrace level: `info`, `error`                | `error`             |
+
+## `credentials:`
 
 | Parameter                  | Description                                    | Default |
 |----------------------------|------------------------------------------------|---------|
@@ -65,26 +85,30 @@ The CRD chart can be installed automatically via `installCRDs: true` (default) o
 
 See [authentication.md](../authentication.md) for details on credential management.
 
-## CRD Installation
+## Other Top-Level Parameters
 
-| Parameter      | Description                              | Default |
-|----------------|------------------------------------------|---------|
-| `installCRDs`  | Install CRDs alongside the operator      | `true`  |
+| Parameter          | Description                              | Default |
+|--------------------|------------------------------------------|---------|
+| `nameOverride`     | Partially override generated resource names | `""`  |
+| `fullnameOverride` | Fully override generated resource names  | `""`    |
+| `installCRDs`      | Install CRDs alongside the operator      | `true`  |
 
-## Domain and Drain Policies
+## Config File System
 
-| Parameter                     | Description                                                | Default    |
-|-------------------------------|------------------------------------------------------------|------------|
-| `drainPolicy`                 | Drain policy on uninstall: `"Delete"` or `"Retain"`        | `"Retain"` |
-| `defaultDomainReclaimPolicy`  | Default reclaim policy for Domains: `"Delete"` or `"Retain"` | `"Delete"` |
+Each component binary accepts multiple `--config` flags pointing to key=value config files. Helm produces ConfigMaps that are mounted as config files:
 
-## Deprecated Parameters
+| ConfigMap | Source | Mount path |
+|-----------|--------|------------|
+| `{fullname}-common-config` | `ngrok.*` + `features.*` | `/etc/ngrok/common.conf` |
+| `{fullname}-api-manager-config` | `apiManager.config` | `/etc/ngrok/component.conf` |
+| `{fullname}-agent-config` | `agent.config` | `/etc/ngrok/component.conf` |
+| `{fullname}-bindings-forwarder-config` | `bindingsForwarder.config` | `/etc/ngrok/component.conf` |
 
-| Deprecated                | Replacement                   |
-|---------------------------|-------------------------------|
-| `metaData`                | `ngrokMetadata`               |
-| `ingressClass.name`       | `ingress.ingressClass.name`   |
-| `ingressClass.create`     | `ingress.ingressClass.create` |
-| `ingressClass.default`    | `ingress.ingressClass.default`|
-| `watchNamespace`          | `ingress.watchNamespace`      |
-| `controllerName`          | `ingress.controllerName`      |
+Files are loaded in order; later values override earlier ones. Individual CLI flags override config file values.
+
+### Local Development
+
+```bash
+go run . api-manager --config=./hack/api-manager.conf
+go run . api-manager --config=./hack/api-manager.conf --log-level=debug
+```

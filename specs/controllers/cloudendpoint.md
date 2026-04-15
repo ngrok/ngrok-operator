@@ -9,7 +9,7 @@ The CloudEndpoint controller reconciles `CloudEndpoint` resources by creating an
 | Resource              | Relation   | Predicate                                    |
 |-----------------------|------------|----------------------------------------------|
 | `CloudEndpoint`       | Primary    | AnnotationChanged or GenerationChanged       |
-| `NgrokTrafficPolicy`  | Secondary  | Indexed by `spec.trafficPolicyName`; DELETE events filtered |
+| `TrafficPolicy`  | Secondary  | Indexed by `spec.trafficPolicyName`; DELETE events filtered |
 | `Domain`              | Owned      | All events                                   |
 
 ## Reconciliation Flow

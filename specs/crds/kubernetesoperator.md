@@ -4,8 +4,8 @@
 
 | Property    | Value                    |
 |-------------|--------------------------|
-| Group       | `ngrok.k8s.ngrok.com`   |
-| Version     | `v1alpha1`               |
+| Group       | `ngrok.com`              |
+| Version     | `v1`                     |
 | Kind        | `KubernetesOperator`     |
 | Scope       | Namespaced               |
 
@@ -13,8 +13,8 @@
 
 | Field             | Type                          | Required | Default                                | Validation                               |
 |-------------------|-------------------------------|----------|----------------------------------------|------------------------------------------|
-| `description`     | string                        | No       | `"Created by ngrok-operator"`          |                                          |
-| `metadata`        | string                        | No       | `"{\"owned-by\":\"ngrok-operator\"}"` |                                          |
+| `description`     | string                        | No       | `"Created by the ngrok-operator"`      |                                          |
+| `metadata`        | map[string]string             | No       | `{"owned-by": "ngrok-operator"}`      |                                          |
 | `enabledFeatures` | []string                      | No       |                                        | Items enum: `ingress`, `gateway`, `bindings` |
 | `region`          | string                        | No       | `"global"`                             |                                          |
 | `deployment`      | KubernetesOperatorDeployment  | No       |                                        |                                          |

@@ -4,17 +4,17 @@
 
 The endpoint bindings feature allows ngrok endpoints to be "bound" into a Kubernetes cluster, projecting external ngrok endpoints as local Kubernetes services. This enables traffic from ngrok to flow directly to services inside the cluster.
 
-**Status:** In development (`bindings.enabled: false` by default).
+**Status:** In development (`features.bindings.enabled: false` by default).
 
 ## Configuration
 
-| Helm Value                     | Description                                           | Default                                   |
-|--------------------------------|-------------------------------------------------------|-------------------------------------------|
-| `bindings.enabled`             | Enable the bindings feature                           | `false`                                   |
-| `bindings.endpointSelectors`   | CEL expressions filtering which endpoints to project  | `["true"]`                                |
-| `bindings.serviceAnnotations`  | Annotations applied to projected services             | `{}`                                      |
-| `bindings.serviceLabels`       | Labels applied to projected services                  | `{}`                                      |
-| `bindings.ingressEndpoint`     | Hostname of the bindings ingress endpoint             | `kubernetes-binding-ingress.ngrok.io:443` |
+| Helm Value                              | Description                                           | Default                                   |
+|-----------------------------------------|-------------------------------------------------------|-------------------------------------------|
+| `features.bindings.enabled`             | Enable the bindings feature                           | `false`                                   |
+| `features.bindings.endpointSelectors`   | CEL expressions filtering which endpoints to project  | `["true"]`                                |
+| `features.bindings.serviceAnnotations`  | Annotations applied to projected services             | `{}`                                      |
+| `features.bindings.serviceLabels`       | Labels applied to projected services                  | `{}`                                      |
+| `features.bindings.ingressEndpoint`     | Hostname of the bindings ingress endpoint             | `kubernetes-binding-ingress.ngrok.io:443` |
 
 ## Components
 

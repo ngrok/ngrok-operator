@@ -35,13 +35,13 @@ Each operator instance maintains independent drain state:
 
 Each deployment can be scoped to watch different namespaces:
 
-- `ingress.watchNamespace` for the api-manager
+- `features.ingress.watchNamespace` for the api-manager
 - `--watch-namespace` for the agent-manager
 - Scoping prevents resource conflicts between installations
 
 ## Deployment Model
 
-```
+```text
 Cluster:
 ├── ngrok-operator (release-a) in namespace-a
 │   ├── api-manager (independent leader election)

@@ -39,8 +39,8 @@ The finalizer is **conditional**:
 
 The following annotations on HTTPRoute resources influence behavior:
 
-- `k8s.ngrok.com/mapping-strategy`
-- `k8s.ngrok.com/traffic-policy`
-- `k8s.ngrok.com/pooling-enabled`
-- `k8s.ngrok.com/description`
-- `k8s.ngrok.com/metadata`
+- `ngrok.com/mapping-strategy`
+- `ngrok.com/traffic-policy`
+- `ngrok.com/pooling-enabled`
+- `ngrok.com/description`
+- `ngrok.com/metadata`

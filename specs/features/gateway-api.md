@@ -8,8 +8,8 @@ The ngrok-operator supports the Kubernetes Gateway API, providing a role-oriente
 
 | Helm Value                         | Description                                          | Default |
 |------------------------------------|------------------------------------------------------|---------|
-| `gateway.enabled`                  | Enable Gateway API support (if CRDs detected)        | `true`  |
-| `gateway.disableReferenceGrants`   | Disable ReferenceGrant requirement                   | `false` |
+| `features.gateway.enabled`                  | Enable Gateway API support (if CRDs detected)        | `true`  |
+| `features.gateway.disableReferenceGrants`   | Disable ReferenceGrant requirement                   | `false` |
 
 ## Supported Resources
 
@@ -43,11 +43,11 @@ Gateway API controllers use a Driver pattern:
 
 The following annotations on Gateway API resources influence behavior:
 
-- `k8s.ngrok.com/mapping-strategy` — Controls endpoint creation strategy
-- `k8s.ngrok.com/traffic-policy` — References an NgrokTrafficPolicy
-- `k8s.ngrok.com/pooling-enabled` — Enables endpoint pooling
-- `k8s.ngrok.com/description` — Sets endpoint description
-- `k8s.ngrok.com/metadata` — Sets endpoint metadata
+- `ngrok.com/mapping-strategy` — Controls endpoint creation strategy
+- `ngrok.com/traffic-policy` — References a TrafficPolicy
+- `ngrok.com/pooling-enabled` — Enables endpoint pooling
+- `ngrok.com/description` — Sets endpoint description
+- `ngrok.com/metadata` — Sets endpoint metadata
 
 ## ReferenceGrants
 

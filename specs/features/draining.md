@@ -56,7 +56,7 @@ Deletion polling waits up to 60 seconds at 500ms intervals for each resource to 
 | Source                         | Parameter              | Default    |
 |--------------------------------|------------------------|------------|
 | KubernetesOperator CR          | `spec.drain.policy`    | `Retain`   |
-| Helm values                    | `drainPolicy`          | `"Retain"` |
+| Helm values                    | `features.drainPolicy` | `"Retain"` |
 
 ## Cleanup Hook
 

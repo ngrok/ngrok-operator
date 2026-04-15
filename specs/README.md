@@ -8,12 +8,26 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 2. **Bug vs. unspecified behavior**: Defines expected behavior so we can distinguish bugs from unspecified behavior.
 3. **Living documentation**: Serves as the canonical reference for the operator's public surface area.
 
+## Glossary
+
+| Term | Definition | Details |
+|------|-----------|---------|
+| **Agent Endpoint** | An endpoint backed by an ngrok agent tunnel running inside the cluster. Created as an `AgentEndpoint` CR. | [crds/agentendpoint.md](crds/agentendpoint.md) |
+| **Bindings** | A feature that projects external ngrok endpoints into the cluster as local Kubernetes Services, enabling ngrok-to-cluster traffic. | [features/bindings.md](features/bindings.md) |
+| **Cloud Endpoint** | An endpoint managed entirely in the ngrok cloud (no local agent tunnel). Created as a `CloudEndpoint` CR. | [crds/cloudendpoint.md](crds/cloudendpoint.md) |
+| **Drain / Draining** | The process of gracefully removing ngrok API resources when the operator is uninstalled. Triggered by deletion of the `KubernetesOperator` CR. | [features/draining.md](features/draining.md) |
+| **Driver** | An internal pattern used by Ingress and Gateway API controllers that collects state from multiple resources and materializes the combined state as ngrok endpoints. | [controllers/ingress.md](controllers/ingress.md) |
+| **Endpoint Pooling** | Allows multiple endpoints to share the same public URL, distributing traffic across them. Controlled via the `ngrok.com/pooling-enabled` annotation. | [annotations.md](annotations.md) |
+| **Mapping Strategy** | Controls which ngrok endpoint resources are created: `endpoints` (AgentEndpoint only) or `endpoints-verbose` (CloudEndpoint + internal AgentEndpoint). | [annotations.md](annotations.md) |
+| **Traffic Policy** | A set of rules (rate limiting, header manipulation, authentication, etc.) applied to ngrok endpoints. Defined as an `TrafficPolicy` CR or inline JSON. | [features/traffic-policy.md](features/traffic-policy.md) |
+
 ## Directory Structure
 
 ### Top-Level Specs
 
 - [authentication.md](authentication.md) — Credentials, secrets, API key/authtoken management
-- [annotations.md](annotations.md) — Central reference for all `k8s.ngrok.com/` annotations
+- [annotations.md](annotations.md) — Central reference for all `ngrok.com/` annotations
+- [design-decisions.md](design-decisions.md) — Settled architectural trade-offs and their rationale
 
 ### [rbac/](rbac/) — RBAC Configuration
 
@@ -25,11 +39,11 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 
 ### [helm/](helm/) — Helm Chart Configuration
 
-- [common.md](helm/common.md) — Chart structure, image config, ngrok config, credentials
-- [operator.md](helm/operator.md) — Operator deployment values
+- [common.md](helm/common.md) — Top-level structure, global defaults, ngrok config, credentials, config file system
+- [operator.md](helm/operator.md) — API manager (`apiManager`) deployment values
 - [agent.md](helm/agent.md) — Agent deployment values
-- [bindings-forwarder.md](helm/bindings-forwarder.md) — Bindings forwarder deployment values
-- [features.md](helm/features.md) — Feature flags and cleanup hook configuration
+- [bindings-forwarder.md](helm/bindings-forwarder.md) — Bindings forwarder (`bindingsForwarder`) deployment values
+- [features.md](helm/features.md) — Feature flags, feature config, drain/domain policies, cleanup hook
 
 ### [features/](features/) — Cross-Cutting Features
 
@@ -45,13 +59,13 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 ### [crds/](crds/) — Custom Resource Definitions
 
 - [common.md](crds/common.md) — Shared patterns: conditions, finalizers, shared types
-- [agentendpoint.md](crds/agentendpoint.md) — AgentEndpoint (`ngrok.k8s.ngrok.com`)
-- [cloudendpoint.md](crds/cloudendpoint.md) — CloudEndpoint (`ngrok.k8s.ngrok.com`)
-- [kubernetesoperator.md](crds/kubernetesoperator.md) — KubernetesOperator (`ngrok.k8s.ngrok.com`)
-- [ngroktrafficpolicy.md](crds/ngroktrafficpolicy.md) — NgrokTrafficPolicy (`ngrok.k8s.ngrok.com`)
-- [domain.md](crds/domain.md) — Domain (`ingress.k8s.ngrok.com`)
-- [ippolicy.md](crds/ippolicy.md) — IPPolicy (`ingress.k8s.ngrok.com`)
-- [boundendpoint.md](crds/boundendpoint.md) — BoundEndpoint (`bindings.k8s.ngrok.com`)
+- [agentendpoint.md](crds/agentendpoint.md) — AgentEndpoint (`ngrok.com`)
+- [cloudendpoint.md](crds/cloudendpoint.md) — CloudEndpoint (`ngrok.com`)
+- [kubernetesoperator.md](crds/kubernetesoperator.md) — KubernetesOperator (`ngrok.com`)
+- [trafficpolicy.md](crds/trafficpolicy.md) — TrafficPolicy (`ngrok.com`)
+- [domain.md](crds/domain.md) — Domain (`ngrok.com`)
+- [ippolicy.md](crds/ippolicy.md) — IPPolicy (`ngrok.com`)
+- [boundendpoint.md](crds/boundendpoint.md) — BoundEndpoint (`ngrok.com`)
 
 ### [controllers/](controllers/) — Controller Behavior
 
@@ -61,7 +75,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 - [agentendpoint.md](controllers/agentendpoint.md) — AgentEndpoint controller
 - [cloudendpoint.md](controllers/cloudendpoint.md) — CloudEndpoint controller
 - [kubernetesoperator.md](controllers/kubernetesoperator.md) — KubernetesOperator controller
-- [ngroktrafficpolicy.md](controllers/ngroktrafficpolicy.md) — NgrokTrafficPolicy controller
+- [trafficpolicy.md](controllers/trafficpolicy.md) — TrafficPolicy controller
 - [domain.md](controllers/domain.md) — Domain controller
 - [ippolicy.md](controllers/ippolicy.md) — IPPolicy controller
 - [boundendpoint.md](controllers/boundendpoint.md) — BoundEndpoint controller

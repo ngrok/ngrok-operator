@@ -2,11 +2,11 @@
 
 ## Overview
 
-The ngrok-operator uses annotations under the `k8s.ngrok.com/` prefix to configure behavior on Kubernetes resources. This document serves as a central reference. See individual CRD specs in [crds/](crds/) for full details on how each annotation is used.
+The ngrok-operator uses annotations under the `ngrok.com/` prefix to configure behavior on Kubernetes resources. This document serves as a central reference. See individual CRD specs in [crds/](crds/) for full details on how each annotation is used.
 
 ## User-Configurable Annotations
 
-### `k8s.ngrok.com/url`
+### `ngrok.com/url`
 
 Specifies the public URL for an endpoint.
 
@@ -18,7 +18,7 @@ Specifies the public URL for an endpoint.
 
 See: [controllers/service.md](controllers/service.md)
 
-### `k8s.ngrok.com/mapping-strategy`
+### `ngrok.com/mapping-strategy`
 
 Controls which ngrok endpoint resources are created for a given resource.
 
@@ -33,21 +33,21 @@ Controls which ngrok endpoint resources are created for a given resource.
 
 See: [controllers/service.md](controllers/service.md), [controllers/ingress.md](controllers/ingress.md)
 
-### `k8s.ngrok.com/traffic-policy`
+### `ngrok.com/traffic-policy`
 
-References an `NgrokTrafficPolicy` resource in the same namespace to apply to the created endpoint(s).
+References an `TrafficPolicy` resource in the same namespace to apply to the created endpoint(s).
 
 | Detail          | Value                                                  |
 |-----------------|--------------------------------------------------------|
 | Applies to      | `Service` (LoadBalancer), `Ingress`, `Gateway` routes  |
-| Value           | Name of an `NgrokTrafficPolicy` resource               |
+| Value           | Name of an `TrafficPolicy` resource               |
 | Default         | (none)                                                 |
 
 When `mapping-strategy` is `endpoints-verbose`, the traffic policy is applied to the `CloudEndpoint`. When `endpoints`, it is applied to the `AgentEndpoint`.
 
 See: [features/traffic-policy.md](features/traffic-policy.md)
 
-### `k8s.ngrok.com/pooling-enabled`
+### `ngrok.com/pooling-enabled`
 
 Controls whether the endpoint allows pooling with other endpoints sharing the same URL.
 
@@ -57,7 +57,7 @@ Controls whether the endpoint allows pooling with other endpoints sharing the sa
 | Allowed values  | `"true"`, `"false"`                                    |
 | Default         | (none — uses ngrok platform default)                   |
 
-### `k8s.ngrok.com/description`
+### `ngrok.com/description`
 
 Sets a human-readable description on the ngrok endpoint resource.
 
@@ -66,16 +66,16 @@ Sets a human-readable description on the ngrok endpoint resource.
 | Applies to      | `Service` (LoadBalancer), `Ingress`, `Gateway` routes  |
 | Default         | `"Created by the ngrok-operator"`                      |
 
-### `k8s.ngrok.com/metadata`
+### `ngrok.com/metadata`
 
-Sets arbitrary key-value metadata on the ngrok endpoint resource. Value must be a JSON object string. Merged with operator-level `ngrokMetadata`; annotation keys take precedence on conflict.
+Sets arbitrary key-value metadata on the ngrok endpoint resource. Value is a JSON object string that is parsed into `map[string]string`. Merged with operator-level ``ngrok.metadata``; annotation keys take precedence on conflict.
 
 | Detail          | Value                                                  |
 |-----------------|--------------------------------------------------------|
 | Applies to      | `Service` (LoadBalancer), `Ingress`, `Gateway` routes  |
-| Default         | `"{\"owned-by\":\"ngrok-operator\"}"`                  |
+| Default         | `{"owned-by": "ngrok-operator"}`                       |
 
-### `k8s.ngrok.com/bindings`
+### `ngrok.com/bindings`
 
 Controls traffic visibility for an endpoint. Comma-separated list of binding types.
 
@@ -87,7 +87,7 @@ Controls traffic visibility for an endpoint. Comma-separated list of binding typ
 
 ## Internal Annotations (set by the operator)
 
-### `k8s.ngrok.com/computed-url`
+### `ngrok.com/computed-url`
 
 Set by the Service LoadBalancer controller as the single source of truth for the externally reachable URL. Users should not set this annotation.
 

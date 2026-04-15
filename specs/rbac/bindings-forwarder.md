@@ -10,9 +10,9 @@ Scoped to the operator's namespace.
 
 | API Group                  | Resource               | Verbs                           |
 |----------------------------|------------------------|---------------------------------|
-| `bindings.k8s.ngrok.com`  | `boundendpoints`       | get, list, watch, patch, update |
+| `ngrok.com`               | `boundendpoints`       | get, list, watch, patch, update |
 | `""`                       | `events`               | create, patch                   |
-| `ngrok.k8s.ngrok.com`     | `kubernetesoperators`  | get, list, watch                |
+| `ngrok.com`               | `kubernetesoperators`  | get, list, watch                |
 | `""`                       | `secrets`              | get, list, watch                |
 
 ## ClusterRole

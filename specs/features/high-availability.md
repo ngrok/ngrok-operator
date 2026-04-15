@@ -6,11 +6,11 @@ The ngrok-operator supports running multiple replicas for high availability. Onl
 
 ## Replica Configuration
 
-| Component          | Helm Value                          | Default | Recommendation       |
-|--------------------|-------------------------------------|---------|----------------------|
-| Operator           | `replicaCount`                      | `1`     | 2+ in production     |
-| Agent              | `agent.replicaCount`                | `1`     |                      |
-| Bindings Forwarder | `bindings.forwarder.replicaCount`   | `1`     |                      |
+| Component          | Helm Value                            | Default | Recommendation       |
+|--------------------|---------------------------------------|---------|----------------------|
+| API Manager        | `apiManager.replicaCount`             | `1`     | 2+ in production     |
+| Agent              | `agent.replicaCount`                  | `1`     |                      |
+| Bindings Forwarder | `bindingsForwarder.replicaCount`      | `1`     |                      |
 
 ## Leader Election
 
@@ -27,20 +27,20 @@ Leader election ensures only one operator replica actively reconciles at a time.
 
 ## Pod Disruption Budget
 
-| Helm Value                         | Description                                    | Default |
-|------------------------------------|------------------------------------------------|---------|
-| `podDisruptionBudget.create`       | Enable PDB creation                            | `false` |
-| `podDisruptionBudget.maxUnavailable` | Max unavailable pods                         | `"1"`   |
-| `podDisruptionBudget.minAvailable`   | Min available pods                           | (unset) |
+| Helm Value                                    | Description                                    | Default |
+|-----------------------------------------------|------------------------------------------------|---------|
+| `apiManager.podDisruptionBudget.create`       | Enable PDB creation                            | `false` |
+| `apiManager.podDisruptionBudget.maxUnavailable` | Max unavailable pods                         | `"1"`   |
+| `apiManager.podDisruptionBudget.minAvailable`   | Min available pods                           | (unset) |
 
 ## Anti-Affinity
 
-The operator defaults to `podAntiAffinityPreset: soft`, which encourages (but does not require) spreading replicas across different nodes.
+Anti-affinity is configured via the standard `affinity` field on each component (or `global.affinity` for all components). There are no preset helpers — write affinity rules directly.
 
-| Helm Value               | Description                                    | Default |
-|--------------------------|------------------------------------------------|---------|
-| `podAntiAffinityPreset`  | Pod anti-affinity: `soft` or `hard`            | `soft`  |
-| `affinity`               | Full affinity spec (overrides all presets)      | `{}`    |
+| Helm Value                | Description                                    | Default |
+|---------------------------|------------------------------------------------|---------|
+| `global.affinity`         | Affinity rules for all components              | `{}`    |
+| `apiManager.affinity`     | Affinity rules for the api-manager (overrides global) | `{}`    |
 
 ## Drain State Across Replicas
 

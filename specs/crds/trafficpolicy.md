@@ -1,12 +1,12 @@
-# NgrokTrafficPolicy
+# TrafficPolicy
 
 ## Resource Identity
 
 | Property    | Value                    |
 |-------------|--------------------------|
-| Group       | `ngrok.k8s.ngrok.com`   |
-| Version     | `v1alpha1`               |
-| Kind        | `NgrokTrafficPolicy`     |
+| Group       | `ngrok.com`              |
+| Version     | `v1`                     |
+| Kind        | `TrafficPolicy`     |
 | Scope       | Namespaced               |
 
 ## Spec
@@ -19,9 +19,7 @@ The `policy` field contains the raw traffic policy JSON. The operator validates 
 
 ## Status
 
-| Field    | Type            | Description             |
-|----------|-----------------|-------------------------|
-| `policy` | json.RawMessage | The resolved policy     |
+No status fields. TrafficPolicy acts as a typed configuration resource — it is not reconciled against the ngrok API directly.
 
 ## Printer Columns
 
@@ -29,11 +27,11 @@ None.
 
 ## Annotations
 
-The NgrokTrafficPolicy CRD does not consume annotations.
+The TrafficPolicy CRD does not consume annotations.
 
 ## Notes
 
 - This is a "pass-through" resource: the operator validates JSON syntax and warns on deprecated features but does not enforce the policy schema.
 - Deprecated features that trigger warnings: legacy `directions` field, `enabled` field on rules.
-- Changes to an NgrokTrafficPolicy trigger re-reconciliation of all endpoints that reference it.
+- Changes to a TrafficPolicy trigger re-reconciliation of all endpoints that reference it.
 - See [features/traffic-policy.md](../features/traffic-policy.md) for how traffic policies are resolved across the system.

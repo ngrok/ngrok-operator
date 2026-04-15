@@ -4,8 +4,8 @@
 
 | Property    | Value                    |
 |-------------|--------------------------|
-| Group       | `ngrok.k8s.ngrok.com`   |
-| Version     | `v1alpha1`               |
+| Group       | `ngrok.com`              |
+| Version     | `v1`                     |
 | Kind        | `AgentEndpoint`          |
 | Short Name  | `aep`                    |
 | Categories  | `networking`, `ngrok`    |
@@ -19,7 +19,7 @@
 | `upstream`              | EndpointUpstream                  | Yes      |                                        |                                       |
 | `trafficPolicy`         | TrafficPolicyCfg                  | No       |                                        | XValidation: exactly one of `inline` or `targetRef` |
 | `description`           | string                            | No       | `"Created by the ngrok-operator"`      |                                       |
-| `metadata`              | string                            | No       | `"{\"owned-by\":\"ngrok-operator\"}"` |                                       |
+| `metadata`              | map[string]string                 | No       | `{"owned-by": "ngrok-operator"}`      |                                       |
 | `bindings`              | []string                          | No       |                                        | MaxItems: 1, Pattern: `^(public\|internal\|kubernetes)$` |
 | `clientCertificateRefs` | []K8sObjectRefOptionalNamespace   | No       |                                        |                                       |
 
@@ -65,9 +65,9 @@
 
 The AgentEndpoint CRD does not directly consume annotations. However, when an AgentEndpoint is created by a parent controller (Service, Ingress, Gateway), the following annotations on the parent resource influence the created AgentEndpoint:
 
-- `k8s.ngrok.com/description` — Sets `spec.description`
-- `k8s.ngrok.com/metadata` — Sets `spec.metadata`
-- `k8s.ngrok.com/traffic-policy` — Sets `spec.trafficPolicy.targetRef`
-- `k8s.ngrok.com/bindings` — Sets `spec.bindings`
+- `ngrok.com/description` — Sets `spec.description`
+- `ngrok.com/metadata` — Sets `spec.metadata`
+- `ngrok.com/traffic-policy` — Sets `spec.trafficPolicy.targetRef`
+- `ngrok.com/bindings` — Sets `spec.bindings`
 
 See [annotations.md](../annotations.md) for the full reference.

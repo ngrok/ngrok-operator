@@ -17,7 +17,7 @@ Fetch object
 
 ## Finalizers
 
-The operator uses the finalizer `k8s.ngrok.com/finalizer` on all managed resources. The lifecycle is:
+The operator uses the finalizer `ngrok.com/finalizer` on all managed resources. The lifecycle is:
 
 1. **Create/Update**: Finalizer is added via `util.RegisterAndSyncFinalizer()`.
 2. **Delete (with finalizer)**: Delete handler runs (cleans up remote resources), then finalizer is removed via `util.RemoveAndSyncFinalizer()`.

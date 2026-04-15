@@ -6,14 +6,14 @@ The ngrok-operator can function as a Kubernetes Ingress controller, watching Ing
 
 ## Configuration
 
-| Helm Value                     | Description                                      | Default                            |
-|--------------------------------|--------------------------------------------------|------------------------------------|
-| `ingress.enabled`              | Enable the Ingress controller                    | `true`                             |
-| `ingress.controllerName`       | Controller name for IngressClass matching        | `k8s.ngrok.com/ingress-controller` |
-| `ingress.watchNamespace`       | Namespace to watch (empty = all)                 | `""`                               |
-| `ingress.ingressClass.name`    | IngressClass resource name                       | `ngrok`                            |
-| `ingress.ingressClass.create`  | Create the IngressClass resource                 | `true`                             |
-| `ingress.ingressClass.default` | Set as the default IngressClass                  | `false`                            |
+| Helm Value                                    | Description                                      | Default                          |
+|-----------------------------------------------|--------------------------------------------------|----------------------------------|
+| `features.ingress.enabled`                    | Enable the Ingress controller                    | `true`                           |
+| `features.ingress.controllerName`             | Controller name for IngressClass matching        | `ngrok.com/ingress-controller`   |
+| `features.ingress.watchNamespace`             | Namespace to watch (empty = all)                 | `""`                             |
+| `features.ingress.ingressClass.name`          | IngressClass resource name                       | `ngrok`                          |
+| `features.ingress.ingressClass.create`        | Create the IngressClass resource                 | `true`                           |
+| `features.ingress.ingressClass.default`       | Set as the default IngressClass                  | `false`                          |
 
 ## Behavior
 
@@ -29,17 +29,17 @@ When enabled, the operator:
 
 The following annotations on Ingress resources influence behavior:
 
-- `k8s.ngrok.com/mapping-strategy` — Controls endpoint creation strategy
-- `k8s.ngrok.com/traffic-policy` — References an NgrokTrafficPolicy
-- `k8s.ngrok.com/pooling-enabled` — Enables endpoint pooling
-- `k8s.ngrok.com/description` — Sets endpoint description
-- `k8s.ngrok.com/metadata` — Sets endpoint metadata
+- `ngrok.com/mapping-strategy` — Controls endpoint creation strategy
+- `ngrok.com/traffic-policy` — References a TrafficPolicy
+- `ngrok.com/pooling-enabled` — Enables endpoint pooling
+- `ngrok.com/description` — Sets endpoint description
+- `ngrok.com/metadata` — Sets endpoint metadata
 
 See [annotations.md](../annotations.md) for details.
 
 ## When Disabled
 
-When `ingress.enabled: false`:
+When `features.ingress.enabled: false`:
 - No IngressClass resource is created
 - Ingress resources are not watched or reconciled
 - The feature is excluded from the KubernetesOperator's `enabledFeatures`

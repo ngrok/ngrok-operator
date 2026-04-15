@@ -12,7 +12,7 @@ The Ingress controller reconciles Kubernetes `Ingress` resources that reference 
 | `IngressClass`        | Secondary  | All events                             |
 | `Service`             | Secondary  | All events                             |
 | `Domain`              | Secondary  | All events                             |
-| `NgrokTrafficPolicy`  | Secondary  | All events                             |
+| `TrafficPolicy`  | Secondary  | All events                             |
 
 ## Reconciliation Flow
 
@@ -40,10 +40,11 @@ The Ingress controller uses a Driver that collects state from multiple Ingress r
 
 The following annotations on Ingress resources influence behavior:
 
-- `k8s.ngrok.com/mapping-strategy`
-- `k8s.ngrok.com/traffic-policy`
-- `k8s.ngrok.com/pooling-enabled`
-- `k8s.ngrok.com/description`
-- `k8s.ngrok.com/metadata`
+- `ngrok.com/mapping-strategy`
+- `ngrok.com/traffic-policy`
+- `ngrok.com/pooling-enabled`
+- `ngrok.com/description`
+- `ngrok.com/metadata`
+- `ngrok.com/bindings`
 
 See [annotations.md](../annotations.md) for details.

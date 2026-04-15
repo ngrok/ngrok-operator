@@ -4,8 +4,8 @@
 
 | Property    | Value                      |
 |-------------|----------------------------|
-| Group       | `ingress.k8s.ngrok.com`   |
-| Version     | `v1alpha1`                 |
+| Group       | `ngrok.com`                |
+| Version     | `v1`                       |
 | Kind        | `Domain`                   |
 | Scope       | Namespaced                 |
 
@@ -13,11 +13,10 @@
 
 | Field           | Type                    | Required | Default                                               | Validation                   |
 |-----------------|-------------------------|----------|-------------------------------------------------------|------------------------------|
-| `description`   | string                  | No       | `"Created by kubernetes-ingress-controller"`           |                              |
-| `metadata`      | string                  | No       | `"{\"owned-by\":\"kubernetes-ingress-controller\"}"`  |                              |
+| `description`   | string                  | No       | `"Created by the ngrok-operator"`                      |                              |
+| `metadata`      | map[string]string       | No       | `{"owned-by": "ngrok-operator"}`                       |                              |
 | `domain`        | string                  | Yes      |                                                       |                              |
-| `region`        | string                  | No       |                                                       |                              |
-| `resolvesTo`    | *[]DomainResolvesToEntry| No       |                                                       |                              |
+| `resolvesTo`    | []DomainResolvesToEntry| No       |                                                       |                              |
 | `reclaimPolicy` | DomainReclaimPolicy     | No       | `"Delete"`                                            | Enum: `Delete`, `Retain`     |
 
 ### DomainResolvesToEntry
@@ -41,8 +40,7 @@ The default can be overridden globally via the Helm value `defaultDomainReclaimP
 |---------------------------------|-----------------------------------------|--------------------------------------------|
 | `id`                            | string                                  | ngrok domain ID                            |
 | `domain`                        | string                                  | The domain name                            |
-| `region`                        | string                                  | The domain's region                        |
-| `resolvesTo`                    | *[]DomainResolvesToEntry                | Resolved targets                           |
+| `resolvesTo`                    | []DomainResolvesToEntry                | Resolved targets                           |
 | `cnameTarget`                   | *string                                 | CNAME target for custom domains            |
 | `acmeChallengeCNAMETarget`      | *string                                 | ACME challenge CNAME target                |
 | `certificate`                   | *DomainStatusCertificateInfo            | Certificate ID                             |
@@ -66,7 +64,6 @@ The default can be overridden globally via the Helm value `defaultDomainReclaimP
 | Ready          | `.status.conditions[?(@.type=='Ready')].status`               | 0        |
 | Age            | `.metadata.creationTimestamp`                                 | 0        |
 | CNAME Target   | `.status.cnameTarget`                                         | 2        |
-| Region         | `.status.region`                                              | 2        |
 | Reason         | `.status.conditions[?(@.type=='Ready')].reason`               | 1        |
 | Message        | `.status.conditions[?(@.type=='Ready')].message`              | 1        |
 

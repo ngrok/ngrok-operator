@@ -13,7 +13,10 @@ Editor roles grant full management access to the CRD resources.
 | `boundendpoint-editor-role`              | `boundendpoints`, `boundendpoints/status` |
 | `cloudendpoint-editor-role`              | `cloudendpoints`, `cloudendpoints/status` |
 | `domain-editor-role`                     | `domains`, `domains/status` |
+| `agentendpoint-editor-role`              | `agentendpoints`, `agentendpoints/status` |
 | `ippolicy-editor-role`                   | `ippolicies`, `ippolicies/status` |
+| `kubernetesoperator-editor-role`         | `kubernetesoperators`, `kubernetesoperators/status` |
+| `trafficpolicy-editor-role`         | `trafficpolicies`, `trafficpolicies/status` |
 
 **Verbs:** create, delete, get, list, patch, update, watch
 
@@ -26,7 +29,10 @@ Viewer roles grant read-only access to the CRD resources.
 | `boundendpoint-viewer-role`              | `boundendpoints`, `boundendpoints/status` |
 | `cloudendpoint-viewer-role`              | `cloudendpoints`, `cloudendpoints/status` |
 | `domain-viewer-role`                     | `domains`, `domains/status` |
+| `agentendpoint-viewer-role`              | `agentendpoints`, `agentendpoints/status` |
 | `ippolicy-viewer-role`                   | `ippolicies`, `ippolicies/status` |
+| `kubernetesoperator-viewer-role`         | `kubernetesoperators`, `kubernetesoperators/status` |
+| `trafficpolicy-viewer-role`         | `trafficpolicies`, `trafficpolicies/status` |
 
 **Verbs:** get, list, watch
 

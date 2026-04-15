@@ -2,20 +2,36 @@
 
 ## Overview
 
-The bindings forwarder runs as a separate deployment responsible for forwarding traffic for bound endpoints. It is only deployed when `bindings.enabled: true`.
+The bindings forwarder runs as a separate deployment responsible for forwarding traffic for bound endpoints. It is only deployed when `features.bindings.enabled: true`.
 
-## Parameters
+## K8s Deployment Settings
 
-| Parameter                                              | Description                                     | Default         |
-|--------------------------------------------------------|-------------------------------------------------|-----------------|
-| `bindings.forwarder.replicaCount`                      | Number of forwarder replicas                    | `1`             |
-| `bindings.forwarder.resources.limits`                  | Container resource limits                       | `{}`            |
-| `bindings.forwarder.resources.requests`                | Container resource requests                     | `{}`            |
-| `bindings.forwarder.serviceAccount.create`             | Create a ServiceAccount for the forwarder       | `true`          |
-| `bindings.forwarder.serviceAccount.name`               | ServiceAccount name (auto-generated if empty)   | `""`            |
-| `bindings.forwarder.serviceAccount.annotations`        | ServiceAccount annotations                      | `{}`            |
-| `bindings.forwarder.updateStrategy.type`               | Update strategy type                            | `RollingUpdate` |
-| `bindings.forwarder.terminationGracePeriodSeconds`     | Graceful shutdown time                          | `30`            |
-| `bindings.forwarder.tolerations`                       | Pod tolerations                                 | `[]`            |
-| `bindings.forwarder.nodeSelector`                      | Node labels for pod assignment                  | `{}`            |
-| `bindings.forwarder.topologySpreadConstraints`         | Topology spread constraints                     | `[]`            |
+All settings below override global defaults. See [common.md](common.md) for override semantics.
+
+| Parameter                                                | Description                                     | Default         |
+|----------------------------------------------------------|-------------------------------------------------|-----------------|
+| `bindingsForwarder.replicaCount`                         | Number of forwarder replicas                    | `1`             |
+| `bindingsForwarder.podAnnotations`                       | Pod annotations (merged with global)            | `{}`            |
+| `bindingsForwarder.podLabels`                            | Pod labels (merged with global)                 | `{}`            |
+| `bindingsForwarder.nodeSelector`                         | Node labels for pod assignment                  | `{}`            |
+| `bindingsForwarder.tolerations`                          | Pod tolerations                                 | `[]`            |
+| `bindingsForwarder.affinity`                             | Affinity rules                                  | `{}`            |
+| `bindingsForwarder.topologySpreadConstraints`            | Topology spread constraints                     | `[]`            |
+| `bindingsForwarder.priorityClassName`                    | Pod priority class                              | `""`            |
+| `bindingsForwarder.resources`                            | Container resource requests/limits              | `{}`            |
+| `bindingsForwarder.extraVolumes`                         | Additional volumes                              | `[]`            |
+| `bindingsForwarder.extraVolumeMounts`                    | Additional volume mounts                        | `[]`            |
+| `bindingsForwarder.extraEnv`                             | Additional environment variables                | `{}`            |
+| `bindingsForwarder.lifecycle`                            | Container lifecycle hooks                       | `{}`            |
+| `bindingsForwarder.terminationGracePeriodSeconds`        | Graceful shutdown time                          | `30`            |
+| `bindingsForwarder.updateStrategy.type`                  | Update strategy type                            | `RollingUpdate` |
+| `bindingsForwarder.podDisruptionBudget.create`           | Enable PDB creation                             | `false`         |
+| `bindingsForwarder.podDisruptionBudget.maxUnavailable`   | Max unavailable pods                            | `"1"`           |
+| `bindingsForwarder.podDisruptionBudget.minAvailable`     | Min available pods                              | (unset)         |
+| `bindingsForwarder.serviceAccount.create`                | Create a ServiceAccount                         | `true`          |
+| `bindingsForwarder.serviceAccount.name`                  | ServiceAccount name (auto-generated if empty)   | `""`            |
+| `bindingsForwarder.serviceAccount.annotations`           | ServiceAccount annotations                      | `{}`            |
+
+## App Config
+
+No bindings-forwarder-specific config keys at this time. The forwarder reads all shared config from `ngrok.*` and feature flags from `features.*`.

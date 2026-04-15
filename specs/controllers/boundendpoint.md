@@ -9,7 +9,7 @@ The BoundEndpoint controller reconciles `BoundEndpoint` resources by creating tw
 | Resource         | Relation   | Predicate                              |
 |------------------|------------|----------------------------------------|
 | `BoundEndpoint`  | Primary    | GenerationChanged or AnnotationChanged |
-| `Service`        | Secondary  | Indexed by label `bindings.k8s.ngrok.com/endpoint-binding-name` |
+| `Service`        | Secondary  | Indexed by label `ngrok.com/endpoint-binding-name` |
 | `Namespace`      | Secondary  | Indexed by `spec.targetNamespace`      |
 
 ## Reconciliation Flow

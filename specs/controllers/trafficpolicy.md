@@ -1,14 +1,14 @@
-# NgrokTrafficPolicy Controller
+# TrafficPolicy Controller
 
 ## Executive Summary
 
-The NgrokTrafficPolicy controller is a validation-only controller. It validates the JSON syntax of traffic policies, emits warnings for deprecated features, and triggers re-sync of dependent endpoints.
+The TrafficPolicy controller is a validation-only controller. It validates the JSON syntax of traffic policies, emits warnings for deprecated features, and triggers re-sync of dependent endpoints.
 
 ## Watches
 
 | Resource              | Relation   | Predicate                                    |
 |-----------------------|------------|----------------------------------------------|
-| `NgrokTrafficPolicy`  | Primary    | AnnotationChanged or GenerationChanged       |
+| `TrafficPolicy`  | Primary    | AnnotationChanged or GenerationChanged       |
 
 ## Reconciliation Flow
 
@@ -33,5 +33,5 @@ None. This controller does not create any remote resources.
 
 - The controller always succeeds reconciliation, even if the policy contains deprecated features.
 - Policy schema validation is performed by the ngrok API when the policy is applied to an endpoint, not by this controller.
-- Changes to an NgrokTrafficPolicy trigger re-reconciliation of all endpoints that reference it (via secondary watches on endpoint controllers).
+- Changes to a TrafficPolicy trigger re-reconciliation of all endpoints that reference it (via secondary watches on endpoint controllers).
 - See [features/traffic-policy.md](../features/traffic-policy.md) for the cross-cutting traffic policy feature.

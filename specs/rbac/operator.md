@@ -16,7 +16,7 @@ The main operator ClusterRole requires the following permissions:
 | `services/finalizers`   | patch, update                                  |
 | `services/status`       | get, list, patch, update, watch                |
 
-### ngrok API (`ngrok.k8s.ngrok.com`)
+### ngrok API (`ngrok.com`)
 
 | Resource                          | Verbs                                          |
 |-----------------------------------|------------------------------------------------|
@@ -29,28 +29,18 @@ The main operator ClusterRole requires the following permissions:
 | `kubernetesoperators`             | create, delete, get, list, patch, update, watch |
 | `kubernetesoperators/finalizers`  | patch, update                                  |
 | `kubernetesoperators/status`      | get, patch, update                             |
-| `ngroktrafficpolicies`            | create, delete, get, list, patch, update, watch |
-| `ngroktrafficpolicies/finalizers` | patch, update                                  |
-| `ngroktrafficpolicies/status`     | get, patch, update                             |
-
-### Ingress API (`ingress.k8s.ngrok.com`)
-
-| Resource                  | Verbs                                          |
-|---------------------------|------------------------------------------------|
-| `domains`                 | create, delete, get, list, patch, update, watch |
-| `domains/finalizers`      | patch, update                                  |
-| `domains/status`          | get, patch, update                             |
-| `ippolicies`              | create, delete, get, list, patch, update, watch |
-| `ippolicies/finalizers`   | patch, update                                  |
-| `ippolicies/status`       | get, patch, update                             |
-
-### Bindings API (`bindings.k8s.ngrok.com`)
-
-| Resource                       | Verbs                                          |
-|--------------------------------|------------------------------------------------|
-| `boundendpoints`               | create, delete, get, list, patch, update, watch |
-| `boundendpoints/finalizers`    | patch, update                                  |
-| `boundendpoints/status`        | get, patch, update                             |
+| `trafficpolicies`            | create, delete, get, list, patch, update, watch |
+| `trafficpolicies/finalizers` | patch, update                                  |
+| `trafficpolicies/status`     | get, patch, update                             |
+| `domains`                         | create, delete, get, list, patch, update, watch |
+| `domains/finalizers`              | patch, update                                  |
+| `domains/status`                  | get, patch, update                             |
+| `ippolicies`                      | create, delete, get, list, patch, update, watch |
+| `ippolicies/finalizers`           | patch, update                                  |
+| `ippolicies/status`               | get, patch, update                             |
+| `boundendpoints`                  | create, delete, get, list, patch, update, watch |
+| `boundendpoints/finalizers`       | patch, update                                  |
+| `boundendpoints/status`           | get, patch, update                             |
 
 ### Networking (`networking.k8s.io`)
 

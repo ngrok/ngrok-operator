@@ -4,8 +4,8 @@
 
 | Property    | Value                      |
 |-------------|----------------------------|
-| Group       | `ingress.k8s.ngrok.com`   |
-| Version     | `v1alpha1`                 |
+| Group       | `ngrok.com`                |
+| Version     | `v1`                       |
 | Kind        | `IPPolicy`                 |
 | Scope       | Namespaced                 |
 
@@ -13,16 +13,16 @@
 
 | Field         | Type           | Required | Default                                              |
 |---------------|----------------|----------|------------------------------------------------------|
-| `description` | string         | No       | `"Created by kubernetes-ingress-controller"`          |
-| `metadata`    | string         | No       | `"{\"owned-by\":\"kubernetes-ingress-controller\"}"` |
+| `description` | string         | No       | `"Created by the ngrok-operator"`                     |
+| `metadata`    | map[string]string | No    | `{"owned-by": "ngrok-operator"}`                      |
 | `rules`       | []IPPolicyRule | No       |                                                      |
 
 ### IPPolicyRule
 
 | Field         | Type   | Required | Default                                              | Validation           |
 |---------------|--------|----------|------------------------------------------------------|----------------------|
-| `description` | string | No       | `"Created by kubernetes-ingress-controller"`          |                      |
-| `metadata`    | string | No       | `"{\"owned-by\":\"kubernetes-ingress-controller\"}"` |                      |
+| `description` | string | No       | `"Created by the ngrok-operator"`                     |                      |
+| `metadata`    | map[string]string | No | `{"owned-by": "ngrok-operator"}`                 |                      |
 | `cidr`        | string | Yes      |                                                      |                      |
 | `action`      | string | Yes      |                                                      | Enum: `allow`, `deny`|
 

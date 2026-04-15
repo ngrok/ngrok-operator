@@ -8,7 +8,7 @@ The operator can be scoped to watch specific namespaces instead of the entire cl
 
 | Component     | Flag                         | Helm Value                | Default |
 |---------------|------------------------------|---------------------------|---------|
-| api-manager   | `--ingress-watch-namespace`  | `ingress.watchNamespace`  | `""`    |
+| api-manager   | `--ingress-watch-namespace`  | `features.ingress.watchNamespace`  | `""`    |
 | agent-manager | `--watch-namespace`          | (none)                    | `""`    |
 
 An empty value means "watch all namespaces" (cluster-wide).

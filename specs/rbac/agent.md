@@ -4,23 +4,18 @@
 
 The agent (agent-manager) has a separate ClusterRole with permissions for tunnel management.
 
-### ngrok API (`ngrok.k8s.ngrok.com`)
+### ngrok API (`ngrok.com`)
 
-| Resource                          | Verbs                                  |
-|-----------------------------------|----------------------------------------|
-| `agentendpoints`                  | get, list, watch, patch, update        |
-| `agentendpoints/finalizers`       | patch, update                          |
-| `agentendpoints/status`           | get, patch, update                     |
-| `ngroktrafficpolicies`            | get, list, watch                       |
-| `kubernetesoperators`             | get, list, watch                       |
-
-### Ingress API (`ingress.k8s.ngrok.com`)
-
-| Resource                  | Verbs                                          |
-|---------------------------|------------------------------------------------|
-| `domains`                 | create, delete, get, list, patch, update, watch |
-| `domains/finalizers`      | patch, update                                  |
-| `domains/status`          | get, patch, update                             |
+| Resource                          | Verbs                                          |
+|-----------------------------------|------------------------------------------------|
+| `agentendpoints`                  | get, list, watch, patch, update                |
+| `agentendpoints/finalizers`       | patch, update                                  |
+| `agentendpoints/status`           | get, patch, update                             |
+| `trafficpolicies`            | get, list, watch                               |
+| `kubernetesoperators`             | get, list, watch                               |
+| `domains`                         | create, delete, get, list, patch, update, watch |
+| `domains/finalizers`              | patch, update                                  |
+| `domains/status`                  | get, patch, update                             |
 
 ### Core API (`""`)
 
@@ -32,5 +27,5 @@ The agent (agent-manager) has a separate ClusterRole with permissions for tunnel
 ## Notes
 
 - The agent does not need write access to most CRDs — it only needs to update the AgentEndpoints it manages and the Domains they reference.
-- NgrokTrafficPolicies and KubernetesOperators are read-only because the agent only reads their configuration.
+- TrafficPolicies and KubernetesOperators are read-only because the agent only reads their configuration.
 - Secret read access is needed for client certificate references on AgentEndpoints.
