@@ -1,15 +1,13 @@
-<!-- primary links -->
-<p>
-  <a href="https://ngrok.com">
-    <img src="docs/assets/images/ngrok-blue-lrg.png" alt="ngrok Logo" width="300" url="https://ngrok.com" />
-  </a>
-  <a href="https://kubernetes.io/">
-  <img src="docs/assets/images/Kubernetes-icon-color.svg.png" alt="Kubernetes logo" width="150" />
-  </a>
-</p>
+<h1 align="center">
+  <br>
+  <a href="https://ngrok.com/docs/k8s/">ngrok Kubernetes Operator</a>
+  <br>
+</h1>
+
+<h4 align="center">Secure ingress for your Kubernetes services — powered by <a href="https://ngrok.com">ngrok</a></h4>
 
 <!-- badges -->
-<p>
+<p align="center">
   <a href="https://github.com/ngrok/ngrok-operator/actions?query=branch%3Amain+event%3Apush">
     <img src="https://github.com/ngrok/ngrok-operator/actions/workflows/ci.yaml/badge.svg" alt="CI Status"/>
   </a>
@@ -31,17 +29,30 @@
   <a href="https://artifacthub.io/packages/search?repo=ngrok&operators=true&sort=relevance&page=1">
     <img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/ngrok" alt="Artifacthub"/>
   </a>
-  <!--
-  <a href="https://github.com/ngrok/ngrok-operator/actions/workflows/trivy-image-scan.yaml">
-    <img src="https://github.com/ngrok/ngrok-operator/actions/workflows/trivy-image-scan.yaml/badge.svg" alt="Trivy"/>
-  </a> -->
 </p>
 
-# ngrok Kubernetes Operator
+<p align="center">
+  Instantly add load balancing, authentication, and observability to your services via ngrok's cloud edge<br>
+  using <a href="https://kubernetes.io/docs/concepts/services-networking/ingress/">Kubernetes Ingress</a>, the <a href="https://gateway-api.sigs.k8s.io/">Gateway API</a>, and Custom Resource Definitions.
+</p>
 
-Leverage [ngrok](https://ngrok.com/) for your ingress in your Kubernetes cluster.  Instantly add load balancing, authentication, and observability to your services via ngrok Cloud Edge modules using Custom Resource Definitions (CRDs) and Kubernetes-native tooling. This repo contains both our [Kubernetes Ingress Controller](https://kubernetes.io/docs/concepts/services-networking/ingress/) and the [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/)
+<p align="center">
+  <a href="https://ngrok.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/images/architecture-banner.svg">
+      <source media="(prefers-color-scheme: light)" srcset="docs/assets/images/architecture-banner.svg">
+      <img src="docs/assets/images/architecture-banner.svg" alt="ngrok Kubernetes Operator — secure ingress for your cluster" width="920">
+    </picture>
+  </a>
+</p>
 
-[Installation](#installation) | [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) | [Documentation](#documentation) | [Developer Guide](https://github.com/ngrok/ngrok-operator/blob/main/docs/developer-guide/README.md) | [Known Issues](#known-issues)
+<p align="center">
+  <a href="#installation"><strong>Installation</strong></a> ·
+  <a href="https://ngrok.com/docs/using-ngrok-with/k8s/"><strong>Getting Started</strong></a> ·
+  <a href="#documentation"><strong>Docs</strong></a> ·
+  <a href="https://github.com/ngrok/ngrok-operator/blob/main/docs/developer-guide/README.md"><strong>Developer Guide</strong></a> ·
+  <a href="#known-issues"><strong>Known Issues</strong></a>
+</p>
 
 > **Note**
 >
