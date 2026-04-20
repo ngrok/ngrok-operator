@@ -55,6 +55,8 @@ var (
 
 	// Mock clients for testing
 	mockClientset *nmockapi.Clientset
+
+	kginkgo *testutils.KGinkgo
 )
 
 const (
@@ -94,6 +96,8 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+
+	kginkgo = testutils.NewKGinkgo(k8sClient)
 
 	// Create mock clientset
 	mockClientset = nmockapi.NewClientset()
