@@ -31,6 +31,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
@@ -60,11 +61,12 @@ var (
 const (
 	controllerNamespace = "test-controller-namespace"
 	controllerName      = "test-controller"
+	k8sOpName           = "test-ko"
 )
 
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "CloudEndpoint Controller Suite")
+	RunSpecs(t, "Ngrok Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -123,6 +125,27 @@ var _ = BeforeSuite(func() {
 	}
 
 	err = reconciler.SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Setup KubernetesOperator reconciler
+	koReconciler := &KubernetesOperatorReconciler{
+		Client:         k8sManager.GetClient(),
+		Scheme:         k8sManager.GetScheme(),
+		Log:            logf.Log.WithName("kubernetesoperator-controller"),
+		Recorder:       k8sManager.GetEventRecorder("kubernetesoperator-controller"),
+		NgrokClientset: mockClientset,
+		K8sOpNamespace: controllerNamespace,
+		K8sOpName:      k8sOpName,
+		DrainOrchestrator: drain.NewOrchestrator(drain.OrchestratorConfig{
+			Client:         k8sManager.GetClient(),
+			Recorder:       k8sManager.GetEventRecorder("kubernetesoperator-controller"),
+			Log:            logf.Log.WithName("kubernetesoperator-drain"),
+			K8sOpNamespace: controllerNamespace,
+			K8sOpName:      k8sOpName,
+		}),
+	}
+
+	err = koReconciler.SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
 	go func() {
