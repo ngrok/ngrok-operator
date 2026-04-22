@@ -575,7 +575,6 @@ func TestMergeSinglePhase(t *testing.T) {
 	}
 }
 
-// newBaseTrafficPolicy gives a simple base that the "merge" functions can use for testing.
 func TestMergeEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -660,6 +659,7 @@ func TestMergeEnabled(t *testing.T) {
 	}
 }
 
+// newBaseTrafficPolicy gives a simple base that the "merge" functions can use for testing.
 func newBaseTrafficPolicy(t *testing.T, enabled *bool) *trafficPolicyImpl {
 	t.Helper()
 
