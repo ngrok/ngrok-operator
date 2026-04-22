@@ -3,7 +3,7 @@
 ## Executive Summary
 
 The Service LoadBalancer controller reconciles Kubernetes Services of type `LoadBalancer` with the ngrok load balancer class
-(`loadBalancerClass: ngrok`). It materializes these Services in ngrok endpoint Custom Resources (CloudEndpoint and/or AgentEndpoint), applies NgrokTrafficPolicy configurations, and updates Service status with the externally reachable address (hostname/port).
+(`loadBalancerClass: ngrok`). It materializes these Services in ngrok endpoint Custom Resources (CloudEndpoint and/or AgentEndpoint), applies TrafficPolicy configurations, and updates Service status with the externally reachable address (hostname/port).
 
 ## Features
 
@@ -16,14 +16,14 @@ The ngrok Service LoadBalancer controller will only manage Services(`corev1.Serv
 If these criteria are not met, the controller will clean up any previously created ngrok endpoints and remove its finalizer from the Service.
 
 When managing a qualifying Service, the controller will:
-1. Add a finalizer(`k8s.ngrok.com/finalizer`) to the Service to ensure proper cleanup on deletion.
+1. Add a finalizer(`ngrok.com/finalizer`) to the Service to ensure proper cleanup on deletion.
 2. Create and manage a single `CloudEndpoint` and/or `AgentEndpoint` resource based on the mapping strategy. An owner reference to the Service will be set on the created endpoint(s).
-2. If the traffic-policy annotation is present, resolve the traffic policy and apply it to the created endpoint(s).
-3. Update the Service's `status.loadBalancer.ingress` field with the externally reachable hostname and port.
+3. If the traffic-policy annotation is present, resolve the traffic policy and apply it to the created endpoint(s).
+4. Update the Service's `status.loadBalancer.ingress` field with the externally reachable hostname and port.
 
 ### TCP Load Balancers
 
-TCP Load Balancer is the default behavior. When the `k8s.ngrok.com/url` annotation is not specified, or it specifies a `tcp://` scheme,
+TCP Load Balancer is the default behavior. When the `ngrok.com/url` annotation is not specified, or it specifies a `tcp://` scheme,
 the controller will create a TCP Load Balancer.
 
 ### TLS Termination
@@ -33,7 +33,7 @@ When a Service specifies a domain or url with the `tls://` scheme, the controlle
 
 ### Annotations
 
-#### `k8s.ngrok.com/mapping-strategy`
+#### `ngrok.com/mapping-strategy`
 
 Allowed values: `endpoints`, `endpoints-verbose`
 Default Value: `endpoints`
@@ -41,22 +41,50 @@ Default Value: `endpoints`
 When unspecified, it defaults to `endpoints` and only an `AgentEndpoint` will be created for the Service.
 When set to `endpoints-verbose`, both a `CloudEndpoint` and an internal `AgentEndpoint`, an endpoint with a url ending in `.internal` will be created for the Service.
 
-#### `k8s.ngrok.com/url`
+#### `ngrok.com/url`
 
 Examples:
-* `k8s.ngrok.com/url: "tcp://1.tcp.ngrok.io:12345"` - Creates a TCP load balancer using the specified ngrok TCP address. It must be reserved in the ngrok dashboard/API first.
-* `k8s.ngrok.com/url: "tcp://"` - Creates a TCP load balancer using a dynamically assigned ngrok TCP address.
-* `k8s.ngrok.com/url: "tls://example.com"` - Creates a TLS-terminated load balancer for the specified domain.
+* `ngrok.com/url: "tcp://1.tcp.ngrok.io:12345"` - Creates a TCP load balancer using the specified ngrok TCP address. It must be reserved in the ngrok dashboard/API first.
+* `ngrok.com/url: "tcp://"` - Creates a TCP load balancer using a dynamically assigned ngrok TCP address.
+* `ngrok.com/url: "tls://example.com"` - Creates a TLS-terminated load balancer for the specified domain.
 
-#### `k8s.ngrok.com/traffic-policy`
+#### `ngrok.com/traffic-policy`
 
-Specifies the name of a `NgrokTrafficPolicy` resource in the same namespace to apply to the created endpoint(s).
-The controller will watch for changes to the referenced `NgrokTrafficPolicy` and update the endpoint(s) accordingly.
+Specifies the name of a `TrafficPolicy` resource in the same namespace to apply to the created endpoint(s).
+The controller will watch for changes to the referenced `TrafficPolicy` and update the endpoint(s) accordingly.
 
 When the mapping strategy is `endpoints-verbose`, the traffic policy will be applied to the `CloudEndpoint`.
 When the mapping strategy is `endpoints`, the traffic policy will be applied to the `AgentEndpoint`.
 
-#### `k8s.ngrok.com/computed-url` (internal)
+#### `ngrok.com/pooling-enabled`
+
+Controls whether the endpoint allows pooling with other endpoints sharing the same URL.
+
+Allowed values: `"true"`, `"false"`
+Default: (none — uses ngrok platform default)
+
+When set, the value is passed through to the created `CloudEndpoint`'s `spec.poolingEnabled` field (for `endpoints-verbose` strategy) or to the `AgentEndpoint` (for `endpoints` strategy).
+
+#### `ngrok.com/description`
+
+Sets a human-readable description on the created ngrok endpoint resource(s).
+
+Default: `"Created by the ngrok-operator"`
+
+#### `ngrok.com/metadata`
+
+Sets arbitrary key-value metadata on the created ngrok endpoint resource(s). Value is a JSON object string that is parsed into `map[string]string`. Merged with operator-level ``ngrok.metadata``; annotation keys take precedence on conflict.
+
+Default: `{"owned-by": "ngrok-operator"}`
+
+#### `ngrok.com/bindings`
+
+Controls traffic visibility for the endpoint. Comma-separated list of binding types.
+
+Allowed values: `public`, `internal`, `kubernetes`
+Default: (none — uses ngrok platform default)
+
+#### `ngrok.com/computed-url` (internal)
 
 This annotation is set by the controller and serves as the single source of truth for the externally reachable URL of the load balancer. The controller uses this annotation to populate the Service's `status.loadBalancer.ingress` field.
 
@@ -65,7 +93,7 @@ This annotation is set by the controller and serves as the single source of trut
 - When the URL annotation specifies a pre-reserved TCP address (e.g., `tcp://1.tcp.ngrok.io:12345`), the computed-url is set to that address.
 
 **TLS Load Balancers:**
-- The computed-url is set to the value from the `k8s.ngrok.com/url` annotation (e.g., `tls://example.ngrok.app:443` or `tls://custom.example.com:443`).
+- The computed-url is set to the value from the `ngrok.com/url` annotation (e.g., `tls://example.ngrok.app:443` or `tls://custom.example.com:443`).
 
 ### Service Status
 
@@ -102,7 +130,7 @@ The flow is:
 For **ngrok-managed domains** (e.g., `*.ngrok.app`, `*.ngrok.io`), the Domain CRD will not have a `cnameTarget`, so the hostname is taken directly from the domain:
 
 ```yaml
-# With annotation: k8s.ngrok.com/url: "tls://myapp.ngrok.app:443"
+# With annotation: ngrok.com/url: "tls://myapp.ngrok.app:443"
 # Domain CRD has: status.domain: "myapp.ngrok.app", status.cnameTarget: null
 status:
   loadBalancer:
@@ -116,7 +144,7 @@ status:
 For **custom domains** (e.g., `app.example.com`), the Domain CRD will have a `cnameTarget` that users must configure in their DNS. The status hostname is set to this CNAME target, not the custom domain itself:
 
 ```yaml
-# With annotation: k8s.ngrok.com/url: "tls://app.example.com:443"
+# With annotation: ngrok.com/url: "tls://app.example.com:443"
 # Domain CRD has: status.domain: "app.example.com", status.cnameTarget: "abc123.ngrok-cname.com"
 status:
   loadBalancer:
