@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -851,7 +852,12 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 			})
 		}
 
-		for _, listener := range newStatus.Listeners {
+		sort.Slice(newStatus.Addresses, func(i, j int) bool {
+			return newStatus.Addresses[i].Value < newStatus.Addresses[j].Value
+		})
+
+		for i := range newStatus.Listeners {
+			listener := &newStatus.Listeners[i]
 			if meta.IsStatusConditionFalse(listener.Conditions, string(gatewayv1.ListenerConditionAccepted)) {
 				continue
 			}
