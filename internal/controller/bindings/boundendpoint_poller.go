@@ -96,6 +96,10 @@ func (r *BoundEndpointPoller) cancelIfDraining(ctx context.Context, log logr.Log
 func (r *BoundEndpointPoller) Start(ctx context.Context) error {
 	log := ctrl.LoggerFrom(ctx)
 
+	// Initialize the port allocator before starting any polling — the poller
+	// calls methods on it (Replace, SetAny, Unset) that would nil-panic otherwise.
+	r.portAllocator = newPortBitmap(r.PortRange.Min, r.PortRange.Max)
+
 	// retrieve k8sop ID
 	r.koId = r.getKubernetesOperatorId(ctx)
 
