@@ -380,4 +380,3 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 		})
 	})
 })
-
