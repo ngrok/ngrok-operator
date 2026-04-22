@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -449,13 +450,7 @@ func secretReferencedByGateway(secret *v1.Secret, c client.Client) bool {
 		// in the same layer as the rest of the translation offers a better user experience with understanding errors with their resources and why they happened.
 		if gw.Spec.BackendTLS != nil && gw.Spec.BackendTLS.ClientCertificateRef != nil {
 			certRef := gw.Spec.BackendTLS.ClientCertificateRef
-			certNs := gw.Namespace
-			if certRef.Namespace != nil {
-				certNs = string(*certRef.Namespace)
-			}
-
-			if string(certRef.Name) == secret.Name &&
-				certNs == secret.Namespace &&
+			if certRefMatches(certRef.Name, certRef.Namespace, gw.Namespace, secret.Name, secret.Namespace) &&
 				secret.Type == v1.SecretTypeTLS {
 				return true
 			}
@@ -465,12 +460,7 @@ func secretReferencedByGateway(secret *v1.Secret, c client.Client) bool {
 				continue
 			}
 			for _, certRef := range listener.TLS.CertificateRefs {
-				certNs := gw.Namespace
-				if certRef.Namespace != nil {
-					certNs = string(*certRef.Namespace)
-				}
-				if string(certRef.Name) == secret.Name &&
-					certNs == secret.Namespace &&
+				if certRefMatches(certRef.Name, certRef.Namespace, gw.Namespace, secret.Name, secret.Namespace) &&
 					secret.Type == v1.SecretTypeTLS {
 					return true
 				}
@@ -493,12 +483,7 @@ func configMapReferencedByGateway(cm *v1.ConfigMap, c client.Client) bool {
 				continue
 			}
 			for _, certRef := range listener.TLS.FrontendValidation.CACertificateRefs {
-				certNs := gw.Namespace
-				if certRef.Namespace != nil {
-					certNs = string(*certRef.Namespace)
-				}
-				if string(certRef.Name) == cm.Name &&
-					certNs == cm.Namespace &&
+				if certRefMatches(certRef.Name, certRef.Namespace, gw.Namespace, cm.Name, cm.Namespace) &&
 					string(certRef.Kind) == "ConfigMap" {
 					return true
 				}
@@ -506,4 +491,11 @@ func configMapReferencedByGateway(cm *v1.ConfigMap, c client.Client) bool {
 		}
 	}
 	return false
+}
+
+// certRefMatches reports whether a Gateway cert reference points to the named
+// object in the given namespace. A nil ref namespace defaults to gwNs.
+func certRefMatches(refName gatewayv1.ObjectName, refNs *gatewayv1.Namespace, gwNs, objName, objNs string) bool {
+	return string(refName) == objName &&
+		string(ptr.Deref(refNs, gatewayv1.Namespace(gwNs))) == objNs
 }
