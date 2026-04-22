@@ -273,6 +273,8 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 		endpointOpts = append(endpointOpts, ngrok.WithTrafficPolicy(trafficPolicy))
 	}
 
+	// Use context.Background() here instead of ctx because Forward spawns a goroutine that listens for ctx.Done().
+	// Passing the reconciler's ctx would cause the endpoint to shut down as soon as reconciliation completes.
 	epf, err := d.agent.Forward(context.Background(), upstream, endpointOpts...)
 	if err != nil {
 		return &EndpointResult{Ready: false}, err
