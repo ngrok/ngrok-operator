@@ -505,7 +505,8 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, agentEndpoint
 						irVHost,
 						irService,
 						t.clusterDomain,
-						irVHost.Metadata)
+						irVHost.Metadata,
+						irVHost.Description)
 					if err != nil {
 						t.log.Error(err, "failed to build AgentEndpoint",
 							"hostname", irVHost.Listener.Hostname,
@@ -724,7 +725,8 @@ func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, ag
 				irVHost,
 				irService,
 				t.clusterDomain,
-				t.defaultIngressMetadata,
+				irVHost.Metadata,
+				irVHost.Description,
 			)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build AgentEndpoint. upstream generated from resources: %v, err: %w", upstream.OwningResources, err)
@@ -808,6 +810,7 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1alpha1.CloudEndpoint
 			URL:            publicURL,
 			PoolingEnabled: irVHost.EndpointPoolingEnabled,
 			Metadata:       irVHost.Metadata,
+			Description:    irVHost.Description,
 			Bindings:       irVHost.Bindings,
 		},
 	}, nil
@@ -819,6 +822,7 @@ func buildAgentEndpoint(
 	irService ir.IRService,
 	clusterDomain string,
 	metadata string,
+	description string,
 ) (*ngrokv1alpha1.AgentEndpoint, error) {
 	bindings := []string{}
 	var url string
@@ -852,8 +856,9 @@ func buildAgentEndpoint(
 			Annotations: irVHost.AnnotationsToAdd,
 		},
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
-			URL:      url,
-			Metadata: metadata,
+			URL:         url,
+			Metadata:    metadata,
+			Description: description,
 			Upstream: ngrokv1alpha1.EndpointUpstream{
 				URL:      agentEndpointUpstreamURL(irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.Scheme),
 				Protocol: irService.Protocol,

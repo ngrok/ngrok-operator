@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: true
+      charts-changed:
+        description: "Whether Helm chart files have changed"
+        required: false
+        type: boolean
+        default: true
   schedule:
     # Run every 8 hours on the main branch to catch flakey tests
     - cron: '0 */8 * * *'
@@ -25,10 +30,9 @@ jobs:
     if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - uses: ./.github/actions/nix-setup
     - name: Generate manifests
-      run: nix develop --command make manifests
+      run: make manifests
     - name: Fail if there are uncommitted manifest changes
       run: |
         git diff --exit-code
@@ -41,10 +45,9 @@ jobs:
     if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - uses: ./.github/actions/nix-setup
     - name: Lint
-      run: nix develop --command make lint
+      run: make lint
 
   go-mod-tidy:
     name: Go Mod Tidy Check
@@ -52,9 +55,8 @@ jobs:
     if: ${{ inputs.go-changed || github.event_name == 'schedule' }}
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
-    - run: nix develop --command go mod tidy
+    - uses: ./.github/actions/nix-setup
+    - run: go mod tidy
     - run: git diff --exit-code go.mod
     - run: git diff --exit-code go.sum
 
@@ -66,10 +68,9 @@ jobs:
       contents: read
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - uses: ./.github/actions/nix-setup
     - name: Run go fix
-      run: nix develop --command make go-fix
+      run: make go-fix
     - name: Fail if there are uncommitted changes
       run: git diff --exit-code
 
@@ -79,10 +80,9 @@ jobs:
     if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
     steps:
     - uses: actions/checkout@v6
-    - uses: nixbuild/nix-quick-install-action@v34
-    - uses: DeterminateSystems/magic-nix-cache-action@b8276522d77f21bf19d3574e5bc99186a6c7aa6c
+    - uses: ./.github/actions/nix-setup
     - name: Run unit tests
-      run: nix develop --command make test
+      run: make test
     - if: github.repository == 'ngrok/ngrok-operator'
       name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5

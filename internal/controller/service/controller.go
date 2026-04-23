@@ -203,8 +203,9 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups="",resources=services/status,verbs=get;list;watch;patch;update
+// +kubebuilder:rbac:groups="",resources=services/finalizers,verbs=update;patch
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch
 
 // This reconcile function is called by the controller-runtime manager.

@@ -1,7 +1,9 @@
 package ir
 
 import (
+	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -89,8 +91,13 @@ type IRVirtualHost struct {
 	// Currently only used for debug/error logs, but can be added to generated resource statuses
 	OwningResources []OwningResource
 
-	// Metadata to set on any created CloudEndpoints/AgentEndpoints
+	// Metadata to set on any created CloudEndpoints/AgentEndpoints.
+	// This is a JSON object string merged from the operator default and the resource annotation.
 	Metadata string
+
+	// Description to set on any created CloudEndpoints/AgentEndpoints.
+	// Sourced from the k8s.ngrok.com/description annotation on the resource.
+	Description string
 
 	// Bindings to set on generated Endpoints
 	Bindings []string
@@ -478,4 +485,36 @@ func (h *IRUpstream) AddOwningResource(new OwningResource) {
 		return
 	}
 	h.OwningResources = append(h.OwningResources, new)
+}
+
+// MergeMetadata merges two JSON object strings. Keys present in override take precedence over base.
+// If override is empty, base is returned unchanged.
+// If base is empty or invalid JSON, override is returned (or an empty object if both are invalid).
+func MergeMetadata(base, override string) string {
+	if override == "" {
+		return base
+	}
+
+	var b map[string]any
+	if base != "" {
+		// Ignore parse errors — treat invalid base as empty object
+		_ = json.Unmarshal([]byte(base), &b)
+	}
+	if b == nil {
+		b = map[string]any{}
+	}
+
+	var o map[string]any
+	if err := json.Unmarshal([]byte(override), &o); err != nil {
+		// Override is not valid JSON; return base unchanged
+		return base
+	}
+
+	maps.Copy(b, o)
+
+	out, err := json.Marshal(b)
+	if err != nil {
+		return base
+	}
+	return string(out)
 }

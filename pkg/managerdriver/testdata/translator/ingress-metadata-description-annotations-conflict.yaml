@@ -1,0 +1,152 @@
+# Tests that when two Ingresses share the same hostname and have different k8s.ngrok.com/metadata
+# and k8s.ngrok.com/description annotations, the alphabetically-first resource (by namespace/name)
+# wins. Here ingress-aaa comes before ingress-bbb, so its annotations are used.
+# endpoints-verbose is set on both ingresses to ensure a CloudEndpoint is always produced,
+# making the expected output deterministic regardless of service iteration order.
+input:
+  ingressClasses:
+  - apiVersion: networking.k8s.io/v1
+    kind: IngressClass
+    metadata:
+      name: ngrok
+    spec:
+      controller: k8s.ngrok.com/ingress-controller
+  ingresses:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: ingress-aaa
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
+        k8s.ngrok.com/metadata: '{"owner":"team-a"}'
+        k8s.ngrok.com/description: "Team A description"
+    spec:
+      ingressClassName: ngrok
+      rules:
+        - host: shared-host.ngrok.io
+          http:
+            paths:
+              - path: /a
+                pathType: Prefix
+                backend:
+                  service:
+                    name: service-a
+                    port:
+                      number: 8080
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: ingress-bbb
+      namespace: default
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
+        k8s.ngrok.com/metadata: '{"owner":"team-b"}'
+        k8s.ngrok.com/description: "Team B description"
+    spec:
+      ingressClassName: ngrok
+      rules:
+        - host: shared-host.ngrok.io
+          http:
+            paths:
+              - path: /b
+                pathType: Prefix
+                backend:
+                  service:
+                    name: service-b
+                    port:
+                      number: 9090
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: service-a
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: service-b
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 9090
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  trafficPolicies:
+expected:
+  cloudEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: shared-host.ngrok.io
+      namespace: default
+    spec:
+      url: "https://shared-host.ngrok.io"
+      metadata: '{"owner":"team-a"}'
+      description: "Team A description"
+      trafficPolicy:
+        policy:
+          on_http_request:
+          - name: Generated-Route
+            expressions:
+            - "req.url.path.startsWith('/a')"
+            actions:
+            - type: forward-internal
+              config:
+                url: "https://e3b0c-service-a-default-8080.internal"
+          - name: Generated-Route
+            expressions:
+            - "req.url.path.startsWith('/b')"
+            actions:
+            - type: forward-internal
+              config:
+                url: "https://e3b0c-service-b-default-9090.internal"
+          - name: Fallback-404
+            actions:
+            - type: custom-response
+              config:
+                status_code: 404
+                content: "No route was found for this ngrok Endpoint"
+                headers:
+                  content-type: text/plain
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-service-a-default-8080
+      namespace: default
+    spec:
+      url: "https://e3b0c-service-a-default-8080.internal"
+      metadata: '{"owner":"team-a"}'
+      description: "Team A description"
+      upstream:
+        url: "http://service-a.default:8080"
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-service-b-default-9090
+      namespace: default
+    spec:
+      url: "https://e3b0c-service-b-default-9090.internal"
+      metadata: '{"owner":"team-a"}'
+      description: "Team A description"
+      upstream:
+        url: "http://service-b.default:9090"
