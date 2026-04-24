@@ -41,6 +41,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -495,6 +496,12 @@ func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ng
 		}
 	} else {
 		endpoint.Status.AttachedTrafficPolicy = "none"
+		// Only clear the traffic policy condition if no policy is configured.
+		// When a policy is configured but failed to resolve, getTrafficPolicy
+		// already set the condition to false with the error — don't remove it.
+		if endpoint.Spec.TrafficPolicy == nil {
+			meta.RemoveStatusCondition(&endpoint.Status.Conditions, ConditionTrafficPolicy)
+		}
 	}
 
 	// Calculate overall Ready condition based on other conditions and domain status
