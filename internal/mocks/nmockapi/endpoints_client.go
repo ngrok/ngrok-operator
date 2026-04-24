@@ -35,14 +35,16 @@ func (m *EndpointsClient) Create(_ context.Context, item *ngrok.EndpointCreate) 
 
 	id := m.newID()
 	newEndpoint := &ngrok.Endpoint{
-		Description:   ptr.Deref(item.Description, ""),
-		Metadata:      ptr.Deref(item.Metadata, ""),
-		ID:            id,
-		URL:           item.URL,
-		Type:          item.Type,
-		TrafficPolicy: item.TrafficPolicy,
-		CreatedAt:     m.createdAt(),
-		URI:           fmt.Sprintf("https://mock-api.ngrok.com/endpoints/%s", id),
+		Description:    ptr.Deref(item.Description, ""),
+		Metadata:       ptr.Deref(item.Metadata, ""),
+		ID:             id,
+		URL:            item.URL,
+		Type:           item.Type,
+		TrafficPolicy:  item.TrafficPolicy,
+		Bindings:       item.Bindings,
+		PoolingEnabled: ptr.Deref(item.PoolingEnabled, false),
+		CreatedAt:      m.createdAt(),
+		URI:            fmt.Sprintf("https://mock-api.ngrok.com/endpoints/%s", id),
 	}
 
 	m.items[id] = newEndpoint
@@ -50,6 +52,7 @@ func (m *EndpointsClient) Create(_ context.Context, item *ngrok.EndpointCreate) 
 }
 
 func (m *EndpointsClient) Update(ctx context.Context, item *ngrok.EndpointUpdate) (*ngrok.Endpoint, error) {
+	m.updateCallCount++
 	if m.updateError != nil {
 		return nil, m.updateError
 	}
@@ -70,6 +73,12 @@ func (m *EndpointsClient) Update(ctx context.Context, item *ngrok.EndpointUpdate
 	}
 	if item.TrafficPolicy != nil {
 		existingItem.TrafficPolicy = *item.TrafficPolicy
+	}
+	if item.Bindings != nil {
+		existingItem.Bindings = item.Bindings
+	}
+	if item.PoolingEnabled != nil {
+		existingItem.PoolingEnabled = *item.PoolingEnabled
 	}
 
 	m.items[item.ID] = existingItem

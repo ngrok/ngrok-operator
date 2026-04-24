@@ -1,0 +1,85 @@
+name: Basic Tests
+
+on:
+  workflow_call:
+    inputs:
+      go-changed:
+        description: "Whether Go files have changed"
+        required: false
+        type: boolean
+        default: true
+      make-changed:
+        description: "Whether Makefile has changed"
+        required: false
+        type: boolean
+        default: true
+  schedule:
+    # Run every 8 hours on the main branch to catch flakey tests
+    - cron: '0 */8 * * *'
+
+jobs:
+
+  kubebuilder-diff:
+    name: Kubebuilder Diff
+    runs-on: ubuntu-latest
+    if: ${{ inputs.go-changed || inputs.make-changed }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./.github/actions/nix-setup
+    - name: Generate manifests
+      run: make manifests
+    - name: Fail if there are uncommitted manifest changes
+      run: |
+        git diff --exit-code
+        git diff --cached --exit-code
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ inputs.go-changed || inputs.make-changed }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./.github/actions/nix-setup
+    - name: Lint
+      run: make lint
+
+  go-mod-tidy:
+    name: Go Mod Tidy Check
+    runs-on: ubuntu-latest
+    if: ${{ inputs.go-changed }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./.github/actions/nix-setup
+    - run: go mod tidy
+    - run: git diff --exit-code go.mod
+    - run: git diff --exit-code go.sum
+
+  go-fix:
+    name: Go Fix Check
+    runs-on: ubuntu-latest
+    if: ${{ inputs.go-changed }}
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./.github/actions/nix-setup
+    - name: Run go fix
+      run: make go-fix
+    - name: Fail if there are uncommitted changes
+      run: git diff --exit-code
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./.github/actions/nix-setup
+    - name: Run unit tests
+      run: make test
+    - if: github.repository == 'ngrok/ngrok-operator'
+      name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
