@@ -1,0 +1,105 @@
+# Tests that k8s.ngrok.com/metadata and k8s.ngrok.com/description annotations are propagated
+# to the generated AgentEndpoint when the upstream comes from a defaultBackend (not a rule path).
+# This exercises the buildAgentEndpoint call for the default-backend code path.
+input:
+  ingressClasses:
+  - apiVersion: networking.k8s.io/v1
+    kind: IngressClass
+    metadata:
+      name: ngrok
+    spec:
+      controller: k8s.ngrok.com/ingress-controller
+  ingresses:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: test-ingress
+      namespace: default
+      annotations:
+        k8s.ngrok.com/metadata: '{"env":"prod","team":"platform"}'
+        k8s.ngrok.com/description: "My production service"
+    spec:
+      ingressClassName: ngrok
+      defaultBackend:
+        service:
+          name: test-service-1
+          port:
+            number: 8080
+      rules:
+        - host: test-ingress.ngrok.io
+          http:
+            paths:
+              - path: /app
+                pathType: Prefix
+                backend:
+                  service:
+                    name: test-service-1
+                    port:
+                      number: 8080
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-service-1
+      namespace: default
+    spec:
+      ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+        targetPort: http
+      type: ClusterIP
+  trafficPolicies:
+expected:
+  cloudEndpoints: []
+  agentEndpoints:
+  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        k8s.ngrok.com/controller-name: test-manager-name
+        k8s.ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-8080
+      namespace: default
+    spec:
+      url: "https://test-ingress.ngrok.io"
+      metadata: '{"env":"prod","team":"platform"}'
+      description: "My production service"
+      upstream:
+        url: "http://test-service-1.default:8080"
+      trafficPolicy:
+        inline:
+          on_http_request:
+          - name: Initialize-Local-Service-Match
+            actions:
+            - type: set-vars
+              config:
+                vars:
+                - request_matched_local_svc: false
+          - name: Generated-Local-Service-Route
+            expressions:
+            - req.url.path.startsWith('/app')
+            - vars.request_matched_local_svc == false
+            actions:
+            - type: set-vars
+              config:
+                vars:
+                - request_matched_local_svc: true
+          - name: Generated-Route-Default-Backend
+            expressions:
+            - vars.request_matched_local_svc == false
+            actions:
+            - type: set-vars
+              config:
+                vars:
+                - request_matched_local_svc: true
+          - name: Fallback-404
+            expressions:
+            - vars.request_matched_local_svc == false
+            actions:
+            - type: custom-response
+              config:
+                status_code: 404
+                content: "No route was found for this ngrok Endpoint"
+                headers:
+                  content-type: text/plain

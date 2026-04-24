@@ -34,6 +34,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -130,7 +131,7 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/finalizers,verbs=update;patch
 
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
@@ -172,6 +173,10 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
+		if ko.Spec.Binding == nil {
+			return r.updateStatus(ctx, ko, nil, errors.New("bindings feature enabled but spec.binding is not configured"))
+		}
+
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateCSR, "failed to create TLS secret for CSR")
@@ -330,6 +335,10 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
+		if ko.Spec.Binding == nil {
+			return r.updateStatus(ctx, ko, nil, errors.New("bindings feature enabled but spec.binding is not configured"))
+		}
+
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return r.updateStatus(ctx, ko, nil, err)
@@ -362,7 +371,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 
 	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
 	if err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("getting namespace UID: %w", err)
 	}
 
 	iter := r.NgrokClientset.KubernetesOperators().List(&ngrok.Paging{})
@@ -377,7 +386,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 
 		iterLogger.V(5).Info("checking if KubernetesOperator matches")
 
-		if item.Deployment.Name != ko.Spec.Deployment.Name {
+		if ko.Spec.Deployment == nil || item.Deployment.Name != ko.Spec.Deployment.Name {
 			continue
 		}
 		if item.Deployment.Namespace != ko.GetNamespace() {
@@ -421,11 +430,9 @@ func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
 func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (secret *v1.Secret, err error) {
 	secret = &v1.Secret{}
 	err = r.Client.Get(ctx, client.ObjectKey{Namespace: ko.GetNamespace(), Name: ko.Spec.Binding.TlsSecretName}, secret)
-	if !apierrors.IsNotFound(err) {
-		return
-	}
-
-	if err == nil {
+	switch {
+	case err == nil:
+		// Found — validate it
 		isValid := secret.Type == v1.SecretTypeTLS &&
 			// tls.crt is managed by updateTLSSecretCert
 			// secret.Data["tls.crt"] != nil &&
@@ -435,9 +442,12 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 		if isValid {
 			return
 		}
-
 		// otherwise fallthrough to generate the CSR
+	case !apierrors.IsNotFound(err):
+		// Real error
+		return
 	}
+	// IsNotFound or invalid existing secret — create/update
 
 	// If the secret doesn't exist, create it with a new private key and a CSR
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

@@ -112,7 +112,7 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains/finalizers,verbs=update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -241,7 +241,7 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 			return domain, nil
 		}
 	}
-	return nil, nil
+	return nil, iter.Err()
 }
 
 // updateStatus updates the status fields of the domain resource only if any values have changed

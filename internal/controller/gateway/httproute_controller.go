@@ -65,8 +65,9 @@ type HTTPRouteReconciler struct {
 	DrainState controller.DrainState
 }
 
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/finalizers,verbs=update;patch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;update
 
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -395,7 +396,8 @@ func (r *HTTPRouteReconciler) findHTTPRouteForGateway(ctx context.Context, o cli
 				continue
 			}
 
-			if string(parentRef.Name) != gw.Name || (parentRef.Namespace != nil && string(*parentRef.Namespace) != gw.Namespace) {
+			parentRefNamespace := string(ptr.Deref(parentRef.Namespace, gatewayv1.Namespace(route.Namespace)))
+			if string(parentRef.Name) != gw.Name || parentRefNamespace != gw.Namespace {
 				log.V(5).Info("ParentRef does not match Gateway, ignoring", "parentRef", parentRef)
 				continue
 			}

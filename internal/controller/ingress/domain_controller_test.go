@@ -9,6 +9,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v7"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -903,6 +904,22 @@ var _ = Describe("DomainReconciler", func() {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(foundDomain.Status.ID).ToNot(BeEmpty(), "non-internal domain should be created in ngrok")
 			}, timeout, interval).Should(Succeed())
+		})
+	})
+
+	Describe("findReservedDomainByHostname", func() {
+		It("should propagate iterator errors", func() {
+			ctx := context.Background()
+			iterErr := errors.New("API pagination failure")
+			mockClient := nmockapi.NewDomainClient()
+			mockClient.SetListError(iterErr)
+
+			r := &DomainReconciler{
+				DomainsClient: mockClient,
+			}
+			result, err := r.findReservedDomainByHostname(ctx, "any-domain.example.com")
+			Expect(result).To(BeNil())
+			Expect(err).To(MatchError(iterErr))
 		})
 	})
 
