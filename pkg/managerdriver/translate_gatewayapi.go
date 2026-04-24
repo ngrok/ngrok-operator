@@ -170,16 +170,30 @@ func (t *translator) findMatchingVHostsForXRoute(
 			)
 			continue
 		}
+
+		gatewayMetadata, err := annotations.ExtractMetadata(gateway)
+		if err != nil {
+			t.log.Error(err, "failed to read k8s.ngrok.com/metadata annotation for gateway",
+				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
+			)
+		}
+
+		gatewayDescription, err := annotations.ExtractDescription(gateway)
+		if err != nil {
+			t.log.Error(err, "failed to read k8s.ngrok.com/description annotation for gateway",
+				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
+			)
+		}
 		upstreamClientCertRefs := []ir.IRObjectRef{}
 		if gateway.Spec.BackendTLS != nil && gateway.Spec.BackendTLS.ClientCertificateRef != nil {
 			certRef := gateway.Spec.BackendTLS.ClientCertificateRef
-			if certRef.Namespace == nil {
-				certNs := gatewayv1.Namespace(gateway.Namespace)
-				certRef.Namespace = &certNs
+			certNs := gateway.Namespace
+			if certRef.Namespace != nil {
+				certNs = string(*certRef.Namespace)
 			}
 
-			if !t.isRefToNamespaceAllowed(gateway.Namespace, "gateway.networking.k8s.io", "Gateway", string(certRef.Name), string(*certRef.Namespace), "", "Secret") {
-				t.log.Error(fmt.Errorf("reference to Secret %q is not allowed without a valid ReferenceGrant", fmt.Sprintf("%s.%s", certRef.Name, refNamespace)),
+			if !t.isRefToNamespaceAllowed(gateway.Namespace, "gateway.networking.k8s.io", "Gateway", string(certRef.Name), certNs, "", "Secret") {
+				t.log.Error(fmt.Errorf("reference to Secret %q is not allowed without a valid ReferenceGrant", fmt.Sprintf("%s.%s", certRef.Name, certNs)),
 					"Gateway backendTLS.clientCertificateRef is invalid without a ReferenceGrant",
 				)
 				continue
@@ -187,7 +201,7 @@ func (t *translator) findMatchingVHostsForXRoute(
 
 			upstreamClientCertRefs = append(upstreamClientCertRefs, ir.IRObjectRef{
 				Name:      string(certRef.Name),
-				Namespace: string(*certRef.Namespace),
+				Namespace: certNs,
 			})
 		}
 
@@ -282,7 +296,8 @@ func (t *translator) findMatchingVHostsForXRoute(
 						EndpointPoolingEnabled: useEndpointPooling,
 						TrafficPolicy:          annotationTrafficPolicy,
 						TrafficPolicyObjRef:    tpObjRef,
-						Metadata:               t.defaultGatewayMetadata,
+						Metadata:               ir.MergeMetadata(t.defaultGatewayMetadata, gatewayMetadata),
+						Description:            gatewayDescription,
 						Bindings:               bindings,
 						ClientCertRefs:         upstreamClientCertRefs,
 						MappingStrategy:        mappingStrategy,

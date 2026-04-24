@@ -28,6 +28,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -177,7 +178,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints/finalizers,verbs=update;patch
 
 func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.CloudEndpoint))
@@ -232,6 +233,28 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
+	// Fetch current endpoint state from the ngrok API so we can compare
+	// before issuing an update. This avoids redundant API writes on every
+	// requeue cycle (e.g. while waiting for a domain to become ready).
+	currentEndpoint, err := r.NgrokClientset.Endpoints().Get(ctx, clep.Status.ID)
+	if ngrok.IsNotFound(err) {
+		r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "EndpointNotFound", "Reconcile", fmt.Sprintf("Failed to find endpoint %s by ID. Creating a new one", clep.Status.ID))
+		clep.Status.ID = ""
+		if err := r.controller.ReconcileStatus(ctx, clep, nil); err != nil {
+			return err
+		}
+		return r.create(ctx, clep)
+	}
+	if err != nil {
+		return r.updateStatus(ctx, clep, nil, domainResult, err)
+	}
+
+	// Skip the API update if nothing has changed
+	if !endpointNeedsUpdate(currentEndpoint, clep.Spec, policy) {
+		setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint updated successfully")
+		return r.updateStatus(ctx, clep, currentEndpoint, domainResult, nil)
+	}
+
 	updateParams := &ngrok.EndpointUpdate{
 		ID:             clep.Status.ID,
 		Url:            &clep.Spec.URL,
@@ -243,13 +266,6 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	}
 
 	ngrokClep, err := r.NgrokClientset.Endpoints().Update(ctx, updateParams)
-	if ngrok.IsNotFound(err) {
-		// Couldn't find endpoint by ID to update, so blank it out and create a new one
-		r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "EndpointNotFound", "Reconcile", fmt.Sprintf("Failed to update endpoint %s by ID because it was not found. Creating a new one", clep.Status.ID))
-		clep.Status.ID = ""
-		_ = r.Client.Status().Update(ctx, clep)
-		return r.create(ctx, clep)
-	}
 	if err != nil {
 		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to update cloud endpoint: %v", err))
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
@@ -340,6 +356,31 @@ func (r *CloudEndpointReconciler) findCloudEndpointsForDomain(ctx context.Contex
 		}
 	}
 	return requests
+}
+
+// endpointNeedsUpdate compares the current endpoint state from the ngrok API
+// against the desired state derived from the CloudEndpoint spec and the resolved
+// traffic policy. Returns true if an API update call is necessary.
+func endpointNeedsUpdate(current *ngrok.Endpoint, spec ngrokv1alpha1.CloudEndpointSpec, policy string) bool {
+	if current.URL != spec.URL {
+		return true
+	}
+	if current.Description != spec.Description {
+		return true
+	}
+	if current.Metadata != spec.Metadata {
+		return true
+	}
+	if current.TrafficPolicy != policy {
+		return true
+	}
+	if !slices.Equal(current.Bindings, spec.Bindings) {
+		return true
+	}
+	if spec.PoolingEnabled != nil && current.PoolingEnabled != *spec.PoolingEnabled {
+		return true
+	}
+	return false
 }
 
 // getTrafficPolicy returns the TrafficPolicy JSON string from either the name reference or inline policy

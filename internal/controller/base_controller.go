@@ -13,7 +13,9 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/events"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -151,15 +153,39 @@ func (self *BaseController[T]) handleErr(op BaseControllerOp, obj T, err error) 
 	return CtrlResultForErr(err)
 }
 
-// ReconcileStatus is a helper function to reconcile the status of an object and requeue on update errors
-// Note: obj must be the latest resource version from k8s api
+// ReconcileStatus reconciles the status of an object, retrying on conflict.
+//
+// Status update conflicts are common because the object's resourceVersion can
+// change between the initial Get() and this call (e.g., from the finalizer Patch
+// earlier in the reconcile, or from an external spec mutation). On conflict, this
+// method re-fetches the latest resourceVersion and retries.
+//
+// This is safe for controllers where BaseController is the sole status writer for
+// the resource (AgentEndpoint, CloudEndpoint, Domain, IPPolicy, etc.). For
+// resources with multiple concurrent status writers (BoundEndpoint, Gateway), the
+// callers manage their own retry/conflict logic and should not use this method.
 func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T, origErr error) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("originalError", origErr)
 
-	if err := self.Kube.Status().Update(ctx, obj); err != nil {
-		self.Recorder.Eventf(obj, nil, v1.EventTypeWarning, "StatusError", "UpdateStatus", fmt.Sprintf("Failed to reconcile status: %s", err.Error()))
-		log.V(1).Error(err, "Failed to update status")
-		return StatusError{origErr, err}
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		err := self.Kube.Status().Update(ctx, obj)
+		if apierrors.IsConflict(err) {
+			// Re-fetch the latest resourceVersion for the next attempt.
+			// Status().Update() only writes the status subresource, so we only
+			// need the current resourceVersion — the spec/metadata are irrelevant.
+			latest := obj.DeepCopyObject().(T)
+			if getErr := self.Kube.Get(ctx, client.ObjectKeyFromObject(obj), latest); getErr != nil {
+				return getErr
+			}
+			obj.SetResourceVersion(latest.GetResourceVersion())
+		}
+		return err
+	})
+
+	if retryErr != nil {
+		self.Recorder.Eventf(obj, nil, v1.EventTypeWarning, "StatusError", "UpdateStatus", fmt.Sprintf("Failed to reconcile status: %s", retryErr.Error()))
+		log.V(1).Error(retryErr, "Failed to update status")
+		return StatusError{err: origErr, cause: retryErr}
 	}
 
 	self.Recorder.Eventf(obj, nil, v1.EventTypeNormal, "Status", "UpdateStatus", "Successfully reconciled status")
@@ -199,13 +225,18 @@ func CtrlResultForErr(err error) (ctrl.Result, error) {
 	return ctrl.Result{}, err
 }
 
-// StatusError wraps .Status().*() errors returned from k8s client
+// StatusError wraps .Status().*() errors returned from k8s client.
+// err is the original reconcile error (may be nil if reconcile succeeded but status update failed).
+// cause is the status update error.
 type StatusError struct {
 	err   error
 	cause error
 }
 
 func (e StatusError) Error() string {
+	if e.err == nil {
+		return e.cause.Error()
+	}
 	return fmt.Sprintf("%s: %s", e.cause, e.err)
 }
 

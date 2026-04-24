@@ -221,3 +221,81 @@ func TestExtractUseBindings(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractMetadata(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			name:        "annotation not present returns empty string",
+			annotations: nil,
+			expected:    "",
+		},
+		{
+			name:        "valid JSON object",
+			annotations: map[string]string{"k8s.ngrok.com/metadata": `{"env":"prod","team":"platform"}`},
+			expected:    `{"env":"prod","team":"platform"}`,
+		},
+		{
+			name:        "non-JSON string is returned as-is (validation is caller's concern)",
+			annotations: map[string]string{"k8s.ngrok.com/metadata": "not-json"},
+			expected:    "not-json",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tc.annotations,
+				},
+			}
+			got, err := annotations.ExtractMetadata(obj)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func TestExtractDescription(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			name:        "annotation not present returns empty string",
+			annotations: nil,
+			expected:    "",
+		},
+		{
+			name:        "description is returned unchanged",
+			annotations: map[string]string{"k8s.ngrok.com/description": "My production service"},
+			expected:    "My production service",
+		},
+		{
+			name:        "multi-word description",
+			annotations: map[string]string{"k8s.ngrok.com/description": "My production service v2"},
+			expected:    "My production service v2",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tc.annotations,
+				},
+			}
+			got, err := annotations.ExtractDescription(obj)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}

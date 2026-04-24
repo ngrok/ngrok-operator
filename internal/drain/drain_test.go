@@ -519,6 +519,13 @@ func (c *updateErrorClientForDrain) Update(ctx context.Context, obj client.Objec
 	return c.Client.Update(ctx, obj, opts...)
 }
 
+func (c *updateErrorClientForDrain) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+	if c.updateErr != nil {
+		return c.updateErr
+	}
+	return c.Client.Patch(ctx, obj, patch, opts...)
+}
+
 func TestDrainer_DrainOperatorResource_RetainUpdateError(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))

@@ -40,6 +40,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 		irService              ir.IRService
 		clusterDomain          string
 		metadata               string
+		description            string
 		expectedName           string
 		expectedURL            string
 		expectedUpstream       string
@@ -128,7 +129,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := buildAgentEndpoint(tc.irVirtualHost, tc.irService, tc.clusterDomain, tc.metadata)
+			result, err := buildAgentEndpoint(tc.irVirtualHost, tc.irService, tc.clusterDomain, tc.metadata, tc.description)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedName, result.Name, "unexpected name for test case: %s", tc.name)
 			assert.Equal(t, tc.irService.Namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
