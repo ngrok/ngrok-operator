@@ -396,7 +396,8 @@ func (r *HTTPRouteReconciler) findHTTPRouteForGateway(ctx context.Context, o cli
 				continue
 			}
 
-			if string(parentRef.Name) != gw.Name || (parentRef.Namespace != nil && string(*parentRef.Namespace) != gw.Namespace) {
+			parentRefNamespace := string(ptr.Deref(parentRef.Namespace, gatewayv1.Namespace(route.Namespace)))
+			if string(parentRef.Name) != gw.Name || parentRefNamespace != gw.Namespace {
 				log.V(5).Info("ParentRef does not match Gateway, ignoring", "parentRef", parentRef)
 				continue
 			}
