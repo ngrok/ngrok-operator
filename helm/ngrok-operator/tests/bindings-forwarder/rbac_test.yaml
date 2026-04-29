@@ -1,6 +1,6 @@
 suite: test bindings forwarder rbac
 templates:
-- bindings-forwarder/rbac.yaml
+- bindings-forwarder/role.yaml
 set:
   bindings.enabled: true
 tests:
@@ -33,3 +33,7 @@ tests:
   - equal:
       path: metadata.name
       value: RELEASE-NAME-ngrok-operator-bindings-forwarder-rolebinding
+- it: should only have 2 documents (no ClusterRole)
+  asserts:
+  - hasDocuments:
+      count: 2

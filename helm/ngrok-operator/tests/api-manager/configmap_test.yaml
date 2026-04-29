@@ -1,6 +1,6 @@
 suite: test controller-cm
 templates:
-- controller-cm.yaml
+- api-manager/configmap.yaml
 release:
   name: test-release
   namespace: test-namespace

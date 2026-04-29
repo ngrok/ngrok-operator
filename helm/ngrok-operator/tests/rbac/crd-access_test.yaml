@@ -1,0 +1,62 @@
+suite: test crd access roles
+templates:
+- rbac/crd-access/agentendpoint-editor.yaml
+- rbac/crd-access/agentendpoint-viewer.yaml
+- rbac/crd-access/boundendpoint-editor.yaml
+- rbac/crd-access/boundendpoint-viewer.yaml
+- rbac/crd-access/cloudendpoint-editor.yaml
+- rbac/crd-access/cloudendpoint-viewer.yaml
+- rbac/crd-access/domain-editor.yaml
+- rbac/crd-access/domain-viewer.yaml
+- rbac/crd-access/ippolicy-editor.yaml
+- rbac/crd-access/ippolicy-viewer.yaml
+- rbac/crd-access/kubernetesoperator-editor.yaml
+- rbac/crd-access/kubernetesoperator-viewer.yaml
+- rbac/crd-access/ngroktrafficpolicy-editor.yaml
+- rbac/crd-access/ngroktrafficpolicy-viewer.yaml
+tests:
+- it: should match snapshot with defaults
+  asserts:
+  - matchSnapshot: {}
+- it: should render a ClusterRole for each template
+  template: rbac/crd-access/agentendpoint-editor.yaml
+  asserts:
+  - hasDocuments:
+      count: 1
+  - isKind:
+      of: ClusterRole
+- it: should not render any roles when crdAccessRoles.create is false
+  set:
+    crdAccessRoles.create: false
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: should add annotations when crdAccessRoles.annotations is set
+  template: rbac/crd-access/agentendpoint-editor.yaml
+  set:
+    crdAccessRoles:
+      annotations:
+        rbac.authorization.k8s.io/aggregate-to-admin: "true"
+  asserts:
+  - equal:
+      path: metadata.annotations
+      value:
+        rbac.authorization.k8s.io/aggregate-to-admin: "true"
+- it: should use bindings.k8s.ngrok.com for boundendpoint
+  template: rbac/crd-access/boundendpoint-editor.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - bindings.k8s.ngrok.com
+        resources:
+        - boundendpoints
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
