@@ -1,0 +1,25 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+{{- if (include "ngrok-operator.isNamespaced" .) }}
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-agent-rolebinding
+  namespace: {{ include "ngrok-operator.watchNamespace" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ngrok-operator.fullname" . }}-agent-role
+{{- else }}
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-agent-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ngrok-operator.fullname" . }}-agent-role
+{{- end }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.agent.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

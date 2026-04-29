@@ -129,3 +129,71 @@ Return the ngrok operator image name
 {{- $tag := .Values.image.tag | default .Chart.AppVersion | toString -}}
 {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
 {{- end -}}
+
+{{/*
+Whether RBAC should use namespace-scoped Roles instead of ClusterRoles.
+True when watchNamespace is set (either via deprecated top-level or ingress.watchNamespace).
+*/}}
+{{- define "ngrok-operator.isNamespaced" -}}
+{{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+The namespace to watch. Returns the watchNamespace value (deprecated top-level takes precedence).
+*/}}
+{{- define "ngrok-operator.watchNamespace" -}}
+{{- .Values.watchNamespace | default .Values.ingress.watchNamespace -}}
+{{- end -}}
+
+{{/*
+api-manager rules for cluster-scoped Kubernetes resources.
+These resources have no namespace and always require a ClusterRole, regardless of watchNamespace.
+*/}}
+{{- define "ngrok-operator.api-manager.clusterScopedRules" -}}
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/finalizers
+  verbs:
+  - patch
+  - update
+{{- end -}}
