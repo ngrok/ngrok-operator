@@ -168,7 +168,6 @@ type BoundEndpoint struct {
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:rbac:groups=core,resources=services,verbs=get;create;update;delete;list;watch
 
 // BoundEndpointList contains a list of BoundEndpoint
 type BoundEndpointList struct {
