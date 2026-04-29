@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 38f37e6b5294e1617b03cba9f269c974aa17bc2cc825f54355ca27b5028d0ec6
+        checksum/controller-role: bdf630cd440ac0ebf46dccc434e0053b5b07cf0e94c46e12c5e41d124eb556a8
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 38f37e6b5294e1617b03cba9f269c974aa17bc2cc825f54355ca27b5028d0ec6
+            checksum/controller-role: bdf630cd440ac0ebf46dccc434e0053b5b07cf0e94c46e12c5e41d124eb556a8
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -198,15 +198,6 @@ Should match all-options snapshot:
       - apiGroups:
           - ""
         resources:
-          - namespaces
-        verbs:
-          - get
-          - list
-          - update
-          - watch
-      - apiGroups:
-          - ""
-        resources:
           - secrets
         verbs:
           - create
@@ -247,14 +238,6 @@ Should match all-options snapshot:
       - apiGroups:
           - networking.k8s.io
         resources:
-          - ingressclasses
-        verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - networking.k8s.io
-        resources:
           - ingresses
         verbs:
           - get
@@ -278,33 +261,6 @@ Should match all-options snapshot:
           - list
           - update
           - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses
-        verbs:
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses/status
-        verbs:
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses/finalizers
-        verbs:
-          - patch
-          - update
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -606,13 +562,57 @@ Should match all-options snapshot:
           - get
           - patch
           - update
+      - apiGroups:
+          - ""
+        resources:
+          - namespaces
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingressclasses
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/status
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/finalizers
+        verbs:
+          - patch
+          - update
 Should match default snapshot:
   1: |
     apiVersion: apps/v1
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 38f37e6b5294e1617b03cba9f269c974aa17bc2cc825f54355ca27b5028d0ec6
+        checksum/controller-role: bdf630cd440ac0ebf46dccc434e0053b5b07cf0e94c46e12c5e41d124eb556a8
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -634,7 +634,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 38f37e6b5294e1617b03cba9f269c974aa17bc2cc825f54355ca27b5028d0ec6
+            checksum/controller-role: bdf630cd440ac0ebf46dccc434e0053b5b07cf0e94c46e12c5e41d124eb556a8
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -793,15 +793,6 @@ Should match default snapshot:
       - apiGroups:
           - ""
         resources:
-          - namespaces
-        verbs:
-          - get
-          - list
-          - update
-          - watch
-      - apiGroups:
-          - ""
-        resources:
           - secrets
         verbs:
           - create
@@ -842,14 +833,6 @@ Should match default snapshot:
       - apiGroups:
           - networking.k8s.io
         resources:
-          - ingressclasses
-        verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - networking.k8s.io
-        resources:
           - ingresses
         verbs:
           - get
@@ -873,33 +856,6 @@ Should match default snapshot:
           - list
           - update
           - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses
-        verbs:
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses/status
-        verbs:
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses/finalizers
-        verbs:
-          - patch
-          - update
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -1199,5 +1155,49 @@ Should match default snapshot:
           - ngroktrafficpolicies/status
         verbs:
           - get
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
+          - namespaces
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingressclasses
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/status
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/finalizers
+        verbs:
           - patch
           - update

@@ -27,15 +27,6 @@ should match snapshot in default mode:
       - apiGroups:
           - ""
         resources:
-          - namespaces
-        verbs:
-          - get
-          - list
-          - update
-          - watch
-      - apiGroups:
-          - ""
-        resources:
           - secrets
         verbs:
           - create
@@ -76,14 +67,6 @@ should match snapshot in default mode:
       - apiGroups:
           - networking.k8s.io
         resources:
-          - ingressclasses
-        verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - networking.k8s.io
-        resources:
           - ingresses
         verbs:
           - get
@@ -107,33 +90,6 @@ should match snapshot in default mode:
           - list
           - update
           - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses
-        verbs:
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses/status
-        verbs:
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - gateway.networking.k8s.io
-        resources:
-          - gatewayclasses/finalizers
-        verbs:
-          - patch
-          - update
       - apiGroups:
           - gateway.networking.k8s.io
         resources:
@@ -433,6 +389,50 @@ should match snapshot in default mode:
           - ngroktrafficpolicies/status
         verbs:
           - get
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
+          - namespaces
+        verbs:
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingressclasses
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/status
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - gatewayclasses/finalizers
+        verbs:
           - patch
           - update
   2: |
