@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: rbac-permissions
+spec:
+  description: |
+    Validates RBAC for all three operator ServiceAccounts using
+    kubectl auth can-i against the live cluster. Tests positive
+    permissions (should have) and negative boundaries (should NOT have)
+    for api-manager, agent-manager, and bindings-forwarder.
+  steps:
+  - name: install gateway api crds
+    description: |
+      The RBAC checks below assert permissions on gateway.networking.k8s.io
+      resources. `kubectl auth can-i` returns "no" for unknown resource types,
+      so the CRDs must exist on the cluster for the assertions to be meaningful.
+      We use the experimental channel because the checks cover TCPRoute and
+      TLSRoute, which are not in the standard channel for v1.2.1.
+    try:
+    - script:
+        timeout: 60s
+        content: |
+          kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/experimental-install.yaml
+  - name: verify all rbac permissions
+    try:
+    - script:
+        timeout: 120s
+        content: |
+          bash ./check-rbac.sh ngrok-operator

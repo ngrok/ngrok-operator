@@ -129,10 +129,6 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Complete(r)
 }
 
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/finalizers,verbs=update;patch
-
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

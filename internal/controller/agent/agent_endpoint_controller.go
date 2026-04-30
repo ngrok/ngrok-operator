@@ -78,13 +78,6 @@ var (
 	ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both targetRef and inline are set")
 )
 
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints/finalizers,verbs=update;patch
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=ngroktrafficpolicies,verbs=get;list;watch
-// +kubebuilder:rbac:groups=ingress.k8s.ngrok.com,resources=domains,verbs=get;list;watch;patch;create;delete
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
-
 // AgentEndpointReconciler reconciles an AgentEndpoint object
 type AgentEndpointReconciler struct {
 	client.Client
@@ -106,7 +99,6 @@ type AgentEndpointReconciler struct {
 }
 
 // SetupWithManager sets up the controller with the Manager
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 func (r *AgentEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return r.SetupWithManagerNamed(mgr, "agentendpoint")

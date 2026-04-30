@@ -204,11 +204,13 @@ serviceAccount:
   name: ""
   annotations: {}
 
-## Cluster Role Settings
-## @param clusterRole.annotations Additional annotations to add to all ClusterRoles.
-## Commonly used for RBAC role aggregation (e.g., aggregate this ClusterRole into the built-in `admin`/`edit` roles) to grant CRD access without relying on `system:masters`.
+## CRD Access Role Settings
+## @param crdAccessRoles.create Whether to create editor/viewer ClusterRoles for CRDs
+## @param crdAccessRoles.annotations Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)
+## Commonly used for RBAC role aggregation (e.g., aggregate into the built-in admin/edit roles).
 ##
-clusterRole:
+crdAccessRoles:
+  create: true
   annotations: {}
 
 ## @param defaultDomainReclaimPolicy The default domain reclaim policy to use for domains created by the operator. Valid values are "Delete" and "Retain". The default is "Delete".

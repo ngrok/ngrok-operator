@@ -67,16 +67,6 @@ type GatewayReconciler struct {
 	DrainState controller.DrainState
 }
 
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;delete
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/finalizers,verbs=update;patch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/status,verbs=get;list;watch;update
-
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("Gateway", req.NamespacedName)
 	ctx = ctrl.LoggerInto(ctx, log)

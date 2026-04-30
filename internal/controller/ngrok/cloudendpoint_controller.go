@@ -176,10 +176,6 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // #region Reconcile CRUD
 
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=cloudendpoints/finalizers,verbs=update;patch
-
 func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.CloudEndpoint))
 }
