@@ -23,6 +23,7 @@ RUN --mount=type=cache,target=/go \
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
 COPY certs /etc/ssl/certs/ngrok
+COPY certs/root.crt.pem /etc/ssl/certs/ngrok-root.crt.pem
 WORKDIR /
 COPY --from=builder /workspace/bin/ngrok-operator ./
 USER 65532:65532
