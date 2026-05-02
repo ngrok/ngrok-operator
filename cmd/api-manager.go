@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -102,6 +103,7 @@ type apiManagerOpts struct {
 	ingressControllerName string
 	ingressWatchNamespace string
 	ngrokMetadata         string
+	computeMetadata       string
 	description           string
 	managerName           string
 	zapOpts               *zap.Options
@@ -153,6 +155,7 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
 	c.Flags().StringVar(&opts.ngrokMetadata, "ngrokMetadata", "", "A comma separated list of key=value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
+	c.Flags().StringVar(&opts.computeMetadata, "compute-metadata", "", "JSON compute metadata block to include in the KubernetesOperator API resource metadata")
 	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
@@ -334,7 +337,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		return err
 	}
 
-	ngrokClientset, err := loadNgrokClientset(ctx, opts)
+	ngrokClientset, ngrokClientConfig, err := loadNgrokClientset(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
 	}
@@ -420,12 +423,14 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		os.Exit(1)
 	}
 
-	// App-replica poller: polls ngrok Vaults API and reconciles Deployments
+	// App-replica poller: polls ngrok Compute Replicas API and reconciles Deployments
 	if err := mgr.Add(&computecontroller.AppReplicaPoller{
 		Client:          mgr.GetClient(),
 		Log:             ctrl.Log.WithName("controllers").WithName("AppReplicaPoller"),
 		Namespace:       opts.namespace,
-		NgrokClientset:  ngrokClientset,
+		K8sOpName:       opts.releaseName,
+		K8sOpNamespace:  opts.namespace,
+		NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig),
 		PollingInterval: 3 * time.Second,
 	}); err != nil {
 		return fmt.Errorf("unable to add AppReplicaPoller: %w", err)
@@ -476,12 +481,12 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 	return mgr, nil
 }
 
-// loadNgrokClientset loads the ngrok API clientset from the environment and managerOpts
-func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clientset, error) {
+// loadNgrokClientset loads the ngrok API clientset and base client config from the environment and managerOpts
+func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clientset, *ngrok.ClientConfig, error) {
 	var ok bool
 	opts.ngrokAPIKey, ok = os.LookupEnv("NGROK_API_KEY")
 	if !ok {
-		return nil, errors.New("NGROK_API_KEY environment variable should be set, but was not")
+		return nil, nil, errors.New("NGROK_API_KEY environment variable should be set, but was not")
 	}
 
 	clientConfigOpts := []ngrok.ClientConfigOption{
@@ -505,11 +510,11 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 	cIter := cApiKeys.List(&ngrok.Paging{Limit: ptr.To("1")})
 	cIter.Next(ctx)
 	if cIter.Err() != nil {
-		return nil, fmt.Errorf("Unable to verify API Key: %w", cIter.Err())
+		return nil, nil, fmt.Errorf("Unable to verify API Key: %w", cIter.Err())
 	}
 
 	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
-	return ngrokClientset, nil
+	return ngrokClientset, ngrokClientConfig, nil
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
@@ -799,6 +804,7 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
 			Description: opts.description,
+			Metadata:    buildKubernetesOperatorMetadata(opts.computeMetadata),
 			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
 				Name:      opts.releaseName,
 				Namespace: opts.namespace,
@@ -835,4 +841,21 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 		return nil
 	})
 	return err
+}
+
+// buildKubernetesOperatorMetadata constructs the metadata JSON string for the
+// KubernetesOperator API resource, merging the default owned-by field with an
+// optional compute metadata block.
+func buildKubernetesOperatorMetadata(computeMetadataJSON string) string {
+	m := map[string]any{
+		"owned-by": "ngrok-operator",
+	}
+	if computeMetadataJSON != "" {
+		var compute any
+		if err := json.Unmarshal([]byte(computeMetadataJSON), &compute); err == nil {
+			m["compute"] = compute
+		}
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
 }

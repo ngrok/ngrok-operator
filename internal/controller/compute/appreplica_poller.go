@@ -9,9 +9,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	ngrok "github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,11 +20,8 @@ import (
 )
 
 const (
-	// LabelNgrokID is the label used to associate managed resources with vault objects.
+	// LabelNgrokID is the label used to associate managed resources with compute replica objects.
 	LabelNgrokID = "ngrok-id"
-
-	// runnerID is the runner ID this operator instance matches against.
-	runnerID = "default"
 )
 
 // replicaEndpoint represents a single endpoint with its URL and optional traffic policy.
@@ -34,13 +30,26 @@ type replicaEndpoint struct {
 	TrafficPolicy string `json:"traffic_policy"`
 }
 
-// vaultAppReplica is the parsed metadata shape we look for in vault objects.
-type vaultAppReplica struct {
+// computeReplica represents a replica object from the ngrok Compute Replicas API.
+type computeReplica struct {
 	ID              string            `json:"id"`
-	Image           string            `json:"image"`
-	Endpoints       []replicaEndpoint `json:"endpoints"`
+	CreatedAt       string            `json:"created_at"`
+	AppID           string            `json:"app_id"`
+	EnvironmentID   string            `json:"environment_id"`
+	DeploymentID    string            `json:"deployment_id"`
 	RunnerID        string            `json:"runner_id"`
+	State           string            `json:"state"`
+	ContainerImage  string            `json:"container_image"`
+	Endpoints       []replicaEndpoint `json:"endpoints"`
 	EnvironmentVars map[string]string `json:"environment_vars"`
+	URI             string            `json:"uri"`
+}
+
+// computeReplicaList represents a paginated list response from the Compute Replicas API.
+type computeReplicaList struct {
+	ComputeReplicas []computeReplica `json:"compute_replicas"`
+	URI             string           `json:"uri"`
+	NextPageURI     *string          `json:"next_page_uri"`
 }
 
 // urlPort extracts the port from a URL string. If no port is specified, returns 443.
@@ -57,19 +66,23 @@ func urlPort(rawURL string) (int, error) {
 	return 443, nil
 }
 
+func k8sName(id string) string {
+	return strings.ReplaceAll(id, "_", "-")
+}
+
 func deploymentName(id string) string {
-	return "app-replica-" + id
+	return "app-replica-" + k8sName(id)
 }
 
 func agentEndpointName(id string, port int) string {
-	return fmt.Sprintf("app-replica-%s-%d", id, port)
+	return fmt.Sprintf("app-replica-%s-%d", k8sName(id), port)
 }
 
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints,verbs=get;list;watch;create;update;delete
 
-// AppReplicaPoller polls the ngrok Vaults API for app-replica objects
+// AppReplicaPoller polls the ngrok Compute Replicas API for app-replica objects
 // and reconciles them as Deployments, Services, and AgentEndpoints in the cluster.
 type AppReplicaPoller struct {
 	client.Client
@@ -78,20 +91,33 @@ type AppReplicaPoller struct {
 	// Namespace is where resources are managed.
 	Namespace string
 
-	// NgrokClientset is the ngrok API clientset.
-	NgrokClientset ngrokapi.Clientset
+	// K8sOpName is the name of the KubernetesOperator CR to look up for the runner ID.
+	K8sOpName string
+
+	// K8sOpNamespace is the namespace of the KubernetesOperator CR.
+	K8sOpNamespace string
+
+	// NgrokBaseClient is the ngrok API base client.
+	NgrokBaseClient *ngrok.BaseClient
 
 	// PollingInterval is how often to poll the ngrok API.
 	PollingInterval time.Duration
 
-	stopCh chan struct{}
+	runnerID string
+	stopCh   chan struct{}
 }
 
 // Start implements manager.Runnable.
 func (r *AppReplicaPoller) Start(ctx context.Context) error {
 	log := ctrl.LoggerFrom(ctx).WithName("AppReplicaPoller")
 
-	log.Info("Starting app-replica polling routine")
+	r.runnerID = r.waitForRunnerID(ctx, log)
+	if r.runnerID == "" {
+		log.Info("Context canceled before runner ID was available, not starting")
+		return nil
+	}
+
+	log.Info("Starting app-replica polling routine", "runner_id", r.runnerID)
 	r.stopCh = make(chan struct{})
 	defer close(r.stopCh)
 
@@ -114,7 +140,7 @@ func (r *AppReplicaPoller) pollLoop(ctx context.Context, log logr.Logger) {
 	for {
 		select {
 		case <-ticker.C:
-			log.V(9).Info("Polling vaults for app-replica objects")
+			log.V(9).Info("Polling compute replicas API")
 			if err := r.reconcile(ctx, log); err != nil {
 				log.Error(err, "reconcile failed")
 			}
@@ -124,15 +150,15 @@ func (r *AppReplicaPoller) pollLoop(ctx context.Context, log logr.Logger) {
 	}
 }
 
-// reconcile fetches desired state from the Vaults API, fetches current
+// reconcile fetches desired state from the Replicas API, fetches current
 // managed resources, then creates or deletes to converge.
 func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger) error {
 	desired, err := r.fetchDesiredReplicas(ctx, log)
 	if err != nil {
-		return fmt.Errorf("fetching vault app-replicas: %w", err)
+		return fmt.Errorf("fetching compute replicas: %w", err)
 	}
 
-	desiredByID := make(map[string]vaultAppReplica, len(desired))
+	desiredByID := make(map[string]computeReplica, len(desired))
 	for _, d := range desired {
 		desiredByID[d.ID] = d
 	}
@@ -156,7 +182,7 @@ func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger) error
 		if _, exists := existingByID[id]; exists {
 			continue
 		}
-		log.Info("Creating resources for app-replica", "id", id, "image", replica.Image)
+		log.Info("Creating resources for app-replica", "id", id, "image", replica.ContainerImage)
 		if err := r.createResources(ctx, log, replica); err != nil {
 			log.Error(err, "failed to create resources", "id", id)
 		}
@@ -175,43 +201,74 @@ func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger) error
 	return nil
 }
 
-// fetchDesiredReplicas lists all vaults and parses their metadata for app-replica entries.
-func (r *AppReplicaPoller) fetchDesiredReplicas(ctx context.Context, log logr.Logger) ([]vaultAppReplica, error) {
-	var replicas []vaultAppReplica
+// waitForRunnerID polls the KubernetesOperator CR until it has a registered ID to use as the runner ID.
+func (r *AppReplicaPoller) waitForRunnerID(ctx context.Context, log logr.Logger) string {
+	log.Info("Waiting for KubernetesOperator to be registered")
 
-	iter := r.NgrokClientset.Vaults().List(&ngrok.Paging{})
-	for iter.Next(ctx) {
-		vault := iter.Item()
-		if vault == nil || vault.Metadata == "" {
-			continue
-		}
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
-		var parsed vaultAppReplica
-		if err := json.Unmarshal([]byte(vault.Metadata), &parsed); err != nil {
-			log.V(5).Info("Skipping vault with non-JSON metadata", "vault_id", vault.ID)
-			continue
-		}
+	for {
+		select {
+		case <-ticker.C:
+			ticker.Stop()
+			ticker.Reset(30 * time.Second)
 
-		if parsed.RunnerID != runnerID {
-			continue
-		}
-		if parsed.Image == "" || parsed.ID == "" || len(parsed.Endpoints) == 0 {
-			log.V(3).Info("Skipping vault with missing required fields", "vault_id", vault.ID)
-			continue
-		}
+			var ko ngrokv1alpha1.KubernetesOperator
+			if err := r.Get(ctx, client.ObjectKey{Name: r.K8sOpName, Namespace: r.K8sOpNamespace}, &ko); err != nil {
+				log.Error(err, "Failed to get KubernetesOperator", "name", r.K8sOpName)
+				continue
+			}
 
-		parsed.ID = strings.ToLower(parsed.ID)
-		replicas = append(replicas, parsed)
+			if ko.Status.ID == "" {
+				log.V(1).Info("KubernetesOperator not yet registered, waiting...")
+				continue
+			}
+
+			log.Info("KubernetesOperator registered, using as runner ID", "id", ko.Status.ID)
+			return ko.Status.ID
+		case <-ctx.Done():
+			return ""
+		}
+	}
+}
+
+// fetchDesiredReplicas lists running compute replicas assigned to this runner via the Compute Replicas API.
+func (r *AppReplicaPoller) fetchDesiredReplicas(ctx context.Context, log logr.Logger) ([]computeReplica, error) {
+	var replicas []computeReplica
+
+	filter := fmt.Sprintf(`obj.runner_id == "%s" && obj.state == "running"`, r.runnerID)
+	nextPage := &url.URL{
+		Path:     "/compute/replicas",
+		RawQuery: url.Values{"filter": {filter}}.Encode(),
 	}
 
-	if err := iter.Err(); err != nil {
-		return nil, err
+	for nextPage != nil {
+		var resp computeReplicaList
+		if err := r.NgrokBaseClient.Do(ctx, "GET", nextPage, nil, &resp); err != nil {
+			return nil, fmt.Errorf("listing compute replicas: %w", err)
+		}
+
+		for _, replica := range resp.ComputeReplicas {
+			if replica.ContainerImage == "" || replica.ID == "" || len(replica.Endpoints) == 0 {
+				log.V(3).Info("Skipping replica with missing required fields", "replica_id", replica.ID)
+				continue
+			}
+			replica.ID = strings.ToLower(replica.ID)
+			replicas = append(replicas, replica)
+		}
+
+		if resp.NextPageURI != nil {
+			nextPage, _ = url.Parse(*resp.NextPageURI)
+		} else {
+			nextPage = nil
+		}
 	}
 
 	return replicas, nil
 }
 
-func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger, replica vaultAppReplica) error {
+func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger, replica computeReplica) error {
 	name := deploymentName(replica.ID)
 	labels := map[string]string{LabelNgrokID: replica.ID}
 
@@ -273,7 +330,7 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 					Containers: []corev1.Container{
 						{
 							Name:  "app",
-							Image: replica.Image,
+							Image: replica.ContainerImage,
 							Ports: containerPorts,
 							Env:   envVars,
 						},
