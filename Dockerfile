@@ -12,6 +12,7 @@ ARG TARGETOS
 ARG TARGETARCH
 
 COPY certs /etc/ssl/certs/ngrok
+COPY certs/root.crt.pem /etc/ssl/certs/ngrok-root.crt.pem
 COPY bin/ngrok-operator-${TARGETOS}-${TARGETARCH} /ngrok-operator
 WORKDIR /
 USER 65532:65532
