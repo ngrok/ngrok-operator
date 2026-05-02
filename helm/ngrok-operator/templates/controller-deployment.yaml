@@ -124,7 +124,7 @@ spec:
           {{- $metadataArgs | join "," }}
         {{- end }}
         {{- if .Values.compute }}
-        - --compute-metadata={{ .Values.compute | toJson | quote }}
+        - --compute-metadata={{ .Values.compute | toJson }}
         {{- end }}
         - --ingress-controller-name={{ .Values.controllerName | default .Values.ingress.controllerName }}
         {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
