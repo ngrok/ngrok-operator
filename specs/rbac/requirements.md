@@ -16,23 +16,37 @@ All RBAC is hand-managed in Helm templates. `controller-gen` is used only for CR
 
 ### Namespace-scoping
 
-When `watchNamespace` is set, namespace-scoped resources use a **Role** (scoped to that namespace) instead of a **ClusterRole**. Cluster-scoped K8s resources always require a ClusterRole regardless.
+The api-manager's permissions split into three categories based on where the underlying resources actually live, not just on `watchNamespace`:
+
+- **User workloads** (Ingress, Gateway routes, AgentEndpoint, CloudEndpoint, Domain, IPPolicy, NgrokTrafficPolicy, Service, etc.) — follow `watchNamespace`. Role in the watched namespace, or ClusterRole when watchNamespace is unset.
+- **Operator state** (KubernetesOperator CR, the operator's own TLS Secret writes) — always in the release namespace. The KubernetesOperator CR is a singleton owned by the operator and the TLS Secret is created in `r.K8sOpNamespace` (= release namespace), so these resources never live in a user-chosen `watchNamespace`.
+- **Bindings** (BoundEndpoint CR, cross-namespace Service writes by the binding poller) — always cluster-wide when `bindings.enabled`. The poller creates Services in any namespace based on the BoundEndpoint's top-level domain.
+
+Cluster-scoped K8s resources (namespaces, ingressclasses, gatewayclasses) always require a ClusterRole regardless.
 
 | Component | Default mode | watchNamespace mode |
 |---|---|---|
-| api-manager | ClusterRole + ClusterRoleBinding | Role + ClusterRole (cluster-scoped only) + RoleBinding + ClusterRoleBinding |
+| api-manager: user workloads | ClusterRole + ClusterRoleBinding | Role + RoleBinding (in watchNamespace) **plus** ClusterRole + ClusterRoleBinding (cluster-scoped K8s resources only) |
+| api-manager: operator state | Role + RoleBinding (always release ns) | No change |
+| api-manager: bindings (when `bindings.enabled`) | ClusterRole + ClusterRoleBinding | No change — cluster-wide by design |
 | agent-manager | ClusterRole + ClusterRoleBinding | Role + RoleBinding |
 | bindings-forwarder | Role + RoleBinding (namespaced) **plus** ClusterRole + ClusterRoleBinding (pods only) | No change — Pod watch is cluster-wide by design |
-| leader-election | Role + RoleBinding (always namespaced) | No change |
+| leader-election | Role + RoleBinding (always release ns) | No change |
 
-> **Note**: `bindings-forwarder` always emits a small ClusterRole. The forwarder reconciles bindings across namespaces and must discover consumer Pods regardless of where they run, so Pod watches use `cache.AllNamespaces` (`cmd/bindings-forwarder-manager.go`) and require cluster-wide RBAC. This is intentional, not a limitation, and `watchNamespace` does not change it.
+> **Note**: the `bindings-forwarder` ClusterRole and the api-manager `bindings-cluster-role` both exist because the binding feature is inherently cluster-wide on both sides — the forwarder watches Pods anywhere that consumes the binding Service, and the poller creates the corresponding Service anywhere the BoundEndpoint targets. `watchNamespace` does not constrain either of these.
+>
+> **Caveat**: while RBAC now correctly differentiates operator-state resources from user workloads, the controller cache config in `cmd/api-manager.go` still scopes everything to `watchNamespace`. As long as `watchNamespace = release ns` (the documented setup) this is fine. To support `watchNamespace ≠ release ns`, the cache will also need a per-resource scope split (KubernetesOperator pinned to release ns, user workloads scoped to watchNamespace) — analogous to what `bindings-forwarder-manager.go` does for Pods. That fix is out of scope for this RBAC restructure.
 
 ### Helm template organization
 
 RBAC lives in per-component directories under `helm/ngrok-operator/templates/`:
 
 ```
-api-manager/       role.yaml, role-namespaced.yaml, rolebinding.yaml, rolebinding-namespaced.yaml, leader-election-role.yaml
+api-manager/       role.yaml (watchNamespace-following Role/ClusterRole)
+                    rolebinding.yaml
+                    leader-election-role.yaml (always release ns — controller-runtime infra)
+                    release-namespace-role.yaml (always release ns — KubernetesOperator CR + secret writes)
+                    bindings-cluster-role.yaml (always cluster-wide, gated on bindings.enabled — BoundEndpoint + cross-ns Services)
 agent/             role.yaml, role-namespaced.yaml, rolebinding.yaml, rolebinding-namespaced.yaml
 bindings-forwarder/ role.yaml (Role + RoleBinding + ClusterRole + ClusterRoleBinding)
 rbac/crd-access/   editor/viewer ClusterRoles for end-users
@@ -58,7 +72,7 @@ Runs most controllers plus drain logic. Needs broad access.
 |---|---|---|---|
 | configmaps | core | create, delete, get, list, patch, update, watch | Leader election, driver config |
 | events | core | create, patch | Event recording across all controllers |
-| secrets | core | create, get, list, patch, update, watch | KubernetesOperator (TLS cert creation), Ingress/Gateway (TLS reads) |
+| secrets | core | get, list, watch | Ingress/Gateway (TLS reads). Write access (`create, patch, update`) is granted separately by the release-namespace-only `secret-manager-role` so the api-manager cannot mutate Secrets outside its release namespace. |
 | services | core | create, delete, get, list, patch, update, watch | Service controller, Ingress/Gateway (backend resolution) |
 | services/finalizers | core | patch, update | Service controller |
 | services/status | core | get, list, patch, update, watch | Service controller |
@@ -84,18 +98,12 @@ Runs most controllers plus drain logic. Needs broad access.
 | ippolicies | ingress.k8s.ngrok.com | create, delete, get, list, patch, update, watch | IPPolicy controller, Drain |
 | ippolicies/finalizers | ingress.k8s.ngrok.com | patch, update | IPPolicy controller |
 | ippolicies/status | ingress.k8s.ngrok.com | get, patch, update | IPPolicy controller |
-| boundendpoints | bindings.k8s.ngrok.com | create, delete, get, list, patch, update, watch | BoundEndpoint controller, Drain |
-| boundendpoints/finalizers | bindings.k8s.ngrok.com | patch, update | BoundEndpoint controller |
-| boundendpoints/status | bindings.k8s.ngrok.com | get, patch, update | BoundEndpoint controller |
 | agentendpoints | ngrok.k8s.ngrok.com | create, delete, get, list, patch, update, watch | Drain (cleanup), driver (creates from ingress/gateway) |
 | agentendpoints/finalizers | ngrok.k8s.ngrok.com | patch, update | AgentEndpoint lifecycle |
 | agentendpoints/status | ngrok.k8s.ngrok.com | get, patch, update | AgentEndpoint lifecycle |
 | cloudendpoints | ngrok.k8s.ngrok.com | create, delete, get, list, patch, update, watch | CloudEndpoint controller, Drain |
 | cloudendpoints/finalizers | ngrok.k8s.ngrok.com | patch, update | CloudEndpoint controller |
 | cloudendpoints/status | ngrok.k8s.ngrok.com | get, patch, update | CloudEndpoint controller |
-| kubernetesoperators | ngrok.k8s.ngrok.com | create, delete, get, list, patch, update, watch | KubernetesOperator controller |
-| kubernetesoperators/finalizers | ngrok.k8s.ngrok.com | patch, update | KubernetesOperator controller |
-| kubernetesoperators/status | ngrok.k8s.ngrok.com | get, patch, update | KubernetesOperator controller |
 | ngroktrafficpolicies | ngrok.k8s.ngrok.com | create, delete, get, list, patch, update, watch | NgrokTrafficPolicy controller |
 | ngroktrafficpolicies/finalizers | ngrok.k8s.ngrok.com | patch, update | NgrokTrafficPolicy controller |
 | ngroktrafficpolicies/status | ngrok.k8s.ngrok.com | get, patch, update | NgrokTrafficPolicy controller |
@@ -107,6 +115,30 @@ Runs most controllers plus drain logic. Needs broad access.
 | configmaps | core | create, delete, get, list, patch, update, watch | controller-runtime leader election |
 | leases | coordination.k8s.io | create, delete, get, list, patch, update, watch | controller-runtime leader election |
 | events | core | create, patch | Leader election event recording |
+
+### Operator state (always Role in release NS)
+
+These resources live in the release namespace regardless of `watchNamespace` because they are owned by the operator itself, not by the user. Confining writes here also prevents the api-manager from mutating arbitrary Secrets cluster-wide.
+
+| Resource | API Group | Verbs | Used by |
+|---|---|---|---|
+| secrets | core | create, get, list, patch, update, watch | KubernetesOperator TLS cert creation/rotation in `findOrCreateTLSSecret` (writes to `r.K8sOpNamespace` = release ns). Reads are granted here so `CreateOrUpdate` can `Get` the existing secret before deciding whether to create, even when `watchNamespace ≠ release ns`. Cluster-wide / watchNamespace-following secret reads are still granted by the api-manager Role for user-referenced TLS material. |
+| kubernetesoperators | ngrok.k8s.ngrok.com | create, delete, get, list, patch, update, watch | KubernetesOperator controller — singleton CR for the operator's own state |
+| kubernetesoperators/finalizers | ngrok.k8s.ngrok.com | patch, update | KubernetesOperator controller |
+| kubernetesoperators/status | ngrok.k8s.ngrok.com | get, patch, update | KubernetesOperator controller |
+
+### Bindings (always cluster-wide ClusterRole, gated on `bindings.enabled`)
+
+The BoundEndpoint controller (binding poller) reconciles BoundEndpoint CRs and creates Kubernetes Services in any namespace based on the BoundEndpoint's top-level domain. Both are inherently cluster-wide and are not constrained by `watchNamespace`.
+
+| Resource | API Group | Verbs | Used by |
+|---|---|---|---|
+| boundendpoints | bindings.k8s.ngrok.com | create, delete, get, list, patch, update, watch | BoundEndpoint controller, Drain |
+| boundendpoints/finalizers | bindings.k8s.ngrok.com | patch, update | BoundEndpoint controller |
+| boundendpoints/status | bindings.k8s.ngrok.com | get, patch, update | BoundEndpoint controller |
+| services | core | create, delete, get, list, patch, update, watch | Binding poller creates Services for bound endpoints in any namespace |
+| services/finalizers | core | patch, update | Binding poller |
+| services/status | core | get, list, patch, update, watch | Binding poller |
 
 ## agent-manager permissions
 

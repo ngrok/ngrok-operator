@@ -29,11 +29,8 @@ should match snapshot in default mode:
         resources:
           - secrets
         verbs:
-          - create
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - ""
@@ -257,33 +254,6 @@ should match snapshot in default mode:
           - patch
           - update
       - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints/finalizers
-        verbs:
-          - patch
-          - update
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints
@@ -333,33 +303,6 @@ should match snapshot in default mode:
           - ngrok.k8s.ngrok.com
         resources:
           - cloudendpoints/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - kubernetesoperators
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - kubernetesoperators/finalizers
-        verbs:
-          - patch
-          - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - kubernetesoperators/status
         verbs:
           - get
           - patch
@@ -480,11 +423,8 @@ should match snapshot in namespaced mode:
         resources:
           - secrets
         verbs:
-          - create
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - ""
@@ -708,33 +648,6 @@ should match snapshot in namespaced mode:
           - patch
           - update
       - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints/finalizers
-        verbs:
-          - patch
-          - update
-      - apiGroups:
-          - bindings.k8s.ngrok.com
-        resources:
-          - boundendpoints/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints
@@ -784,33 +697,6 @@ should match snapshot in namespaced mode:
           - ngrok.k8s.ngrok.com
         resources:
           - cloudendpoints/status
-        verbs:
-          - get
-          - patch
-          - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - kubernetesoperators
-        verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - kubernetesoperators/finalizers
-        verbs:
-          - patch
-          - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - kubernetesoperators/status
         verbs:
           - get
           - patch

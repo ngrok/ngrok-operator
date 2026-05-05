@@ -35,11 +35,8 @@ rules:
   resources:
   - secrets
   verbs:
-  - create
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ""
@@ -266,33 +263,10 @@ rules:
   - patch
   - update
 # --- bindings.k8s.ngrok.com ---
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - boundendpoints
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - boundendpoints/finalizers
-  verbs:
-  - patch
-  - update
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - boundendpoints/status
-  verbs:
-  - get
-  - patch
-  - update
+# BoundEndpoint is intentionally NOT in this role. The BoundEndpoint controller
+# (binding poller) runs in api-manager and operates cluster-wide regardless of
+# `watchNamespace`, so its rules live in bindings-cluster-role.yaml (gated on
+# `bindings.enabled`).
 # --- ngrok.k8s.ngrok.com ---
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -348,33 +322,10 @@ rules:
   - get
   - patch
   - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators/finalizers
-  verbs:
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators/status
-  verbs:
-  - get
-  - patch
-  - update
+# KubernetesOperator is intentionally NOT in this role. The KubernetesOperator
+# CR is the api-manager's own state singleton and always lives in the release
+# namespace, independent of `watchNamespace`. Its rules live in
+# release-namespace-role.yaml.
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
