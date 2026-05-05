@@ -22,8 +22,10 @@ When `watchNamespace` is set, namespace-scoped resources use a **Role** (scoped 
 |---|---|---|
 | api-manager | ClusterRole + ClusterRoleBinding | Role + ClusterRole (cluster-scoped only) + RoleBinding + ClusterRoleBinding |
 | agent-manager | ClusterRole + ClusterRoleBinding | Role + RoleBinding |
-| bindings-forwarder | Role + RoleBinding (always namespaced) | No change |
+| bindings-forwarder | Role + RoleBinding (namespaced) **plus** ClusterRole + ClusterRoleBinding (pods only) | No change — Pod watch is cluster-wide by design |
 | leader-election | Role + RoleBinding (always namespaced) | No change |
+
+> **Note**: `bindings-forwarder` always emits a small ClusterRole. The forwarder reconciles bindings across namespaces and must discover consumer Pods regardless of where they run, so Pod watches use `cache.AllNamespaces` (`cmd/bindings-forwarder-manager.go`) and require cluster-wide RBAC. This is intentional, not a limitation, and `watchNamespace` does not change it.
 
 ### Helm template organization
 
@@ -32,7 +34,7 @@ RBAC lives in per-component directories under `helm/ngrok-operator/templates/`:
 ```
 api-manager/       role.yaml, role-namespaced.yaml, rolebinding.yaml, rolebinding-namespaced.yaml, leader-election-role.yaml
 agent/             role.yaml, role-namespaced.yaml, rolebinding.yaml, rolebinding-namespaced.yaml
-bindings-forwarder/ role.yaml (always namespaced)
+bindings-forwarder/ role.yaml (Role + RoleBinding + ClusterRole + ClusterRoleBinding)
 rbac/crd-access/   editor/viewer ClusterRoles for end-users
 ```
 
@@ -123,15 +125,22 @@ Runs only the AgentEndpoint controller. All resources are namespace-scoped.
 
 ## bindings-forwarder permissions
 
-Runs only the Forwarder controller. Always namespace-scoped (Role in release namespace).
+Runs only the Forwarder controller. Watches its own release namespace for most resources and watches Pods cluster-wide (`cache.AllNamespaces` in `cmd/bindings-forwarder-manager.go`) so it can reconcile bindings against consumer Pods in any namespace. As a result the bindings-forwarder always renders a small ClusterRole for Pods in addition to its namespaced Role.
+
+### Namespace-scoped resources (Role in release namespace)
 
 | Resource | API Group | Verbs | Used by |
 |---|---|---|---|
 | events | core | create, patch | Event recording |
-| pods | core | get, list, watch | Watches forwarding pods |
 | secrets | core | get, list, watch | TLS certificate reads |
 | boundendpoints | bindings.k8s.ngrok.com | get, list, patch, update, watch | Forwarder reconciler |
 | kubernetesoperators | ngrok.k8s.ngrok.com | get, list, watch | Reads drain state |
+
+### Cluster-scoped resources (always ClusterRole)
+
+| Resource | API Group | Verbs | Used by |
+|---|---|---|---|
+| pods | core | get, list, watch | Discovers consumer pods cluster-wide so the forwarder can reconcile bindings against pods in any namespace; not affected by `watchNamespace` |
 
 ## Cleanup hook
 
