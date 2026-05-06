@@ -1668,11 +1668,8 @@ rules:
   resources:
   - secrets
   verbs:
-  - create
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ""
@@ -1899,33 +1896,10 @@ rules:
   - patch
   - update
 # --- bindings.k8s.ngrok.com ---
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - boundendpoints
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - boundendpoints/finalizers
-  verbs:
-  - patch
-  - update
-- apiGroups:
-  - bindings.k8s.ngrok.com
-  resources:
-  - boundendpoints/status
-  verbs:
-  - get
-  - patch
-  - update
+# BoundEndpoint is intentionally NOT in this role. The BoundEndpoint controller
+# (binding poller) runs in api-manager and operates cluster-wide regardless of
+# `watchNamespace`, so its rules live in bindings-cluster-role.yaml (gated on
+# `bindings.enabled`).
 # --- ngrok.k8s.ngrok.com ---
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -1981,33 +1955,10 @@ rules:
   - get
   - patch
   - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators/finalizers
-  verbs:
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators/status
-  verbs:
-  - get
-  - patch
-  - update
+# KubernetesOperator is intentionally NOT in this role. The KubernetesOperator
+# CR is the api-manager's own state singleton and always lives in the release
+# namespace, independent of `watchNamespace`. Its rules live in
+# release-namespace-role.yaml.
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -2582,6 +2533,69 @@ rules:
   - create
   - patch
 ---
+# Source: ngrok-operator/templates/api-manager/release-namespace-role.yaml
+# Operator-state RBAC: rules the api-manager needs that are tied to the
+# operator's installation, not to user workloads. These ALWAYS live in the
+# release namespace regardless of `watchNamespace`, because:
+#
+#  - KubernetesOperator is a singleton CR that the api-manager creates and
+#    reconciles for its own state; it always lives where the operator is
+#    installed (`POD_NAMESPACE`).
+#  - The TLS Secret created by `findOrCreateTLSSecret` is written to
+#    `r.K8sOpNamespace` (= release namespace), so secret writes are confined
+#    to that namespace even when the rest of the api-manager Role is namespaced
+#    to a different `watchNamespace`.
+#
+# Read access to Secrets is granted both here (so the operator can always read
+# its own TLS Secret in the release namespace, even when `watchNamespace` points
+# elsewhere — `CreateOrUpdate` does a Get before deciding to create) AND in the
+# watchNamespace-following api-manager Role/ClusterRole (for user-referenced
+# TLS material on Ingress/Gateway in the watched namespace).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ngrok-operator-operator-state-role
+  namespace: ngrok-operator
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+  - patch
+  - update
+---
 # Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -2592,6 +2606,21 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: ngrok-operator-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: ngrok-operator
+  namespace: ngrok-operator
+---
+# Source: ngrok-operator/templates/api-manager/release-namespace-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ngrok-operator-operator-state-rolebinding
+  namespace: ngrok-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ngrok-operator-operator-state-role
 subjects:
 - kind: ServiceAccount
   name: ngrok-operator
@@ -2717,7 +2746,7 @@ metadata:
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: adccdd68b9530be754fdc7ab22c0a3d498bc83555be84403864a18f4021f1cda
+    checksum/controller-role: 03c71c28e1a1bd7fe3fe3b77946b6e437280101a8ba6d4a2d19c1ee1c316afc7
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -2732,7 +2761,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: adccdd68b9530be754fdc7ab22c0a3d498bc83555be84403864a18f4021f1cda
+        checksum/controller-role: 03c71c28e1a1bd7fe3fe3b77946b6e437280101a8ba6d4a2d19c1ee1c316afc7
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
