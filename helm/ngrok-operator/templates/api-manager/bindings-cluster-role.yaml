@@ -1,4 +1,3 @@
-{{- if .Values.bindings.enabled }}
 # Bindings RBAC: cluster-wide rules required by the BoundEndpoint controller
 # (binding poller) that runs in api-manager. These rules are always cluster-wide
 # regardless of `watchNamespace` because:
@@ -84,4 +83,3 @@ subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
-{{- end }}

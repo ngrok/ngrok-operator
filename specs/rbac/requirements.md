@@ -20,7 +20,7 @@ The api-manager's permissions split into three categories based on where the und
 
 - **User workloads** (Ingress, Gateway routes, AgentEndpoint, CloudEndpoint, Domain, IPPolicy, NgrokTrafficPolicy, Service, etc.) — follow `watchNamespace`. Role in the watched namespace, or ClusterRole when watchNamespace is unset.
 - **Operator state** (KubernetesOperator CR, the operator's own TLS Secret writes) — always in the release namespace. The KubernetesOperator CR is a singleton owned by the operator and the TLS Secret is created in `r.K8sOpNamespace` (= release namespace), so these resources never live in a user-chosen `watchNamespace`.
-- **Bindings** (BoundEndpoint CR, cross-namespace Service writes by the binding poller) — always cluster-wide when `bindings.enabled`. The poller creates Services in any namespace based on the BoundEndpoint's top-level domain.
+- **Bindings** (BoundEndpoint CR, cross-namespace Service writes by the binding poller) — always cluster-wide. The poller creates Services in any namespace based on the BoundEndpoint's top-level domain. Even when `bindings.enabled=false`, the BoundEndpoint CRD is still installed (it ships in the unconditional `ngrok-crds` subchart) and the drain orchestrator unconditionally lists BoundEndpoints during shutdown, so the api-manager always needs these grants.
 
 Cluster-scoped K8s resources (namespaces, ingressclasses, gatewayclasses) always require a ClusterRole regardless.
 
@@ -28,7 +28,7 @@ Cluster-scoped K8s resources (namespaces, ingressclasses, gatewayclasses) always
 |---|---|---|
 | api-manager: user workloads | ClusterRole + ClusterRoleBinding | Role + RoleBinding (in watchNamespace) **plus** ClusterRole + ClusterRoleBinding (cluster-scoped K8s resources only) |
 | api-manager: operator state | Role + RoleBinding (always release ns) | No change |
-| api-manager: bindings (when `bindings.enabled`) | ClusterRole + ClusterRoleBinding | No change — cluster-wide by design |
+| api-manager: bindings (BoundEndpoint + cross-ns Services) | ClusterRole + ClusterRoleBinding | No change — cluster-wide by design |
 | agent-manager: user workloads | ClusterRole + ClusterRoleBinding | Role + RoleBinding (in watchNamespace) |
 | agent-manager: operator state (KubernetesOperator drain reads) | Role + RoleBinding (always release ns) | No change |
 | bindings-forwarder | Role + RoleBinding (namespaced) **plus** ClusterRole + ClusterRoleBinding (pods only) | No change — Pod watch is cluster-wide by design |
@@ -49,7 +49,7 @@ api-manager/        role.yaml (watchNamespace-following Role/ClusterRole)
                     rolebinding.yaml
                     leader-election-role.yaml (always release ns — controller-runtime infra)
                     release-namespace-role.yaml (always release ns — KubernetesOperator CR + secret writes)
-                    bindings-cluster-role.yaml (always cluster-wide, gated on bindings.enabled — BoundEndpoint + cross-ns Services)
+                    bindings-cluster-role.yaml (always cluster-wide and unconditional — BoundEndpoint + cross-ns Services; required even when bindings.enabled=false because drain always lists BoundEndpoints)
 agent/              role.yaml (watchNamespace-following Role/ClusterRole)
                     rolebinding.yaml
                     release-namespace-role.yaml (always release ns — KubernetesOperator drain reads)
@@ -132,9 +132,11 @@ These resources live in the release namespace regardless of `watchNamespace` bec
 | kubernetesoperators/finalizers | ngrok.k8s.ngrok.com | patch, update | KubernetesOperator controller |
 | kubernetesoperators/status | ngrok.k8s.ngrok.com | get, patch, update | KubernetesOperator controller |
 
-### Bindings (always cluster-wide ClusterRole, gated on `bindings.enabled`)
+### Bindings (always cluster-wide ClusterRole, unconditional)
 
 The BoundEndpoint controller (binding poller) reconciles BoundEndpoint CRs and creates Kubernetes Services in any namespace based on the BoundEndpoint's top-level domain. Both are inherently cluster-wide and are not constrained by `watchNamespace`.
+
+These rules are **not** gated on `bindings.enabled`. The BoundEndpoint CRD is always installed (it ships in the unconditional `ngrok-crds` subchart), and the drain orchestrator in `internal/drain/drain.go` unconditionally lists BoundEndpoints during operator shutdown. Without these grants, drain would block on a forbidden cache list and the KubernetesOperator finalizer would never be released. The cross-namespace Service write rules are inert when `bindings.enabled=false` (the BoundEndpoint poller doesn't run, so nothing creates Services), but kept here for symmetry and to match `main`'s behavior.
 
 | Resource | API Group | Verbs | Used by |
 |---|---|---|---|
