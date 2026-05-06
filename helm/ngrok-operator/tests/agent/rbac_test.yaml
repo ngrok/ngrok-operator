@@ -2,6 +2,7 @@ suite: test agent rbac
 templates:
 - agent/role.yaml
 - agent/rolebinding.yaml
+- agent/release-namespace-role.yaml
 tests:
 - it: should render ClusterRole in default mode
   template: agent/role.yaml
@@ -44,6 +45,46 @@ tests:
   - equal:
       path: metadata.namespace
       value: test-ns
+- it: should render release-namespace Role + RoleBinding in default mode
+  template: agent/release-namespace-role.yaml
+  asserts:
+  - hasDocuments:
+      count: 2
+  - documentIndex: 0
+    isKind:
+      of: Role
+  - documentIndex: 0
+    equal:
+      path: metadata.namespace
+      value: NAMESPACE
+  - documentIndex: 1
+    isKind:
+      of: RoleBinding
+  - documentIndex: 1
+    equal:
+      path: metadata.namespace
+      value: NAMESPACE
+- it: should render release-namespace Role + RoleBinding in namespaced mode
+  template: agent/release-namespace-role.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 2
+  - documentIndex: 0
+    isKind:
+      of: Role
+  - documentIndex: 0
+    equal:
+      path: metadata.namespace
+      value: NAMESPACE
+- it: release-namespace role should not render when ingress is disabled
+  template: agent/release-namespace-role.yaml
+  set:
+    ingress.enabled: false
+  asserts:
+  - hasDocuments:
+      count: 0
 - it: should match snapshot in default mode
   asserts:
   - matchSnapshot: {}

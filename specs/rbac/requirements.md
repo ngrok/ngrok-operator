@@ -29,27 +29,32 @@ Cluster-scoped K8s resources (namespaces, ingressclasses, gatewayclasses) always
 | api-manager: user workloads | ClusterRole + ClusterRoleBinding | Role + RoleBinding (in watchNamespace) **plus** ClusterRole + ClusterRoleBinding (cluster-scoped K8s resources only) |
 | api-manager: operator state | Role + RoleBinding (always release ns) | No change |
 | api-manager: bindings (when `bindings.enabled`) | ClusterRole + ClusterRoleBinding | No change — cluster-wide by design |
-| agent-manager | ClusterRole + ClusterRoleBinding | Role + RoleBinding |
+| agent-manager: user workloads | ClusterRole + ClusterRoleBinding | Role + RoleBinding (in watchNamespace) |
+| agent-manager: operator state (KubernetesOperator drain reads) | Role + RoleBinding (always release ns) | No change |
 | bindings-forwarder | Role + RoleBinding (namespaced) **plus** ClusterRole + ClusterRoleBinding (pods only) | No change — Pod watch is cluster-wide by design |
 | leader-election | Role + RoleBinding (always release ns) | No change |
 
 > **Note**: the `bindings-forwarder` ClusterRole and the api-manager `bindings-cluster-role` both exist because the binding feature is inherently cluster-wide on both sides — the forwarder watches Pods anywhere that consumes the binding Service, and the poller creates the corresponding Service anywhere the BoundEndpoint targets. `watchNamespace` does not constrain either of these.
 >
-> **Caveat**: while RBAC now correctly differentiates operator-state resources from user workloads, the controller cache config in `cmd/api-manager.go` and `cmd/agent-manager.go` still scopes everything to `watchNamespace`. As long as `watchNamespace = release ns` (the documented setup) this is fine. To support `watchNamespace ≠ release ns`, both managers will also need a per-resource scope split (KubernetesOperator pinned to release ns, user workloads scoped to watchNamespace) — analogous to what `bindings-forwarder-manager.go` does for Pods — and the agent will additionally need a release-namespace-pinned Role for `kubernetesoperators` so the drain state checker can read the singleton CR. That fix is out of scope for this RBAC restructure; today the agent's drain detection silently no-ops in this configuration on both `main` and this branch.
+> **KubernetesOperator cache scope**: the `KubernetesOperator` CR is a singleton owned by the operator and always lives in the release namespace, regardless of `watchNamespace`. Both `cmd/api-manager.go` and `cmd/agent-manager.go` use a per-resource cache scope (`cache.Options.ByObject`) to pin this resource to the release namespace, so the cache list/watch matches the release-namespace-only RBAC grant. This makes both managers tolerate `watchNamespace ≠ release ns` for the KubernetesOperator reconciliation and drain-state read paths.
+>
+> **Remaining caveat**: the api-manager's `findOrCreateTLSSecret` writes the operator's TLS Secret to the release namespace. While the RBAC correctly grants those writes only in the release namespace, the controller-runtime cache for Secrets is still scoped to `watchNamespace` (via `DefaultNamespaces`). With `watchNamespace ≠ release ns`, the `Get` that precedes the create would miss the cache. As long as `watchNamespace = release ns` (the documented setup) this is fine. Pinning Secrets through `cache.Options.ByObject` like we do for KubernetesOperator would close this gap; that fix is out of scope for this RBAC restructure.
 
 ### Helm template organization
 
 RBAC lives in per-component directories under `helm/ngrok-operator/templates/`:
 
 ```
-api-manager/       role.yaml (watchNamespace-following Role/ClusterRole)
+api-manager/        role.yaml (watchNamespace-following Role/ClusterRole)
                     rolebinding.yaml
                     leader-election-role.yaml (always release ns — controller-runtime infra)
                     release-namespace-role.yaml (always release ns — KubernetesOperator CR + secret writes)
                     bindings-cluster-role.yaml (always cluster-wide, gated on bindings.enabled — BoundEndpoint + cross-ns Services)
-agent/             role.yaml, role-namespaced.yaml, rolebinding.yaml, rolebinding-namespaced.yaml
+agent/              role.yaml (watchNamespace-following Role/ClusterRole)
+                    rolebinding.yaml
+                    release-namespace-role.yaml (always release ns — KubernetesOperator drain reads)
 bindings-forwarder/ role.yaml (Role + RoleBinding + ClusterRole + ClusterRoleBinding)
-rbac/crd-access/   editor/viewer ClusterRoles for end-users
+rbac/crd-access/    editor/viewer ClusterRoles for end-users
 ```
 
 ## api-manager permissions
@@ -142,7 +147,9 @@ The BoundEndpoint controller (binding poller) reconciles BoundEndpoint CRs and c
 
 ## agent-manager permissions
 
-Runs only the AgentEndpoint controller. All resources are namespace-scoped.
+Runs only the AgentEndpoint controller. Most resources are namespace-scoped and follow `watchNamespace`; `kubernetesoperators` is pinned to the release namespace because the singleton CR always lives there.
+
+### Namespace-scoped resources (Role when watchNamespace set)
 
 | Resource | API Group | Verbs | Used by |
 |---|---|---|---|
@@ -152,8 +159,15 @@ Runs only the AgentEndpoint controller. All resources are namespace-scoped.
 | agentendpoints | ngrok.k8s.ngrok.com | get, list, watch, patch, update | AgentEndpoint reconciler |
 | agentendpoints/finalizers | ngrok.k8s.ngrok.com | patch, update | AgentEndpoint finalizer |
 | agentendpoints/status | ngrok.k8s.ngrok.com | get, patch, update | AgentEndpoint status updates |
-| kubernetesoperators | ngrok.k8s.ngrok.com | get, list, watch | Reads drain state |
 | ngroktrafficpolicies | ngrok.k8s.ngrok.com | get, list, watch | Resolves traffic policy refs |
+
+### Operator state (always Role in release NS)
+
+The `KubernetesOperator` CR is the api-manager's singleton state object and always lives in the release namespace. The agent reads it for drain state via a release-namespace-pinned cache scope (`cache.Options.ByObject` in `cmd/agent-manager.go`), so RBAC is granted only in the release namespace.
+
+| Resource | API Group | Verbs | Used by |
+|---|---|---|---|
+| kubernetesoperators | ngrok.k8s.ngrok.com | get, list, watch | Reads drain state via `drain.StateChecker` |
 
 ## bindings-forwarder permissions
 

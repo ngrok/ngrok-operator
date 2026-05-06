@@ -63,14 +63,11 @@ rules:
   - get
   - patch
   - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators
-  verbs:
-  - get
-  - list
-  - watch
+# KubernetesOperator is intentionally NOT in this role. The KubernetesOperator
+# CR is a singleton owned by the api-manager and always lives in the release
+# namespace, independent of `watchNamespace`. The agent reads it for drain
+# state via a release-namespace-pinned cache scope; its rules live in
+# release-namespace-role.yaml.
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:

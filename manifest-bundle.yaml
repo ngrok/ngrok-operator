@@ -1620,14 +1620,11 @@ rules:
   - get
   - patch
   - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - kubernetesoperators
-  verbs:
-  - get
-  - list
-  - watch
+# KubernetesOperator is intentionally NOT in this role. The KubernetesOperator
+# CR is a singleton owned by the api-manager and always lives in the release
+# namespace, independent of `watchNamespace`. The agent reads it for drain
+# state via a release-namespace-pinned cache scope; its rules live in
+# release-namespace-role.yaml.
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -2494,6 +2491,28 @@ subjects:
   name: ngrok-operator
   namespace: ngrok-operator
 ---
+# Source: ngrok-operator/templates/agent/release-namespace-role.yaml
+# Operator-state RBAC for the agent: the agent reads the singleton
+# KubernetesOperator CR for drain state. The CR always lives in the release
+# namespace regardless of `watchNamespace`, and the agent's controller-runtime
+# cache pins this resource to the release namespace (see cmd/agent-manager.go),
+# so the corresponding RBAC also lives here rather than in the watchNamespace
+# Role.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ngrok-operator-agent-operator-state-role
+  namespace: ngrok-operator
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
+---
 # Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -2596,6 +2615,21 @@ rules:
   - patch
   - update
 ---
+# Source: ngrok-operator/templates/agent/release-namespace-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ngrok-operator-agent-operator-state-rolebinding
+  namespace: ngrok-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ngrok-operator-agent-operator-state-role
+subjects:
+- kind: ServiceAccount
+  name: ngrok-operator-agent
+  namespace: ngrok-operator
+---
 # Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -2641,7 +2675,7 @@ metadata:
   name: ngrok-operator-agent
   namespace: ngrok-operator
   annotations:
-    checksum/rbac: 0e3c640a2bf58444b27f54f3bc9b9dcbb185d010b155997fc605f8c15664ca04
+    checksum/rbac: 0e1543232056c2853f293a4dcb95f2f1097e41914036be3e6641b7bcfe4d1977
 spec:
   replicas: 1
   strategy:
@@ -2657,7 +2691,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/rbac: 0e3c640a2bf58444b27f54f3bc9b9dcbb185d010b155997fc605f8c15664ca04
+        checksum/rbac: 0e1543232056c2853f293a4dcb95f2f1097e41914036be3e6641b7bcfe4d1977
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator

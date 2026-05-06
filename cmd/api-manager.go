@@ -447,11 +447,22 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 		LeaderElectionID:       opts.electionID,
 	}
 
-	if opts.ingressWatchNamespace != "" {
-		options.Cache = cache.Options{
-			DefaultNamespaces: map[string]cache.Config{
-				opts.ingressWatchNamespace: {},
+	// The KubernetesOperator CR is a singleton owned by the operator and always
+	// lives in the release namespace, regardless of `watchNamespace`. Pin its
+	// cache scope to the release namespace so the controller can always list/watch
+	// it, and so RBAC for it can stay narrowly scoped to the release namespace.
+	options.Cache = cache.Options{
+		ByObject: map[client.Object]cache.ByObject{
+			&ngrokv1alpha1.KubernetesOperator{}: {
+				Namespaces: map[string]cache.Config{
+					opts.namespace: {},
+				},
 			},
+		},
+	}
+	if opts.ingressWatchNamespace != "" {
+		options.Cache.DefaultNamespaces = map[string]cache.Config{
+			opts.ingressWatchNamespace: {},
 		}
 	}
 
