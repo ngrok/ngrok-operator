@@ -1,0 +1,26 @@
+{
+  "skill_name": "release",
+  "evals": [
+    {
+      "id": 1,
+      "name": "standard-release",
+      "prompt": "We're ready to cut a new release of the ngrok-operator. Look at what's changed since the last release and prepare the changelogs and version suggestions.",
+      "expected_output": "Changelog entries for container (18 PRs), helm chart (1 PR), and CRDs (4 PRs). Version suggestions based on change types. Correct Keep-a-Changelog format with PR links and @author attribution.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "patch-bugfixes",
+      "prompt": "We just merged a few bug fixes and improvements. Let's do a quick patch release to get them out. Prepare the changelogs.",
+      "expected_output": "Same PR data as eval 1 (same repo state), but agent should recognize most changes are fixes and suggest patch versions. Changelogs should still be complete and well-formatted.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "crd-changes",
+      "prompt": "Time for a release. I know some PRs touched the CRD definitions, so make sure the ngrok-crds chart gets updated too. Prepare everything.",
+      "expected_output": "Agent should explicitly address CRD changes, bump the CRDs chart version, generate CRD changelog, and update the dependency in the main helm chart. All 3 changelogs present.",
+      "files": []
+    }
+  ]
+}
