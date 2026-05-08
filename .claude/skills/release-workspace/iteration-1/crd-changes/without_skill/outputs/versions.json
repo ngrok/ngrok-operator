@@ -1,5 +1,0 @@
-{
-  "container": "0.21.0",
-  "helm_operator": "0.23.0",
-  "helm_crds": "0.3.0"
-}

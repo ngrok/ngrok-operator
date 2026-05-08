@@ -82,7 +82,7 @@ Analyze the PRs in the JSON to suggest next versions. Rules (this project uses s
 
 Present your suggestions and ask the user to confirm or override. Wait for confirmation before proceeding.
 
-**Release candidates (RC):** If the user asks for an RC, append `-rc.N` to each version. To find the right N, check existing RC tags:
+**Release candidates (RC):** If the user asks for an RC, append `-rc.N` (with a dot before the number) to each version. The canonical format is always `-rc.1`, `-rc.2`, etc. — even if the user writes "RC1" or "rc1", normalize to `-rc.N`. To find the right N, check existing RC tags:
 ```bash
 git tag -l 'ngrok-operator-<base-version>-rc.*' | sort -V | tail -1
 ```
@@ -232,7 +232,15 @@ make helm-update-snapshots helm-test
 
 If `helm-test` fails, investigate and fix. Common cause: snapshot drift from version changes.
 
-### Step 9: Done
+### Step 9: Regenerate manifest bundle
+
+```bash
+make manifest-bundle
+```
+
+This regenerates `manifest-bundle.yaml` at the repo root with the updated Helm chart versions. CI will fail if this is stale.
+
+### Step 10: Done
 
 Show the user:
 1. A summary of files changed (`git status`)
