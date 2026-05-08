@@ -1,0 +1,119 @@
+{
+  "eval_name": "standard-release",
+  "run_type": "without_skill",
+  "expectations": [
+    {
+      "text": "container-changelog.md exists and starts with '## X.Y.Z' where X.Y.Z is a valid semver version",
+      "passed": true,
+      "evidence": "File exists and starts with '## 0.21.0' which is valid semver."
+    },
+    {
+      "text": "container-changelog.md contains a '**Full Changelog**' link using the ngrok-operator- tag prefix",
+      "passed": true,
+      "evidence": "Line 2: '**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.3...ngrok-operator-0.21.0' uses the ngrok-operator- prefix correctly."
+    },
+    {
+      "text": "container-changelog.md uses Keep-a-Changelog sections (### Added, ### Changed, ### Fixed, etc.) with no empty sections",
+      "passed": true,
+      "evidence": "File has '### Added' (2 entries), '### Changed' (3 entries), '### Fixed' (10 entries). No empty sections."
+    },
+    {
+      "text": "container-changelog.md entries have correct attribution format: 'by @author in [#NNN](https://github.com/ngrok/ngrok-operator/pull/NNN)'",
+      "passed": false,
+      "evidence": "PR #792 entry (line 25) is missing author attribution: 'Fixed ProxyProtocolVersion kubebuilder enum type mismatch (integer vs string) in AgentEndpoint CRD in [#792](...)' — no 'by @author' before 'in'. The actual author was app/copilot-swe-agent per ground truth."
+    },
+    {
+      "text": "container-changelog.md includes PR #799 (CloudEndpoint IsNotFound handling) and PR #803 (misc quick wins) since these are new for container",
+      "passed": true,
+      "evidence": "Line 18 references #799 ('Fixed CloudEndpoint to use ReconcileStatus for IsNotFound handling'). Line 24 references #803 ('Fixed data race in ChannelHealthChecker...')."
+    },
+    {
+      "text": "container-changelog.md does NOT include PR #781 or PR #777 since these have new_for:[] (already released)",
+      "passed": true,
+      "evidence": "Searched entire container-changelog.md content — neither #781 nor #777 appear anywhere in the file."
+    },
+    {
+      "text": "helm-changelog.md exists and starts with version metadata lines ('- Update ngrok-operator image version to')",
+      "passed": false,
+      "evidence": "File exists but starts with '## 0.23.0' (version heading) and '**Full Changelog**:' link on line 2. The '- Update ngrok-operator image version to' lines appear on lines 4-6, not at the start."
+    },
+    {
+      "text": "crds-changelog.md exists since there are 4 PRs with new_for containing helm_crds",
+      "passed": true,
+      "evidence": "File exists and references all 4 helm_crds PRs: #772 (line 8), #779 (line 12), #792 (line 16), and #803 (lines 17-18)."
+    },
+    {
+      "text": "versions.json exists and contains reasonable semver bumps from current versions (container: 0.20.3, helm: 0.22.2, crds: 0.2.1)",
+      "passed": true,
+      "evidence": "File contains: container 0.21.0 (from 0.20.3, minor bump), helm_operator 0.23.0 (from 0.22.2, minor bump), helm_crds 0.3.0 (from 0.2.1, minor bump). All are valid forward semver bumps appropriate for the scope of changes."
+    },
+    {
+      "text": "Authors are GitHub usernames (e.g., @alex-bezek, @jonstacks, @sabrina-ngrok) not email addresses or full names",
+      "passed": true,
+      "evidence": "All author references across all files use GitHub usernames: @alex-bezek, @sabrina-ngrok, @jonstacks. No email addresses or full names found. (PR #792 is missing author attribution entirely, but the assertion checks format not completeness.)"
+    }
+  ],
+  "summary": {
+    "passed": 8,
+    "failed": 2,
+    "total": 10,
+    "pass_rate": 0.8
+  },
+  "timing": {
+    "total_duration_seconds": 177.5
+  },
+  "claims": [
+    {
+      "claim": "Container changelog includes 18 PRs that are new for container",
+      "type": "quality",
+      "verified": false,
+      "evidence": "The changelog references PRs #804, #806, #798, #797, #800, #802, #801 which do NOT exist in the ground truth data (22 real PRs: 768, 772, 773, 777, 778, 779, 781, 782, 783, 784, 785, 786, 787, 788, 789, 791, 792, 793, 794, 795, 799, 803). These 7 PRs appear to be hallucinated. Conversely, many real container-new PRs are missing from the changelog: #782, #784, #786, #787, #789, #791, #793, #794, #795 — though several of these are CI/test-only and reasonably excluded."
+    },
+    {
+      "claim": "helm-changelog.md references real PRs with correct component classification",
+      "type": "factual",
+      "verified": false,
+      "evidence": "helm-changelog.md references PR #804 (RBAC overhaul) which is not in the ground truth data — it appears to be hallucinated. PR #773 is correctly identified as helm_operator. PR #779 is correctly identified. PR #788 is listed but its ground truth component is 'container' only, not 'helm_operator' — misclassified."
+    },
+    {
+      "claim": "Summary mentions ~20 bugs fixed across PRs #797-803 and #806",
+      "type": "factual",
+      "verified": false,
+      "evidence": "PRs #797, #798, #800, #801, #802, #804, #806, #807, #808 are referenced in the summary but do not exist in the ground truth data. Only #799 and #803 from that range are real PRs."
+    },
+    {
+      "claim": "Version rationale explains the bumps correctly",
+      "type": "quality",
+      "verified": true,
+      "evidence": "The rationale for each version bump is well-reasoned and consistent with the actual changes, even though some referenced PRs are phantom."
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "CRITICAL GAP: No assertion checks that the PRs referenced in changelogs actually exist or match the ground truth. The container-changelog.md includes 7 hallucinated PRs (#797, #798, #800, #801, #802, #804, #806) that don't appear in the ground truth data. An assertion like 'container-changelog.md only references PR numbers from the ground truth dataset' would catch this — it's the most impactful failure and it went completely undetected."
+      },
+      {
+        "assertion": "container-changelog.md includes PR #799 (CloudEndpoint IsNotFound handling) and PR #803 (misc quick wins) since these are new for container",
+        "reason": "This assertion only spot-checks 2 of 18 new-for-container PRs. A stronger version would check that all (or most) container-new PRs appear, or at least check a larger sample. The current assertion passes even though many real PRs are missing from the changelog."
+      },
+      {
+        "assertion": "helm-changelog.md exists and starts with version metadata lines ('- Update ngrok-operator image version to')",
+        "reason": "This assertion checks format rather than substance. A more valuable assertion would verify that helm-changelog references the correct PRs (only #773 is new_for helm_operator per ground truth). The current output includes PRs that are hallucinated (#804) or misclassified (#788, #779 which are helm_crds not helm_operator)."
+      },
+      {
+        "assertion": "crds-changelog.md exists since there are 4 PRs with new_for containing helm_crds",
+        "reason": "This assertion is well-constructed — checking existence plus correct PR coverage. It could be strengthened by also asserting that no non-helm_crds PRs are included."
+      },
+      {
+        "reason": "No assertion checks the summary.md file at all, yet it contains multiple hallucinated PR references and fabricated descriptions of changes that don't exist in the ground truth."
+      }
+    ],
+    "overall": "The assertions cover basic structural requirements well (format, sections, version bumps, author format) but have a critical blind spot: they don't verify PR accuracy against ground truth. The baseline run hallucinated 7+ phantom PRs that went completely undetected by the eval. Adding assertions for PR validity and completeness would make this eval significantly more discriminating."
+  }
+}

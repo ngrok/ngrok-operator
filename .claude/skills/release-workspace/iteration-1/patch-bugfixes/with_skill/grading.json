@@ -1,0 +1,114 @@
+{
+  "eval_name": "patch-bugfixes",
+  "run_type": "with_skill",
+  "expectations": [
+    {
+      "text": "container-changelog.md exists and starts with '## X.Y.Z' where X.Y.Z is a valid semver version",
+      "passed": true,
+      "evidence": "File exists and line 1 is '## 0.20.4' which is a valid semver version (patch bump from 0.20.3)."
+    },
+    {
+      "text": "container-changelog.md contains a '**Full Changelog**' link using the ngrok-operator- tag prefix",
+      "passed": true,
+      "evidence": "Line 2: '**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.3...ngrok-operator-0.20.4' — uses the ngrok-operator- tag prefix for both from and to tags."
+    },
+    {
+      "text": "container-changelog.md uses Keep-a-Changelog sections (### Added, ### Changed, ### Fixed, etc.) with no empty sections",
+      "passed": true,
+      "evidence": "Three sections present: '### Added' (2 entries), '### Changed' (7 entries), '### Fixed' (7 entries). All sections contain at least one bullet point."
+    },
+    {
+      "text": "container-changelog.md entries have correct attribution format: 'by @author in [#NNN](https://github.com/ngrok/ngrok-operator/pull/NNN)'",
+      "passed": true,
+      "evidence": "All 16 entries follow the format. Example: 'by @sabrina-ngrok in [#788](https://github.com/ngrok/ngrok-operator/pull/788)'. Verified all PR numbers in URLs match the #NNN references. All authors match ground truth data (alex-bezek, jonstacks, sabrina-ngrok, app/copilot-swe-agent)."
+    },
+    {
+      "text": "container-changelog.md includes PR #799 (CloudEndpoint IsNotFound handling) and PR #803 (misc quick wins) since these are new for container",
+      "passed": true,
+      "evidence": "PR #799 found on line 21: 'Use ReconcileStatus for CloudEndpoint IsNotFound handling instead of silently discarding status update errors by @alex-bezek in [#799]'. PR #803 found on line 22: 'Fix data race in ChannelHealthChecker.Alive(), swallowed API pagination errors... by @alex-bezek in [#803]'."
+    },
+    {
+      "text": "container-changelog.md does NOT include PR #781 or PR #777 since these have new_for:[] (already released)",
+      "passed": true,
+      "evidence": "Searched the entire container-changelog.md — no mention of '#781' or '#777' anywhere in the file. These PRs have new_for:[] in the ground truth, confirming they were already released."
+    },
+    {
+      "text": "helm-changelog.md exists and starts with version metadata lines ('- Update ngrok-operator image version to')",
+      "passed": false,
+      "evidence": "File exists but starts with '## 0.22.3' (version header) and '**Full Changelog**:' link on lines 1-2. The expected '- Update ngrok-operator image version to' metadata lines appear on lines 4-6, not at the start. The assertion specifically says 'starts with' those lines."
+    },
+    {
+      "text": "crds-changelog.md exists since there are 4 PRs with new_for containing helm_crds",
+      "passed": true,
+      "evidence": "File exists and contains all 4 expected helm_crds PRs: #779 (URI vs URL rename), #772 (-o wide columns), #792 (ProxyProtocolVersion enum fix), #803 (scaffolding comment cleanup). Matches ground truth new_for:helm_crds set exactly."
+    },
+    {
+      "text": "versions.json exists and contains reasonable semver bumps from current versions (container: 0.20.3, helm: 0.22.2, crds: 0.2.1)",
+      "passed": true,
+      "evidence": "versions.json contains: {\"container\": \"0.20.4\", \"helm_operator\": \"0.22.3\", \"helm_crds\": \"0.2.2\"}. All are patch version bumps (+0.0.1) from the current versions, which is reasonable for a bugfix release."
+    },
+    {
+      "text": "Authors are GitHub usernames (e.g., @alex-bezek, @jonstacks, @sabrina-ngrok) not email addresses or full names",
+      "passed": true,
+      "evidence": "All authors across all three changelogs use GitHub username format: @alex-bezek, @jonstacks, @sabrina-ngrok, @app/copilot-swe-agent. No email addresses or full names found. All authors verified against ground truth PR data."
+    }
+  ],
+  "summary": {
+    "passed": 9,
+    "failed": 1,
+    "total": 10,
+    "pass_rate": 0.9
+  },
+  "timing": {
+    "total_tokens": 59517,
+    "duration_ms": 108709,
+    "total_duration_seconds": 108.7
+  },
+  "claims": [
+    {
+      "claim": "Container changelog lists 16 PRs new for container component",
+      "type": "factual",
+      "verified": false,
+      "evidence": "Container changelog contains 17 unique PRs (#768, #772, #773, #782, #784, #785, #786, #787, #788, #789, #791, #792, #793, #794, #795, #799, #803) but is missing PR #779 which has new_for:[container, helm_crds] in the ground truth. Expected 18 PRs total."
+    },
+    {
+      "claim": "CRDs changelog covers all 4 helm_crds PRs",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Contains PRs #772, #779, #792, #803 — exactly matches the 4 PRs with new_for containing helm_crds in ground truth."
+    },
+    {
+      "claim": "All PR author attributions are correct",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Cross-referenced all 17 container PRs, 1 helm PR, and 4 CRD PRs against ground truth — every author attribution matches (alex-bezek, jonstacks, sabrina-ngrok, app/copilot-swe-agent)."
+    },
+    {
+      "claim": "PR categorization (Added/Changed/Fixed) is reasonable",
+      "type": "quality",
+      "verified": true,
+      "evidence": "Categories align with PR content: bug fixes (#768, #792, #799, #803, #784, #789, #794) are under Fixed, new features (#788, #772) under Added, and infrastructure/dependency changes under Changed. CRDs changelog includes a Breaking Changes section for #779 (field rename) which is appropriate."
+    },
+    {
+      "claim": "Helm changelog correctly includes only helm_operator-scoped changes",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Only PR #773 has new_for:[container, helm_operator]. The helm changelog correctly lists #773 plus version bump metadata. No extraneous PRs included."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "No assertion checks completeness of the container changelog — PR #779 (URI vs URL inconsistency, has_breaking_changes:true, new_for:[container, helm_crds]) is missing from the container changelog. An assertion like 'container-changelog.md includes all 18 new-for-container PRs' would catch this gap."
+      },
+      {
+        "assertion": "helm-changelog.md exists and starts with version metadata lines ('- Update ngrok-operator image version to')",
+        "reason": "This assertion is ambiguous about whether a version header (## 0.22.3) before the metadata bullets is acceptable. The intent seems to be 'helm changelog uses a different format from container changelog, focused on version bumps'. Consider rephrasing to 'helm-changelog.md contains version update metadata lines' or being explicit about whether a section header is OK."
+      },
+      {
+        "reason": "No assertion checks whether breaking changes in PRs (e.g., #779 renaming endpointURI to endpointURL) are properly flagged in the container changelog. The CRDs changelog correctly has a Breaking Changes section for #779 but the container changelog omits #779 entirely."
+      }
+    ],
+    "overall": "Assertions cover format, inclusion/exclusion, versioning, and attribution well. Main gaps: no completeness check for the full PR set (missed the #779 omission from container changelog), and the helm-changelog format assertion is a bit ambiguous."
+  }
+}
