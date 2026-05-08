@@ -461,6 +461,25 @@ entries:
     version: 0.5.0
   ngrok-crds:
   - apiVersion: v2
+    appVersion: 0.3.0-rc.1
+    created: "2026-05-08T23:42:54.136559368Z"
+    description: ngrok Custom Resource Definitions for Kubernetes.
+    digest: 685cff4fba55c63c192226480f52d944dede76fb1b5913f2e1f38a0c6925e3cb
+    home: https://ngrok.com
+    icon: https://charts.ngrok.com/assets/ngrok-favicon.svg
+    keywords:
+    - ngrok
+    - networking
+    - ingress
+    - edge
+    - api gateway
+    name: ngrok-crds
+    sources:
+    - https://github.com/ngrok/ngrok-operator
+    urls:
+    - https://github.com/ngrok/ngrok-operator/releases/download/helm-chart-ngrok-crds-0.3.0-rc.1/ngrok-crds-0.3.0-rc.1.tgz
+    version: 0.3.0-rc.1
+  - apiVersion: v2
     appVersion: 0.2.1
     created: "2026-03-09T20:29:41.6729121Z"
     description: ngrok Custom Resource Definitions for Kubernetes.
@@ -652,6 +671,37 @@ entries:
     - https://github.com/ngrok/ngrok-ingress-controller/releases/download/ngrok-ingress-controller-0.1.0/ngrok-ingress-controller-0.1.0.tgz
     version: 0.1.0
   ngrok-operator:
+  - apiVersion: v2
+    appVersion: 0.21.0-rc.1
+    created: "2026-05-08T23:42:54.294084193Z"
+    dependencies:
+    - name: common
+      repository: oci://registry-1.docker.io/bitnamicharts
+      tags:
+      - bitnami-common
+      version: 2.x.x
+    - condition: installCRDs
+      name: ngrok-crds
+      repository: file://../ngrok-crds
+      tags:
+      - install-crds
+      version: 0.3.0-rc.1
+    description: The official ngrok Kubernetes Operator.
+    digest: da783e851f4d32e2adadb52f32989f1ef27942f521ba86a32c9e7361930f1829
+    home: https://ngrok.com
+    icon: https://charts.ngrok.com/assets/ngrok-favicon.svg
+    keywords:
+    - ngrok
+    - networking
+    - ingress
+    - edge
+    - api gateway
+    name: ngrok-operator
+    sources:
+    - https://github.com/ngrok/ngrok-operator
+    urls:
+    - https://github.com/ngrok/ngrok-operator/releases/download/helm-chart-ngrok-operator-0.23.0-rc.1/ngrok-operator-0.23.0-rc.1.tgz
+    version: 0.23.0-rc.1
   - apiVersion: v2
     appVersion: 0.20.3
     created: "2026-03-17T19:05:52.503528798Z"
@@ -1288,4 +1338,4 @@ entries:
     urls:
     - https://github.com/ngrok/ngrok-operator/releases/download/helm-chart-0.16.0/ngrok-operator-0.16.0.tgz
     version: 0.16.0
-generated: "2026-03-17T19:05:52.504232098Z"
+generated: "2026-05-08T23:42:54.29434485Z"
