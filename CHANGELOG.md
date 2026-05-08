@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.21.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.3...ngrok-operator-0.21.0-rc.1
+
+### Breaking Changes
+- Renamed `URI` field to `URL` across CRDs for consistency by @sabrina-ngrok in [#779](https://github.com/ngrok/ngrok-operator/pull/779)
+- Replaced panics with error returns in bindings port allocator, fixed data races and nil panics by @alex-bezek in [#801](https://github.com/ngrok/ngrok-operator/pull/801)
+- Overhauled RBAC across all operator deployments — hand-managed in Helm, removed controller-gen markers by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+
+### Added
+- Show Ready Condition's reason and message in `-o wide` output for CRDs by @alex-bezek in [#772](https://github.com/ngrok/ngrok-operator/pull/772)
+- Add `description` and `metadata` annotations support for ingress and gateway by @sabrina-ngrok in [#788](https://github.com/ngrok/ngrok-operator/pull/788)
+
+### Changed
+- Update Go to 1.26.1 and refresh dependencies by @jonstacks in [#785](https://github.com/ngrok/ngrok-operator/pull/785)
+- Update full install manifests to reference main branch by @sabrina-ngrok in [#782](https://github.com/ngrok/ngrok-operator/pull/782)
+
+### Fixed
+- Fix driver sync to not log errors for non-error scenarios by @alex-bezek in [#768](https://github.com/ngrok/ngrok-operator/pull/768)
+- Fix "object has been modified" errors using patch for finalizers and RetryOnConflict for status updates by @alex-bezek in [#773](https://github.com/ngrok/ngrok-operator/pull/773)
+- Fix ProxyProtocolVersion kubebuilder enum validation to use string values by @copilot-swe-agent in [#792](https://github.com/ngrok/ngrok-operator/pull/792)
+- Fix KubernetesOperator controller: error swallowing, nil pointer panics, and dead code by @alex-bezek in [#797](https://github.com/ngrok/ngrok-operator/pull/797)
+- Fix Gateway and HTTPRoute controllers: validation logic, informer cache corruption, and cross-namespace matching by @alex-bezek in [#798](https://github.com/ngrok/ngrok-operator/pull/798)
+- Fix CloudEndpoint to use ReconcileStatus for IsNotFound handling by @alex-bezek in [#799](https://github.com/ngrok/ngrok-operator/pull/799)
+- Fix manager driver: lost status conditions, reconcile churn, and informer cache corruption by @alex-bezek in [#800](https://github.com/ngrok/ngrok-operator/pull/800)
+- Fix agent driver: context propagation, channel safety, and stale status conditions by @alex-bezek in [#802](https://github.com/ngrok/ngrok-operator/pull/802)
+- Fix misc issues: data race in ChannelHealthChecker, swallowed errors, and incorrect error messages by @alex-bezek in [#803](https://github.com/ngrok/ngrok-operator/pull/803)
+- Skip redundant ngrok API updates for CloudEndpoint by @jonstacks in [#806](https://github.com/ngrok/ngrok-operator/pull/806)
+
 ## 0.20.3
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.2...ngrok-operator-0.20.3
 

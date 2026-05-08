@@ -9,8 +9,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-agentendpoint-editor-role
     rules:
       - apiGroups:
@@ -41,8 +41,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-agentendpoint-viewer-role
     rules:
       - apiGroups:
@@ -69,8 +69,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-boundendpoint-editor-role
     rules:
       - apiGroups:
@@ -101,8 +101,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-boundendpoint-viewer-role
     rules:
       - apiGroups:
@@ -129,8 +129,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-cloudendpoint-editor-role
     rules:
       - apiGroups:
@@ -161,8 +161,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-cloudendpoint-viewer-role
     rules:
       - apiGroups:
@@ -189,8 +189,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-domain-editor-role
     rules:
       - apiGroups:
@@ -221,8 +221,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-domain-viewer-role
     rules:
       - apiGroups:
@@ -249,8 +249,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-ippolicy-editor-role
     rules:
       - apiGroups:
@@ -281,8 +281,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-ippolicy-viewer-role
     rules:
       - apiGroups:
@@ -309,8 +309,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-kubernetesoperator-editor-role
     rules:
       - apiGroups:
@@ -341,8 +341,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-kubernetesoperator-viewer-role
     rules:
       - apiGroups:
@@ -369,8 +369,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-ngroktrafficpolicy-editor-role
     rules:
       - apiGroups:
@@ -401,8 +401,8 @@ should match snapshot with defaults:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.1
       name: RELEASE-NAME-ngrok-operator-ngroktrafficpolicy-viewer-role
     rules:
       - apiGroups:
