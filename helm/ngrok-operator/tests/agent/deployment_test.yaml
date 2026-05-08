@@ -1,4 +1,7 @@
 suite: test agent deployment
+chart:
+  version: 0.0.0-test
+  appVersion: 0.0.0-test
 templates:
 - agent/deployment.yaml
 - agent/role.yaml

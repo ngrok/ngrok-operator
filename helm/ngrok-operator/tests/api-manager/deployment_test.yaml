@@ -1,4 +1,7 @@
 suite: test controller-deployment
+chart:
+  version: 0.0.0-test
+  appVersion: 0.0.0-test
 templates:
 - api-manager/deployment.yaml
 # The following included templates are needed due to the way helm unittest works.

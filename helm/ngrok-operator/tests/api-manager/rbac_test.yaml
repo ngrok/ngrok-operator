@@ -1,4 +1,7 @@
 suite: test api-manager rbac
+chart:
+  version: 0.0.0-test
+  appVersion: 0.0.0-test
 templates:
 - api-manager/role.yaml
 - api-manager/rolebinding.yaml
