@@ -10,7 +10,7 @@ Should match snapshot:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.21.0-rc.1
-        helm.sh/chart: ngrok-operator-0.23.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.2
       name: ngrok
     spec:
       controller: k8s.ngrok.com/ingress-controller

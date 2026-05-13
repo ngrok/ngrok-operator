@@ -5,6 +5,14 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.23.0-rc.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.23.0-rc.1...helm-chart-ngrok-operator-0.23.0-rc.2
+
+- Update Helm chart version to `0.23.0-rc.2`
+
+### Fixed
+- Grant `events.k8s.io` events permissions to the agent, api-manager, and bindings-forwarder roles. The new controller-runtime `GetEventRecorder` API writes to the `events.k8s.io` API group, which the RBAC overhaul did not cover.
+
 ## 0.23.0-rc.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.2...helm-chart-ngrok-operator-0.23.0-rc.1
 

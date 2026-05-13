@@ -4,7 +4,7 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/rbac: bd0eb0e29988bae5a2d5fb6e38463bf1a0c18109b9e510e1155a3f78c28b3a7f
+        checksum/rbac: 7ad5685f36276669f1d58bba694549ec85c1bfec764282ab94079943fba927e7
       labels:
         app.kubernetes.io/component: agent
         app.kubernetes.io/instance: RELEASE-NAME
@@ -12,7 +12,7 @@ Should match snapshot:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.21.0-rc.1
-        helm.sh/chart: ngrok-operator-0.23.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.2
       name: RELEASE-NAME-ngrok-operator-agent
       namespace: NAMESPACE
     spec:
@@ -27,7 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
-            checksum/rbac: bd0eb0e29988bae5a2d5fb6e38463bf1a0c18109b9e510e1155a3f78c28b3a7f
+            checksum/rbac: 7ad5685f36276669f1d58bba694549ec85c1bfec764282ab94079943fba927e7
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
@@ -113,6 +113,14 @@ Should match snapshot:
         verbs:
           - create
           - patch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
       - apiGroups:
           - ""
         resources:

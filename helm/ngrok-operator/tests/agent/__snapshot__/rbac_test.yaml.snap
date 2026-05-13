@@ -42,6 +42,14 @@ should match snapshot in default mode:
           - create
           - patch
       - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
+      - apiGroups:
           - ""
         resources:
           - secrets
@@ -151,6 +159,14 @@ should match snapshot in namespaced mode:
         verbs:
           - create
           - patch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
       - apiGroups:
           - ""
         resources:

@@ -4,7 +4,7 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/rbac: 78d86b8df7cf34afbde6a5e0649fdf64a209c1475379c8325f660a0377ceeefd
+        checksum/rbac: 2b5a37e7ad063bb138ca1acc4a11ca0da8991d66311c333da4b2bba7584535fe
       labels:
         app.kubernetes.io/component: bindings-forwarder
         app.kubernetes.io/instance: RELEASE-NAME
@@ -12,7 +12,7 @@ Should match snapshot:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.21.0-rc.1
-        helm.sh/chart: ngrok-operator-0.23.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.2
       name: RELEASE-NAME-ngrok-operator-bindings-forwarder
       namespace: NAMESPACE
     spec:
@@ -27,7 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
-            checksum/rbac: 78d86b8df7cf34afbde6a5e0649fdf64a209c1475379c8325f660a0377ceeefd
+            checksum/rbac: 2b5a37e7ad063bb138ca1acc4a11ca0da8991d66311c333da4b2bba7584535fe
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"

@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 1ff679f46694c76aaa92fa4bb95702cac95184fe57af4f7df91d3f846f01d355
+        checksum/controller-role: 18de8d67bbc1881a800608b62cea791017495436ba47c64ee35572a56aa1c77f
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -13,7 +13,7 @@ Should match all-options snapshot:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.21.0-rc.1
-        helm.sh/chart: ngrok-operator-0.23.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.2
       name: RELEASE-NAME-ngrok-operator-manager
       namespace: NAMESPACE
     spec:
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 1ff679f46694c76aaa92fa4bb95702cac95184fe57af4f7df91d3f846f01d355
+            checksum/controller-role: 18de8d67bbc1881a800608b62cea791017495436ba47c64ee35572a56aa1c77f
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -195,6 +195,14 @@ Should match all-options snapshot:
         verbs:
           - create
           - patch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
       - apiGroups:
           - ""
         resources:
@@ -555,7 +563,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 1ff679f46694c76aaa92fa4bb95702cac95184fe57af4f7df91d3f846f01d355
+        checksum/controller-role: 18de8d67bbc1881a800608b62cea791017495436ba47c64ee35572a56aa1c77f
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -564,7 +572,7 @@ Should match default snapshot:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
         app.kubernetes.io/version: 0.21.0-rc.1
-        helm.sh/chart: ngrok-operator-0.23.0-rc.1
+        helm.sh/chart: ngrok-operator-0.23.0-rc.2
       name: RELEASE-NAME-ngrok-operator-manager
       namespace: NAMESPACE
     spec:
@@ -577,7 +585,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 1ff679f46694c76aaa92fa4bb95702cac95184fe57af4f7df91d3f846f01d355
+            checksum/controller-role: 18de8d67bbc1881a800608b62cea791017495436ba47c64ee35572a56aa1c77f
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -733,6 +741,14 @@ Should match default snapshot:
         verbs:
           - create
           - patch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
       - apiGroups:
           - ""
         resources:
