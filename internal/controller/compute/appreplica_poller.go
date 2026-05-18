@@ -30,26 +30,17 @@ type replicaEndpoint struct {
 	TrafficPolicy string `json:"traffic_policy"`
 }
 
-// computeReplica represents a replica object from the ngrok Compute Replicas API.
+// computeReplica represents a replica from the runner replicas endpoint.
 type computeReplica struct {
 	ID              string            `json:"id"`
-	CreatedAt       string            `json:"created_at"`
-	AppID           string            `json:"app_id"`
-	EnvironmentID   string            `json:"environment_id"`
-	DeploymentID    string            `json:"deployment_id"`
-	RunnerID        string            `json:"runner_id"`
-	State           string            `json:"state"`
 	ContainerImage  string            `json:"container_image"`
 	Endpoints       []replicaEndpoint `json:"endpoints"`
 	EnvironmentVars map[string]string `json:"environment_vars"`
-	URI             string            `json:"uri"`
 }
 
-// computeReplicaList represents a paginated list response from the Compute Replicas API.
+// computeReplicaList represents the response from the runner replicas endpoint.
 type computeReplicaList struct {
-	ComputeReplicas []computeReplica `json:"compute_replicas"`
-	URI             string           `json:"uri"`
-	NextPageURI     *string          `json:"next_page_uri"`
+	Replicas []computeReplica `json:"replicas"`
 }
 
 // urlPort extracts the port from a URL string. If no port is specified, returns 443.
@@ -99,6 +90,9 @@ type AppReplicaPoller struct {
 
 	// NgrokBaseClient is the ngrok API base client.
 	NgrokBaseClient *ngrok.BaseClient
+
+	// ComputeBaseURL is the base URL of the compute service.
+	ComputeBaseURL string
 
 	// PollingInterval is how often to poll the ngrok API.
 	PollingInterval time.Duration
@@ -153,7 +147,7 @@ func (r *AppReplicaPoller) pollLoop(ctx context.Context, log logr.Logger) {
 // reconcile fetches desired state from the Replicas API, fetches current
 // managed resources, then creates or deletes to converge.
 func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger) error {
-	desired, err := r.fetchDesiredReplicas(ctx, log)
+	desired, err := r.fetchDesiredReplicas(ctx)
 	if err != nil {
 		return fmt.Errorf("fetching compute replicas: %w", err)
 	}
@@ -233,39 +227,23 @@ func (r *AppReplicaPoller) waitForRunnerID(ctx context.Context, log logr.Logger)
 	}
 }
 
-// fetchDesiredReplicas lists running compute replicas assigned to this runner via the Compute Replicas API.
-func (r *AppReplicaPoller) fetchDesiredReplicas(ctx context.Context, log logr.Logger) ([]computeReplica, error) {
-	var replicas []computeReplica
-
-	filter := fmt.Sprintf(`obj.runner_id == "%s" && obj.state == "running"`, r.runnerID)
-	nextPage := &url.URL{
-		Path:     "/compute/replicas",
-		RawQuery: url.Values{"filter": {filter}}.Encode(),
+// fetchDesiredReplicas calls the compute service's runner replicas endpoint.
+func (r *AppReplicaPoller) fetchDesiredReplicas(ctx context.Context) ([]computeReplica, error) {
+	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/runner-replicas?runner_id=%s", r.ComputeBaseURL, url.QueryEscape(r.runnerID)))
+	if err != nil {
+		return nil, fmt.Errorf("parsing compute URL: %w", err)
 	}
 
-	for nextPage != nil {
-		var resp computeReplicaList
-		if err := r.NgrokBaseClient.Do(ctx, "GET", nextPage, nil, &resp); err != nil {
-			return nil, fmt.Errorf("listing compute replicas: %w", err)
-		}
-
-		for _, replica := range resp.ComputeReplicas {
-			if replica.ContainerImage == "" || replica.ID == "" || len(replica.Endpoints) == 0 {
-				log.V(3).Info("Skipping replica with missing required fields", "replica_id", replica.ID)
-				continue
-			}
-			replica.ID = strings.ToLower(replica.ID)
-			replicas = append(replicas, replica)
-		}
-
-		if resp.NextPageURI != nil {
-			nextPage, _ = url.Parse(*resp.NextPageURI)
-		} else {
-			nextPage = nil
-		}
+	var resp computeReplicaList
+	if err := r.NgrokBaseClient.Do(ctx, "GET", reqURL, nil, &resp); err != nil {
+		return nil, fmt.Errorf("listing runner replicas: %w", err)
 	}
 
-	return replicas, nil
+	for i := range resp.Replicas {
+		resp.Replicas[i].ID = strings.ToLower(resp.Replicas[i].ID)
+	}
+
+	return resp.Replicas, nil
 }
 
 func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger, replica computeReplica) error {
