@@ -58,6 +58,11 @@ serverAddr: ""
 ##
 apiURL: "" # default to ngrok-api-go SDK's default
 
+## @param computeBaseURL  This is the base URL of the compute service.
+## Used by the operator to poll for app-replica assignments directly.
+##
+computeBaseURL: ""
+
 ## @extra metaData DEPRECATED: Use ngrokMetadata instead
 ## @param ngrokMetadata Map of key=value,key=value pairs added as metadata to the ngrok API resources the operator generates from Ingress and Gateway API resources. It does NOT apply to resources you create directly via CRDs (Domain, IPPolicy, CloudEndpoint, AgentEndpoint, KubernetesOperator) — set `spec.metadata` on those objects instead.
 ##
