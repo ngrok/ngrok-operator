@@ -99,6 +99,7 @@ type apiManagerOpts struct {
 	probeAddr             string
 	serverAddr            string
 	apiURL                string
+	computeBaseURL        string
 	ingressControllerName string
 	ingressWatchNamespace string
 	ngrokMetadata         string
@@ -159,6 +160,7 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
 	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
 	c.Flags().StringVar(&opts.apiURL, "api-url", "", "The base URL to use for the ngrok api")
+	c.Flags().StringVar(&opts.computeBaseURL, "compute-base-url", "", "The base URL of the compute service")
 	// TODO(operator-rename): This probably needs to be on a per controller basis. Each of the controllers will have their own value or we migrate this to k8s.ngrok.com/ngrok-operator.
 	c.Flags().StringVar(&opts.ingressControllerName, "ingress-controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.ingressWatchNamespace, "ingress-watch-namespace", "", "Namespace to watch for Kubernetes Ingress resources. Defaults to all namespaces.")
@@ -430,6 +432,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		K8sOpName:       opts.releaseName,
 		K8sOpNamespace:  opts.namespace,
 		NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig),
+		ComputeBaseURL:  opts.computeBaseURL,
 		PollingInterval: 3 * time.Second,
 	}); err != nil {
 		return fmt.Errorf("unable to add AppReplicaPoller: %w", err)

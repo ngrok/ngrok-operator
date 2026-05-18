@@ -111,6 +111,9 @@ spec:
         {{- if .Values.rootCAs }}
         - --root-cas={{ .Values.rootCAs}}
         {{- end }}
+        {{- if .Values.computeBaseURL }}
+        - --compute-base-url={{ .Values.computeBaseURL}}
+        {{- end }}
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}
         {{- end }}
@@ -123,7 +126,7 @@ spec:
           {{- end }}
           {{- $metadataArgs | join "," }}
         {{- end }}
-        {{- if .Values.compute }}
+        {{- if not (kindIs "invalid" .Values.compute) }}
         - --compute-metadata={{ .Values.compute | toJson }}
         {{- end }}
         - --ingress-controller-name={{ .Values.controllerName | default .Values.ingress.controllerName }}

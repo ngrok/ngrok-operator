@@ -58,6 +58,11 @@ serverAddr: ""
 ##
 apiURL: "" # default to ngrok-api-go SDK's default
 
+## @param computeBaseURL  This is the base URL of the compute service.
+## Used by the operator to poll for app-replica assignments directly.
+##
+computeBaseURL: ""
+
 ## @extra metaData DEPRECATED: Use ngrokMetadata instead
 ## @param ngrokMetadata This is a map of key=value,key=value pairs that will be added as metadata to all ngrok api resources created
 ##
