@@ -99,6 +99,73 @@ spec:
                 description: String of arbitrary data associated with the object in
                   the ngrok API/Dashboard
                 type: string
+              tlsTermination:
+                description: |-
+                  TLSTermination configures the agent to terminate TLS in-cluster for incoming
+                  traffic ("zero-knowledge TLS"). When set, ngrok's edge routes the encrypted
+                  stream to the agent based on SNI; the TLS handshake completes between the
+                  client and the agent, using the server certificate referenced here. The agent
+                  then forwards plaintext (or re-establishes TLS, depending on
+                  spec.upstream.url) to the upstream.
+
+                  Requires spec.url to be a tls:// URL. Cannot be combined with the edge-side
+                  `terminate-tls` traffic-policy action, which terminates at the edge before
+                  traffic reaches the agent.
+                properties:
+                  mutualTLS:
+                    description: |-
+                      Optional mutual-TLS configuration. When set, the agent will require or
+                      request client certificates during the TLS handshake and validate them
+                      against the supplied CA bundle.
+                    properties:
+                      clientCAsRef:
+                        description: |-
+                          Reference to a Secret whose `ca.crt` key contains a PEM-encoded bundle of
+                          certificate authorities trusted to sign client certificates.
+                        properties:
+                          name:
+                            description: The name of the Kubernetes resource being
+                              referenced
+                            type: string
+                          namespace:
+                            description: The namespace of the Kubernetes resource
+                              being referenced
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      mode:
+                        default: require
+                        description: |-
+                          Mode selects the TLS client-auth policy:
+                            require - reject the handshake if no valid client cert is presented
+                            request - request a client cert but do not require one
+                        enum:
+                        - require
+                        - request
+                        type: string
+                    required:
+                    - clientCAsRef
+                    type: object
+                  serverCertificateRef:
+                    description: |-
+                      Reference to a kubernetes.io/tls Secret containing the server certificate
+                      (tls.crt) and private key (tls.key) the agent will present to clients when
+                      terminating TLS for incoming traffic.
+                    properties:
+                      name:
+                        description: The name of the Kubernetes resource being referenced
+                        type: string
+                      namespace:
+                        description: The namespace of the Kubernetes resource being
+                          referenced
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - serverCertificateRef
+                type: object
               trafficPolicy:
                 description: |-
                   Allows configuring a TrafficPolicy to be used with this AgentEndpoint
@@ -193,6 +260,9 @@ spec:
             - upstream
             - url
             type: object
+            x-kubernetes-validations:
+            - message: spec.url must be a tls:// URL when tlsTermination is set
+              rule: '!has(self.tlsTermination) || self.url.startsWith(''tls://'')'
           status:
             description: AgentEndpointStatus defines the observed state of an AgentEndpoint
             properties:

@@ -26,7 +26,14 @@ package agent
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"math/rand"
 	"time"
 
@@ -43,6 +50,25 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// generateSelfSignedTLSPEM produces a fresh self-signed cert/key PEM pair for tests.
+func generateSelfSignedTLSPEM() (certPEM, keyPEM []byte) {
+	key, err := rsa.GenerateKey(cryptorand.Reader, 2048)
+	Expect(err).NotTo(HaveOccurred())
+
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	der, err := x509.CreateCertificate(cryptorand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	Expect(err).NotTo(HaveOccurred())
+
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	return certPEM, keyPEM
+}
 
 var _ = Describe("AgentEndpoint Controller", func() {
 	const (
@@ -920,6 +946,204 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
 			}, timeout, interval).Should(Succeed())
+		})
+	})
+
+	Context("Agent-side TLS termination", func() {
+		It("should wire the server certificate through to the driver", func(ctx SpecContext) {
+			certPEM, keyPEM := generateSelfSignedTLSPEM()
+			serverSecret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-server", Namespace: namespace},
+				Type:       v1.SecretTypeTLS,
+				Data: map[string][]byte{
+					"tls.crt": certPEM,
+					"tls.key": keyPEM,
+				},
+			}
+			Expect(k8sClient.Create(ctx, serverSecret)).To(Succeed())
+
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-ok", Namespace: namespace},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "tls://tls-term-ok.example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-term-server"},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				found := false
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name != namespace+"/tls-term-ok" {
+						continue
+					}
+					g.Expect(call.AgentTLS).NotTo(BeNil())
+					g.Expect(call.AgentTLS.ServerCert).NotTo(BeNil())
+					g.Expect(call.AgentTLS.ClientCAs).To(BeNil())
+					found = true
+				}
+				g.Expect(found).To(BeTrue())
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should set ConfigError when the server cert Secret is missing", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-missing", Namespace: namespace},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "tls://tls-term-missing.example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "missing-server-cert"},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			// For tls:// URLs the rolled-up Ready condition reports DomainCreating
+			// until the domain is ready; the cert error surfaces on EndpointCreated.
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionEndpointCreated)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should set ConfigError when tls.crt is malformed", func(ctx SpecContext) {
+			Expect(k8sClient.Create(ctx, &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-bad", Namespace: namespace},
+				Type:       v1.SecretTypeTLS,
+				Data: map[string][]byte{
+					"tls.crt": []byte("not a real cert"),
+					"tls.key": []byte("not a real key"),
+				},
+			})).To(Succeed())
+
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-bad-aep", Namespace: namespace},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "tls://tls-term-bad.example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-term-bad"},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionEndpointCreated)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should set ConfigError when the mTLS CA Secret is missing ca.crt", func(ctx SpecContext) {
+			certPEM, keyPEM := generateSelfSignedTLSPEM()
+			Expect(k8sClient.Create(ctx, &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-mtls-server", Namespace: namespace},
+				Type:       v1.SecretTypeTLS,
+				Data:       map[string][]byte{"tls.crt": certPEM, "tls.key": keyPEM},
+			})).To(Succeed())
+			Expect(k8sClient.Create(ctx, &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-mtls-no-ca", Namespace: namespace},
+				Data:       map[string][]byte{"other": []byte("nope")},
+			})).To(Succeed())
+
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-mtls-bad", Namespace: namespace},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "tls://tls-term-mtls-bad.example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-term-mtls-server"},
+						MutualTLS: &ngrokv1alpha1.EndpointMutualTLS{
+							ClientCAsRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-term-mtls-no-ca"},
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				cond := testutils.FindCondition(obj.Status.Conditions, ConditionEndpointCreated)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(cond.Reason).To(Equal(ReasonConfigError))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should wire mTLS mode through to the driver", func(ctx SpecContext) {
+			certPEM, keyPEM := generateSelfSignedTLSPEM()
+			Expect(k8sClient.Create(ctx, &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-mode-server", Namespace: namespace},
+				Type:       v1.SecretTypeTLS,
+				Data:       map[string][]byte{"tls.crt": certPEM, "tls.key": keyPEM},
+			})).To(Succeed())
+			// Reuse the same self-signed cert as a CA bundle for the test.
+			Expect(k8sClient.Create(ctx, &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-mode-ca", Namespace: namespace},
+				Data:       map[string][]byte{"ca.crt": certPEM},
+			})).To(Succeed())
+
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-mode-request", Namespace: namespace},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "tls://tls-mode-request.example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-mode-server"},
+						MutualTLS: &ngrokv1alpha1.EndpointMutualTLS{
+							ClientCAsRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-mode-ca"},
+							Mode:         ngrokv1alpha1.EndpointMutualTLSModeRequest,
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				found := false
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name != namespace+"/tls-mode-request" {
+						continue
+					}
+					g.Expect(call.AgentTLS).NotTo(BeNil())
+					g.Expect(call.AgentTLS.ClientCAs).NotTo(BeNil())
+					g.Expect(call.AgentTLS.ClientAuth).To(Equal(tls.VerifyClientCertIfGiven))
+					found = true
+				}
+				g.Expect(found).To(BeTrue())
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should reject https:// urls when tlsTermination is set", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-bad-url", Namespace: namespace},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "https://tls-term-bad-url.example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "irrelevant"},
+					},
+				},
+			}
+			err := k8sClient.Create(ctx, agentEndpoint)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("tls://"))
 		})
 	})
 

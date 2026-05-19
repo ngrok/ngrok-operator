@@ -96,6 +96,8 @@ type EndpointUpstream struct {
 }
 
 // AgentEndpointSpec defines the desired state of an AgentEndpoint
+//
+// +kubebuilder:validation:XValidation:rule="!has(self.tlsTermination) || self.url.startsWith('tls://')",message="spec.url must be a tls:// URL when tlsTermination is set"
 type AgentEndpointSpec struct {
 	// The unique URL for this agent endpoint. This URL is the public address. The following formats are accepted
 	// Domain - example.org
@@ -141,7 +143,63 @@ type AgentEndpointSpec struct {
 
 	// List of client certificates to present to the upstream when performing a TLS handshake
 	ClientCertificateRefs []K8sObjectRefOptionalNamespace `json:"clientCertificateRefs,omitempty"`
+
+	// TLSTermination configures the agent to terminate TLS in-cluster for incoming
+	// traffic ("zero-knowledge TLS"). When set, ngrok's edge routes the encrypted
+	// stream to the agent based on SNI; the TLS handshake completes between the
+	// client and the agent, using the server certificate referenced here. The agent
+	// then forwards plaintext (or re-establishes TLS, depending on
+	// spec.upstream.url) to the upstream.
+	//
+	// Requires spec.url to be a tls:// URL. Cannot be combined with the edge-side
+	// `terminate-tls` traffic-policy action, which terminates at the edge before
+	// traffic reaches the agent.
+	//
+	// +kubebuilder:validation:Optional
+	TLSTermination *EndpointTLSTermination `json:"tlsTermination,omitempty"`
 }
+
+// EndpointTLSTermination configures agent-side ("zero-knowledge") TLS termination.
+type EndpointTLSTermination struct {
+	// Reference to a kubernetes.io/tls Secret containing the server certificate
+	// (tls.crt) and private key (tls.key) the agent will present to clients when
+	// terminating TLS for incoming traffic.
+	//
+	// +kubebuilder:validation:Required
+	ServerCertificateRef K8sObjectRefOptionalNamespace `json:"serverCertificateRef"`
+
+	// Optional mutual-TLS configuration. When set, the agent will require or
+	// request client certificates during the TLS handshake and validate them
+	// against the supplied CA bundle.
+	//
+	// +kubebuilder:validation:Optional
+	MutualTLS *EndpointMutualTLS `json:"mutualTLS,omitempty"`
+}
+
+// EndpointMutualTLS configures client-certificate verification at the agent.
+type EndpointMutualTLS struct {
+	// Reference to a Secret whose `ca.crt` key contains a PEM-encoded bundle of
+	// certificate authorities trusted to sign client certificates.
+	//
+	// +kubebuilder:validation:Required
+	ClientCAsRef K8sObjectRefOptionalNamespace `json:"clientCAsRef"`
+
+	// Mode selects the TLS client-auth policy:
+	//   require - reject the handshake if no valid client cert is presented
+	//   request - request a client cert but do not require one
+	//
+	// +kubebuilder:validation:Enum=require;request
+	// +kubebuilder:default=require
+	Mode EndpointMutualTLSMode `json:"mode,omitempty"`
+}
+
+// EndpointMutualTLSMode selects the agent's client-certificate verification mode.
+type EndpointMutualTLSMode string
+
+const (
+	EndpointMutualTLSModeRequire EndpointMutualTLSMode = "require"
+	EndpointMutualTLSModeRequest EndpointMutualTLSMode = "request"
+)
 
 type TrafficPolicyCfgType string
 
