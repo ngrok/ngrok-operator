@@ -13,11 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.3.0`
 
 ### Breaking Changes
-- Overhauled RBAC across all operator deployments — hand-managed templates with per-component ClusterRoles, removed controller-gen generated roles by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Renamed `clusterRole.annotations` to `crdAccessRoles.annotations` in values.yaml. Users setting this value will need to update their Helm values by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Removed `proxy-role` ClusterRole (tokenreviews/subjectaccessreviews) — dead scaffolding from kube-rbac-proxy, never deployed by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Moved bindings-forwarder pods access from ClusterRole to namespaced Role by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
 
 ### Fixed
 - Fix "object has been modified" errors by adding patch permissions for finalizer operations by @alex-bezek in [#773](https://github.com/ngrok/ngrok-operator/pull/773)
-- Grant `events.k8s.io` events permissions to the agent, api-manager, and bindings-forwarder roles. The new controller-runtime `GetEventRecorder` API writes to the `events.k8s.io` API group, which the RBAC overhaul did not cover.
+- Grant `events.k8s.io` events permissions to the agent, api-manager, and bindings-forwarder roles by @jonstacks in [#812](https://github.com/ngrok/ngrok-operator/pull/812)
 
 ## 0.23.0-rc.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.23.0-rc.1...helm-chart-ngrok-operator-0.23.0-rc.2
@@ -35,7 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.3.0-rc.1`
 
 ### Breaking Changes
-- Overhauled RBAC across all operator deployments — hand-managed templates with per-component ClusterRoles, removed controller-gen generated roles by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Renamed `clusterRole.annotations` to `crdAccessRoles.annotations` in values.yaml. Users setting this value will need to update their Helm values by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Removed `proxy-role` ClusterRole (tokenreviews/subjectaccessreviews) — dead scaffolding from kube-rbac-proxy, never deployed by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Moved bindings-forwarder pods access from ClusterRole to namespaced Role by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
 
 ### Fixed
 - Fix "object has been modified" errors by adding patch permissions for finalizer operations by @alex-bezek in [#773](https://github.com/ngrok/ngrok-operator/pull/773)
