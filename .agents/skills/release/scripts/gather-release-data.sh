@@ -81,7 +81,7 @@ classify_file() {
   esac
 }
 
-command -v gh  &>/dev/null || die "gh CLI not found. Install it or enter the nix devshell."
+command -v gh  &>/dev/null || die "gh CLI not found. Install GitHub CLI and ensure it is on PATH."
 command -v jq  &>/dev/null || die "jq not found. Install it or enter the nix devshell."
 gh auth status &>/dev/null 2>&1 || die "gh not authenticated. Run: gh auth login"
 
