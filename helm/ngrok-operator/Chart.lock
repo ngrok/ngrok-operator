@@ -1,9 +1,9 @@
 dependencies:
 - name: common
   repository: oci://registry-1.docker.io/bitnamicharts
-  version: 2.39.0
+  version: 2.40.0
 - name: ngrok-crds
   repository: file://../ngrok-crds
-  version: 0.3.0-rc.1
-digest: sha256:fdedb14b55cf1f78fe67def116973f60dfa77ab0802e48374052012b76732110
-generated: "2026-05-08T14:30:49.573186-05:00"
+  version: 0.3.0
+digest: sha256:bd9cd45e014391040ccfa48b6d3834af518b8a6b98835a603708a95164f5c13a
+generated: "2026-05-20T10:24:14.372487-05:00"
