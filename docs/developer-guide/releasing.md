@@ -13,6 +13,33 @@
 
 # Release Steps
 
+tl;dr:
+
+- AI-assisted local prep: use the shared `release` skill or `@release-agent`
+- Legacy manual fallback: `make release`
+
+## AI-Assisted Release Prep
+
+The canonical release skill lives in `.agents/skills/release/`.
+
+- **Claude Code**: use the `release` skill from the repo root. Claude discovers it through the `.claude/skills/release` symlink and reads the project-level `CLAUDE.md`.
+- **GitHub Copilot**: use `@release-agent` in agent mode, or invoke it locally through Copilot CLI once available.
+- **Dry-run rehearsal**: create a disposable detached worktree before running the skill:
+
+```bash
+bash .agents/skills/release/scripts/create-dry-run-worktree.sh
+```
+
+- **Skill validation**: validate the shared skill definition with:
+
+```bash
+gh skill publish .agents --dry-run
+```
+
+By default the shared skill and release agent only prepare local changes. They do not commit, push, tag, or open a PR unless explicitly asked.
+
+## Manual Release Helper
+
 tl;dr Run: `$ make release`
 
 ## Manual Steps
