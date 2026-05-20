@@ -42,7 +42,6 @@ The agent will:
 A specialized AI agent that prepares ngrok Kubernetes Operator releases locally using the shared `release` skill.
 
 **What it does:**
-- Prefers a disposable dry-run worktree so release prep does not touch your current branch
 - Uses the canonical shared skill in `.agents/skills/release/`
 - Updates version files and changelogs for the operator, Helm chart, and CRDs chart when needed
 - Runs Helm snapshot updates, Helm tests, and manifest bundle regeneration
@@ -53,7 +52,7 @@ A specialized AI agent that prepares ngrok Kubernetes Operator releases locally 
 When working in a GitHub Copilot-enabled environment, ask:
 
 ```
-@release-agent prepare a dry-run release rehearsal for the next operator release
+@release-agent prepare release changes for the next operator release
 ```
 
 Or, if you already know the target versions:
@@ -64,18 +63,16 @@ Or, if you already know the target versions:
 
 The agent will:
 1. Verify prerequisites (clean git tree, current versions)
-2. Prefer a detached dry-run worktree
-3. Update the necessary files
-4. Run required validation
-5. Update changelogs
-6. Summarize the local diff and any manual next steps
+2. Update the necessary files
+3. Run required validation
+4. Update changelogs
+5. Summarize the local diff and any manual next steps
 
 **Shared skill and Claude support**
 
 - Canonical skill: `.agents/skills/release/`
 - Claude compatibility path: `.claude/skills/release` (symlink)
 - Claude project guidance: `CLAUDE.md`
-- Skill validation: `gh skill publish .agents --dry-run`
 
 **Manual Process:**
 

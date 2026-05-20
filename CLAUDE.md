@@ -8,7 +8,6 @@
   - `make manifest-bundle`
 - Release prep uses the shared skill at `.agents/skills/release/`.
   - Claude discovers it through the `.claude/skills/release` symlink.
-  - Prefer a disposable rehearsal checkout from `bash .agents/skills/release/scripts/create-dry-run-worktree.sh`.
 - Release artifact versions live in:
   - `VERSION`
   - `helm/ngrok-operator/Chart.yaml`

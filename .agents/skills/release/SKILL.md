@@ -1,175 +1,258 @@
 ---
 name: release
-description: Prepare ngrok-operator release changes locally. Use when the user wants to cut a release, prepare a release candidate, update release versions, draft changelog entries, or rehearse the repo's release workflow without publishing artifacts.
-license: Apache-2.0
-disable-model-invocation: true
+description: >
+  Automates the ngrok-operator release process: gathers PR data, classifies changes
+  by component (container, Helm chart, CRDs chart), generates changelogs, updates
+  version files, and prepares the release branch. Use this skill whenever the user
+  mentions releasing, cutting a release, bumping versions, updating changelogs,
+  or preparing a release PR for the ngrok-operator. Also use when the user says
+  "release", "cut a release", "prepare release", "update changelog", or "version bump".
 ---
 
-# Release Skill
+# Release Skill — ngrok-operator
 
-This skill prepares local release changes for the ngrok Kubernetes Operator.
+This skill orchestrates the full release preparation for the ngrok-operator. It replaces the old `scripts/release.sh` and `.github/agents/release-agent.agent.md`.
 
-It covers three release artifacts:
+The key insight: **a shell script handles deterministic data gathering** (PR metadata, file classification, author attribution via `gh` CLI), and **you handle what AI is good at** — summarizing changes into readable changelogs and suggesting version bumps.
 
-| Component | Version source | Changelog | Tag pattern |
-| --- | --- | --- | --- |
-| Container | `VERSION` | `CHANGELOG.md` | `ngrok-operator-X.Y.Z` |
-| Helm operator chart | `helm/ngrok-operator/Chart.yaml` `.version` | `helm/ngrok-operator/CHANGELOG.md` | `helm-chart-ngrok-operator-X.Y.Z` |
-| CRDs chart | `helm/ngrok-crds/Chart.yaml` `.version` | `helm/ngrok-crds/CHANGELOG.md` | `helm-chart-ngrok-crds-X.Y.Z` |
+## The Three Components
 
-Use the bundled scripts for deterministic steps. Keep the agent focused on judgment-heavy work: version suggestions, changelog wording, and deciding whether meta-only PRs should be excluded.
+| Component | Changelog | Version source | Tag pattern |
+|-----------|-----------|---------------|-------------|
+| Container (Go binary) | `CHANGELOG.md` | `VERSION` file | `ngrok-operator-X.Y.Z` |
+| Helm operator chart | `helm/ngrok-operator/CHANGELOG.md` | `helm/ngrok-operator/Chart.yaml` `.version` | `helm-chart-ngrok-operator-X.Y.Z` |
+| CRDs sub-chart | `helm/ngrok-crds/CHANGELOG.md` | `helm/ngrok-crds/Chart.yaml` `.version` | `helm-chart-ngrok-crds-X.Y.Z` |
 
-## Defaults
-
-- Prefer a disposable dry-run worktree unless the user explicitly wants to use the current checkout:
-
-  ```bash
-  bash .agents/skills/release/scripts/create-dry-run-worktree.sh
-  ```
-
-- Do not commit, push, tag, or open a PR unless the user explicitly asks.
-- If the current checkout is dirty and the user did not ask to work in place, stop and use the dry-run worktree.
+A single PR often affects multiple components. The data-gathering script classifies by files changed — you don't need to figure this out yourself.
 
 ## Workflow
 
-### 1. Preflight
+Follow these steps in order. Do NOT commit, push, or create a PR — stop after local changes.
 
-Run these checks in the target checkout:
+### Step 1: Pre-flight checks
 
-```bash
-git status --porcelain
-gh auth status
-cat VERSION
-yq '.version' helm/ngrok-operator/Chart.yaml
-yq '.version' helm/ngrok-crds/Chart.yaml
-```
+1. Verify git working tree is clean: `git status --porcelain`
+2. Verify `gh` CLI is available and authenticated: `gh auth status`
+3. Show current versions:
+   - `cat VERSION`
+   - `yq '.version' helm/ngrok-operator/Chart.yaml`
+   - `yq '.version' helm/ngrok-crds/Chart.yaml`
 
-If the tree is dirty, stop unless the user explicitly asked to work in that checkout.
+If the tree isn't clean, stop and tell the user.
 
-### 2. Gather release data
+### Step 2: Gather release data
 
-Run the data-gathering script and read the JSON:
+Run the data-gathering script. It lives relative to this skill file:
 
 ```bash
 bash .agents/skills/release/scripts/gather-release-data.sh > /tmp/release-data.json
 ```
 
-Optional tag overrides:
-
+If the user wants to override the base tags (e.g., to capture a wider range):
 ```bash
 bash .agents/skills/release/scripts/gather-release-data.sh \
-  --container-tag ngrok-operator-0.20.0 \
-  --helm-tag helm-chart-ngrok-operator-0.22.1 \
-  --crds-tag helm-chart-ngrok-crds-0.2.1 \
+  --container-tag ngrok-operator-0.19.0 \
   > /tmp/release-data.json
 ```
 
-Summarize:
+Read the output JSON. Present a summary to the user:
+- Number of PRs per component
+- Whether any breaking changes were detected
+- List the PR titles grouped by component
 
-- PR counts per component
-- breaking changes detected
-- PR titles grouped by component
-- meta-only PRs that you recommend excluding from changelogs
+### Step 3: Suggest version bumps
 
-### 3. Suggest versions
+Analyze the PRs in the JSON to suggest next versions. Rules (this project uses semver, currently pre-1.0):
 
-This repo uses semver in the `0.y.z` range.
+**Container version** (from `VERSION`):
+- Breaking changes → bump minor (Y in 0.Y.Z)
+- New features (`feat:` prefix in title) → bump minor
+- Only fixes/chores/CI → bump patch (Z in 0.Y.Z)
 
-- Container:
-  - breaking change or `feat:` PRs -> bump minor
-  - fixes, chores, docs, CI only -> bump patch
-- Helm operator chart:
-  - always bump if releasing the operator chart
-  - breaking Helm changes -> bump minor
-  - otherwise bump patch
-- CRDs chart:
-  - only bump if PRs are `new_for` `helm_crds`
-  - breaking CRD changes -> bump minor
-  - otherwise bump patch
+**Helm operator chart version** (from `Chart.yaml .version`):
+- Always bumped when releasing (it pins the container image version)
+- Breaking Helm changes (removed values, renamed fields) → bump minor
+- Otherwise → bump patch
 
-Ask the user to confirm or override the versions before editing files.
+**CRDs chart version** (from `helm/ngrok-crds/Chart.yaml .version`):
+- Only bumped if PRs have `new_for` containing `"helm_crds"`
+- Breaking CRD changes (removed fields, renamed CRDs) → bump minor
+- Otherwise → bump patch
+- If no CRD changes, skip entirely
 
-### 4. Handle release candidates
+Present your suggestions and ask the user to confirm or override. Wait for confirmation before proceeding.
 
-If the user wants an RC, use `-rc.N` with a dot before `N`.
-
-Find the next RC number from existing tags for the relevant base version:
-
+**Release candidates (RC):** If the user asks for an RC, append `-rc.N` (with a dot before the number) to each version. The canonical format is always `-rc.1`, `-rc.2`, etc. — even if the user writes "RC1" or "rc1", normalize to `-rc.N`. To find the right N, check existing RC tags:
 ```bash
 git tag -l 'ngrok-operator-<base-version>-rc.*' | sort -V | tail -1
-git tag -l 'helm-chart-ngrok-operator-<base-version>-rc.*' | sort -V | tail -1
-git tag -l 'helm-chart-ngrok-crds-<base-version>-rc.*' | sort -V | tail -1
 ```
+If no RC exists yet, use `-rc.1`. Otherwise increment. Apply the RC suffix to all components being released.
 
-Normalize user input like `RC1` or `rc1` to `-rc.1`.
+When doing an RC:
+- Branch name includes RC suffix: `release-ngrok-operator-0.21.0-rc.1-helm-chart-0.23.0-rc.1`
+- VERSION file: `0.21.0-rc.1`
+- Chart.yaml versions: `0.23.0-rc.1`
+- Changelog entries: use the RC version as the section header (e.g., `## 0.21.0-rc.1`)
 
-### 5. Apply release edits
+When the user later does the final (non-RC) release, the RC changelog entries get folded into the final version entry — don't duplicate them.
 
-Only create a release branch if the user explicitly wants one:
+### Step 4: Create release branch
 
 ```bash
 git fetch origin main
-git checkout -b release-ngrok-operator-<app-version>-helm-chart-<chart-version> origin/main
+git checkout -b release-ngrok-operator-<app-ver>-helm-chart-<chart-ver> origin/main
 ```
 
-Update versions:
+### Step 5: Update version files
 
-```bash
-echo "<new-app-version>" > VERSION
-yq -Y -i ".version = \"<new-chart-version>\"" helm/ngrok-operator/Chart.yaml
-yq -Y -i ".appVersion = \"<new-app-version>\"" helm/ngrok-operator/Chart.yaml
+1. Write new container version:
+   ```bash
+   echo "<new-app-version>" > VERSION
+   ```
+
+2. Update Helm operator chart:
+   ```bash
+   yq -Y -i ".version = \"<new-chart-version>\"" helm/ngrok-operator/Chart.yaml
+   yq -Y -i ".appVersion = \"<new-app-version>\"" helm/ngrok-operator/Chart.yaml
+   ```
+
+3. **If CRDs changed**, update CRDs chart:
+   ```bash
+   yq -Y -i ".version = \"<new-crds-version>\"" helm/ngrok-crds/Chart.yaml
+   yq -Y -i ".appVersion = \"<new-crds-version>\"" helm/ngrok-crds/Chart.yaml
+   ```
+
+4. **If CRDs changed**, update the dependency version in the operator chart:
+   ```bash
+   yq -Y -i "(.dependencies[] | select(.name == \"ngrok-crds\") | .version) = \"<new-crds-version>\"" helm/ngrok-operator/Chart.yaml
+   ```
+
+### Step 6: Handle meta-only PRs
+
+Some PRs only touch CI workflows, developer docs, AI agent configs, nix tooling, or other files that don't affect the released artifacts. The gather script marks these with `"meta_only": true`.
+
+**Review each meta-only PR** and decide: include or exclude from the changelog.
+
+Exclude when the PR clearly doesn't affect users:
+- CI workflow tweaks (`.github/workflows/` only)
+- AI agent/copilot setup (`.github/agents/`, `.github/copilot/`)
+- Nix devshell changes (`flake.nix`, `flake.lock`)
+- Internal docs or specs (`docs/developer-guide/`, `specs/`)
+- Makefile/tooling changes that don't affect the build output
+
+Include when the change could matter to users even indirectly:
+- Go version bumps (affects the built binary)
+- Security docs users might reference
+- Generated manifest changes (`deploy/`, `manifest-bundle/`)
+- Test infrastructure changes that indicate behavior changes
+
+**Always err on the side of including** — it's better to document something trivial than to miss something that matters.
+
+**Present excluded PRs to the user** as a separate list with reasons, so they can override your decision:
+```
+Excluded from changelogs (meta-only):
+- #786: Temporarily disabled Trivy scanning — CI workflow only
+- #795: Consolidated nix setup — dev tooling only
 ```
 
-If CRDs changed:
+### Step 7: Generate changelogs
 
-```bash
-yq -Y -i ".version = \"<new-crds-version>\"" helm/ngrok-crds/Chart.yaml
-yq -Y -i ".appVersion = \"<new-crds-version>\"" helm/ngrok-crds/Chart.yaml
-yq -Y -i "(.dependencies[] | select(.name == \"ngrok-crds\") | .version) = \"<new-crds-version>\"" helm/ngrok-operator/Chart.yaml
+For each component where `summary.*_prs > 0` in the release data JSON, generate a changelog entry. Use ONLY the PRs where `new_for` includes that component. Skip PRs you excluded in Step 6.
+
+#### Changelog format
+
+Match the existing format exactly. Read the current changelogs to see recent examples.
+
+**Container changelog** (`CHANGELOG.md`):
+```markdown
+## <version>
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-<prev>...ngrok-operator-<new>
+
+### Added
+- <description> by @<author> in [#<num>](https://github.com/ngrok/ngrok-operator/pull/<num>)
+
+### Changed
+- <description> by @<author> in [#<num>](https://github.com/ngrok/ngrok-operator/pull/<num>)
+
+### Fixed
+- <description> by @<author> in [#<num>](https://github.com/ngrok/ngrok-operator/pull/<num>)
 ```
 
-### 6. Update changelogs
+**Helm operator changelog** (`helm/ngrok-operator/CHANGELOG.md`):
+```markdown
+## <chart-version>
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-<prev>...helm-chart-ngrok-operator-<new>
 
-Match the existing changelog format already in the repo. Read the current files before writing.
+- Update ngrok-operator image version to `<app-version>`
+- Update Helm chart version to `<chart-version>`
+- Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `<crds-version>` (only if CRDs updated)
 
-- `CHANGELOG.md` uses container tags in the compare link.
-- `helm/ngrok-operator/CHANGELOG.md` uses `helm-chart-ngrok-operator-*` tags and should mention chart/image version updates at the top of the new section.
-- `helm/ngrok-crds/CHANGELOG.md` uses `helm-chart-ngrok-crds-*` tags and should mention the chart version update at the top.
+### Added
+...
+```
 
-Categorize entries using the PR title:
+**CRDs changelog** (`helm/ngrok-crds/CHANGELOG.md`):
+```markdown
+## <crds-version>
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-<prev>...helm-chart-ngrok-crds-<new>
 
-- `feat:` -> `Added`
-- `fix:` -> `Fixed`
-- `chore:`, `refactor:`, `ci:`, `docs:`, `test:`, `perf:` -> `Changed`
-- explicit removals or deprecations -> `Removed`
+- Update CRDs Helm chart version to `<crds-version>`
 
-Do not leave empty sections.
+### Added
+...
+```
 
-### 7. Validate generated files
+#### Categorization rules
 
-After version and changelog updates, run:
+Use the PR title's conventional commit prefix to categorize:
+- `feat:` or `feat(...):`  → **Added**
+- `fix:` or `fix(...):`    → **Fixed**
+- `chore:`, `refactor:`, `ci:`, `docs:`, `test:`, `perf:` → **Changed**
+- Explicit removals or deprecations → **Removed**
+- If no prefix, read the title and use your best judgment
+
+If a PR has `has_breaking_changes: true`, add a **Breaking Changes** subsection at the top (before Added).
+
+#### Writing the entry descriptions
+
+- Write concise, user-facing descriptions. Don't just copy the PR title verbatim — clean it up.
+- Strip the conventional commit prefix (`fix(ngrok):` → just describe the fix).
+- Keep the `by @author in [#num](url)` attribution format.
+- Only include sections that have entries. Don't leave empty `### Added` headers.
+
+#### Inserting into the file
+
+Insert the new version section **after the header block** (the "# Changelog" line and the format description) and **before the first existing `## X.Y.Z` entry**. Do not overwrite or modify existing entries.
+
+### Step 8: Update Helm snapshots
 
 ```bash
 make helm-update-snapshots helm-test
+```
+
+If `helm-test` fails, investigate and fix. Common cause: snapshot drift from version changes.
+
+### Step 9: Regenerate manifest bundle
+
+```bash
 make manifest-bundle
 ```
 
-If validation fails, fix the generated drift before finishing.
+This regenerates `manifest-bundle.yaml` at the repo root with the updated Helm chart versions. CI will fail if this is stale.
 
-### 8. Final review
+### Step 10: Done
 
-Show:
+Show the user:
+1. A summary of files changed (`git status`)
+2. The diff of changelog entries (`git diff CHANGELOG.md helm/ngrok-operator/CHANGELOG.md helm/ngrok-crds/CHANGELOG.md`)
+3. Remind them: "Review the changes. When satisfied, commit and push."
 
-```bash
-git status --short
-git diff -- CHANGELOG.md helm/ngrok-operator/CHANGELOG.md helm/ngrok-crds/CHANGELOG.md VERSION helm/ngrok-operator/Chart.yaml helm/ngrok-crds/Chart.yaml manifest-bundle.yaml
-```
+**Do NOT** commit, push, or create a PR. The user handles that.
 
-Finish with:
+## Important notes
 
-- versions chosen
-- excluded meta-only PRs, if any
-- validation run
-- remaining manual steps
-
-Do not commit, push, tag, or open a PR unless the user explicitly asks.
+- The `gather-release-data.sh` script writes progress to stderr and JSON to stdout. Always redirect stdout to a file.
+- Tag comparison links use the tag prefix for that component (`ngrok-operator-` for container, `helm-chart-ngrok-operator-` for helm chart, `helm-chart-ngrok-crds-` for CRDs).
+- The `appVersion` in `helm/ngrok-operator/Chart.yaml` must match the container version in `VERSION`.
+- When the CRDs chart is bumped, you must also update its dependency version in `helm/ngrok-operator/Chart.yaml` under the `dependencies` section.
+- Refer to `docs/developer-guide/releasing.md` for the full release documentation.
