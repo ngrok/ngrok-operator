@@ -225,9 +225,13 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 		return err
 	}
 
-	desiredBoundEndpoints, err := ngrokapi.AggregateBindingEndpoints(apiBindingEndpoints)
+	// Aggregate the endpoints we got from the API. Endpoints whose hostport
+	// cannot be parsed are skipped and the aggregator returns a joined error
+	// describing those failures; we log it but continue reconciling the valid
+	// endpoints so a single malformed entry can't stall the entire poll cycle.
+	desiredBoundEndpoints, err := ngrokapi.AggregateBindingEndpoints(ctx, apiBindingEndpoints)
 	if err != nil {
-		return err
+		log.Error(err, "Some binding_endpoints failed to parse; continuing with valid ones")
 	}
 
 	// Get all current BoundEndpoint resources in the cluster.

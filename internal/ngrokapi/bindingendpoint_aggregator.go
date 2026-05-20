@@ -1,6 +1,7 @@
 package ngrokapi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v7"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 var (
@@ -25,14 +27,24 @@ type AggregatedEndpoints map[string]bindingsv1alpha1.BoundEndpoint
 
 // AggregateBindingEndpoints aggregates the endpoints into a map of hostport to BindingEndpoint
 // by parsing the hostport 4-tuple into each piece ([<scheme>://]<service>.<namespcace>[:<port>])
-// and collecting together matching endpoints into a single BindingEndpoint
-func AggregateBindingEndpoints(endpoints []ngrok.Endpoint) (AggregatedEndpoints, error) {
+// and collecting together matching endpoints into a single BindingEndpoint.
+//
+// Endpoints whose hostport cannot be parsed (e.g. hostnames that do not match
+// the <service>.<namespace> format) are skipped and logged, and their errors
+// are joined into the returned error so callers can surface them without
+// losing the valid endpoints from the same batch.
+func AggregateBindingEndpoints(ctx context.Context, endpoints []ngrok.Endpoint) (AggregatedEndpoints, error) {
+	log := ctrl.LoggerFrom(ctx)
 	aggregated := make(AggregatedEndpoints)
+	var parseErrs []error
 
 	for _, endpoint := range endpoints {
 		parsed, err := parseHostport(endpoint.Proto, endpoint.PublicURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse endpoint: %s: %w", endpoint.ID, err)
+			wrapped := fmt.Errorf("failed to parse endpoint: %s: %w", endpoint.ID, err)
+			log.Error(wrapped, "Skipping unparseable binding_endpoint", "id", endpoint.ID, "publicURL", endpoint.PublicURL, "proto", endpoint.Proto)
+			parseErrs = append(parseErrs, wrapped)
+			continue
 		}
 
 		endpointURL := parsed.String()
@@ -73,7 +85,7 @@ func AggregateBindingEndpoints(endpoints []ngrok.Endpoint) (AggregatedEndpoints,
 		aggregated[endpointURL] = bindingEndpoint
 	}
 
-	return aggregated, nil
+	return aggregated, errors.Join(parseErrs...)
 }
 
 // parsedHostport is a struct to hold the parsed bits
