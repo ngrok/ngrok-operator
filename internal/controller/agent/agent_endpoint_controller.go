@@ -27,6 +27,7 @@ package agent
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"time"
@@ -54,6 +55,7 @@ import (
 const (
 	trafficPolicyNameIndex     = "spec.trafficPolicy.targetRef.name"
 	clientCertificateRefsIndex = "spec.clientCertificateRefs"
+	tlsTerminationSecretsIndex = "spec.tlsTermination.secrets"
 )
 
 // indexClientCertificateRefs extracts client certificate reference keys for indexing
@@ -64,14 +66,34 @@ func indexClientCertificateRefs(o client.Object) []string {
 	}
 	var keys []string
 	for _, ref := range aep.Spec.ClientCertificateRefs {
-		effectiveNamespace := aep.Namespace
-		if ref.Namespace != nil && *ref.Namespace != "" {
-			effectiveNamespace = *ref.Namespace
-		}
-		key := effectiveNamespace + "/" + ref.Name
-		keys = append(keys, key)
+		keys = append(keys, secretIndexKey(aep.Namespace, ref))
 	}
 	return keys
+}
+
+// indexTLSTerminationSecrets extracts Secret reference keys used by spec.tlsTermination
+// (server certificate and optional mTLS client-CA bundle) for indexing. These
+// refs are same-namespace only, so they always resolve against aep.Namespace.
+func indexTLSTerminationSecrets(o client.Object) []string {
+	aep, ok := o.(*ngrokv1alpha1.AgentEndpoint)
+	if !ok || aep.Spec.TLSTermination == nil {
+		return nil
+	}
+	keys := []string{aep.Namespace + "/" + aep.Spec.TLSTermination.ServerCertificateRef.Name}
+	if aep.Spec.TLSTermination.MutualTLS != nil {
+		keys = append(keys, aep.Namespace+"/"+aep.Spec.TLSTermination.MutualTLS.ClientCAsRef.Name)
+	}
+	return keys
+}
+
+// secretIndexKey returns the "namespace/name" key used by Secret-watch indexes,
+// resolving the ref's namespace (defaulting to the owning AgentEndpoint's namespace).
+func secretIndexKey(defaultNamespace string, ref ngrokv1alpha1.K8sObjectRefOptionalNamespace) string {
+	ns := defaultNamespace
+	if ref.Namespace != nil && *ref.Namespace != "" {
+		ns = *ref.Namespace
+	}
+	return ns + "/" + ref.Name
 }
 
 var (
@@ -172,6 +194,15 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 		return err
 	}
 
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&ngrokv1alpha1.AgentEndpoint{},
+		tlsTerminationSecretsIndex,
+		indexTLSTerminationSecrets,
+	); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(controllerName).
 		For(&ngrokv1alpha1.AgentEndpoint{}, builder.WithPredicates(
@@ -194,11 +225,6 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 		Watches(
 			&v1.Secret{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForSecret),
-			builder.WithPredicates(&predicate.Funcs{
-				DeleteFunc: func(_ event.DeleteEvent) bool {
-					return false
-				},
-			}),
 		).
 		Watches(
 			&ingressv1alpha1.Domain{},
@@ -236,9 +262,15 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
 	}
 
+	agentTLS, err := r.getAgentTLSTermination(ctx, endpoint)
+	if err != nil {
+		setEndpointCreatedCondition(endpoint, false, ReasonConfigError, fmt.Sprintf("Failed to get TLS termination config: %v", err))
+		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
+	}
+
 	// Create the endpoint
 	tunnelName := r.statusID(endpoint)
-	result, err := r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts)
+	result, err := r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts, agentTLS)
 	if err != nil {
 		// Mark the endpoint as failed creation
 		setEndpointCreatedCondition(endpoint, false, ReasonNgrokAPIError, fmt.Sprintf("Failed to create endpoint: %v", err))
@@ -306,26 +338,28 @@ func (r *AgentEndpointReconciler) findAgentEndpointForSecret(ctx context.Context
 
 	secretKey := fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
 
-	// Use the index to find AgentEndpoints that reference this Secret
-	var agentEndpointList ngrokv1alpha1.AgentEndpointList
-	if err := r.Client.List(ctx, &agentEndpointList,
-		client.MatchingFields{
-			clientCertificateRefsIndex: secretKey,
-		},
-	); err != nil {
-		r.Log.Error(err, "failed to list AgentEndpoints using index")
-		return nil
-	}
-
-	// Collect the requests for matching AgentEndpoints
+	// An AgentEndpoint can reference a Secret via either ClientCertificateRefs
+	// (upstream client certs) or TLSTermination (agent-side server cert / mTLS CAs),
+	// each backed by a separate field index. Query both, then dedupe by NamespacedName.
+	seen := map[client.ObjectKey]struct{}{}
 	var requests []ctrl.Request
-	for _, aep := range agentEndpointList.Items {
-		requests = append(requests, ctrl.Request{
-			NamespacedName: client.ObjectKey{
-				Name:      aep.Name,
-				Namespace: aep.Namespace,
-			},
-		})
+
+	for _, indexName := range []string{clientCertificateRefsIndex, tlsTerminationSecretsIndex} {
+		var agentEndpointList ngrokv1alpha1.AgentEndpointList
+		if err := r.Client.List(ctx, &agentEndpointList,
+			client.MatchingFields{indexName: secretKey},
+		); err != nil {
+			r.Log.Error(err, "failed to list AgentEndpoints using index", "index", indexName)
+			continue
+		}
+		for _, aep := range agentEndpointList.Items {
+			key := client.ObjectKey{Name: aep.Name, Namespace: aep.Namespace}
+			if _, dup := seen[key]; dup {
+				continue
+			}
+			seen[key] = struct{}{}
+			requests = append(requests, ctrl.Request{NamespacedName: key})
+		}
 	}
 
 	return requests
@@ -425,7 +459,7 @@ func (r *AgentEndpointReconciler) getClientCerts(ctx context.Context, aep *ngrok
 		// Attempt to get the Secret from the API server
 		certSecret := &v1.Secret{}
 		if err := r.Client.Get(ctx, key, certSecret); err != nil {
-			r.Recorder.Eventf(certSecret, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s", clientCertRef.Name))
+			r.Recorder.Eventf(aep, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s/%s for clientCertificateRef: %v", key.Namespace, key.Name, err))
 			return nil, err
 		}
 
@@ -446,6 +480,98 @@ func (r *AgentEndpointReconciler) getClientCerts(ctx context.Context, aep *ngrok
 		ret = append(ret, cert)
 	}
 	return ret, nil
+}
+
+// getAgentTLSTermination resolves spec.tlsTermination into the driver-facing
+// AgentTLSTermination struct. Returns nil when tlsTermination is not configured.
+// Caller is responsible for surfacing errors via ReasonConfigError.
+func (r *AgentEndpointReconciler) getAgentTLSTermination(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) (*agent.AgentTLSTermination, error) {
+	if aep.Spec.TLSTermination == nil {
+		return nil, nil
+	}
+
+	serverCert, err := r.getServerCert(ctx, aep)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &agent.AgentTLSTermination{ServerCert: serverCert}
+
+	if aep.Spec.TLSTermination.MutualTLS != nil {
+		clientCAs, err := r.getClientCAs(ctx, aep)
+		if err != nil {
+			return nil, err
+		}
+		out.ClientCAs = clientCAs
+		out.ClientAuth = clientAuthForMode(ctx, aep.Spec.TLSTermination.MutualTLS.Mode)
+	}
+
+	return out, nil
+}
+
+// getServerCert fetches the agent's server certificate (tls.crt + tls.key) for
+// TLS termination from the referenced kubernetes.io/tls Secret.
+func (r *AgentEndpointReconciler) getServerCert(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) (*tls.Certificate, error) {
+	ref := aep.Spec.TLSTermination.ServerCertificateRef
+	key := client.ObjectKey{Name: ref.Name, Namespace: aep.Namespace}
+
+	secret := &v1.Secret{}
+	if err := r.Client.Get(ctx, key, secret); err != nil {
+		r.Recorder.Eventf(aep, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s/%s for tlsTermination.serverCertificateRef: %v", key.Namespace, key.Name, err))
+		return nil, err
+	}
+
+	certData, ok := secret.Data["tls.crt"]
+	if !ok {
+		return nil, fmt.Errorf("tls.crt data is missing from AgentEndpoint tlsTermination.serverCertificateRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+	}
+	keyData, ok := secret.Data["tls.key"]
+	if !ok {
+		return nil, fmt.Errorf("tls.key data is missing from AgentEndpoint tlsTermination.serverCertificateRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+	}
+
+	cert, err := tls.X509KeyPair(certData, keyData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse TLS certificate AgentEndpoint tlsTermination.serverCertificateRef %q: %w", fmt.Sprintf("%s.%s", key.Name, key.Namespace), err)
+	}
+	return &cert, nil
+}
+
+// getClientCAs builds the mTLS client-CA pool from the referenced Secret's ca.crt key.
+func (r *AgentEndpointReconciler) getClientCAs(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) (*x509.CertPool, error) {
+	ref := aep.Spec.TLSTermination.MutualTLS.ClientCAsRef
+	key := client.ObjectKey{Name: ref.Name, Namespace: aep.Namespace}
+
+	secret := &v1.Secret{}
+	if err := r.Client.Get(ctx, key, secret); err != nil {
+		r.Recorder.Eventf(aep, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s/%s for tlsTermination.mutualTLS.clientCAsRef: %v", key.Namespace, key.Name, err))
+		return nil, err
+	}
+
+	caData, ok := secret.Data["ca.crt"]
+	if !ok {
+		return nil, fmt.Errorf("ca.crt data is missing from AgentEndpoint tlsTermination.mutualTLS.clientCAsRef %q", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+	}
+
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caData) {
+		return nil, fmt.Errorf("no PEM-encoded certificates found in AgentEndpoint tlsTermination.mutualTLS.clientCAsRef %q ca.crt", fmt.Sprintf("%s.%s", key.Name, key.Namespace))
+	}
+	return pool, nil
+}
+
+// clientAuthForMode maps the CRD mTLS mode to tls.ClientAuthType. Defaults to
+// RequireAndVerifyClientCert when the mode is empty (matches the CRD default).
+func clientAuthForMode(ctx context.Context, mode ngrokv1alpha1.EndpointMutualTLSMode) tls.ClientAuthType {
+	switch mode {
+	case ngrokv1alpha1.EndpointMutualTLSModeRequest:
+		return tls.VerifyClientCertIfGiven
+	case ngrokv1alpha1.EndpointMutualTLSModeRequire, "":
+		return tls.RequireAndVerifyClientCert
+	default:
+		ctrl.LoggerFrom(ctx).Info("unknown mutualTLS mode, defaulting to RequireAndVerifyClientCert", "mode", mode)
+		return tls.RequireAndVerifyClientCert
+	}
 }
 
 // findTrafficPolicyByName fetches the TrafficPolicy CRD from the API server and returns the JSON policy as a string

@@ -30,6 +30,7 @@ type CreateCall struct {
 	Spec          ngrokv1alpha1.AgentEndpointSpec
 	TrafficPolicy string
 	ClientCerts   []tls.Certificate
+	AgentTLS      *AgentTLSTermination
 }
 
 // DeleteCall tracks parameters passed to DeleteAgentEndpoint
@@ -69,13 +70,14 @@ func (m *MockAgentDriver) Reset() {
 }
 
 // CreateAgentEndpoint implements Driver interface
-func (m *MockAgentDriver) CreateAgentEndpoint(_ context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) (*EndpointResult, error) {
+func (m *MockAgentDriver) CreateAgentEndpoint(_ context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate, agentTLS *AgentTLSTermination) (*EndpointResult, error) {
 	// Track the call
 	m.CreateCalls = append(m.CreateCalls, CreateCall{
 		Name:          name,
 		Spec:          spec,
 		TrafficPolicy: trafficPolicy,
 		ClientCerts:   clientCerts,
+		AgentTLS:      agentTLS,
 	})
 
 	// Check for specific result for this endpoint name
