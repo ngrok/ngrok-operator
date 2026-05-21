@@ -225,11 +225,6 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 		Watches(
 			&v1.Secret{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForSecret),
-			builder.WithPredicates(&predicate.Funcs{
-				DeleteFunc: func(_ event.DeleteEvent) bool {
-					return false
-				},
-			}),
 		).
 		Watches(
 			&ingressv1alpha1.Domain{},
