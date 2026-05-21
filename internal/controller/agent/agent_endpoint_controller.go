@@ -463,7 +463,7 @@ func (r *AgentEndpointReconciler) getClientCerts(ctx context.Context, aep *ngrok
 		// Attempt to get the Secret from the API server
 		certSecret := &v1.Secret{}
 		if err := r.Client.Get(ctx, key, certSecret); err != nil {
-			r.Recorder.Eventf(certSecret, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s", clientCertRef.Name))
+			r.Recorder.Eventf(aep, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s/%s for clientCertificateRef: %v", key.Namespace, key.Name, err))
 			return nil, err
 		}
 
@@ -507,7 +507,7 @@ func (r *AgentEndpointReconciler) getAgentTLSTermination(ctx context.Context, ae
 			return nil, err
 		}
 		out.ClientCAs = clientCAs
-		out.ClientAuth = clientAuthForMode(aep.Spec.TLSTermination.MutualTLS.Mode)
+		out.ClientAuth = clientAuthForMode(ctx, aep.Spec.TLSTermination.MutualTLS.Mode)
 	}
 
 	return out, nil
@@ -521,7 +521,7 @@ func (r *AgentEndpointReconciler) getServerCert(ctx context.Context, aep *ngrokv
 
 	secret := &v1.Secret{}
 	if err := r.Client.Get(ctx, key, secret); err != nil {
-		r.Recorder.Eventf(secret, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s for tlsTermination.serverCertificateRef", ref.Name))
+		r.Recorder.Eventf(aep, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s/%s for tlsTermination.serverCertificateRef: %v", key.Namespace, key.Name, err))
 		return nil, err
 	}
 
@@ -548,7 +548,7 @@ func (r *AgentEndpointReconciler) getClientCAs(ctx context.Context, aep *ngrokv1
 
 	secret := &v1.Secret{}
 	if err := r.Client.Get(ctx, key, secret); err != nil {
-		r.Recorder.Eventf(secret, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s for tlsTermination.mutualTLS.clientCAsRef", ref.Name))
+		r.Recorder.Eventf(aep, nil, v1.EventTypeWarning, "SecretNotFound", "Reconcile", fmt.Sprintf("Failed to find Secret %s/%s for tlsTermination.mutualTLS.clientCAsRef: %v", key.Namespace, key.Name, err))
 		return nil, err
 	}
 
@@ -566,11 +566,14 @@ func (r *AgentEndpointReconciler) getClientCAs(ctx context.Context, aep *ngrokv1
 
 // clientAuthForMode maps the CRD mTLS mode to tls.ClientAuthType. Defaults to
 // RequireAndVerifyClientCert when the mode is empty (matches the CRD default).
-func clientAuthForMode(mode ngrokv1alpha1.EndpointMutualTLSMode) tls.ClientAuthType {
+func clientAuthForMode(ctx context.Context, mode ngrokv1alpha1.EndpointMutualTLSMode) tls.ClientAuthType {
 	switch mode {
 	case ngrokv1alpha1.EndpointMutualTLSModeRequest:
 		return tls.VerifyClientCertIfGiven
+	case ngrokv1alpha1.EndpointMutualTLSModeRequire, "":
+		return tls.RequireAndVerifyClientCert
 	default:
+		ctrl.LoggerFrom(ctx).Info("unknown mutualTLS mode, defaulting to RequireAndVerifyClientCert", "mode", mode)
 		return tls.RequireAndVerifyClientCert
 	}
 }
