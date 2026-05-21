@@ -968,7 +968,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					URL:      "tls://tls-term-ok.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
 					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
-						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-term-server"},
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-term-server"},
 					},
 				},
 			}
@@ -996,7 +996,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					URL:      "tls://tls-term-missing.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
 					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
-						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "missing-server-cert"},
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "missing-server-cert"},
 					},
 				},
 			}
@@ -1031,7 +1031,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					URL:      "tls://tls-term-bad.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
 					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
-						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-term-bad"},
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-term-bad"},
 					},
 				},
 			}
@@ -1066,9 +1066,9 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					URL:      "tls://tls-term-mtls-bad.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
 					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
-						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-term-mtls-server"},
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-term-mtls-server"},
 						MutualTLS: &ngrokv1alpha1.EndpointMutualTLS{
-							ClientCAsRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-term-mtls-no-ca"},
+							ClientCAsRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-term-mtls-no-ca"},
 						},
 					},
 				},
@@ -1105,9 +1105,9 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					URL:      "tls://tls-mode-request.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
 					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
-						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-mode-server"},
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-mode-server"},
 						MutualTLS: &ngrokv1alpha1.EndpointMutualTLS{
-							ClientCAsRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "tls-mode-ca"},
+							ClientCAsRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-mode-ca"},
 							Mode:         ngrokv1alpha1.EndpointMutualTLSModeRequest,
 						},
 					},
@@ -1137,7 +1137,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					URL:      "https://tls-term-bad-url.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
 					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
-						ServerCertificateRef: ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "irrelevant"},
+						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "irrelevant"},
 					},
 				},
 			}

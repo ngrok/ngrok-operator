@@ -72,15 +72,16 @@ func indexClientCertificateRefs(o client.Object) []string {
 }
 
 // indexTLSTerminationSecrets extracts Secret reference keys used by spec.tlsTermination
-// (server certificate and optional mTLS client-CA bundle) for indexing.
+// (server certificate and optional mTLS client-CA bundle) for indexing. These
+// refs are same-namespace only, so they always resolve against aep.Namespace.
 func indexTLSTerminationSecrets(o client.Object) []string {
 	aep, ok := o.(*ngrokv1alpha1.AgentEndpoint)
 	if !ok || aep.Spec.TLSTermination == nil {
 		return nil
 	}
-	keys := []string{secretIndexKey(aep.Namespace, aep.Spec.TLSTermination.ServerCertificateRef)}
+	keys := []string{aep.Namespace + "/" + aep.Spec.TLSTermination.ServerCertificateRef.Name}
 	if aep.Spec.TLSTermination.MutualTLS != nil {
-		keys = append(keys, secretIndexKey(aep.Namespace, aep.Spec.TLSTermination.MutualTLS.ClientCAsRef))
+		keys = append(keys, aep.Namespace+"/"+aep.Spec.TLSTermination.MutualTLS.ClientCAsRef.Name)
 	}
 	return keys
 }
@@ -517,7 +518,7 @@ func (r *AgentEndpointReconciler) getAgentTLSTermination(ctx context.Context, ae
 // TLS termination from the referenced kubernetes.io/tls Secret.
 func (r *AgentEndpointReconciler) getServerCert(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) (*tls.Certificate, error) {
 	ref := aep.Spec.TLSTermination.ServerCertificateRef
-	key := ref.ToClientObjectKey(aep.Namespace)
+	key := client.ObjectKey{Name: ref.Name, Namespace: aep.Namespace}
 
 	secret := &v1.Secret{}
 	if err := r.Client.Get(ctx, key, secret); err != nil {
@@ -544,7 +545,7 @@ func (r *AgentEndpointReconciler) getServerCert(ctx context.Context, aep *ngrokv
 // getClientCAs builds the mTLS client-CA pool from the referenced Secret's ca.crt key.
 func (r *AgentEndpointReconciler) getClientCAs(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) (*x509.CertPool, error) {
 	ref := aep.Spec.TLSTermination.MutualTLS.ClientCAsRef
-	key := ref.ToClientObjectKey(aep.Namespace)
+	key := client.ObjectKey{Name: ref.Name, Namespace: aep.Namespace}
 
 	secret := &v1.Secret{}
 	if err := r.Client.Get(ctx, key, secret); err != nil {

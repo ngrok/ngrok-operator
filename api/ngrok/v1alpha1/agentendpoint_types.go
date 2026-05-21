@@ -163,10 +163,11 @@ type AgentEndpointSpec struct {
 type EndpointTLSTermination struct {
 	// Reference to a kubernetes.io/tls Secret containing the server certificate
 	// (tls.crt) and private key (tls.key) the agent will present to clients when
-	// terminating TLS for incoming traffic.
+	// terminating TLS for incoming traffic. The Secret must live in the same
+	// namespace as the AgentEndpoint.
 	//
 	// +kubebuilder:validation:Required
-	ServerCertificateRef K8sObjectRefOptionalNamespace `json:"serverCertificateRef"`
+	ServerCertificateRef K8sObjectRef `json:"serverCertificateRef"`
 
 	// Optional mutual-TLS configuration. When set, the agent will require or
 	// request client certificates during the TLS handshake and validate them
@@ -179,10 +180,11 @@ type EndpointTLSTermination struct {
 // EndpointMutualTLS configures client-certificate verification at the agent.
 type EndpointMutualTLS struct {
 	// Reference to a Secret whose `ca.crt` key contains a PEM-encoded bundle of
-	// certificate authorities trusted to sign client certificates.
+	// certificate authorities trusted to sign client certificates. The Secret
+	// must live in the same namespace as the AgentEndpoint.
 	//
 	// +kubebuilder:validation:Required
-	ClientCAsRef K8sObjectRefOptionalNamespace `json:"clientCAsRef"`
+	ClientCAsRef K8sObjectRef `json:"clientCAsRef"`
 
 	// Mode selects the TLS client-auth policy:
 	//   require - reject the handshake if no valid client cert is presented
