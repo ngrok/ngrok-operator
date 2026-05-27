@@ -14,11 +14,19 @@ CONTAINER_TAG_OVERRIDE=""
 HELM_TAG_OVERRIDE=""
 CRDS_TAG_OVERRIDE=""
 
+require_value() {
+  local flag=$1 val=${2-}
+  if [[ -z "$val" || ${val:0:1} == "-" ]]; then
+    echo "Error: $flag requires a non-empty value" >&2
+    exit 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --container-tag) CONTAINER_TAG_OVERRIDE="$2"; shift 2 ;;
-    --helm-tag)      HELM_TAG_OVERRIDE="$2";      shift 2 ;;
-    --crds-tag)      CRDS_TAG_OVERRIDE="$2";      shift 2 ;;
+    --container-tag) require_value "$1" "${2-}"; CONTAINER_TAG_OVERRIDE="$2"; shift 2 ;;
+    --helm-tag)      require_value "$1" "${2-}"; HELM_TAG_OVERRIDE="$2";      shift 2 ;;
+    --crds-tag)      require_value "$1" "${2-}"; CRDS_TAG_OVERRIDE="$2";      shift 2 ;;
     -h|--help)
       cat >&2 <<EOF
 Usage: gather-release-data.sh [OPTIONS]
@@ -134,6 +142,7 @@ if [[ -z "$all_pr_nums" ]]; then
         container_prs: 0,
         helm_operator_prs: 0,
         helm_crds_prs: 0,
+        meta_only_prs: 0,
         has_breaking_changes: false
       },
       prs: []

@@ -17,15 +17,15 @@ A specialized AI agent with expert knowledge of testing the ngrok Kubernetes Ope
 
 **How to use it:**
 
-```
+```text
 @test-agent write tests for the new MyController in internal/controller/ngrok
 ```
 
-```
+```text
 @test-agent investigate why TestFooController is flaky
 ```
 
-```
+```text
 @test-agent verify that the new tests I just added are not flaky
 ```
 
@@ -51,13 +51,13 @@ A specialized AI agent that prepares ngrok Kubernetes Operator releases locally 
 
 When working in a GitHub Copilot-enabled environment, ask:
 
-```
+```text
 @release-agent prepare release changes for the next operator release
 ```
 
 Or, if you already know the target versions:
 
-```
+```text
 @release-agent prepare release changes with operator version 0.21.0 and helm chart version 0.23.0
 ```
 

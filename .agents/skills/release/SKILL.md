@@ -11,7 +11,7 @@ description: >
 
 # Release Skill — ngrok-operator
 
-This skill orchestrates the full release preparation for the ngrok-operator. It replaces the old `scripts/release.sh` and `.github/agents/release-agent.agent.md`.
+This skill orchestrates the full release preparation for the ngrok-operator. It supersedes the legacy workflow and is the canonical source for release steps; `scripts/release.sh` and `.github/agents/release-agent.agent.md` may still exist and delegate here.
 
 The key insight: **a shell script handles deterministic data gathering** (PR metadata, file classification, author attribution via `gh` CLI), and **you handle what AI is good at** — summarizing changes into readable changelogs and suggesting version bumps.
 
@@ -149,7 +149,7 @@ Include when the change could matter to users even indirectly:
 **Always err on the side of including** — it's better to document something trivial than to miss something that matters.
 
 **Present excluded PRs to the user** as a separate list with reasons, so they can override your decision:
-```
+```text
 Excluded from changelogs (meta-only):
 - #786: Temporarily disabled Trivy scanning — CI workflow only
 - #795: Consolidated nix setup — dev tooling only

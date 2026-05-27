@@ -1,5 +1,9 @@
 # Releases
 
+- [Release Steps](#release-steps)
+  - [AI-Assisted Release Prep](#ai-assisted-release-prep) — canonical `release` skill in `.agents/skills/release/`, Claude `.claude/skills/release` symlink, `CLAUDE.md`, `@release-agent`
+  - [Manual Release Helper](#manual-release-helper)
+  - [Manual Steps](#manual-steps)
 - [Artifacts](#artifacts)
   - [Docker Image](#docker-image)
   - [Helm Chart](#helm-chart)
