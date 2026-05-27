@@ -17,15 +17,15 @@ A specialized AI agent with expert knowledge of testing the ngrok Kubernetes Ope
 
 **How to use it:**
 
-```
+```text
 @test-agent write tests for the new MyController in internal/controller/ngrok
 ```
 
-```
+```text
 @test-agent investigate why TestFooController is flaky
 ```
 
-```
+```text
 @test-agent verify that the new tests I just added are not flaky
 ```
 
@@ -39,51 +39,51 @@ The agent will:
 
 ### Release Agent (`release-agent.agent.md`)
 
-A specialized AI agent that automates the release process for the ngrok Kubernetes Operator.
+A specialized AI agent that prepares ngrok Kubernetes Operator releases locally using the shared `release` skill.
 
 **What it does:**
-- Creates release branches with proper naming conventions
-- Updates version files (`VERSION` and `helm/ngrok-operator/Chart.yaml`)
-- Runs Helm snapshot updates and tests
-- Gathers PRs since the last release
-- Updates both operator and Helm chart changelogs
-- Creates commits and pull requests for releases
+- Uses the canonical shared skill in `.agents/skills/release/`
+- Updates version files and changelogs for the operator, Helm chart, and CRDs chart when needed
+- Runs Helm snapshot updates, Helm tests, and manifest bundle regeneration
+- Leaves commit, push, and PR creation to the user unless explicitly requested
 
 **How to use it:**
 
-When working in a GitHub Copilot-enabled environment (VS Code, JetBrains, etc.), you can simply ask:
+When working in a GitHub Copilot-enabled environment, ask:
 
-```
-@release-agent create a release for version 0.20.0
+```text
+@release-agent prepare release changes for the next operator release
 ```
 
-Or more specifically:
+Or, if you already know the target versions:
 
-```
-@release-agent create a release with operator version 0.20.0 and helm chart version 0.22.0
+```text
+@release-agent prepare release changes with operator version 0.21.0 and helm chart version 0.23.0
 ```
 
 The agent will:
 1. Verify prerequisites (clean git tree, current versions)
-2. Create a release branch
-3. Update all necessary files
-4. Run required tests
-5. Update changelogs
-6. Create a commit and push the changes
-7. Guide you through creating a PR
+2. Update the necessary files
+3. Run required validation
+4. Update changelogs
+5. Summarize the local diff and any manual next steps
+
+**Shared skill and Claude support**
+
+- Canonical skill: `.agents/skills/release/`
+- Claude compatibility path: `.claude/skills/release` (symlink)
+- Claude project guidance: `CLAUDE.md`
 
 **Manual Process:**
 
-If you prefer to run the release manually, use:
+If you prefer the legacy manual helper, use:
 ```bash
 make release
-# or
-./scripts/release.sh
 ```
 
 For detailed documentation on the release process, see:
 - `docs/developer-guide/releasing.md`
-- `scripts/release.sh`
+- `.agents/skills/release/SKILL.md`
 
 ## About Custom Agents
 
@@ -91,7 +91,7 @@ Custom agents are part of GitHub Copilot's extensibility features. They provide 
 
 For more information about GitHub Copilot custom agents, see:
 - [GitHub Copilot Documentation](https://docs.github.com/en/copilot)
-- [Adding custom instructions for GitHub Copilot](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-instructions-for-github-copilot)
+- [Custom Agents Configuration Reference](https://docs.github.com/en/copilot/reference/custom-agents-configuration)
 
 ## Contributing
 
