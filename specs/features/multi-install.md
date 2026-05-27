@@ -33,7 +33,7 @@ Each operator instance maintains independent drain state:
 
 ### Namespace Watching
 
-Each deployment can be scoped to watch different namespaces:
+Each deployment MUST be scoped to watch different namespaces:
 
 - `features.ingress.watchNamespace` for the api-manager
 - `--watch-namespace` for the agent-manager

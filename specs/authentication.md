@@ -2,7 +2,7 @@
 
 ## Overview
 
-The ngrok-operator authenticates with the ngrok API using two credentials:
+The ngrok-operator authenticates with ngrok using two credentials:
 
 - **API Key** (`NGROK_API_KEY`): Used for ngrok API access to manage resources (domains, endpoints, IP policies, etc.)
 - **Auth Token** (`NGROK_AUTHTOKEN`): Used for ngrok agent authentication to establish tunnels

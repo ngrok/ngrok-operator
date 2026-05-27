@@ -13,7 +13,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 | Term | Definition | Details |
 |------|-----------|---------|
 | **Agent Endpoint** | An endpoint backed by an ngrok agent tunnel running inside the cluster. Created as an `AgentEndpoint` CR. | [crds/agentendpoint.md](crds/agentendpoint.md) |
-| **Bindings** | A feature that projects external ngrok endpoints into the cluster as local Kubernetes Services, enabling ngrok-to-cluster traffic. | [features/bindings.md](features/bindings.md) |
+| **Bindings** | A feature that projects private ngrok endpoints into the cluster as local Kubernetes Services, enabling pods to send requests to them without those endpoints being on the public internet. | [features/bindings.md](features/bindings.md) |
 | **Cloud Endpoint** | An endpoint managed entirely in the ngrok cloud (no local agent tunnel). Created as a `CloudEndpoint` CR. | [crds/cloudendpoint.md](crds/cloudendpoint.md) |
 | **Drain / Draining** | The process of gracefully removing ngrok API resources when the operator is uninstalled. Triggered by deletion of the `KubernetesOperator` CR. | [features/draining.md](features/draining.md) |
 | **Driver** | An internal pattern used by Ingress and Gateway API controllers that collects state from multiple resources and materializes the combined state as ngrok endpoints. | [controllers/ingress.md](controllers/ingress.md) |
