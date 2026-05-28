@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
@@ -27,23 +28,23 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 		// We currently require this annotation to be present for an Ingress to be translated into CloudEndpoints/AgentEndpoints, otherwise the default behaviour is to
 		// translate it into HTTPSEdges (legacy). A future version will remove support for HTTPSEdges and translation into CloudEndpoints/AgentEndpoints will become the new
 		// default behaviour.
-		mappingStrategy, err := MappingStrategyAnnotationToIR(ingress)
+		mappingStrategy, err := MappingStrategyAnnotationToIR(t.log, nil, ingress)
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
 
-		useEndpointPooling, err := annotations.ExtractUseEndpointPooling(ingress)
+		useEndpointPooling, err := annotations.ExtractUseEndpointPooling(t.log, nil, ingress)
 		if err != nil {
-			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.MappingStrategyAnnotation))
+			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.EndpointPoolingAnnotation))
 		}
 		if useEndpointPooling != nil && *useEndpointPooling {
 			t.log.Info(fmt.Sprintf("the following ingress will create endpoint(s) with pooling enabled because of the %q annotation",
-				annotations.MappingStrategyAnnotation),
+				annotations.EndpointPoolingAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
 		}
 
-		annotationTrafficPolicy, tpObjRef, err := trafficPolicyFromAnnotation(t.store, ingress)
+		annotationTrafficPolicy, tpObjRef, err := trafficPolicyFromAnnotation(t.log, t.store, ingress)
 		if err != nil {
 			t.log.Error(err, "error getting ngrok traffic policy for ingress",
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace))
@@ -61,7 +62,7 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			}
 		}
 
-		bindings, err := annotations.ExtractUseBindings(ingress)
+		bindings, err := annotations.ExtractUseBindings(t.log, nil, ingress)
 		if err != nil {
 			t.log.Error(err, "failed to check bindings annotation for ingress",
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
@@ -69,16 +70,16 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 			continue
 		}
 
-		resourceMetadata, err := annotations.ExtractMetadata(ingress)
+		resourceMetadata, err := annotations.ExtractMetadata(t.log, nil, ingress)
 		if err != nil {
-			t.log.Error(err, "failed to read k8s.ngrok.com/metadata annotation for ingress",
+			t.log.Error(err, "failed to read ngrok.com/metadata annotation for ingress",
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
 		}
 
-		resourceDescription, err := annotations.ExtractDescription(ingress)
+		resourceDescription, err := annotations.ExtractDescription(t.log, nil, ingress)
 		if err != nil {
-			t.log.Error(err, "failed to read k8s.ngrok.com/description annotation for ingress",
+			t.log.Error(err, "failed to read ngrok.com/description annotation for ingress",
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
 		}
@@ -184,13 +185,13 @@ func (t *translator) ingressToIR(
 			// the first-processed resource's values win for both metadata and description.
 			mergedMetadata := ir.MergeMetadata(t.defaultIngressMetadata, resourceMetadata)
 			if mergedMetadata != "" && irVHost.Metadata != "" && mergedMetadata != irVHost.Metadata {
-				t.log.Info("multiple ingresses sharing the same hostname have different k8s.ngrok.com/metadata annotations; the metadata from the first-processed ingress will be used",
+				t.log.Info("multiple ingresses sharing the same hostname have different ngrok.com/metadata annotations; the metadata from the first-processed ingress will be used",
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 					"hostname", ruleHostname,
 				)
 			}
 			if resourceDescription != "" && irVHost.Description != "" && resourceDescription != irVHost.Description {
-				t.log.Info("multiple ingresses sharing the same hostname have different k8s.ngrok.com/description annotations; the description from the first-processed ingress will be used",
+				t.log.Info("multiple ingresses sharing the same hostname have different ngrok.com/description annotations; the description from the first-processed ingress will be used",
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 					"hostname", ruleHostname,
 				)
@@ -282,6 +283,9 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 			return nil, fmt.Errorf("ingress backend resource reference to unsupported kind: %q. currently only NgrokTrafficPolicy is supported for resource backends", resourceRef.Kind)
 		}
 
+		// TODO(v1-group-rename): the CRD API group consolidation onto
+		// ngrok.com is handled by a separate workstream with a conversion
+		// webhook. Update this string once that lands.
 		if resourceRef.APIGroup != nil && *resourceRef.APIGroup != "ngrok.k8s.ngrok.com" {
 			return nil, fmt.Errorf("ingress backend resource to invalid group: %q. currently only NgrokTrafficPolicy is supported for resource backends with API Group \"ngrok.k8s.ngrok.com\"", *resourceRef.APIGroup)
 		}
@@ -376,8 +380,8 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 
 // #region Helpers
 
-func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
-	tpName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(obj)
+func trafficPolicyFromAnnotation(log logr.Logger, store store.Storer, obj client.Object) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
+	tpName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(log, nil, obj)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return nil, nil, nil

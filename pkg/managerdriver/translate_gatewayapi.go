@@ -20,19 +20,33 @@ import (
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-const (
-	// Within the gateway, any keys in the tls.options field with this prefix get added to the terminate-tls action
-	TLSOptionKeyPrefix = "k8s.ngrok.com/terminate-tls."
-)
+// TLSOptionKeyPrefix is the key prefix on the gateway listener's tls.options
+// field. Keys with this prefix flow into the terminate-tls action's extended
+// options.
+const TLSOptionKeyPrefix = "ngrok.com/terminate-tls."
 
-var (
-	// These keys may not be supplied to the gateway listener's tls.options field since they are supported elsewhere and we don't want conflicts
-	TLSOptionKeyReservedKeys = []string{
-		"k8s.ngrok.com/terminate-tls.server_private_key",
-		"k8s.ngrok.com/terminate-tls.server_certificate",
-		"k8s.ngrok.com/terminate-tls.mutual_tls_certificate_authorities",
-	}
-)
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// LegacyTLSOptionKeyPrefix is the deprecated form retained for dual-read.
+// Delete this constant and the legacy entries in TLSOptionKeyReservedKeys
+// below, plus the legacy branch in gatewayTLSTermConfigToIR, in the release
+// immediately before 1.0.
+const LegacyTLSOptionKeyPrefix = "k8s.ngrok.com/terminate-tls."
+
+// LEGACY-PREFIX-MIGRATION: END
+
+// TLSOptionKeyReservedKeys is the set of tls.options keys that may not be
+// supplied directly: they are configured via other listener fields and would
+// conflict.
+var TLSOptionKeyReservedKeys = []string{
+	TLSOptionKeyPrefix + "server_private_key",
+	TLSOptionKeyPrefix + "server_certificate",
+	TLSOptionKeyPrefix + "mutual_tls_certificate_authorities",
+	// LEGACY-PREFIX-MIGRATION: BEGIN — drop these legacy entries in 1.0
+	LegacyTLSOptionKeyPrefix + "server_private_key",
+	LegacyTLSOptionKeyPrefix + "server_certificate",
+	LegacyTLSOptionKeyPrefix + "mutual_tls_certificate_authorities",
+	// LEGACY-PREFIX-MIGRATION: END
+}
 
 // #region GWAPI to IR
 
@@ -140,30 +154,30 @@ func (t *translator) findMatchingVHostsForXRoute(
 		// We currently require this annotation to be present for an Ingress to be translated into CloudEndpoints/AgentEndpoints, otherwise the default behaviour is to
 		// translate it into HTTPSEdges (legacy). A future version will remove support for HTTPSEdges and translation into CloudEndpoints/AgentEndpoints will become the new
 		// default behaviour.
-		mappingStrategy, err := MappingStrategyAnnotationToIR(gateway)
+		mappingStrategy, err := MappingStrategyAnnotationToIR(t.log, nil, gateway)
 		if err != nil {
 			t.log.Error(err, fmt.Sprintf("failed to check %q annotation. defaulting to using endpoints", annotations.MappingStrategyAnnotation))
 		}
 
-		useEndpointPooling, err := annotations.ExtractUseEndpointPooling(gateway)
+		useEndpointPooling, err := annotations.ExtractUseEndpointPooling(t.log, nil, gateway)
 		if err != nil {
-			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.MappingStrategyAnnotation))
+			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.EndpointPoolingAnnotation))
 		}
 		if useEndpointPooling != nil && *useEndpointPooling {
 			t.log.Info(fmt.Sprintf("the following Gateway and its routes will create endpoint(s) with pooling enabled because of the %q annotation",
-				annotations.MappingStrategyAnnotation),
+				annotations.EndpointPoolingAnnotation),
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 		}
 
-		annotationTrafficPolicy, tpObjRef, err := trafficPolicyFromAnnotation(t.store, gateway)
+		annotationTrafficPolicy, tpObjRef, err := trafficPolicyFromAnnotation(t.log, t.store, gateway)
 		if err != nil {
 			t.log.Error(err, "error getting ngrok traffic policy for gateway",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace))
 			continue
 		}
 
-		bindings, err := annotations.ExtractUseBindings(gateway)
+		bindings, err := annotations.ExtractUseBindings(t.log, nil, gateway)
 		if err != nil {
 			t.log.Error(err, "failed to check bindings annotation for gateway",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
@@ -171,16 +185,16 @@ func (t *translator) findMatchingVHostsForXRoute(
 			continue
 		}
 
-		gatewayMetadata, err := annotations.ExtractMetadata(gateway)
+		gatewayMetadata, err := annotations.ExtractMetadata(t.log, nil, gateway)
 		if err != nil {
-			t.log.Error(err, "failed to read k8s.ngrok.com/metadata annotation for gateway",
+			t.log.Error(err, "failed to read ngrok.com/metadata annotation for gateway",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 		}
 
-		gatewayDescription, err := annotations.ExtractDescription(gateway)
+		gatewayDescription, err := annotations.ExtractDescription(t.log, nil, gateway)
 		if err != nil {
-			t.log.Error(err, "failed to read k8s.ngrok.com/description annotation for gateway",
+			t.log.Error(err, "failed to read ngrok.com/description annotation for gateway",
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 		}
@@ -826,6 +840,9 @@ func (t *translator) gatewayAPIFilterToTrafficPolicy(filter gatewayv1.HTTPRouteF
 			return nil, fmt.Errorf("%w: extension ref filter has unknown kind %q. only NgrokTrafficPolicy is currently supported", sharedErr, string(extensionRef.Kind))
 		}
 
+		// TODO(v1-group-rename): the CRD API group consolidation onto
+		// ngrok.com is handled by a separate workstream with a conversion
+		// webhook. Update this string once that lands.
 		if group := string(extensionRef.Group); group != "" && !strings.EqualFold(group, "ngrok.k8s.ngrok.com") {
 			return nil, fmt.Errorf("%w: extension ref filter has unknown group %q. only \"ngrok.k8s.ngrok.com\" is currently supported", sharedErr, group)
 		}
@@ -1449,15 +1466,26 @@ func (t *translator) gatewayTLSTermConfigToIR(listenerTLS *gatewayv1.GatewayTLSC
 	}
 
 	for key, val := range listenerTLS.Options {
-		if strings.HasPrefix(string(key), TLSOptionKeyPrefix) {
-			for _, reservedKey := range TLSOptionKeyReservedKeys {
-				if string(key) == reservedKey {
-					return nil, fmt.Errorf("invalid option supplied to listener tls options. %q is a reserved field and may not be provided here", reservedKey)
-				}
-			}
-			keySuffix := strings.TrimPrefix(string(key), TLSOptionKeyPrefix)
-			tlsTermCfg.ExtendedOptions[keySuffix] = string(val)
+		keyStr := string(key)
+
+		var matchedPrefix string
+		switch {
+		case strings.HasPrefix(keyStr, TLSOptionKeyPrefix):
+			matchedPrefix = TLSOptionKeyPrefix
+		// LEGACY-PREFIX-MIGRATION: drop this case in 1.0
+		case strings.HasPrefix(keyStr, LegacyTLSOptionKeyPrefix):
+			matchedPrefix = LegacyTLSOptionKeyPrefix
+		default:
+			continue
 		}
+
+		for _, reservedKey := range TLSOptionKeyReservedKeys {
+			if keyStr == reservedKey {
+				return nil, fmt.Errorf("invalid option supplied to listener tls options. %q is a reserved field and may not be provided here", reservedKey)
+			}
+		}
+		keySuffix := strings.TrimPrefix(keyStr, matchedPrefix)
+		tlsTermCfg.ExtendedOptions[keySuffix] = string(val)
 	}
 
 	return tlsTermCfg, nil

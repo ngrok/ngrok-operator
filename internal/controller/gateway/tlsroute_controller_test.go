@@ -99,7 +99,7 @@ var _ = Describe("TLSRoute controller", Ordered, func() {
 				Eventually(func(g Gomega) {
 					obj := &gatewayv1alpha2.TLSRoute{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
-					g.Expect(obj.Finalizers).To(ContainElement("k8s.ngrok.com/finalizer"))
+					g.Expect(obj.Finalizers).To(ContainElement("ngrok.com/finalizer"))
 
 					routes := driver.GetStore().ListTLSRoutes()
 					g.Expect(routes).To(HaveLen(1))
@@ -175,7 +175,7 @@ var _ = Describe("TLSRoute controller", Ordered, func() {
 				Consistently(func(g Gomega) {
 					obj := &gatewayv1alpha2.TLSRoute{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
-					g.Expect(obj.Finalizers).NotTo(ContainElement("k8s.ngrok.com/finalizer"))
+					g.Expect(obj.Finalizers).NotTo(ContainElement("ngrok.com/finalizer"))
 
 					routes := driver.GetStore().ListTLSRoutes()
 					g.Expect(routes).To(BeEmpty())

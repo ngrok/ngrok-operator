@@ -155,7 +155,7 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `ingress.ingressClass.create`  | Whether to create the ingress class.                            | `true`                             |
 | `ingress.ingressClass.default` | Whether to set the ingress class as default.                    | `false`                            |
 | `ingress.watchNamespace`       | The namespace to watch for ingress resources (default all)      | `""`                               |
-| `ingress.controllerName`       | The name of the controller to look for matching ingress classes | `k8s.ngrok.com/ingress-controller` |
+| `ingress.controllerName`       | The name of the controller to look for matching ingress classes | `ngrok.com/ingress-controller`     |
 
 ### Agent configuration
 

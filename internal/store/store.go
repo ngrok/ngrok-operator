@@ -224,13 +224,33 @@ func (s Store) ListIngressClassesV1() []*netv1.IngressClass {
 	return genericListSorted[netv1.IngressClass](s.log, s.stores.IngressClassV1)
 }
 
-// ListNgrokIngressClassesV1 returns the list of Ingresses in the Ingress v1 store filtered
-// by ones that match the controllerName
+const defaultIngressControllerName = "ngrok.com/ingress-controller"
+
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// legacyDefaultIngressControllerName is matched as a one-release migration
+// affordance when the operator runs on the new helm default — IngressClasses
+// stamped with the legacy controller string by previous releases still get
+// picked up. Delete this const and the `if s.controllerName == ...` branch
+// in ListNgrokIngressClassesV1 in the release immediately before 1.0.
+const legacyDefaultIngressControllerName = "k8s.ngrok.com/ingress-controller"
+
+// LEGACY-PREFIX-MIGRATION: END
+
+// ListNgrokIngressClassesV1 returns IngressClasses whose spec.controller
+// matches the configured controller name. Custom controller names get
+// exact-match behavior — they do not silently pull in default-named
+// IngressClasses, which would break multi-instance isolation.
 func (s Store) ListNgrokIngressClassesV1() []*netv1.IngressClass {
+	accepted := map[string]bool{s.controllerName: true}
+	// LEGACY-PREFIX-MIGRATION: drop this branch in 1.0
+	if s.controllerName == defaultIngressControllerName {
+		accepted[legacyDefaultIngressControllerName] = true
+	}
+
 	filteredClasses := []*netv1.IngressClass{}
 	classes := s.ListIngressClassesV1()
 	for _, class := range classes {
-		if class.Spec.Controller == s.controllerName {
+		if accepted[class.Spec.Controller] {
 			filteredClasses = append(filteredClasses, class)
 		}
 	}

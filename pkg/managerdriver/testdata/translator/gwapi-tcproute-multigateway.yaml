@@ -92,8 +92,8 @@ expected:
     kind: CloudEndpoint
     metadata:
       labels:
-        k8s.ngrok.com/controller-name: test-manager-name
-        k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
       name: test-gateway.default.9000-test-hostname.ngrok.io
       namespace: default
     spec:
@@ -125,8 +125,8 @@ expected:
     kind: CloudEndpoint
     metadata:
       labels:
-        k8s.ngrok.com/controller-name: test-manager-name
-        k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
       name: test-gateway-2.default.7000-test-hostname-2.ngrok.io
       namespace: default
     spec:
@@ -159,8 +159,8 @@ expected:
     kind: AgentEndpoint
     metadata:
       labels:
-        k8s.ngrok.com/controller-name: test-manager-name
-        k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
       name: e3b0c-test-service-1-default-11000
       namespace: default
     spec:
@@ -171,8 +171,8 @@ expected:
     kind: AgentEndpoint
     metadata:
       labels:
-        k8s.ngrok.com/controller-name: test-manager-name
-        k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
       name: e3b0c-test-service-2-default-12000
       namespace: default
     spec:

@@ -637,30 +637,32 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	)
 	translationResult := translator.Translate()
 
-	currAgentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
-	currCloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
-
-	matchLabels := d.controllerLabels.Selector()
-
-	if err := c.List(ctx, currAgentEndpoints, matchLabels); err != nil {
+	// LEGACY-PREFIX-MIGRATION: BEGIN
+	// listAgentEndpointsForController / listCloudEndpointsForController
+	// dual-match controller labels. In 1.0 replace these calls with a single
+	// c.List(ctx, &out, d.controllerLabels.Selector()) per type.
+	currAgentEndpoints, err := d.listAgentEndpointsForController(ctx, c)
+	if err != nil {
 		d.log.Error(err, "error listing agent endpoints")
 		return err
 	}
-	if err := c.List(ctx, currCloudEndpoints, matchLabels); err != nil {
+	currCloudEndpoints, err := d.listCloudEndpointsForController(ctx, c)
+	if err != nil {
 		d.log.Error(err, "error listing cloud endpoints")
 		return err
 	}
+	// LEGACY-PREFIX-MIGRATION: END
 
 	if err := d.applyDomains(ctx, c, domains.totalDomains); err != nil {
 		return err
 	}
 
-	if err := d.applyAgentEndpoints(ctx, c, translationResult.AgentEndpoints, currAgentEndpoints.Items); err != nil {
+	if err := d.applyAgentEndpoints(ctx, c, translationResult.AgentEndpoints, currAgentEndpoints); err != nil {
 		d.log.Error(err, "applying agent endpoints")
 		return err
 	}
 
-	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currCloudEndpoints.Items); err != nil {
+	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currCloudEndpoints); err != nil {
 		d.log.Error(err, "applying cloud endpoints")
 		return err
 	}

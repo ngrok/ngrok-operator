@@ -237,6 +237,43 @@ var _ = Describe("Store", func() {
 				Expect(len(ics)).To(Equal(0))
 			})
 		})
+		Context("when an IngressClass uses the legacy controller name", func() {
+			BeforeEach(func() {
+				ic := testutils.NewTestIngressClass("ngrok-legacy", true, false)
+				ic.Spec.Controller = testutils.LegacyControllerName
+				Expect(store.Add(ic)).To(BeNil())
+			})
+			It("is still selected during the migration window", func() {
+				ics := store.ListNgrokIngressClassesV1()
+				Expect(len(ics)).To(Equal(1))
+				Expect(ics[0].Name).To(Equal("ngrok-legacy"))
+			})
+		})
+		Context("when the operator runs under a custom controller name", func() {
+			var customStore Storer
+			BeforeEach(func() {
+				logger := logr.New(logr.Discard().GetSink())
+				cs := NewCacheStores(logger)
+				customStore = New(cs, "custom.example.com/my-controller", logger)
+
+				icCustom := testutils.NewTestIngressClass("custom-class", true, false)
+				icCustom.Spec.Controller = "custom.example.com/my-controller"
+				Expect(customStore.Add(icCustom)).To(BeNil())
+
+				icDefault := testutils.NewTestIngressClass("default-class", true, false)
+				icDefault.Spec.Controller = testutils.DefaultControllerName
+				Expect(customStore.Add(icDefault)).To(BeNil())
+
+				icLegacy := testutils.NewTestIngressClass("legacy-class", true, false)
+				icLegacy.Spec.Controller = testutils.LegacyControllerName
+				Expect(customStore.Add(icLegacy)).To(BeNil())
+			})
+			It("does NOT match the default-named IngressClasses (multi-instance isolation)", func() {
+				ics := customStore.ListNgrokIngressClassesV1()
+				Expect(len(ics)).To(Equal(1))
+				Expect(ics[0].Name).To(Equal("custom-class"))
+			})
+		})
 	})
 
 	var _ = Describe("ListNgrokGateways", func() {

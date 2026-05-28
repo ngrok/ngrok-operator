@@ -19,6 +19,7 @@ package annotations_test
 import (
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/stretchr/testify/assert"
@@ -68,7 +69,7 @@ func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
 				},
 			}
 
-			policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(obj)
+			policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(logr.Discard(), nil, obj)
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, tc.expectedErr, err)
@@ -138,7 +139,7 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 				},
 			}
 
-			useEndpoints, err := annotations.ExtractUseEndpointPooling(obj)
+			useEndpoints, err := annotations.ExtractUseEndpointPooling(logr.Discard(), nil, obj)
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, tc.expectedErr, err)
@@ -210,7 +211,7 @@ func TestExtractUseBindings(t *testing.T) {
 				},
 			}
 
-			binding, err := annotations.ExtractUseBindings(obj)
+			binding, err := annotations.ExtractUseBindings(logr.Discard(), nil, obj)
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, tc.expectedErr, err)
@@ -254,7 +255,7 @@ func TestExtractMetadata(t *testing.T) {
 					Annotations: tc.annotations,
 				},
 			}
-			got, err := annotations.ExtractMetadata(obj)
+			got, err := annotations.ExtractMetadata(logr.Discard(), nil, obj)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, got)
 		})
@@ -293,7 +294,7 @@ func TestExtractDescription(t *testing.T) {
 					Annotations: tc.annotations,
 				},
 			}
-			got, err := annotations.ExtractDescription(obj)
+			got, err := annotations.ExtractDescription(logr.Discard(), nil, obj)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, got)
 		})

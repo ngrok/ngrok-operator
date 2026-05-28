@@ -7,26 +7,44 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const (
-	// FinalizerName is the finalizer used by the ngrok operator
-	FinalizerName = "k8s.ngrok.com/finalizer"
-)
+// FinalizerName is the finalizer used by the ngrok operator.
+const FinalizerName = "ngrok.com/finalizer"
 
-// HasFinalizer returns true if the object has the ngrok finalizer present.
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// LegacyFinalizerName is the deprecated finalizer name. Retained for
+// auto-upgrade: existing objects carrying the legacy finalizer have it
+// silently swapped for FinalizerName on the next reconcile. Delete this
+// constant and the legacy branches in HasFinalizer / AddFinalizer /
+// RemoveFinalizer below in the release immediately before 1.0.
+const LegacyFinalizerName = "k8s.ngrok.com/finalizer"
+
+// LEGACY-PREFIX-MIGRATION: END
+
+// HasFinalizer returns true if the object carries either the new or the
+// legacy ngrok finalizer.
 func HasFinalizer(o client.Object) bool {
-	return controllerutil.ContainsFinalizer(o, FinalizerName)
+	return controllerutil.ContainsFinalizer(o, FinalizerName) ||
+		// LEGACY-PREFIX-MIGRATION: drop the LegacyFinalizerName check in 1.0
+		controllerutil.ContainsFinalizer(o, LegacyFinalizerName)
 }
 
-// AddFinalizer adds the ngrok finalizer to the object if not already present.
-// Returns true if the finalizer was added.
+// AddFinalizer ensures the new ngrok finalizer is present and removes the
+// legacy one if it lingers. Returns true if either operation modified the
+// object.
 func AddFinalizer(o client.Object) bool {
-	return controllerutil.AddFinalizer(o, FinalizerName)
+	added := controllerutil.AddFinalizer(o, FinalizerName)
+	// LEGACY-PREFIX-MIGRATION: drop the legacy removal + the `removed` |/`added` OR in 1.0
+	removed := controllerutil.RemoveFinalizer(o, LegacyFinalizerName)
+	return added || removed
 }
 
-// RemoveFinalizer removes the ngrok finalizer from the object if present.
-// Returns true if the finalizer was removed.
+// RemoveFinalizer removes both the new and legacy ngrok finalizers from the
+// object if either is present.
 func RemoveFinalizer(o client.Object) bool {
-	return controllerutil.RemoveFinalizer(o, FinalizerName)
+	removedNew := controllerutil.RemoveFinalizer(o, FinalizerName)
+	// LEGACY-PREFIX-MIGRATION: drop the legacy removal + the `removedLegacy` OR in 1.0
+	removedLegacy := controllerutil.RemoveFinalizer(o, LegacyFinalizerName)
+	return removedNew || removedLegacy
 }
 
 // RegisterAndSyncFinalizer adds the ngrok finalizer to the object if not already present.

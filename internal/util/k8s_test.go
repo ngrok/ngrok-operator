@@ -308,6 +308,43 @@ func TestRemoveFinalizer(t *testing.T) {
 	}
 }
 
+func TestFinalizer_LegacyMigration(t *testing.T) {
+	t.Run("HasFinalizer matches legacy", func(t *testing.T) {
+		obj := &netv1.Ingress{ObjectMeta: metav1.ObjectMeta{
+			Finalizers: []string{LegacyFinalizerName},
+		}}
+		assert.True(t, HasFinalizer(obj))
+	})
+
+	t.Run("AddFinalizer migrates legacy to new", func(t *testing.T) {
+		obj := &netv1.Ingress{ObjectMeta: metav1.ObjectMeta{
+			Finalizers: []string{LegacyFinalizerName},
+		}}
+		changed := AddFinalizer(obj)
+		assert.True(t, changed)
+		assert.Contains(t, obj.Finalizers, FinalizerName)
+		assert.NotContains(t, obj.Finalizers, LegacyFinalizerName)
+	})
+
+	t.Run("RemoveFinalizer removes legacy when only legacy present", func(t *testing.T) {
+		obj := &netv1.Ingress{ObjectMeta: metav1.ObjectMeta{
+			Finalizers: []string{LegacyFinalizerName, "keep-me"},
+		}}
+		changed := RemoveFinalizer(obj)
+		assert.True(t, changed)
+		assert.Equal(t, []string{"keep-me"}, obj.Finalizers)
+	})
+
+	t.Run("RemoveFinalizer removes both when both present", func(t *testing.T) {
+		obj := &netv1.Ingress{ObjectMeta: metav1.ObjectMeta{
+			Finalizers: []string{FinalizerName, LegacyFinalizerName, "keep-me"},
+		}}
+		changed := RemoveFinalizer(obj)
+		assert.True(t, changed)
+		assert.Equal(t, []string{"keep-me"}, obj.Finalizers)
+	})
+}
+
 func TestRegisterAndSyncFinalizer(t *testing.T) {
 	ctx := context.Background()
 

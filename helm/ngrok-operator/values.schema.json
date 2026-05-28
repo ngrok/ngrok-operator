@@ -349,7 +349,7 @@
                 "controllerName": {
                     "type": "string",
                     "description": "The name of the controller to look for matching ingress classes",
-                    "default": "k8s.ngrok.com/ingress-controller"
+                    "default": "ngrok.com/ingress-controller"
                 }
             }
         },

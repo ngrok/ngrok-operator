@@ -210,8 +210,12 @@ func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, d
 	l := domainObj.GetLabels()
 	_, hasControllerNameLabel := l[labels.ControllerName]
 	_, hasControllerNamespaceLabel := l[labels.ControllerNamespace]
+	// LEGACY-PREFIX-MIGRATION: drop the legacy checks in 1.0; the early-return becomes
+	// `if hasControllerNameLabel && hasControllerNamespaceLabel { return nil }` again.
+	_, hasLegacyName := l[labels.LegacyControllerName]
+	_, hasLegacyNamespace := l[labels.LegacyControllerNamespace]
 
-	if hasControllerNameLabel && hasControllerNamespaceLabel {
+	if hasControllerNameLabel && hasControllerNamespaceLabel && !hasLegacyName && !hasLegacyNamespace {
 		return nil
 	}
 

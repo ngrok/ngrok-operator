@@ -414,3 +414,61 @@ func TestControllerLabelValues(t *testing.T) {
 		assert.Equal(t, want, got)
 	})
 }
+
+func TestHasControllerLabels_DualPrefix(t *testing.T) {
+	t.Run("matches legacy prefix", func(t *testing.T) {
+		obj := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			LegacyControllerNamespace: "ngrok-operator",
+			LegacyControllerName:      "my-controller",
+		}}}
+		assert.True(t, HasControllerLabels(obj, "ngrok-operator", "my-controller"))
+	})
+
+	t.Run("matches new prefix", func(t *testing.T) {
+		obj := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			ControllerNamespace: "ngrok-operator",
+			ControllerName:      "my-controller",
+		}}}
+		assert.True(t, HasControllerLabels(obj, "ngrok-operator", "my-controller"))
+	})
+
+	t.Run("no match when both partial", func(t *testing.T) {
+		obj := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			ControllerNamespace:       "ngrok-operator",
+			LegacyControllerName:      "my-controller",
+		}}}
+		assert.False(t, HasControllerLabels(obj, "ngrok-operator", "my-controller"),
+			"requires a full pair on one prefix; partials must not cross-match")
+	})
+}
+
+func TestEnsureControllerLabels_MigratesLegacy(t *testing.T) {
+	obj := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+		LegacyControllerNamespace: "ngrok-operator",
+		LegacyControllerName:      "my-controller",
+		"app":                     "my-app",
+	}}}
+
+	modified := EnsureControllerLabels(obj, "ngrok-operator", "my-controller")
+	assert.True(t, modified)
+
+	got := obj.GetLabels()
+	assert.Equal(t, "ngrok-operator", got[ControllerNamespace])
+	assert.Equal(t, "my-controller", got[ControllerName])
+	assert.NotContains(t, got, LegacyControllerNamespace)
+	assert.NotContains(t, got, LegacyControllerName)
+	assert.Equal(t, "my-app", got["app"], "unrelated labels are preserved")
+}
+
+func TestControllerLabelSelectors_ReturnsBoth(t *testing.T) {
+	got := ControllerLabelSelectors("ngrok-operator", "my-controller")
+	assert.Len(t, got, 2)
+	assert.Equal(t, client.MatchingLabels{
+		ControllerNamespace: "ngrok-operator",
+		ControllerName:      "my-controller",
+	}, got[0])
+	assert.Equal(t, client.MatchingLabels{
+		LegacyControllerNamespace: "ngrok-operator",
+		LegacyControllerName:      "my-controller",
+	}, got[1])
+}
