@@ -444,6 +444,9 @@ func TestRegisterAndSyncFinalizer(t *testing.T) {
 			err = c.Get(ctx, client.ObjectKeyFromObject(tt.obj), &updated)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantFinalizer, HasFinalizer(&updated))
+			// LEGACY-PREFIX-MIGRATION: assert the R1 persistence contract — legacy key written, new key not. Flip in R2.
+			assert.True(t, hasRawFinalizer(&updated, LegacyFinalizerName), "persisted legacy key")
+			assert.False(t, hasRawFinalizer(&updated, FinalizerName), "no new key persisted")
 		})
 	}
 }

@@ -48,7 +48,9 @@ const (
 	LoadBalancer = corev1.ServiceTypeLoadBalancer
 	ClusterIP    = corev1.ServiceTypeClusterIP
 
-	FinalizerName = util.FinalizerName
+	// R1: AddFinalizer writes the legacy key, so tests assert against it.
+	// Flip to util.FinalizerName in R2.
+	FinalizerName = util.LegacyFinalizerName
 
 	Annotation_URL             = annotations.URLAnnotation
 	Annotation_MappingStrategy = annotations.MappingStrategyAnnotation
