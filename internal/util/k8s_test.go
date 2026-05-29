@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -521,10 +522,5 @@ func TestRemoveAndSyncFinalizer(t *testing.T) {
 // literal, bypassing the dual-key HasFinalizer helper. Used by tests that
 // need to assert the specific key written during the R1 migration window.
 func hasRawFinalizer(o client.Object, name string) bool {
-	for _, f := range o.GetFinalizers() {
-		if f == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(o.GetFinalizers(), name)
 }
