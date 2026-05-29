@@ -66,7 +66,13 @@ rather than archaeology.
 - **Pattern:** Helm-rendered manifest deferred to cleanup release.
 - **R1 (0.24):**
   - Operator binary: `internal/store/store.go::ListNgrokIngressClassesV1`
-    dual-matches when `controllerName` equals the new default.
+    dual-matches whenever `controllerName` equals either stock default
+    (legacy `k8s.ngrok.com/ingress-controller` or new
+    `ngrok.com/ingress-controller`). Custom controller names retain
+    exact-match for multi-instance isolation. The Go code cannot
+    distinguish "default" from "explicitly set to the default value",
+    so both stock defaults are treated symmetrically; nobody sets the
+    legacy default explicitly to mean "exact-match legacy only".
   - CLI flag default in `cmd/api-manager.go` flips to the new prefix.
   - Helm chart **stays on legacy**: `helm/ngrok-operator/values.yaml`
     `ingress.controllerName` remains `k8s.ngrok.com/ingress-controller`;

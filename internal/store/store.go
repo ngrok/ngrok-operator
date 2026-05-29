@@ -228,10 +228,12 @@ const defaultIngressControllerName = "ngrok.com/ingress-controller"
 
 // LEGACY-PREFIX-MIGRATION: BEGIN
 // legacyDefaultIngressControllerName is matched as a one-release migration
-// affordance when the operator runs on the new helm default — IngressClasses
-// stamped with the legacy controller string by previous releases still get
-// picked up. Delete this const and the `if s.controllerName == ...` branch
-// in ListNgrokIngressClassesV1 in the release immediately before 1.0.
+// affordance whenever the operator is running on either well-known stock
+// default — we cannot distinguish "default" from "explicitly set to the
+// default value", and nobody sets the legacy default explicitly to mean
+// "exact-match legacy only", so treating both stock defaults symmetrically
+// is the least surprising behavior. Delete this const and the dual-match
+// branch in ListNgrokIngressClassesV1 in the release immediately before 1.0.
 const legacyDefaultIngressControllerName = "k8s.ngrok.com/ingress-controller"
 
 // LEGACY-PREFIX-MIGRATION: END
@@ -243,7 +245,8 @@ const legacyDefaultIngressControllerName = "k8s.ngrok.com/ingress-controller"
 func (s Store) ListNgrokIngressClassesV1() []*netv1.IngressClass {
 	accepted := map[string]bool{s.controllerName: true}
 	// LEGACY-PREFIX-MIGRATION: drop this branch in 1.0
-	if s.controllerName == defaultIngressControllerName {
+	if s.controllerName == defaultIngressControllerName || s.controllerName == legacyDefaultIngressControllerName {
+		accepted[defaultIngressControllerName] = true
 		accepted[legacyDefaultIngressControllerName] = true
 	}
 

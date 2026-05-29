@@ -249,6 +249,26 @@ var _ = Describe("Store", func() {
 				Expect(ics[0].Name).To(Equal("ngrok-legacy"))
 			})
 		})
+		Context("when the operator runs under the legacy default controller name", func() {
+			var legacyStore Storer
+			BeforeEach(func() {
+				logger := logr.New(logr.Discard().GetSink())
+				cs := NewCacheStores(logger)
+				legacyStore = New(cs, testutils.LegacyControllerName, logger)
+
+				icLegacy := testutils.NewTestIngressClass("legacy-class", true, false)
+				icLegacy.Spec.Controller = testutils.LegacyControllerName
+				Expect(legacyStore.Add(icLegacy)).To(BeNil())
+
+				icDefault := testutils.NewTestIngressClass("default-class", true, false)
+				icDefault.Spec.Controller = testutils.DefaultControllerName
+				Expect(legacyStore.Add(icDefault)).To(BeNil())
+			})
+			It("dual-matches both stock defaults (R1 helm path)", func() {
+				ics := legacyStore.ListNgrokIngressClassesV1()
+				Expect(len(ics)).To(Equal(2))
+			})
+		})
 		Context("when the operator runs under a custom controller name", func() {
 			var customStore Storer
 			BeforeEach(func() {

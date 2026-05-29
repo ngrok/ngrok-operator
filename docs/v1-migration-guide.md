@@ -20,8 +20,10 @@ The operator binary's default `--ingress-controller-name` flips to
 `ngrok.com/ingress-controller` in 0.24. To keep existing IngressClasses
 matching during the transition, the operator dual-matches both
 `k8s.ngrok.com/ingress-controller` and `ngrok.com/ingress-controller`
-whenever its configured `controllerName` is the new default. Custom
-controller names retain exact-match behavior so multi-instance isolation is
+whenever its configured `controllerName` equals either of those two stock
+defaults — which is the case for both the new binary default and the
+legacy value still rendered by the helm chart in 0.24. Custom controller
+names retain exact-match behavior so multi-instance isolation is
 preserved.
 
 The helm chart deliberately **does not** flip the rendered IngressClass
