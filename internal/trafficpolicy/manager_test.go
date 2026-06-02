@@ -36,7 +36,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -162,7 +161,7 @@ func TestResolve_TargetRef_CrossNamespace_SourceUsesNamespace(t *testing.T) {
 	ep := newAgentEndpoint("apps", &ngrokv1alpha1.TrafficPolicyCfg{
 		Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 			Name:      "shared",
-			Namespace: ptr.To("policies"),
+			Namespace: new("policies"),
 		},
 	})
 
@@ -181,7 +180,7 @@ func TestResolve_TargetRef_EmptyStringNamespace_DefaultsToEndpoint(t *testing.T)
 	ep := newAgentEndpoint("apps", &ngrokv1alpha1.TrafficPolicyCfg{
 		Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 			Name:      "local",
-			Namespace: ptr.To(""), // explicit empty string must default like nil
+			Namespace: new(""), // explicit empty string must default like nil
 		},
 	})
 
@@ -344,19 +343,19 @@ func TestIntendedSource(t *testing.T) {
 		{
 			name:       "ref empty-string namespace defaults to endpoint",
 			defaultNs:  "apps",
-			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p", Namespace: ptr.To("")}},
+			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p", Namespace: new("")}},
 			wantSource: "p",
 		},
 		{
 			name:       "ref same namespace",
 			defaultNs:  "apps",
-			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p", Namespace: ptr.To("apps")}},
+			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p", Namespace: new("apps")}},
 			wantSource: "p",
 		},
 		{
 			name:       "ref cross namespace",
 			defaultNs:  "apps",
-			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p", Namespace: ptr.To("policies")}},
+			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p", Namespace: new("policies")}},
 			wantSource: "policies/p",
 		},
 	}
