@@ -792,6 +792,13 @@ var _ = Describe("ServiceController", func() {
 						By("checking the cloud endpoint has the traffic policy")
 						clep := cleps[0]
 						g.Expect(clep.Spec.TrafficPolicy).NotTo(BeNil())
+
+						// LEGACY-trafficpolicy-policy: generated CloudEndpoints
+						// dual-write inline+policy so they remain
+						// rollback-safe to pre-0.24.
+						g.Expect(clep.Spec.TrafficPolicy.Inline).NotTo(BeNil())
+						g.Expect(clep.Spec.TrafficPolicy.Policy).NotTo(BeNil())                                            //nolint:staticcheck // intentionally checking legacy dual-write
+						g.Expect(string(clep.Spec.TrafficPolicy.Inline)).To(Equal(string(clep.Spec.TrafficPolicy.Policy))) //nolint:staticcheck // see above
 					})
 				})
 
@@ -808,7 +815,7 @@ var _ = Describe("ServiceController", func() {
 							By("checking the cloud endpoint has the initial traffic policy")
 							clep := cleps[0]
 							g.Expect(clep.Spec.TrafficPolicy).NotTo(BeNil())
-							g.Expect(string(clep.Spec.TrafficPolicy.Policy)).To(ContainSubstring("deny"))
+							g.Expect(string(clep.Spec.TrafficPolicy.Inline)).To(ContainSubstring("deny"))
 						})
 
 						// Update the policy
@@ -827,7 +834,7 @@ var _ = Describe("ServiceController", func() {
 							By("checking the cloud endpoint has the updated traffic policy")
 							clep := cleps[0]
 							g.Expect(clep.Spec.TrafficPolicy).NotTo(BeNil())
-							g.Expect(string(clep.Spec.TrafficPolicy.Policy)).To(ContainSubstring("allow"))
+							g.Expect(string(clep.Spec.TrafficPolicy.Inline)).To(ContainSubstring("allow"))
 						})
 					})
 				})

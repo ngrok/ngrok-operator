@@ -90,7 +90,7 @@ expected:
       namespace: default
     spec:
       trafficPolicy:
-        policy:
+        inline:
           on_http_request:
             - name: Capture-Original-Request-Data
               actions:

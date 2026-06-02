@@ -94,7 +94,7 @@ expected:
     spec:
       url: https://test-ingresses.ngrok.io
       trafficPolicy:
-        policy:
+        inline:
           on_http_request:
           - name: Generated-Route
             expressions:

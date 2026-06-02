@@ -3,6 +3,7 @@ package agent
 import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
+	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -11,13 +12,15 @@ import (
 const (
 	ConditionReady           = "Ready"
 	ConditionEndpointCreated = "EndpointCreated"
-	ConditionTrafficPolicy   = "TrafficPolicyApplied"
+	// ConditionTrafficPolicy is sourced from the shared trafficpolicy package
+	// so both endpoint controllers report the same condition type.
+	ConditionTrafficPolicy = trafficpolicypkg.ConditionTrafficPolicy
 )
 
 // Standard condition reasons
 const (
 	ReasonEndpointActive     = "EndpointActive"
-	ReasonTrafficPolicyError = "TrafficPolicyError"
+	ReasonTrafficPolicyError = trafficpolicypkg.ReasonTrafficPolicyError
 	ReasonNgrokAPIError      = "NgrokAPIError"
 	ReasonUpstreamError      = "UpstreamError"
 	ReasonEndpointCreated    = "EndpointCreated"
@@ -51,24 +54,6 @@ func setEndpointCreatedCondition(endpoint *ngrokv1alpha1.AgentEndpoint, created 
 
 	condition := metav1.Condition{
 		Type:               ConditionEndpointCreated,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: endpoint.Generation,
-	}
-
-	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
-}
-
-// setTrafficPolicyCondition sets the TrafficPolicyApplied condition
-func setTrafficPolicyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, applied bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !applied {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionTrafficPolicy,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
