@@ -140,7 +140,7 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	res, err := r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.KubernetesOperator))
-	if err != nil || res.Requeue || res.RequeueAfter > 0 {
+	if err != nil || res.RequeueAfter > 0 {
 		return res, err
 	}
 
@@ -154,7 +154,7 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	if renewalRes.Requeue || renewalRes.RequeueAfter > 0 {
+	if renewalRes.RequeueAfter > 0 {
 		return renewalRes, nil
 	}
 
@@ -550,7 +550,7 @@ func (r *KubernetesOperatorReconciler) reconcileBindingCertRenewal(ctx context.C
 		if err := r.invalidateTLSSecretCSR(ctx, ko); err != nil {
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
 	return ctrl.Result{RequeueAfter: notAfter.Add(-renewalWindow).Sub(now)}, nil

@@ -232,6 +232,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 			},
 			Config: &tls.Config{
 				Certificates: []tls.Certificate{cert},
+				MinVersion:   tls.VersionTLS12,
 			},
 		}
 		if r.RootCAs != nil {

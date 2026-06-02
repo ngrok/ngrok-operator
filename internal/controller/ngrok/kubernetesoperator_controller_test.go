@@ -219,7 +219,6 @@ func TestReconcileBindingCertRenewalRequeueAfter(t *testing.T) {
 
 	res, err := reconciler.reconcileBindingCertRenewal(context.Background(), ko, now)
 	assert.NoError(t, err)
-	assert.False(t, res.Requeue)
 	assert.Equal(t, 15*24*time.Hour, res.RequeueAfter)
 }
 
@@ -281,7 +280,7 @@ func TestReconcileBindingCertRenewalInvalidatesCSR(t *testing.T) {
 
 	res, err := reconciler.reconcileBindingCertRenewal(context.Background(), ko, now)
 	assert.NoError(t, err)
-	assert.True(t, res.Requeue)
+	assert.Equal(t, time.Second, res.RequeueAfter)
 
 	updated := &v1.Secret{}
 	assert.NoError(t, fakeClient.Get(context.Background(), client.ObjectKey{Namespace: "test-ns", Name: "tls-secret"}, updated))
