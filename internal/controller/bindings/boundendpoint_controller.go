@@ -53,10 +53,11 @@ import (
 )
 
 const (
-	LabelManagedBy              = "app.kubernetes.io/managed-by"
-	LabelBoundEndpointName      = "bindings.k8s.ngrok.com/endpoint-binding-name"
-	LabelBoundEndpointNamespace = "bindings.k8s.ngrok.com/endpoint-binding-namespace"
-	LabelEndpointURL            = "bindings.k8s.ngrok.com/endpoint-url"
+	LabelManagedBy = "app.kubernetes.io/managed-by"
+
+	LabelBoundEndpointName      = "ngrok.com/endpoint-binding-name"
+	LabelBoundEndpointNamespace = "ngrok.com/endpoint-binding-namespace"
+	LabelEndpointURL            = "ngrok.com/endpoint-url"
 
 	// Used for indexing Services by their BoundEndpoint owner. Not an actual
 	// field on the Service object.
@@ -65,6 +66,35 @@ const (
 	// field on the BoundEndpoint object.
 	BoundEndpointTargetNamespacePath = ".spec.targetNamespace"
 )
+
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// Legacy `bindings.k8s.ngrok.com/`-prefixed Service labels + endpoint-url
+// annotation, retained so the controller can read+dual-write them during the
+// migration window. The two label keys are user-discoverable (operators stamp
+// them and external tooling may select on them); the endpoint-url annotation
+// is operator-written. Cleanup happens in two steps: write-side cleanup drops
+// the dual-writes in convertBoundEndpointToServices; the later read-side
+// cleanup drops this block and the legacy branch in boundEndpointLabelsFor.
+const (
+	LegacyLabelBoundEndpointName      = "bindings.k8s.ngrok.com/endpoint-binding-name"
+	LegacyLabelBoundEndpointNamespace = "bindings.k8s.ngrok.com/endpoint-binding-namespace"
+	LegacyLabelEndpointURL            = "bindings.k8s.ngrok.com/endpoint-url"
+)
+
+// LEGACY-PREFIX-MIGRATION: END
+
+// boundEndpointLabelsFor reads the BoundEndpoint name/namespace from a
+// Service's labels, preferring the new-prefix keys and falling back to the
+// legacy ones. Returns ("", "") when neither pair is set. The new-prefix pair
+// is only preferred when both keys are present, so a partial new pair does not
+// shadow a complete legacy pair.
+func boundEndpointLabelsFor(svcLabels map[string]string) (name, namespace string) {
+	if newName, newNamespace := svcLabels[LabelBoundEndpointName], svcLabels[LabelBoundEndpointNamespace]; newName != "" && newNamespace != "" {
+		return newName, newNamespace
+	}
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop the legacy lookup; inline the new-prefix read
+	return svcLabels[LegacyLabelBoundEndpointName], svcLabels[LegacyLabelBoundEndpointNamespace]
+}
 
 var (
 	commonBoundEndpointLabels = map[string]string{
@@ -113,8 +143,7 @@ func (r *BoundEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return nil // skip, service has no labels
 		}
 
-		epbName := svcLabels[LabelBoundEndpointName]
-		epbNamespace := svcLabels[LabelBoundEndpointNamespace]
+		epbName, epbNamespace := boundEndpointLabelsFor(svcLabels)
 		if epbName == "" || epbNamespace == "" {
 			return nil // skip, service is not part of an BoundEndpoint
 		}
@@ -374,6 +403,9 @@ func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *
 	thisBindingLabels := map[string]string{
 		LabelBoundEndpointName:      boundEndpoint.Name,
 		LabelBoundEndpointNamespace: boundEndpoint.Namespace,
+		// LEGACY-PREFIX-MIGRATION (write-side cleanup): drop the two legacy entries
+		LegacyLabelBoundEndpointName:      boundEndpoint.Name,
+		LegacyLabelBoundEndpointNamespace: boundEndpoint.Namespace,
 	}
 
 	// Target Labels in order of increasing precedence
@@ -417,6 +449,8 @@ func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *
 	upstreamLabels := util.MergeMaps(commonBoundEndpointLabels, thisBindingLabels)
 	upstreamAnnotations := map[string]string{
 		LabelEndpointURL: endpointURL,
+		// LEGACY-PREFIX-MIGRATION (write-side cleanup): drop the legacy entry
+		LegacyLabelEndpointURL: endpointURL,
 	}
 	// upstreamService represents the Pod Forwarders as a Service
 	// Target Service will point to this Service via an ExternalName
@@ -491,8 +525,7 @@ func (r *BoundEndpointReconciler) findBoundEndpointsForService(ctx context.Conte
 		return []reconcile.Request{}
 	}
 
-	epbName := svcLabels[LabelBoundEndpointName]
-	epbNamespace := svcLabels[LabelBoundEndpointNamespace]
+	epbName, epbNamespace := boundEndpointLabelsFor(svcLabels)
 	if epbName == "" || epbNamespace == "" {
 		log.V(3).Info("Service is not part of an BoundEndpoint")
 		return []reconcile.Request{}

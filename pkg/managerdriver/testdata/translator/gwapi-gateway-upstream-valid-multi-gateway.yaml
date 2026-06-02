@@ -112,7 +112,9 @@ expected:
     metadata:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-namespace: test-manager-namespace
       name: test-gateway-1.default-test-hostname-1.ngrok.io
       namespace: default
     spec:
@@ -140,7 +142,9 @@ expected:
     metadata:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-namespace: test-manager-namespace
       name: test-gateway-2.default-test-hostname-2.ngrok.io
       namespace: default
     spec:
@@ -169,7 +173,9 @@ expected:
     metadata:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-namespace: test-manager-namespace
       name: e3b0c-test-service-1-default-mtls-3039d-8080
       namespace: default
     spec:
@@ -184,7 +190,9 @@ expected:
     metadata:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-namespace: test-manager-namespace
       name: e3b0c-test-service-1-default-mtls-96179-8080
       namespace: default
     spec:

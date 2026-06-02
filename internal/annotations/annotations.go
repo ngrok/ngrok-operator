@@ -30,8 +30,7 @@ const (
 	// This is temporarily used by the Service controller to store reserved TCP addresses,
 	// while we work to add support for assigning TCP addresses to Cloud/Agent Endpoints
 	// when their URL is specified as 'tcp://', for example.
-	ComputedURLAnnotation = "k8s.ngrok.com/computed-url"
-	ComputedURLKey        = "computed-url"
+	ComputedURLAnnotation = "ngrok.com/computed-url"
 
 	// DeniedKeyName name of the key that contains the reason to deny a location
 	DeniedKeyName = "Denied"
@@ -68,6 +67,18 @@ const (
 	DescriptionAnnotation = "k8s.ngrok.com/description"
 	DescriptionKey        = "description"
 )
+
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// LegacyComputedURLAnnotation is the deprecated key for the operator-written
+// computed-url annotation. Retained so ExtractComputedURL can read values
+// stamped by a previous operator version, and so setComputedURLAnnotation
+// can dual-write during the migration window. Cleanup happens in two steps:
+// write-side cleanup drops the dual-write in setComputedURLAnnotation; the
+// later read-side cleanup drops this const and the legacy branch in
+// ExtractComputedURL.
+const LegacyComputedURLAnnotation = "k8s.ngrok.com/computed-url"
+
+// LEGACY-PREFIX-MIGRATION: END
 
 type MappingStrategy string
 
@@ -144,10 +155,40 @@ func ExtractURL(obj client.Object) (string, error) {
 	return parser.GetStringAnnotation(URLKey, obj)
 }
 
-// ExtractComputedURL extracts the computed URL from the annotation "k8s.ngrok.com/computed-url" if it is present. Otherwise, it returns
-// an error.
+// ExtractComputedURL reads the operator-written computed-url annotation.
+// During the legacy-prefix migration window it dual-reads: it prefers the new
+// `ngrok.com/computed-url` key and falls back to `k8s.ngrok.com/computed-url`
+// for values stamped by a previous operator version. The Service controller
+// re-stamps the resolved value under the new key on its next reconcile (both
+// the TLS path and the TCP happy path call setComputedURLAnnotation), so a
+// legacy-only value gets migrated to the new key.
+//
+// This reads the annotation map directly rather than going through the parser
+// helpers, because the parser is locked to a single global prefix
+// (parser.AnnotationsPrefix == "k8s.ngrok.com") and cannot read the new
+// ngrok.com/ key without re-prefixing every other annotation read. Reading the
+// map directly also treats a present-but-empty value as missing; that's safe
+// here because the value is operator-written (never user-authored, never empty
+// — clearComputedURLAnnotation deletes the key rather than emptying it).
+//
+// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop the LegacyComputedURLAnnotation
+// read. The body collapses back to a single annotation lookup.
 func ExtractComputedURL(obj client.Object) (string, error) {
-	return parser.GetStringAnnotation(ComputedURLKey, obj)
+	if obj == nil {
+		return "", errors.ErrMissingAnnotations
+	}
+	a := obj.GetAnnotations()
+	if len(a) == 0 {
+		return "", errors.ErrMissingAnnotations
+	}
+	if v, ok := a[ComputedURLAnnotation]; ok && v != "" {
+		return v, nil
+	}
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop this branch
+	if v, ok := a[LegacyComputedURLAnnotation]; ok && v != "" {
+		return v, nil
+	}
+	return "", errors.ErrMissingAnnotations
 }
 
 // ExtractMetadata extracts the ngrok metadata JSON string from the annotation "k8s.ngrok.com/metadata".

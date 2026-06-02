@@ -363,6 +363,8 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 func (r *ServiceReconciler) clearComputedURLAnnotation(ctx context.Context, svc *corev1.Service) error {
 	a := svc.GetAnnotations()
 	delete(a, annotations.ComputedURLAnnotation)
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop the legacy delete
+	delete(a, annotations.LegacyComputedURLAnnotation)
 	svc.SetAnnotations(a)
 	return r.Client.Update(ctx, svc)
 }
@@ -372,11 +374,18 @@ func (r *ServiceReconciler) setComputedURLAnnotation(ctx context.Context, svc *c
 	if a == nil {
 		a = make(map[string]string)
 	}
-	// Only update if the value has changed
-	if a[annotations.ComputedURLAnnotation] == computedURL {
+	// LEGACY-PREFIX-MIGRATION: BEGIN
+	// Dual-write both the new and legacy computed-url keys so a rollback to a
+	// pre-migration operator still sees the value it knows how to read. The
+	// write-side cleanup drops the legacy comparison and the legacy write; the
+	// body collapses back to the simple "skip if equal, otherwise write" form.
+	if a[annotations.ComputedURLAnnotation] == computedURL &&
+		a[annotations.LegacyComputedURLAnnotation] == computedURL {
 		return nil
 	}
 	a[annotations.ComputedURLAnnotation] = computedURL
+	a[annotations.LegacyComputedURLAnnotation] = computedURL
+	// LEGACY-PREFIX-MIGRATION: END
 	svc.SetAnnotations(a)
 	return r.Client.Update(ctx, svc)
 }
@@ -497,6 +506,18 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				if !reserved {
 					r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "TCPAddrNotReserved", "Reconcile", "The computed TCP address is not reserved, recomputing")
 					if err := r.clearComputedURLAnnotation(ctx, svc); err != nil {
+						return objects, err
+					}
+				} else {
+					// LEGACY-PREFIX-MIGRATION: the value above may have been read
+					// from the legacy computed-url key on a Service stamped by a
+					// previous operator version. Re-stamp it so the new key gets
+					// written (setComputedURLAnnotation no-ops once both keys
+					// already match). Without this, the happy TCP path never
+					// writes the annotation, so a legacy-only Service is never
+					// migrated and would lose its reserved TCP address once the
+					// legacy-read fallback is removed.
+					if err := r.setComputedURLAnnotation(ctx, svc, computedEndpointURL); err != nil {
 						return objects, err
 					}
 				}
