@@ -99,7 +99,3 @@ type IPPolicyList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []IPPolicy `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&IPPolicy{}, &IPPolicyList{})
-}

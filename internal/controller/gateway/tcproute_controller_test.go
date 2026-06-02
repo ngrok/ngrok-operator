@@ -81,7 +81,7 @@ var _ = Describe("TCPRoute controller", Ordered, func() {
 							BackendRefs: []gatewayv1alpha2.BackendRef{{
 								BackendObjectReference: gatewayv1.BackendObjectReference{
 									Name: gatewayv1.ObjectName("example-svc"),
-									Port: (*gatewayv1.PortNumber)(ptr.To[int32](8080)),
+									Port: ptr.To[int32](8080),
 								},
 							}},
 						}},
@@ -157,7 +157,7 @@ var _ = Describe("TCPRoute controller", Ordered, func() {
 							BackendRefs: []gatewayv1alpha2.BackendRef{{
 								BackendObjectReference: gatewayv1.BackendObjectReference{
 									Name: gatewayv1.ObjectName("example-svc"),
-									Port: (*gatewayv1.PortNumber)(ptr.To[int32](8080)),
+									Port: ptr.To[int32](8080),
 								},
 							}},
 						}},

@@ -236,7 +236,3 @@ func (a *AgentEndpoint) GetURL() string {
 func (a *AgentEndpoint) GetBindings() []string {
 	return a.Spec.Bindings
 }
-
-func init() {
-	SchemeBuilder.Register(&AgentEndpoint{}, &AgentEndpointList{})
-}
