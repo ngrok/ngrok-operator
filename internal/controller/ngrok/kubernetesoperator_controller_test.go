@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -12,9 +13,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -54,6 +58,233 @@ func TestCalculateFeaturesEnabled(t *testing.T) {
 			assert.Equal(t, tt.expected, calculateFeaturesEnabled(tt.in))
 		})
 	}
+}
+
+func TestBindingCertRenewalState(t *testing.T) {
+	now := time.Date(2026, time.January, 10, 12, 0, 0, 0, time.UTC)
+	window := 30 * 24 * time.Hour
+
+	tests := []struct {
+		name        string
+		notAfter    string
+		wantRenew   bool
+		wantNotZero bool
+		wantErr     bool
+	}{
+		{
+			name:        "outside renewal window",
+			notAfter:    now.Add(45 * 24 * time.Hour).Format(time.RFC3339),
+			wantRenew:   false,
+			wantNotZero: true,
+		},
+		{
+			name:        "inside renewal window",
+			notAfter:    now.Add(15 * 24 * time.Hour).Format(time.RFC3339),
+			wantRenew:   true,
+			wantNotZero: true,
+		},
+		{
+			name:        "expired cert",
+			notAfter:    now.Add(-time.Hour).Format(time.RFC3339),
+			wantRenew:   true,
+			wantNotZero: true,
+		},
+		{
+			name:     "invalid not_after",
+			notAfter: "not-a-time",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ko := &ngrok.KubernetesOperator{
+				Binding: &ngrok.KubernetesOperatorBinding{
+					Cert: ngrok.KubernetesOperatorCert{
+						NotAfter: tt.notAfter,
+					},
+				},
+			}
+
+			notAfter, renew, err := bindingCertRenewalState(ko, now, window)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantRenew, renew)
+			assert.Equal(t, tt.wantNotZero, !notAfter.IsZero())
+		})
+	}
+}
+
+func TestInvalidateTLSSecretCSR(t *testing.T) {
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1.AddToScheme(scheme))
+	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tls-secret",
+			Namespace: "test-ns",
+		},
+		Type: v1.SecretTypeTLS,
+		Data: map[string][]byte{
+			"tls.key": []byte("key"),
+			"tls.crt": []byte("cert"),
+			"tls.csr": []byte("csr"),
+		},
+	}
+
+	reconciler := &KubernetesOperatorReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build(),
+	}
+
+	ko := &ngrokv1alpha1.KubernetesOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ko",
+			Namespace: "test-ns",
+		},
+		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
+				TlsSecretName: "tls-secret",
+			},
+		},
+	}
+
+	assert.NoError(t, reconciler.invalidateTLSSecretCSR(context.Background(), ko))
+
+	updated := &v1.Secret{}
+	assert.NoError(t, reconciler.Client.Get(context.Background(), client.ObjectKeyFromObject(secret), updated))
+	assert.NotContains(t, updated.Data, "tls.csr")
+	assert.Contains(t, updated.Data, "tls.key")
+	assert.Contains(t, updated.Data, "tls.crt")
+}
+
+func TestReconcileBindingCertRenewalRequeueAfter(t *testing.T) {
+	now := time.Date(2026, time.January, 10, 12, 0, 0, 0, time.UTC)
+	renewalWindow := 30 * 24 * time.Hour
+	notAfter := now.Add(45 * 24 * time.Hour)
+
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1.AddToScheme(scheme))
+	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tls-secret",
+			Namespace: "test-ns",
+		},
+		Type: v1.SecretTypeTLS,
+		Data: map[string][]byte{
+			"tls.key": []byte("key"),
+			"tls.crt": []byte("cert"),
+			"tls.csr": []byte("csr"),
+		},
+	}
+
+	mockClientset := nmockapi.NewClientset()
+	ngrokKO, err := mockClientset.KubernetesOperators().Create(context.Background(), &ngrok.KubernetesOperatorCreate{
+		Description: "test",
+		Binding: &ngrok.KubernetesOperatorBindingCreate{
+			EndpointSelectors: []string{"all()"},
+			CSR:               "csr",
+		},
+	})
+	assert.NoError(t, err)
+	ngrokKO.Binding.Cert.NotAfter = notAfter.Format(time.RFC3339)
+
+	reconciler := &KubernetesOperatorReconciler{
+		Client:                   fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build(),
+		NgrokClientset:           mockClientset,
+		BindingCertRenewalWindow: renewalWindow,
+	}
+
+	ko := &ngrokv1alpha1.KubernetesOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ko",
+			Namespace: "test-ns",
+		},
+		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+			EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
+			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
+				TlsSecretName: "tls-secret",
+			},
+		},
+		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+			ID: ngrokKO.ID,
+		},
+	}
+
+	res, err := reconciler.reconcileBindingCertRenewal(context.Background(), ko, now)
+	assert.NoError(t, err)
+	assert.Equal(t, 15*24*time.Hour, res.RequeueAfter)
+}
+
+func TestReconcileBindingCertRenewalInvalidatesCSR(t *testing.T) {
+	now := time.Date(2026, time.January, 10, 12, 0, 0, 0, time.UTC)
+	renewalWindow := 30 * 24 * time.Hour
+	notAfter := now.Add(10 * 24 * time.Hour)
+
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1.AddToScheme(scheme))
+	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tls-secret",
+			Namespace: "test-ns",
+		},
+		Type: v1.SecretTypeTLS,
+		Data: map[string][]byte{
+			"tls.key": []byte("key"),
+			"tls.crt": []byte("cert"),
+			"tls.csr": []byte("csr"),
+		},
+	}
+
+	mockClientset := nmockapi.NewClientset()
+	ngrokKO, err := mockClientset.KubernetesOperators().Create(context.Background(), &ngrok.KubernetesOperatorCreate{
+		Description: "test",
+		Binding: &ngrok.KubernetesOperatorBindingCreate{
+			EndpointSelectors: []string{"all()"},
+			CSR:               "csr",
+		},
+	})
+	assert.NoError(t, err)
+	ngrokKO.Binding.Cert.NotAfter = notAfter.Format(time.RFC3339)
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build()
+	reconciler := &KubernetesOperatorReconciler{
+		Client:                   fakeClient,
+		NgrokClientset:           mockClientset,
+		BindingCertRenewalWindow: renewalWindow,
+	}
+
+	ko := &ngrokv1alpha1.KubernetesOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ko",
+			Namespace: "test-ns",
+		},
+		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+			EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
+			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
+				TlsSecretName: "tls-secret",
+			},
+		},
+		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+			ID: ngrokKO.ID,
+		},
+	}
+
+	res, err := reconciler.reconcileBindingCertRenewal(context.Background(), ko, now)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Second, res.RequeueAfter)
+
+	updated := &v1.Secret{}
+	assert.NoError(t, fakeClient.Get(context.Background(), client.ObjectKey{Namespace: "test-ns", Name: "tls-secret"}, updated))
+	assert.NotContains(t, updated.Data, "tls.csr")
 }
 
 var _ = Describe("KubernetesOperator Controller", Ordered, func() {
