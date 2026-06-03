@@ -1,6 +1,6 @@
 # IPPolicy Controller
 
-## Executive Summary
+## Summary
 
 The IPPolicy controller reconciles `IPPolicy` resources by creating and managing IP policies and their rules in the ngrok API.
 

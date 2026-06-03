@@ -1,6 +1,6 @@
 # Gateway Controller
 
-## Executive Summary
+## Summary
 
 The Gateway controller reconciles `Gateway` resources that reference an ngrok-managed GatewayClass. It validates the Gateway, updates the Driver store, and triggers synchronization to materialize endpoints.
 

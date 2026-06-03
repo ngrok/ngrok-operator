@@ -29,7 +29,7 @@ cleanupHook:         # Pre-delete cleanup job
 
 ## `global:`
 
-Contains k8s deployment defaults that are **deep-merged** into each component section. Component values win on conflicts.
+Contains k8s deployment defaults that are **deep-merged** into each component section. Component values win on conflicts. Any setting that applies to all three components (`apiManager`, `agent`, `bindingsForwarder`) MUST be present here.
 
 | Parameter                                | Description                                      | Default        |
 |------------------------------------------|--------------------------------------------------|----------------|
@@ -53,6 +53,9 @@ Contains k8s deployment defaults that are **deep-merged** into each component se
 | `global.extraEnv`                        | Additional environment variables                 | `{}`           |
 | `global.lifecycle`                       | Container lifecycle hooks                        | `{}`           |
 | `global.terminationGracePeriodSeconds`  | Graceful shutdown time                           | `30`           |
+| `global.podDisruptionBudget.create`     | Enable PDB for all components                    | `false`        |
+| `global.podDisruptionBudget.maxUnavailable` | Max unavailable pods (global default)        | `"1"`          |
+| `global.podDisruptionBudget.minAvailable` | Min available pods (global default)            | (unset)        |
 
 ### Override Semantics
 

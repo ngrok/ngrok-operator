@@ -4,7 +4,7 @@
 
 The endpoint bindings feature allows ngrok endpoints to be "bound" into a Kubernetes cluster, projecting external ngrok endpoints as local Kubernetes services. This enables traffic from ngrok to flow directly to services inside the cluster.
 
-**Status:** In development (`features.bindings.enabled: false` by default).
+Bindings is opt-in (`features.bindings.enabled: false` by default).
 
 ## Configuration
 
@@ -27,7 +27,7 @@ The endpoint bindings feature allows ngrok endpoints to be "bound" into a Kubern
 ## Flow
 
 1. The operator registers with the ngrok API as a Kubernetes operator with bindings enabled.
-2. The ngrok API pushes bound endpoint information to the operator via a poller.
+2. The operator polls the ngrok API for bound endpoint updates.
 3. The operator creates `BoundEndpoint` CRs for matching endpoints (filtered by `endpointSelectors`).
 4. The BoundEndpoint controller creates two Services per bound endpoint:
    - **Target Service**: An `ExternalName` service in the target namespace, providing a local DNS name for the endpoint.
@@ -41,6 +41,13 @@ The bindings forwarder uses mutual TLS for secure communication with ngrok's ing
 - The operator generates a self-signed TLS certificate and submits a CSR to the ngrok API.
 - The certificate is stored in a Kubernetes Secret (default name: `default-tls`).
 - The forwarder uses this certificate to authenticate with the ingress endpoint.
+
+## Related Specs
+
+- [BoundEndpoint CRD](../crds/boundendpoint.md)
+- [BoundEndpoint controller](../controllers/boundendpoint.md)
+- [Bindings Forwarder Helm values](../helm/bindings-forwarder.md)
+- [RBAC](../rbac/README.md)
 
 ## When Disabled
 

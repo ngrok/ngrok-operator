@@ -33,8 +33,6 @@ All settings below override global defaults. See [common.md](common.md) for over
 | `apiManager.serviceAccount.annotations`        | ServiceAccount annotations                           | `{}`            |
 | `apiManager.clusterRole.annotations`           | Annotations for all ClusterRoles                     | `{}`            |
 
-A minimum of 2 replicas is recommended in production for high availability.
-
 ## App Config
 
 Component-specific app config rendered into the api-manager ConfigMap. Overrides values from the common ConfigMap (`ngrok.*`).

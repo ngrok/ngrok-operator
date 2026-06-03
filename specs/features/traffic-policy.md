@@ -4,6 +4,12 @@
 
 TrafficPolicy is a cross-cutting resource that defines traffic handling rules (rate limiting, header manipulation, authentication, etc.) applied to ngrok endpoints. It can be referenced by multiple controllers and applied to endpoints in several ways.
 
+See the [ngrok Traffic Policy documentation](https://ngrok.com/docs/traffic-policy/) for the full reference on available actions, phases, and expressions.
+
+## Internal Forwarding
+
+When a CloudEndpoint forwards traffic to an AgentEndpoint (e.g. when using the `endpoints-verbose` mapping strategy), the operator injects a `forward_internal` action into the traffic policy to route traffic from the cloud endpoint to the in-cluster agent. This injection happens transparently — the user-supplied traffic policy is preserved and the forwarding action is appended by the operator. This is an exception to the general design principle of operator transparency with respect to traffic policy; the operator must manipulate the policy here because forwarding between cloud and agent endpoints requires an explicit phase action that the user cannot supply themselves.
+
 ## Application Methods
 
 ### 1. CRD Reference
@@ -11,7 +17,7 @@ TrafficPolicy is a cross-cutting resource that defines traffic handling rules (r
 Traffic policies can be referenced directly on endpoint CRDs:
 
 - **AgentEndpoint**: `spec.trafficPolicy.targetRef` (K8sObjectRef) or `spec.trafficPolicy.inline` (raw JSON)
-- **CloudEndpoint**: `spec.trafficPolicyName` (string) or `spec.trafficPolicy` (inline TrafficPolicySpec)
+- **CloudEndpoint**: `spec.trafficPolicy.targetRef` (K8sObjectRef) or `spec.trafficPolicy.inline` (raw JSON)
 
 For AgentEndpoint, exactly one of `inline` or `targetRef` must be specified when `trafficPolicy` is present (enforced by XValidation).
 
@@ -24,9 +30,11 @@ annotations:
   ngrok.com/traffic-policy: "my-policy"
 ```
 
-### 3. Inline on Parent Resources
+### 3. Reference on Parent Resources
 
-Some parent controllers support inline traffic policy configuration via their own mechanisms (e.g., the Gateway API's extensionRef).
+Some parent controllers support traffic policy references via their own mechanisms (e.g., the Gateway API's `extensionRef` on a `Gateway` resource). This is distinct from the annotation-based approach and is scoped to the resource type that supports it.
+
+See [mapping-strategy.md](../mapping-strategy.md) for how the mapping strategy determines where the traffic policy is applied.
 
 ## Resolution with Mapping Strategy
 

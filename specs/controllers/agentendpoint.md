@@ -1,6 +1,6 @@
 # AgentEndpoint Controller
 
-## Executive Summary
+## Summary
 
 The AgentEndpoint controller reconciles `AgentEndpoint` resources by creating and managing ngrok agent endpoints. It ensures associated domains exist, resolves traffic policies, fetches client certificates, and keeps endpoint status up to date.
 
@@ -27,11 +27,33 @@ The AgentEndpoint controller reconciles `AgentEndpoint` resources by creating an
 - ngrok agent endpoint (via AgentDriver API)
 - `Domain` CR (via DomainManager)
 
+## TLS Termination (Zero-Knowledge TLS)
+
+AgentEndpoints support agent-side TLS termination via `spec.tlsTermination`. When configured, the ngrok agent decrypts TLS traffic in-cluster before forwarding to the upstream service, so ngrok never sees the plaintext — hence "zero-knowledge" TLS.
+
+`spec.url` must use the `tls://` scheme when `tlsTermination` is set (enforced by XValidation).
+
+### `spec.tlsTermination`
+
+| Field                  | Type           | Description |
+|------------------------|----------------|-------------|
+| `serverCertificateRef` | `K8sObjectRef` | Reference to a `kubernetes.io/tls` Secret containing the server certificate and key (`tls.crt`, `tls.key`). Must be in the same namespace as the AgentEndpoint. |
+| `mutualTLS`            | object         | Optional. When set, enables mTLS — the agent requires or requests client certificates during the TLS handshake. |
+
+### `spec.tlsTermination.mutualTLS`
+
+| Field      | Type           | Description |
+|------------|----------------|-------------|
+| `caBundleRef` | `K8sObjectRef` | Reference to a Secret whose `ca.crt` key holds a PEM-encoded CA bundle trusted to sign client certificates. |
+| `mode`     | string         | `"require"` (client cert required) or `"request"` (client cert requested but optional). |
+
+The controller watches referenced Secrets (via secondary watch indexed by `spec.clientCertificateRefs`) and re-reconciles when they change so that certificate rotations are picked up automatically.
+
 ## Status
 
 | Field                    | Description                              |
 |--------------------------|------------------------------------------|
-| `assignedURL`            | The URL assigned by ngrok                |
+| `assignedURL`            | The URL assigned by ngrok for this endpoint. For `endpoints-verbose` mapping, this is a `.internal` URL; for `endpoints` mapping, it is the public URL. |
 | `attachedTrafficPolicy`  | `"none"`, `"inline"`, or policy ref name |
 | `domainRef`              | Reference to the associated Domain CR    |
 

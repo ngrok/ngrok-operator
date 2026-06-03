@@ -1,6 +1,6 @@
 # Ingress Controller
 
-## Executive Summary
+## Summary
 
 The Ingress controller reconciles Kubernetes `Ingress` resources that reference the operator's IngressClass. It uses a Driver pattern to collect Ingress state and materialize it as ngrok endpoint resources.
 

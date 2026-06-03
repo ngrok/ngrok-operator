@@ -1,6 +1,6 @@
 # Service LoadBalancer Controller Specification
 
-## Executive Summary
+## Summary
 
 The Service LoadBalancer controller reconciles Kubernetes Services of type `LoadBalancer` with the ngrok load balancer class
 (`loadBalancerClass: ngrok`). It materializes these Services in ngrok endpoint Custom Resources (CloudEndpoint and/or AgentEndpoint), applies TrafficPolicy configurations, and updates Service status with the externally reachable address (hostname/port).

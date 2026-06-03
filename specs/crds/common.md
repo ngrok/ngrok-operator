@@ -8,9 +8,7 @@ All ngrok-operator CRDs belong to a single API group `ngrok.com` at version `v1`
 |-------------|---------|----------------------------------------------------------------------------------|
 | `ngrok.com` | `v1`    | AgentEndpoint, CloudEndpoint, KubernetesOperator, TrafficPolicy, Domain, IPPolicy, BoundEndpoint |
 
-### Migration from Previous Versions
-
-Previous releases used three separate API groups (`ngrok.k8s.ngrok.com`, `ingress.k8s.ngrok.com`, `bindings.k8s.ngrok.com`) at version `v1alpha1`. A conversion webhook must be provided to handle conversion from the previous group/version combinations to `ngrok.com/v1`.
+See [migration-v1.md](../migration-v1.md) for the upgrade path from `v1alpha1` to `v1`.
 
 ## Scope
 
@@ -30,12 +28,16 @@ All fields must follow the Kubernetes API conventions for `omitempty`:
 
 ## Status Conditions
 
-All CRDs use `[]metav1.Condition` for status reporting with the following constraints:
+Most CRDs use `[]metav1.Condition` for status reporting with the following constraints:
 
 - **MaxItems:** 8
 - **List type:** map (keyed by `type`)
 
 The common condition type is `Ready`, which summarizes the overall health of the resource. Individual controllers may define additional condition types specific to their resource.
+
+**Exceptions:**
+- `TrafficPolicy` does not use status conditions. It has no corresponding ngrok API resource and its validation result is surfaced via Events rather than conditions.
+- `AgentEndpoint` sets a `DomainReady` condition that reflects the status of a child `Domain` resource rather than a direct ngrok API resource state.
 
 Condition type constants must be defined in the API package, not in internal controller code. The API package is the public contract — condition types are part of that contract since users depend on them for `kubectl wait`, health checks, and GitOps tooling.
 
@@ -51,6 +53,10 @@ The operator adds the finalizer `ngrok.com/finalizer` to resources it manages. T
 ## Owner References
 
 Controllers set owner references on child resources they create. For example, the Service LoadBalancer controller sets an owner reference on created AgentEndpoint/CloudEndpoint resources pointing back to the parent Service.
+
+## Status Reflects ngrok API State
+
+For CRDs that correspond to ngrok API resources (AgentEndpoint, CloudEndpoint, Domain, IPPolicy, KubernetesOperator, BoundEndpoint), status fields reflect the state returned by the ngrok API after reconciliation. `TrafficPolicy` is an exception — it has no corresponding ngrok API resource and its status reflects local validation only.
 
 ## Default Field Values
 

@@ -72,4 +72,4 @@ When the bindings feature is enabled, the operator generates a self-signed TLS c
 
 ## One-Click Demo Mode
 
-When `oneClickDemoMode: true` is set, the operator starts without requiring credentials. It will report as Ready but will not actually connect to the ngrok API. This mode is intended for demonstration purposes only.
+When `oneClickDemoMode: true` is set, the operator starts without requiring credentials. It will report as Ready and wait until credentials are supplied before connecting to the ngrok API.

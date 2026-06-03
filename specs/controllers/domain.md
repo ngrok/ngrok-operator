@@ -1,6 +1,6 @@
 # Domain Controller
 
-## Executive Summary
+## Summary
 
 The Domain controller reconciles `Domain` resources by creating and managing domain reservations in the ngrok API. It handles DNS provisioning delays, CNAME target resolution, and certificate management status.
 
@@ -50,7 +50,28 @@ The Domain controller reconciles `Domain` resources by creating and managing dom
 | 511        | Dangling CNAME             | Retryable (exponential backoff) |
 | Default    |                            | Via `CtrlResultForErr`       |
 
+## Requeue Behavior
+
+The Domain controller uses an exponential backoff rate limiter (30s base, 10m max) for all retries. The `Ready` condition remains `False` and the controller keeps requeuing until:
+
+- The ngrok API confirms the domain reservation is active.
+- For custom domains: DNS is configured correctly (CNAME pointing to `cnameTarget`).
+- For domains with managed certificates: the certificate has been issued.
+
+There is no timeout — the controller will requeue indefinitely until the domain becomes ready or is deleted.
+
+## Reclaim Policy
+
+The `spec.reclaimPolicy` field controls what happens to the ngrok domain reservation when the Domain CR is deleted:
+
+| Value    | Behavior                                                      |
+|----------|---------------------------------------------------------------|
+| `Delete` | The ngrok domain reservation is deleted (default)             |
+| `Retain` | The ngrok domain reservation is kept; only the CR is removed  |
+
+The default is set via `features.defaultDomainReclaimPolicy` in Helm values (default: `Delete`). Use `Retain` to preserve reserved domains across operator reinstalls or when managing domains outside of the operator's lifecycle.
+
 ## Special Cases
 
 - **Internal domains**: Domains with URLs ending in `.internal` are not managed in the ngrok API. The controller removes the finalizer and takes no further action.
-- **DNS provisioning**: Custom domains may take time for DNS to propagate. The exponential backoff rate limiter handles retries during this period.
+- **Custom domains**: Require DNS configuration (CNAME to `status.cnameTarget`) before the domain becomes ready. The operator does not verify DNS — it polls the ngrok API which performs the check.

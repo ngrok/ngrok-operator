@@ -1,6 +1,6 @@
 # TLSRoute Controller
 
-## Executive Summary
+## Summary
 
 The TLSRoute controller reconciles `TLSRoute` resources (API version `gateway.networking.k8s.io/v1alpha2`) that reference an ngrok-managed Gateway. It follows the same pattern as the HTTPRoute controller.
 

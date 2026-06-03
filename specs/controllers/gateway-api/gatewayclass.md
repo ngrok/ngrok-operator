@@ -1,6 +1,6 @@
 # GatewayClass Controller
 
-## Executive Summary
+## Summary
 
 The GatewayClass controller accepts GatewayClass resources that match the operator's controller name. It sets the `Accepted` condition and manages a finalizer that prevents deletion while Gateways reference the class.
 

@@ -1,6 +1,6 @@
 # KubernetesOperator Controller
 
-## Executive Summary
+## Summary
 
 The KubernetesOperator controller manages the operator's registration with the ngrok API. It reconciles a single `KubernetesOperator` CR per operator deployment, handling feature configuration, TLS certificate management, and the drain workflow on deletion.
 
@@ -47,6 +47,26 @@ See [features/draining.md](../features/draining.md) for full details.
 | `enabledFeatures`          | Comma-separated enabled features                    |
 | `bindingsIngressEndpoint`  | Resolved bindings ingress endpoint                  |
 | Drain fields               | `drainStatus`, `drainMessage`, `drainProgress`, `drainErrors` |
+
+## Cluster Identity and Deduplication
+
+The controller stores the UID of the operator's release namespace in the ngrok API resource metadata under the key `namespace.uid`. On each reconcile, it compares the stored UID with the current namespace UID:
+
+- **Match**: The remote resource belongs to this cluster — proceed with updates.
+- **Mismatch**: The remote resource was created by a different cluster (e.g., a local dev cluster reusing the same Helm release name after the remote resource was not cleaned up). The controller creates a new ngrok API resource rather than overwriting the existing one.
+
+This prevents different clusters with identical release names from clobbering each other's ngrok API registrations. The tradeoff is that ephemeral clusters (local dev, CI) that are deleted without running `helm uninstall` leak orphaned resources in the ngrok API.
+
+## TLS Secret Lifecycle
+
+The controller calls `findOrCreateTLSSecret` to manage the operator's mTLS certificate:
+
+1. Reads the Secret named `default-tls` (or the configured name) from the release namespace.
+2. If it doesn't exist, generates a self-signed certificate and creates the Secret.
+3. Submits a CSR to the ngrok API so the certificate is trusted for bindings mTLS.
+4. On subsequent reconciles, reads the existing Secret and refreshes the CSR if the certificate is near expiry.
+
+The Secret always lives in the release namespace, regardless of `watchNamespace`. See [rbac/README.md](../rbac/README.md) for the cache scope caveat when `watchNamespace ≠ release namespace`.
 
 ## Notes
 

@@ -1,6 +1,6 @@
 # BoundEndpoint Controller
 
-## Executive Summary
+## Summary
 
 The BoundEndpoint controller reconciles `BoundEndpoint` resources by creating two Kubernetes Services for each binding: a target ExternalName service in the destination namespace and an upstream ClusterIP service in the operator namespace. It verifies TCP connectivity through the service chain.
 

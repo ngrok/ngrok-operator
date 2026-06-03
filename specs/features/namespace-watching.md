@@ -34,5 +34,4 @@ When a watch namespace is set:
 
 ## Caveats
 
-- If the watch namespace does not match the operator's namespace, the KubernetesOperator CR may not be visible to the cache. The KubernetesOperator controller uses a name+namespace predicate that is independent of the cache scope, but other controllers that need to read the KubernetesOperator may be affected.
-- Domain and IPPolicy controllers operate on resources created by other controllers, so they inherit the effective scope of the controllers that create them.
+Setting `watchNamespace` to a value different from the operator's release namespace is **not supported**. The operator's TLS Secret and KubernetesOperator CR both live in the release namespace. With a mismatched `watchNamespace`, the controller-runtime cache scoped to `watchNamespace` will not see those resources, causing the operator to fail to function correctly. See [rbac/README.md](../rbac/README.md) for the full details on this constraint.

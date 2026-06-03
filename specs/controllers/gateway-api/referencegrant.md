@@ -1,6 +1,6 @@
 # ReferenceGrant Controller
 
-## Executive Summary
+## Summary
 
 The ReferenceGrant controller watches `ReferenceGrant` resources and passes them to the Driver to enable cross-namespace references in Gateway API routes.
 

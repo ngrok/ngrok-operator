@@ -51,6 +51,8 @@ See [features/bindings.md](../features/bindings.md) for behavior details.
 
 ## Cleanup Hook
 
+> The cleanup hook is intentionally placed at the top level (`cleanupHook.*`) rather than under `features:`. It is lifecycle infrastructure (a pre-delete Helm hook) that runs independent of any operator feature flag, so it does not belong in the feature configuration namespace.
+
 | Parameter                              | Description                                  | Default              |
 |----------------------------------------|----------------------------------------------|----------------------|
 | `cleanupHook.enabled`                  | Enable the pre-delete cleanup hook           | `true`               |

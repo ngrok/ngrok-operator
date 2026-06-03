@@ -38,4 +38,4 @@ Viewer roles grant read-only access to the CRD resources.
 
 ## Custom Annotations
 
-The `clusterRole.annotations` Helm value allows adding custom annotations to all ClusterRoles. This is commonly used for RBAC aggregation — for example, aggregating the editor role into the built-in `admin` or `edit` roles so that users with those roles automatically gain CRD access without needing `system:masters`.
+The `crdAccessRoles.annotations` Helm value allows adding custom annotations to all ClusterRoles. This is commonly used for RBAC aggregation — for example, aggregating the editor role into the built-in `admin` or `edit` roles so that users with those roles automatically gain CRD access without needing `system:masters`.

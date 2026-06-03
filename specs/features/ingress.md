@@ -37,6 +37,19 @@ The following annotations on Ingress resources influence behavior:
 
 See [annotations.md](../annotations.md) for details.
 
+## Load Balancer Status
+
+The operator sets the `status.loadBalancer.ingress` field on each reconciled Ingress resource. This is the standard Kubernetes mechanism for advertising the reachable address of an Ingress and is consumed by tools such as [external-dns](https://github.com/kubernetes-sigs/external-dns).
+
+| Ingress URL type | `status.loadBalancer.ingress` value |
+|------------------|--------------------------------------|
+| Hostname-based (e.g. `https://example.ngrok.io`) | `hostname: example.ngrok.io` |
+| IP-based (e.g. `tcp://1.2.3.4:12345`) | `ip: 1.2.3.4` |
+
+The value is derived from the `assignedURL` of the created endpoint. If no URL is assigned yet, the field is cleared.
+
+See the [Kubernetes Ingress status documentation](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class) for how tools consume this field.
+
 ## When Disabled
 
 When `features.ingress.enabled: false`:

@@ -1,6 +1,6 @@
 # HTTPRoute Controller
 
-## Executive Summary
+## Summary
 
 The HTTPRoute controller reconciles `HTTPRoute` resources that reference an ngrok-managed Gateway. It updates the Driver store and triggers synchronization to materialize the routes as ngrok endpoints.
 

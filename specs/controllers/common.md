@@ -2,7 +2,7 @@
 
 ## Base Controller Pattern
 
-All ngrok-operator controllers use `BaseController[T]`, a generic base type that implements the standard reconciliation pattern.
+Most ngrok-operator controllers use `BaseController[T]`, a generic base type that implements the standard reconciliation pattern.
 
 ## Reconciliation Flow
 

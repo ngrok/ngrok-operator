@@ -1,6 +1,6 @@
 # CloudEndpoint Controller
 
-## Executive Summary
+## Summary
 
 The CloudEndpoint controller reconciles `CloudEndpoint` resources by creating and managing ngrok cloud endpoints via the ngrok API. It ensures associated domains exist, resolves traffic policies, and keeps the endpoint synchronized with the desired state.
 
@@ -16,7 +16,7 @@ The CloudEndpoint controller reconciles `CloudEndpoint` resources by creating an
 
 1. Ensure the associated Domain exists via `DomainManager.EnsureDomainExists()`.
 2. Fetch the traffic policy (inline or by name).
-3. Create or update the cloud endpoint via the ngrok API.
+3. Create or update the cloud endpoint via the ngrok API — **this happens regardless of whether the associated Domain is ready**. A domain that is not ready (e.g., certificate still provisioning) is still usable as a URL target; the endpoint is created so that traffic can begin flowing as soon as the domain becomes ready.
 4. Update status with the endpoint ID, domain reference, and conditions.
 5. Call `ReconcileStatus()`.
 

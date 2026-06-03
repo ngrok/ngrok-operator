@@ -1,6 +1,6 @@
 # TrafficPolicy Controller
 
-## Executive Summary
+## Summary
 
 The TrafficPolicy controller is a validation-only controller. It validates the JSON syntax of traffic policies, emits warnings for deprecated features, and triggers re-sync of dependent endpoints.
 

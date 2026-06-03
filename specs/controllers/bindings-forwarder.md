@@ -1,6 +1,6 @@
 # Bindings Forwarder Controller
 
-## Executive Summary
+## Summary
 
 The Bindings Forwarder controller manages TCP listeners for `BoundEndpoint` resources. It bridges incoming connections from the upstream service through mTLS to the ngrok ingress endpoint.
 
