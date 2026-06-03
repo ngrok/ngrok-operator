@@ -2,25 +2,24 @@
 
 While this project is new and we don't have full contribution guidelines yet, we are open to any PRs and or issues raised. Feel free to reach out to us on slack as well!
 
-- [In the weeds architecture](#in-the-weeds-architecture)
-- [Local Development](#local-development)
+- [Developer Guide](#developer-guide)
+  - [In the weeds architecture](#in-the-weeds-architecture)
+  - [Local Development](#local-development)
     - [Codespaces](#codespaces)
+      - [Set up Codespaces Secrets](#set-up-codespaces-secrets)
+      - [Start a Codespace](#start-a-codespace)
+      - [Issues](#issues)
     - [Non-Codespaces](#non-codespaces)
-        - [Prerequisites](#prerequisites)
-        - [Bootstrap repo-managed tools](#bootstrap-repo-managed-tools)
-        - [Create a local kind cluster](#create-a-local-kind-cluster)
-        - [Setup](#setup)
-        - [Using the E2E Fixtures](#using-the-e2e-fixtures)
-        - [E2E Tests](#e2e-tests)
-- [Releasing](#releasing)
+      - [Prerequisites](#prerequisites)
+      - [Create a local kind cluster](#create-a-local-kind-cluster)
+      - [Setup](#setup)
+      - [Using the E2E Fixtures](#using-the-e2e-fixtures)
+      - [E2E Tests](#e2e-tests)
+  - [Releasing](#releasing)
 
 ## In the weeds architecture
 
 Have a look at the architecture guide on the internal workings of the ingress controller [here](./architecture.md)
-
-## Migration strategy
-
-For staged backwards-incompatible changes on the path to 1.0, see [Passivity shims and migration strategy](./passivity-shims.md). The user-facing counterpart lives at [`docs/v1-migration-guide.md`](../v1-migration-guide.md).
 
 ## Local Development
 

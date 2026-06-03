@@ -232,8 +232,8 @@ func GetAnnotationWithPrefix(suffix string) string {
 // annotation keys (prefix + "/" + suffix).
 type LegacyHitFunc func(legacyKey, newKey string)
 
-// keysForFallback returns (newKey, legacyKey) for the given suffix.
-func keysForFallback(suffix string) (string, string) {
+// keysForFallback returns the canonical and legacy keys for the given suffix.
+func keysForFallback(suffix string) (newKey, legacyKey string) {
 	return CanonicalAnnotationsPrefix + "/" + suffix, LegacyAnnotationsPrefix + "/" + suffix
 }
 
