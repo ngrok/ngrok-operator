@@ -1,0 +1,28 @@
+{{- if .Values.crdAccessRoles.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-kubernetesoperator-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+  {{- with .Values.crdAccessRoles.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+{{- end }}

@@ -1,6 +1,7 @@
 package ngrokapi
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -82,6 +83,50 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 				},
 			},
 			wantErr: false,
+		},
+		{
+			// Regression test: a single endpoint whose hostname does not match
+			// the <service>.<namespace> format (here a 3-label hostname) must
+			// not abort the aggregation — valid endpoints in the same batch
+			// must still be returned, and the parse failure must be reported
+			// in the returned error.
+			name: "skips-unparseable-and-keeps-valid",
+			endpoints: []ngrok.Endpoint{
+				{ID: "ep_bad1", PublicURL: "https://controller.example.com"},
+				{ID: "ep_good", PublicURL: "https://service1.namespace1"},
+				{ID: "ep_bad2", PublicURL: "https://just-one-label"},
+			},
+			want: AggregatedEndpoints{
+				"https://service1.namespace1:443": {
+					Spec: bindingsv1alpha1.BoundEndpointSpec{
+						EndpointURL: "https://service1.namespace1:443",
+						Scheme:      "https",
+						Target: bindingsv1alpha1.EndpointTarget{
+							Service:   "service1",
+							Namespace: "namespace1",
+							Port:      443,
+							Protocol:  "TCP",
+						},
+					},
+					Status: bindingsv1alpha1.BoundEndpointStatus{
+						Endpoints: []bindingsv1alpha1.BindingEndpoint{
+							{Ref: ngrok.Ref{ID: "ep_good"}},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			// When every endpoint is unparseable we should get an empty
+			// aggregation plus a non-nil error, not a nil map.
+			name: "all-unparseable",
+			endpoints: []ngrok.Endpoint{
+				{ID: "ep_bad1", PublicURL: "https://controller.example.com"},
+				{ID: "ep_bad2", PublicURL: "https://a.b.c.d"},
+			},
+			want:    AggregatedEndpoints{},
+			wantErr: true,
 		},
 		{
 			name: "full",
@@ -176,12 +221,14 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 			t.Parallel()
 			assert := assert.New(t)
 
-			got, err := AggregateBindingEndpoints(test.endpoints)
+			got, err := AggregateBindingEndpoints(context.Background(), test.endpoints)
 			if test.wantErr {
 				assert.Error(err)
-				return
+			} else {
+				assert.NoError(err)
 			}
-			assert.NoError(err)
+			// Even on partial failure we still expect the valid endpoints
+			// to be aggregated, so compare the map unconditionally.
 			assert.Equal(test.want, got)
 		})
 	}

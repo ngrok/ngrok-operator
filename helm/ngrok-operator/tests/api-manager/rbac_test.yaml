@@ -1,0 +1,91 @@
+suite: test api-manager rbac
+templates:
+- api-manager/role.yaml
+- api-manager/rolebinding.yaml
+tests:
+- it: should render ClusterRole in default mode
+  template: api-manager/role.yaml
+  asserts:
+  - hasDocuments:
+      count: 1
+  - isKind:
+      of: ClusterRole
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-manager-role
+- it: should render ClusterRoleBinding in default mode
+  template: api-manager/rolebinding.yaml
+  asserts:
+  - hasDocuments:
+      count: 1
+  - isKind:
+      of: ClusterRoleBinding
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-manager-rolebinding
+- it: should render Role and ClusterRole in namespaced mode
+  template: api-manager/role.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 2
+- it: should render Role in watched namespace
+  template: api-manager/role.yaml
+  documentIndex: 0
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - isKind:
+      of: Role
+  - equal:
+      path: metadata.namespace
+      value: test-ns
+- it: should render cluster-scoped ClusterRole in namespaced mode
+  template: api-manager/role.yaml
+  documentIndex: 1
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - isKind:
+      of: ClusterRole
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-manager-cluster-role
+- it: should render RoleBinding and ClusterRoleBinding in namespaced mode
+  template: api-manager/rolebinding.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 2
+- it: should render RoleBinding in watched namespace
+  template: api-manager/rolebinding.yaml
+  documentIndex: 0
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - isKind:
+      of: RoleBinding
+  - equal:
+      path: metadata.namespace
+      value: test-ns
+- it: should render ClusterRoleBinding for cluster-scoped resources in namespaced mode
+  template: api-manager/rolebinding.yaml
+  documentIndex: 1
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - isKind:
+      of: ClusterRoleBinding
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-manager-cluster-rolebinding
+- it: should match snapshot in default mode
+  asserts:
+  - matchSnapshot: {}
+- it: should match snapshot in namespaced mode
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - matchSnapshot: {}

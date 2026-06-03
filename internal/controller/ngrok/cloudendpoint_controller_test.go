@@ -778,6 +778,37 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 		})
 
+		It("should not call the ngrok API update while domain is not ready", func(ctx SpecContext) {
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "no-unnecessary-updates",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "http://no-update-spam.example.com",
+				},
+			}
+
+			By("Creating the CloudEndpoint")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Waiting for the endpoint to be created (Status.ID set)")
+			kginkgo.EventuallyWithCloudEndpoint(ctx, cloudEndpoint, func(g Gomega, fetched *ngrokv1alpha1.CloudEndpoint) {
+				g.Expect(fetched.Status.ID).NotTo(BeEmpty())
+			})
+
+			By("Recording the update call count after initial creation")
+			mockEndpoints := mockClientset.Endpoints().(*nmockapi.EndpointsClient)
+			mockEndpoints.ResetUpdateCallCount()
+
+			By("Waiting several requeue cycles to verify no spurious API updates")
+			// The controller requeues every 10s when domain is not ready.
+			// Wait long enough for multiple requeue cycles to have fired.
+			Consistently(func() int {
+				return mockEndpoints.UpdateCallCount()
+			}, 5*time.Second, 500*time.Millisecond).Should(Equal(0))
+		})
+
 		It("should handle multiple Kubernetes-bound endpoints with different domains", func(ctx SpecContext) {
 			// Use different URLs to avoid pooling issues in mock
 			endpoints := []*ngrokv1alpha1.CloudEndpoint{

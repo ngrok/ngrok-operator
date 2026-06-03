@@ -3,10 +3,12 @@ package agent
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -26,9 +28,25 @@ type EndpointResult struct {
 	Ready         bool
 }
 
+// AgentTLSTermination configures agent-side ("zero-knowledge") TLS termination
+// for an endpoint. A nil value disables agent-side termination entirely; the
+// edge will then be responsible for TLS termination.
+type AgentTLSTermination struct {
+	// ServerCert is the certificate the agent presents to clients during the
+	// TLS handshake. Required when this struct is non-nil.
+	ServerCert *tls.Certificate
+
+	// ClientCAs is the pool of CAs trusted to sign client certificates for mTLS.
+	// nil disables mTLS; ClientAuth is ignored in that case.
+	ClientCAs *x509.CertPool
+
+	// ClientAuth selects the TLS client-auth policy. Ignored when ClientCAs is nil.
+	ClientAuth tls.ClientAuthType
+}
+
 type Driver interface {
 	// CreateAgentEndpoint creates or updates an agent endpoint by name using the provided desired configuration state.
-	CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) (*EndpointResult, error)
+	CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate, agentTLS *AgentTLSTermination) (*EndpointResult, error)
 
 	// DeleteAgentEndpoint deletes an agent endpoint by name.
 	DeleteAgentEndpoint(ctx context.Context, name string) error
@@ -95,7 +113,8 @@ type driver struct {
 	agent      ngrok.Agent
 	forwarders *endpointForwarderMap
 	healthcheck.HealthChecker
-	done chan bool
+	done      chan bool
+	closeOnce sync.Once
 }
 
 // NewDriver creates a new Driver instance with the provided options.
@@ -146,7 +165,7 @@ func NewDriver(driverOpts ...DriverOption) (Driver, error) {
 				}()
 				logger.Info("ngrok session stopping or restarting due to rpc request")
 				aliveChan <- errors.New("ngrok session stopping or restarting")
-				close(d.done) // Signal that the agent is stopping
+				d.closeOnce.Do(func() { close(d.done) }) // Signal that the agent is stopping
 				return []byte("ngrok session stopping or restarting"), nil
 			default:
 				// For any other method, we just return an error.
@@ -227,7 +246,7 @@ func NewDriver(driverOpts ...DriverOption) (Driver, error) {
 }
 
 // CreateAgentEndpoint will create or update an agent endpoint by name using the provided desired configuration state
-func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate) (*EndpointResult, error) {
+func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate, agentTLS *AgentTLSTermination) (*EndpointResult, error) {
 	select {
 	case <-d.done:
 		return &EndpointResult{Ready: false}, errors.New("driver is shutting down")
@@ -271,6 +290,19 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 		endpointOpts = append(endpointOpts, ngrok.WithTrafficPolicy(trafficPolicy))
 	}
 
+	if agentTLS != nil && agentTLS.ServerCert != nil {
+		cfg := &tls.Config{
+			Certificates: []tls.Certificate{*agentTLS.ServerCert},
+		}
+		if agentTLS.ClientCAs != nil {
+			cfg.ClientCAs = agentTLS.ClientCAs
+			cfg.ClientAuth = agentTLS.ClientAuth
+		}
+		endpointOpts = append(endpointOpts, ngrok.WithAgentTLSTermination(cfg))
+	}
+
+	// Use context.Background() here instead of ctx because Forward spawns a goroutine that listens for ctx.Done().
+	// Passing the reconciler's ctx would cause the endpoint to shut down as soon as reconciliation completes.
 	epf, err := d.agent.Forward(context.Background(), upstream, endpointOpts...)
 	if err != nil {
 		return &EndpointResult{Ready: false}, err

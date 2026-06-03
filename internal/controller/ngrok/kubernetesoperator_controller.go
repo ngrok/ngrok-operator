@@ -34,8 +34,10 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -63,6 +65,8 @@ var featureMap = map[string]string{
 
 const (
 	NgrokErrorFailedToCreateCSR = "ERR_NGROK_20006"
+
+	defaultBindingCertRenewalWindow = 30 * 24 * time.Hour
 )
 
 // KubernetesOperatorReconciler reconciles a KubernetesOperator object
@@ -86,6 +90,10 @@ type KubernetesOperatorReconciler struct {
 	// - State() for read-only drain checking (passed to other controllers)
 	// - HandleDrain() for executing the drain workflow
 	DrainOrchestrator *drain.Orchestrator
+
+	// BindingCertRenewalWindow controls how far ahead of expiry bindings certificates
+	// are renewed. Defaults to 30 days when unset.
+	BindingCertRenewalWindow time.Duration
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -128,14 +136,29 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Complete(r)
 }
 
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=kubernetesoperators/finalizers,verbs=update;patch
-
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.KubernetesOperator))
+	res, err := r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.KubernetesOperator))
+	if err != nil || res.RequeueAfter > 0 {
+		return res, err
+	}
+
+	ko := new(ngrokv1alpha1.KubernetesOperator)
+	if err := r.Client.Get(ctx, req.NamespacedName, ko); err != nil {
+		return res, client.IgnoreNotFound(err)
+	}
+
+	renewalRes, err := r.reconcileBindingCertRenewal(ctx, ko, time.Now())
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if renewalRes.RequeueAfter > 0 {
+		return renewalRes, nil
+	}
+
+	return res, nil
 }
 
 func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (err error) {
@@ -172,6 +195,10 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
+		if ko.Spec.Binding == nil {
+			return r.updateStatus(ctx, ko, nil, errors.New("bindings feature enabled but spec.binding is not configured"))
+		}
+
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateCSR, "failed to create TLS secret for CSR")
@@ -330,6 +357,10 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
+		if ko.Spec.Binding == nil {
+			return r.updateStatus(ctx, ko, nil, errors.New("bindings feature enabled but spec.binding is not configured"))
+		}
+
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
 			return r.updateStatus(ctx, ko, nil, err)
@@ -362,7 +393,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 
 	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
 	if err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("getting namespace UID: %w", err)
 	}
 
 	iter := r.NgrokClientset.KubernetesOperators().List(&ngrok.Paging{})
@@ -377,7 +408,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 
 		iterLogger.V(5).Info("checking if KubernetesOperator matches")
 
-		if item.Deployment.Name != ko.Spec.Deployment.Name {
+		if ko.Spec.Deployment == nil || item.Deployment.Name != ko.Spec.Deployment.Name {
 			continue
 		}
 		if item.Deployment.Namespace != ko.GetNamespace() {
@@ -421,11 +452,9 @@ func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
 func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (secret *v1.Secret, err error) {
 	secret = &v1.Secret{}
 	err = r.Client.Get(ctx, client.ObjectKey{Namespace: ko.GetNamespace(), Name: ko.Spec.Binding.TlsSecretName}, secret)
-	if !apierrors.IsNotFound(err) {
-		return
-	}
-
-	if err == nil {
+	switch {
+	case err == nil:
+		// Found — validate it
 		isValid := secret.Type == v1.SecretTypeTLS &&
 			// tls.crt is managed by updateTLSSecretCert
 			// secret.Data["tls.crt"] != nil &&
@@ -435,9 +464,12 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 		if isValid {
 			return
 		}
-
 		// otherwise fallthrough to generate the CSR
+	case !apierrors.IsNotFound(err):
+		// Real error
+		return
 	}
+	// IsNotFound or invalid existing secret — create/update
 
 	// If the secret doesn't exist, create it with a new private key and a CSR
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -493,6 +525,71 @@ func (r *KubernetesOperatorReconciler) updateTLSSecretCert(ctx context.Context, 
 	newSecret.Data["tls.crt"] = []byte(ngrokKo.Binding.Cert.Cert)
 
 	return r.Client.Patch(ctx, newSecret, client.MergeFrom(secret))
+}
+
+func (r *KubernetesOperatorReconciler) reconcileBindingCertRenewal(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, now time.Time) (ctrl.Result, error) {
+	if ko.Status.ID == "" || ko.Spec.Binding == nil || !slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings) {
+		return ctrl.Result{}, nil
+	}
+
+	ngrokKo, err := r.NgrokClientset.KubernetesOperators().Get(ctx, ko.Status.ID)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	renewalWindow := r.bindingCertRenewalWindow()
+	notAfter, shouldRenew, err := bindingCertRenewalState(ngrokKo, now, renewalWindow)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if notAfter.IsZero() {
+		return ctrl.Result{}, nil
+	}
+
+	if shouldRenew {
+		if err := r.invalidateTLSSecretCSR(ctx, ko); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: time.Second}, nil
+	}
+
+	return ctrl.Result{RequeueAfter: notAfter.Add(-renewalWindow).Sub(now)}, nil
+}
+
+func bindingCertRenewalState(ngrokKo *ngrok.KubernetesOperator, now time.Time, renewalWindow time.Duration) (notAfter time.Time, shouldRenew bool, err error) {
+	if ngrokKo == nil || ngrokKo.Binding == nil || ngrokKo.Binding.Cert.NotAfter == "" {
+		return time.Time{}, false, nil
+	}
+
+	notAfter, err = time.Parse(time.RFC3339, ngrokKo.Binding.Cert.NotAfter)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+
+	shouldRenew = now.After(notAfter) || now.After(notAfter.Add(-renewalWindow))
+	return notAfter, shouldRenew, nil
+}
+
+func (r *KubernetesOperatorReconciler) invalidateTLSSecretCSR(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
+	secret := &v1.Secret{}
+	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: ko.GetNamespace(), Name: ko.Spec.Binding.TlsSecretName}, secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	if secret.Data["tls.csr"] == nil {
+		return nil
+	}
+
+	newSecret := secret.DeepCopy()
+	delete(newSecret.Data, "tls.csr")
+	return r.Client.Patch(ctx, newSecret, client.MergeFrom(secret))
+}
+
+func (r *KubernetesOperatorReconciler) bindingCertRenewalWindow() time.Duration {
+	if r.BindingCertRenewalWindow > 0 {
+		return r.BindingCertRenewalWindow
+	}
+	return defaultBindingCertRenewalWindow
 }
 
 // Try merging the user-provided metadata in the KubernetesOperator spec with the namespace UID.

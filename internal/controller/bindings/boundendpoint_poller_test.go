@@ -1,7 +1,9 @@
 package bindings
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
@@ -10,6 +12,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// Test_BoundEndpointPoller_Start_InitializesPortAllocator mirrors how the poller
+// is constructed in cmd/api-manager.go: the portAllocator pointer is not set and
+// must be initialized by Start before any polling runs. Without this, the first
+// call to reconcileBoundEndpointsFromAPI nil-panics on portAllocator.Replace.
+func Test_BoundEndpointPoller_Start_InitializesPortAllocator(t *testing.T) {
+	poller := &BoundEndpointPoller{
+		Log:             logr.Discard(),
+		PortRange:       PortRangeConfig{Min: 10000, Max: 20000},
+		PollingInterval: time.Hour, // large interval; ctx cancellation ends Start before any tick
+	}
+	assert.Nil(t, poller.portAllocator, "production construction leaves portAllocator nil")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	assert.NoError(t, poller.Start(ctx))
+	assert.NotNil(t, poller.portAllocator, "Start must initialize portAllocator before polling")
+}
 
 func Test_BoundEndpointPoller_filterBoundEndpointActions(t *testing.T) {
 	t.Parallel()

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -252,6 +253,10 @@ func calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, domains map[string
 			})
 		}
 	}
+
+	sort.Slice(status, func(i, j int) bool {
+		return status[i].Hostname < status[j].Hostname
+	})
 
 	return status
 }

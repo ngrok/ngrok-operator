@@ -4,15 +4,15 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/rbac: 2601d9f99e4dc306b02cf0cf2ec66f7b3f272fe30a4e28244795080b29b1c367
+        checksum/rbac: 7ad5685f36276669f1d58bba694549ec85c1bfec764282ab94079943fba927e7
       labels:
         app.kubernetes.io/component: agent
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0
+        helm.sh/chart: ngrok-operator-0.23.0
       name: RELEASE-NAME-ngrok-operator-agent
       namespace: NAMESPACE
     spec:
@@ -27,7 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
-            checksum/rbac: 2601d9f99e4dc306b02cf0cf2ec66f7b3f272fe30a4e28244795080b29b1c367
+            checksum/rbac: 7ad5685f36276669f1d58bba694549ec85c1bfec764282ab94079943fba927e7
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
@@ -78,7 +78,7 @@ Should match snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
-              image: docker.io/ngrok/ngrok-operator:0.20.3
+              image: docker.io/ngrok/ngrok-operator:0.21.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
@@ -107,30 +107,40 @@ Should match snapshot:
       name: RELEASE-NAME-ngrok-operator-agent-role
     rules:
       - apiGroups:
-          - ingress.k8s.ngrok.com
+          - ""
         resources:
-          - tunnels
+          - events
+        verbs:
+          - create
+          - patch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
         verbs:
           - get
           - list
           - watch
-          - patch
-          - update
       - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
-          - tunnels/finalizers
+          - domains
         verbs:
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/status
-        verbs:
+          - create
+          - delete
           - get
+          - list
           - patch
           - update
+          - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
@@ -138,9 +148,9 @@ Should match snapshot:
         verbs:
           - get
           - list
-          - watch
           - patch
           - update
+          - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
@@ -164,51 +174,3 @@ Should match snapshot:
           - get
           - list
           - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains
-        verbs:
-          - get
-          - list
-          - watch
-          - create
-          - patch
-          - delete
-          - update
-      - apiGroups:
-          - ""
-        resources:
-          - events
-        verbs:
-          - create
-          - patch
-      - apiGroups:
-          - ""
-        resources:
-          - secrets
-        verbs:
-          - get
-          - list
-          - watch
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - kubernetesoperators
-        verbs:
-          - get
-          - list
-          - watch
-  3: |
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: RELEASE-NAME-ngrok-operator-agent-rolebinding
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: RELEASE-NAME-ngrok-operator-agent-role
-    subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME-ngrok-operator-agent
-        namespace: NAMESPACE

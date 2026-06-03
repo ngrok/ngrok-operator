@@ -4,15 +4,15 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/rbac: 99b3e2746895f59517baf12e18ba8fbccac90a945a507872d86516d7e6abdb76
+        checksum/rbac: 2b5a37e7ad063bb138ca1acc4a11ca0da8991d66311c333da4b2bba7584535fe
       labels:
         app.kubernetes.io/component: bindings-forwarder
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.20.3
-        helm.sh/chart: ngrok-operator-0.22.2
+        app.kubernetes.io/version: 0.21.0
+        helm.sh/chart: ngrok-operator-0.23.0
       name: RELEASE-NAME-ngrok-operator-bindings-forwarder
       namespace: NAMESPACE
     spec:
@@ -27,7 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
-            checksum/rbac: 99b3e2746895f59517baf12e18ba8fbccac90a945a507872d86516d7e6abdb76
+            checksum/rbac: 2b5a37e7ad063bb138ca1acc4a11ca0da8991d66311c333da4b2bba7584535fe
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
@@ -74,7 +74,7 @@ Should match snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
-              image: docker.io/ngrok/ngrok-operator:0.20.3
+              image: docker.io/ngrok/ngrok-operator:0.21.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:

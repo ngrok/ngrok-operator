@@ -21,6 +21,9 @@ type baseClient[T any] struct {
 	getError    error
 	updateError error
 	listError   error
+
+	// Call counters for testing
+	updateCallCount int
 }
 
 func newBase[T any](idPrefix string) baseClient[T] {
@@ -59,6 +62,7 @@ func (m *baseClient[T]) Delete(ctx context.Context, id string) error {
 // This is useful for resetting the state of the client between tests, without allocating a new client.
 func (m *baseClient[T]) Reset() {
 	m.items = make(map[string]T)
+	m.updateCallCount = 0
 }
 
 func (m *baseClient[T]) newID() string {
@@ -110,4 +114,14 @@ func (m *baseClient[T]) ClearErrors() {
 	m.getError = nil
 	m.updateError = nil
 	m.listError = nil
+}
+
+// UpdateCallCount returns the number of times Update has been called
+func (m *baseClient[T]) UpdateCallCount() int {
+	return m.updateCallCount
+}
+
+// ResetUpdateCallCount resets the update call counter to zero
+func (m *baseClient[T]) ResetUpdateCallCount() {
+	m.updateCallCount = 0
 }

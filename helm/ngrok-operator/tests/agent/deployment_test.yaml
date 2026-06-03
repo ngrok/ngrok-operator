@@ -1,7 +1,7 @@
 suite: test agent deployment
 templates:
 - agent/deployment.yaml
-- agent/rbac.yaml
+- agent/role.yaml
 set:
   ingress:
     enabled: true

@@ -1,5 +1,9 @@
 # Releases
 
+- [Release Steps](#release-steps)
+  - [AI-Assisted Release Prep](#ai-assisted-release-prep) — canonical `release` skill in `.agents/skills/release/`, Claude `.claude/skills/release` symlink, `CLAUDE.md`, `@release-agent`
+  - [Manual Release Helper](#manual-release-helper)
+  - [Manual Steps](#manual-steps)
 - [Artifacts](#artifacts)
   - [Docker Image](#docker-image)
   - [Helm Chart](#helm-chart)
@@ -12,6 +16,22 @@
     - [Controller](#controller)
 
 # Release Steps
+
+tl;dr:
+
+- AI-assisted local prep: use the shared `release` skill or `@release-agent`
+- Legacy manual fallback: `make release`
+
+## AI-Assisted Release Prep
+
+The canonical release skill lives in `.agents/skills/release/`.
+
+- **Claude Code**: use the `release` skill from the repo root. Claude discovers it through the `.claude/skills/release` symlink and reads the project-level `CLAUDE.md`.
+- **GitHub Copilot**: use `@release-agent` in agent mode, or invoke it locally through Copilot CLI once available.
+
+By default the shared skill and release agent only prepare local changes. They do not commit, push, tag, or open a PR unless explicitly asked.
+
+## Manual Release Helper
 
 tl;dr Run: `$ make release`
 

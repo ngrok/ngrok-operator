@@ -1,6 +1,6 @@
 suite: test bindings forwarder rbac
 templates:
-- bindings-forwarder/rbac.yaml
+- bindings-forwarder/role.yaml
 set:
   bindings.enabled: true
 tests:
@@ -33,3 +33,27 @@ tests:
   - equal:
       path: metadata.name
       value: RELEASE-NAME-ngrok-operator-bindings-forwarder-rolebinding
+- it: should create a clusterrole for cluster-wide pod watch
+  documentIndex: 2
+  asserts:
+  - isKind:
+      of: ClusterRole
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-bindings-forwarder
+- it: should create a clusterrolebinding for cluster-wide pod watch
+  documentIndex: 3
+  asserts:
+  - isKind:
+      of: ClusterRoleBinding
+  - isAPIVersion:
+      of: rbac.authorization.k8s.io/v1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-bindings-forwarder-clusterrolebinding
+- it: should have 4 documents (Role + RoleBinding + ClusterRole + ClusterRoleBinding)
+  asserts:
+  - hasDocuments:
+      count: 4

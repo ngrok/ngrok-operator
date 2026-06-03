@@ -49,6 +49,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	controllerruntime "sigs.k8s.io/controller-runtime/pkg/controller"
@@ -165,37 +166,6 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		return errors.New("operator binding configuration does not have an ingress endpoint")
 	}
 
-	// Get the secret
-	secret := v1.Secret{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: op.Namespace, Name: op.Spec.Binding.TlsSecretName}, &secret); err != nil {
-		return err
-	}
-
-	keyData, hasKey := secret.Data["tls.key"]
-	certData, hasCert := secret.Data["tls.crt"]
-
-	if !hasKey || !hasCert {
-		return errors.New("missing tls.key or tls.crt")
-	}
-
-	cert, err := tls.X509KeyPair(certData, keyData)
-	if err != nil {
-		return err
-	}
-
-	tlsDialer := tls.Dialer{
-		NetDialer: &net.Dialer{
-			Timeout: 3 * time.Minute,
-		},
-		Config: &tls.Config{
-			Certificates: []tls.Certificate{cert},
-		},
-	}
-
-	if r.RootCAs != nil {
-		tlsDialer.Config.RootCAs = r.RootCAs
-	}
-
 	endpointURL, err := url.Parse(epb.Spec.GetEndpointURL())
 	if err != nil {
 		return err
@@ -218,7 +188,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		log := log.WithValues(
 			"remoteAddr", conn.RemoteAddr(),
 			"ingress", map[string]string{
-				"endpoint": *op.Spec.Binding.IngressEndpoint,
+				"endpoint": ptr.Deref(op.Spec.Binding.IngressEndpoint, ""),
 			},
 			"binding", map[string]string{
 				"host": host,
@@ -249,6 +219,25 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		}
 
 		log.V(5).Info("Pod Identity", podIdentity)
+
+		cert, err := r.loadTLSCertificate(ctx, op.Namespace, op.Spec.Binding.TlsSecretName)
+		if err != nil {
+			log.Error(err, "failed to load tls certificate")
+			return err
+		}
+
+		tlsDialer := tls.Dialer{
+			NetDialer: &net.Dialer{
+				Timeout: 3 * time.Minute,
+			},
+			Config: &tls.Config{
+				Certificates: []tls.Certificate{cert},
+				MinVersion:   tls.VersionTLS12,
+			},
+		}
+		if r.RootCAs != nil {
+			tlsDialer.Config.RootCAs = r.RootCAs
+		}
 
 		ngrokConn, err := tlsDialer.Dial("tcp", ingressEndpoint)
 		if err != nil {
@@ -282,6 +271,25 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 	log.Info("Listening on port")
 
 	return r.BindingsDriver.Listen(int32(epb.Spec.Port), cnxnHandler)
+}
+
+func (r *ForwarderReconciler) loadTLSCertificate(ctx context.Context, namespace, name string) (tls.Certificate, error) {
+	secret := v1.Secret{}
+	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &secret); err != nil {
+		return tls.Certificate{}, err
+	}
+
+	keyData, hasKey := secret.Data["tls.key"]
+	certData, hasCert := secret.Data["tls.crt"]
+	if !hasKey || !hasCert {
+		return tls.Certificate{}, errors.New("missing tls.key or tls.crt")
+	}
+
+	cert, err := tls.X509KeyPair(certData, keyData)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	return cert, nil
 }
 
 func getIngressEndpointWithFallback(rawIngressEndpoint string, log logr.Logger) (string, error) {

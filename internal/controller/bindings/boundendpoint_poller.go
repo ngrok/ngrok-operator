@@ -64,7 +64,8 @@ type BoundEndpointPoller struct {
 	// If draining, polling is skipped to prevent creating new resources.
 	DrainState DrainState
 
-	// portAllocator manages the unique port allocations
+	// portAllocator manages the unique port allocations.
+	// portBitmap is internally thread-safe.
 	portAllocator *portBitmap
 
 	// Channel to stop the API polling goroutine
@@ -94,6 +95,10 @@ func (r *BoundEndpointPoller) cancelIfDraining(ctx context.Context, log logr.Log
 // Start implements the manager.Runnable interface.
 func (r *BoundEndpointPoller) Start(ctx context.Context) error {
 	log := ctrl.LoggerFrom(ctx)
+
+	// Initialize the port allocator before starting any polling — the poller
+	// calls methods on it (Replace, SetAny, Unset) that would nil-panic otherwise.
+	r.portAllocator = newPortBitmap(r.PortRange.Min, r.PortRange.Max)
 
 	// retrieve k8sop ID
 	r.koId = r.getKubernetesOperatorId(ctx)
@@ -220,9 +225,13 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 		return err
 	}
 
-	desiredBoundEndpoints, err := ngrokapi.AggregateBindingEndpoints(apiBindingEndpoints)
+	// Aggregate the endpoints we got from the API. Endpoints whose hostport
+	// cannot be parsed are skipped and the aggregator returns a joined error
+	// describing those failures; we log it but continue reconciling the valid
+	// endpoints so a single malformed entry can't stall the entire poll cycle.
+	desiredBoundEndpoints, err := ngrokapi.AggregateBindingEndpoints(ctx, apiBindingEndpoints)
 	if err != nil {
-		return err
+		log.Error(err, "Some binding_endpoints failed to parse; continuing with valid ones")
 	}
 
 	// Get all current BoundEndpoint resources in the cluster.
@@ -244,7 +253,7 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 	}
 
 	// reassign port allocations
-	r.portAllocator = currentPortAllocations
+	r.portAllocator.Replace(currentPortAllocations)
 
 	toCreate, toUpdate, toDelete := r.filterBoundEndpointActions(ctx, existingBoundEndpoints, desiredBoundEndpoints)
 
@@ -539,7 +548,9 @@ func (r *BoundEndpointPoller) deleteBinding(ctx context.Context, boundEndpoint b
 	log.Info("Deleted BoundEndpoint", "name", boundEndpoint.Name, "url", boundEndpoint.Spec.GetEndpointURL())
 
 	// unset the port allocation
-	r.portAllocator.Unset(boundEndpoint.Spec.Port)
+	if err := r.portAllocator.Unset(boundEndpoint.Spec.Port); err != nil {
+		log.Error(err, "Failed to unset port allocation", "port", boundEndpoint.Spec.Port, "name", boundEndpoint.Name)
+	}
 
 	return nil
 }

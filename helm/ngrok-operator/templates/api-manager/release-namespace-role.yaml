@@ -1,0 +1,75 @@
+# Operator-state RBAC: rules the api-manager needs that are tied to the
+# operator's installation, not to user workloads. These ALWAYS live in the
+# release namespace regardless of `watchNamespace`, because:
+#
+#  - KubernetesOperator is a singleton CR that the api-manager creates and
+#    reconciles for its own state; it always lives where the operator is
+#    installed (`POD_NAMESPACE`).
+#  - The TLS Secret created by `findOrCreateTLSSecret` is written to
+#    `r.K8sOpNamespace` (= release namespace), so secret writes are confined
+#    to that namespace even when the rest of the api-manager Role is namespaced
+#    to a different `watchNamespace`.
+#
+# Read access to Secrets is granted both here (so the operator can always read
+# its own TLS Secret in the release namespace, even when `watchNamespace` points
+# elsewhere — `CreateOrUpdate` does a Get before deciding to create) AND in the
+# watchNamespace-following api-manager Role/ClusterRole (for user-referenced
+# TLS material on Ingress/Gateway in the watched namespace).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-operator-state-role
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-operator-state-rolebinding
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ngrok-operator.fullname" . }}-operator-state-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}

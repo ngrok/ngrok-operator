@@ -5,6 +5,45 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.23.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.2...helm-chart-ngrok-operator-0.23.0
+
+- Update ngrok-operator image version to `0.21.0`
+- Update Helm chart version to `0.23.0`
+- Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.3.0`
+
+### Breaking Changes
+- Renamed `clusterRole.annotations` to `crdAccessRoles.annotations` in values.yaml. Users setting this value will need to update their Helm values by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Removed `proxy-role` ClusterRole (tokenreviews/subjectaccessreviews) — dead scaffolding from kube-rbac-proxy, never deployed by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Moved bindings-forwarder pods access from ClusterRole to namespaced Role by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+
+### Fixed
+- Fix "object has been modified" errors by adding patch permissions for finalizer operations by @alex-bezek in [#773](https://github.com/ngrok/ngrok-operator/pull/773)
+- Grant `events.k8s.io` events permissions to the agent, api-manager, and bindings-forwarder roles by @jonstacks in [#812](https://github.com/ngrok/ngrok-operator/pull/812)
+
+## 0.23.0-rc.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.23.0-rc.1...helm-chart-ngrok-operator-0.23.0-rc.2
+
+- Update Helm chart version to `0.23.0-rc.2`
+
+### Fixed
+- Grant `events.k8s.io` events permissions to the agent, api-manager, and bindings-forwarder roles. The new controller-runtime `GetEventRecorder` API writes to the `events.k8s.io` API group, which the RBAC overhaul did not cover.
+
+## 0.23.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.2...helm-chart-ngrok-operator-0.23.0-rc.1
+
+- Update ngrok-operator image version to `0.21.0-rc.1`
+- Update Helm chart version to `0.23.0-rc.1`
+- Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.3.0-rc.1`
+
+### Breaking Changes
+- Renamed `clusterRole.annotations` to `crdAccessRoles.annotations` in values.yaml. Users setting this value will need to update their Helm values by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Removed `proxy-role` ClusterRole (tokenreviews/subjectaccessreviews) — dead scaffolding from kube-rbac-proxy, never deployed by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+- Moved bindings-forwarder pods access from ClusterRole to namespaced Role by @alex-bezek in [#804](https://github.com/ngrok/ngrok-operator/pull/804)
+
+### Fixed
+- Fix "object has been modified" errors by adding patch permissions for finalizer operations by @alex-bezek in [#773](https://github.com/ngrok/ngrok-operator/pull/773)
+
 ## 0.22.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.1...helm-chart-ngrok-operator-0.22.2
 

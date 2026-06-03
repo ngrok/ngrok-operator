@@ -1,0 +1,85 @@
+# Bindings RBAC: cluster-wide rules required by the BoundEndpoint controller
+# (binding poller) that runs in api-manager. These rules are always cluster-wide
+# regardless of `watchNamespace` because:
+#
+#  - BoundEndpoint CRs are reconciled cluster-wide.
+#  - The poller creates Kubernetes Services in any namespace based on the
+#    BoundEndpoint's top-level domain, so cross-namespace Service write access
+#    is required.
+#
+# This is symmetric with the bindings-forwarder ClusterRole for cluster-wide
+# Pod watches — both binding components have a cluster-wide footprint by design.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-cluster-role
+rules:
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - boundendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - boundendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - boundendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - services/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-cluster-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}

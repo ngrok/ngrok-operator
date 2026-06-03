@@ -1,35 +1,35 @@
 ---
-# Source: ngrok-operator/templates/agent/service-account.yaml
+# Source: ngrok-operator/templates/agent/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ngrok-operator-agent
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.22.2
+    helm.sh/chart: ngrok-operator-0.23.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
+    app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
 ---
-# Source: ngrok-operator/templates/controller-serviceaccount.yaml
+# Source: ngrok-operator/templates/api-manager/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ngrok-operator
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.22.2
+    helm.sh/chart: ngrok-operator-0.23.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
+    app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
 ---
-# Source: ngrok-operator/templates/controller-cm.yaml
+# Source: ngrok-operator/templates/api-manager/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -770,9 +770,6 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               id:
-                description: |-
-                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
                 type: string
               rules:
                 items:
@@ -893,6 +890,67 @@ spec:
                 description: String of arbitrary data associated with the object in
                   the ngrok API/Dashboard
                 type: string
+              tlsTermination:
+                description: |-
+                  TLSTermination configures the agent to terminate TLS in-cluster for incoming
+                  traffic ("zero-knowledge TLS"). When set, ngrok's edge routes the encrypted
+                  stream to the agent based on SNI; the TLS handshake completes between the
+                  client and the agent, using the server certificate referenced here. The agent
+                  then forwards plaintext (or re-establishes TLS, depending on
+                  spec.upstream.url) to the upstream.
+
+                  Requires spec.url to be a tls:// URL. Cannot be combined with the edge-side
+                  `terminate-tls` traffic-policy action, which terminates at the edge before
+                  traffic reaches the agent.
+                properties:
+                  mutualTLS:
+                    description: |-
+                      Optional mutual-TLS configuration. When set, the agent will require or
+                      request client certificates during the TLS handshake and validate them
+                      against the supplied CA bundle.
+                    properties:
+                      clientCAsRef:
+                        description: |-
+                          Reference to a Secret whose `ca.crt` key contains a PEM-encoded bundle of
+                          certificate authorities trusted to sign client certificates. The Secret
+                          must live in the same namespace as the AgentEndpoint.
+                        properties:
+                          name:
+                            description: The name of the Kubernetes resource being
+                              referenced
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      mode:
+                        default: require
+                        description: |-
+                          Mode selects the TLS client-auth policy:
+                            require - reject the handshake if no valid client cert is presented
+                            request - request a client cert but do not require one
+                        enum:
+                        - require
+                        - request
+                        type: string
+                    required:
+                    - clientCAsRef
+                    type: object
+                  serverCertificateRef:
+                    description: |-
+                      Reference to a kubernetes.io/tls Secret containing the server certificate
+                      (tls.crt) and private key (tls.key) the agent will present to clients when
+                      terminating TLS for incoming traffic. The Secret must live in the same
+                      namespace as the AgentEndpoint.
+                    properties:
+                      name:
+                        description: The name of the Kubernetes resource being referenced
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - serverCertificateRef
+                type: object
               trafficPolicy:
                 description: |-
                   Allows configuring a TrafficPolicy to be used with this AgentEndpoint
@@ -987,6 +1045,9 @@ spec:
             - upstream
             - url
             type: object
+            x-kubernetes-validations:
+            - message: spec.url must be a tls:// URL when tlsTermination is set
+              rule: '!has(self.tlsTermination) || self.url.startsWith(''tls://'')'
           status:
             description: AgentEndpointStatus defines the observed state of an AgentEndpoint
             properties:
@@ -1212,7 +1273,7 @@ spec:
             description: CloudEndpointStatus defines the observed state of CloudEndpoint
             properties:
               conditions:
-                description: Conditions describe the current conditions of the AgentEndpoint.
+                description: Conditions describe the current conditions of the CloudEndpoint.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -1565,80 +1626,12 @@ spec:
     subresources:
       status: {}
 ---
-# Source: ngrok-operator/templates/agent/rbac.yaml
+# Source: ngrok-operator/templates/agent/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: ngrok-operator-agent-role
 rules:
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - tunnels
-  verbs:
-  - get
-  - list
-  - watch
-  - patch
-  - update
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - tunnels/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - tunnels/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - agentendpoints
-  verbs:
-  - get
-  - list
-  - watch
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - agentendpoints/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - agentendpoints/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - ngroktrafficpolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - domains
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - patch
-  - delete
-  - update
 - apiGroups:
   - ""
   resources:
@@ -1646,6 +1639,14 @@ rules:
   verbs:
   - create
   - patch
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
 - apiGroups:
   - ""
   resources:
@@ -1655,241 +1656,6 @@ rules:
   - list
   - watch
 - apiGroups:
-    - ngrok.k8s.ngrok.com
-  resources:
-    - kubernetesoperators
-  verbs:
-    - get
-    - list
-    - watch
----
-# Source: ngrok-operator/templates/controller-rbac.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: ngrok-operator-proxy-role
-rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
----
-# Source: ngrok-operator/templates/rbac/bindingconfiguration_editor_role.yaml
-# permissions for end users to edit bindingconfigurations
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-bindingconfiguration-editor-role
-rules:
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - bindingconfigurations
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - bindingconfigurations/status
-  verbs:
-  - get
----
-# Source: ngrok-operator/templates/rbac/bindingconfiguration_viewer_role.yaml
-# permissions for end users to view bindingconfigurations
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-bindingconfiguration-viewer-role
-rules:
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - bindingconfigurations
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - bindingconfigurations/status
-  verbs:
-  - get
----
-# Source: ngrok-operator/templates/rbac/boundendpoint_editor_role.yaml
-# permissions for end users to edit boundendpoints
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-boundendpoint-editor-role
-rules:
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - boundendpoints
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - boundendpoints/status
-  verbs:
-  - get
----
-# Source: ngrok-operator/templates/rbac/boundendpoint_viewer_role.yaml
-# permissions for end users to view boundendpoints
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-boundendpoint-viewer-role
-rules:
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - boundendpoints
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - boundendpoints/status
-  verbs:
-  - get
----
-# Source: ngrok-operator/templates/rbac/cloudendpoint_editor_role.yaml
-# permissions for end users to edit cloudendpoints
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-cloudendpoint-editor-role
-rules:
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - cloudendpoints
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - cloudendpoints/status
-  verbs:
-  - get
----
-# Source: ngrok-operator/templates/rbac/cloudendpoint_viewer_role.yaml
-# permissions for end users to view cloudendpoints
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-cloudendpoint-viewer-role
-rules:
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - cloudendpoints
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - cloudendpoints/status
-  verbs:
-  - get
----
-# Source: ngrok-operator/templates/rbac/domain_editor_role.yaml
-# permissions for end users to edit domains.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-domain-editor-role
-rules:
-- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - domains
@@ -1902,61 +1668,65 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ngrok.k8s.ngrok.com
   resources:
-  - domains/status
+  - agentendpoints
   verbs:
   - get
----
-# Source: ngrok-operator/templates/rbac/domain_viewer_role.yaml
-# permissions for end users to view domains.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-domain-viewer-role
-rules:
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ngrok.k8s.ngrok.com
   resources:
-  - domains
+  - agentendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+# KubernetesOperator is intentionally NOT in this role. The KubernetesOperator
+# CR is a singleton owned by the api-manager and always lives in the release
+# namespace, independent of `watchNamespace`. The agent reads it for drain
+# state via a release-namespace-pinned cache scope; its rules live in
+# release-namespace-role.yaml.
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies
   verbs:
   - get
   - list
   - watch
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - domains/status
-  verbs:
-  - get
 ---
-# Source: ngrok-operator/templates/rbac/ippolicy_editor_role.yaml
-# permissions for end users to edit ippolicies.
+# Source: ngrok-operator/templates/api-manager/bindings-cluster-role.yaml
+# Bindings RBAC: cluster-wide rules required by the BoundEndpoint controller
+# (binding poller) that runs in api-manager. These rules are always cluster-wide
+# regardless of `watchNamespace` because:
+#
+#  - BoundEndpoint CRs are reconciled cluster-wide.
+#  - The poller creates Kubernetes Services in any namespace based on the
+#    BoundEndpoint's top-level domain, so cross-namespace Service write access
+#    is required.
+#
+# This is symmetric with the bindings-forwarder ClusterRole for cluster-wide
+# Pod watches — both binding components have a cluster-wide footprint by design.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-ippolicy-editor-role
+  name: ngrok-operator-bindings-cluster-role
 rules:
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - bindings.k8s.ngrok.com
   resources:
-  - ippolicies
+  - boundendpoints
   verbs:
   - create
   - delete
@@ -1966,61 +1736,24 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - bindings.k8s.ngrok.com
   resources:
-  - ippolicies/status
+  - boundendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - boundendpoints/status
   verbs:
   - get
----
-# Source: ngrok-operator/templates/rbac/ippolicy_viewer_role.yaml
-# permissions for end users to view ippolicies.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-ippolicy-viewer-role
-rules:
+  - patch
+  - update
 - apiGroups:
-  - ingress.k8s.ngrok.com
+  - ""
   resources:
-  - ippolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - ippolicies/status
-  verbs:
-  - get
----
-# Source: ngrok-operator/templates/rbac/operatorconfiguration_editor_role.yaml
-# permissions for end users to edit operatorconfigurations
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-operatorconfiguration-editor-role
-rules:
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - operatorconfigurations
+  - services
   verbs:
   - create
   - delete
@@ -2030,48 +1763,30 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ngrok.k8s.ngrok.com
+  - ""
   resources:
-  - operatorconfigurations/status
+  - services/finalizers
   verbs:
-  - get
----
-# Source: ngrok-operator/templates/rbac/operatorconfiguration_viewer_role.yaml
-# permissions for end users to view operatorconfigurations
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ngrok-operator-0.22.2
-    app.kubernetes.io/name: ngrok-operator
-    app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
-    app.kubernetes.io/part-of: ngrok-operator
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: rbac
-  name: ngrok-operator-operatorconfiguration-viewer-role
-rules:
+  - patch
+  - update
 - apiGroups:
-  - ngrok.k8s.ngrok.com
+  - ""
   resources:
-  - operatorconfigurations
+  - services/status
   verbs:
   - get
   - list
+  - patch
+  - update
   - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - operatorconfigurations/status
-  verbs:
-  - get
 ---
-# Source: ngrok-operator/templates/rbac/role.yaml
+# Source: ngrok-operator/templates/api-manager/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: 'ngrok-operator-manager-role'
+  name: ngrok-operator-manager-role
 rules:
+# --- Core API ---
 - apiGroups:
   - ""
   resources:
@@ -2081,6 +1796,7 @@ rules:
   - delete
   - get
   - list
+  - patch
   - update
   - watch
 - apiGroups:
@@ -2091,14 +1807,13 @@ rules:
   - create
   - patch
 - apiGroups:
-  - ""
+  - events.k8s.io
   resources:
-  - namespaces
+  - events
   verbs:
-  - get
-  - list
+  - create
+  - patch
   - update
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -2122,6 +1837,13 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - services/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
   - services/status
   verbs:
   - get
@@ -2129,6 +1851,414 @@ rules:
   - patch
   - update
   - watch
+# --- networking.k8s.io ---
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+# --- gateway.networking.k8s.io ---
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tcproutes
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tcproutes/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tcproutes/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tlsroutes
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tlsroutes/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - tlsroutes/status
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - referencegrants
+  verbs:
+  - get
+  - list
+  - watch
+# --- ingress.k8s.ngrok.com ---
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - ippolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+# --- bindings.k8s.ngrok.com ---
+# BoundEndpoint is intentionally NOT in this role. The BoundEndpoint controller
+# (binding poller) runs in api-manager and operates cluster-wide regardless of
+# `watchNamespace`, so its rules live in bindings-cluster-role.yaml (gated on
+# `bindings.enabled`).
+# --- ngrok.k8s.ngrok.com ---
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+# KubernetesOperator is intentionally NOT in this role. The KubernetesOperator
+# CR is the api-manager's own state singleton and always lives in the release
+# namespace, independent of `watchNamespace`. Its rules live in
+# release-namespace-role.yaml.
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+# --- cluster-scoped Kubernetes resources (inline when ClusterRole) ---
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/finalizers
+  verbs:
+  - patch
+  - update
+---
+# Source: ngrok-operator/templates/rbac/crd-access/agentendpoint-editor.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-agentendpoint-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/agentendpoint-viewer.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-agentendpoint-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/boundendpoint-editor.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-boundendpoint-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
@@ -2144,55 +2274,152 @@ rules:
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
-  - boundendpoints/finalizers
+  - boundendpoints/status
   verbs:
-  - update
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/boundendpoint-viewer.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-boundendpoint-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - bindings.k8s.ngrok.com
+  resources:
+  - boundendpoints
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - bindings.k8s.ngrok.com
   resources:
   - boundendpoints/status
   verbs:
   - get
-  - patch
-  - update
+---
+# Source: ngrok-operator/templates/rbac/crd-access/cloudendpoint-editor.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-cloudendpoint-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
 - apiGroups:
-  - gateway.networking.k8s.io
+  - ngrok.k8s.ngrok.com
   resources:
-  - gatewayclasses
-  - gatewayclasses/status
-  - gateways
-  - httproutes
-  - tcproutes
-  - tlsroutes
+  - cloudendpoints
   verbs:
+  - create
+  - delete
   - get
   - list
   - patch
   - update
   - watch
 - apiGroups:
-  - gateway.networking.k8s.io
+  - ngrok.k8s.ngrok.com
   resources:
-  - gatewayclasses/finalizers
+  - cloudendpoints/status
   verbs:
-  - patch
-  - update
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/cloudendpoint-viewer.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-cloudendpoint-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
 - apiGroups:
-  - gateway.networking.k8s.io
+  - ngrok.k8s.ngrok.com
   resources:
-  - gateways/status
-  - httproutes/status
-  - tcproutes/status
-  - tlsroutes/status
+  - cloudendpoints
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/domain-editor.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-domain-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
   - update
   - watch
 - apiGroups:
-  - gateway.networking.k8s.io
+  - ingress.k8s.ngrok.com
   resources:
-  - referencegrants
+  - domains/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/domain-viewer.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-domain-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
+  - domains
   verbs:
   - get
   - list
@@ -2200,7 +2427,27 @@ rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
-  - domains
+  - domains/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/ippolicy-editor.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-ippolicy-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ingress.k8s.ngrok.com
+  resources:
   - ippolicies
   verbs:
   - create
@@ -2213,52 +2460,118 @@ rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
-  - domains/finalizers
-  - ippolicies/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ingress.k8s.ngrok.com
-  resources:
-  - domains/status
   - ippolicies/status
   verbs:
   - get
-  - patch
-  - update
+---
+# Source: ngrok-operator/templates/rbac/crd-access/ippolicy-viewer.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-ippolicy-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
 - apiGroups:
-  - networking.k8s.io
+  - ingress.k8s.ngrok.com
   resources:
-  - ingressclasses
+  - ippolicies
   verbs:
   - get
   - list
   - watch
 - apiGroups:
-  - networking.k8s.io
+  - ingress.k8s.ngrok.com
   resources:
-  - ingresses
+  - ippolicies/status
   verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/kubernetesoperator-editor.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-kubernetesoperator-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - delete
   - get
   - list
   - patch
-  - update
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses/status
-  verbs:
-  - get
-  - list
   - update
   - watch
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - agentendpoints
-  - cloudendpoints
+  - kubernetesoperators/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/kubernetesoperator-viewer.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-kubernetesoperator-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
   - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/rbac/crd-access/ngroktrafficpolicy-editor.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-ngroktrafficpolicy-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
   - ngroktrafficpolicies
   verbs:
   - create
@@ -2271,25 +2584,40 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - agentendpoints/finalizers
-  - cloudendpoints/finalizers
-  - kubernetesoperators/finalizers
-  - ngroktrafficpolicies/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - agentendpoints/status
-  - cloudendpoints/status
-  - kubernetesoperators/status
   - ngroktrafficpolicies/status
   verbs:
   - get
-  - patch
-  - update
 ---
-# Source: ngrok-operator/templates/agent/rbac.yaml
+# Source: ngrok-operator/templates/rbac/crd-access/ngroktrafficpolicy-viewer.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-ngroktrafficpolicy-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies/status
+  verbs:
+  - get
+---
+# Source: ngrok-operator/templates/agent/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -2303,7 +2631,21 @@ subjects:
   name: ngrok-operator-agent
   namespace: ngrok-operator
 ---
-# Source: ngrok-operator/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/api-manager/bindings-cluster-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ngrok-operator-bindings-cluster-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ngrok-operator-bindings-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: ngrok-operator
+  namespace: ngrok-operator
+---
+# Source: ngrok-operator/templates/api-manager/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -2317,21 +2659,29 @@ subjects:
   name: ngrok-operator
   namespace: ngrok-operator
 ---
-# Source: ngrok-operator/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/agent/release-namespace-role.yaml
+# Operator-state RBAC for the agent: the agent reads the singleton
+# KubernetesOperator CR for drain state. The CR always lives in the release
+# namespace regardless of `watchNamespace`, and the agent's controller-runtime
+# cache pins this resource to the release namespace (see cmd/agent-manager.go),
+# so the corresponding RBAC also lives here rather than in the watchNamespace
+# Role.
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: Role
 metadata:
-  name: ngrok-operator-proxy-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: ngrok-operator-proxy-role
-subjects:
-- kind: ServiceAccount
-  name: ngrok-operator
+  name: ngrok-operator-agent-operator-state-role
   namespace: ngrok-operator
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
 ---
-# Source: ngrok-operator/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -2343,25 +2693,25 @@ rules:
   resources:
   - configmaps
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-  - create
-  - update
   - patch
-  - delete
+  - update
+  - watch
 - apiGroups:
   - coordination.k8s.io
   resources:
   - leases
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-  - create
-  - update
   - patch
-  - delete
+  - update
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -2370,7 +2720,85 @@ rules:
   - create
   - patch
 ---
-# Source: ngrok-operator/templates/controller-rbac.yaml
+# Source: ngrok-operator/templates/api-manager/release-namespace-role.yaml
+# Operator-state RBAC: rules the api-manager needs that are tied to the
+# operator's installation, not to user workloads. These ALWAYS live in the
+# release namespace regardless of `watchNamespace`, because:
+#
+#  - KubernetesOperator is a singleton CR that the api-manager creates and
+#    reconciles for its own state; it always lives where the operator is
+#    installed (`POD_NAMESPACE`).
+#  - The TLS Secret created by `findOrCreateTLSSecret` is written to
+#    `r.K8sOpNamespace` (= release namespace), so secret writes are confined
+#    to that namespace even when the rest of the api-manager Role is namespaced
+#    to a different `watchNamespace`.
+#
+# Read access to Secrets is granted both here (so the operator can always read
+# its own TLS Secret in the release namespace, even when `watchNamespace` points
+# elsewhere — `CreateOrUpdate` does a Get before deciding to create) AND in the
+# watchNamespace-following api-manager Role/ClusterRole (for user-referenced
+# TLS material on Ingress/Gateway in the watched namespace).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ngrok-operator-operator-state-role
+  namespace: ngrok-operator
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+# Source: ngrok-operator/templates/agent/release-namespace-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ngrok-operator-agent-operator-state-rolebinding
+  namespace: ngrok-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ngrok-operator-agent-operator-state-role
+subjects:
+- kind: ServiceAccount
+  name: ngrok-operator-agent
+  namespace: ngrok-operator
+---
+# Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -2385,22 +2813,37 @@ subjects:
   name: ngrok-operator
   namespace: ngrok-operator
 ---
+# Source: ngrok-operator/templates/api-manager/release-namespace-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ngrok-operator-operator-state-rolebinding
+  namespace: ngrok-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ngrok-operator-operator-state-role
+subjects:
+- kind: ServiceAccount
+  name: ngrok-operator
+  namespace: ngrok-operator
+---
 # Source: ngrok-operator/templates/agent/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.22.2
+    helm.sh/chart: ngrok-operator-0.23.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
+    app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: agent
   name: ngrok-operator-agent
   namespace: ngrok-operator
   annotations:
-    checksum/rbac: b3901c3c1f4f403cc2b16fe3cce4746085355806ae6f450f4d598fcde822145d
+    checksum/rbac: 73ae2719b31e64e50841b665bdd7334f4c809be84fa8e759f6b2ae62eae98092
 spec:
   replicas: 1
   strategy:
@@ -2416,7 +2859,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/rbac: b3901c3c1f4f403cc2b16fe3cce4746085355806ae6f450f4d598fcde822145d
+        checksum/rbac: 73ae2719b31e64e50841b665bdd7334f4c809be84fa8e759f6b2ae62eae98092
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator
@@ -2442,7 +2885,7 @@ spec:
       serviceAccountName: ngrok-operator-agent
       containers:
       - name: agent
-        image: docker.io/ngrok/ngrok-operator:0.20.3
+        image: docker.io/ngrok/ngrok-operator:0.21.0
         imagePullPolicy: IfNotPresent
         command:
         - /ngrok-operator
@@ -2490,23 +2933,23 @@ spec:
           limits: {}
           requests: {}
 ---
-# Source: ngrok-operator/templates/controller-deployment.yaml
+# Source: ngrok-operator/templates/api-manager/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.22.2
+    helm.sh/chart: ngrok-operator-0.23.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
+    app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: 135be061d6c81bc300246ce8d803ac03eea7efe93350c8876f23b07affce5d4e
-    checksum/rbac: 2e07378e8ddca5d310017d13d9b93eaa8aab75c0652d8f28edea5fd4518d97ad
+    checksum/controller-role: f40b5f0c128c0618a357d8547b09cbdb40218194f924dbab8e402e98c8d87de7
+    checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
   selector:
@@ -2520,8 +2963,8 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: 135be061d6c81bc300246ce8d803ac03eea7efe93350c8876f23b07affce5d4e
-        checksum/rbac: 2e07378e8ddca5d310017d13d9b93eaa8aab75c0652d8f28edea5fd4518d97ad
+        checksum/controller-role: f40b5f0c128c0618a357d8547b09cbdb40218194f924dbab8e402e98c8d87de7
+        checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
         app.kubernetes.io/name: ngrok-operator
@@ -2548,7 +2991,7 @@ spec:
       serviceAccountName: ngrok-operator
       containers:
       - name: ngrok-operator
-        image: docker.io/ngrok/ngrok-operator:0.20.3
+        image: docker.io/ngrok/ngrok-operator:0.21.0
         imagePullPolicy: IfNotPresent
         command:
         - /ngrok-operator
@@ -2605,10 +3048,10 @@ apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.22.2
+    helm.sh/chart: ngrok-operator-0.23.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
+    app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
@@ -2623,10 +3066,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.22.2
+    helm.sh/chart: ngrok-operator-0.23.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
+    app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
@@ -2641,10 +3084,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.22.2
+    helm.sh/chart: ngrok-operator-0.23.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
+    app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
@@ -2669,10 +3112,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.22.2
+    helm.sh/chart: ngrok-operator-0.23.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
+    app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
@@ -2695,10 +3138,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.22.2
+    helm.sh/chart: ngrok-operator-0.23.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.20.3"
+    app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:

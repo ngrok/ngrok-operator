@@ -1,0 +1,86 @@
+name: Docker (Branch Build)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >
+          Docker image tag to build and publish.
+          Must not be a version/release-candidate format (e.g. v1.0.0, 1.0.0, 0.24.0-rc.1 are not allowed).
+          Examples of allowed values: feature-test, my-experiment.
+        required: true
+        type: string
+
+env:
+  DOCKER_BUILDX_PLATFORMS: linux/amd64,linux/arm64
+
+jobs:
+  build-and-push:
+    name: Build and Push Branch Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    if: github.repository == 'ngrok/ngrok-operator'
+    steps:
+      - name: Validate tag format
+        run: |
+          TAG="${{ inputs.tag }}"
+
+          # Reject reserved tags
+          if [ "$TAG" = "latest" ] || [ "$TAG" = "stable" ]; then
+            echo "Error: tag '$TAG' is reserved and cannot be used for branch builds."
+            exit 1
+          fi
+
+          # Reject semver / release-candidate formats (anything starting with an
+          # optional 'v' followed by three dot-separated integers, e.g. v1.0.0, 1.0.0, 0.24.0-rc.1)
+          if echo "$TAG" | grep -qE '^v?[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "Error: tag '$TAG' resembles a version or release-candidate format (e.g. v1.0.0, 1.0.0, 0.24.0-rc.1)."
+            echo "Please use a descriptive tag like 'feature-test' or 'my-experiment'."
+            exit 1
+          fi
+
+          # Validate Docker tag constraints:
+          #   - 1–128 characters
+          #   - only [a-zA-Z0-9_.-] allowed
+          #   - no leading period or hyphen
+          TAG_LEN=${#TAG}
+          if [ "$TAG_LEN" -lt 1 ] || [ "$TAG_LEN" -gt 128 ]; then
+            echo "Error: tag must be between 1 and 128 characters (got $TAG_LEN)."
+            exit 1
+          fi
+          if ! echo "$TAG" | grep -qE '^[a-zA-Z0-9_]([a-zA-Z0-9_.-]*[a-zA-Z0-9_])?$'; then
+            echo "Error: tag '$TAG' contains invalid characters."
+            echo "Docker tags may only contain [a-zA-Z0-9_.-] and must not start with a period or hyphen."
+            exit 1
+          fi
+
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Set VERSION to provided tag
+        run: printf '%s' "${{ inputs.tag }}" > VERSION
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - id: buildx-setup
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          platforms: ${{ env.DOCKER_BUILDX_PLATFORMS }}
+
+      - name: Build and push docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          platforms: ${{ steps.buildx-setup.outputs.platforms }}
+          push: true
+          tags: ngrok/ngrok-operator:${{ inputs.tag }}

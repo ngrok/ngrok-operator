@@ -1,35 +1,74 @@
-Should match snapshot:
+should match snapshot in default mode:
   1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-operator-state-role
+      namespace: NAMESPACE
+    rules:
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - get
+          - list
+          - watch
+  2: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-operator-state-rolebinding
+      namespace: NAMESPACE
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: RELEASE-NAME-ngrok-operator-agent-operator-state-role
+    subjects:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-agent
+        namespace: NAMESPACE
+  3: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
       name: RELEASE-NAME-ngrok-operator-agent-role
     rules:
       - apiGroups:
-          - ingress.k8s.ngrok.com
+          - ""
         resources:
-          - tunnels
+          - events
+        verbs:
+          - create
+          - patch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
         verbs:
           - get
           - list
           - watch
-          - patch
-          - update
       - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
-          - tunnels/finalizers
+          - domains
         verbs:
-          - patch
-          - update
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - tunnels/status
-        verbs:
+          - create
+          - delete
           - get
+          - list
           - patch
           - update
+          - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
@@ -37,9 +76,9 @@ Should match snapshot:
         verbs:
           - get
           - list
-          - watch
           - patch
           - update
+          - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
@@ -63,33 +102,27 @@ Should match snapshot:
           - get
           - list
           - watch
-      - apiGroups:
-          - ingress.k8s.ngrok.com
-        resources:
-          - domains
-        verbs:
-          - get
-          - list
-          - watch
-          - create
-          - patch
-          - delete
-          - update
-      - apiGroups:
-          - ""
-        resources:
-          - events
-        verbs:
-          - create
-          - patch
-      - apiGroups:
-          - ""
-        resources:
-          - secrets
-        verbs:
-          - get
-          - list
-          - watch
+  4: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-rolebinding
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: RELEASE-NAME-ngrok-operator-agent-role
+    subjects:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-agent
+        namespace: NAMESPACE
+should match snapshot in namespaced mode:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-operator-state-role
+      namespace: NAMESPACE
+    rules:
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
@@ -100,12 +133,102 @@ Should match snapshot:
           - watch
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
+    kind: RoleBinding
     metadata:
-      name: RELEASE-NAME-ngrok-operator-agent-rolebinding
+      name: RELEASE-NAME-ngrok-operator-agent-operator-state-rolebinding
+      namespace: NAMESPACE
     roleRef:
       apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
+      kind: Role
+      name: RELEASE-NAME-ngrok-operator-agent-operator-state-role
+    subjects:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-agent
+        namespace: NAMESPACE
+  3: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-role
+      namespace: test-ns
+    rules:
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ingress.k8s.ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - ngroktrafficpolicies
+        verbs:
+          - get
+          - list
+          - watch
+  4: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: RELEASE-NAME-ngrok-operator-agent-rolebinding
+      namespace: test-ns
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
       name: RELEASE-NAME-ngrok-operator-agent-role
     subjects:
       - kind: ServiceAccount

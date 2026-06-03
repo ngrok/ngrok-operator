@@ -19,23 +19,59 @@ func Test_portBitmap(t *testing.T) {
 	// Test Set
 	err := pb.Set(5)
 	assert.Nil(err)
-	assert.True(pb.IsSet(5))
+	isSet, err := pb.IsSet(5)
+	assert.Nil(err)
+	assert.True(isSet)
 
 	// Test SetAny
 	port, err := pb.SetAny()
 	assert.Nil(err)
-	assert.True(pb.IsSet(port))
+	isSet, err = pb.IsSet(port)
+	assert.Nil(err)
+	assert.True(isSet)
 
 	// Test Unset
-	pb.Unset(port)
-	assert.False(pb.IsSet(port))
+	err = pb.Unset(port)
+	assert.Nil(err)
+	isSet, err = pb.IsSet(port)
+	assert.Nil(err)
+	assert.False(isSet)
 
 	// Test IsSet
-	assert.True(pb.IsSet(5))
-	assert.False(pb.IsSet(6))
+	isSet, err = pb.IsSet(5)
+	assert.Nil(err)
+	assert.True(isSet)
+	isSet, err = pb.IsSet(6)
+	assert.Nil(err)
+	assert.False(isSet)
 
 	// Test Set duplicate
 	err = pb.Set(5) // already set
 	assert.Error(err)
-	assert.True(pb.IsSet(5))
+	isSet, err = pb.IsSet(5)
+	assert.Nil(err)
+	assert.True(isSet)
+}
+
+func Test_portBitmap_outOfRange(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	pb := newPortBitmap(10, 20)
+
+	// Set with port below range returns error instead of panicking
+	err := pb.Set(5)
+	assert.Error(err)
+	assert.Contains(err.Error(), "before start of port range")
+
+	// IsSet with port below range returns error instead of panicking
+	_, err = pb.IsSet(5)
+	assert.Error(err)
+	assert.Contains(err.Error(), "before start of port range")
+
+	// Unset with port below range returns error instead of panicking
+	err = pb.Unset(5)
+	assert.Error(err)
+	assert.Contains(err.Error(), "before start of port range")
 }

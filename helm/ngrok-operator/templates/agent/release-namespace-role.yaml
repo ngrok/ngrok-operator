@@ -1,0 +1,36 @@
+{{- if .Values.ingress.enabled }}
+# Operator-state RBAC for the agent: the agent reads the singleton
+# KubernetesOperator CR for drain state. The CR always lives in the release
+# namespace regardless of `watchNamespace`, and the agent's controller-runtime
+# cache pins this resource to the release namespace (see cmd/agent-manager.go),
+# so the corresponding RBAC also lives here rather than in the watchNamespace
+# Role.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-agent-operator-state-role
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-agent-operator-state-rolebinding
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ngrok-operator.fullname" . }}-agent-operator-state-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.agent.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

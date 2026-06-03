@@ -1,36 +1,95 @@
 suite: test agent rbac
 templates:
-- agent/rbac.yaml
+- agent/role.yaml
+- agent/rolebinding.yaml
+- agent/release-namespace-role.yaml
 tests:
-- it: Should match snapshot
+- it: should render ClusterRole in default mode
+  template: agent/role.yaml
   asserts:
-  - matchSnapshot: {}
-- it: should create a clusterrole
-  documentIndex: 0
-  asserts:
-  - isKind:
-      of: ClusterRole
-  - isAPIVersion:
-      of: rbac.authorization.k8s.io/v1
-- it: should create a clusterrolebinding
-  documentIndex: 1
-  asserts:
-  - isKind:
-      of: ClusterRoleBinding
-  - isAPIVersion:
-      of: rbac.authorization.k8s.io/v1
-- it: should add annotations to agent ClusterRole when clusterRole.annotations is set
-  documentIndex: 0
-  set:
-    clusterRole:
-      annotations:
-        rbac.authorization.k8s.io/aggregate-to-admin: "true"
-        rbac.authorization.k8s.io/aggregate-to-edit: "true"
-  asserts:
+  - hasDocuments:
+      count: 1
   - isKind:
       of: ClusterRole
   - equal:
-      path: metadata.annotations
-      value:
-        rbac.authorization.k8s.io/aggregate-to-admin: "true"
-        rbac.authorization.k8s.io/aggregate-to-edit: "true"
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-agent-role
+- it: should render ClusterRoleBinding in default mode
+  template: agent/rolebinding.yaml
+  asserts:
+  - hasDocuments:
+      count: 1
+  - isKind:
+      of: ClusterRoleBinding
+- it: should render Role in namespaced mode
+  template: agent/role.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 1
+  - isKind:
+      of: Role
+  - equal:
+      path: metadata.namespace
+      value: test-ns
+- it: should render RoleBinding in namespaced mode
+  template: agent/rolebinding.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 1
+  - isKind:
+      of: RoleBinding
+  - equal:
+      path: metadata.namespace
+      value: test-ns
+- it: should render release-namespace Role + RoleBinding in default mode
+  template: agent/release-namespace-role.yaml
+  asserts:
+  - hasDocuments:
+      count: 2
+  - documentIndex: 0
+    isKind:
+      of: Role
+  - documentIndex: 0
+    equal:
+      path: metadata.namespace
+      value: NAMESPACE
+  - documentIndex: 1
+    isKind:
+      of: RoleBinding
+  - documentIndex: 1
+    equal:
+      path: metadata.namespace
+      value: NAMESPACE
+- it: should render release-namespace Role + RoleBinding in namespaced mode
+  template: agent/release-namespace-role.yaml
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - hasDocuments:
+      count: 2
+  - documentIndex: 0
+    isKind:
+      of: Role
+  - documentIndex: 0
+    equal:
+      path: metadata.namespace
+      value: NAMESPACE
+- it: release-namespace role should not render when ingress is disabled
+  template: agent/release-namespace-role.yaml
+  set:
+    ingress.enabled: false
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: should match snapshot in default mode
+  asserts:
+  - matchSnapshot: {}
+- it: should match snapshot in namespaced mode
+  set:
+    ingress.watchNamespace: test-ns
+  asserts:
+  - matchSnapshot: {}

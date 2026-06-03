@@ -48,8 +48,6 @@ type ReferenceGrantReconciler struct {
 	Driver   *managerdriver.Driver
 }
 
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=get;list;watch
-
 func (r *ReferenceGrantReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("ReferenceGrant", req.Name)
 	ctx = ctrl.LoggerInto(ctx, log)
