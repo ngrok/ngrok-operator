@@ -13,6 +13,7 @@ metadata:
 rules:
 - apiGroups:
   - ingress.k8s.ngrok.com
+  - ngrok.com
   resources:
   - domains
   verbs:
@@ -21,6 +22,7 @@ rules:
   - watch
 - apiGroups:
   - ingress.k8s.ngrok.com
+  - ngrok.com
   resources:
   - domains/status
   verbs:

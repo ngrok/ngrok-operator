@@ -14,7 +14,10 @@ spec:
     singular: ngroktrafficpolicy
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - deprecated: true
+    deprecationWarning: ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy is deprecated;
+      migrate to ngrok.com/v1 TrafficPolicy (see MIGRATION.md)
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies

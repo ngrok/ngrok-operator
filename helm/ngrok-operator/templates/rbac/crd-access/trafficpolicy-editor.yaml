@@ -1,0 +1,26 @@
+{{- if .Values.crdAccessRoles.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-trafficpolicy-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+  {{- with .Values.crdAccessRoles.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+{{- end }}

@@ -1,0 +1,329 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: agentendpoints.ngrok.com
+spec:
+  group: ngrok.com
+  names:
+    kind: AgentEndpoint
+    listKind: AgentEndpointList
+    plural: agentendpoints
+    shortNames:
+    - aep
+    singular: agentendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.url
+      name: URL
+      type: string
+    - jsonPath: .spec.upstream.url
+      name: Upstream URL
+      type: string
+    - jsonPath: .spec.bindings
+      name: Bindings
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - jsonPath: .status.conditions[?(@.type=='Ready')].reason
+      name: Reason
+      priority: 1
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].message
+      name: Message
+      priority: 1
+      type: string
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: AgentEndpoint is the Schema for the agentendpoints API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AgentEndpointSpec defines the desired state of an AgentEndpoint.
+            properties:
+              bindings:
+                description: |-
+                  List of Binding IDs to associate with the endpoint.
+                  Accepted values are "public", "internal", or "kubernetes".
+                items:
+                  pattern: ^(public|internal|kubernetes)$
+                  type: string
+                maxItems: 1
+                type: array
+              clientCertificateRefs:
+                description: List of client certificates to present to the upstream
+                  when performing a TLS handshake.
+                items:
+                  description: |-
+                    K8sObjectRefOptionalNamespace defines a reference to a Kubernetes Object,
+                    optionally in a different namespace.
+                  properties:
+                    name:
+                      description: The name of the Kubernetes resource being referenced
+                      type: string
+                    namespace:
+                      description: The namespace of the Kubernetes resource being
+                        referenced
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              description:
+                default: Created by the ngrok-operator
+                description: Human-readable description of this agent endpoint.
+                type: string
+              metadata:
+                additionalProperties:
+                  type: string
+                default:
+                  owned-by: ngrok-operator
+                description: Arbitrary key/value metadata associated with the object
+                  in the ngrok API/Dashboard.
+                type: object
+              tlsTermination:
+                description: |-
+                  TLSTermination configures the agent to terminate TLS in-cluster for
+                  incoming traffic ("zero-knowledge TLS"). Requires spec.url to be a tls://
+                  URL. Cannot be combined with the edge-side `terminate-tls` traffic-policy
+                  action, which terminates at the edge before traffic reaches the agent.
+                properties:
+                  mutualTLS:
+                    description: |-
+                      Optional mutual-TLS configuration. When set, the agent will require or
+                      request client certificates during the TLS handshake and validate them
+                      against the supplied CA bundle.
+                    properties:
+                      clientCAsRef:
+                        description: |-
+                          Reference to a Secret whose `ca.crt` key contains a PEM-encoded bundle of
+                          certificate authorities trusted to sign client certificates. The Secret
+                          must live in the same namespace as the AgentEndpoint.
+                        properties:
+                          name:
+                            description: The name of the Kubernetes resource being
+                              referenced
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      mode:
+                        default: require
+                        description: |-
+                          Mode selects the TLS client-auth policy:
+                            require - reject the handshake if no valid client cert is presented
+                            request - request a client cert but do not require one
+                        enum:
+                        - require
+                        - request
+                        type: string
+                    required:
+                    - clientCAsRef
+                    type: object
+                  serverCertificateRef:
+                    description: |-
+                      Reference to a kubernetes.io/tls Secret containing the server certificate
+                      (tls.crt) and private key (tls.key) the agent will present to clients when
+                      terminating TLS for incoming traffic. The Secret must live in the same
+                      namespace as the AgentEndpoint.
+                    properties:
+                      name:
+                        description: The name of the Kubernetes resource being referenced
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - serverCertificateRef
+                type: object
+              trafficPolicy:
+                description: |-
+                  Configures a TrafficPolicy to attach to this AgentEndpoint, either inline
+                  or by reference. Exactly one of `inline` or `targetRef` must be specified.
+                properties:
+                  inline:
+                    description: |-
+                      Inline definition of a TrafficPolicy. The raw JSON-encoded policy is
+                      passed through to the ngrok API.
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  targetRef:
+                    description: Reference to a TrafficPolicy resource to attach.
+                    properties:
+                      name:
+                        description: The name of the Kubernetes resource being referenced
+                        type: string
+                      namespace:
+                        description: The namespace of the Kubernetes resource being
+                          referenced
+                        type: string
+                    required:
+                    - name
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: targetRef or inline must be provided to trafficPolicy
+                  rule: has(self.inline) || has(self.targetRef)
+                - message: Only one of inline and targetRef can be configured for
+                    trafficPolicy
+                  rule: has(self.inline) != has(self.targetRef)
+              upstream:
+                description: Defines the destination for traffic to this AgentEndpoint.
+                properties:
+                  protocol:
+                    description: |-
+                      Specifies the protocol to use when connecting to the upstream. Currently
+                      only http1 and http2 are supported with prior knowledge (defaulting to
+                      http1). ALPN negotiation is not currently supported.
+                    enum:
+                    - http1
+                    - http2
+                    type: string
+                  proxyProtocolVersion:
+                    description: Optionally specify the version of PROXY protocol
+                      to use if the upstream requires it.
+                    enum:
+                    - "1"
+                    - "2"
+                    type: string
+                  url:
+                    description: |-
+                      The local or remote address to forward incoming traffic to. Accepted formats:
+                      Origin - https://example.org or http://example.org:80 or tcp://127.0.0.1:80
+                      Domain - example.org (https/http only; port defaults to 80; scheme defaults to http)
+                      Scheme (shorthand) - https:// (https/http only; host defaults to localhost)
+                      Port (shorthand) - 8080 (scheme defaults to http; host defaults to localhost)
+                    type: string
+                required:
+                - url
+                type: object
+              url:
+                description: The unique URL for this agent endpoint. See CloudEndpoint.spec.url
+                  for accepted formats.
+                type: string
+            required:
+            - upstream
+            - url
+            type: object
+            x-kubernetes-validations:
+            - message: spec.url must be a tls:// URL when tlsTermination is set
+              rule: '!has(self.tlsTermination) || self.url.startsWith(''tls://'')'
+          status:
+            description: AgentEndpointStatus defines the observed state of an AgentEndpoint.
+            properties:
+              assignedURL:
+                description: |-
+                  AssignedURL is the URL assigned by ngrok (may differ from spec.url when
+                  the user supplied a scheme-only or empty URL).
+                type: string
+              attachedTrafficPolicy:
+                description: |-
+                  AttachedTrafficPolicy reports which TrafficPolicy is currently attached:
+                  "none", "inline", or the name of the referenced policy.
+                type: string
+              conditions:
+                description: Conditions describe the current state of the AgentEndpoint.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                maxItems: 8
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              domainRef:
+                description: |-
+                  DomainRef references the Domain resource associated with this endpoint.
+                  For internal endpoints this is nil.
+                nullable: true
+                properties:
+                  name:
+                    description: The name of the Kubernetes resource being referenced
+                    type: string
+                  namespace:
+                    description: The namespace of the Kubernetes resource being referenced
+                    type: string
+                required:
+                - name
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

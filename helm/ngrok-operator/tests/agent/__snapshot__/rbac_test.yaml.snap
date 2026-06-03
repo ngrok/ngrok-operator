@@ -14,6 +14,14 @@ should match snapshot in default mode:
           - get
           - list
           - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - get
+          - list
+          - watch
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
@@ -102,6 +110,51 @@ should match snapshot in default mode:
           - get
           - list
           - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies
+        verbs:
+          - get
+          - list
+          - watch
   4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -125,6 +178,14 @@ should match snapshot in namespaced mode:
     rules:
       - apiGroups:
           - ngrok.k8s.ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
         resources:
           - kubernetesoperators
         verbs:
@@ -216,6 +277,51 @@ should match snapshot in namespaced mode:
           - ngrok.k8s.ngrok.com
         resources:
           - ngroktrafficpolicies
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies
         verbs:
           - get
           - list

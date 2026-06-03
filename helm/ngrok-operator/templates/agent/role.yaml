@@ -84,4 +84,50 @@ rules:
   - get
   - list
   - watch
+# --- ngrok.com (v1) --- 1.0-migration: consolidated group alongside the legacy ones.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - agentendpoints
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - agentendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
 {{- end }}

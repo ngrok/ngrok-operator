@@ -50,6 +50,7 @@ type NgrokTrafficPolicyStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy is deprecated; migrate to ngrok.com/v1 TrafficPolicy (see MIGRATION.md)"
 // +kubebuilder:subresource:status
 
 // NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API

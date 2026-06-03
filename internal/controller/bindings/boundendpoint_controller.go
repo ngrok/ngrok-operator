@@ -319,6 +319,15 @@ func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alph
 }
 
 func (r *BoundEndpointReconciler) delete(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
+	// Adoption (alpha->1.0 migration): BoundEndpoint's StatusID is the CR name
+	// (never empty), so the base controller's empty-status-id short-circuit does
+	// not apply here. When the old CR is being adopted into ngrok.com/v1, skip
+	// deleting the target/upstream Services so the new BoundEndpoint controller
+	// can re-parent them without a data-plane gap. Removed in 1.0.
+	if _, ok := cr.GetAnnotations()[controller.AnnotationMigrationAdopted]; ok {
+		ctrl.LoggerFrom(ctx).Info("BoundEndpoint is being adopted, skipping service cleanup")
+		return nil
+	}
 	return r.deleteBoundEndpointServices(ctx, cr)
 }
 

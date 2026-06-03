@@ -1,0 +1,116 @@
+/*
+MIT License
+
+Copyright (c) 2024 ngrok, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+package v1
+
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+// IPPolicy condition types.
+const (
+	IPPolicyConditionCreated         = "IPPolicyCreated"
+	IPPolicyConditionRulesConfigured = "IPPolicyRulesConfigured"
+	IPPolicyConditionReady           = "Ready"
+)
+
+// IPPolicyRule defines a single CIDR allow/deny rule for an IPPolicy.
+type IPPolicyRule struct {
+	// Description is a human-readable description of the object in the ngrok API/Dashboard.
+	// +kubebuilder:default:=`Created by the ngrok-operator`
+	Description string `json:"description,omitempty"`
+	// Metadata is arbitrary key/value data associated with the object in the ngrok API/Dashboard.
+	// +kubebuilder:default:={owned-by: ngrok-operator}
+	Metadata map[string]string `json:"metadata,omitempty"`
+	// +kubebuilder:validation:Required
+	CIDR string `json:"cidr,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=allow;deny
+	Action string `json:"action,omitempty"`
+}
+
+// IPPolicyRuleStatus reports the observed state of a single IPPolicyRule.
+type IPPolicyRuleStatus struct {
+	ID string `json:"id,omitempty"`
+
+	CIDR   string `json:"cidr,omitempty"`
+	Action string `json:"action,omitempty"`
+}
+
+// IPPolicySpec defines the desired state of IPPolicy.
+type IPPolicySpec struct {
+	// Description is a human-readable description of the object in the ngrok API/Dashboard.
+	// +kubebuilder:default:=`Created by the ngrok-operator`
+	Description string `json:"description,omitempty"`
+	// Metadata is arbitrary key/value data associated with the object in the ngrok API/Dashboard.
+	// +kubebuilder:default:={owned-by: ngrok-operator}
+	Metadata map[string]string `json:"metadata,omitempty"`
+	// Rules is a list of rules that belong to the policy.
+	Rules []IPPolicyRule `json:"rules,omitempty"`
+}
+
+// IPPolicyStatus defines the observed state of IPPolicy.
+type IPPolicyStatus struct {
+	ID string `json:"id,omitempty"`
+
+	// Conditions represent the latest available observations of the IP policy's state.
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:MaxItems=8
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	Rules []IPPolicyRuleStatus `json:"rules,omitempty"`
+}
+
+// IPPolicy is the Schema for the ippolicies API.
+//
+// +kubebuilder:object:root=true
+// +kubebuilder:storageversion
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:categories="networking";"ngrok"
+// +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="IPPolicy ID"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`,description="IPPolicy Ready"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].reason`,description="Ready Reason",priority=1
+// +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].message`,description="Ready Message",priority=1
+type IPPolicy struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   IPPolicySpec   `json:"spec,omitempty"`
+	Status IPPolicyStatus `json:"status,omitempty"`
+}
+
+// IPPolicyList contains a list of IPPolicy.
+//
+// +kubebuilder:object:root=true
+type IPPolicyList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []IPPolicy `json:"items"`
+}
+
+func init() {
+	SchemeBuilder.Register(&IPPolicy{}, &IPPolicyList{})
+}

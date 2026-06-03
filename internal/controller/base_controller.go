@@ -27,6 +27,14 @@ type DrainState = drain.State
 
 var IsDraining = drain.IsDraining
 
+// AnnotationMigrationAdopted marks an old-group (v1alpha1) CR that is being
+// adopted into the ngrok.com/v1 group during the alpha->1.0 migration.
+// Controllers that see it skip ngrok-side teardown (KubernetesOperator drain,
+// BoundEndpoint Service cleanup) so the new CR can take ownership without
+// data-plane impact. This annotation and the code paths that honor it are
+// removed in 1.0.
+const AnnotationMigrationAdopted = "ngrok.com/migration-adopted"
+
 // BaseControllerOp is an enum for the different operations that can be performed by a BaseController
 type BaseControllerOp int
 

@@ -46,6 +46,25 @@ rules:
   - get
   - list
   - watch
+# --- ngrok.com (v1) --- 1.0-migration: consolidated group alongside the legacy ones.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - boundendpoints
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

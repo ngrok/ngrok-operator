@@ -148,6 +148,7 @@ type BindingEndpoint struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="bindings.k8s.ngrok.com/v1alpha1 BoundEndpoint is deprecated; migrate to ngrok.com/v1 (see MIGRATION.md)"
 // +kubebuilder:subresource:status
 
 // BoundEndpoint is the Schema for the boundendpoints API

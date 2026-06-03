@@ -13,6 +13,7 @@ metadata:
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
+  - ngrok.com
   resources:
   - kubernetesoperators
   verbs:
@@ -25,6 +26,7 @@ rules:
   - watch
 - apiGroups:
   - ngrok.k8s.ngrok.com
+  - ngrok.com
   resources:
   - kubernetesoperators/status
   verbs:

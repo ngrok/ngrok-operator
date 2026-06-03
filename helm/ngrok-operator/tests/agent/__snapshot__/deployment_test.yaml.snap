@@ -4,7 +4,7 @@ Should match snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/rbac: 7ad5685f36276669f1d58bba694549ec85c1bfec764282ab94079943fba927e7
+        checksum/rbac: 5863cb969a076f4a5cbc1beed425ea0a1e063da9a0ff21b97f2a277b508b44cd
       labels:
         app.kubernetes.io/component: agent
         app.kubernetes.io/instance: RELEASE-NAME
@@ -27,7 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
-            checksum/rbac: 7ad5685f36276669f1d58bba694549ec85c1bfec764282ab94079943fba927e7
+            checksum/rbac: 5863cb969a076f4a5cbc1beed425ea0a1e063da9a0ff21b97f2a277b508b44cd
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
             prometheus.io/scrape: "true"
@@ -170,6 +170,51 @@ Should match snapshot:
           - ngrok.k8s.ngrok.com
         resources:
           - ngroktrafficpolicies
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies
         verbs:
           - get
           - list

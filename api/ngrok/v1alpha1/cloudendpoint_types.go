@@ -100,6 +100,7 @@ type CloudEndpointStatus struct {
 // CloudEndpoint is the Schema for the cloudendpoints API
 //
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="ngrok.k8s.ngrok.com/v1alpha1 CloudEndpoint is deprecated; migrate to ngrok.com/v1 (see MIGRATION.md)"
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:categories="networking";"ngrok"
 // +kubebuilder:resource:shortName=clep

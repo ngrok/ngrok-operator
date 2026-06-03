@@ -75,6 +75,7 @@ type IPPolicyStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="ingress.k8s.ngrok.com/v1alpha1 IPPolicy is deprecated; migrate to ngrok.com/v1 (see MIGRATION.md)"
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="IPPolicy ID"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`,description="IPPolicy Ready"

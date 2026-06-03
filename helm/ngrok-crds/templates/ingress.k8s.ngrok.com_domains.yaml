@@ -55,6 +55,9 @@ spec:
       name: Message
       priority: 1
       type: string
+    deprecated: true
+    deprecationWarning: ingress.k8s.ngrok.com/v1alpha1 Domain is deprecated; migrate
+      to ngrok.com/v1 (see MIGRATION.md)
     name: v1alpha1
     schema:
       openAPIV3Schema:

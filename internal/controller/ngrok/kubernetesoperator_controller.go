@@ -238,6 +238,22 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1al
 func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
 	log := ctrl.LoggerFrom(ctx)
 
+	// Adoption (alpha->1.0 migration): when the old-group KubernetesOperator is
+	// being adopted into ngrok.com/v1, skip the drain workflow and the ngrok API
+	// delete. The drain runs unconditionally on delete and would otherwise tear
+	// down ngrok-side state that the new CR is taking ownership of. Marking the
+	// drain completed and clearing the ID lets BaseController remove the
+	// finalizer cleanly. Removed in 1.0.
+	if _, ok := ko.GetAnnotations()[controller.AnnotationMigrationAdopted]; ok {
+		log.Info("KubernetesOperator is being adopted, skipping drain and ngrok API delete")
+		ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusCompleted
+		ko.Status.ID = ""
+		if err := r.Client.Status().Update(ctx, ko); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	// Step 1: Initiate drain if not already started
 	if ko.Status.DrainStatus == "" {
 		log.Info("KubernetesOperator deletion detected, initiating drain")

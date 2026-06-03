@@ -31,7 +31,10 @@ spec:
             - |
               set -e
               echo "Deleting KubernetesOperator '{{ .Release.Name }}' to trigger drain..."
-              kubectl delete kubernetesoperator "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.cleanupHook.timeout }}s || true
+              # Fully-qualified to the ngrok.com group. By uninstall time the 0.24
+              # bootstrap has already migrated the singleton off the legacy group,
+              # so only the new one needs deleting. Kept qualified through 1.0.
+              kubectl delete kubernetesoperators.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.cleanupHook.timeout }}s || true
           resources:
             {{- toYaml .Values.cleanupHook.resources | nindent 12 }}
 {{- end }}

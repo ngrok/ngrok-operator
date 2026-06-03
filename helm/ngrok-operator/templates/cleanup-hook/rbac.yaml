@@ -32,6 +32,16 @@ rules:
       - list
       - watch
       - delete
+  # --- ngrok.com (v1) --- 1.0-migration: cleanup hook deletes the new singleton.
+  - apiGroups:
+      - ngrok.com
+    resources:
+      - kubernetesoperators
+    verbs:
+      - get
+      - list
+      - watch
+      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

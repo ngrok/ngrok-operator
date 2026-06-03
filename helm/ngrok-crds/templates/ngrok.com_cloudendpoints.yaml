@@ -1,0 +1,240 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: cloudendpoints.ngrok.com
+spec:
+  group: ngrok.com
+  names:
+    kind: CloudEndpoint
+    listKind: CloudEndpointList
+    plural: cloudendpoints
+    shortNames:
+    - clep
+    singular: cloudendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.id
+      name: ID
+      type: string
+    - jsonPath: .spec.url
+      name: URL
+      type: string
+    - jsonPath: .spec.trafficPolicy.targetRef.name
+      name: Traffic Policy
+      type: string
+    - jsonPath: .spec.bindings
+      name: Bindings
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].reason
+      name: Reason
+      priority: 1
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].message
+      name: Message
+      priority: 1
+      type: string
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: CloudEndpoint is the Schema for the cloudendpoints API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CloudEndpointSpec defines the desired state of CloudEndpoint.
+            properties:
+              bindings:
+                description: |-
+                  Bindings is the list of Binding IDs to associate with the endpoint.
+                  Accepted values are "public", "internal", or "kubernetes".
+                items:
+                  pattern: ^(public|internal|kubernetes)$
+                  type: string
+                maxItems: 1
+                type: array
+              description:
+                default: Created by the ngrok-operator
+                description: Human-readable description of this cloud endpoint.
+                type: string
+              metadata:
+                additionalProperties:
+                  type: string
+                default:
+                  owned-by: ngrok-operator
+                description: Arbitrary key/value metadata associated with the object
+                  in the ngrok API/Dashboard.
+                type: object
+              poolingEnabled:
+                description: |-
+                  Controls whether the CloudEndpoint may share its URL with other
+                  CloudEndpoints (pool). When pooling is enabled across multiple
+                  CloudEndpoints sharing a URL, traffic is distributed among them.
+                type: boolean
+              trafficPolicy:
+                description: |-
+                  Configures a TrafficPolicy to attach to the CloudEndpoint, either inline
+                  or by reference to a TrafficPolicy resource. Exactly one of `inline` or
+                  `targetRef` must be specified.
+                properties:
+                  inline:
+                    description: |-
+                      Inline definition of a TrafficPolicy. The raw JSON-encoded policy is
+                      passed through to the ngrok API.
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  targetRef:
+                    description: Reference to a TrafficPolicy resource to attach.
+                    properties:
+                      name:
+                        description: The name of the Kubernetes resource being referenced
+                        type: string
+                      namespace:
+                        description: The namespace of the Kubernetes resource being
+                          referenced
+                        type: string
+                    required:
+                    - name
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: targetRef or inline must be provided to trafficPolicy
+                  rule: has(self.inline) || has(self.targetRef)
+                - message: Only one of inline and targetRef can be configured for
+                    trafficPolicy
+                  rule: has(self.inline) != has(self.targetRef)
+              url:
+                description: |-
+                  The unique URL for this cloud endpoint. The following formats are accepted:
+                  Domain - example.org
+                      Only defines the domain; scheme and port inferred.
+                  Origin - https://example.ngrok.app or https://example.ngrok.app:443 or tcp://1.tcp.ngrok.io:12345 or tls://example.ngrok.app
+                  Scheme (shorthand) - https:// or tcp:// or tls:// or http://
+                  Empty - defaults to https with a randomly assigned address.
+                  Internal - some.domain.internal — only accessible via the forward-internal traffic policy action.
+                type: string
+            required:
+            - url
+            type: object
+          status:
+            description: CloudEndpointStatus defines the observed state of CloudEndpoint.
+            properties:
+              assignedURL:
+                description: |-
+                  AssignedURL is the URL assigned by ngrok (may differ from spec.url when
+                  the user supplied a scheme-only or empty URL).
+                type: string
+              attachedTrafficPolicy:
+                description: |-
+                  AttachedTrafficPolicy reports which TrafficPolicy is currently attached:
+                  "none", "inline", or the name of the referenced policy.
+                type: string
+              conditions:
+                description: Conditions describe the current state of the CloudEndpoint.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                maxItems: 8
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              domainRef:
+                description: |-
+                  DomainRef references the Domain resource associated with this endpoint.
+                  For internal endpoints this is nil.
+                nullable: true
+                properties:
+                  name:
+                    description: The name of the Kubernetes resource being referenced
+                    type: string
+                  namespace:
+                    description: The namespace of the Kubernetes resource being referenced
+                    type: string
+                required:
+                - name
+                type: object
+              id:
+                description: ID is the ngrok API resource identifier for this endpoint.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

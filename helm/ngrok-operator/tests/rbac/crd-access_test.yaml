@@ -42,7 +42,7 @@ tests:
       path: metadata.annotations
       value:
         rbac.authorization.k8s.io/aggregate-to-admin: "true"
-- it: should use bindings.k8s.ngrok.com for boundendpoint
+- it: should grant boundendpoint access in both the legacy and ngrok.com groups
   template: rbac/crd-access/boundendpoint-editor.yaml
   asserts:
   - contains:
@@ -50,6 +50,7 @@ tests:
       content:
         apiGroups:
         - bindings.k8s.ngrok.com
+        - ngrok.com
         resources:
         - boundendpoints
         verbs:

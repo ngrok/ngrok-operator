@@ -343,6 +343,44 @@ should match snapshot in default mode:
           - patch
           - update
       - apiGroups:
+          - ngrok.com
+        resources:
+          - domains
+          - ippolicies
+          - agentendpoints
+          - cloudendpoints
+          - trafficpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains/finalizers
+          - ippolicies/finalizers
+          - agentendpoints/finalizers
+          - cloudendpoints/finalizers
+          - trafficpolicies/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains/status
+          - ippolicies/status
+          - agentendpoints/status
+          - cloudendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
           - ""
         resources:
           - namespaces
@@ -740,6 +778,44 @@ should match snapshot in namespaced mode:
           - ngrok.k8s.ngrok.com
         resources:
           - ngroktrafficpolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains
+          - ippolicies
+          - agentendpoints
+          - cloudendpoints
+          - trafficpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains/finalizers
+          - ippolicies/finalizers
+          - agentendpoints/finalizers
+          - cloudendpoints/finalizers
+          - trafficpolicies/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains/status
+          - ippolicies/status
+          - agentendpoints/status
+          - cloudendpoints/status
         verbs:
           - get
           - patch

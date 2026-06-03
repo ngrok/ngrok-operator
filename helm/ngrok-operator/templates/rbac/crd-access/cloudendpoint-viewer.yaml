@@ -13,6 +13,7 @@ metadata:
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
+  - ngrok.com
   resources:
   - cloudendpoints
   verbs:
@@ -21,6 +22,7 @@ rules:
   - watch
 - apiGroups:
   - ngrok.k8s.ngrok.com
+  - ngrok.com
   resources:
   - cloudendpoints/status
   verbs:

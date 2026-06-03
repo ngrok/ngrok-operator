@@ -361,6 +361,48 @@ rules:
   - get
   - patch
   - update
+# --- ngrok.com (v1) ---
+# 1.0-migration: the consolidated ngrok.com group is granted alongside the
+# legacy groups above for the 0.24 window. KubernetesOperator and BoundEndpoint
+# rules live in release-namespace-role.yaml and bindings-cluster-role.yaml.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains
+  - ippolicies
+  - agentendpoints
+  - cloudendpoints
+  - trafficpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains/finalizers
+  - ippolicies/finalizers
+  - agentendpoints/finalizers
+  - cloudendpoints/finalizers
+  - trafficpolicies/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains/status
+  - ippolicies/status
+  - agentendpoints/status
+  - cloudendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
 {{- if not (include "ngrok-operator.isNamespaced" .) }}
 # --- cluster-scoped Kubernetes resources (inline when ClusterRole) ---
 {{ include "ngrok-operator.api-manager.clusterScopedRules" . }}

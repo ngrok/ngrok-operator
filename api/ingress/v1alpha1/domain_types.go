@@ -140,6 +140,7 @@ type DomainStatusProvisioningJob struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="ingress.k8s.ngrok.com/v1alpha1 Domain is deprecated; migrate to ngrok.com/v1 (see MIGRATION.md)"
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
 // +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.status.domain`,description="Domain"

@@ -41,6 +41,34 @@ rules:
   - get
   - patch
   - update
+# --- ngrok.com (v1) --- 1.0-migration: consolidated group alongside the legacy one.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - boundendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - boundendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - boundendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - ""
   resources:

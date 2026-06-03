@@ -13,6 +13,7 @@ metadata:
 rules:
 - apiGroups:
   - bindings.k8s.ngrok.com
+  - ngrok.com
   resources:
   - boundendpoints
   verbs:
@@ -25,6 +26,7 @@ rules:
   - watch
 - apiGroups:
   - bindings.k8s.ngrok.com
+  - ngrok.com
   resources:
   - boundendpoints/status
   verbs:

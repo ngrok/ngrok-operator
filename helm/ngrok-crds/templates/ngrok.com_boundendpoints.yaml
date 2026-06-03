@@ -1,0 +1,271 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: boundendpoints.ngrok.com
+spec:
+  group: ngrok.com
+  names:
+    categories:
+    - networking
+    - ngrok
+    kind: BoundEndpoint
+    listKind: BoundEndpointList
+    plural: boundendpoints
+    singular: boundendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.endpointURL
+      name: URL
+      type: string
+    - jsonPath: .spec.port
+      name: Port
+      type: string
+    - jsonPath: .status.endpointsSummary
+      name: Endpoints
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="ServicesCreated")].status
+      name: Services
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      priority: 1
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].message
+      name: Message
+      priority: 1
+      type: string
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: BoundEndpoint is the Schema for the boundendpoints API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: BoundEndpointSpec defines the desired state of BoundEndpoint.
+            properties:
+              endpointURL:
+                description: |-
+                  EndpointURL is the unique identifier representing the BoundEndpoint + its Endpoints.
+                  Format: <scheme>://<service>.<namespace>:<port>
+
+                  See: https://regex101.com/r/9QkXWl/1
+                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$
+                type: string
+              port:
+                description: Port is the Service port this Endpoint uses internally
+                  to communicate with its Upstream Service.
+                type: integer
+              scheme:
+                default: https
+                description: |-
+                  Scheme is a user-defined field for endpoints that describe how the data
+                  packets are framed by the pod forwarders mTLS connection to the ngrok edge.
+                enum:
+                - tcp
+                - http
+                - https
+                - tls
+                type: string
+              target:
+                description: EndpointTarget is the target Service that this Endpoint
+                  projects.
+                properties:
+                  metadata:
+                    description: Metadata is a subset of metav1.ObjectMeta that is
+                      added to the Service.
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Annotations is an unstructured key value map stored with a resource that may
+                          be set by external tools to store and retrieve arbitrary metadata.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Map of string keys and values that can be used to organize and categorize
+                          (scope and select) objects.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+                        type: object
+                    type: object
+                  namespace:
+                    description: Namespace is the destination Namespace for the Service
+                      this Endpoint projects.
+                    type: string
+                  port:
+                    description: Port is the Service targetPort this Endpoint's Target
+                      Service uses for requests.
+                    format: int32
+                    type: integer
+                  protocol:
+                    default: TCP
+                    description: Protocol is the Service protocol this Endpoint uses.
+                    enum:
+                    - TCP
+                    type: string
+                  service:
+                    description: Service is the name of the Service that this Endpoint
+                      projects.
+                    type: string
+                required:
+                - namespace
+                - port
+                - protocol
+                - service
+                type: object
+            required:
+            - port
+            - scheme
+            - target
+            type: object
+          status:
+            description: BoundEndpointStatus defines the observed state of BoundEndpoint.
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the BoundEndpoint's state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                maxItems: 8
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              endpoints:
+                description: |-
+                  Endpoints is the list of ngrok API endpoint references bound to this
+                  BoundEndpoint. All endpoints share the same underlying Kubernetes services.
+                items:
+                  description: |-
+                    BindingEndpoint is a reference to an Endpoint object in the ngrok API that is
+                    attached to the kubernetes operator binding. All endpoints in a BoundEndpoint
+                    share the same underlying Kubernetes services.
+                  properties:
+                    id:
+                      description: a resource identifier
+                      type: string
+                    uri:
+                      description: a uri for locating a resource
+                      type: string
+                  type: object
+                type: array
+              endpointsSummary:
+                description: |-
+                  EndpointsSummary provides a human-readable count of bound endpoints.
+                  Format: "N endpoint" or "N endpoints".
+                type: string
+              hashedName:
+                description: HashedName is the hashed output of the TargetService
+                  and TargetNamespace for unique identification.
+                type: string
+              targetServiceRef:
+                description: TargetServiceRef references the created ExternalName
+                  Service in the target namespace.
+                properties:
+                  name:
+                    description: The name of the Kubernetes resource being referenced
+                    type: string
+                  namespace:
+                    description: The namespace of the Kubernetes resource being referenced
+                    type: string
+                required:
+                - name
+                type: object
+              upstreamServiceRef:
+                description: UpstreamServiceRef references the created ClusterIP Service
+                  pointing to pod forwarders.
+                properties:
+                  name:
+                    description: The name of the Kubernetes resource being referenced
+                    type: string
+                required:
+                - name
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

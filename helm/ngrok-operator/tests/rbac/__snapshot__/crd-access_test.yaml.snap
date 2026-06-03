@@ -15,6 +15,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - agentendpoints
         verbs:
@@ -27,6 +28,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - agentendpoints/status
         verbs:
@@ -47,6 +49,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - agentendpoints
         verbs:
@@ -55,6 +58,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - agentendpoints/status
         verbs:
@@ -75,6 +79,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - bindings.k8s.ngrok.com
+          - ngrok.com
         resources:
           - boundendpoints
         verbs:
@@ -87,6 +92,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - bindings.k8s.ngrok.com
+          - ngrok.com
         resources:
           - boundendpoints/status
         verbs:
@@ -107,6 +113,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - bindings.k8s.ngrok.com
+          - ngrok.com
         resources:
           - boundendpoints
         verbs:
@@ -115,6 +122,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - bindings.k8s.ngrok.com
+          - ngrok.com
         resources:
           - boundendpoints/status
         verbs:
@@ -135,6 +143,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - cloudendpoints
         verbs:
@@ -147,6 +156,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - cloudendpoints/status
         verbs:
@@ -167,6 +177,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - cloudendpoints
         verbs:
@@ -175,6 +186,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - cloudendpoints/status
         verbs:
@@ -195,6 +207,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ingress.k8s.ngrok.com
+          - ngrok.com
         resources:
           - domains
         verbs:
@@ -207,6 +220,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ingress.k8s.ngrok.com
+          - ngrok.com
         resources:
           - domains/status
         verbs:
@@ -227,6 +241,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ingress.k8s.ngrok.com
+          - ngrok.com
         resources:
           - domains
         verbs:
@@ -235,6 +250,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ingress.k8s.ngrok.com
+          - ngrok.com
         resources:
           - domains/status
         verbs:
@@ -255,6 +271,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ingress.k8s.ngrok.com
+          - ngrok.com
         resources:
           - ippolicies
         verbs:
@@ -267,6 +284,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ingress.k8s.ngrok.com
+          - ngrok.com
         resources:
           - ippolicies/status
         verbs:
@@ -287,6 +305,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ingress.k8s.ngrok.com
+          - ngrok.com
         resources:
           - ippolicies
         verbs:
@@ -295,6 +314,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ingress.k8s.ngrok.com
+          - ngrok.com
         resources:
           - ippolicies/status
         verbs:
@@ -315,6 +335,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - kubernetesoperators
         verbs:
@@ -327,6 +348,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - kubernetesoperators/status
         verbs:
@@ -347,6 +369,7 @@ should match snapshot with defaults:
     rules:
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - kubernetesoperators
         verbs:
@@ -355,6 +378,7 @@ should match snapshot with defaults:
           - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
+          - ngrok.com
         resources:
           - kubernetesoperators/status
         verbs:
