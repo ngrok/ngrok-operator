@@ -187,6 +187,8 @@ func sanitizeStringForURL(s string) string {
 }
 
 var knownApplicationProtocols = map[string]common.ApplicationProtocol{
+	"ngrok.com/http2": common.ApplicationProtocol_HTTP2,
+	// LEGACY-PREFIX-MIGRATION: drop this entry in 1.0
 	"k8s.ngrok.com/http2": common.ApplicationProtocol_HTTP2,
 	"kubernetes.io/h2c":   common.ApplicationProtocol_HTTP2,
 	"http":                common.ApplicationProtocol_HTTP1,
@@ -351,36 +353,62 @@ func protocolStringToIRScheme(irProtocol ir.IRProtocol) (ir.IRScheme, error) {
 	}
 }
 
-func getProtoForServicePort(log logr.Logger, service *corev1.Service, portName string, defaultProtocol ir.IRProtocol) (ir.IRProtocol, error) {
-	if service.Annotations != nil {
-		annotation := service.Annotations["k8s.ngrok.com/app-protocols"]
-		if annotation != "" {
-			log.Info("annotated app-protocols found", "annotation", annotation, "namespace", service.Namespace, "service", service.Name, "port name", portName)
-			protocolMap := map[string]string{}
-			err := json.Unmarshal([]byte(annotation), &protocolMap)
-			if err != nil {
-				return defaultProtocol, fmt.Errorf("could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
-			}
+const AppProtocolsAnnotation = "ngrok.com/app-protocols"
 
-			if protocol, ok := protocolMap[portName]; ok {
-				log.V(3).Info("found protocol for port name", "protocol", protocol, "namespace", service.Namespace, "service", service.Name)
-				// only allow cases through where we are sure of intent
-				switch upperProto := strings.ToUpper(protocol); upperProto {
-				case "HTTP":
-					return ir.IRProtocol_HTTP, nil
-				case "HTTPS":
-					return ir.IRProtocol_HTTPS, nil
-				case "TCP":
-					return ir.IRProtocol_TCP, nil
-				case "TLS":
-					return ir.IRProtocol_TLS, nil
-				default:
-					log.Error(fmt.Errorf("service uses \"k8s.ngrok.com/app-protocols\" annotation to configure protocols, but a valid entry is missing for portName :%q. defaulting to %s", portName, defaultProtocol), "missing protocol annotation entry for service",
-						"service", fmt.Sprintf("%s.%s", service.Name, service.Namespace),
-					)
-				}
-			}
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// LegacyAppProtocolsAnnotation is read by getProtoForServicePort so Services
+// still on the legacy prefix continue to work. Delete this constant and the
+// legacy-read branch in getProtoForServicePort below in the release
+// immediately before 1.0.
+const LegacyAppProtocolsAnnotation = "k8s.ngrok.com/app-protocols"
+
+// LEGACY-PREFIX-MIGRATION: END
+
+func getProtoForServicePort(log logr.Logger, service *corev1.Service, portName string, defaultProtocol ir.IRProtocol) (ir.IRProtocol, error) {
+	if service.Annotations == nil {
+		return defaultProtocol, nil
+	}
+
+	annotation, sourceKey := service.Annotations[AppProtocolsAnnotation], AppProtocolsAnnotation
+	// LEGACY-PREFIX-MIGRATION: BEGIN — drop this fallback in 1.0; the new-prefix lookup above stands alone
+	if annotation == "" {
+		annotation, sourceKey = service.Annotations[LegacyAppProtocolsAnnotation], LegacyAppProtocolsAnnotation
+		if annotation != "" {
+			log.Info("legacy annotation key in use; please migrate",
+				"legacy", LegacyAppProtocolsAnnotation, "new", AppProtocolsAnnotation,
+				"namespace", service.Namespace, "service", service.Name)
 		}
+	}
+	// LEGACY-PREFIX-MIGRATION: END
+	if annotation == "" {
+		return defaultProtocol, nil
+	}
+
+	log.Info("annotated app-protocols found", "annotation", annotation, "namespace", service.Namespace, "service", service.Name, "port name", portName)
+	protocolMap := map[string]string{}
+	if err := json.Unmarshal([]byte(annotation), &protocolMap); err != nil {
+		return defaultProtocol, fmt.Errorf("could not parse protocol annotation: '%s' from: %s service: %s", annotation, service.Namespace, service.Name)
+	}
+
+	protocol, ok := protocolMap[portName]
+	if !ok {
+		return defaultProtocol, nil
+	}
+	log.V(3).Info("found protocol for port name", "protocol", protocol, "namespace", service.Namespace, "service", service.Name)
+	// only allow cases through where we are sure of intent
+	switch upperProto := strings.ToUpper(protocol); upperProto {
+	case "HTTP":
+		return ir.IRProtocol_HTTP, nil
+	case "HTTPS":
+		return ir.IRProtocol_HTTPS, nil
+	case "TCP":
+		return ir.IRProtocol_TCP, nil
+	case "TLS":
+		return ir.IRProtocol_TLS, nil
+	default:
+		log.Error(fmt.Errorf("service uses %q annotation to configure protocols, but a valid entry is missing for portName :%q. defaulting to %s", sourceKey, portName, defaultProtocol), "missing protocol annotation entry for service",
+			"service", fmt.Sprintf("%s.%s", service.Name, service.Namespace),
+		)
 	}
 
 	return defaultProtocol, nil

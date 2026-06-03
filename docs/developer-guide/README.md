@@ -18,6 +18,10 @@ While this project is new and we don't have full contribution guidelines yet, we
 
 Have a look at the architecture guide on the internal workings of the ingress controller [here](./architecture.md)
 
+## Migration strategy
+
+For staged backwards-incompatible changes on the path to 1.0, see [Passivity shims and migration strategy](./passivity-shims.md). The user-facing counterpart lives at [`docs/v1-migration-guide.md`](../v1-migration-guide.md).
+
 ## Local Development
 
 ### Codespaces

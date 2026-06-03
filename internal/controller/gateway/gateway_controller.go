@@ -28,6 +28,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -45,6 +46,7 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -125,6 +127,18 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Validate the Gateway, conditionally modifying the status of the Gateway
 	_ = r.validateGateway(ctx, gw)
+
+	// LEGACY-PREFIX-MIGRATION: BEGIN — drop this block in 1.0
+	// Fire a single deprecation event if any listener uses the legacy
+	// k8s.ngrok.com/terminate-tls.* option prefix. The translator accepts
+	// both, but users should migrate to ngrok.com/terminate-tls.*.
+	r.warnIfLegacyTLSOptions(gw)
+
+	// Emit deprecation events for any legacy k8s.ngrok.com/* annotations on
+	// this Gateway. The translator reads these from a hot loop with nil
+	// recorder; this controller path is the canonical event signal.
+	deprecation.ScanAnnotations(log, r.Recorder, gw)
+	// LEGACY-PREFIX-MIGRATION: END
 
 	// Update the gateway in the store
 	if _, err := r.Driver.UpdateGateway(gw); err != nil {
@@ -324,6 +338,33 @@ func (r GatewayReconciler) newListenerCondition(gw *gatewayv1.Gateway, t gateway
 		Message:            msg,
 	}
 }
+
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// warnIfLegacyTLSOptions and its caller above only exist to surface a
+// LegacyAnnotation event when a Gateway uses the legacy
+// `k8s.ngrok.com/terminate-tls.*` option prefix. Delete this function and the
+// call site in 1.0. The translator accepts both prefixes today; once legacy
+// is removed only the new prefix will be parsed, so the warning becomes moot.
+func (r *GatewayReconciler) warnIfLegacyTLSOptions(gw *gatewayv1.Gateway) {
+	if r.Recorder == nil {
+		return
+	}
+	for _, l := range gw.Spec.Listeners {
+		if l.TLS == nil {
+			continue
+		}
+		for key := range l.TLS.Options {
+			if strings.HasPrefix(string(key), managerdriver.LegacyTLSOptionKeyPrefix) {
+				r.Recorder.Eventf(gw, nil, v1.EventTypeWarning, "LegacyAnnotation", "Reconcile",
+					"Gateway uses legacy %q TLS option keys; migrate to %q",
+					managerdriver.LegacyTLSOptionKeyPrefix, managerdriver.TLSOptionKeyPrefix)
+				return
+			}
+		}
+	}
+}
+
+// LEGACY-PREFIX-MIGRATION: END
 
 func (r *GatewayReconciler) updateGatewayStatus(ctx context.Context, gw *gatewayv1.Gateway) error {
 	log := ctrl.LoggerFrom(ctx)

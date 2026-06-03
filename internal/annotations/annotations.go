@@ -20,11 +20,31 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// deprecationCallback returns a parser.LegacyHitFunc that routes legacy-key
+// hits to the deprecation helper, which structured-logs and (if recorder is
+// non-nil) fires a Warning event.
+func deprecationCallback(log logr.Logger, recorder deprecation.EventRecorder, obj client.Object) parser.LegacyHitFunc {
+	return func(legacyKey, newKey string) {
+		deprecation.Annotation(log, recorder, obj, legacyKey, newKey)
+	}
+}
+
+// The canonical annotation key for each user-facing knob uses the new
+// `ngrok.com/` prefix. The matching `Legacy*Annotation` const a few lines
+// down is read-side compatibility for the migration window and is deleted in
+// the cleanup PR — see `internal/deprecation` for the marker convention used
+// to find every site.
+//
+// When adding a new user-facing annotation key, also update
+// `deprecation.userFacingAnnotationSuffixes` so the reconcile path emits a
+// LegacyAnnotation event when a user is still on the legacy prefix.
 const (
 	// ComputedURLAnnotation is the annotation key for the computed URL of an endpoint.
 	// This is temporarily used by the Service controller to store reserved TCP addresses,
@@ -37,13 +57,13 @@ const (
 	DeniedKeyName = "Denied"
 
 	// This annotation can be used on ingress/gateway resources to control which ngrok resources (endpoints/edges) get created from it
-	MappingStrategyAnnotation    = "k8s.ngrok.com/mapping-strategy"
+	MappingStrategyAnnotation    = "ngrok.com/mapping-strategy"
 	MappingStrategyAnnotationKey = "mapping-strategy"
 
-	EndpointPoolingAnnotation    = "k8s.ngrok.com/pooling-enabled"
+	EndpointPoolingAnnotation    = "ngrok.com/pooling-enabled"
 	EndpointPoolingAnnotationKey = "pooling-enabled"
 
-	TrafficPolicyAnnotation    = "k8s.ngrok.com/traffic-policy"
+	TrafficPolicyAnnotation    = "ngrok.com/traffic-policy"
 	TrafficPolicyAnnotationKey = "traffic-policy"
 
 	// This annotation can be used on a service to control whether the endpoint is a TCP or TLS endpoint.
@@ -51,7 +71,7 @@ const (
 	//   * tcp://1.tcp.ngrok.io:12345
 	//   * tls://my-domain.com
 	//
-	URLAnnotation = "k8s.ngrok.com/url"
+	URLAnnotation = "ngrok.com/url"
 	URLKey        = "url"
 
 	// MetadataAnnotation allows setting ngrok metadata on the endpoint created from this resource.
@@ -59,15 +79,36 @@ const (
 	// This metadata is merged with the operator-level default metadata; keys in this annotation take precedence.
 	// When multiple annotated resources share the same endpoint, the metadata from the
 	// alphabetically-first resource (by namespace/name) takes precedence per key.
-	MetadataAnnotation = "k8s.ngrok.com/metadata"
+	MetadataAnnotation = "ngrok.com/metadata"
 	MetadataKey        = "metadata"
 
 	// DescriptionAnnotation sets a human-readable description on the endpoint created from this resource.
 	// When multiple resources share the same endpoint, the description from the alphabetically-first
 	// resource (by namespace/name) is used; if none is set, the operator default is used.
-	DescriptionAnnotation = "k8s.ngrok.com/description"
+	DescriptionAnnotation = "ngrok.com/description"
 	DescriptionKey        = "description"
+
+	// BindingsAnnotation/Key controls per-endpoint binding visibility (public/internal/kubernetes).
+	BindingsAnnotation    = "ngrok.com/bindings"
+	BindingsAnnotationKey = "bindings"
 )
+
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// Legacy `k8s.ngrok.com/`-prefixed keys retained for read-side compatibility
+// during the ngrok.com prefix migration. Delete this entire const block in
+// the release immediately before ngrok-operator 1.0.
+// See docs/developer-guide/passivity-shims.md and internal/deprecation for the convention.
+const (
+	LegacyMappingStrategyAnnotation = "k8s.ngrok.com/mapping-strategy"
+	LegacyEndpointPoolingAnnotation = "k8s.ngrok.com/pooling-enabled"
+	LegacyTrafficPolicyAnnotation   = "k8s.ngrok.com/traffic-policy"
+	LegacyURLAnnotation             = "k8s.ngrok.com/url"
+	LegacyMetadataAnnotation        = "k8s.ngrok.com/metadata"
+	LegacyDescriptionAnnotation     = "k8s.ngrok.com/description"
+	LegacyBindingsAnnotation        = "k8s.ngrok.com/bindings"
+)
+
+// LEGACY-PREFIX-MIGRATION: END
 
 type MappingStrategy string
 
@@ -79,11 +120,12 @@ const (
 	MappingStrategy_EndpointsVerbose MappingStrategy = "endpoints-verbose"
 )
 
-// Extracts a single traffic policy str from the annotation
-// k8s.ngrok.com/traffic-policy: "module1"
-func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error) {
-	policies, err := parser.GetStringSliceAnnotation(TrafficPolicyAnnotationKey, obj)
-
+// ExtractNgrokTrafficPolicyFromAnnotations reads the traffic-policy annotation
+// from obj. During the legacy-prefix migration window it also accepts
+// `k8s.ngrok.com/traffic-policy` and emits a deprecation signal on legacy hits.
+// recorder may be nil on translator hot paths.
+func ExtractNgrokTrafficPolicyFromAnnotations(log logr.Logger, recorder deprecation.EventRecorder, obj client.Object) (string, error) {
+	policies, err := parser.GetStringSliceAnnotationWithFallback(TrafficPolicyAnnotationKey, obj, deprecationCallback(log, recorder, obj))
 	if err != nil {
 		return "", err
 	}
@@ -99,12 +141,11 @@ func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error)
 	return "", nil
 }
 
-// Whether or not we should use endpoint pooling
-// from the annotation "k8s.ngrok.com/pooling-enabled" if it is present.
-// Returns nil if the annotation is not set, allowing the caller to distinguish
-// between "not configured" and "explicitly disabled".
-func ExtractUseEndpointPooling(obj client.Object) (*bool, error) {
-	val, err := parser.GetStringAnnotation(EndpointPoolingAnnotationKey, obj)
+// ExtractUseEndpointPooling reads the pooling-enabled annotation. Returns nil
+// if unset, so callers can distinguish "unset" from "explicitly disabled".
+// The legacy-prefix form is accepted during the migration window.
+func ExtractUseEndpointPooling(log logr.Logger, recorder deprecation.EventRecorder, obj client.Object) (*bool, error) {
+	val, err := parser.GetStringAnnotationWithFallback(EndpointPoolingAnnotationKey, obj, deprecationCallback(log, recorder, obj))
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return nil, nil
@@ -116,10 +157,10 @@ func ExtractUseEndpointPooling(obj client.Object) (*bool, error) {
 	return &result, nil
 }
 
-// Determines which traffic is allowed to reach an endpoint
-// from the annotation "k8s.ngrok.com/bindings" if it is present. Otherwise, it defaults to public
-func ExtractUseBindings(obj client.Object) ([]string, error) {
-	bindings, err := parser.GetStringSliceAnnotation("bindings", obj)
+// ExtractUseBindings reads the bindings annotation. The legacy-prefix form is
+// accepted during the migration window.
+func ExtractUseBindings(log logr.Logger, recorder deprecation.EventRecorder, obj client.Object) ([]string, error) {
+	bindings, err := parser.GetStringSliceAnnotationWithFallback(BindingsAnnotationKey, obj, deprecationCallback(log, recorder, obj))
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return nil, nil
@@ -138,10 +179,10 @@ func ExtractUseBindings(obj client.Object) ([]string, error) {
 	}
 }
 
-// Retrieves the value of the annotation "k8s.ngrok.com/url" if it is present. Otherwise, it returns
-// an error.
-func ExtractURL(obj client.Object) (string, error) {
-	return parser.GetStringAnnotation(URLKey, obj)
+// ExtractURL reads the url annotation. The legacy-prefix form is accepted
+// during the migration window.
+func ExtractURL(log logr.Logger, recorder deprecation.EventRecorder, obj client.Object) (string, error) {
+	return parser.GetStringAnnotationWithFallback(URLKey, obj, deprecationCallback(log, recorder, obj))
 }
 
 // ExtractComputedURL extracts the computed URL from the annotation "k8s.ngrok.com/computed-url" if it is present. Otherwise, it returns
@@ -150,10 +191,10 @@ func ExtractComputedURL(obj client.Object) (string, error) {
 	return parser.GetStringAnnotation(ComputedURLKey, obj)
 }
 
-// ExtractMetadata extracts the ngrok metadata JSON string from the annotation "k8s.ngrok.com/metadata".
-// Returns ("", nil) if the annotation is not set.
-func ExtractMetadata(obj client.Object) (string, error) {
-	val, err := parser.GetStringAnnotation(MetadataKey, obj)
+// ExtractMetadata reads the metadata annotation. Returns ("", nil) if unset.
+// The legacy-prefix form is accepted during the migration window.
+func ExtractMetadata(log logr.Logger, recorder deprecation.EventRecorder, obj client.Object) (string, error) {
+	val, err := parser.GetStringAnnotationWithFallback(MetadataKey, obj, deprecationCallback(log, recorder, obj))
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return "", nil
@@ -163,10 +204,10 @@ func ExtractMetadata(obj client.Object) (string, error) {
 	return val, nil
 }
 
-// ExtractDescription extracts the description string from the annotation "k8s.ngrok.com/description".
-// Returns ("", nil) if the annotation is not set.
-func ExtractDescription(obj client.Object) (string, error) {
-	val, err := parser.GetStringAnnotation(DescriptionKey, obj)
+// ExtractDescription reads the description annotation. Returns ("", nil) if
+// unset. The legacy-prefix form is accepted during the migration window.
+func ExtractDescription(log logr.Logger, recorder deprecation.EventRecorder, obj client.Object) (string, error) {
+	val, err := parser.GetStringAnnotationWithFallback(DescriptionKey, obj, deprecationCallback(log, recorder, obj))
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return "", nil
