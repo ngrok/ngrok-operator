@@ -64,36 +64,6 @@ input:
             - kind: Secret
               name: tls-no-tlscrt
         - name: test-invalid-6
-          hostname: "frontend-tls-not-configmap.ngrok.io"
-          port: 443
-          protocol: HTTPS
-          tls:
-            mode: Terminate
-            frontendValidation:
-              caCertificateRefs:
-              - kind: Secret
-                name: tls-secret
-        - name: test-invalid-7
-          hostname: "frontend-configmap-missing.ngrok.io"
-          port: 443
-          protocol: HTTPS
-          tls:
-            mode: Terminate
-            frontendValidation:
-              caCertificateRefs:
-              - kind: ConfigMap
-                name: missing-configmap
-        - name: test-invalid-8
-          hostname: "frontend-configmap-missing-cacrt.ngrok.io"
-          port: 443
-          protocol: HTTPS
-          tls:
-            mode: Terminate
-            frontendValidation:
-              caCertificateRefs:
-              - kind: ConfigMap
-                name: configmap-no-cacrt
-        - name: test-invalid-9
           hostname: "banned-tls-options.ngrok.io"
           port: 443
           protocol: HTTPS

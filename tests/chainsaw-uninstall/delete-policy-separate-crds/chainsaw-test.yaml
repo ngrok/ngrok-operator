@@ -31,7 +31,7 @@ spec:
             timeout: 2m
             content: |
               # Install Gateway API CRDs (standard channel)
-              kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+              kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/standard-install.yaml
               
               # Wait for CRDs to be established before proceeding
               kubectl wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io
