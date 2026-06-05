@@ -469,13 +469,26 @@ func configMapReferencedByGateway(cm *v1.ConfigMap, c client.Client) bool {
 		return false
 	}
 	for _, gw := range gwList.Items {
-		if gw.Spec.TLS == nil || gw.Spec.TLS.Frontend == nil || gw.Spec.TLS.Frontend.Default.Validation == nil {
+		if gw.Spec.TLS == nil || gw.Spec.TLS.Frontend == nil {
 			continue
 		}
-		for _, certRef := range gw.Spec.TLS.Frontend.Default.Validation.CACertificateRefs {
-			if certRefMatches(certRef.Name, certRef.Namespace, gw.Namespace, cm.Name, cm.Namespace) &&
-				string(certRef.Kind) == "ConfigMap" {
-				return true
+		if gw.Spec.TLS.Frontend.Default.Validation != nil {
+			for _, certRef := range gw.Spec.TLS.Frontend.Default.Validation.CACertificateRefs {
+				if certRefMatches(certRef.Name, certRef.Namespace, gw.Namespace, cm.Name, cm.Namespace) &&
+					string(certRef.Kind) == "ConfigMap" {
+					return true
+				}
+			}
+		}
+		for _, portCfg := range gw.Spec.TLS.Frontend.PerPort {
+			if portCfg.TLS.Validation == nil {
+				continue
+			}
+			for _, certRef := range portCfg.TLS.Validation.CACertificateRefs {
+				if certRefMatches(certRef.Name, certRef.Namespace, gw.Namespace, cm.Name, cm.Namespace) &&
+					string(certRef.Kind) == "ConfigMap" {
+					return true
+				}
 			}
 		}
 	}
