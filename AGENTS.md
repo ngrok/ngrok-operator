@@ -11,7 +11,7 @@ The ngrok-operator is a Kubernetes Operator that reconciles:
 
 - **Module**: `github.com/ngrok/ngrok-operator`
 - **Type**: Kubernetes Operator (kubebuilder v4, multigroup)
-- **Domain**: `k8s.ngrok.com`
+- **Domain**: `ngrok.com` (legacy `k8s.ngrok.com` is still read for one release — see `docs/v1-migration-guide.md`)
 - **Language**: Go
 
 ## Entry Points & Modes

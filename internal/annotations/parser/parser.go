@@ -28,13 +28,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// DefaultAnnotationsPrefix defines the common prefix used in the nginx ingress controller
-const DefaultAnnotationsPrefix = "k8s.ngrok.com"
+// CanonicalAnnotationsPrefix is the unified annotation prefix for ngrok-operator 1.0.
+const CanonicalAnnotationsPrefix = "ngrok.com"
+
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// Legacy `k8s.ngrok.com` annotation prefix and the mutable global it backs.
+// The whole `*WithFallback` family further down also gets deleted in the
+// cleanup PR; remove this block and that family together.
+const LegacyAnnotationsPrefix = "k8s.ngrok.com"
 
 var (
-	// AnnotationsPrefix is the mutable attribute that the controller explicitly refers to
-	AnnotationsPrefix = DefaultAnnotationsPrefix
+	// AnnotationsPrefix is the mutable attribute that the controller explicitly refers to.
+	// During the migration window it defaults to the legacy prefix to keep
+	// `Get*Annotation` (non-fallback) reading legacy-prefixed keys; the cleanup
+	// PR replaces all uses with CanonicalAnnotationsPrefix.
+	AnnotationsPrefix = LegacyAnnotationsPrefix
 )
+
+// LEGACY-PREFIX-MIGRATION: END
 
 // Annotation has a method to parse annotations located in client.Object
 type Annotation interface {
@@ -202,6 +213,134 @@ func GetFloatAnnotation(name string, obj client.Object) (float32, error) {
 func GetAnnotationWithPrefix(suffix string) string {
 	return fmt.Sprintf("%v/%v", AnnotationsPrefix, suffix)
 }
+
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// Everything from here to the LEGACY-PREFIX-MIGRATION: END marker below is
+// read-side compatibility scaffolding for the k8s.ngrok.com → ngrok.com prefix
+// migration. In the cleanup PR:
+//
+//   - Delete the `*WithFallback` functions outright. Their callers should
+//     migrate to the plain `Get*Annotation` variants further up, after those
+//     are updated to read from CanonicalAnnotationsPrefix.
+//   - Delete the LegacyHitFunc type and keysForFallback helper.
+//
+// See docs/developer-guide/passivity-shims.md and internal/deprecation for the
+// marker convention used to find every site.
+
+// LegacyHitFunc is invoked when a *WithFallback helper finds a value under the
+// legacy k8s.ngrok.com prefix. legacyKey and newKey are the fully-qualified
+// annotation keys (prefix + "/" + suffix).
+type LegacyHitFunc func(legacyKey, newKey string)
+
+// keysForFallback returns the canonical and legacy keys for the given suffix.
+func keysForFallback(suffix string) (newKey, legacyKey string) {
+	return CanonicalAnnotationsPrefix + "/" + suffix, LegacyAnnotationsPrefix + "/" + suffix
+}
+
+// GetStringAnnotationWithFallback reads suffix as a string annotation, trying
+// the new prefix first then the legacy prefix. If the legacy prefix is used
+// and onLegacyHit is non-nil, it is invoked with the legacy and new keys.
+func GetStringAnnotationWithFallback(suffix string, obj client.Object, onLegacyHit LegacyHitFunc) (string, error) {
+	newKey, legacyKey := keysForFallback(suffix)
+	if err := checkAnnotation(newKey, obj); err == nil {
+		if v, err := annotations(obj.GetAnnotations()).parseString(newKey); err == nil {
+			return v, nil
+		} else if !errors.IsMissingAnnotations(err) {
+			return "", err
+		}
+	}
+	if err := checkAnnotation(legacyKey, obj); err != nil {
+		return "", err
+	}
+	v, err := annotations(obj.GetAnnotations()).parseString(legacyKey)
+	if err != nil {
+		return "", err
+	}
+	if onLegacyHit != nil {
+		onLegacyHit(legacyKey, newKey)
+	}
+	return v, nil
+}
+
+// GetStringSliceAnnotationWithFallback reads suffix as a comma-separated slice,
+// trying the new prefix first then the legacy prefix.
+func GetStringSliceAnnotationWithFallback(suffix string, obj client.Object, onLegacyHit LegacyHitFunc) ([]string, error) {
+	newKey, legacyKey := keysForFallback(suffix)
+	if err := checkAnnotation(newKey, obj); err == nil {
+		if v, err := annotations(obj.GetAnnotations()).parseStringSlice(newKey); err == nil {
+			return v, nil
+		} else if !errors.IsMissingAnnotations(err) {
+			return []string{}, err
+		}
+	}
+	if err := checkAnnotation(legacyKey, obj); err != nil {
+		return []string{}, err
+	}
+	v, err := annotations(obj.GetAnnotations()).parseStringSlice(legacyKey)
+	if err != nil {
+		return []string{}, err
+	}
+	if onLegacyHit != nil {
+		onLegacyHit(legacyKey, newKey)
+	}
+	return v, nil
+}
+
+// GetBoolAnnotationWithFallback reads suffix as a bool, trying the new prefix
+// first then the legacy prefix.
+//
+// Intentional placeholder: no production caller yet — kept for symmetry with the
+// other *WithFallback helpers as more annotations migrate onto the dual-prefix path.
+func GetBoolAnnotationWithFallback(suffix string, obj client.Object, onLegacyHit LegacyHitFunc) (bool, error) {
+	newKey, legacyKey := keysForFallback(suffix)
+	if err := checkAnnotation(newKey, obj); err == nil {
+		if v, err := annotations(obj.GetAnnotations()).parseBool(newKey); err == nil {
+			return v, nil
+		} else if !errors.IsMissingAnnotations(err) {
+			return false, err
+		}
+	}
+	if err := checkAnnotation(legacyKey, obj); err != nil {
+		return false, err
+	}
+	v, err := annotations(obj.GetAnnotations()).parseBool(legacyKey)
+	if err != nil {
+		return false, err
+	}
+	if onLegacyHit != nil {
+		onLegacyHit(legacyKey, newKey)
+	}
+	return v, nil
+}
+
+// GetStringMapAnnotationWithFallback reads suffix as a JSON-encoded map,
+// trying the new prefix first then the legacy prefix.
+//
+// Intentional placeholder: no production caller yet — kept for symmetry with the
+// other *WithFallback helpers as more annotations migrate onto the dual-prefix path.
+func GetStringMapAnnotationWithFallback(suffix string, obj client.Object, onLegacyHit LegacyHitFunc) (map[string]string, error) {
+	newKey, legacyKey := keysForFallback(suffix)
+	if err := checkAnnotation(newKey, obj); err == nil {
+		if v, err := annotations(obj.GetAnnotations()).parseStringMap(newKey); err == nil {
+			return v, nil
+		} else if !errors.IsMissingAnnotations(err) {
+			return nil, err
+		}
+	}
+	if err := checkAnnotation(legacyKey, obj); err != nil {
+		return nil, err
+	}
+	v, err := annotations(obj.GetAnnotations()).parseStringMap(legacyKey)
+	if err != nil {
+		return nil, err
+	}
+	if onLegacyHit != nil {
+		onLegacyHit(legacyKey, newKey)
+	}
+	return v, nil
+}
+
+// LEGACY-PREFIX-MIGRATION: END
 
 func normalizeString(input string) string {
 	trimmedContent := []string{}

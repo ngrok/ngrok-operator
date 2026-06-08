@@ -41,6 +41,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -66,9 +67,15 @@ import (
 )
 
 const (
-	OwnerReferencePath     = "metadata.ownerReferences.uid"
-	ModuleSetPath          = "metadata.annotations.k8s.ngrok.com/module-set"
-	TrafficPolicyPath      = "metadata.annotations.k8s.ngrok.com/traffic-policy"
+	// OwnerReferencePath and TrafficPolicyIndexKey are controller-runtime
+	// field-indexer keys, not property paths resolved on the object: each is
+	// an opaque identifier paired with an extractor func registered in
+	// SetupWithManager and queried via client.MatchingFields.
+	OwnerReferencePath = "metadata.ownerReferences.uid"
+	// TrafficPolicyIndexKey indexes Services by the traffic policy they
+	// reference. The extractor reads the (new or legacy) traffic-policy
+	// annotation, so the key value is intentionally prefix-agnostic.
+	TrafficPolicyIndexKey  = "ngrok-operator.trafficpolicy-by-name"
 	NgrokLoadBalancerClass = "ngrok"
 )
 
@@ -185,9 +192,12 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 	}
 
-	// Index the services by the traffic policy they reference
-	err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Service{}, TrafficPolicyPath, func(obj client.Object) []string {
-		policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(obj)
+	// Index the services by the traffic policy they reference. This runs inside
+	// controller-runtime's indexer for every Service watch event, so we do not
+	// pass a recorder — the reconcile path will emit deprecation events for
+	// legacy annotation hits.
+	err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Service{}, TrafficPolicyIndexKey, func(obj client.Object) []string {
+		policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(logr.Discard(), nil, obj)
 		if err != nil {
 			return nil
 		}
@@ -285,8 +295,14 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	// LEGACY-PREFIX-MIGRATION: emit one LegacyAnnotation event per user-set legacy
+	// key on this Service. Like the Ingress and Gateway reconcilers, Service scans
+	// here once and passes nil recorders into the per-annotation reads below so each
+	// legacy key surfaces exactly one event, not one per read.
+	deprecation.ScanAnnotations(log, r.Recorder, svc)
+
 	var desired []client.Object
-	mappingStrategy, err := managerdriver.MappingStrategyAnnotationToIR(svc)
+	mappingStrategy, err := managerdriver.MappingStrategyAnnotationToIR(log, nil, svc)
 	// If the annotation is not valid, we still return a reasonable default mapping strategy. This error
 	// is not fatal, so just log it and an event and continue
 	if err != nil {
@@ -338,7 +354,7 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 	services := &corev1.ServiceList{}
 	listOpts := &client.ListOptions{
 		Namespace:     policyNamespace,
-		FieldSelector: fields.OneTermEqualSelector(TrafficPolicyPath, policyName),
+		FieldSelector: fields.OneTermEqualSelector(TrafficPolicyIndexKey, policyName),
 	}
 	err := r.Client.List(ctx, services, listOpts)
 	if err != nil {
@@ -403,7 +419,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 	objects := make([]client.Object, 0)
 
 	// Get whether endpoint pooling should be enabled/disabled from annotations
-	useEndpointPooling, err := annotations.ExtractUseEndpointPooling(svc)
+	useEndpointPooling, err := annotations.ExtractUseEndpointPooling(log, nil, svc)
 	if err != nil {
 		log.Error(err, "failed to check endpoints-enabled annotation for service",
 			"service", fmt.Sprintf("%s.%s", svc.Name, svc.Namespace),
@@ -411,7 +427,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		return objects, err
 	}
 
-	useBindings, err := annotations.ExtractUseBindings(svc)
+	useBindings, err := annotations.ExtractUseBindings(log, nil, svc)
 	if err != nil {
 		log.Error(err, "failed to get bindings annotation for service")
 		return objects, err
@@ -442,7 +458,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		return objects, err
 	}
 
-	listenerEndpointURL, err := r.getListenerURL(svc)
+	listenerEndpointURL, err := r.getListenerURL(ctx, svc)
 	if err != nil {
 		r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "FailedToGetListenerURL", "Reconcile", err.Error())
 		return objects, err
@@ -598,8 +614,9 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 	return objects, nil
 }
 
-func (r *ServiceReconciler) getListenerURL(svc *corev1.Service) (string, error) {
-	urlAnnotation, err := annotations.ExtractURL(svc)
+func (r *ServiceReconciler) getListenerURL(ctx context.Context, svc *corev1.Service) (string, error) {
+	log := ctrl.LoggerFrom(ctx)
+	urlAnnotation, err := annotations.ExtractURL(log, nil, svc)
 	if err == nil {
 		return urlAnnotation, nil
 	}
@@ -846,7 +863,8 @@ func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
 }
 
 func getNgrokTrafficPolicyForService(ctx context.Context, c client.Client, svc *corev1.Service) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
-	policyName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(svc)
+	log := ctrl.LoggerFrom(ctx)
+	policyName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(log, nil, svc)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return nil, nil

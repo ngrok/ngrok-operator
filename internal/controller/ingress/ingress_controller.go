@@ -7,6 +7,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	internalerrors "github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
@@ -130,6 +131,13 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.Error(err, "Failed to register finalizer")
 		return ctrl.Result{}, err
 	}
+
+	// LEGACY-PREFIX-MIGRATION: BEGIN — drop this block in 1.0
+	// Emit deprecation events for any legacy k8s.ngrok.com/* annotations on
+	// this Ingress. The translator reads these from a hot loop with nil
+	// recorder; this controller path is the canonical event signal.
+	deprecation.ScanAnnotations(log, r.Recorder, ingress)
+	// LEGACY-PREFIX-MIGRATION: END
 
 	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 }

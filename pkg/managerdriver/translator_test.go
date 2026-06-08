@@ -930,3 +930,54 @@ func decodeViaScheme(s *runtime.Scheme, rawObj map[string]any) (runtime.Object, 
 
 	return obj, nil
 }
+
+// LEGACY-PREFIX-MIGRATION: drop the legacy/both-prefix cases in 1.0; the
+// canonical-only case documents the steady-state behavior.
+func TestGatewayTLSTermConfigToIR_OptionPrecedence(t *testing.T) {
+	testCases := []struct {
+		name     string
+		options  map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue
+		expected map[string]string
+	}{
+		{
+			name:     "canonical only",
+			options:  map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{TLSOptionKeyPrefix + "min-version": "1.3"},
+			expected: map[string]string{"min-version": "1.3"},
+		},
+		{
+			name:     "legacy only",
+			options:  map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{LegacyTLSOptionKeyPrefix + "min-version": "1.2"},
+			expected: map[string]string{"min-version": "1.2"},
+		},
+		{
+			name: "both prefixes set for same suffix - canonical wins deterministically",
+			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+				TLSOptionKeyPrefix + "min-version":       "1.3",
+				LegacyTLSOptionKeyPrefix + "min-version": "1.2",
+			},
+			expected: map[string]string{"min-version": "1.3"},
+		},
+		{
+			name: "mixed suffixes across both prefixes",
+			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+				TLSOptionKeyPrefix + "min-version":         "1.3",
+				LegacyTLSOptionKeyPrefix + "min-version":   "1.2",
+				LegacyTLSOptionKeyPrefix + "prefer-server": "true",
+				"unrelated.annotation/foo":                 "bar",
+			},
+			expected: map[string]string{"min-version": "1.3", "prefer-server": "true"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			translator := &translator{}
+			listenerTLS := &gatewayv1.GatewayTLSConfig{Options: tc.options}
+
+			result, err := translator.gatewayTLSTermConfigToIR(listenerTLS, &gatewayv1.Gateway{})
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tc.expected, result.ExtendedOptions)
+		})
+	}
+}

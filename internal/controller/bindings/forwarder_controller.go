@@ -354,11 +354,15 @@ func joinConnections(log logr.Logger, conn1, conn2 net.Conn) error {
 }
 
 // podIdentityFromPod extracts a PodIdentity from a Pod, pruning annotations
-// to only include keys with the prefix "k8s.ngrok.com/". Exported for unit testing.
+// to only include keys with the ngrok-operator prefix. The legacy
+// `k8s.ngrok.com/` prefix is accepted during the migration window.
+// Exported for unit testing.
 func podIdentityFromPod(pod *v1.Pod) *pb_agent.PodIdentity {
 	anns := make(map[string]string)
 	for key := range pod.Annotations {
-		if strings.HasPrefix(key, parser.DefaultAnnotationsPrefix) {
+		// LEGACY-PREFIX-MIGRATION: drop the LegacyAnnotationsPrefix branch in 1.0
+		if strings.HasPrefix(key, parser.CanonicalAnnotationsPrefix+"/") ||
+			strings.HasPrefix(key, parser.LegacyAnnotationsPrefix+"/") {
 			anns[key] = pod.Annotations[key]
 		}
 	}

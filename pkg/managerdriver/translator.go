@@ -8,6 +8,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/store"
@@ -900,9 +901,17 @@ func buildDefault404TPRule() trafficpolicy.Rule {
 	}
 }
 
-// MappingStrategyAnnotationToIR checks the supplied object for the mapping strategy annotation and returns the appropriate mapping strategy enum if it is set, or falls back to the default strategy
-func MappingStrategyAnnotationToIR(obj client.Object) (ir.IRMappingStrategy, error) {
-	val, err := parser.GetStringAnnotation(annotations.MappingStrategyAnnotationKey, obj)
+// MappingStrategyAnnotationToIR reads the mapping-strategy annotation (preferring
+// ngrok.com/mapping-strategy, falling back to k8s.ngrok.com/mapping-strategy)
+// and maps it to the IR enum. Returns the default strategy when unset.
+//
+// recorder may be nil — pass it as nil from translator hot loops where
+// duplicate events would be noisy; pass a real recorder from the reconcile
+// path so the user gets one Warning event per legacy hit.
+func MappingStrategyAnnotationToIR(log logr.Logger, recorder deprecation.EventRecorder, obj client.Object) (ir.IRMappingStrategy, error) {
+	val, err := parser.GetStringAnnotationWithFallback(annotations.MappingStrategyAnnotationKey, obj, func(legacyKey, newKey string) {
+		deprecation.Annotation(log, recorder, obj, legacyKey, newKey)
+	})
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return ir.IRMappingStrategy_EndpointsDefault, nil
