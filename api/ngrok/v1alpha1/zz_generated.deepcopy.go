@@ -110,10 +110,8 @@ func (in *AgentEndpointSpec) DeepCopyInto(out *AgentEndpointSpec) {
 	}
 	if in.ClientCertificateRefs != nil {
 		in, out := &in.ClientCertificateRefs, &out.ClientCertificateRefs
-		*out = make([]K8sObjectRefOptionalNamespace, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
+		*out = make([]K8sObjectRef, len(*in))
+		copy(*out, *in)
 	}
 	if in.TLSTermination != nil {
 		in, out := &in.TLSTermination, &out.TLSTermination
