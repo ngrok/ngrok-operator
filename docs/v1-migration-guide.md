@@ -1,0 +1,69 @@
+# ngrok-operator v1 migration guide
+
+This guide tracks the backwards-incompatible changes the ngrok-operator is
+making on the path to 1.0. Each migration is staged across multiple releases
+so existing manifests and running deployments keep working during the
+transition window. Migrate during the release noted under "Action required";
+read-side compatibility code is removed in the listed cleanup release.
+
+If you are an operator maintainer auditing the read-side / write-side shims
+that implement these transitions, see
+[`docs/developer-guide/passivity-shims.md`](./developer-guide/passivity-shims.md).
+
+## Migrations
+
+### IngressClass `spec.controller`: `k8s.ngrok.com/ingress-controller` → `ngrok.com/ingress-controller`
+
+Status: in progress across 0.24 → 0.25.
+
+The operator binary's default `--ingress-controller-name` flips to
+`ngrok.com/ingress-controller` in 0.24. To keep existing IngressClasses
+matching during the transition, the operator dual-matches both
+`k8s.ngrok.com/ingress-controller` and `ngrok.com/ingress-controller`
+whenever its configured `controllerName` equals either of those two stock
+defaults — which is the case for both the new binary default and the
+legacy value still rendered by the helm chart in 0.24. Custom controller
+names retain exact-match behavior so multi-instance isolation is
+preserved.
+
+The helm chart deliberately **does not** flip the rendered IngressClass
+`spec.controller` in 0.24. A `helm upgrade` applies the new manifest while
+the previous operator pod is still running — flipping the rendered value
+at the same time as the operator image would briefly leave the
+pre-migration operator unable to match its own IngressClass. The helm
+chart's rendered controller value stays on `k8s.ngrok.com/ingress-controller`
+through 0.24 and flips to `ngrok.com/ingress-controller` in 0.25, by which
+point no pre-migration operator pod can be running.
+
+#### What changes for you
+
+| Legacy                                  | New                                |
+| --------------------------------------- | ---------------------------------- |
+| `k8s.ngrok.com/ingress-controller`      | `ngrok.com/ingress-controller`     |
+
+If you author your own IngressClass manifests, you can adopt the new value
+any time in 0.24 — both work. If you rely on the helm-rendered
+IngressClass, no action is required; the chart manages the transition for
+you.
+
+#### Action required, by release
+
+| Release | Operator binary default | Helm-rendered IngressClass | What you do |
+| ------- | ----------------------- | -------------------------- | ----------- |
+| 0.24 (this) | `ngrok.com/ingress-controller`, dual-matches legacy | `k8s.ngrok.com/ingress-controller` (unchanged) | Nothing required. |
+| 0.25 | `ngrok.com/ingress-controller`, dual-matches legacy | `ngrok.com/ingress-controller` | Nothing required if you use the helm chart. |
+| 0.26 | `ngrok.com/ingress-controller`, exact-match | `ngrok.com/ingress-controller` | Confirm no `k8s.ngrok.com/ingress-controller` IngressClasses remain in self-authored manifests. |
+
+#### Supported upgrade path
+
+`previous-stable → 0.24 → 0.25 → 0.26`. Skipping 0.24 is unsupported
+because the rendered IngressClass and the operator's controller name flip
+together without an intermediate dual-match release.
+
+## What did *not* change in this set of migrations
+
+The CRD API groups (`ingress.k8s.ngrok.com/v1alpha1`,
+`ngrok.k8s.ngrok.com/v1alpha1`, `bindings.k8s.ngrok.com/v1alpha1`) are
+**unchanged**. A separate 1.0 workstream will consolidate these into
+`ngrok.com/v1` with a conversion webhook; that migration will appear here
+when it begins.
