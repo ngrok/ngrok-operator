@@ -8,6 +8,7 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v7"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
@@ -38,91 +39,27 @@ const (
 
 // setReadyCondition sets the Ready condition based on the overall domain state
 func setDomainReadyCondition(domain *ingressv1alpha1.Domain, ready bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !ready {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionDomainReady,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: domain.Generation,
-	}
-
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionDomainReady, ready, reason, message)
 }
 
 // setProgressingCondition sets the Progressing condition
 func setProgressingCondition(domain *ingressv1alpha1.Domain, progressing bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !progressing {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionProgressing,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: domain.Generation,
-	}
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionProgressing, progressing, reason, message)
 }
 
 // setDomainCreatedCondition sets the DomainCreated condition
 func setDomainCreatedCondition(domain *ingressv1alpha1.Domain, created bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !created {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionDomainCreated,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: domain.Generation,
-	}
-
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionDomainCreated, created, reason, message)
 }
 
 // setCertificateReadyCondition sets the CertificateReady condition
 func setCertificateReadyCondition(domain *ingressv1alpha1.Domain, ready bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !ready {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionCertificateReady,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: domain.Generation,
-	}
-
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionCertificateReady, ready, reason, message)
 }
 
 // setDNSConfiguredCondition sets the DNSConfigured condition
 func setDNSConfiguredCondition(domain *ingressv1alpha1.Domain, configured bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !configured {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionDNSConfigured,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: domain.Generation,
-	}
-
-	meta.SetStatusCondition(&domain.Status.Conditions, condition)
+	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionDNSConfigured, configured, reason, message)
 }
 
 // updateDomainConditions updates all domain conditions based on the ngrok domain state and any creation errors

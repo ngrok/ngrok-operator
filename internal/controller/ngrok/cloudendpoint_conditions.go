@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 )
 
@@ -21,38 +22,12 @@ const (
 
 // setCloudEndpointReadyCondition sets the Ready condition
 func setCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, ready bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !ready {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionCloudEndpointReady,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: clep.Generation,
-	}
-
-	meta.SetStatusCondition(&clep.Status.Conditions, condition)
+	conditions.Set(&clep.Status.Conditions, clep.Generation, ConditionCloudEndpointReady, ready, reason, message)
 }
 
 // setCloudEndpointCreatedCondition sets the CloudEndpointCreated condition
 func setCloudEndpointCreatedCondition(clep *ngrokv1alpha1.CloudEndpoint, created bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !created {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionCloudEndpointCreated,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: clep.Generation,
-	}
-
-	meta.SetStatusCondition(&clep.Status.Conditions, condition)
+	conditions.Set(&clep.Status.Conditions, clep.Generation, ConditionCloudEndpointCreated, created, reason, message)
 }
 
 // calculateCloudEndpointReadyCondition calculates the overall Ready condition based on other conditions and domain status
