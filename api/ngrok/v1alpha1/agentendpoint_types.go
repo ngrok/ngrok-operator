@@ -210,19 +210,23 @@ const (
 	TrafficPolicyCfgType_Inline TrafficPolicyCfgType = "inline"
 )
 
-// +kubebuilder:validation:XValidation:rule="has(self.inline) || has(self.targetRef)", message="targetRef or inline must be provided to trafficPolicy"
-// +kubebuilder:validation:XValidation:rule="has(self.inline) != has(self.targetRef)",message="Only one of inline and targetRef can be configured for trafficPolicy"
+// TrafficPolicyCfg configures a TrafficPolicy attached to an endpoint, either
+// inline or by reference to an NgrokTrafficPolicy resource. References may
+// target a different namespace via targetRef.namespace.
+//
+// +kubebuilder:validation:XValidation:rule="[has(self.inline), has(self.targetRef)].exists_one(x, x)", message="exactly one of inline or targetRef must be set on trafficPolicy"
 type TrafficPolicyCfg struct {
-	// Inline definition of a TrafficPolicy to attach to the agent Endpoint
-	// The raw JSON-encoded policy that was applied to the ngrok API
+	// Inline definition of a TrafficPolicy to attach to the Endpoint.
+	// The raw JSON-encoded policy that was applied to the ngrok API.
 	//
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object
 	Inline json.RawMessage `json:"inline,omitempty"`
 
-	// Reference to a TrafficPolicy resource to attach to the Agent Endpoint
-	Reference *K8sObjectRef `json:"targetRef,omitempty"`
+	// Reference to a TrafficPolicy resource to attach to the Endpoint.
+	// Namespace is optional and defaults to the owning endpoint's namespace.
+	Reference *K8sObjectRefOptionalNamespace `json:"targetRef,omitempty"`
 }
 
 func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {
@@ -266,6 +270,14 @@ type AgentEndpointList struct {
 
 // EndpointWithDomain implementation for AgentEndpoint
 var _ EndpointWithDomain = &AgentEndpoint{}
+
+// EndpointWithTrafficPolicy implementation for AgentEndpoint
+var _ EndpointWithTrafficPolicy = &AgentEndpoint{}
+
+// GetTrafficPolicyCfg returns the traffic policy configuration for AgentEndpoint
+func (a *AgentEndpoint) GetTrafficPolicyCfg() *TrafficPolicyCfg {
+	return a.Spec.TrafficPolicy
+}
 
 // GetConditions returns a pointer to the conditions slice for AgentEndpoint
 func (a *AgentEndpoint) GetConditions() *[]metav1.Condition {

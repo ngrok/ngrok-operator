@@ -569,7 +569,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				URL:            computedEndpointURL,
 				Bindings:       useBindings,
 				PoolingEnabled: useEndpointPooling,
-				TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
+				// LEGACY-trafficpolicy-policy: dual-write both `inline` (canonical)
+				// and `policy` (legacy) so this operator-generated CloudEndpoint
+				// stays rollback-safe. The prior-release CRD prunes `inline`;
+				// only `policy` survives. Drop the `Policy` write in the cleanup release.
+				TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+					Inline: rawPolicy,
 					Policy: rawPolicy,
 				},
 			},

@@ -99,7 +99,7 @@ expected:
       namespace: default
     spec:
       trafficPolicy:
-        policy:
+        inline:
             on_http_request:
               - name: Generated-Route
                 expressions:
@@ -134,7 +134,7 @@ expected:
       namespace: default
     spec:
       trafficPolicy:
-        policy:
+        inline:
             on_http_request:
               - name: Generated-Route
                 expressions:

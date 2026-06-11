@@ -98,7 +98,7 @@ expected:
       namespace: default
     spec:
       trafficPolicy:
-        policy:
+        inline:
           on_tcp_connect:
           - name: Gen-Random-Number
             actions:
@@ -131,7 +131,7 @@ expected:
       namespace: default
     spec:
       trafficPolicy:
-        policy:
+        inline:
           on_tcp_connect:
           - name: Gen-Random-Number
             actions:
