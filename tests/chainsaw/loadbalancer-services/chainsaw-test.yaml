@@ -4,13 +4,17 @@ kind: Test
 metadata:
   name: loadbalancer-services
 spec:
+  bindings:
+    - name: ngrokDomainSuffix
+      value: (env('CHAINSAW_NGROK_DOMAIN_SUFFIX'))
   steps:
   - name: create test deployment and services
     try:
     - create: { file: ./test-deployment.yaml }
     - create: { file: ./test-tcp-service.yaml }
     - create: { file: ./test-tls-service.yaml }
-    # Disabled for now as the domain reservation conflicts between users and CI accounts.
+    # Disabled: custom domain reservation conflicts when CHAINSAW_NGROK_DOMAIN_SUFFIX=ngrok.app.
+    # Enable this test by setting CHAINSAW_NGROK_DOMAIN_SUFFIX to a custom domain your account owns.
     # - create: { file: ./test-tls-custom-domain-service.yaml }
 
   - name: verify TCP LoadBalancer service gets status
@@ -46,6 +50,7 @@ spec:
             "(length(to_array(loadBalancer.ingress)[? length(to_array(ports)) > `0` && to_number(to_array(ports)[0].port) > `0`]) > `0`)": true
 
   # Disabled for now as the domain reservation conflicts between users and CI accounts.
+  # Enable by setting CHAINSAW_NGROK_DOMAIN_SUFFIX to a custom domain your ngrok account owns.
   # - name: verify TLS LoadBalancer with custom domain gets CNAME target in status
   #   try:
   #   - assert:

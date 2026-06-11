@@ -8,6 +8,11 @@ spec:
     Verifies that the agent controller can update an existing Domain CRD
     to add controller labels when they are missing. This requires the agent
     service account to have update permission on domains.
+  bindings:
+    - name: ngrokDomainSuffix
+      value: (env('CHAINSAW_NGROK_DOMAIN_SUFFIX'))
+    - name: ngrokDomainSuffixDashes
+      value: (env('CHAINSAW_NGROK_DOMAIN_SUFFIX_DASHES'))
   steps:
   - name: create domain without controller labels
     try:
@@ -18,9 +23,9 @@ spec:
           apiVersion: ingress.k8s.ngrok.com/v1alpha1
           kind: Domain
           metadata:
-            name: test-domain-labels-ngrok-app
+            name: (join('', ['test-domain-labels', $ngrokDomainSuffixDashes]))
           spec:
-            domain: test-domain-labels.ngrok.app
+            domain: (join('', ['test-domain-labels', $ngrokDomainSuffix]))
 
   - name: create agent endpoint referencing the domain
     try:
@@ -35,7 +40,7 @@ spec:
           apiVersion: ingress.k8s.ngrok.com/v1alpha1
           kind: Domain
           metadata:
-            name: test-domain-labels-ngrok-app
+            name: (join('', ['test-domain-labels', $ngrokDomainSuffixDashes]))
             labels:
               k8s.ngrok.com/controller-name: ngrok-operator-agent-manager
               k8s.ngrok.com/controller-namespace: ngrok-operator

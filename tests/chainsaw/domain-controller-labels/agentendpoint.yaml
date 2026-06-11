@@ -3,6 +3,6 @@ kind: AgentEndpoint
 metadata:
   name: test-domain-labels
 spec:
-  url: "https://test-domain-labels.ngrok.app"
+  url: (join('', ['https://test-domain-labels', $ngrokDomainSuffix]))
   upstream:
     url: "http://nginx.default:80"

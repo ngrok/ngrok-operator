@@ -1,5 +1,12 @@
 ##@ Testing
 
+# Domain suffix used when reserving ngrok domains in chainsaw e2e tests.
+# Defaults to ngrok.app; override via CHAINSAW_NGROK_DOMAIN_SUFFIX in .envrc-user to use
+# a domain suffix your ngrok account owns, avoiding conflicts with CI or other developers.
+CHAINSAW_NGROK_DOMAIN_SUFFIX ?= .ngrok.app
+# Same suffix with dots replaced by dashes — used as the Domain CRD name component.
+CHAINSAW_NGROK_DOMAIN_SUFFIX_DASHES := $(shell echo "$(CHAINSAW_NGROK_DOMAIN_SUFFIX)" | tr '.' '-')
+
 .PHONY: test
 test: manifests generate fmt vet ## Run tests.
 	setup-envtest use $$ENVTEST_K8S_VERSION
@@ -25,6 +32,8 @@ validate: build test lint manifests helm-update-snapshots ## Validate the codeba
 
 .PHONY: e2e-tests
 e2e-tests: ## Run e2e tests
+	CHAINSAW_NGROK_DOMAIN_SUFFIX=$(CHAINSAW_NGROK_DOMAIN_SUFFIX) \
+	CHAINSAW_NGROK_DOMAIN_SUFFIX_DASHES=$(CHAINSAW_NGROK_DOMAIN_SUFFIX_DASHES) \
 	chainsaw test ./tests/chainsaw \
 		--exclude-test-regex 'chainsaw/_skip_*.yaml' \
 		--namespace e2e \
@@ -32,6 +41,8 @@ e2e-tests: ## Run e2e tests
 
 .PHONY: e2e-tests-multi-ns
 e2e-tests-multi-ns: ## Run multi-namespace e2e tests
+	CHAINSAW_NGROK_DOMAIN_SUFFIX=$(CHAINSAW_NGROK_DOMAIN_SUFFIX) \
+	CHAINSAW_NGROK_DOMAIN_SUFFIX_DASHES=$(CHAINSAW_NGROK_DOMAIN_SUFFIX_DASHES) \
 	chainsaw test ./tests/chainsaw-multi-ns \
 		--namespace namespace-a \
 		--cleanup-timeout 2m
