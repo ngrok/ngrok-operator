@@ -3,54 +3,51 @@ templates:
 - ingress-class.yaml
 tests:
 - it: Should match snapshot
-  set:
-    ingress.enabled: true
-    ingress.createIngressClass: true
   asserts:
   - matchSnapshot: {}
-- it: Creates an default ingress class called ngrok by default
-  set:
-    ingress.enabled: true
-    ingress.ingressClass.create: true
+- it: Creates a default ingress class called ngrok by default
   asserts:
   - isKind:
       of: IngressClass
   - hasDocuments:
       count: 1
-- it: Does not create an ingress class when ingress.enabled is false
+  - equal:
+      path: metadata.name
+      value: ngrok
+- it: Does not create an ingress class when features.ingress.enabled is false
   set:
-    ingress.enabled: false
+    features.ingress.enabled: false
   asserts:
   - hasDocuments:
       count: 0
-- it: Does not create an ingress class when ingressClass.create is false
+- it: Does not create an ingress class when features.ingress.ingressClass.create is false
   set:
-    ingress.enabled: true
-    ingress.ingressClass.create: false
-    ingressClass.create: false
+    features.ingress.ingressClass.create: false
   asserts:
   - hasDocuments:
       count: 0
-- it: Creates an ingress class when ingressClass.create is true (regardless of new values)
+- it: Allows renaming the ingress class
   set:
-    ingress.enabled: true
-    ingress.ingressClass.create: false
-    ingressClass.create: true
+    features.ingress.ingressClass.name: custom-class
   asserts:
-  - hasDocuments:
-      count: 1
-- it: Creates an ingress class when ingress.ingressClass.create is true (regardless of old values)
+  - equal:
+      path: metadata.name
+      value: custom-class
+- it: Is not the default ingress class by default
+  asserts:
+  - notExists:
+      path: metadata.annotations
+- it: Can be marked as the default ingress class
   set:
-    ingress.enabled: true
-    ingress.ingressClass.create: true
-    ingressClass.create: false
+    features.ingress.ingressClass.default: true
   asserts:
-  - hasDocuments:
-      count: 1
-- it: Does not create an ingress class when no create is true
+  - equal:
+      path: metadata.annotations["ingressclass.kubernetes.io/is-default-class"]
+      value: "true"
+- it: Uses the configured controller name
   set:
-    ingressClass.create: false
-    ingress.ingressClass.create: false
+    features.ingress.controllerName: example.com/my-controller
   asserts:
-  - hasDocuments:
-      count: 0
+  - equal:
+      path: spec.controller
+      value: example.com/my-controller

@@ -6,7 +6,8 @@ metadata:
   labels:
     app.kubernetes.io/component: rbac
     {{- include "ngrok-operator.labels" . | nindent 4 }}
-  {{- with .Values.crdAccessRoles.annotations }}
+  {{- $annotations := merge (dict) (.Values.crdAccessRoles.annotations | default dict) (.Values.commonAnnotations | default dict) }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

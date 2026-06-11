@@ -34,6 +34,6 @@ All settings below override global defaults. See [common.md](common.md) for over
 
 ## App Config
 
-Component-specific app config rendered into the agent ConfigMap. Overrides values from the common ConfigMap (`ngrok.*`).
+Component-specific app config merged into the agent's config ConfigMap on top of the shared config (`ngrok.*` + `features.*`); keys set here win for this component only (e.g. `agent.config."log.level": debug`).
 
 No agent-specific config keys at this time. The agent reads all shared config from `ngrok.*` and feature flags from `features.*`.

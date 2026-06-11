@@ -9,6 +9,10 @@ kind: ClusterRole
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-manager-role
 {{- end }}
+{{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+{{- end }}
 rules:
 # --- Core API ---
 - apiGroups:
@@ -372,6 +376,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-manager-cluster-role
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 rules:
 {{ include "ngrok-operator.api-manager.clusterScopedRules" . }}
 {{- end }}

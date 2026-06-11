@@ -1,4 +1,4 @@
-suite: test controller-cm
+suite: test api-manager configmap
 templates:
 - api-manager/configmap.yaml
 release:
@@ -17,8 +17,6 @@ tests:
   - hasDocuments:
       count: 1
 - it: should contain the correct namespace
-  set:
-    namespace: test-namespace
   asserts:
   - equal:
       path: metadata.namespace
@@ -27,11 +25,64 @@ tests:
   asserts:
   - equal:
       path: metadata.name
-      value: test-release-ngrok-operator-manager-config
+      value: test-release-ngrok-operator-api-manager-config
 - it: Works when fullname is supplied
   set:
     fullnameOverride: fno
   asserts:
   - equal:
       path: metadata.name
-      value: fno-manager-config
+      value: fno-api-manager-config
+- it: Renders one data key per config entry with the shared defaults
+  asserts:
+  - equal:
+      path: data["clusterDomain"]
+      value: "svc.cluster.local"
+  - equal:
+      path: data["log.level"]
+      value: "info"
+  - equal:
+      path: data["log.format"]
+      value: "json"
+  - equal:
+      path: data["features.ingress.enabled"]
+      value: "true"
+  - equal:
+      path: data["features.gateway.enabled"]
+      value: "true"
+  - equal:
+      path: data["features.bindings.enabled"]
+      value: "false"
+- it: Omits empty shared config values
+  asserts:
+  - notExists:
+      path: data["region"]
+  - notExists:
+      path: data["serverAddr"]
+  - notExists:
+      path: data["apiURL"]
+  - notExists:
+      path: data["metadata"]
+- it: Renders oneClickDemoMode "false" by default
+  asserts:
+  - equal:
+      path: data["oneClickDemoMode"]
+      value: "false"
+- it: Renders oneClickDemoMode "true" when set
+  set:
+    apiManager.config.oneClickDemoMode: true
+  asserts:
+  - equal:
+      path: data["oneClickDemoMode"]
+      value: "true"
+- it: Merges extra component config entries over the shared config
+  set:
+    apiManager.config:
+      log.level: debug
+  asserts:
+  - equal:
+      path: data["log.level"]
+      value: "debug"
+  - equal:
+      path: data["oneClickDemoMode"]
+      value: "false"
