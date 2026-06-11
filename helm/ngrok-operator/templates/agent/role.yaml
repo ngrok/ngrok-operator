@@ -1,4 +1,4 @@
-{{- if .Values.ingress.enabled }}
+{{- if .Values.features.ingress.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 {{- if (include "ngrok-operator.isNamespaced" .) }}
 kind: Role
@@ -9,6 +9,10 @@ metadata:
 kind: ClusterRole
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-agent-role
+{{- end }}
+{{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
 {{- end }}
 rules:
 - apiGroups:

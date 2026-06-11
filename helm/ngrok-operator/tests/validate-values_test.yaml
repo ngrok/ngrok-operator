@@ -1,0 +1,60 @@
+suite: test moved values guard
+templates:
+- validate-values.yaml
+tests:
+- it: renders nothing with the new values layout
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: fails when old top-level ngrok config values are set
+  set:
+    region: us
+  asserts:
+  - failedTemplate:
+      errorPattern: "region -> ngrok.region"
+
+- it: fails when old feature values are set
+  set:
+    ingress:
+      enabled: false
+    gateway:
+      enabled: false
+    drainPolicy: Delete
+  asserts:
+  - failedTemplate:
+      errorPattern: "ingress -> features.ingress"
+
+- it: fails when old bindings forwarder values are set
+  set:
+    bindings:
+      enabled: true
+      forwarder:
+        replicaCount: 2
+  asserts:
+  - failedTemplate:
+      errorPattern: "bindings -> features.bindings"
+
+- it: fails when old api-manager pod settings are set
+  set:
+    replicaCount: 2
+    podAnnotations:
+      test: "true"
+  asserts:
+  - failedTemplate:
+      errorPattern: "replicaCount -> apiManager.replicaCount"
+
+- it: fails when oneClickDemoMode is set at the top level
+  set:
+    oneClickDemoMode: true
+  asserts:
+  - failedTemplate:
+      errorPattern: "oneClickDemoMode -> apiManager.config.oneClickDemoMode"
+
+- it: points at the migration guide
+  set:
+    log:
+      level: debug
+  asserts:
+  - failedTemplate:
+      errorPattern: "migration-v1.md"

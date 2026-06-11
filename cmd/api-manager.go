@@ -67,6 +67,7 @@ import (
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/drain"
+	"github.com/ngrok/ngrok-operator/internal/env"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -150,34 +151,35 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
-	c.Flags().StringVar(&opts.ngrokMetadata, "ngrokMetadata", "", "A comma separated list of key=value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
-	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
-	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
-	c.Flags().StringVar(&opts.apiURL, "api-url", "", "The base URL to use for the ngrok api")
+	c.Flags().StringVar(&opts.ngrokMetadata, "ngrokMetadata", env.StringFromEnv("NGROK_OPERATOR_METADATA", ""), "A comma separated list of key=value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
+	c.Flags().StringVar(&opts.description, "description", env.StringFromEnv("NGROK_OPERATOR_DESCRIPTION", "Created by the ngrok-operator"), "Description for this installation")
+	c.Flags().StringVar(&opts.region, "region", env.StringFromEnv("NGROK_OPERATOR_REGION", ""), "The region to use for ngrok tunnels")
+	c.Flags().StringVar(&opts.serverAddr, "server-addr", env.StringFromEnv("NGROK_OPERATOR_SERVER_ADDR", ""), "The address of the ngrok server to use for tunnels")
+	c.Flags().StringVar(&opts.apiURL, "api-url", env.StringFromEnv("NGROK_OPERATOR_API_URL", ""), "The base URL to use for the ngrok api")
 	// TODO(operator-rename): This probably needs to be on a per controller basis. Each of the controllers will have their own value or we migrate this to k8s.ngrok.com/ngrok-operator.
-	c.Flags().StringVar(&opts.ingressControllerName, "ingress-controller-name", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
-	c.Flags().StringVar(&opts.ingressWatchNamespace, "ingress-watch-namespace", "", "Namespace to watch for Kubernetes Ingress resources. Defaults to all namespaces.")
+	c.Flags().StringVar(&opts.ingressControllerName, "ingress-controller-name", env.StringFromEnv("NGROK_OPERATOR_FEATURES_INGRESS_CONTROLLER_NAME", "k8s.ngrok.com/ingress-controller"), "The name of the controller to use for matching ingresses classes")
+	c.Flags().StringVar(&opts.ingressWatchNamespace, "ingress-watch-namespace", env.StringFromEnv("NGROK_OPERATOR_FEATURES_INGRESS_WATCH_NAMESPACE", ""), "Namespace to watch for Kubernetes Ingress resources. Defaults to all namespaces.")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
-	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", common.DefaultClusterDomain, "Cluster domain used in the cluster")
-	c.Flags().BoolVar(&opts.oneClickDemoMode, "one-click-demo-mode", false, "Run the operator in one-click-demo mode (Ready, but not running)")
+	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", env.StringFromEnv("NGROK_OPERATOR_CLUSTER_DOMAIN", common.DefaultClusterDomain), "Cluster domain used in the cluster")
+	c.Flags().BoolVar(&opts.oneClickDemoMode, "one-click-demo-mode", env.BoolFromEnv("NGROK_OPERATOR_ONE_CLICK_DEMO_MODE", false), "Run the operator in one-click-demo mode (Ready, but not running)")
 
 	// feature flags
-	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
-	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
-	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
-	c.Flags().StringSliceVar(&opts.bindings.endpointSelectors, "bindings-endpoint-selectors", []string{"true"}, "Endpoint Selectors for Endpoint Bindings")
-	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
-	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
-	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
-	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
-	c.Flags().StringVar((*string)(&opts.drainPolicy), "drain-policy", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
+	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", env.BoolFromEnv("NGROK_OPERATOR_FEATURES_INGRESS_ENABLED", true), "Enables the Ingress controller")
+	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", env.BoolFromEnv("NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED", true), "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
+	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", env.BoolFromEnv("NGROK_OPERATOR_FEATURES_GATEWAY_DISABLE_REFERENCE_GRANTS", false), "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
+	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", env.BoolFromEnv("NGROK_OPERATOR_FEATURES_BINDINGS_ENABLED", false), "Enables the Endpoint Bindings controller")
+	c.Flags().StringSliceVar(&opts.bindings.endpointSelectors, "bindings-endpoint-selectors", env.StringSliceFromEnv("NGROK_OPERATOR_FEATURES_BINDINGS_ENDPOINT_SELECTORS", []string{"true"}), "Endpoint Selectors for Endpoint Bindings")
+	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", env.StringFromEnv("NGROK_OPERATOR_FEATURES_BINDINGS_SERVICE_ANNOTATIONS", ""), "Service Annotations to propagate to the target service")
+	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", env.StringFromEnv("NGROK_OPERATOR_FEATURES_BINDINGS_SERVICE_LABELS", ""), "Service Labels to propagate to the target service")
+	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", env.StringFromEnv("NGROK_OPERATOR_FEATURES_BINDINGS_INGRESS_ENDPOINT", ""), "The endpoint the bindings forwarder connects to")
+	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", env.StringFromEnv("NGROK_OPERATOR_FEATURES_DEFAULT_DOMAIN_RECLAIM_POLICY", string(ingressv1alpha1.DomainReclaimPolicyDelete)), "The default domain reclaim policy to apply to created domains")
+	c.Flags().StringVar((*string)(&opts.drainPolicy), "drain-policy", env.StringFromEnv("NGROK_OPERATOR_FEATURES_DRAIN_POLICY", string(ngrokv1alpha1.DrainPolicyRetain)), "Policy for draining resources during uninstall: Delete or Retain")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
+	env.BindZapFlagDefaults(goFlagSet)
 	c.Flags().AddGoFlagSet(goFlagSet)
 
 	return c

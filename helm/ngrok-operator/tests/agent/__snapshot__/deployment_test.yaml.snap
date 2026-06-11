@@ -27,6 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
+            checksum/config: 014211379b1d1362b605aae64c0495ea5bd380bf9add70b1d258b81c3ab64503
             checksum/rbac: 7ad5685f36276669f1d58bba694549ec85c1bfec764282ab94079943fba927e7
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -52,18 +53,10 @@ Should match snapshot:
           containers:
             - args:
                 - agent-manager
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description=The official ngrok Kubernetes Operator.
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
+                - --release-name=RELEASE-NAME
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --manager-name=RELEASE-NAME-ngrok-operator-agent-manager
-                - --release-name=RELEASE-NAME
-                - --default-domain-reclaim-policy=Delete
               command:
                 - /ngrok-operator
               env:
@@ -78,6 +71,84 @@ Should match snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: NGROK_OPERATOR_DESCRIPTION
+                  valueFrom:
+                    configMapKeyRef:
+                      key: description
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_REGION
+                  valueFrom:
+                    configMapKeyRef:
+                      key: region
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_ROOT_CAS
+                  valueFrom:
+                    configMapKeyRef:
+                      key: rootCAs
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_SERVER_ADDR
+                  valueFrom:
+                    configMapKeyRef:
+                      key: serverAddr
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_LOG_LEVEL
+                  valueFrom:
+                    configMapKeyRef:
+                      key: log.level
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_LOG_FORMAT
+                  valueFrom:
+                    configMapKeyRef:
+                      key: log.format
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_LOG_STACKTRACE_LEVEL
+                  valueFrom:
+                    configMapKeyRef:
+                      key: log.stacktraceLevel
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_FEATURES_INGRESS_ENABLED
+                  valueFrom:
+                    configMapKeyRef:
+                      key: features.ingress.enabled
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_FEATURES_INGRESS_WATCH_NAMESPACE
+                  valueFrom:
+                    configMapKeyRef:
+                      key: features.ingress.watchNamespace
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED
+                  valueFrom:
+                    configMapKeyRef:
+                      key: features.gateway.enabled
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_FEATURES_GATEWAY_DISABLE_REFERENCE_GRANTS
+                  valueFrom:
+                    configMapKeyRef:
+                      key: features.gateway.disableReferenceGrants
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_FEATURES_BINDINGS_ENABLED
+                  valueFrom:
+                    configMapKeyRef:
+                      key: features.bindings.enabled
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
+                - name: NGROK_OPERATOR_FEATURES_DEFAULT_DOMAIN_RECLAIM_POLICY
+                  valueFrom:
+                    configMapKeyRef:
+                      key: features.defaultDomainReclaimPolicy
+                      name: RELEASE-NAME-ngrok-operator-agent-config
+                      optional: true
               image: docker.io/ngrok/ngrok-operator:0.21.0
               imagePullPolicy: IfNotPresent
               livenessProbe:

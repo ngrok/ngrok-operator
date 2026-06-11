@@ -35,7 +35,7 @@ All settings below override global defaults. See [common.md](common.md) for over
 
 ## App Config
 
-Component-specific app config rendered into the api-manager ConfigMap. Overrides values from the common ConfigMap (`ngrok.*`).
+Component-specific app config merged into the api-manager's config ConfigMap on top of the shared config (`ngrok.*` + `features.*`); keys set here win for this component only.
 
 | Parameter                                        | Description                                   | Default  |
 |--------------------------------------------------|-----------------------------------------------|----------|

@@ -12,7 +12,7 @@ metadata:
     app.kubernetes.io/version: "0.21.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: controller
+    app.kubernetes.io/component: agent
 ---
 # Source: ngrok-operator/templates/api-manager/serviceaccount.yaml
 apiVersion: v1
@@ -29,23 +29,62 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
 ---
+# Source: ngrok-operator/templates/agent/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ngrok-operator-agent-config
+  namespace: ngrok-operator
+  labels:
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: agent
+data:
+  clusterDomain: "svc.cluster.local"
+  description: "The official ngrok Kubernetes Operator."
+  features.bindings.enabled: "false"
+  features.defaultDomainReclaimPolicy: "Delete"
+  features.drainPolicy: "Retain"
+  features.gateway.disableReferenceGrants: "false"
+  features.gateway.enabled: "true"
+  features.ingress.controllerName: "k8s.ngrok.com/ingress-controller"
+  features.ingress.enabled: "true"
+  log.format: "json"
+  log.level: "info"
+  log.stacktraceLevel: "error"
+---
 # Source: ngrok-operator/templates/api-manager/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ngrok-operator-manager-config
+  name: ngrok-operator-api-manager-config
   namespace: ngrok-operator
+  labels:
+    helm.sh/chart: ngrok-operator-0.23.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.21.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
 data:
-  controller_manager_config.yaml: |
-    apiVersion: controller-runtime.sigs.k8s.io/v1alpha1
-    kind: ControllerManagerConfig
-    health:
-      healthProbeBindAddress: :8081
-    metrics:
-      bindAddress: 127.0.0.1:8080
-    leaderElection:
-      leaderElect: true
-      resourceName: ngrok-operator-leader
+  clusterDomain: "svc.cluster.local"
+  description: "The official ngrok Kubernetes Operator."
+  features.bindings.enabled: "false"
+  features.defaultDomainReclaimPolicy: "Delete"
+  features.drainPolicy: "Retain"
+  features.gateway.disableReferenceGrants: "false"
+  features.gateway.enabled: "true"
+  features.ingress.controllerName: "k8s.ngrok.com/ingress-controller"
+  features.ingress.enabled: "true"
+  log.format: "json"
+  log.level: "info"
+  log.stacktraceLevel: "error"
+  oneClickDemoMode: "false"
 ---
 # Source: ngrok-operator/charts/ngrok-crds/templates/bindings.k8s.ngrok.com_boundendpoints.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -2860,6 +2899,7 @@ spec:
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
         checksum/rbac: 73ae2719b31e64e50841b665bdd7334f4c809be84fa8e759f6b2ae62eae98092
+        checksum/config: 014211379b1d1362b605aae64c0495ea5bd380bf9add70b1d258b81c3ab64503
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator
@@ -2891,18 +2931,10 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
+        - --release-name=ngrok-operator
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name=ngrok-operator-agent-manager
-        - --release-name=ngrok-operator
-        - --default-domain-reclaim-policy=Delete
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -2917,6 +2949,84 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR_DESCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: description
+              optional: true
+        - name: NGROK_OPERATOR_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: region
+              optional: true
+        - name: NGROK_OPERATOR_ROOT_CAS
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: rootCAs
+              optional: true
+        - name: NGROK_OPERATOR_SERVER_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: serverAddr
+              optional: true
+        - name: NGROK_OPERATOR_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: log.level
+              optional: true
+        - name: NGROK_OPERATOR_LOG_FORMAT
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: log.format
+              optional: true
+        - name: NGROK_OPERATOR_LOG_STACKTRACE_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: log.stacktraceLevel
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_INGRESS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: features.ingress.enabled
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_INGRESS_WATCH_NAMESPACE
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: features.ingress.watchNamespace
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: features.gateway.enabled
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_GATEWAY_DISABLE_REFERENCE_GRANTS
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: features.gateway.disableReferenceGrants
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_BINDINGS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: features.bindings.enabled
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_DEFAULT_DOMAIN_RECLAIM_POLICY
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-agent-config
+              key: features.defaultDomainReclaimPolicy
+              optional: true
         livenessProbe:
           httpGet:
             path: /healthz
@@ -2966,6 +3076,7 @@ spec:
         checksum/controller-role: f40b5f0c128c0618a357d8547b09cbdb40218194f924dbab8e402e98c8d87de7
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+        checksum/config: 143bc4641dc58c6a9adf34a2c6b7a1e5c4ff906396572b7c4f24b9792ad3091b
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator
@@ -2998,21 +3109,10 @@ spec:
         args:
         - api-manager
         - --release-name=ngrok-operator
-        - --drain-policy=Retain
-        - --default-domain-reclaim-policy=Delete
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id=ngrok-operator-leader
         - --manager-name=ngrok-operator-manager
-        - --cluster-domain=svc.cluster.local
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -3027,6 +3127,138 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR_DESCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: description
+              optional: true
+        - name: NGROK_OPERATOR_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: region
+              optional: true
+        - name: NGROK_OPERATOR_SERVER_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: serverAddr
+              optional: true
+        - name: NGROK_OPERATOR_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: apiURL
+              optional: true
+        - name: NGROK_OPERATOR_METADATA
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: metadata
+              optional: true
+        - name: NGROK_OPERATOR_CLUSTER_DOMAIN
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: clusterDomain
+              optional: true
+        - name: NGROK_OPERATOR_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: log.level
+              optional: true
+        - name: NGROK_OPERATOR_LOG_FORMAT
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: log.format
+              optional: true
+        - name: NGROK_OPERATOR_LOG_STACKTRACE_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: log.stacktraceLevel
+              optional: true
+        - name: NGROK_OPERATOR_ONE_CLICK_DEMO_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: oneClickDemoMode
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_INGRESS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.ingress.enabled
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_INGRESS_CONTROLLER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.ingress.controllerName
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_INGRESS_WATCH_NAMESPACE
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.ingress.watchNamespace
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.gateway.enabled
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_GATEWAY_DISABLE_REFERENCE_GRANTS
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.gateway.disableReferenceGrants
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_BINDINGS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.bindings.enabled
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_BINDINGS_ENDPOINT_SELECTORS
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.bindings.endpointSelectors
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_BINDINGS_SERVICE_ANNOTATIONS
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.bindings.serviceAnnotations
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_BINDINGS_SERVICE_LABELS
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.bindings.serviceLabels
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_BINDINGS_INGRESS_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.bindings.ingressEndpoint
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_DRAIN_POLICY
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.drainPolicy
+              optional: true
+        - name: NGROK_OPERATOR_FEATURES_DEFAULT_DOMAIN_RECLAIM_POLICY
+          valueFrom:
+            configMapKeyRef:
+              name: ngrok-operator-api-manager-config
+              key: features.defaultDomainReclaimPolicy
+              optional: true
         livenessProbe:
           httpGet:
             path: /healthz

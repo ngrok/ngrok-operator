@@ -1,7 +1,14 @@
-{{- if and .Values.bindings.enabled (not .Values.oneClickDemoMode) }}
+{{- if and .Values.features.bindings.enabled (not .Values.apiManager.config.oneClickDemoMode) }}
 {{- $component := "bindings-forwarder" }}
 {{- $rbacChecksum := include (print $.Template.BasePath "/bindings-forwarder/role.yaml") . | sha256sum }}
-{{- $forwarder := .Values.bindings.forwarder }}
+{{- $forwarder := .Values.bindingsForwarder }}
+{{- $configChecksum := include "ngrok-operator.componentConfig" (dict "context" $ "config" $forwarder.config) | sha256sum }}
+{{- $configEnvKeys := list
+  (list "NGROK_OPERATOR_DESCRIPTION" "description")
+  (list "NGROK_OPERATOR_LOG_LEVEL" "log.level")
+  (list "NGROK_OPERATOR_LOG_FORMAT" "log.format")
+  (list "NGROK_OPERATOR_LOG_STACKTRACE_LEVEL" "log.stacktraceLevel")
+}}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -12,6 +19,9 @@ metadata:
   name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
   namespace: {{ .Release.Namespace }}
   annotations:
+    {{- with (include "ngrok-operator.commonAnnotations" .) }}
+    {{- . | nindent 4 }}
+    {{- end }}
     checksum/rbac: {{ $rbacChecksum }}
 spec:
   replicas: {{ $forwarder.replicaCount }}
@@ -26,17 +36,18 @@ spec:
   template:
     metadata:
       annotations:
-        {{- if .Values.podAnnotations }}
-          {{- toYaml .Values.podAnnotations | nindent 8 }}
+        {{- if $forwarder.podAnnotations }}
+          {{- toYaml $forwarder.podAnnotations | nindent 8 }}
         {{- end }}
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
         checksum/rbac: {{ $rbacChecksum }}
+        checksum/config: {{ $configChecksum }}
       labels:
         {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
-        {{- if .Values.podLabels }}
-          {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- if $forwarder.podLabels }}
+          {{- toYaml $forwarder.podLabels | nindent 8 }}
         {{- end }}
         app.kubernetes.io/component: {{ $component }}
     spec:
@@ -46,13 +57,13 @@ spec:
       {{- if $forwarder.terminationGracePeriodSeconds }}
       terminationGracePeriodSeconds: {{ $forwarder.terminationGracePeriodSeconds }}
       {{- end }}
-      {{- if .Values.affinity }}
-      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      {{- if $forwarder.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" $forwarder.affinity "context" $) | nindent 8 }}
       {{- else }}
       affinity:
-        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
-        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
-        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+        podAffinity: {{- include "common.affinities.pods" (dict "type" $forwarder.podAffinityPreset "component" $component "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" $forwarder.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" $forwarder.nodeAffinityPreset.type "key" $forwarder.nodeAffinityPreset.key "values" $forwarder.nodeAffinityPreset.values) | nindent 10 }}
       {{- end }}
       {{- with $forwarder.nodeSelector }}
       nodeSelector:
@@ -80,12 +91,6 @@ spec:
         args:
         - bindings-forwarder-manager
         - --release-name={{ .Release.Name }}
-        {{- if .Values.description }}
-        - {{ printf "--description=%s" .Values.description | quote }}
-        {{- end }}
-        - --zap-log-level={{ .Values.log.level }}
-        - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
-        - --zap-encoder={{ .Values.log.format }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name={{ include "ngrok-operator.fullname" . }}-bindings-forwarder
@@ -103,17 +108,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: {{ .Release.Name | quote }}
-        {{- range $key, $value := .Values.extraEnv }}
+        {{- include "ngrok-operator.configEnv" (dict "context" $ "component" "bindings-forwarder" "keys" $configEnvKeys) | trim | nindent 8 }}
+        {{- range $key, $value := $forwarder.extraEnv }}
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}
         {{- end }}
-        {{- if .Values.extraVolumeMounts }}
+        {{- if $forwarder.extraVolumeMounts }}
         volumeMounts:
-        {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+        {{- toYaml $forwarder.extraVolumeMounts | nindent 8 }}
         {{- end }}
-        {{- if .Values.lifecycle }}
+        {{- if $forwarder.lifecycle }}
         lifecycle:
-        {{- toYaml .Values.lifecycle | nindent 10 }}
+        {{- toYaml $forwarder.lifecycle | nindent 10 }}
         {{- end }}
         livenessProbe:
           httpGet:
@@ -129,8 +135,8 @@ spec:
           periodSeconds: 10
         resources:
         {{- toYaml $forwarder.resources | nindent 10 }}
-      {{- if .Values.extraVolumes }}
+      {{- if $forwarder.extraVolumes }}
       volumes:
-        {{- toYaml .Values.extraVolumes | nindent 8 }}
+        {{- toYaml $forwarder.extraVolumes | nindent 8 }}
       {{- end }}
 {{- end }}
