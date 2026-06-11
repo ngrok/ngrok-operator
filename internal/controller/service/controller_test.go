@@ -231,6 +231,44 @@ var _ = Describe("ServiceController", func() {
 						g.Expect(urlAnnotation).To(MatchRegexp(`^tcp://[a-zA-Z0-9\-\.]+:\d+$`))
 					})
 				})
+
+				// LEGACY-PREFIX-MIGRATION: a TCP Service stamped by a
+				// pre-migration operator carries only the legacy computed-url
+				// key. The reserved-address happy path must re-stamp the new
+				// key so the value survives once the legacy read is removed.
+				It("Should migrate a legacy-only computed-url to the new key", func() {
+					var reservedURL string
+
+					By("waiting for the operator to reserve an address and stamp the new key")
+					Eventually(func(g Gomega) {
+						fetched := &corev1.Service{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+						v, ok := fetched.GetAnnotations()[annotations.ComputedURLAnnotation]
+						g.Expect(ok).To(BeTrue())
+						g.Expect(v).To(MatchRegexp(`^tcp://[a-zA-Z0-9\-\.]+:\d+$`))
+						reservedURL = v
+					}, timeout, interval).Should(Succeed())
+
+					By("rewriting the Service to look like it was stamped by a pre-migration operator (legacy key only)")
+					Eventually(func() error {
+						fetched := &corev1.Service{}
+						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+							return err
+						}
+						delete(fetched.Annotations, annotations.ComputedURLAnnotation)
+						fetched.Annotations[annotations.LegacyComputedURLAnnotation] = reservedURL
+						return k8sClient.Update(ctx, fetched)
+					}, timeout, interval).Should(Succeed())
+
+					By("expecting the operator to re-stamp the new key while keeping the legacy key (no new reservation)")
+					Eventually(func(g Gomega) {
+						fetched := &corev1.Service{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+						a := fetched.GetAnnotations()
+						g.Expect(a[annotations.ComputedURLAnnotation]).To(Equal(reservedURL))
+						g.Expect(a[annotations.LegacyComputedURLAnnotation]).To(Equal(reservedURL))
+					}, timeout, interval).Should(Succeed())
+				})
 			})
 
 			When("endpoints verbose", func() {

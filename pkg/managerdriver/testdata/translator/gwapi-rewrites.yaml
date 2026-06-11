@@ -85,7 +85,9 @@ expected:
     metadata:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-namespace: test-manager-namespace
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
     spec:

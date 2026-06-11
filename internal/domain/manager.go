@@ -210,10 +210,20 @@ func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, d
 	l := domainObj.GetLabels()
 	_, hasControllerNameLabel := l[labels.ControllerName]
 	_, hasControllerNamespaceLabel := l[labels.ControllerNamespace]
+	// LEGACY-PREFIX-MIGRATION: BEGIN
+	// During the migration window we dual-write both the new and legacy label
+	// pairs, so the early-return must also require the legacy pair to be
+	// present — otherwise an object stamped under only the new prefix never
+	// gets the legacy pair backfilled. The read-side cleanup drops the
+	// legacy-pair check; the early-return then collapses back to
+	//   if hasControllerNameLabel && hasControllerNamespaceLabel { return nil }
+	_, hasLegacyName := l[labels.LegacyControllerName]
+	_, hasLegacyNamespace := l[labels.LegacyControllerNamespace]
 
-	if hasControllerNameLabel && hasControllerNamespaceLabel {
+	if hasControllerNameLabel && hasControllerNamespaceLabel && hasLegacyName && hasLegacyNamespace {
 		return nil
 	}
+	// LEGACY-PREFIX-MIGRATION: END
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		// Re-fetch the domain to get the latest version

@@ -316,6 +316,9 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 	assertDomainLabels(t, c, "example-com", "default", map[string]string{
 		labels.ControllerNamespace: "test-namespace",
 		labels.ControllerName:      "test-controller",
+		// LEGACY-PREFIX-MIGRATION: new domains are dual-stamped with the legacy pair.
+		labels.LegacyControllerNamespace: "test-namespace",
+		labels.LegacyControllerName:      "test-controller",
 	})
 }
 
@@ -626,21 +629,28 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 			name:           "adds labels to domain without labels",
 			existingLabels: nil,
 			wantLabels: map[string]string{
-				labels.ControllerNamespace: "test-namespace",
-				labels.ControllerName:      "test-controller",
+				labels.ControllerNamespace:       "test-namespace",
+				labels.ControllerName:            "test-controller",
+				labels.LegacyControllerNamespace: "test-namespace",
+				labels.LegacyControllerName:      "test-controller",
 			},
 		},
 		{
-			name: "preserves existing controller labels",
+			// LEGACY-PREFIX-MIGRATION: a domain stamped with only the new pair
+			// (e.g. by a partially-migrated operator) must get the legacy pair
+			// backfilled, since the early-return requires all four keys.
+			name: "backfills legacy pair when only new pair present",
 			existingLabels: map[string]string{
 				labels.ControllerNamespace: "test-namespace",
 				labels.ControllerName:      "test-controller",
 				"custom-label":             "custom-value",
 			},
 			wantLabels: map[string]string{
-				labels.ControllerNamespace: "test-namespace",
-				labels.ControllerName:      "test-controller",
-				"custom-label":             "custom-value",
+				labels.ControllerNamespace:       "test-namespace",
+				labels.ControllerName:            "test-controller",
+				labels.LegacyControllerNamespace: "test-namespace",
+				labels.LegacyControllerName:      "test-controller",
+				"custom-label":                   "custom-value",
 			},
 		},
 		{
@@ -649,9 +659,11 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 				"custom-label": "custom-value",
 			},
 			wantLabels: map[string]string{
-				labels.ControllerNamespace: "test-namespace",
-				labels.ControllerName:      "test-controller",
-				"custom-label":             "custom-value",
+				labels.ControllerNamespace:       "test-namespace",
+				labels.ControllerName:            "test-controller",
+				labels.LegacyControllerNamespace: "test-namespace",
+				labels.LegacyControllerName:      "test-controller",
+				"custom-label":                   "custom-value",
 			},
 		},
 	}
