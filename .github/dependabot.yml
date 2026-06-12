@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directories:
+      # Workflows in .github/workflows/
+      - "/"
+      # Local composite actions that also pin third-party actions
+      - "/.github/actions/*"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    # Don't pick up a new release until it has been out for a week. This
+    # gives the community time to catch compromised or broken releases
+    # before we pull them in.
+    cooldown:
+      default-days: 7
+    # Group all action updates into a single PR to avoid PR noise.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(github-actions)"
