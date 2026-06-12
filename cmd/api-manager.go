@@ -424,18 +424,28 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		os.Exit(1)
 	}
 
-	// App-replica poller: polls ngrok Compute Replicas API and reconciles Deployments
-	if err := mgr.Add(&computecontroller.AppReplicaPoller{
-		Client:          mgr.GetClient(),
-		Log:             ctrl.Log.WithName("controllers").WithName("AppReplicaPoller"),
-		Namespace:       opts.namespace,
-		K8sOpName:       opts.releaseName,
-		K8sOpNamespace:  opts.namespace,
-		NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig),
-		ComputeBaseURL:  opts.computeBaseURL,
-		PollingInterval: 3 * time.Second,
-	}); err != nil {
-		return fmt.Errorf("unable to add AppReplicaPoller: %w", err)
+	// App-replica poller: polls ngrok Compute Replicas API and reconciles
+	// Deployments. Only run it for poll-mode runners (self-hosted / VM groups).
+	// Server-reconciled pools (DOKS/LKE) install the operator agent-only with
+	// compute.enabled=false; there compute converges replicas directly via the
+	// cluster API, and running the poller would reap compute's resources as
+	// orphans (it polls an empty desired set and deletes everything labeled with
+	// a replica id).
+	if computePollerEnabled(opts.computeMetadata) {
+		if err := mgr.Add(&computecontroller.AppReplicaPoller{
+			Client:          mgr.GetClient(),
+			Log:             ctrl.Log.WithName("controllers").WithName("AppReplicaPoller"),
+			Namespace:       opts.namespace,
+			K8sOpName:       opts.releaseName,
+			K8sOpNamespace:  opts.namespace,
+			NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig),
+			ComputeBaseURL:  opts.computeBaseURL,
+			PollingInterval: 3 * time.Second,
+		}); err != nil {
+			return fmt.Errorf("unable to add AppReplicaPoller: %w", err)
+		}
+	} else {
+		setupLog.Info("app-replica poller disabled (not a poll-mode compute runner)")
 	}
 
 	// register healthchecks
@@ -859,6 +869,30 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 		return nil
 	})
 	return err
+}
+
+// computePollerEnabled reports whether the in-cluster app-replica poller should
+// run, based on the --compute-metadata block. The poller runs for poll-mode
+// compute runners (self-hosted / VM groups), where the operator converges
+// replicas it pulls from the Compute Replicas API. It must NOT run for
+// server-reconciled pools (DOKS/LKE), which install the operator with
+// compute.enabled=false because compute converges their replicas directly;
+// running the poller there reaps compute's resources as orphans.
+//
+// Semantics: no compute block ⇒ not a compute runner ⇒ off. A compute block
+// with "enabled": false ⇒ server-reconciled ⇒ off. Otherwise (enabled true or
+// absent, e.g. a legacy runner that only sets pool_join_key) ⇒ on.
+func computePollerEnabled(computeMetadataJSON string) bool {
+	if computeMetadataJSON == "" {
+		return false
+	}
+	var meta struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := json.Unmarshal([]byte(computeMetadataJSON), &meta); err != nil {
+		return false
+	}
+	return meta.Enabled == nil || *meta.Enabled
 }
 
 // buildKubernetesOperatorMetadata constructs the metadata JSON string for the

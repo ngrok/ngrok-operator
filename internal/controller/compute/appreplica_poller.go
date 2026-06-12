@@ -26,6 +26,7 @@ const (
 
 // replicaEndpoint represents a single endpoint with its URL and optional traffic policy.
 type replicaEndpoint struct {
+	Name          string `json:"name"`
 	URL           string `json:"url"`
 	TrafficPolicy string `json:"traffic_policy"`
 }
@@ -34,6 +35,8 @@ type replicaEndpoint struct {
 type computeReplica struct {
 	ID              string            `json:"id"`
 	ContainerImage  string            `json:"container_image"`
+	EnvironmentName string            `json:"environment_name"`
+	ReplicaIndex    int32             `json:"replica_index"`
 	Endpoints       []replicaEndpoint `json:"endpoints"`
 	EnvironmentVars map[string]string `json:"environment_vars"`
 }
@@ -57,16 +60,16 @@ func urlPort(rawURL string) (int, error) {
 	return 443, nil
 }
 
-func k8sName(id string) string {
-	return strings.ReplaceAll(id, "_", "-")
+func k8sName(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, "_", "-"))
 }
 
-func deploymentName(id string) string {
-	return "app-replica-" + k8sName(id)
+func deploymentName(envName string, idx int32, id string) string {
+	return fmt.Sprintf("%s-%d-%s", k8sName(envName), idx, k8sName(id))
 }
 
-func agentEndpointName(id string, port int) string {
-	return fmt.Sprintf("app-replica-%s-%d", k8sName(id), port)
+func agentEndpointName(envName string, idx int32, epName, id string) string {
+	return fmt.Sprintf("%s-%d-%s-%s", k8sName(envName), idx, k8sName(epName), k8sName(id))
 }
 
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;delete
@@ -189,7 +192,7 @@ func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger) error
 			continue
 		}
 		log.Info("Deleting orphaned resources", "id", id)
-		r.deleteResources(ctx, log, id)
+		r.deleteResources(ctx, log, id, deploy.Name)
 	}
 
 	return nil
@@ -247,7 +250,7 @@ func (r *AppReplicaPoller) fetchDesiredReplicas(ctx context.Context) ([]computeR
 }
 
 func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger, replica computeReplica) error {
-	name := deploymentName(replica.ID)
+	name := deploymentName(replica.EnvironmentName, replica.ReplicaIndex, replica.ID)
 	labels := map[string]string{LabelNgrokID: replica.ID}
 
 	// Derive ports from endpoint URLs.
@@ -339,7 +342,7 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 
 	// AgentEndpoint per endpoint
 	for _, up := range epPorts {
-		aepName := agentEndpointName(replica.ID, up.port)
+		aepName := agentEndpointName(replica.EnvironmentName, replica.ReplicaIndex, up.endpoint.Name, replica.ID)
 		aep := &ngrokv1alpha1.AgentEndpoint{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      aepName,
@@ -367,7 +370,7 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 	return nil
 }
 
-func (r *AppReplicaPoller) deleteResources(ctx context.Context, log logr.Logger, id string) {
+func (r *AppReplicaPoller) deleteResources(ctx context.Context, log logr.Logger, id, name string) {
 	ns := r.Namespace
 
 	// Delete all AgentEndpoints with this ngrok-id label.
@@ -386,7 +389,6 @@ func (r *AppReplicaPoller) deleteResources(ctx context.Context, log logr.Logger,
 	}
 
 	// Delete Service
-	name := deploymentName(id)
 	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if err := r.Delete(ctx, svc); client.IgnoreNotFound(err) != nil {
 		log.Error(err, "failed to delete service", "id", id)
