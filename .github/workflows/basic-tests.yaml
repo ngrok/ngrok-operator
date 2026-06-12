@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.go-changed || inputs.make-changed }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
     - uses: ./.github/actions/nix-setup
     - name: Generate manifests
       run: make manifests
@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 10
     if: ${{ inputs.go-changed || inputs.make-changed }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
     - uses: ./.github/actions/nix-setup
     - name: Lint
       run: make lint
@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.go-changed }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
     - uses: ./.github/actions/nix-setup
     - run: go mod tidy
     - run: git diff --exit-code go.mod
@@ -62,7 +62,7 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
     - uses: ./.github/actions/nix-setup
     - name: Run go fix
       run: make go-fix
@@ -74,12 +74,12 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
     - uses: ./.github/actions/nix-setup
     - name: Run unit tests
       run: make test
     - if: github.repository == 'ngrok/ngrok-operator'
       name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
