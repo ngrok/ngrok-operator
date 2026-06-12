@@ -22,7 +22,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: engineerd/setup-kind@v0.6.2
+    - uses: engineerd/setup-kind@71e45b960fc8dd50b4aeabf6eb6ef2ca0920b4c1 # v0.6.2
       with:
         version: ${{ inputs.kind-version }}
         name: ngrok-operator
