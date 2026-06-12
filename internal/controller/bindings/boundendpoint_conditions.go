@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
@@ -32,43 +33,20 @@ const (
 
 // setServicesCreatedCondition sets the ServicesCreated condition
 func setServicesCreatedCondition(be *bindingsv1alpha1.BoundEndpoint, created bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !created {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionTypeServicesCreated,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: be.Generation,
-	}
-
-	meta.SetStatusCondition(&be.Status.Conditions, condition)
+	conditions.Set(&be.Status.Conditions, be.Generation, ConditionTypeServicesCreated, created, reason, message)
 }
 
 // setConnectivityVerifiedCondition sets the ConnectivityVerified condition
 func setConnectivityVerifiedCondition(be *bindingsv1alpha1.BoundEndpoint, verified bool, err error) {
-	status := metav1.ConditionTrue
 	reason := ReasonConnectivityVerified
 	message := "Successfully connected to upstream service"
 
 	if !verified {
-		status = metav1.ConditionFalse
 		reason = ReasonConnectivityFailed
 		message = ngrokapi.SanitizeErrorMessage(err.Error())
 	}
 
-	condition := metav1.Condition{
-		Type:               ConditionTypeConnectivityVerified,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: be.Generation,
-	}
-
-	meta.SetStatusCondition(&be.Status.Conditions, condition)
+	conditions.Set(&be.Status.Conditions, be.Generation, ConditionTypeConnectivityVerified, verified, reason, message)
 }
 
 // calculateReadyCondition calculates the overall Ready condition based on other conditions
@@ -116,18 +94,5 @@ func calculateReadyCondition(be *bindingsv1alpha1.BoundEndpoint) {
 
 // setReadyCondition sets the Ready condition
 func setReadyCondition(be *bindingsv1alpha1.BoundEndpoint, ready bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !ready {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionTypeReady,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: be.Generation,
-	}
-
-	meta.SetStatusCondition(&be.Status.Conditions, condition)
+	conditions.Set(&be.Status.Conditions, be.Generation, ConditionTypeReady, ready, reason, message)
 }
