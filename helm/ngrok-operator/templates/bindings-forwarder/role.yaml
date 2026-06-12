@@ -1,9 +1,13 @@
-{{- if .Values.bindings.enabled }}
+{{- if .Values.features.bindings.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
   namespace: {{ .Release.Namespace }}
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 rules:
 - apiGroups:
   - ""
@@ -52,6 +56,10 @@ kind: RoleBinding
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder-rolebinding
   namespace: {{ .Release.Namespace }}
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -69,6 +77,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 rules:
 - apiGroups:
   - ""
@@ -83,6 +95,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder-clusterrolebinding
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

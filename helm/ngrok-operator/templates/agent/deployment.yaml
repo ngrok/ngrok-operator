@@ -1,7 +1,23 @@
-{{- if and .Values.ingress.enabled (not .Values.oneClickDemoMode) }}
+{{- if and .Values.features.ingress.enabled (not .Values.apiManager.config.oneClickDemoMode) }}
 {{- $component := "agent" }}
 {{- $rbacChecksum := include (print $.Template.BasePath "/agent/role.yaml") . | sha256sum }}
 {{- $agent := .Values.agent }}
+{{- $configChecksum := include "ngrok-operator.componentConfig" (dict "context" $ "config" $agent.config) | sha256sum }}
+{{- $configEnvKeys := list
+  (list "NGROK_OPERATOR_DESCRIPTION" "description")
+  (list "NGROK_OPERATOR_REGION" "region")
+  (list "NGROK_OPERATOR_ROOT_CAS" "rootCAs")
+  (list "NGROK_OPERATOR_SERVER_ADDR" "serverAddr")
+  (list "NGROK_OPERATOR_LOG_LEVEL" "log.level")
+  (list "NGROK_OPERATOR_LOG_FORMAT" "log.format")
+  (list "NGROK_OPERATOR_LOG_STACKTRACE_LEVEL" "log.stacktraceLevel")
+  (list "NGROK_OPERATOR_FEATURES_INGRESS_ENABLED" "features.ingress.enabled")
+  (list "NGROK_OPERATOR_FEATURES_INGRESS_WATCH_NAMESPACE" "features.ingress.watchNamespace")
+  (list "NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED" "features.gateway.enabled")
+  (list "NGROK_OPERATOR_FEATURES_GATEWAY_DISABLE_REFERENCE_GRANTS" "features.gateway.disableReferenceGrants")
+  (list "NGROK_OPERATOR_FEATURES_BINDINGS_ENABLED" "features.bindings.enabled")
+  (list "NGROK_OPERATOR_FEATURES_DEFAULT_DOMAIN_RECLAIM_POLICY" "features.defaultDomainReclaimPolicy")
+}}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -12,6 +28,9 @@ metadata:
   name: {{ include "ngrok-operator.fullname" . }}-agent
   namespace: {{ .Release.Namespace }}
   annotations:
+    {{- with (include "ngrok-operator.commonAnnotations" .) }}
+    {{- . | nindent 4 }}
+    {{- end }}
     checksum/rbac: {{ $rbacChecksum }}
 spec:
   replicas: {{ $agent.replicaCount }}
@@ -28,17 +47,16 @@ spec:
       annotations:
         {{- if $agent.podAnnotations }}
           {{- toYaml $agent.podAnnotations | nindent 8 }}
-        {{- else if .Values.podAnnotations }}
-          {{- toYaml .Values.podAnnotations | nindent 8 }}
         {{- end }}
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
         checksum/rbac: {{ $rbacChecksum }}
+        checksum/config: {{ $configChecksum }}
       labels:
         {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
-        {{- if .Values.podLabels }}
-          {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- if $agent.podLabels }}
+          {{- toYaml $agent.podLabels | nindent 8 }}
         {{- end }}
         app.kubernetes.io/component: {{ $component }}
     spec:
@@ -48,13 +66,13 @@ spec:
       {{- if $agent.terminationGracePeriodSeconds }}
       terminationGracePeriodSeconds: {{ $agent.terminationGracePeriodSeconds }}
       {{- end }}
-      {{- if .Values.affinity }}
-      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      {{- if $agent.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" $agent.affinity "context" $) | nindent 8 }}
       {{- else }}
       affinity:
-        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
-        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
-        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+        podAffinity: {{- include "common.affinities.pods" (dict "type" $agent.podAffinityPreset "component" $component "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" $agent.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" $agent.nodeAffinityPreset.type "key" $agent.nodeAffinityPreset.key "values" $agent.nodeAffinityPreset.values) | nindent 10 }}
       {{- end }}
       {{- with $agent.nodeSelector }}
       nodeSelector:
@@ -81,30 +99,10 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
-        {{- if .Values.description }}
-        - {{ printf "--description=%s" .Values.description | quote }}
-        {{- end }}
-        {{- if .Values.region }}
-        - --region={{ .Values.region }}
-        {{- end }}
-        {{- if .Values.rootCAs }}
-        - --root-cas={{ .Values.rootCAs }}
-        {{- end }}
-        {{- if .Values.serverAddr }}
-        - --server-addr={{ .Values.serverAddr }}
-        {{- end }}
-        - --zap-log-level={{ .Values.log.level }}
-        - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
-        - --zap-encoder={{ .Values.log.format }}
+        - --release-name={{ .Release.Name }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name={{ include "ngrok-operator.fullname" . }}-agent-manager
-        - --release-name={{ .Release.Name }}
-        - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
-        {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
-        - --watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
-        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -119,17 +117,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: {{ .Release.Name | quote }}
-        {{- range $key, $value := .Values.extraEnv }}
+        {{- include "ngrok-operator.configEnv" (dict "context" $ "component" "agent" "keys" $configEnvKeys) | trim | nindent 8 }}
+        {{- range $key, $value := $agent.extraEnv }}
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}
         {{- end }}
-        {{- if .Values.extraVolumeMounts  }}
+        {{- if $agent.extraVolumeMounts }}
         volumeMounts:
-        {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
+        {{- toYaml $agent.extraVolumeMounts | nindent 8 }}
         {{- end }}
-        {{- if .Values.lifecycle }}
+        {{- if $agent.lifecycle }}
         lifecycle:
-        {{ toYaml .Values.lifecycle | nindent 10 }}
+        {{ toYaml $agent.lifecycle | nindent 10 }}
         {{- end }}
         livenessProbe:
           httpGet:
@@ -145,8 +144,8 @@ spec:
           periodSeconds: 10
         resources:
         {{- toYaml $agent.resources | nindent 10 }}
-      {{- if .Values.extraVolumes }}
+      {{- if $agent.extraVolumes }}
       volumes:
-        {{ toYaml .Values.extraVolumes | nindent 6 }}
+        {{- toYaml $agent.extraVolumes | nindent 6 }}
       {{- end }}
 {{- end }}

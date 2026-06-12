@@ -96,22 +96,46 @@ See [authentication.md](../authentication.md) for details on credential manageme
 | `fullnameOverride` | Fully override generated resource names  | `""`    |
 | `installCRDs`      | Install CRDs alongside the operator      | `true`  |
 
-## Config File System
+## Configuration System
 
-Each component binary accepts multiple `--config` flags pointing to key=value config files. Helm produces ConfigMaps that are mounted as config files:
+App config follows the Argo CD model: every app-config CLI flag can be set via
+an `NGROK_OPERATOR_*` environment variable, and the Helm chart delivers config
+to the pods as environment variables injected from per-component ConfigMaps.
 
-| ConfigMap | Source | Mount path |
-|-----------|--------|------------|
-| `{fullname}-common-config` | `ngrok.*` + `features.*` | `/etc/ngrok/common.conf` |
-| `{fullname}-api-manager-config` | `apiManager.config` | `/etc/ngrok/component.conf` |
-| `{fullname}-agent-config` | `agent.config` | `/etc/ngrok/component.conf` |
-| `{fullname}-bindings-forwarder-config` | `bindingsForwarder.config` | `/etc/ngrok/component.conf` |
+Precedence (highest wins):
 
-Files are loaded in order; later values override earlier ones. Individual CLI flags override config file values.
+1. Explicit CLI flag
+2. `NGROK_OPERATOR_*` environment variable
+3. Built-in default
+
+Helm renders one ConfigMap per component. Each ConfigMap holds the shared
+config (`ngrok.*` + `features.*`) merged with that component's `config` map
+(component keys win), one dotted key per entry (e.g. `log.level`,
+`features.gateway.enabled`):
+
+| ConfigMap | Source |
+|-----------|--------|
+| `{fullname}-api-manager-config` | `ngrok.*` + `features.*` merged with `apiManager.config` |
+| `{fullname}-agent-config` | `ngrok.*` + `features.*` merged with `agent.config` |
+| `{fullname}-bindings-forwarder-config` | `ngrok.*` + `features.*` merged with `bindingsForwarder.config` |
+
+Each deployment injects the keys it consumes as environment variables via
+`valueFrom.configMapKeyRef` with `optional: true`, so absent keys fall back to
+the binary's built-in defaults (e.g. ConfigMap key `log.level` becomes
+`NGROK_OPERATOR_LOG_LEVEL`). A `checksum/config` pod annotation rolls pods
+when the rendered config changes. Environment variables that do not map to a
+flag on the running component are ignored, so all components can share the
+same variable namespace.
+
+Per-component overrides: set keys under `<component>.config` (e.g.
+`agent.config."log.level": debug` changes the log level for only the agent).
+Empty environment variables are treated as unset, and values that fail to
+parse (e.g. a malformed boolean) log a warning and fall back to the built-in
+default.
 
 ### Local Development
 
 ```bash
-go run . api-manager --config=./hack/api-manager.conf
-go run . api-manager --config=./hack/api-manager.conf --log-level=debug
+NGROK_OPERATOR_LOG_LEVEL=debug NGROK_OPERATOR_LOG_FORMAT=console go run . api-manager
+go run . api-manager --zap-log-level=debug   # CLI flags always win
 ```

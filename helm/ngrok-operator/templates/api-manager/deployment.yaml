@@ -1,4 +1,30 @@
 {{- $component := "controller" }}
+{{- $apiManager := .Values.apiManager }}
+{{- $configChecksum := include "ngrok-operator.componentConfig" (dict "context" $ "config" $apiManager.config) | sha256sum }}
+{{- $configEnvKeys := list
+  (list "NGROK_OPERATOR_DESCRIPTION" "description")
+  (list "NGROK_OPERATOR_REGION" "region")
+  (list "NGROK_OPERATOR_SERVER_ADDR" "serverAddr")
+  (list "NGROK_OPERATOR_API_URL" "apiURL")
+  (list "NGROK_OPERATOR_METADATA" "metadata")
+  (list "NGROK_OPERATOR_CLUSTER_DOMAIN" "clusterDomain")
+  (list "NGROK_OPERATOR_LOG_LEVEL" "log.level")
+  (list "NGROK_OPERATOR_LOG_FORMAT" "log.format")
+  (list "NGROK_OPERATOR_LOG_STACKTRACE_LEVEL" "log.stacktraceLevel")
+  (list "NGROK_OPERATOR_ONE_CLICK_DEMO_MODE" "oneClickDemoMode")
+  (list "NGROK_OPERATOR_FEATURES_INGRESS_ENABLED" "features.ingress.enabled")
+  (list "NGROK_OPERATOR_FEATURES_INGRESS_CONTROLLER_NAME" "features.ingress.controllerName")
+  (list "NGROK_OPERATOR_FEATURES_INGRESS_WATCH_NAMESPACE" "features.ingress.watchNamespace")
+  (list "NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED" "features.gateway.enabled")
+  (list "NGROK_OPERATOR_FEATURES_GATEWAY_DISABLE_REFERENCE_GRANTS" "features.gateway.disableReferenceGrants")
+  (list "NGROK_OPERATOR_FEATURES_BINDINGS_ENABLED" "features.bindings.enabled")
+  (list "NGROK_OPERATOR_FEATURES_BINDINGS_ENDPOINT_SELECTORS" "features.bindings.endpointSelectors")
+  (list "NGROK_OPERATOR_FEATURES_BINDINGS_SERVICE_ANNOTATIONS" "features.bindings.serviceAnnotations")
+  (list "NGROK_OPERATOR_FEATURES_BINDINGS_SERVICE_LABELS" "features.bindings.serviceLabels")
+  (list "NGROK_OPERATOR_FEATURES_BINDINGS_INGRESS_ENDPOINT" "features.bindings.ingressEndpoint")
+  (list "NGROK_OPERATOR_FEATURES_DRAIN_POLICY" "features.drainPolicy")
+  (list "NGROK_OPERATOR_FEATURES_DEFAULT_DOMAIN_RECLAIM_POLICY" "features.defaultDomainReclaimPolicy")
+}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -8,10 +34,13 @@ metadata:
   name: {{ include "ngrok-operator.fullname" . }}-manager
   namespace: {{ .Release.Namespace }}
   annotations:
+    {{- with (include "ngrok-operator.commonAnnotations" .) }}
+    {{- . | nindent 4 }}
+    {{- end }}
     checksum/controller-role: {{ include (print $.Template.BasePath "/api-manager/role.yaml") . | sha256sum }}
     checksum/rbac: {{ include (print $.Template.BasePath "/api-manager/leader-election-role.yaml") . | sha256sum }}
 spec:
-  replicas: {{.Values.replicaCount}}
+  replicas: {{ $apiManager.replicaCount }}
   selector:
     matchLabels:
       {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
@@ -19,8 +48,8 @@ spec:
   template:
     metadata:
       annotations:
-        {{- if .Values.podAnnotations }}
-          {{- toYaml .Values.podAnnotations | nindent 8 }}
+        {{- if $apiManager.podAnnotations }}
+          {{- toYaml $apiManager.podAnnotations | nindent 8 }}
         {{- end }}
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
@@ -28,36 +57,37 @@ spec:
         checksum/controller-role: {{ include (print $.Template.BasePath "/api-manager/role.yaml") . | sha256sum }}
         checksum/rbac: {{ include (print $.Template.BasePath "/api-manager/leader-election-role.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
+        checksum/config: {{ $configChecksum }}
       labels:
         {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
-        {{- if .Values.podLabels }}
-          {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- if $apiManager.podLabels }}
+          {{- toYaml $apiManager.podLabels | nindent 8 }}
         {{- end }}
         app.kubernetes.io/component: {{ $component }}
     spec:
-      {{- if .Values.priorityClassName }}
-      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- if $apiManager.priorityClassName }}
+      priorityClassName: {{ $apiManager.priorityClassName | quote }}
       {{- end }}
-      {{- if .Values.terminationGracePeriodSeconds }}
-      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if $apiManager.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ $apiManager.terminationGracePeriodSeconds }}
       {{- end }}
-      {{- if .Values.affinity }}
-      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      {{- if $apiManager.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" $apiManager.affinity "context" $) | nindent 8 }}
       {{- else }}
       affinity:
-        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
-        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
-        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+        podAffinity: {{- include "common.affinities.pods" (dict "type" $apiManager.podAffinityPreset "component" $component "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" $apiManager.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" $apiManager.nodeAffinityPreset.type "key" $apiManager.nodeAffinityPreset.key "values" $apiManager.nodeAffinityPreset.values) | nindent 10 }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with $apiManager.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{ with .Values.tolerations }}
+      {{ with $apiManager.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.topologySpreadConstraints }}
+      {{- with $apiManager.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -75,68 +105,10 @@ spec:
         args:
         - api-manager
         - --release-name={{ .Release.Name }}
-        - --drain-policy={{ .Values.drainPolicy }}
-        - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
-        {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
-        {{- if .Values.oneClickDemoMode }}
-        - --one-click-demo-mode
-        {{- end }}
-        {{- if .Values.bindings.enabled }}
-        - --bindings-endpoint-selectors={{ join "," .Values.bindings.endpointSelectors }}
-        {{- if .Values.bindings.serviceAnnotations }}
-        - --bindings-service-annotations={{- $serviceAnnotations := list -}}
-          {{- range $key, $value := .Values.bindings.serviceAnnotations }}
-          {{- $serviceAnnotations = append $serviceAnnotations (printf "%s=%s" $key $value) -}}
-          {{- end }}
-          {{- $serviceAnnotations | join "," }}
-        {{- end }}
-        {{- if .Values.bindings.serviceLabels }}
-        - --bindings-service-labels={{- $serviceLabels := list -}}
-          {{- range $key, $value := .Values.bindings.serviceLabels }}
-          {{- $serviceLabels = append $serviceLabels (printf "%s=%s" $key $value) -}}
-          {{- end }}
-          {{- $serviceLabels | join "," }}
-        {{- end }}
-        - --bindings-ingress-endpoint={{ .Values.bindings.ingressEndpoint }}
-        {{- end }}
-        {{- if .Values.description }}
-        - {{ printf "--description=%s" .Values.description | quote }}
-        {{- end }}
-        {{- if .Values.region }}
-        - --region={{ .Values.region}}
-        {{- end }}
-        {{- if .Values.apiURL }}
-        - --api-url={{ .Values.apiURL}}
-        {{- end }}
-        {{- if .Values.rootCAs }}
-        - --root-cas={{ .Values.rootCAs}}
-        {{- end }}
-        {{- if .Values.serverAddr }}
-        - --server-addr={{ .Values.serverAddr}}
-        {{- end }}
-        {{- /* backwards compatibility for .metaData -> .ngrokMetadata */}}
-        {{- $ngrokMetadata := (.Values.metaData) | default .Values.ngrokMetadata }}
-        {{- if $ngrokMetadata }}
-        - --ngrokMetadata={{- $metadataArgs := list -}}
-          {{- range $key, $value := $ngrokMetadata }}
-          {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
-          {{- end }}
-          {{- $metadataArgs | join "," }}
-        {{- end }}
-        - --ingress-controller-name={{ .Values.controllerName | default .Values.ingress.controllerName }}
-        {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
-        - --ingress-watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
-        {{- end }}
-        - --zap-log-level={{ .Values.log.level }}
-        - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
-        - --zap-encoder={{ .Values.log.format }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id={{ include "ngrok-operator.fullname" . }}-leader
         - --manager-name={{ include "ngrok-operator.fullname" . }}-manager
-        {{- if .Values.clusterDomain }}
-        - --cluster-domain={{ .Values.clusterDomain }}
-        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -151,17 +123,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: {{ .Release.Name | quote }}
-        {{- range $key, $value := .Values.extraEnv }}
+        {{- include "ngrok-operator.configEnv" (dict "context" $ "component" "api-manager" "keys" $configEnvKeys) | trim | nindent 8 }}
+        {{- range $key, $value := $apiManager.extraEnv }}
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}
         {{- end }}
-        {{- if .Values.extraVolumeMounts  }}
+        {{- if $apiManager.extraVolumeMounts }}
         volumeMounts:
-        {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
+        {{- toYaml $apiManager.extraVolumeMounts | nindent 8 }}
         {{- end }}
-        {{- if .Values.lifecycle }}
+        {{- if $apiManager.lifecycle }}
         lifecycle:
-        {{ toYaml .Values.lifecycle | nindent 10 }}
+        {{ toYaml $apiManager.lifecycle | nindent 10 }}
         {{- end }}
         livenessProbe:
           httpGet:
@@ -176,8 +149,8 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
-        {{- toYaml .Values.resources | nindent 10 }}
-      {{- if .Values.extraVolumes }}
+        {{- toYaml $apiManager.resources | nindent 10 }}
+      {{- if $apiManager.extraVolumes }}
       volumes:
-        {{ toYaml .Values.extraVolumes | nindent 6 }}
+        {{- toYaml $apiManager.extraVolumes | nindent 6 }}
       {{- end }}

@@ -3,12 +3,87 @@ templates:
 - agent/deployment.yaml
 - agent/role.yaml
 set:
-  ingress:
-    enabled: true
+  features:
+    ingress:
+      enabled: true
 tests:
 - it: Should match snapshot
   asserts:
   - matchSnapshot: {}
+- it: Does not render when the ingress feature is disabled
+  set:
+    features.ingress.enabled: false
+  template: agent/deployment.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: Does not render in one-click demo mode
+  set:
+    apiManager.config.oneClickDemoMode: true
+  template: agent/deployment.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: Does not pass any --config args
+  template: agent/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].args
+      value:
+      - agent-manager
+      - --release-name=RELEASE-NAME
+      - --health-probe-bind-address=:8081
+      - --metrics-bind-address=:8080
+      - --manager-name=RELEASE-NAME-ngrok-operator-agent-manager
+- it: Injects config from the config ConfigMap via environment variables
+  template: agent/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_OPERATOR_LOG_LEVEL
+        valueFrom:
+          configMapKeyRef:
+            name: RELEASE-NAME-ngrok-operator-agent-config
+            key: log.level
+            optional: true
+- it: Does not mount any config files or volumes by default
+  template: agent/deployment.yaml
+  asserts:
+  - notExists:
+      path: spec.template.spec.containers[0].volumeMounts
+  - notExists:
+      path: spec.template.spec.volumes
+- it: Renders extra volumes and extra volume mounts alone
+  set:
+    agent:
+      extraVolumes:
+      - name: test-volume
+        emptyDir: {}
+      extraVolumeMounts:
+      - name: test-volume
+        mountPath: /test-volume
+  template: agent/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.volumes
+      value:
+      - name: test-volume
+        emptyDir: {}
+  - equal:
+      path: spec.template.spec.containers[0].volumeMounts
+      value:
+      - name: test-volume
+        mountPath: /test-volume
+- it: Sets a checksum annotation for the config
+  template: agent/deployment.yaml
+  asserts:
+  - isNotNullOrEmpty:
+      path: spec.template.metadata.annotations["checksum/config"]
+  - notExists:
+      path: spec.template.metadata.annotations["checksum/common-config"]
+  - notExists:
+      path: spec.template.metadata.annotations["checksum/component-config"]
 - it: Should set default agent.updateStrategy.type to RollingUpdate in values.yaml
   set:
     agent:
@@ -19,11 +94,12 @@ tests:
   - equal:
       path: spec.strategy.type
       value: RollingUpdate
-- it: Adds .Values.podLabels to the controller deployment podspec
+- it: Adds .Values.agent.podLabels to the agent deployment podspec
   set:
-    podLabels:
-      labelKey1: labelValue1
-      labelKey2: labelValue2
+    agent:
+      podLabels:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
   template: agent/deployment.yaml
   asserts:
   - isSubset:
@@ -31,11 +107,12 @@ tests:
       content:
         labelKey1: labelValue1
         labelKey2: labelValue2
-- it: Does not add .Values.podLabels to the controller deployment's selector
+- it: Does not add .Values.agent.podLabels to the agent deployment's selector
   set:
-    podLabels:
-      labelKey1: labelValue1
-      labelKey2: labelValue2
+    agent:
+      podLabels:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
   template: agent/deployment.yaml
   asserts:
   - isNotSubset:
@@ -115,28 +192,8 @@ tests:
   - equal:
       path: spec.template.spec.terminationGracePeriodSeconds
       value: 45
-- it: Should set the default domain reclaim policy arg
+- it: Uses agent.podAnnotations on the agent pods
   set:
-    defaultDomainReclaimPolicy: "Retain"
-  template: agent/deployment.yaml
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --default-domain-reclaim-policy=Retain
-- it: Falls back to global podAnnotations when agent.podAnnotations is not set
-  set:
-    podAnnotations:
-      global-annotation: global-value
-  template: agent/deployment.yaml
-  asserts:
-  - isSubset:
-      path: spec.template.metadata.annotations
-      content:
-        global-annotation: global-value
-- it: Uses agent.podAnnotations when set instead of global podAnnotations
-  set:
-    podAnnotations:
-      global-annotation: global-value
     agent:
       podAnnotations:
         agent-annotation: agent-value
@@ -146,10 +203,6 @@ tests:
       path: spec.template.metadata.annotations
       content:
         agent-annotation: agent-value
-  - isNotSubset:
-      path: spec.template.metadata.annotations
-      content:
-        global-annotation: global-value
 - it: Supports Datadog autodiscovery annotations on agent pods
   set:
     agent:
@@ -161,39 +214,3 @@ tests:
       path: spec.template.metadata.annotations
       content:
         ad.datadoghq.com/agent.logs: '[{"service":"ngrok-agent","source":"ngrok-agent"}]'
-- it: Should pass --watch-namespace flag when ingress.watchNamespace is set
-  set:
-    ingress:
-      watchNamespace: my-namespace
-  template: agent/deployment.yaml
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --watch-namespace=my-namespace
-- it: Should pass --watch-namespace flag when watchNamespace is set
-  set:
-    watchNamespace: my-namespace
-  template: agent/deployment.yaml
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --watch-namespace=my-namespace
-- it: Should prefer watchNamespace over ingress.watchNamespace
-  set:
-    watchNamespace: preferred-namespace
-    ingress:
-      watchNamespace: fallback-namespace
-  template: agent/deployment.yaml
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --watch-namespace=preferred-namespace
-- it: Should not include --watch-namespace flag when not set
-  set:
-    ingress:
-      watchNamespace: ""
-  template: agent/deployment.yaml
-  asserts:
-  - notContains:
-      path: spec.template.spec.containers[0].args
-      content: --watch-namespace=
