@@ -50,6 +50,7 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -211,7 +212,9 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	svc := &corev1.Service{}
 	if err := r.Client.Get(ctx, req.NamespacedName, svc); err != nil {
-		log.Error(err, "unable to fetch service")
+		if !apierrors.IsNotFound(err) {
+			log.Error(err, "unable to fetch service")
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
