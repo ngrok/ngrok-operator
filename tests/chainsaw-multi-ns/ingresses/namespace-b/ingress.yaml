@@ -6,7 +6,7 @@ metadata:
 spec:
   ingressClassName: ngrok-b
   rules:
-    - host: (join('', ['test-ngrok-operator-ingress-b', $ngrokDomainSuffix]))
+    - host: (join('', ['ing-test-b', $ngrokDomainSuffix]))
       http:
         paths:
           - path: /

@@ -23,9 +23,9 @@ spec:
           apiVersion: ingress.k8s.ngrok.com/v1alpha1
           kind: Domain
           metadata:
-            name: (join('', ['test-domain-labels', $ngrokDomainSuffixDashes]))
+            name: (join('', ['dom-labels', $ngrokDomainSuffixDashes]))
           spec:
-            domain: (join('', ['test-domain-labels', $ngrokDomainSuffix]))
+            domain: (join('', ['dom-labels', $ngrokDomainSuffix]))
 
   - name: create agent endpoint referencing the domain
     try:
@@ -40,7 +40,7 @@ spec:
           apiVersion: ingress.k8s.ngrok.com/v1alpha1
           kind: Domain
           metadata:
-            name: (join('', ['test-domain-labels', $ngrokDomainSuffixDashes]))
+            name: (join('', ['dom-labels', $ngrokDomainSuffixDashes]))
             labels:
               k8s.ngrok.com/controller-name: ngrok-operator-agent-manager
               k8s.ngrok.com/controller-namespace: ngrok-operator
@@ -50,7 +50,7 @@ spec:
     - script:
         timeout: 10s
         content: |
-          if kubectl get events -n $NAMESPACE --field-selector involvedObject.name=test-domain-labels,reason=UpdateError -o json | grep -q '"forbidden"'; then
+          if kubectl get events -n $NAMESPACE --field-selector involvedObject.name=dom-labels,reason=UpdateError -o json | grep -q '"forbidden"'; then
             echo "ERROR: Found forbidden UpdateError event on AgentEndpoint"
             exit 1
           fi

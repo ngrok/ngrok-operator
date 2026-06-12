@@ -3,7 +3,11 @@
 # Domain suffix used when reserving ngrok domains in chainsaw e2e tests.
 # Defaults to ngrok.app; override via CHAINSAW_NGROK_DOMAIN_SUFFIX in .envrc-user to use
 # a domain suffix your ngrok account owns, avoiding conflicts with CI or other developers.
+ifneq ($(CODESPACE_NAME),)
+CHAINSAW_NGROK_DOMAIN_SUFFIX ?= -$(CODESPACE_NAME).ngrok.app
+else
 CHAINSAW_NGROK_DOMAIN_SUFFIX ?= .ngrok.app
+endif
 # Same suffix with dots replaced by dashes — used as the Domain CRD name component.
 CHAINSAW_NGROK_DOMAIN_SUFFIX_DASHES := $(shell echo "$(CHAINSAW_NGROK_DOMAIN_SUFFIX)" | tr '.' '-')
 

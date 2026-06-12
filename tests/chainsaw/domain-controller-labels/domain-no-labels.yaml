@@ -1,6 +1,6 @@
 apiVersion: ingress.k8s.ngrok.com/v1alpha1
 kind: Domain
 metadata:
-  name: (join('', ['test-domain-labels', $ngrokDomainSuffixDashes]))
+  name: (join('', ['dom-labels', $ngrokDomainSuffixDashes]))
 spec:
-  domain: (join('', ['test-domain-labels', $ngrokDomainSuffix]))
+  domain: (join('', ['dom-labels', $ngrokDomainSuffix]))

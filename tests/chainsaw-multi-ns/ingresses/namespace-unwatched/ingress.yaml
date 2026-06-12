@@ -7,7 +7,7 @@ spec:
   # Use ngrok-a class - but since it watches namespace-a, it should NOT reconcile this
   ingressClassName: ngrok-a
   rules:
-    - host: test-ngrok-operator-ingress-unwatched.ngrok.app
+    - host: ing-test-unwatched.ngrok.app
       http:
         paths:
           - path: /

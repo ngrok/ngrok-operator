@@ -1,8 +1,8 @@
 apiVersion: ngrok.k8s.ngrok.com/v1alpha1
 kind: AgentEndpoint
 metadata:
-  name: test-domain-labels
+  name: dom-labels
 spec:
-  url: (join('', ['https://test-domain-labels', $ngrokDomainSuffix]))
+  url: (join('', ['https://dom-labels', $ngrokDomainSuffix]))
   upstream:
     url: "http://nginx.default:80"
