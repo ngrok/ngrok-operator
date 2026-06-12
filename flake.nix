@@ -105,7 +105,7 @@
               })
               kyverno-chainsaw
               ngrok
-              nixfmt-rfc-style
+              nixfmt
               setup-envtest
               tilt
               yq
