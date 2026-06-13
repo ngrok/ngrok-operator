@@ -27,6 +27,8 @@ jobs:
       make: ${{ steps.changes.outputs.make }}
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - uses: "./.github/actions/changes"
       id: changes
 
@@ -49,6 +51,8 @@ jobs:
       (needs.changes.outputs.make == 'true')
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - uses: ./.github/actions/nix-setup
     - name: Generate manifest bundle
       run: make manifest-bundle
@@ -65,6 +69,8 @@ jobs:
     timeout-minutes: 15
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - name: Set up QEMU
       uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
     - id: buildx-setup
@@ -104,6 +110,8 @@ jobs:
       pull-requests: read
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - name: Setup Nix
       uses: ./.github/actions/nix-setup
     - uses: "./.github/actions/build-and-test"
@@ -120,6 +128,8 @@ jobs:
     if: needs.changes.outputs.charts == 'true'
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - name: Setup Nix
       uses: ./.github/actions/nix-setup
     - name: Lint Helm Chart
@@ -156,6 +166,8 @@ jobs:
       )
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - name: Setup Nix
       uses: ./.github/actions/nix-setup
     - uses: "./.github/actions/build-and-test"
@@ -190,6 +202,8 @@ jobs:
       )
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - name: Setup Nix
       uses: ./.github/actions/nix-setup
     - name: Create Kind Cluster
@@ -237,6 +251,8 @@ jobs:
       )
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - name: Setup Nix
       uses: ./.github/actions/nix-setup
     - name: Create Kind Cluster

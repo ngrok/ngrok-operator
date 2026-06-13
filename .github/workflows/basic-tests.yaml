@@ -25,6 +25,8 @@ jobs:
     if: ${{ inputs.go-changed || inputs.make-changed }}
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - uses: ./.github/actions/nix-setup
     - name: Generate manifests
       run: make manifests
@@ -40,6 +42,8 @@ jobs:
     if: ${{ inputs.go-changed || inputs.make-changed }}
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - uses: ./.github/actions/nix-setup
     - name: Lint
       run: make lint
@@ -50,6 +54,8 @@ jobs:
     if: ${{ inputs.go-changed }}
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - uses: ./.github/actions/nix-setup
     - run: go mod tidy
     - run: git diff --exit-code go.mod
@@ -63,6 +69,8 @@ jobs:
       contents: read
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - uses: ./.github/actions/nix-setup
     - name: Run go fix
       run: make go-fix
@@ -75,6 +83,8 @@ jobs:
     if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      with:
+        persist-credentials: false
     - uses: ./.github/actions/nix-setup
     - name: Run unit tests
       run: make test
