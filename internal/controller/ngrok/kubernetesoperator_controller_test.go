@@ -19,7 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // TestCalculateFeaturesEnabled is a pure unit test for the calculateFeaturesEnabled function.
@@ -314,7 +313,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		}
 		Expect(err).NotTo(HaveOccurred())
 
-		if controllerutil.RemoveFinalizer(ko, util.FinalizerName) {
+		if util.RemoveFinalizer(ko) {
 			Expect(k8sClient.Update(ctx, ko)).To(Succeed())
 		}
 		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ko))).To(Succeed())
@@ -352,7 +351,8 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		Expect(k8sClient.Create(ctx, ko)).To(Succeed())
 
 		By("Expecting the finalizer to be added")
-		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.FinalizerName, testutils.WithTimeout(timeout))
+		// R1: AddFinalizer writes the legacy key. Flip to util.FinalizerName in R2.
+		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.LegacyFinalizerName, testutils.WithTimeout(timeout))
 
 		By("Expecting registration to succeed")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
@@ -381,7 +381,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		Expect(k8sClient.Create(ctx, ko)).To(Succeed())
 
 		By("Expecting the finalizer to be added (controller ran without panic)")
-		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.FinalizerName, testutils.WithTimeout(timeout))
+		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.LegacyFinalizerName, testutils.WithTimeout(timeout))
 
 		By("Expecting the status to reflect a pending state (not registered)")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
@@ -412,7 +412,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		Expect(k8sClient.Create(ctx, ko)).To(Succeed())
 
 		By("Expecting the finalizer to be added")
-		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.FinalizerName, testutils.WithTimeout(timeout))
+		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.LegacyFinalizerName, testutils.WithTimeout(timeout))
 
 		By("Expecting registration to succeed even with nil Deployment")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {

@@ -12,6 +12,45 @@ that implement these transitions, see
 
 ## Migrations
 
+### Finalizer prefix: `k8s.ngrok.com/finalizer` → `ngrok.com/finalizer`
+
+Status: in progress across 0.24 → 0.25 → 0.26.
+
+The operator finalizer is being renamed to align with the broader
+`k8s.ngrok.com/` → `ngrok.com/` prefix unification. Because finalizers gate
+object deletion, this migration uses a three-release pattern: the operator
+single-writes one key at any given time, and only the *identity* of that
+key changes between releases.
+
+#### What changes for you
+
+| Legacy                      | New                    |
+| --------------------------- | ---------------------- |
+| `k8s.ngrok.com/finalizer`   | `ngrok.com/finalizer`  |
+
+The finalizer key is internal to the operator and not something most users
+select on. If your external tooling (dashboards, GitOps validators, custom
+admission policies) looks for the finalizer literal, plan to update those
+selectors before the cleanup release.
+
+#### Action required, by release
+
+| Release | Reads | Operator writes | What you do |
+| ------- | ----- | --------------- | ----------- |
+| 0.24 (this) | Both prefixes | Legacy finalizer only | Nothing. |
+| 0.25 | Both prefixes | New finalizer; legacy stripped on next reconcile | Nothing required; if external tooling matches the literal, update it now. |
+| 0.26 | New prefix only | New finalizer only | Confirm no external tooling still references the legacy finalizer. |
+
+#### Supported upgrade path
+
+`previous-stable → 0.24 → 0.25 → 0.26`. The intermediate 0.24 step is
+required for finalizers specifically: a direct jump to 0.25 leaves
+in-flight deletions on objects an older operator stamped with the legacy
+finalizer at the mercy of a rollback. 0.24 is the rollback-safe checkpoint
+where every object carries the legacy finalizer and either release can
+drive a deletion to completion. See the developer guide for the full
+rationale.
+
 ### IngressClass `spec.controller`: `k8s.ngrok.com/ingress-controller` → `ngrok.com/ingress-controller`
 
 Status: in progress across 0.24 → 0.25.
