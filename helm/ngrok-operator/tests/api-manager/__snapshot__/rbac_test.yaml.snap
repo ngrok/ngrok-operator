@@ -70,6 +70,17 @@ should match snapshot in default mode:
           - update
           - watch
       - apiGroups:
+          - apps
+        resources:
+          - deployments
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - update
+          - watch
+      - apiGroups:
           - networking.k8s.io
         resources:
           - ingresses
@@ -469,6 +480,17 @@ should match snapshot in namespaced mode:
           - get
           - list
           - patch
+          - update
+          - watch
+      - apiGroups:
+          - apps
+        resources:
+          - deployments
+        verbs:
+          - create
+          - delete
+          - get
+          - list
           - update
           - watch
       - apiGroups:

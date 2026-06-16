@@ -1630,7 +1630,7 @@ metadata:
   name: ngrok-operator-agent-role
 rules:
 - apiGroups:
-  - ""
+  - events.k8s.io
   resources:
   - events
   verbs:
@@ -1846,6 +1846,18 @@ rules:
   - get
   - list
   - patch
+  - update
+  - watch
+# --- apps ---
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
   - update
   - watch
 # --- networking.k8s.io ---
@@ -2840,7 +2852,7 @@ metadata:
   name: ngrok-operator-agent
   namespace: ngrok-operator
   annotations:
-    checksum/rbac: 73ae2719b31e64e50841b665bdd7334f4c809be84fa8e759f6b2ae62eae98092
+    checksum/rbac: 94a5b9322963456c76c5133107d6b56a4cfba3f1978828a660c5c2b6b9721334
 spec:
   replicas: 1
   strategy:
@@ -2856,7 +2868,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/rbac: 73ae2719b31e64e50841b665bdd7334f4c809be84fa8e759f6b2ae62eae98092
+        checksum/rbac: 94a5b9322963456c76c5133107d6b56a4cfba3f1978828a660c5c2b6b9721334
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator
@@ -2945,7 +2957,7 @@ metadata:
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: f40b5f0c128c0618a357d8547b09cbdb40218194f924dbab8e402e98c8d87de7
+    checksum/controller-role: e2223f30caae609b02d553c1b6739b439496caafd56472cd917e1ae3c90f24c3
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -2960,7 +2972,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: f40b5f0c128c0618a357d8547b09cbdb40218194f924dbab8e402e98c8d87de7
+        checksum/controller-role: e2223f30caae609b02d553c1b6739b439496caafd56472cd917e1ae3c90f24c3
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
@@ -3001,6 +3013,7 @@ spec:
         - --enable-feature-gateway=true
         - --disable-reference-grants=false
         - "--description=The official ngrok Kubernetes Operator."
+        - --compute-metadata={}
         - --ingress-controller-name=k8s.ngrok.com/ingress-controller
         - --zap-log-level=info
         - --zap-stacktrace-level=error
