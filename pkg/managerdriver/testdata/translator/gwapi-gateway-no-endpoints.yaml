@@ -76,7 +76,9 @@ expected:
       namespace: default
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-namespace: test-manager-namespace
         label-key: label-val
       annotations:
         annotation-key: annotation-val

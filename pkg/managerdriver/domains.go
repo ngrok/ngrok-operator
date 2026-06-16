@@ -96,7 +96,6 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      desiredDomain.Name,
 					Namespace: desiredDomain.Namespace,
-					Labels:    d.controllerLabels.Labels(),
 				},
 			}
 
@@ -106,6 +105,14 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 				if domain.CreationTimestamp.IsZero() && d.defaultDomainReclaimPolicy != nil {
 					domain.Spec.ReclaimPolicy = *d.defaultDomainReclaimPolicy
 				}
+				// Set controller labels inside the mutate so the call covers both
+				// create and patch: CreateOrPatch's Get overwrites anything set on
+				// the object beforehand, so an ObjectMeta initializer would only
+				// survive on create and existing Domains would never get their
+				// label pairs backfilled. Keeps this path consistent with
+				// internal/domain/manager.go::ensureControllerLabels.
+				// LEGACY-PREFIX-MIGRATION: EnsureLabels dual-writes the legacy pair.
+				d.controllerLabels.EnsureLabels(domain)
 				return nil
 			})
 
