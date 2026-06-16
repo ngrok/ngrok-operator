@@ -35,7 +35,7 @@ should match snapshot in default mode:
       name: RELEASE-NAME-ngrok-operator-agent-role
     rules:
       - apiGroups:
-          - ""
+          - events.k8s.io
         resources:
           - events
         verbs:
@@ -153,7 +153,7 @@ should match snapshot in namespaced mode:
       namespace: test-ns
     rules:
       - apiGroups:
-          - ""
+          - events.k8s.io
         resources:
           - events
         verbs:
