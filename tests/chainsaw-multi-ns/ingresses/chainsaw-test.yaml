@@ -7,6 +7,9 @@ spec:
   description: |
     Tests that operators only reconcile Ingresses in their configured watchNamespace.
     Ingresses in unwatched namespaces should NOT be reconciled.
+  bindings:
+    - name: ngrokDomainSuffix
+      value: (env('CHAINSAW_NGROK_DOMAIN_SUFFIX'))
   steps:
   - name: create resources in namespace-a
     try:
@@ -41,8 +44,8 @@ spec:
           status:
             # At least one ingress object with a hostname (null-safe; no [0] until it exists)
             "(length(to_array(loadBalancer.ingress)[?hostname]) > `0`)": true
-            # At least one hostname matches "test-ngrok-operator-ingress-a.ngrok.app"
-            "(length(to_array(loadBalancer.ingress)[? hostname && regex_match('^test-ngrok-operator-ingress-a\\.ngrok\\.app$', hostname)]) > `0`)": true
+            # Hostname starts with the test-specific prefix (suffix is user-controlled via CHAINSAW_NGROK_DOMAIN_SUFFIX)
+            "(length(to_array(loadBalancer.ingress)[? hostname && starts_with(hostname, 'ing-test-a')]) > `0`)": true
 
   - name: verify ingress in namespace-b gets created
     try:
@@ -56,8 +59,8 @@ spec:
           status:
             # At least one ingress object with a hostname (null-safe; no [0] until it exists)
             "(length(to_array(loadBalancer.ingress)[?hostname]) > `0`)": true
-            # At least one hostname matches "test-ngrok-operator-ingress-b.ngrok.app"
-            "(length(to_array(loadBalancer.ingress)[? hostname && regex_match('^test-ngrok-operator-ingress-b\\.ngrok\\.app$', hostname)]) > `0`)": true
+            # Hostname starts with the test-specific prefix (suffix is user-controlled via CHAINSAW_NGROK_DOMAIN_SUFFIX)
+            "(length(to_array(loadBalancer.ingress)[? hostname && starts_with(hostname, 'ing-test-b')]) > `0`)": true
 
   - name: verify ingress in unwatched namespace is NOT reconciled
     description: |

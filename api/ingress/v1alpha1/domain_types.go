@@ -169,10 +169,6 @@ type DomainList struct {
 	Items           []Domain `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&Domain{}, &DomainList{})
-}
-
 var domainNameForResourceNameReplacer = strings.NewReplacer(
 	".", "-", // replace dots with dashes
 	"*", "wildcard", // replace wildcard with the literal "wildcard"

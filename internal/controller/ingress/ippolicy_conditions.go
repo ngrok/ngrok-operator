@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 )
 
 const (
@@ -24,56 +25,17 @@ const (
 
 // setIPPolicyReadyCondition sets the Ready condition based on the overall IP policy state
 func setIPPolicyReadyCondition(ipPolicy *ingressv1alpha1.IPPolicy, ready bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !ready {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionIPPolicyReady,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: ipPolicy.Generation,
-	}
-
-	meta.SetStatusCondition(&ipPolicy.Status.Conditions, condition)
+	conditions.Set(&ipPolicy.Status.Conditions, ipPolicy.Generation, ConditionIPPolicyReady, ready, reason, message)
 }
 
 // setIPPolicyCreatedCondition sets the IPPolicyCreated condition
 func setIPPolicyCreatedCondition(ipPolicy *ingressv1alpha1.IPPolicy, created bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !created {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionIPPolicyCreated,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: ipPolicy.Generation,
-	}
-
-	meta.SetStatusCondition(&ipPolicy.Status.Conditions, condition)
+	conditions.Set(&ipPolicy.Status.Conditions, ipPolicy.Generation, ConditionIPPolicyCreated, created, reason, message)
 }
 
 // setIPPolicyRulesConfiguredCondition sets the RulesConfigured condition
 func setIPPolicyRulesConfiguredCondition(ipPolicy *ingressv1alpha1.IPPolicy, configured bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !configured {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionIPPolicyRulesConfigured,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: ipPolicy.Generation,
-	}
-
-	meta.SetStatusCondition(&ipPolicy.Status.Conditions, condition)
+	conditions.Set(&ipPolicy.Status.Conditions, ipPolicy.Generation, ConditionIPPolicyRulesConfigured, configured, reason, message)
 }
 
 // sets the Ready condition based on the other conditions

@@ -14,18 +14,15 @@ inputs:
     description: "NGROK_AUTHTOKEN for e2e tests, if enabled"
     required: false
     default: "fake-authtoken"
-  kind-version:
-    description: "KIND version to use"
-    required: false
-    default: "v0.30.0"
 
 runs:
   using: "composite"
   steps:
-    - uses: engineerd/setup-kind@v0.6.2
-      with:
-        version: ${{ inputs.kind-version }}
-        name: ngrok-operator
+    # kind is provided by the nix devShell (see .github/actions/nix-setup),
+    # so we create the cluster directly instead of installing kind separately.
+    - name: Create Kind Cluster
+      shell: bash
+      run: make kind-create
 
     - shell: bash
       run: |

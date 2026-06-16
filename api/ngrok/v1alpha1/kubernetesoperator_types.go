@@ -203,7 +203,3 @@ func (ko *KubernetesOperator) GetDrainPolicy() DrainPolicy {
 	}
 	return DrainPolicyRetain
 }
-
-func init() {
-	SchemeBuilder.Register(&KubernetesOperator{}, &KubernetesOperatorList{})
-}
