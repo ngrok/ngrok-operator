@@ -7,7 +7,7 @@ Should match snapshot:
       namespace: NAMESPACE
     rules:
       - apiGroups:
-          - ""
+          - events.k8s.io
         resources:
           - events
         verbs:

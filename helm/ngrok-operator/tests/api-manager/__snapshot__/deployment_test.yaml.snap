@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 18de8d67bbc1881a800608b62cea791017495436ba47c64ee35572a56aa1c77f
+        checksum/controller-role: c8c758f8bfbc5b6ef929c49facd17bdc901f732f76529300a3ea8bbb86e3aba9
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 18de8d67bbc1881a800608b62cea791017495436ba47c64ee35572a56aa1c77f
+            checksum/controller-role: c8c758f8bfbc5b6ef929c49facd17bdc901f732f76529300a3ea8bbb86e3aba9
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -60,6 +60,7 @@ Should match all-options snapshot:
                 - --enable-feature-gateway=true
                 - --disable-reference-grants=false
                 - --description=The official ngrok Kubernetes Operator.
+                - --compute-metadata={}
                 - --ingress-controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
@@ -238,6 +239,17 @@ Should match all-options snapshot:
           - get
           - list
           - patch
+          - update
+          - watch
+      - apiGroups:
+          - apps
+        resources:
+          - deployments
+        verbs:
+          - create
+          - delete
+          - get
+          - list
           - update
           - watch
       - apiGroups:
@@ -563,7 +575,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 18de8d67bbc1881a800608b62cea791017495436ba47c64ee35572a56aa1c77f
+        checksum/controller-role: c8c758f8bfbc5b6ef929c49facd17bdc901f732f76529300a3ea8bbb86e3aba9
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -585,7 +597,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 18de8d67bbc1881a800608b62cea791017495436ba47c64ee35572a56aa1c77f
+            checksum/controller-role: c8c758f8bfbc5b6ef929c49facd17bdc901f732f76529300a3ea8bbb86e3aba9
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -619,6 +631,7 @@ Should match default snapshot:
                 - --enable-feature-gateway=true
                 - --disable-reference-grants=false
                 - --description=The official ngrok Kubernetes Operator.
+                - --compute-metadata={}
                 - --ingress-controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
@@ -784,6 +797,17 @@ Should match default snapshot:
           - get
           - list
           - patch
+          - update
+          - watch
+      - apiGroups:
+          - apps
+        resources:
+          - deployments
+        verbs:
+          - create
+          - delete
+          - get
+          - list
           - update
           - watch
       - apiGroups:
