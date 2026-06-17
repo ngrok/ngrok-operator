@@ -27,6 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
+            checksum/config: 1db17cdc2d8ae3daeebd531a929e1267013db59fc829453ebe75792c42f598d1
             checksum/rbac: 2b5a37e7ad063bb138ca1acc4a11ca0da8991d66311c333da4b2bba7584535fe
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -53,10 +54,6 @@ Should match snapshot:
             - args:
                 - bindings-forwarder-manager
                 - --release-name=RELEASE-NAME
-                - --description=The official ngrok Kubernetes Operator.
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --manager-name=RELEASE-NAME-ngrok-operator-bindings-forwarder
@@ -74,6 +71,30 @@ Should match snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: NGROK_OPERATOR_DESCRIPTION
+                  valueFrom:
+                    configMapKeyRef:
+                      key: description
+                      name: RELEASE-NAME-ngrok-operator-bindings-forwarder-config
+                      optional: true
+                - name: NGROK_OPERATOR_LOG_LEVEL
+                  valueFrom:
+                    configMapKeyRef:
+                      key: log.level
+                      name: RELEASE-NAME-ngrok-operator-bindings-forwarder-config
+                      optional: true
+                - name: NGROK_OPERATOR_LOG_FORMAT
+                  valueFrom:
+                    configMapKeyRef:
+                      key: log.format
+                      name: RELEASE-NAME-ngrok-operator-bindings-forwarder-config
+                      optional: true
+                - name: NGROK_OPERATOR_LOG_STACKTRACE_LEVEL
+                  valueFrom:
+                    configMapKeyRef:
+                      key: log.stacktraceLevel
+                      name: RELEASE-NAME-ngrok-operator-bindings-forwarder-config
+                      optional: true
               image: docker.io/ngrok/ngrok-operator:0.21.0
               imagePullPolicy: IfNotPresent
               livenessProbe:

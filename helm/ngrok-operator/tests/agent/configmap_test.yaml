@@ -1,0 +1,41 @@
+suite: test agent configmap
+templates:
+- agent/configmap.yaml
+tests:
+- it: Does not render when the ingress feature is disabled
+  set:
+    features.ingress.enabled: false
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: Does not render in one-click demo mode
+  set:
+    apiManager.config.oneClickDemoMode: true
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: Renders a configmap with one data key per config entry
+  asserts:
+  - isKind:
+      of: ConfigMap
+  - hasDocuments:
+      count: 1
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-agent-config
+  - equal:
+      path: data["log.level"]
+      value: "info"
+  - equal:
+      path: data["features.ingress.enabled"]
+      value: "true"
+  - notExists:
+      path: data["oneClickDemoMode"]
+- it: Merges agent config entries over the shared config
+  set:
+    agent.config:
+      log.level: debug
+  asserts:
+  - equal:
+      path: data["log.level"]
+      value: "debug"

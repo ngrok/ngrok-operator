@@ -9,13 +9,13 @@
 #   - Each operator watches a DIFFERENT namespace (watchNamespace)
 #   - Each operator uses a DIFFERENT ingress class (optional, but recommended)
 
-drainPolicy: Retain
 installCRDs: false
 
-# REQUIRED for multi-operator: Each operator MUST watch only its own namespace
-watchNamespace: namespace-a
-
-ingress:
-  controllerName: k8s.ngrok.com/ingress-controller-a
-  ingressClass:
-    name: ngrok-a
+features:
+  drainPolicy: Retain
+  ingress:
+    # REQUIRED for multi-operator: Each operator MUST watch only its own namespace
+    watchNamespace: namespace-a
+    controllerName: k8s.ngrok.com/ingress-controller-a
+    ingressClass:
+      name: ngrok-a

@@ -1,11 +1,13 @@
 # Scenario: multi-ns-delete-policy - Operator B
 # Namespace-scoped operator watching namespace-b only
 
-drainPolicy: Delete
 installCRDs: false
-watchNamespace: namespace-b
 
-ingress:
-  controllerName: k8s.ngrok.com/ingress-controller-b
-  ingressClass:
-    name: ngrok-b
+features:
+  drainPolicy: Delete
+  ingress:
+    # REQUIRED for multi-operator: Each operator MUST watch only its own namespace
+    watchNamespace: namespace-b
+    controllerName: k8s.ngrok.com/ingress-controller-b
+    ingressClass:
+      name: ngrok-b

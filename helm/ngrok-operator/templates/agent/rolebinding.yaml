@@ -1,10 +1,14 @@
-{{- if .Values.ingress.enabled }}
+{{- if .Values.features.ingress.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 {{- if (include "ngrok-operator.isNamespaced" .) }}
 kind: RoleBinding
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-agent-rolebinding
   namespace: {{ include "ngrok-operator.watchNamespace" . }}
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -13,6 +17,10 @@ roleRef:
 kind: ClusterRoleBinding
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-agent-rolebinding
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
