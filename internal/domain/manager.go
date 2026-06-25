@@ -207,23 +207,15 @@ func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, d
 		return nil
 	}
 
-	l := domainObj.GetLabels()
-	_, hasControllerNameLabel := l[labels.ControllerName]
-	_, hasControllerNamespaceLabel := l[labels.ControllerNamespace]
-	// LEGACY-PREFIX-MIGRATION: BEGIN
-	// During the migration window we dual-write both the new and legacy label
-	// pairs, so the early-return must also require the legacy pair to be
-	// present — otherwise an object stamped under only the new prefix never
-	// gets the legacy pair backfilled. The read-side cleanup drops the
-	// legacy-pair check; the early-return then collapses back to
-	//   if hasControllerNameLabel && hasControllerNamespaceLabel { return nil }
-	_, hasLegacyName := l[labels.LegacyControllerName]
-	_, hasLegacyNamespace := l[labels.LegacyControllerNamespace]
-
-	if hasControllerNameLabel && hasControllerNamespaceLabel && hasLegacyName && hasLegacyNamespace {
+	// Clone-and-probe: EnsureLabels reports whether it would change anything.
+	// Running it against a copy tells us whether every label the operator wants
+	// (during the migration window, both the new and legacy pairs) is already
+	// present with the correct value, without mutating domainObj. When
+	// EnsureLabels later stops dual-writing the legacy pair, this probe collapses
+	// along with it — there is no migration-specific code to clean up here.
+	if !m.controllerLabels.EnsureLabels(domainObj.DeepCopy()) {
 		return nil
 	}
-	// LEGACY-PREFIX-MIGRATION: END
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		// Re-fetch the domain to get the latest version
