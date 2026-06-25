@@ -360,7 +360,7 @@ func (r *CloudEndpointReconciler) normalizeLegacyTrafficPolicy(clep *ngrokv1alph
 					"spec.trafficPolicyName is deprecated; use spec.trafficPolicy.targetRef.name instead")
 			}
 			clep.Spec.TrafficPolicy = &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-				Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+				Reference: &ngrokv1alpha1.K8sObjectRef{
 					Name: clep.Spec.TrafficPolicyName, //nolint:staticcheck // see above
 				},
 			}

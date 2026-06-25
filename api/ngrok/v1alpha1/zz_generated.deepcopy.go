@@ -283,8 +283,8 @@ func (in *CloudEndpointTrafficPolicyCfg) DeepCopyInto(out *CloudEndpointTrafficP
 	}
 	if in.Reference != nil {
 		in, out := &in.Reference, &out.Reference
-		*out = new(K8sObjectRefOptionalNamespace)
-		(*in).DeepCopyInto(*out)
+		*out = new(K8sObjectRef)
+		**out = **in
 	}
 	if in.Policy != nil {
 		in, out := &in.Policy, &out.Policy
@@ -678,8 +678,8 @@ func (in *TrafficPolicyCfg) DeepCopyInto(out *TrafficPolicyCfg) {
 	}
 	if in.Reference != nil {
 		in, out := &in.Reference, &out.Reference
-		*out = new(K8sObjectRefOptionalNamespace)
-		(*in).DeepCopyInto(*out)
+		*out = new(K8sObjectRef)
+		**out = **in
 	}
 }
 

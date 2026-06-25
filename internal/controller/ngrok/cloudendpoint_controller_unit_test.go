@@ -190,31 +190,16 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "canonical targetRef indexes namespace/name",
+			name: "canonical targetRef indexes namespace/name in the endpoint's namespace",
 			clep: &ngrokv1alpha1.CloudEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "policy"},
+						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy"},
 					},
 				},
 			},
 			want: []string{"ns/policy"},
-		},
-		{
-			name: "canonical targetRef with cross-namespace indexes other namespace",
-			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
-				Spec: ngrokv1alpha1.CloudEndpointSpec{
-					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-							Name:      "policy",
-							Namespace: new("other"),
-						},
-					},
-				},
-			},
-			want: []string{"other/policy"},
 		},
 		{
 			name: "canonical inline returns nil (no external ref to watch)",
@@ -261,7 +246,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicyName: "legacy-ignored", //nolint:staticcheck // test of deprecated field
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "canonical"},
+						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "canonical"},
 					},
 				},
 			},

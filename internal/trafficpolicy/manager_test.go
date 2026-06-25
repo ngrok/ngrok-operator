@@ -141,7 +141,7 @@ func TestResolve_TargetRef_SameNamespace(t *testing.T) {
 	m, _ := newTestManager(t, policy)
 
 	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
-		Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "my-policy"},
+		Reference: &ngrokv1alpha1.K8sObjectRef{Name: "my-policy"},
 	})
 
 	res, err := m.Resolve(context.Background(), ep)
@@ -154,48 +154,28 @@ func TestResolve_TargetRef_SameNamespace(t *testing.T) {
 	assert.Nil(t, findCondition(ep.Status.Conditions, ConditionTrafficPolicy))
 }
 
-func TestResolve_TargetRef_CrossNamespace_SourceUsesNamespace(t *testing.T) {
-	policy := newPolicy("shared", "policies", `{"on_http_request":[{"name":"shared-rule"}]}`)
-	m, _ := newTestManager(t, policy)
+func TestResolve_TargetRef_ResolvesInEndpointNamespace(t *testing.T) {
+	// A TrafficPolicy with the same name in a different namespace must NOT be
+	// resolved — the ref always resolves in the endpoint's own namespace.
+	otherNs := newPolicy("shared", "policies", `{"on_http_request":[{"name":"other-ns"}]}`)
+	m, _ := newTestManager(t, otherNs)
 
 	ep := newAgentEndpoint("apps", &ngrokv1alpha1.TrafficPolicyCfg{
-		Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-			Name:      "shared",
-			Namespace: new("policies"),
-		},
+		Reference: &ngrokv1alpha1.K8sObjectRef{Name: "shared"},
 	})
 
 	res, err := m.Resolve(context.Background(), ep)
 
-	require.NoError(t, err)
-	assert.Contains(t, res.Policy, "shared-rule")
-	// Cross-namespace refs report "namespace/name" so status is unambiguous.
-	assert.Equal(t, "policies/shared", res.Source)
-}
-
-func TestResolve_TargetRef_EmptyStringNamespace_DefaultsToEndpoint(t *testing.T) {
-	policy := newPolicy("local", "apps", `{}`)
-	m, _ := newTestManager(t, policy)
-
-	ep := newAgentEndpoint("apps", &ngrokv1alpha1.TrafficPolicyCfg{
-		Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-			Name:      "local",
-			Namespace: new(""), // explicit empty string must default like nil
-		},
-	})
-
-	res, err := m.Resolve(context.Background(), ep)
-
-	require.NoError(t, err)
-	// Source is the bare name, not "/local" — empty-string namespace
-	// defaults to the endpoint's own namespace.
-	assert.Equal(t, "local", res.Source)
+	// The policy only exists in "policies"; resolving in "apps" must miss.
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrTrafficPolicyNotFound)
+	assert.Nil(t, res)
 }
 
 func TestResolve_TargetRef_Missing_SetsErrorCondition(t *testing.T) {
 	m, rec := newTestManager(t)
 	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
-		Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "missing"},
+		Reference: &ngrokv1alpha1.K8sObjectRef{Name: "missing"},
 	})
 
 	res, err := m.Resolve(context.Background(), ep)
@@ -228,7 +208,7 @@ func TestResolve_TargetRef_GetError_IsRetryable(t *testing.T) {
 	m.Client = errClient{Client: m.Client, err: errors.NewServiceUnavailable("apiserver down")}
 
 	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
-		Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "whatever"},
+		Reference: &ngrokv1alpha1.K8sObjectRef{Name: "whatever"},
 	})
 
 	res, err := m.Resolve(context.Background(), ep)
@@ -263,7 +243,7 @@ func TestResolve_InvalidUnion_SetsErrorCondition(t *testing.T) {
 	m, _ := newTestManager(t)
 	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
 		Inline:    json.RawMessage(`{}`),
-		Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "x"},
+		Reference: &ngrokv1alpha1.K8sObjectRef{Name: "x"},
 	})
 
 	res, err := m.Resolve(context.Background(), ep)
@@ -328,40 +308,20 @@ func TestSetError_FlipsConditionToFalse(t *testing.T) {
 func TestIntendedSource(t *testing.T) {
 	cases := []struct {
 		name       string
-		defaultNs  string
 		cfg        *ngrokv1alpha1.TrafficPolicyCfg
 		wantSource string
 	}{
-		{name: "nil cfg", defaultNs: "apps", cfg: nil, wantSource: SourceNone},
-		{name: "inline", defaultNs: "apps", cfg: &ngrokv1alpha1.TrafficPolicyCfg{Inline: json.RawMessage(`{}`)}, wantSource: SourceInline},
+		{name: "nil cfg", cfg: nil, wantSource: SourceNone},
+		{name: "inline", cfg: &ngrokv1alpha1.TrafficPolicyCfg{Inline: json.RawMessage(`{}`)}, wantSource: SourceInline},
 		{
-			name:       "ref no namespace",
-			defaultNs:  "apps",
-			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p"}},
+			name:       "ref",
+			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRef{Name: "p"}},
 			wantSource: "p",
-		},
-		{
-			name:       "ref empty-string namespace defaults to endpoint",
-			defaultNs:  "apps",
-			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p", Namespace: new("")}},
-			wantSource: "p",
-		},
-		{
-			name:       "ref same namespace",
-			defaultNs:  "apps",
-			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p", Namespace: new("apps")}},
-			wantSource: "p",
-		},
-		{
-			name:       "ref cross namespace",
-			defaultNs:  "apps",
-			cfg:        &ngrokv1alpha1.TrafficPolicyCfg{Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "p", Namespace: new("policies")}},
-			wantSource: "policies/p",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.wantSource, IntendedSource(tc.defaultNs, tc.cfg))
+			assert.Equal(t, tc.wantSource, IntendedSource(tc.cfg))
 		})
 	}
 }

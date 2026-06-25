@@ -250,7 +250,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://new-shape.internal",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						Reference: &ngrokv1alpha1.K8sObjectRef{
 							Name: "new-shape-policy",
 						},
 					},
@@ -267,55 +267,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				tpCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionTrafficPolicy)
 				g.Expect(tpCond).NotTo(BeNil())
 				g.Expect(tpCond.Status).To(Equal(metav1.ConditionTrue))
-			}, timeout, interval).Should(Succeed())
-		})
-
-		It("should resolve cross-namespace trafficPolicy.targetRef", func(ctx SpecContext) {
-			// Create a separate namespace for the shared TrafficPolicy.
-			sharedNs := "shared-" + rand.String(8)
-			Expect(k8sClient.Create(ctx, &v1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{Name: sharedNs},
-			})).To(Succeed())
-			defer func() {
-				_ = k8sClient.Delete(context.Background(), &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: sharedNs}})
-			}()
-
-			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "shared-policy",
-					Namespace: sharedNs,
-				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
-					Policy: []byte(`{"on_http_request":[{"name":"shared-rule"}]}`),
-				},
-			}
-			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
-
-			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "xns-endpoint",
-					Namespace: namespace,
-				},
-				Spec: ngrokv1alpha1.CloudEndpointSpec{
-					URL: "https://xns.internal",
-					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-							Name:      "shared-policy",
-							Namespace: &sharedNs,
-						},
-					},
-				},
-			}
-			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
-
-			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.CloudEndpoint{}
-				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
-				g.Expect(obj.Status.ID).NotTo(BeEmpty())
-
-				endpoint, err := mockClientset.Endpoints().Get(ctx, obj.Status.ID)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(endpoint.TrafficPolicy).To(ContainSubstring("shared-rule"))
 			}, timeout, interval).Should(Succeed())
 		})
 
@@ -461,7 +412,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 					Metadata:          "{}",
 					TrafficPolicyName: "ignored-legacy-name",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "canonical-policy"},
+						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "canonical-policy"},
 					},
 				},
 			}
@@ -501,7 +452,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 					URL: "https://invalid-tp-union.internal",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 						Inline:    json.RawMessage(`{"on_http_request":[]}`),
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "policy"},
+						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy"},
 					},
 				},
 			}
@@ -632,7 +583,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				obj := &ngrokv1alpha1.CloudEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
 				obj.Spec.TrafficPolicy = &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-					Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "transition-canonical"},
+					Reference: &ngrokv1alpha1.K8sObjectRef{Name: "transition-canonical"},
 				}
 				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
 			}, timeout, interval).Should(Succeed())

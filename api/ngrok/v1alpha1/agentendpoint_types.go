@@ -211,8 +211,8 @@ const (
 )
 
 // TrafficPolicyCfg configures a TrafficPolicy attached to an endpoint, either
-// inline or by reference to an NgrokTrafficPolicy resource. References may
-// target a different namespace via targetRef.namespace.
+// inline or by reference to an NgrokTrafficPolicy resource in the same
+// namespace as the endpoint.
 //
 // +kubebuilder:validation:XValidation:rule="[has(self.inline), has(self.targetRef)].exists_one(x, x)", message="exactly one of inline or targetRef must be set on trafficPolicy"
 type TrafficPolicyCfg struct {
@@ -224,9 +224,10 @@ type TrafficPolicyCfg struct {
 	// +kubebuilder:validation:Type=object
 	Inline json.RawMessage `json:"inline,omitempty"`
 
-	// Reference to a TrafficPolicy resource to attach to the Endpoint.
-	// Namespace is optional and defaults to the owning endpoint's namespace.
-	Reference *K8sObjectRefOptionalNamespace `json:"targetRef,omitempty"`
+	// Reference to a TrafficPolicy resource to attach to the Endpoint. The
+	// referenced NgrokTrafficPolicy must live in the same namespace as the
+	// endpoint.
+	Reference *K8sObjectRef `json:"targetRef,omitempty"`
 }
 
 func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {

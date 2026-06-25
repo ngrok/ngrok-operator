@@ -116,9 +116,8 @@ func NewManager(c client.Client, r events.EventRecorder) *Manager {
 
 // Resolve produces the policy JSON for the endpoint. The Result.Source value
 // identifies the resolved attachment ("inline", "none", or the referenced
-// TrafficPolicy name / "namespace/name" for cross-namespace refs); callers
-// that maintain a status field summarizing the attachment write it themselves
-// from Result.Source.
+// TrafficPolicy name); callers that maintain a status field summarizing the
+// attachment write it themselves from Result.Source.
 //
 // Resolve only manages the negative side of the TrafficPolicyApplied
 // condition. When the endpoint has no policy configured, Resolve removes any
@@ -156,7 +155,7 @@ func (m *Manager) Resolve(ctx context.Context, ep ngrokv1alpha1.EndpointWithTraf
 			m.setCondition(ep, false, ReasonTrafficPolicyError, err.Error())
 			return nil, err
 		}
-		return &Result{Policy: policy, Source: IntendedSource(ep.GetNamespace(), cfg)}, nil
+		return &Result{Policy: policy, Source: IntendedSource(cfg)}, nil
 
 	default:
 		m.setCondition(ep, false, ReasonTrafficPolicyError, ErrInvalidConfig.Error())
@@ -178,21 +177,14 @@ func (m *Manager) MarkApplied(ep ngrokv1alpha1.EndpointWithTrafficPolicy) {
 
 // IntendedSource returns the value the controller should write into the
 // endpoint's status summary field ("inline", "none", or the referenced
-// policy's name / "namespace/name") given the canonical config. It mirrors
-// the Source value Resolve returns so controllers can populate the status
-// field up-front, before resolution may fail, without duplicating logic.
-func IntendedSource(defaultNamespace string, cfg *ngrokv1alpha1.TrafficPolicyCfg) string {
+// policy's name) given the canonical config. It mirrors the Source value
+// Resolve returns so controllers can populate the status field up-front,
+// before resolution may fail, without duplicating logic.
+func IntendedSource(cfg *ngrokv1alpha1.TrafficPolicyCfg) string {
 	if cfg == nil {
 		return SourceNone
 	}
 	if cfg.Reference != nil {
-		ns := defaultNamespace
-		if cfg.Reference.Namespace != nil && *cfg.Reference.Namespace != "" {
-			ns = *cfg.Reference.Namespace
-		}
-		if ns != "" && ns != defaultNamespace {
-			return ns + "/" + cfg.Reference.Name
-		}
 		return cfg.Reference.Name
 	}
 	if cfg.Inline != nil {
@@ -202,10 +194,10 @@ func IntendedSource(defaultNamespace string, cfg *ngrokv1alpha1.TrafficPolicyCfg
 }
 
 // resolveRef fetches the referenced NgrokTrafficPolicy and marshals its
-// policy JSON. Cross-namespace references resolve via the ref's Namespace
-// field; if unset, the endpoint's namespace is used.
-func (m *Manager) resolveRef(ctx context.Context, ep ngrokv1alpha1.EndpointWithTrafficPolicy, ref *ngrokv1alpha1.K8sObjectRefOptionalNamespace) (string, error) {
-	key := ref.ToClientObjectKey(ep.GetNamespace())
+// policy JSON. The policy is always read from the endpoint's own namespace;
+// cross-namespace references are not supported.
+func (m *Manager) resolveRef(ctx context.Context, ep ngrokv1alpha1.EndpointWithTrafficPolicy, ref *ngrokv1alpha1.K8sObjectRef) (string, error) {
+	key := client.ObjectKey{Namespace: ep.GetNamespace(), Name: ref.Name}
 	log := ctrl.LoggerFrom(ctx).WithValues("trafficPolicy", key)
 
 	tp := &ngrokv1alpha1.NgrokTrafficPolicy{}

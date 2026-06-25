@@ -242,7 +242,7 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	// reflects what the user is trying to attach rather than a stale success
 	// value from a prior generation. Resolve manages the condition's False
 	// path; we MarkApplied below only after the downstream create succeeds.
-	endpoint.Status.AttachedTrafficPolicy = trafficpolicypkg.IntendedSource(endpoint.Namespace, endpoint.Spec.TrafficPolicy)
+	endpoint.Status.AttachedTrafficPolicy = trafficpolicypkg.IntendedSource(endpoint.Spec.TrafficPolicy)
 	tpResult, err := r.TrafficPolicyManager.Resolve(ctx, endpoint)
 	if err != nil {
 		return r.updateStatus(ctx, endpoint, nil, domainResult, err)
@@ -293,7 +293,7 @@ func (r *AgentEndpointReconciler) statusID(endpoint *ngrokv1alpha1.AgentEndpoint
 }
 
 // findAgentEndpointForTrafficPolicy searches for any AgentEndpoint CRs that
-// reference a particular TrafficPolicy, including cross-namespace references.
+// reference a particular TrafficPolicy in the policy's namespace.
 func (r *AgentEndpointReconciler) findAgentEndpointForTrafficPolicy(ctx context.Context, o client.Object) []ctrl.Request {
 	tp, ok := o.(*ngrokv1alpha1.NgrokTrafficPolicy)
 	if !ok {
@@ -301,7 +301,7 @@ func (r *AgentEndpointReconciler) findAgentEndpointForTrafficPolicy(ctx context.
 	}
 
 	// Use the shared composite-key index to find AgentEndpoints that reference
-	// this TrafficPolicy across namespaces.
+	// this TrafficPolicy in its namespace.
 	var agentEndpointList ngrokv1alpha1.AgentEndpointList
 	if err := r.Client.List(ctx, &agentEndpointList,
 		client.MatchingFields{trafficpolicypkg.RefIndex: trafficpolicypkg.LookupKey(tp)}); err != nil {

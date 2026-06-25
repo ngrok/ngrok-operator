@@ -22,7 +22,6 @@ same shape `AgentEndpoint` already uses (`spec.trafficPolicy.inline` /
 parallel:
 
 - `spec.trafficPolicyName` — replaced by `spec.trafficPolicy.targetRef.name`.
-  `targetRef.namespace` is also now supported for cross-namespace references.
 - `spec.trafficPolicy.policy` — replaced by `spec.trafficPolicy.inline`.
 
 The operator dual-reads both shapes during the deprecation window. When a
@@ -38,10 +37,9 @@ unchanged.
 | `spec.trafficPolicyName: my-policy`          | `spec.trafficPolicy.targetRef.name: my-policy` |
 | `spec.trafficPolicy.policy: { ... }`         | `spec.trafficPolicy.inline: { ... }`        |
 
-The new `targetRef` also supports `namespace` so a `CloudEndpoint` can
-reference an `NgrokTrafficPolicy` in a different namespace. The operator's
-RBAC scope is the trust boundary for those cross-namespace references —
-see "Cross-namespace policy references" below.
+A `targetRef` resolves the referenced `NgrokTrafficPolicy` in the same
+namespace as the `CloudEndpoint`; cross-namespace references are not
+supported.
 
 #### Rollback safety during the migration window
 
@@ -121,8 +119,8 @@ before the cleanup release.
 
 The `Traffic Policy` column on `kubectl get cloudendpoint` was removed
 in 0.24. The old column rendered the legacy `spec.trafficPolicyName`
-field; once cross-namespace `targetRef` and inline policies became
-first-class shapes a single string summary was misleading. Use
+field; once `targetRef` and inline policies became first-class shapes a
+single string summary was misleading. Use
 `kubectl describe cloudendpoint <name>` or the `TrafficPolicyApplied`
 status condition (visible in the `Ready`/`Reason`/`Message` columns
 when policy resolution fails) instead.
@@ -139,23 +137,19 @@ they switch to the new struct. The new type carries the canonical
 `Inline` / `Reference` fields plus the deprecated `Policy` fold-in for
 rollback safety during the migration window.
 
-#### Cross-namespace policy references
+#### Same-namespace policy references
 
-`spec.trafficPolicy.targetRef.namespace` lets a CloudEndpoint or
-AgentEndpoint attach to an `NgrokTrafficPolicy` in another namespace.
-There is no per-resource opt-in (no ReferenceGrant equivalent) for these
-references in 0.24 — the operator's RBAC/watch scope is the trust
-boundary. In practice:
+A `spec.trafficPolicy.targetRef` resolves the referenced
+`NgrokTrafficPolicy` in the same namespace as the endpoint;
+cross-namespace references are not supported. A `targetRef` to a policy
+that does not exist in the endpoint's namespace surfaces as
+`TrafficPolicyApplied=False` with a `TrafficPolicyNotFound` event. This
+matches the same-namespace restriction applied to AgentEndpoint
+`clientCertificateRefs` and avoids a confused-deputy path where an
+endpoint author could direct the operator (which can read
+`NgrokTrafficPolicy` resources cluster-wide) to attach a policy from a
+namespace they cannot otherwise access.
 
-- A cluster-scoped install can resolve refs across all namespaces.
-- A namespace-scoped install (the chart's `watchNamespace` configuration)
-  can only resolve refs to namespaces it watches. Cross-namespace refs
-  outside that scope surface as `TrafficPolicyApplied=False` with a
-  `TrafficPolicyNotFound` event.
-
-If you do not want one namespace's policies attachable from another,
-either run the operator namespace-scoped or restrict creation of
-`AgentEndpoint`/`CloudEndpoint` via your own RBAC.
 ### Finalizer prefix: `k8s.ngrok.com/finalizer` → `ngrok.com/finalizer`
 
 Status: in progress across 0.24 → 0.25 → 0.26.

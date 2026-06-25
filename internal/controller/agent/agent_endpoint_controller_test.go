@@ -494,7 +494,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						Reference: &ngrokv1alpha1.K8sObjectRef{
 							Name: "referenced-policy",
 						},
 					},
@@ -532,71 +532,6 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}, 5*time.Second, interval).Should(BeTrue())
 		})
 
-		It("should resolve cross-namespace traffic policy reference", func(ctx SpecContext) {
-			sharedNs := "shared-" + RandomString(8)
-			Expect(k8sClient.Create(ctx, &v1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{Name: sharedNs},
-			})).To(Succeed())
-			defer func() {
-				_ = k8sClient.Delete(context.Background(), &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: sharedNs}})
-			}()
-
-			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "shared-policy",
-					Namespace: sharedNs,
-				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
-					Policy: []byte(`{"on_http_request":[{"name":"shared-rule"}]}`),
-				},
-			}
-			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
-
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "xns-ref-endpoint",
-					Namespace: namespace,
-				},
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
-					URL: "tcp://9.tcp.ngrok.io:99991",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
-						URL: "http://test-service:80",
-					},
-					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-							Name:      "shared-policy",
-							Namespace: &sharedNs,
-						},
-					},
-				},
-			}
-
-			envMockDriver.SetEndpointResult(namespace+"/xns-ref-endpoint", &agent.EndpointResult{
-				URL: "tcp://9.tcp.ngrok.io:99991",
-			})
-
-			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
-
-			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
-				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
-				// Cross-namespace refs report as "namespace/name" so status is
-				// unambiguous when debugging.
-				g.Expect(obj.Status.AttachedTrafficPolicy).To(Equal(sharedNs + "/shared-policy"))
-			}, timeout, interval).Should(Succeed())
-
-			By("Verifying the controller resolved the cross-namespace traffic policy")
-			Eventually(func() bool {
-				for _, call := range envMockDriver.CreateCalls {
-					if call.Name == namespace+"/xns-ref-endpoint" {
-						matched, _ := ContainSubstring("shared-rule").Match(call.TrafficPolicy)
-						return matched
-					}
-				}
-				return false
-			}, 5*time.Second, interval).Should(BeTrue())
-		})
-
 		It("should handle missing traffic policy reference", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
@@ -609,7 +544,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						Reference: &ngrokv1alpha1.K8sObjectRef{
 							Name: "missing-policy",
 						},
 					},
@@ -645,7 +580,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
 						Inline:    []byte(`{}`),
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "policy"},
+						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy"},
 					},
 				},
 			}
@@ -681,7 +616,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						Reference: &ngrokv1alpha1.K8sObjectRef{
 							Name: "test-policy",
 						},
 					},
@@ -746,7 +681,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						Reference: &ngrokv1alpha1.K8sObjectRef{
 							Name: "update-policy",
 						},
 					},
@@ -1371,7 +1306,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
-						Reference: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+						Reference: &ngrokv1alpha1.K8sObjectRef{
 							Name: "runtime-auto-policy",
 						},
 					},

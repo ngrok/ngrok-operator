@@ -93,8 +93,7 @@ spec:
               trafficPolicy:
                 description: |-
                   TrafficPolicy attached to this CloudEndpoint, either inline or by reference
-                  to an NgrokTrafficPolicy resource. References may target a different
-                  namespace via spec.trafficPolicy.targetRef.namespace.
+                  to an NgrokTrafficPolicy resource in the same namespace as the endpoint.
                 properties:
                   inline:
                     description: |-
@@ -110,15 +109,12 @@ spec:
                     x-kubernetes-preserve-unknown-fields: true
                   targetRef:
                     description: |-
-                      Reference to a TrafficPolicy resource to attach to the CloudEndpoint.
-                      Namespace is optional and defaults to the owning endpoint's namespace.
+                      Reference to a TrafficPolicy resource to attach to the CloudEndpoint. The
+                      referenced NgrokTrafficPolicy must live in the same namespace as the
+                      endpoint.
                     properties:
                       name:
                         description: The name of the Kubernetes resource being referenced
-                        type: string
-                      namespace:
-                        description: The namespace of the Kubernetes resource being
-                          referenced
                         type: string
                     required:
                     - name

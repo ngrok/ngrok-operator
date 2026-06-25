@@ -39,14 +39,14 @@ const RefIndex = ".spec.trafficPolicy.targetRef"
 
 // IndexKey returns the composite "<namespace>/<name>" key for the endpoint's
 // canonical TrafficPolicy targetRef, or empty string when no ref is set
-// (inline policies and missing configs alike). The endpoint's own namespace
-// is used when the ref does not specify one.
+// (inline policies and missing configs alike). The referenced TrafficPolicy
+// is always resolved in the endpoint's own namespace.
 func IndexKey(ep ngrokv1alpha1.EndpointWithTrafficPolicy) string {
 	cfg := ep.GetTrafficPolicyCfg()
 	if cfg == nil || cfg.Reference == nil {
 		return ""
 	}
-	return cfg.Reference.ToClientObjectKey(ep.GetNamespace()).String()
+	return types.NamespacedName{Namespace: ep.GetNamespace(), Name: cfg.Reference.Name}.String()
 }
 
 // IndexKeyForObject is an IndexField extractor suitable for direct use with

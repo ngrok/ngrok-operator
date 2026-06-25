@@ -170,15 +170,12 @@ spec:
                     x-kubernetes-preserve-unknown-fields: true
                   targetRef:
                     description: |-
-                      Reference to a TrafficPolicy resource to attach to the Endpoint.
-                      Namespace is optional and defaults to the owning endpoint's namespace.
+                      Reference to a TrafficPolicy resource to attach to the Endpoint. The
+                      referenced NgrokTrafficPolicy must live in the same namespace as the
+                      endpoint.
                     properties:
                       name:
                         description: The name of the Kubernetes resource being referenced
-                        type: string
-                      namespace:
-                        description: The namespace of the Kubernetes resource being
-                          referenced
                         type: string
                     required:
                     - name
