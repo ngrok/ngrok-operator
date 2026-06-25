@@ -903,7 +903,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					Upstream: ngrokv1alpha1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
-					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRef{
 						{Name: "missing-secret"},
 					},
 				},
@@ -948,7 +948,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					Upstream: ngrokv1alpha1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
-					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRef{
 						{Name: "invalid-cert"},
 					},
 				},
@@ -992,7 +992,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 					Upstream: ngrokv1alpha1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
-					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRef{
 						{Name: "no-crt-secret"},
 					},
 				},
@@ -1478,7 +1478,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 					Upstream: ngrokv1alpha1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
-					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRef{
 						{Name: "watch-test-cert"},
 					},
 				},

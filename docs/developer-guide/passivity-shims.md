@@ -63,6 +63,15 @@ deletion to completion.
 
 Used for: the operator finalizer (`ngrok.com/finalizer`).
 
+## Deferral for rollout races
+
+Some changes are safe to ship in the operator binary but unsafe to ship in
+the rendered helm chart at the same time, because the rendered manifest
+takes effect mid-upgrade while the old operator pod is still running.
+The IngressClass `spec.controller` flip is the only example so far. The
+operator binary gains dual-match in R1; the rendered manifest stays on the
+legacy value until R2.
+
 ## `LEGACY-*` sentinels
 
 Every code site that exists *only* to support a legacy form during a
@@ -94,26 +103,20 @@ Current sentinel tags:
 
 ## Per-shim catalog
 
-### Operator finalizer (operator-written, lifecycle-gating) — **planned, not yet implemented**
-
-> This section describes a planned migration. The 0.24 release that adds
-> the trafficpolicy shims documented below does **not** implement the
-> finalizer migration. `internal/util/k8s.go` is unchanged from prior
-> releases. Treat this as a record of the agreed strategy for a later
-> change, not as a description of current behavior.
+### Operator finalizer (operator-written, lifecycle-gating)
 
 - **Pattern:** Three-release dance.
-- **R1 (target release TBD):** `internal/util/k8s.go`:
+- **R1 (0.24):** `internal/util/k8s.go`:
   - `HasFinalizer` checks both (already implemented).
   - `AddFinalizer` adds `LegacyFinalizerName` only; **does not** add
     `FinalizerName` and does **not** remove `LegacyFinalizerName`.
   - `RemoveFinalizer` removes both (already implemented).
   - Update the doc comments on `AddFinalizer` and on the package to make
     clear this is R1 of the three-release pattern.
-- **R2 (next release):** `AddFinalizer` switches to adding `FinalizerName` and
+- **R2 (0.25):** `AddFinalizer` switches to adding `FinalizerName` and
   removing `LegacyFinalizerName`. `HasFinalizer` and `RemoveFinalizer`
   unchanged (still bridge both).
-- **R3 cleanup:** delete `LegacyFinalizerName`, the legacy branches
+- **R3 cleanup (0.26):** delete `LegacyFinalizerName`, the legacy branches
   in `HasFinalizer`, and the legacy `RemoveFinalizer` call.
 
 ### `CloudEndpoint.spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`
@@ -184,6 +187,29 @@ Current sentinel tags:
   the controller, and the dual-write in
   `pkg/managerdriver/translator.go` and
   `internal/controller/service/controller.go`.
+
+### IngressClass `spec.controller` (rollout-race deferral)
+
+- **Pattern:** Helm-rendered manifest deferred to cleanup release.
+- **R1 (0.24):**
+  - Operator binary: `internal/store/store.go::ListNgrokIngressClassesV1`
+    dual-matches whenever `controllerName` equals either stock default
+    (legacy `k8s.ngrok.com/ingress-controller` or new
+    `ngrok.com/ingress-controller`). Custom controller names retain
+    exact-match for multi-instance isolation. The Go code cannot
+    distinguish "default" from "explicitly set to the default value",
+    so both stock defaults are treated symmetrically; nobody sets the
+    legacy default explicitly to mean "exact-match legacy only".
+  - CLI flag default in `cmd/api-manager.go` flips to the new prefix.
+  - Helm chart **stays on legacy**: `helm/ngrok-operator/values.yaml`
+    `ingress.controllerName` remains `k8s.ngrok.com/ingress-controller`;
+    `values.schema.json` default matches; `README.md` table matches;
+    `tests/__snapshot__/ingress-class_test.yaml.snap` shows the legacy
+    controller. The helm `CHANGELOG.md` notes that the *default will
+    change in 0.25*, not that it does now.
+- **R2 (0.25):** flip the helm-rendered IngressClass to the new prefix.
+  At this point no pre-migration operator pod can observe the change.
+- **R3 cleanup:** drop the dual-match branch in `store.go`.
 
 ## Why we don't shortcut the CloudEndpoint trafficpolicy migration
 

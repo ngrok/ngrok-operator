@@ -364,7 +364,7 @@ var _ = Describe("secretReferencedByGateway", func() {
 				Hostname: ptr.To(gatewayv1.Hostname("example.com")),
 				Port:     443,
 				Protocol: gatewayv1.HTTPSProtocolType,
-				TLS: &gatewayv1.GatewayTLSConfig{
+				TLS: &gatewayv1.ListenerTLSConfig{
 					CertificateRefs: []gatewayv1.SecretObjectReference{
 						{
 							Name:      gatewayv1.ObjectName(secretName),

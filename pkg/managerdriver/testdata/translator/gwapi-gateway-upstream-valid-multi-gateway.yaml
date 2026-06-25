@@ -16,9 +16,10 @@ input:
       annotations:
         k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
     spec:
-      backendTLS:
-        clientCertificateRef:
-          name: client-cert-secret-1
+      tls:
+        backend:
+          clientCertificateRef:
+            name: client-cert-secret-1
       gatewayClassName: ngrok
       listeners:
         - name: test-1
@@ -33,9 +34,10 @@ input:
       annotations:
         k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
     spec:
-      backendTLS:
-        clientCertificateRef:
-          name: client-cert-secret-2
+      tls:
+        backend:
+          clientCertificateRef:
+            name: client-cert-secret-2
       gatewayClassName: ngrok
       listeners:
         - name: test-2

@@ -241,7 +241,3 @@ func (c *CloudEndpoint) GetURL() string {
 func (c *CloudEndpoint) GetBindings() []string {
 	return c.Spec.Bindings
 }
-
-func init() {
-	SchemeBuilder.Register(&CloudEndpoint{}, &CloudEndpointList{})
-}

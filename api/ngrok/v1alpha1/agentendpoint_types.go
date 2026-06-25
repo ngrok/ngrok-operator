@@ -142,7 +142,7 @@ type AgentEndpointSpec struct {
 	Bindings []string `json:"bindings,omitempty"`
 
 	// List of client certificates to present to the upstream when performing a TLS handshake
-	ClientCertificateRefs []K8sObjectRefOptionalNamespace `json:"clientCertificateRefs,omitempty"`
+	ClientCertificateRefs []K8sObjectRef `json:"clientCertificateRefs,omitempty"`
 
 	// TLSTermination configures the agent to terminate TLS in-cluster for incoming
 	// traffic ("zero-knowledge TLS"). When set, ngrok's edge routes the encrypted
@@ -307,8 +307,4 @@ func (a *AgentEndpoint) GetURL() string {
 // GetBindings returns the bindings for the AgentEndpoint
 func (a *AgentEndpoint) GetBindings() []string {
 	return a.Spec.Bindings
-}
-
-func init() {
-	SchemeBuilder.Register(&AgentEndpoint{}, &AgentEndpointList{})
 }

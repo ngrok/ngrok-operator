@@ -2,6 +2,7 @@ package agent
 
 import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -29,38 +30,12 @@ const (
 
 // setReadyCondition sets the Ready condition based on the overall endpoint state
 func setReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !ready {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionReady,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: endpoint.Generation,
-	}
-
-	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
+	conditions.Set(&endpoint.Status.Conditions, endpoint.Generation, ConditionReady, ready, reason, message)
 }
 
 // setEndpointCreatedCondition sets the EndpointCreated condition
 func setEndpointCreatedCondition(endpoint *ngrokv1alpha1.AgentEndpoint, created bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !created {
-		status = metav1.ConditionFalse
-	}
-
-	condition := metav1.Condition{
-		Type:               ConditionEndpointCreated,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: endpoint.Generation,
-	}
-
-	meta.SetStatusCondition(&endpoint.Status.Conditions, condition)
+	conditions.Set(&endpoint.Status.Conditions, endpoint.Generation, ConditionEndpointCreated, created, reason, message)
 }
 
 // calculateAgentEndpointReadyCondition calculates the overall Ready condition based on other conditions and domain status

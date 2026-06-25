@@ -439,8 +439,8 @@ func secretReferencedByGateway(secret *v1.Secret, c client.Client) bool {
 		// For the backend CertificateRefs, we don't strictly need to watch them here (in the manager pods) since the Gateway API config gets translated
 		// into similar references set on the generated AgentEndpoints and which get processed by the agent pods, but having the validation for whether or not the referenced secrets exist
 		// in the same layer as the rest of the translation offers a better user experience with understanding errors with their resources and why they happened.
-		if gw.Spec.BackendTLS != nil && gw.Spec.BackendTLS.ClientCertificateRef != nil {
-			certRef := gw.Spec.BackendTLS.ClientCertificateRef
+		if gw.Spec.TLS != nil && gw.Spec.TLS.Backend != nil && gw.Spec.TLS.Backend.ClientCertificateRef != nil {
+			certRef := gw.Spec.TLS.Backend.ClientCertificateRef
 			if certRefMatches(certRef.Name, certRef.Namespace, gw.Namespace, secret.Name, secret.Namespace) &&
 				secret.Type == v1.SecretTypeTLS {
 				return true
@@ -469,11 +469,22 @@ func configMapReferencedByGateway(cm *v1.ConfigMap, c client.Client) bool {
 		return false
 	}
 	for _, gw := range gwList.Items {
-		for _, listener := range gw.Spec.Listeners {
-			if listener.TLS == nil || listener.TLS.FrontendValidation == nil {
+		if gw.Spec.TLS == nil || gw.Spec.TLS.Frontend == nil {
+			continue
+		}
+		if gw.Spec.TLS.Frontend.Default.Validation != nil {
+			for _, certRef := range gw.Spec.TLS.Frontend.Default.Validation.CACertificateRefs {
+				if certRefMatches(certRef.Name, certRef.Namespace, gw.Namespace, cm.Name, cm.Namespace) &&
+					string(certRef.Kind) == "ConfigMap" {
+					return true
+				}
+			}
+		}
+		for _, portCfg := range gw.Spec.TLS.Frontend.PerPort {
+			if portCfg.TLS.Validation == nil {
 				continue
 			}
-			for _, certRef := range listener.TLS.FrontendValidation.CACertificateRefs {
+			for _, certRef := range portCfg.TLS.Validation.CACertificateRefs {
 				if certRefMatches(certRef.Name, certRef.Namespace, gw.Namespace, cm.Name, cm.Namespace) &&
 					string(certRef.Kind) == "ConfigMap" {
 					return true

@@ -877,9 +877,8 @@ func buildAgentEndpoint(
 	}
 
 	for _, certRef := range irService.ClientCertRefs {
-		ret.Spec.ClientCertificateRefs = append(ret.Spec.ClientCertificateRefs, ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-			Name:      certRef.Name,
-			Namespace: &certRef.Namespace,
+		ret.Spec.ClientCertificateRefs = append(ret.Spec.ClientCertificateRefs, ngrokv1alpha1.K8sObjectRef{
+			Name: certRef.Name,
 		})
 	}
 

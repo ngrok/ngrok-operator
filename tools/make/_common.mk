@@ -56,6 +56,9 @@ CRD_TEMPLATES_DIR = $(CRD_CHART_DIR)/templates
 ## Tool Versions
 # controller-gen, setup-envtest, helm, kind are provided by nixpkgs; use 'nix develop'
 
+# GitHub Codespaces sets this; default to empty so --warn-undefined-variables doesn't fire.
+CODESPACE_NAME ?=
+
 # ==============================================
 # Includes:
 # ==============================================

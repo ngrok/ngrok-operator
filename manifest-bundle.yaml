@@ -869,13 +869,10 @@ spec:
                 description: List of client certificates to present to the upstream
                   when performing a TLS handshake
                 items:
+                  description: K8sObjectRef defines a reference to a Kubernetes Object
                   properties:
                     name:
                       description: The name of the Kubernetes resource being referenced
-                      type: string
-                    namespace:
-                      description: The namespace of the Kubernetes resource being
-                        referenced
                       type: string
                   required:
                   - name

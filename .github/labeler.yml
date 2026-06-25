@@ -1,32 +1,48 @@
 area/ci:
-- .github/workflows/**/*
-- .golangci.yml
+- changed-files:
+    - any-glob-to-any-file:
+        - .github/workflows/**/*
+        - .golangci.yml
 
 area/controller:
-- '**/*.go'
-- Dockerfile
+- changed-files:
+    - any-glob-to-any-file:
+        - '**/*.go'
+        - Dockerfile
 
 area/devenv:
-- .devcontainer/**/*
-- flake.nix
-- flake.lock
+- changed-files:
+    - any-glob-to-any-file:
+        - .devcontainer/**/*
+        - flake.nix
+        - flake.lock
 
 area/helm-chart:
-- helm/**/*
+- changed-files:
+    - any-glob-to-any-file:
+        - helm/**/*
 
 area/release:
-- docs/releases.md
-- VERSION
-- helm/ngrok-operator/Chart.yaml
+- changed-files:
+    - any-glob-to-any-file:
+        - docs/releases.md
+        - VERSION
+        - helm/ngrok-operator/Chart.yaml
 
 documentation:
-- docs/**/*
+- changed-files:
+    - any-glob-to-any-file:
+        - docs/**/*
 
 meta/project:
-- .github/ISSUE_TEMPLATE/**/*
-- .github/CODEOWNERS
-- .github/labeler.yaml
-- .github/PULL_REQUEST_TEMPLATE.md
+- changed-files:
+    - any-glob-to-any-file:
+        - .github/ISSUE_TEMPLATE/**/*
+        - .github/CODEOWNERS
+        - .github/labeler.yml
+        - .github/PULL_REQUEST_TEMPLATE.md
 
 testing:
-- scripts/e2e.sh
+- changed-files:
+    - any-glob-to-any-file:
+        - scripts/e2e.sh

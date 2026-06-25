@@ -69,7 +69,3 @@ type NgrokTrafficPolicyList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []NgrokTrafficPolicy `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&NgrokTrafficPolicy{}, &NgrokTrafficPolicyList{})
-}

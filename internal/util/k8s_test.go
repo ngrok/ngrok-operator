@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -184,7 +185,7 @@ func TestHasFinalizer(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "has finalizer",
+			name: "has new finalizer",
 			obj: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Finalizers: []string{FinalizerName},
@@ -193,10 +194,37 @@ func TestHasFinalizer(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "has finalizer among others",
+			name: "has legacy finalizer",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Finalizers: []string{LegacyFinalizerName},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "has both finalizers",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Finalizers: []string{FinalizerName, LegacyFinalizerName},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "has new finalizer among others",
 			obj: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Finalizers: []string{"other.finalizer", FinalizerName, "another.finalizer"},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "has legacy finalizer among others",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Finalizers: []string{"other.finalizer", LegacyFinalizerName, "another.finalizer"},
 				},
 			},
 			want: true,
@@ -210,18 +238,23 @@ func TestHasFinalizer(t *testing.T) {
 	}
 }
 
+// TestAddFinalizer asserts the R1 behavior: AddFinalizer writes the legacy
+// key only. In R2 this test must be updated to assert FinalizerName is the
+// written key and LegacyFinalizerName has been stripped.
 func TestAddFinalizer(t *testing.T) {
 	tests := []struct {
-		name        string
-		obj         client.Object
-		wantAdded   bool
-		wantPresent bool
+		name              string
+		obj               client.Object
+		wantAdded         bool
+		wantLegacyPresent bool
+		wantNewPresent    bool
 	}{
 		{
-			name:        "add to empty",
-			obj:         &netv1.Ingress{},
-			wantAdded:   true,
-			wantPresent: true,
+			name:              "add to empty",
+			obj:               &netv1.Ingress{},
+			wantAdded:         true,
+			wantLegacyPresent: true,
+			wantNewPresent:    false,
 		},
 		{
 			name: "add to existing",
@@ -230,18 +263,33 @@ func TestAddFinalizer(t *testing.T) {
 					Finalizers: []string{"other.finalizer"},
 				},
 			},
-			wantAdded:   true,
-			wantPresent: true,
+			wantAdded:         true,
+			wantLegacyPresent: true,
+			wantNewPresent:    false,
 		},
 		{
-			name: "already present",
+			name: "legacy already present",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Finalizers: []string{LegacyFinalizerName},
+				},
+			},
+			wantAdded:         false,
+			wantLegacyPresent: true,
+			wantNewPresent:    false,
+		},
+		{
+			name: "new finalizer already present from prior R2 reconcile",
 			obj: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Finalizers: []string{FinalizerName},
 				},
 			},
-			wantAdded:   false,
-			wantPresent: true,
+			// R1 still wants the legacy key on the object, so the add
+			// returns true even though HasFinalizer was already true.
+			wantAdded:         true,
+			wantLegacyPresent: true,
+			wantNewPresent:    true,
 		},
 	}
 
@@ -249,7 +297,8 @@ func TestAddFinalizer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			added := AddFinalizer(tt.obj)
 			assert.Equal(t, tt.wantAdded, added)
-			assert.Equal(t, tt.wantPresent, HasFinalizer(tt.obj))
+			assert.Equal(t, tt.wantLegacyPresent, hasRawFinalizer(tt.obj, LegacyFinalizerName))
+			assert.Equal(t, tt.wantNewPresent, hasRawFinalizer(tt.obj, FinalizerName))
 		})
 	}
 }
@@ -268,10 +317,30 @@ func TestRemoveFinalizer(t *testing.T) {
 			wantPresent: false,
 		},
 		{
-			name: "remove when present",
+			name: "remove when new present",
 			obj: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Finalizers: []string{FinalizerName},
+				},
+			},
+			wantRemoved: true,
+			wantPresent: false,
+		},
+		{
+			name: "remove when legacy present",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Finalizers: []string{LegacyFinalizerName},
+				},
+			},
+			wantRemoved: true,
+			wantPresent: false,
+		},
+		{
+			name: "remove when both present",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Finalizers: []string{FinalizerName, LegacyFinalizerName},
 				},
 			},
 			wantRemoved: true,
@@ -288,10 +357,20 @@ func TestRemoveFinalizer(t *testing.T) {
 			wantPresent: false,
 		},
 		{
-			name: "remove from multiple",
+			name: "remove from multiple with new",
 			obj: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Finalizers: []string{"other.finalizer", FinalizerName, "another.finalizer"},
+				},
+			},
+			wantRemoved: true,
+			wantPresent: false,
+		},
+		{
+			name: "remove from multiple with legacy",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Finalizers: []string{"other.finalizer", LegacyFinalizerName, "another.finalizer"},
 				},
 			},
 			wantRemoved: true,
@@ -331,12 +410,12 @@ func TestRegisterAndSyncFinalizer(t *testing.T) {
 			wantUpdated:   true,
 		},
 		{
-			name: "object already has finalizer",
+			name: "object already has legacy finalizer",
 			obj: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "test-ingress",
 					Namespace:  "default",
-					Finalizers: []string{FinalizerName},
+					Finalizers: []string{LegacyFinalizerName},
 				},
 			},
 			wantErr:       false,
@@ -365,6 +444,9 @@ func TestRegisterAndSyncFinalizer(t *testing.T) {
 			err = c.Get(ctx, client.ObjectKeyFromObject(tt.obj), &updated)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantFinalizer, HasFinalizer(&updated))
+			// LEGACY-PREFIX-MIGRATION: assert the R1 persistence contract — legacy key written, new key not. Flip in R2.
+			assert.True(t, hasRawFinalizer(&updated, LegacyFinalizerName), "persisted legacy key")
+			assert.False(t, hasRawFinalizer(&updated, FinalizerName), "no new key persisted")
 		})
 	}
 }
@@ -379,12 +461,24 @@ func TestRemoveAndSyncFinalizer(t *testing.T) {
 		wantFinalizer bool
 	}{
 		{
-			name: "remove finalizer from object with one",
+			name: "remove new finalizer from object with one",
 			obj: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "test-ingress",
 					Namespace:  "default",
 					Finalizers: []string{FinalizerName},
+				},
+			},
+			wantErr:       false,
+			wantFinalizer: false,
+		},
+		{
+			name: "remove legacy finalizer from object with one",
+			obj: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "test-ingress",
+					Namespace:  "default",
+					Finalizers: []string{LegacyFinalizerName},
 				},
 			},
 			wantErr:       false,
@@ -425,4 +519,11 @@ func TestRemoveAndSyncFinalizer(t *testing.T) {
 			assert.Equal(t, tt.wantFinalizer, HasFinalizer(&updated))
 		})
 	}
+}
+
+// hasRawFinalizer reports whether the object carries the given finalizer
+// literal, bypassing the dual-key HasFinalizer helper. Used by tests that
+// need to assert the specific key written during the R1 migration window.
+func hasRawFinalizer(o client.Object, name string) bool {
+	return slices.Contains(o.GetFinalizers(), name)
 }
