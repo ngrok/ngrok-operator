@@ -27,6 +27,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -830,7 +831,7 @@ func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
 		},
 		matches: func(desired, existing ngrokv1alpha1.CloudEndpoint) bool {
 			return reflect.DeepEqual(existing.Spec, desired.Spec) &&
-				reflect.DeepEqual(existing.Labels, desired.Labels)
+				maps.Equal(existing.Labels, desired.Labels)
 		},
 		mergeExisting: func(desired ngrokv1alpha1.CloudEndpoint, existing *ngrokv1alpha1.CloudEndpoint) {
 			existing.Spec = desired.Spec
@@ -853,7 +854,7 @@ func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
 		},
 		matches: func(desired, existing ngrokv1alpha1.AgentEndpoint) bool {
 			return reflect.DeepEqual(existing.Spec, desired.Spec) &&
-				reflect.DeepEqual(existing.Labels, desired.Labels)
+				maps.Equal(existing.Labels, desired.Labels)
 		},
 		mergeExisting: func(desired ngrokv1alpha1.AgentEndpoint, existing *ngrokv1alpha1.AgentEndpoint) {
 			existing.Spec = desired.Spec

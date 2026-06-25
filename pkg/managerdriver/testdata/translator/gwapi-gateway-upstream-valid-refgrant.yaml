@@ -16,10 +16,11 @@ input:
       annotations:
         k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
     spec:
-      backendTLS:
-        clientCertificateRef:
-          name: client-cert-secret
-          namespace: foo
+      tls:
+        backend:
+          clientCertificateRef:
+            name: client-cert-secret
+            namespace: foo
       gatewayClassName: ngrok
       listeners:
         - name: test-1

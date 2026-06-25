@@ -1,14 +1,22 @@
-# RBAC Requirements
+# RBAC
 
-The operator has 3 deployments, each with its own ServiceAccount and least-privilege Role/ClusterRole.
+## Overview
+
+The ngrok-operator uses Kubernetes Role-Based Access Control (RBAC) to authorize its components to interact with the Kubernetes API. Three separate components each have their own ServiceAccount and RBAC configuration:
+
+| Component              | Scope               | Purpose                                            |
+|------------------------|---------------------|----------------------------------------------------|
+| Operator (api-manager) | Cluster + Namespace | Main controller managing all CRDs and resources    |
+| Agent                  | Cluster             | Agent tunnel management                            |
+| Bindings Forwarder     | Cluster + Namespace | Endpoint binding forwarding                        |
 
 ## Architecture
 
-| Deployment | ServiceAccount | Controllers | Conditional? |
-|---|---|---|---|
-| api-manager | `ngrok-operator` | Ingress, Domain, IPPolicy, CloudEndpoint, NgrokTrafficPolicy, KubernetesOperator, BoundEndpoint, Gateway, HTTPRoute, TCPRoute, TLSRoute, GatewayClass, Namespace, ReferenceGrant, Service + Drain | No |
-| agent-manager | `ngrok-operator-agent` | AgentEndpoint | Yes (`ingress.enabled`) |
-| bindings-forwarder | `ngrok-operator-bindings-forwarder` | Forwarder | Yes (`bindings.enabled`) |
+| Deployment          | ServiceAccount                          | Controllers                                                                                                                                                            | Conditional?          |
+|---------------------|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|
+| api-manager         | `ngrok-operator`                        | Ingress, Domain, IPPolicy, CloudEndpoint, TrafficPolicy, KubernetesOperator, BoundEndpoint, Gateway, HTTPRoute, TCPRoute, TLSRoute, GatewayClass, Namespace, ReferenceGrant, Service + Drain | No |
+| agent-manager       | `ngrok-operator-agent`                  | AgentEndpoint                                                                                                                                                          | Yes (`ingress.enabled`) |
+| bindings-forwarder  | `ngrok-operator-bindings-forwarder`     | Forwarder                                                                                                                                                              | Yes (`bindings.enabled`) |
 
 ### Management approach
 
@@ -18,7 +26,7 @@ All RBAC is hand-managed in Helm templates. `controller-gen` is used only for CR
 
 The api-manager's permissions split into three categories based on where the underlying resources actually live, not just on `watchNamespace`:
 
-- **User workloads** (Ingress, Gateway routes, AgentEndpoint, CloudEndpoint, Domain, IPPolicy, NgrokTrafficPolicy, Service, etc.) — follow `watchNamespace`. Role in the watched namespace, or ClusterRole when watchNamespace is unset.
+- **User workloads** (Ingress, Gateway routes, AgentEndpoint, CloudEndpoint, Domain, IPPolicy, TrafficPolicy, Service, etc.) — follow `watchNamespace`. Role in the watched namespace, or ClusterRole when watchNamespace is unset.
 - **Operator state** (KubernetesOperator CR, the operator's own TLS Secret writes) — always in the release namespace. The KubernetesOperator CR is a singleton owned by the operator and the TLS Secret is created in `r.K8sOpNamespace` (= release namespace), so these resources never live in a user-chosen `watchNamespace`.
 - **Bindings** (BoundEndpoint CR, cross-namespace Service writes by the binding poller) — always cluster-wide. The poller creates Services in any namespace based on the BoundEndpoint's top-level domain. Even when `bindings.enabled=false`, the BoundEndpoint CRD is still installed (it ships in the unconditional `ngrok-crds` subchart) and the drain orchestrator unconditionally lists BoundEndpoints during shutdown, so the api-manager always needs these grants.
 
@@ -36,7 +44,7 @@ Cluster-scoped K8s resources (namespaces, ingressclasses, gatewayclasses) always
 
 > **Note**: the `bindings-forwarder` ClusterRole and the api-manager `bindings-cluster-role` both exist because the binding feature is inherently cluster-wide on both sides — the forwarder watches Pods anywhere that consumes the binding Service, and the poller creates the corresponding Service anywhere the BoundEndpoint targets. `watchNamespace` does not constrain either of these.
 >
-> **KubernetesOperator cache scope**: the `KubernetesOperator` CR is a singleton owned by the operator and always lives in the release namespace, regardless of `watchNamespace`. Both `cmd/api-manager.go` and `cmd/agent-manager.go` use a per-resource cache scope (`cache.Options.ByObject`) to pin this resource to the release namespace, so the cache list/watch matches the release-namespace-only RBAC grant. This makes both managers tolerate `watchNamespace ≠ release ns` for the KubernetesOperator reconciliation and drain-state read paths.
+> **KubernetesOperator cache scope**: the `KubernetesOperator` CR is a singleton owned by the operator and always lives in the release namespace, regardless of `watchNamespace`. Both `cmd/api-manager.go` and `cmd/agent-manager.go` use a per-resource cache scope (`cache.Options.ByObject`) to pin this resource to the release namespace, so the cache list/watch matches the release-namespace-only RBAC grant.
 >
 > **Remaining caveat**: the api-manager's `findOrCreateTLSSecret` writes the operator's TLS Secret to the release namespace. While the RBAC correctly grants those writes only in the release namespace, the controller-runtime cache for Secrets is still scoped to `watchNamespace` (via `DefaultNamespaces`). With `watchNamespace ≠ release ns`, the `Get` that precedes the create would miss the cache. As long as `watchNamespace = release ns` (the documented setup) this is fine. Pinning Secrets through `cache.Options.ByObject` like we do for KubernetesOperator would close this gap; that fix is out of scope for this RBAC restructure.
 
@@ -56,6 +64,13 @@ agent/              role.yaml (watchNamespace-following Role/ClusterRole)
 bindings-forwarder/ role.yaml (Role + RoleBinding + ClusterRole + ClusterRoleBinding)
 rbac/crd-access/    editor/viewer ClusterRoles for end-users
 ```
+
+## Design Principles
+
+- **Least privilege**: Each component only has the permissions it needs.
+- **Cluster-scoped for CRDs**: CRDs and cross-namespace resources require ClusterRoles.
+- **Namespace-scoped for internal state**: Leader election and secret management use namespaced Roles.
+- **Conditional permissions**: Some permissions (e.g., secret management for bindings) are only granted when the corresponding feature is enabled.
 
 ## api-manager permissions
 
@@ -97,21 +112,21 @@ Runs most controllers plus drain logic. Needs broad access.
 | tlsroutes/finalizers | gateway.networking.k8s.io | patch, update | TLSRoute controller |
 | tlsroutes/status | gateway.networking.k8s.io | get, list, update, watch | TLSRoute controller |
 | referencegrants | gateway.networking.k8s.io | get, list, watch | ReferenceGrant controller |
-| domains | ingress.k8s.ngrok.com | create, delete, get, list, patch, update, watch | Domain controller, Drain |
-| domains/finalizers | ingress.k8s.ngrok.com | patch, update | Domain controller |
-| domains/status | ingress.k8s.ngrok.com | get, patch, update | Domain controller |
-| ippolicies | ingress.k8s.ngrok.com | create, delete, get, list, patch, update, watch | IPPolicy controller, Drain |
-| ippolicies/finalizers | ingress.k8s.ngrok.com | patch, update | IPPolicy controller |
-| ippolicies/status | ingress.k8s.ngrok.com | get, patch, update | IPPolicy controller |
-| agentendpoints | ngrok.k8s.ngrok.com | create, delete, get, list, patch, update, watch | Drain (cleanup), driver (creates from ingress/gateway) |
-| agentendpoints/finalizers | ngrok.k8s.ngrok.com | patch, update | AgentEndpoint lifecycle |
-| agentendpoints/status | ngrok.k8s.ngrok.com | get, patch, update | AgentEndpoint lifecycle |
-| cloudendpoints | ngrok.k8s.ngrok.com | create, delete, get, list, patch, update, watch | CloudEndpoint controller, Drain |
-| cloudendpoints/finalizers | ngrok.k8s.ngrok.com | patch, update | CloudEndpoint controller |
-| cloudendpoints/status | ngrok.k8s.ngrok.com | get, patch, update | CloudEndpoint controller |
-| ngroktrafficpolicies | ngrok.k8s.ngrok.com | create, delete, get, list, patch, update, watch | NgrokTrafficPolicy controller |
-| ngroktrafficpolicies/finalizers | ngrok.k8s.ngrok.com | patch, update | NgrokTrafficPolicy controller |
-| ngroktrafficpolicies/status | ngrok.k8s.ngrok.com | get, patch, update | NgrokTrafficPolicy controller |
+| domains | ngrok.com | create, delete, get, list, patch, update, watch | Domain controller, Drain |
+| domains/finalizers | ngrok.com | patch, update | Domain controller |
+| domains/status | ngrok.com | get, patch, update | Domain controller |
+| ippolicies | ngrok.com | create, delete, get, list, patch, update, watch | IPPolicy controller, Drain |
+| ippolicies/finalizers | ngrok.com | patch, update | IPPolicy controller |
+| ippolicies/status | ngrok.com | get, patch, update | IPPolicy controller |
+| agentendpoints | ngrok.com | create, delete, get, list, patch, update, watch | Drain (cleanup), driver (creates from ingress/gateway) |
+| agentendpoints/finalizers | ngrok.com | patch, update | AgentEndpoint lifecycle |
+| agentendpoints/status | ngrok.com | get, patch, update | AgentEndpoint lifecycle |
+| cloudendpoints | ngrok.com | create, delete, get, list, patch, update, watch | CloudEndpoint controller, Drain |
+| cloudendpoints/finalizers | ngrok.com | patch, update | CloudEndpoint controller |
+| cloudendpoints/status | ngrok.com | get, patch, update | CloudEndpoint controller |
+| trafficpolicies | ngrok.com | create, delete, get, list, patch, update, watch | TrafficPolicy controller |
+| trafficpolicies/finalizers | ngrok.com | patch, update | TrafficPolicy controller |
+| trafficpolicies/status | ngrok.com | get, patch, update | TrafficPolicy controller |
 
 ### Leader election (always namespaced Role in release NS)
 
@@ -128,9 +143,9 @@ These resources live in the release namespace regardless of `watchNamespace` bec
 | Resource | API Group | Verbs | Used by |
 |---|---|---|---|
 | secrets | core | create, get, list, patch, update, watch | KubernetesOperator TLS cert creation/rotation in `findOrCreateTLSSecret` (writes to `r.K8sOpNamespace` = release ns). Reads are granted here so `CreateOrUpdate` can `Get` the existing secret before deciding whether to create, even when `watchNamespace ≠ release ns`. Cluster-wide / watchNamespace-following secret reads are still granted by the api-manager Role for user-referenced TLS material. |
-| kubernetesoperators | ngrok.k8s.ngrok.com | create, delete, get, list, patch, update, watch | KubernetesOperator controller — singleton CR for the operator's own state |
-| kubernetesoperators/finalizers | ngrok.k8s.ngrok.com | patch, update | KubernetesOperator controller |
-| kubernetesoperators/status | ngrok.k8s.ngrok.com | get, patch, update | KubernetesOperator controller |
+| kubernetesoperators | ngrok.com | create, delete, get, list, patch, update, watch | KubernetesOperator controller — singleton CR for the operator's own state |
+| kubernetesoperators/finalizers | ngrok.com | patch, update | KubernetesOperator controller |
+| kubernetesoperators/status | ngrok.com | get, patch, update | KubernetesOperator controller |
 
 ### Bindings (always cluster-wide ClusterRole, unconditional)
 
@@ -140,9 +155,9 @@ These rules are **not** gated on `bindings.enabled`. The BoundEndpoint CRD is al
 
 | Resource | API Group | Verbs | Used by |
 |---|---|---|---|
-| boundendpoints | bindings.k8s.ngrok.com | create, delete, get, list, patch, update, watch | BoundEndpoint controller, Drain |
-| boundendpoints/finalizers | bindings.k8s.ngrok.com | patch, update | BoundEndpoint controller |
-| boundendpoints/status | bindings.k8s.ngrok.com | get, patch, update | BoundEndpoint controller |
+| boundendpoints | ngrok.com | create, delete, get, list, patch, update, watch | BoundEndpoint controller, Drain |
+| boundendpoints/finalizers | ngrok.com | patch, update | BoundEndpoint controller |
+| boundendpoints/status | ngrok.com | get, patch, update | BoundEndpoint controller |
 | services | core | create, delete, get, list, patch, update, watch | Binding poller creates Services for bound endpoints in any namespace |
 | services/finalizers | core | patch, update | Binding poller |
 | services/status | core | get, list, patch, update, watch | Binding poller |
@@ -157,11 +172,11 @@ Runs only the AgentEndpoint controller. Most resources are namespace-scoped and 
 |---|---|---|---|
 | events | core | create, patch | Event recording |
 | secrets | core | get, list, watch | TLS certificate reads for AgentEndpoints |
-| domains | ingress.k8s.ngrok.com | create, delete, get, list, patch, update, watch | Auto-creates Domain resources for AgentEndpoints |
-| agentendpoints | ngrok.k8s.ngrok.com | get, list, watch, patch, update | AgentEndpoint reconciler |
-| agentendpoints/finalizers | ngrok.k8s.ngrok.com | patch, update | AgentEndpoint finalizer |
-| agentendpoints/status | ngrok.k8s.ngrok.com | get, patch, update | AgentEndpoint status updates |
-| ngroktrafficpolicies | ngrok.k8s.ngrok.com | get, list, watch | Resolves traffic policy refs |
+| domains | ngrok.com | create, delete, get, list, patch, update, watch | Auto-creates Domain resources for AgentEndpoints |
+| agentendpoints | ngrok.com | get, list, watch, patch, update | AgentEndpoint reconciler |
+| agentendpoints/finalizers | ngrok.com | patch, update | AgentEndpoint finalizer |
+| agentendpoints/status | ngrok.com | get, patch, update | AgentEndpoint status updates |
+| trafficpolicies | ngrok.com | get, list, watch | Resolves traffic policy refs |
 
 ### Operator state (always Role in release NS)
 
@@ -169,7 +184,7 @@ The `KubernetesOperator` CR is the api-manager's singleton state object and alwa
 
 | Resource | API Group | Verbs | Used by |
 |---|---|---|---|
-| kubernetesoperators | ngrok.k8s.ngrok.com | get, list, watch | Reads drain state via `drain.StateChecker` |
+| kubernetesoperators | ngrok.com | get, list, watch | Reads drain state via `drain.StateChecker` |
 
 ## bindings-forwarder permissions
 
@@ -181,8 +196,8 @@ Runs only the Forwarder controller. Watches its own release namespace for most r
 |---|---|---|---|
 | events | core | create, patch | Event recording |
 | secrets | core | get, list, watch | TLS certificate reads |
-| boundendpoints | bindings.k8s.ngrok.com | get, list, patch, update, watch | Forwarder reconciler |
-| kubernetesoperators | ngrok.k8s.ngrok.com | get, list, watch | Reads drain state |
+| boundendpoints | ngrok.com | get, list, patch, update, watch | Forwarder reconciler |
+| kubernetesoperators | ngrok.com | get, list, watch | Reads drain state |
 
 ### Cluster-scoped resources (always ClusterRole)
 
@@ -196,23 +211,23 @@ Helm pre-delete hook that cleans up KubernetesOperator resources. Uses a dedicat
 
 | Resource | API Group | Verbs | Used by |
 |---|---|---|---|
-| kubernetesoperators | ngrok.k8s.ngrok.com | delete, get, list, watch | Pre-delete cleanup job |
+| kubernetesoperators | ngrok.com | delete, get, list, watch | Pre-delete cleanup job |
 
 ## CRD access roles
 
 End-user ClusterRoles for granting read/write access to operator CRDs via RBAC aggregation. These are not bound to any operator ServiceAccount. Users bind them to their own subjects.
 
-Each CRD gets an editor role (full CRUD + status read) and a viewer role (read-only + status read).
+Each CRD gets an editor role (full CRUD + status read) and a viewer role (read-only + status read). See [aggregation.md](aggregation.md) for the full role definitions.
 
 | CRD | API Group | Editor | Viewer |
 |---|---|---|---|
-| AgentEndpoint | ngrok.k8s.ngrok.com | Yes | Yes |
-| CloudEndpoint | ngrok.k8s.ngrok.com | Yes | Yes |
-| KubernetesOperator | ngrok.k8s.ngrok.com | Yes | Yes |
-| NgrokTrafficPolicy | ngrok.k8s.ngrok.com | Yes | Yes |
-| Domain | ingress.k8s.ngrok.com | Yes | Yes |
-| IPPolicy | ingress.k8s.ngrok.com | Yes | Yes |
-| BoundEndpoint | bindings.k8s.ngrok.com | Yes | Yes |
+| AgentEndpoint | ngrok.com | Yes | Yes |
+| CloudEndpoint | ngrok.com | Yes | Yes |
+| KubernetesOperator | ngrok.com | Yes | Yes |
+| TrafficPolicy | ngrok.com | Yes | Yes |
+| Domain | ngrok.com | Yes | Yes |
+| IPPolicy | ngrok.com | Yes | Yes |
+| BoundEndpoint | ngrok.com | Yes | Yes |
 
 Annotations for RBAC aggregation (e.g., `rbac.authorization.k8s.io/aggregate-to-admin`) are configurable via `crdAccessRoles.annotations` in values.yaml.
 

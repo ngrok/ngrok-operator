@@ -3,7 +3,7 @@ package bindings
 import (
 	"context"
 	"fmt"
-	"reflect"
+	"maps"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -582,41 +582,7 @@ func (r *BoundEndpointPoller) updateBindingStatus(ctx context.Context, desired *
 
 // targetMetadataIsEqual returns true if the metadata fields in a and b are equal
 func targetMetadataIsEqual(a bindingsv1alpha1.TargetMetadata, b bindingsv1alpha1.TargetMetadata) bool {
-	if len(a.Annotations) != len(b.Annotations) {
-		return false
-	}
-
-	if len(a.Labels) != len(b.Labels) {
-		return false
-	}
-
-	// massage the maps to conform to reflect.DeepEqual()
-
-	if a.Annotations == nil && b.Annotations != nil {
-		a.Annotations = map[string]string{}
-	}
-
-	if a.Labels == nil && b.Labels != nil {
-		a.Labels = map[string]string{}
-	}
-
-	if b.Annotations == nil && a.Annotations != nil {
-		b.Annotations = map[string]string{}
-	}
-
-	if b.Labels == nil && a.Labels != nil {
-		b.Labels = map[string]string{}
-	}
-
-	if !reflect.DeepEqual(a.Annotations, b.Annotations) {
-		return false
-	}
-
-	if !reflect.DeepEqual(a.Labels, b.Labels) {
-		return false
-	}
-
-	return true
+	return maps.Equal(a.Annotations, b.Annotations) && maps.Equal(a.Labels, b.Labels)
 }
 
 // computeEndpointsSummary returns "N endpoint" or "N endpoints" string

@@ -86,14 +86,9 @@ func indexTLSTerminationSecrets(o client.Object) []string {
 	return keys
 }
 
-// secretIndexKey returns the "namespace/name" key used by Secret-watch indexes,
-// resolving the ref's namespace (defaulting to the owning AgentEndpoint's namespace).
-func secretIndexKey(defaultNamespace string, ref ngrokv1alpha1.K8sObjectRefOptionalNamespace) string {
-	ns := defaultNamespace
-	if ref.Namespace != nil && *ref.Namespace != "" {
-		ns = *ref.Namespace
-	}
-	return ns + "/" + ref.Name
+// secretIndexKey returns the "namespace/name" key used by Secret-watch indexes.
+func secretIndexKey(namespace string, ref ngrokv1alpha1.K8sObjectRef) string {
+	return namespace + "/" + ref.Name
 }
 
 var (
@@ -452,9 +447,6 @@ func (r *AgentEndpointReconciler) getClientCerts(ctx context.Context, aep *ngrok
 	ret := []tls.Certificate{}
 	for _, clientCertRef := range aep.Spec.ClientCertificateRefs {
 		key := client.ObjectKey{Name: clientCertRef.Name, Namespace: aep.Namespace}
-		if clientCertRef.Namespace != nil {
-			key.Namespace = *clientCertRef.Namespace
-		}
 
 		// Attempt to get the Secret from the API server
 		certSecret := &v1.Secret{}

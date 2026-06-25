@@ -90,6 +90,37 @@ following conditions holds:
 For the migrations currently in flight, neither applies. Stick with the
 three-release default.
 
+## Three-release pattern (finalizer-style cases)
+
+A different three-release shape is required when the legacy key gates
+object lifecycle. Finalizers are the canonical case: Kubernetes will not
+let an object delete until *every* finalizer is removed, and an older
+operator only knows how to remove the finalizer key it knew about.
+Dual-writing both finalizers is **worse** than single-writing — it just
+guarantees the old operator can't drive a deletion to completion. So
+unlike the default pattern above, R1 here single-writes the *legacy* key.
+
+- **R1 (migration release):** read both prefixes; `Add` writes the
+  **legacy** key only (no write-side change from the prior release); the
+  `Remove` path removes both keys. R1 is rollback-safe to the prior
+  release (no new-prefix keys exist yet) and forward-safe to R2 (R2 finds
+  objects already carrying the legacy key it knows how to remove).
+- **R2 (next release):** read both prefixes; `Add` writes the **new** key
+  and removes the legacy. `Remove` removes both. Rollback to R1 is safe
+  because R1 knows how to remove the new key.
+- **R3 (cleanup release):** read and write the new key only.
+
+Used for: the operator finalizer (`ngrok.com/finalizer`).
+
+## Deferral for rollout races
+
+Some changes are safe to ship in the operator binary but unsafe to ship in
+the rendered helm chart at the same time, because the rendered manifest
+takes effect mid-upgrade while the old operator pod is still running.
+The IngressClass `spec.controller` flip is the only example so far. The
+operator binary gains dual-match in R1; the rendered manifest stays on the
+legacy value until R2.
+
 ## The `LEGACY-PREFIX-MIGRATION` sentinel
 
 Every code site that exists *only* to support the legacy prefix during a
@@ -109,14 +140,20 @@ In the cleanup releases for each migration, run:
 git grep 'LEGACY-PREFIX-MIGRATION'
 ```
 
-Markers deliberately avoid release numbers (which may still change) and
-instead say what kind of cleanup they are: a `(write-side cleanup)` marker
-stops dual-writing the legacy key, a `(read-side cleanup)` marker stops
-reading it. That distinction is the load-bearing part — write-side cleanup
-must ship a release before read-side cleanup, or a rollback to the
-previous release can no longer find legacy-stamped objects. The sentinel
-exists so each cleanup release is a single, auditable sweep rather than
-archaeology.
+For each hit, delete the block between `BEGIN` / `END` or delete the
+marked line.
+
+Markers say what *kind* of cleanup they are: a `(write-side cleanup)`
+marker stops dual-writing the legacy key, a `(read-side cleanup)` marker
+stops reading it. That distinction is the load-bearing part — write-side
+cleanup must ship a release before read-side cleanup, or a rollback to the
+previous release can no longer find legacy-stamped objects. Newer shims
+prefer this cleanup-kind label over a release number in the marker text
+(the later version may still change); some earlier shims (the finalizer
+and IngressClass migrations) instead pin a firm version like
+`drop ... in 1.0` because their schedule is already fixed. Either form is a
+valid `git grep` target. The sentinel exists so each cleanup release is a
+single, auditable sweep rather than archaeology.
 
 ## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
 
@@ -134,17 +171,18 @@ and the precise code touched at each step.
   - `ControllerLabelSelectors(...)` returns both selectors so List queries
     find legacy-labeled objects.
   - `internal/domain/manager.go::ensureControllerLabels` short-circuits
-    only when all four keys are present, so the legacy pair gets
-    backfilled on every object.
+    only when the operator would not change any label (probed via a
+    clone-and-`EnsureLabels` no-op check), so the legacy pair gets
+    backfilled on every object during the migration window.
 - **R2 — write-side cleanup:**
   - `ControllerLabels(...)`: drop the legacy entries from the returned
     map; collapses back to the new pair only.
   - `EnsureControllerLabels(...)`: replace the legacy ensure-set with
     `delete(l, LegacyControllerNamespace)` / `delete(l, LegacyControllerName)`
     so existing objects shed the legacy pair on next reconcile.
-  - `domain.ensureControllerLabels` early-return: drop the legacy-pair
-    check; collapses back to
-    `if hasControllerNameLabel && hasControllerNamespaceLabel`.
+  - `domain.ensureControllerLabels`: no change needed — because it probes
+    by running `EnsureLabels` on a clone, it automatically tracks whatever
+    `EnsureLabels` writes once the legacy ensure-set is dropped.
   - **Keep** `HasControllerLabels` dual-match and
     `ControllerLabelSelectors` dual-selectors so R2 can still find and
     migrate legacy-only objects.
@@ -212,3 +250,63 @@ and the precise code touched at each step.
     reconciled yet.
 - **R3 — read-side cleanup:** drop the three `Legacy*` consts and
   the legacy lookup in `boundEndpointLabelsFor`.
+
+### Operator finalizer (operator-written, lifecycle-gating)
+
+- **Pattern:** Three-release dance (finalizer-style; see above).
+- **R1 (0.24):** `internal/util/k8s.go`:
+  - `HasFinalizer` checks both (already implemented).
+  - `AddFinalizer` adds `LegacyFinalizerName` only; **does not** add
+    `FinalizerName` and does **not** remove `LegacyFinalizerName`.
+  - `RemoveFinalizer` removes both (already implemented).
+  - Update the doc comments on `AddFinalizer` and on the package to make
+    clear this is R1 of the three-release pattern.
+- **R2 (0.25):** `AddFinalizer` switches to adding `FinalizerName` and
+  removing `LegacyFinalizerName`. `HasFinalizer` and `RemoveFinalizer`
+  unchanged (still bridge both).
+- **R3 cleanup (0.26):** delete `LegacyFinalizerName`, the legacy branches
+  in `HasFinalizer`, and the legacy `RemoveFinalizer` call.
+
+#### Why we don't shortcut the finalizer
+
+A few alternatives were considered and rejected:
+
+- **Keep the legacy finalizer forever.** Lowest-risk option; the operator
+  finalizer name is internal and users don't select on it. Rejected
+  because the prefix unification is being done specifically to make all
+  ngrok-owned keys consistent ahead of 1.0.
+- **Two-release dual-write of both finalizers.** Forward-safe but
+  rollback-broken: the older operator only knows how to strip the legacy
+  finalizer, so the new finalizer would block deletion of any object that
+  reached `Terminating` after rollback. The finalizer **must** be
+  single-written at any given time — only the *identity* of the
+  single-written key changes between R1 and R2.
+- **Skip R1 entirely (flip writes in 0.24).** Equivalent to the current
+  PR's first cut, and the reason this strategy exists at all.
+
+If you find yourself adding a new finalizer rename, follow the
+three-release pattern above; there is no two-release shortcut that
+preserves rollback safety.
+
+### IngressClass `spec.controller` (rollout-race deferral)
+
+- **Pattern:** Helm-rendered manifest deferred to cleanup release.
+- **R1 (0.24):**
+  - Operator binary: `internal/store/store.go::ListNgrokIngressClassesV1`
+    dual-matches whenever `controllerName` equals either stock default
+    (legacy `k8s.ngrok.com/ingress-controller` or new
+    `ngrok.com/ingress-controller`). Custom controller names retain
+    exact-match for multi-instance isolation. The Go code cannot
+    distinguish "default" from "explicitly set to the default value",
+    so both stock defaults are treated symmetrically; nobody sets the
+    legacy default explicitly to mean "exact-match legacy only".
+  - CLI flag default in `cmd/api-manager.go` flips to the new prefix.
+  - Helm chart **stays on legacy**: `helm/ngrok-operator/values.yaml`
+    `ingress.controllerName` remains `k8s.ngrok.com/ingress-controller`;
+    `values.schema.json` default matches; `README.md` table matches;
+    `tests/__snapshot__/ingress-class_test.yaml.snap` shows the legacy
+    controller. The helm `CHANGELOG.md` notes that the *default will
+    change in 0.25*, not that it does now.
+- **R2 (0.25):** flip the helm-rendered IngressClass to the new prefix.
+  At this point no pre-migration operator pod can observe the change.
+- **R3 cleanup:** drop the dual-match branch in `store.go`.

@@ -185,8 +185,8 @@ func (t *translator) findMatchingVHostsForXRoute(
 			)
 		}
 		upstreamClientCertRefs := []ir.IRObjectRef{}
-		if gateway.Spec.BackendTLS != nil && gateway.Spec.BackendTLS.ClientCertificateRef != nil {
-			certRef := gateway.Spec.BackendTLS.ClientCertificateRef
+		if gateway.Spec.TLS != nil && gateway.Spec.TLS.Backend != nil && gateway.Spec.TLS.Backend.ClientCertificateRef != nil {
+			certRef := gateway.Spec.TLS.Backend.ClientCertificateRef
 			certNs := gateway.Namespace
 			if certRef.Namespace != nil {
 				certNs = string(*certRef.Namespace)
@@ -260,7 +260,7 @@ func (t *translator) findMatchingVHostsForXRoute(
 				// Check if this Gateway already has an irVHost for this specific hostname, otherwise make one
 				irListener := ir.IRListener{
 					Hostname: ir.IRHostname(virtualHostHostname),
-					Port:     int32(matchingListener.Port),
+					Port:     matchingListener.Port,
 				}
 
 				switch matchingListener.Protocol {
@@ -283,7 +283,7 @@ func (t *translator) findMatchingVHostsForXRoute(
 					namePrefix := fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace)
 
 					if irListener.Protocol == ir.IRProtocol_TCP || irListener.Protocol == ir.IRProtocol_TLS {
-						namePrefix += fmt.Sprintf(".%d", int32(matchingListener.Port))
+						namePrefix += fmt.Sprintf(".%d", matchingListener.Port)
 					}
 
 					irVHost = &ir.IRVirtualHost{
@@ -1167,7 +1167,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 		)
 	}
 
-	servicePort, err := findServicesPort(t.log, service, netv1.ServiceBackendPort{Number: int32(*backendRef.Port)})
+	servicePort, err := findServicesPort(t.log, service, netv1.ServiceBackendPort{Number: *backendRef.Port})
 	if err != nil || servicePort == nil {
 		return nil, fmt.Errorf("failed to resolve backendRef Service's port. name: %q, namespace: %q: %w",
 			serviceName,
@@ -1275,7 +1275,7 @@ func (t *translator) tcpBackendToIR(routeName string, routeNamespace string, rou
 		)
 	}
 
-	servicePort, err := findServicesPort(t.log, service, netv1.ServiceBackendPort{Number: int32(*backendRef.Port)})
+	servicePort, err := findServicesPort(t.log, service, netv1.ServiceBackendPort{Number: *backendRef.Port})
 	if err != nil || servicePort == nil {
 		return nil, fmt.Errorf("failed to resolve backendRef Service's port. name: %q, namespace: %q: %w",
 			serviceName,
@@ -1342,7 +1342,7 @@ func (t *translator) tcpBackendToIR(routeName string, routeNamespace string, rou
 // #region GatewayTLS IR
 
 // gwapiRequestHeaderFilterToTrafficPolicy translates a GatewayAPI tls configuration into IR
-func (t *translator) gatewayTLSTermConfigToIR(listenerTLS *gatewayv1.GatewayTLSConfig, gateway *gatewayv1.Gateway) (*ir.IRTLSTermination, error) {
+func (t *translator) gatewayTLSTermConfigToIR(listenerTLS *gatewayv1.ListenerTLSConfig, gateway *gatewayv1.Gateway) (*ir.IRTLSTermination, error) {
 	if listenerTLS == nil {
 		return nil, nil
 	}
@@ -1409,9 +1409,13 @@ func (t *translator) gatewayTLSTermConfigToIR(listenerTLS *gatewayv1.GatewayTLSC
 		tlsTermCfg.ServerPrivateKey = &privateKey
 	}
 
-	// Next, check if there is mTLS config
-	if listenerTLS.FrontendValidation != nil {
-		for _, certRef := range listenerTLS.FrontendValidation.CACertificateRefs {
+	// Next, check if there is mTLS config at the gateway level (moved from per-listener in gateway-api v1.5+)
+	var frontendValidation *gatewayv1.FrontendTLSValidation
+	if gateway.Spec.TLS != nil && gateway.Spec.TLS.Frontend != nil {
+		frontendValidation = gateway.Spec.TLS.Frontend.Default.Validation
+	}
+	if frontendValidation != nil {
+		for _, certRef := range frontendValidation.CACertificateRefs {
 			refNamespace := gateway.Namespace
 			if certRef.Namespace != nil {
 				refNamespace = string(*certRef.Namespace)

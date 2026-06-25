@@ -17,6 +17,14 @@ input:
         k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
     spec:
       gatewayClassName: ngrok
+      tls:
+        frontend:
+          default:
+            validation:
+              caCertificateRefs:
+              - group: ""
+                kind: ConfigMap
+                name: ca-configmap
       listeners:
         - name: test-invalid-1
           hostname: "test-hostname.ngrok.io"
@@ -27,10 +35,6 @@ input:
             certificateRefs:
             - kind: Secret
               name: tls-secret
-            frontendValidation:
-              caCertificateRefs:
-              - kind: ConfigMap
-                name: ca-configmap
             options:
               "k8s.ngrok.com/terminate-tls.min_version": "1.2"
               "k8s.ngrok.com/terminate-tls.max_version": "1.3"
