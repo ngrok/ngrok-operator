@@ -45,12 +45,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 )
 
 const (
@@ -260,17 +260,9 @@ func (m *Manager) SetError(ep ngrokv1alpha1.EndpointWithTrafficPolicy, message s
 }
 
 // setCondition writes the TrafficPolicyApplied condition on the endpoint.
+// It routes through the shared conditions.Set helper so the condition is
+// written identically to the Ready/Created conditions the endpoint
+// controllers manage.
 func (m *Manager) setCondition(ep ngrokv1alpha1.EndpointWithTrafficPolicy, applied bool, reason, message string) {
-	status := metav1.ConditionTrue
-	if !applied {
-		status = metav1.ConditionFalse
-	}
-
-	meta.SetStatusCondition(ep.GetConditions(), metav1.Condition{
-		Type:               ConditionTrafficPolicy,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: ep.GetGeneration(),
-	})
+	conditions.Set(ep.GetConditions(), ep.GetGeneration(), ConditionTrafficPolicy, applied, reason, message)
 }
