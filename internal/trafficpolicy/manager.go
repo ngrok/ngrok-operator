@@ -93,8 +93,8 @@ var ErrInvalidPolicyJSON = errors.New("TrafficPolicy contains invalid JSON")
 // Result is what the Manager returns to callers after resolving a policy.
 // Policy is the JSON string handed to the ngrok API / agent SDK. Source
 // identifies the resolved attachment ("inline", "none", or the referenced
-// TrafficPolicy "name" / "namespace/name") and is suitable for writing
-// into an endpoint kind's status summary field when that kind has one.
+// TrafficPolicy name) and is suitable for writing into an endpoint kind's
+// status summary field when that kind has one.
 type Result struct {
 	Policy string
 	Source string

@@ -77,6 +77,12 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 			reason = "DomainNotReady"
 			message = "Domain is not ready"
 		}
+	case !trafficPolicyReady:
+		// A failed traffic-policy resolution (e.g. TrafficPolicyNotFound) is the
+		// actionable root cause and is surfaced before the generic "not yet
+		// created" pending state, since policy resolution gates creation.
+		reason = trafficPolicyCondition.Reason
+		message = trafficPolicyCondition.Message
 	case !cloudEndpointCreated:
 		// If CloudEndpointCreated condition exists and is False, use its reason/message
 		if createdCondition != nil && createdCondition.Status == metav1.ConditionFalse {
@@ -86,9 +92,6 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 			reason = "Pending"
 			message = "Waiting for CloudEndpoint to be ready"
 		}
-	case !trafficPolicyReady:
-		reason = trafficPolicyCondition.Reason
-		message = trafficPolicyCondition.Message
 	default:
 		reason = "Unknown"
 		message = "CloudEndpoint is not ready"

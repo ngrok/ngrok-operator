@@ -75,6 +75,12 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 			reason = "DomainNotReady"
 			message = "Domain is not ready"
 		}
+	case !trafficPolicyReady:
+		// A failed traffic-policy resolution (e.g. TrafficPolicyNotFound) is the
+		// actionable root cause and is surfaced before the generic "not yet
+		// created" pending state, since policy resolution gates creation.
+		reason = trafficPolicyCondition.Reason
+		message = trafficPolicyCondition.Message
 	case !endpointCreated:
 		// If EndpointCreated condition exists and is False, use its reason/message
 		if endpointCreatedCondition != nil && endpointCreatedCondition.Status == metav1.ConditionFalse {
@@ -84,10 +90,6 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 			reason = "Pending"
 			message = "Waiting for endpoint creation"
 		}
-	case !trafficPolicyReady:
-		// Use the traffic policy's condition reason/message
-		reason = trafficPolicyCondition.Reason
-		message = trafficPolicyCondition.Message
 	default:
 		reason = "Unknown"
 		message = "AgentEndpoint is not ready"
