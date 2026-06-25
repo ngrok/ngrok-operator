@@ -47,12 +47,14 @@ worth checking:
 - **`computed-url` annotation**: operator-written onto LoadBalancer
   Services. Internal; no action needed. Legacy keys may already exist on
   Services upgraded from earlier releases and are migrated automatically.
-- **Bindings labels** (`endpoint-binding-name` / `endpoint-binding-namespace`
-  / `endpoint-url`): these are user-discoverable — if dashboards,
-  monitoring, or GitOps tools select on them, plan to update those selectors
-  before the write-side cleanup release. The operator writes both prefixes
-  during 0.24, so existing selectors keep matching; they stop matching once
-  the write-side cleanup release removes the legacy keys on reconcile.
+- **Bindings labels** (`endpoint-binding-name` / `endpoint-binding-namespace`):
+  these are user-discoverable — if dashboards, monitoring, or GitOps tools
+  select on them, plan to update those selectors before the write-side
+  cleanup release. The operator writes both prefixes during 0.24, so existing
+  selectors keep matching; they stop matching once the write-side cleanup
+  release removes the legacy keys on reconcile. The accompanying
+  `endpoint-url` **annotation** is operator-written and not selectable; no
+  action is needed for it.
 
 | Legacy                                                | New                                    | Notes                                                                       |
 | ----------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |

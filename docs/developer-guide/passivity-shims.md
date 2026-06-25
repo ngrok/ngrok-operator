@@ -147,13 +147,13 @@ Markers say what *kind* of cleanup they are: a `(write-side cleanup)`
 marker stops dual-writing the legacy key, a `(read-side cleanup)` marker
 stops reading it. That distinction is the load-bearing part — write-side
 cleanup must ship a release before read-side cleanup, or a rollback to the
-previous release can no longer find legacy-stamped objects. Newer shims
-prefer this cleanup-kind label over a release number in the marker text
-(the later version may still change); some earlier shims (the finalizer
-and IngressClass migrations) instead pin a firm version like
-`drop ... in 1.0` because their schedule is already fixed. Either form is a
-valid `git grep` target. The sentinel exists so each cleanup release is a
-single, auditable sweep rather than archaeology.
+previous release can no longer find legacy-stamped objects. This guide
+prefers the cleanup-kind label over a release number in the marker text,
+since the target version may still change; a few earlier markers (the
+finalizer and IngressClass shims) instead embed a specific release like
+`drop ... in 1.0`. Either form is a valid `git grep` target. The sentinel
+exists so each cleanup release is a single, auditable sweep rather than
+archaeology.
 
 ## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
 
@@ -215,8 +215,9 @@ and the precise code touched at each step.
     is gated on the *listener URL* derived from the user's `url`/`domain`
     annotation (`controller.go`, `if listenerEndpointURL == "tcp://"`), not on
     the stored annotation. A Service that is no longer TCP never reaches the
-    `ExtractComputedURL` read; it falls to the branch that clears both keys,
-    so the stale value is overwritten on the next reconcile. No code change —
+    `ExtractComputedURL` read; it falls to the non-TCP branch that re-stamps
+    both keys via `setComputedURLAnnotation`, so the stale value is overwritten
+    on the next reconcile. No code change —
     documented because it is the one place R1's "never delete legacy on the
     write path" property does not extend across a version boundary.
 - **R2 — write-side cleanup:**
