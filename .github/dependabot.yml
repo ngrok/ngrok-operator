@@ -24,3 +24,11 @@ updates:
       - "github-actions"
     commit-message:
       prefix: "chore(github-actions)"
+  - package-ecosystem: "nix"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "area/devenv"
+      - "dependencies"
