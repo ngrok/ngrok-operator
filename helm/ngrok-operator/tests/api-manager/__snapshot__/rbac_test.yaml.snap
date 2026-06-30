@@ -33,8 +33,10 @@ should match snapshot in default mode:
         resources:
           - secrets
         verbs:
+          - create
           - get
           - list
+          - update
           - watch
       - apiGroups:
           - ""
@@ -449,8 +451,10 @@ should match snapshot in namespaced mode:
         resources:
           - secrets
         verbs:
+          - create
           - get
           - list
+          - update
           - watch
       - apiGroups:
           - ""
