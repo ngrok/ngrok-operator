@@ -2,6 +2,7 @@ package compute
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,14 +33,22 @@ type replicaEndpoint struct {
 	TrafficPolicy string `json:"traffic_policy"`
 }
 
+type registryPullCredential struct {
+	RegistryID string `json:"registry_id"`
+	Server     string `json:"server"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+}
+
 // computeReplica represents a replica from the runner replicas endpoint.
 type computeReplica struct {
-	ID              string            `json:"id"`
-	ContainerImage  string            `json:"container_image"`
-	EnvironmentName string            `json:"environment_name"`
-	ReplicaIndex    int32             `json:"replica_index"`
-	Endpoints       []replicaEndpoint `json:"endpoints"`
-	EnvironmentVars map[string]string `json:"environment_vars"`
+	ID                     string                  `json:"id"`
+	ContainerImage         string                  `json:"container_image"`
+	EnvironmentName        string                  `json:"environment_name"`
+	ReplicaIndex           int32                   `json:"replica_index"`
+	Endpoints              []replicaEndpoint       `json:"endpoints"`
+	EnvironmentVars        map[string]string       `json:"environment_vars"`
+	RegistryPullCredential *registryPullCredential `json:"registry_pull_credential"`
 }
 
 // computeReplicaList represents the response from the runner replicas endpoint.
@@ -72,8 +82,13 @@ func agentEndpointName(envName string, idx int32, epName, id string) string {
 	return fmt.Sprintf("%s-%d-%s-%s", k8sName(envName), idx, k8sName(epName), k8sName(id))
 }
 
+func pullSecretName(registryID string) string {
+	return "ngrok-container-registry-" + k8sName(registryID)
+}
+
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;create;update
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints,verbs=get;list;watch;create;update;delete
 
 // AppReplicaPoller polls the ngrok Compute Replicas API for app-replica objects
@@ -177,6 +192,9 @@ func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger) error
 	// Create missing resources.
 	for id, replica := range desiredByID {
 		if _, exists := existingByID[id]; exists {
+			if err := r.ensureReplicaPullSecret(ctx, replica); err != nil {
+				log.Error(err, "failed to ensure app-replica pull secret", "id", id)
+			}
 			continue
 		}
 		log.Info("Creating resources for app-replica", "id", id, "image", replica.ContainerImage)
@@ -294,6 +312,16 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 		envVars = append(envVars, corev1.EnvVar{Name: k, Value: v})
 	}
 
+	if err := r.ensureReplicaPullSecret(ctx, replica); err != nil {
+		return fmt.Errorf("ensuring pull secret: %w", err)
+	}
+	var imagePullSecrets []corev1.LocalObjectReference
+	if replica.RegistryPullCredential != nil {
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReference{
+			Name: pullSecretName(replica.RegistryPullCredential.RegistryID),
+		})
+	}
+
 	// Deployment
 	replicaCount := int32(1)
 	deploy := &appsv1.Deployment{
@@ -308,6 +336,7 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: imagePullSecrets,
 					Containers: []corev1.Container{
 						{
 							Name:  "app",
@@ -368,6 +397,49 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 
 	log.Info("Created deployment, service, and agent endpoints", "id", replica.ID, "name", name)
 	return nil
+}
+
+func (r *AppReplicaPoller) ensureReplicaPullSecret(ctx context.Context, replica computeReplica) error {
+	if replica.RegistryPullCredential == nil {
+		return nil
+	}
+	return r.ensurePullSecret(ctx, pullSecretFor(r.Namespace, replica.RegistryPullCredential))
+}
+
+func pullSecretFor(namespace string, cred *registryPullCredential) *corev1.Secret {
+	config := map[string]any{
+		"auths": map[string]any{
+			cred.Server: map[string]string{
+				"username": cred.Username,
+				"password": cred.Password,
+				"auth":     base64.StdEncoding.EncodeToString([]byte(cred.Username + ":" + cred.Password)),
+			},
+		},
+	}
+	data, _ := json.Marshal(config)
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pullSecretName(cred.RegistryID),
+			Namespace: namespace,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: data,
+		},
+	}
+}
+
+func (r *AppReplicaPoller) ensurePullSecret(ctx context.Context, desired *corev1.Secret) error {
+	var current corev1.Secret
+	if err := r.Get(ctx, client.ObjectKeyFromObject(desired), &current); err != nil {
+		if apierrors.IsNotFound(err) {
+			return r.Create(ctx, desired)
+		}
+		return err
+	}
+	current.Type = desired.Type
+	current.Data = desired.Data
+	return r.Update(ctx, &current)
 }
 
 func (r *AppReplicaPoller) deleteResources(ctx context.Context, log logr.Logger, id, name string) {

@@ -1816,8 +1816,10 @@ rules:
   resources:
   - secrets
   verbs:
+  - create
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - ""
@@ -2957,7 +2959,7 @@ metadata:
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: e2223f30caae609b02d553c1b6739b439496caafd56472cd917e1ae3c90f24c3
+    checksum/controller-role: 39ab974c4edd81caa15501e45d47c5c17779b9c0b0911c005618e4b1fcb532d9
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -2972,7 +2974,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: e2223f30caae609b02d553c1b6739b439496caafd56472cd917e1ae3c90f24c3
+        checksum/controller-role: 39ab974c4edd81caa15501e45d47c5c17779b9c0b0911c005618e4b1fcb532d9
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
