@@ -226,10 +226,16 @@ trafficpolicy field renames:
   rollback fallback.
 - **Three-release dance like the finalizer migration.** Rejected because
   CloudEndpoint traffic policy attachment does not gate object lifecycle.
-  The worst rollback consequence here is a missing policy attachment for
-  one reconcile, which a user can recover from by re-adding the legacy
-  field; with finalizers, the worst consequence is an object stuck in
-  `Terminating` forever. A two-release pattern is sufficient.
+  The worst rollback consequence here is a detached policy: a canonical-only
+  object that is rolled back has its `inline`/`targetRef` pruned by the API
+  server, so the prior-release controller sees no policy. In practice this
+  surfaces as a persistent failing reconcile (`CloudEndpointCreationFailed`,
+  since a CloudEndpoint with no terminal traffic-policy action is rejected
+  by the ngrok API) rather than a silent blip — but it is fully recoverable
+  by re-adding the legacy field, and because the failing call is an *update*
+  of an already-created endpoint, ngrok keeps the last-good policy live on
+  the data plane. With finalizers, by contrast, the worst consequence is an
+  object stuck in `Terminating` forever. A two-release pattern is sufficient.
 - **Skip R1 entirely and remove the legacy fields in 0.24.** Rejected
   because it gives users no rollback-safe migration window and no
   deprecation signal in their reconcile events.

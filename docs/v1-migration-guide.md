@@ -94,6 +94,19 @@ dual-write both `inline` and `policy` so they remain rollback-safe
 without any user action. Drop the `policy` value from your own manifests
 in the cleanup release.
 
+**What "not rollback-safe" actually means.** If you roll back a
+CloudEndpoint whose only policy lived in a canonical field
+(`trafficPolicy.targetRef` or `trafficPolicy.inline`), the prior release's
+CRD does not define that field, so the API server prunes it and the prior
+controller sees an endpoint with no policy at all. Because a CloudEndpoint
+has no policy to handle traffic, the ngrok API rejects the reconcile and
+the endpoint reports `Ready=False` / `CloudEndpointCreationFailed` until
+you re-add a legacy field (`trafficPolicyName` or `trafficPolicy.policy`).
+The previously-applied policy generally stays live on the ngrok side in the
+meantime, since the failing call is an update of an already-created
+endpoint. This is recoverable, but it is why you should keep a legacy
+field populated while you still need to roll back.
+
 #### Action required, by release
 
 | Release | Operator behavior | What you do |
