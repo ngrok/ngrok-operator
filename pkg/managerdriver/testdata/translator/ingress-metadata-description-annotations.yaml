@@ -53,7 +53,9 @@ expected:
     metadata:
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-namespace: test-manager-namespace
       name: e3b0c-test-service-1-default-8080
       namespace: default
     spec:

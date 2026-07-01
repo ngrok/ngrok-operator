@@ -316,6 +316,9 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 	assertDomainLabels(t, c, "example-com", "default", map[string]string{
 		labels.ControllerNamespace: "test-namespace",
 		labels.ControllerName:      "test-controller",
+		// LEGACY-PREFIX-MIGRATION: new domains are dual-stamped with the legacy pair.
+		labels.LegacyControllerNamespace: "test-namespace",
+		labels.LegacyControllerName:      "test-controller",
 	})
 }
 
@@ -626,21 +629,46 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 			name:           "adds labels to domain without labels",
 			existingLabels: nil,
 			wantLabels: map[string]string{
-				labels.ControllerNamespace: "test-namespace",
-				labels.ControllerName:      "test-controller",
+				labels.ControllerNamespace:       "test-namespace",
+				labels.ControllerName:            "test-controller",
+				labels.LegacyControllerNamespace: "test-namespace",
+				labels.LegacyControllerName:      "test-controller",
 			},
 		},
 		{
-			name: "preserves existing controller labels",
+			// LEGACY-PREFIX-MIGRATION: a domain stamped with only the new pair
+			// (e.g. by a partially-migrated operator) must get the legacy pair
+			// backfilled. The clone-and-probe detects the missing legacy keys
+			// because EnsureLabels would change the copy.
+			name: "backfills legacy pair when only new pair present",
 			existingLabels: map[string]string{
 				labels.ControllerNamespace: "test-namespace",
 				labels.ControllerName:      "test-controller",
 				"custom-label":             "custom-value",
 			},
 			wantLabels: map[string]string{
-				labels.ControllerNamespace: "test-namespace",
-				labels.ControllerName:      "test-controller",
-				"custom-label":             "custom-value",
+				labels.ControllerNamespace:       "test-namespace",
+				labels.ControllerName:            "test-controller",
+				labels.LegacyControllerNamespace: "test-namespace",
+				labels.LegacyControllerName:      "test-controller",
+				"custom-label":                   "custom-value",
+			},
+		},
+		{
+			// The clone-and-probe checks label values, not just presence, so a
+			// controller label carrying a stale value gets corrected on reconcile.
+			name: "corrects stale controller label value",
+			existingLabels: map[string]string{
+				labels.ControllerNamespace:       "test-namespace",
+				labels.ControllerName:            "stale-controller",
+				labels.LegacyControllerNamespace: "test-namespace",
+				labels.LegacyControllerName:      "stale-controller",
+			},
+			wantLabels: map[string]string{
+				labels.ControllerNamespace:       "test-namespace",
+				labels.ControllerName:            "test-controller",
+				labels.LegacyControllerNamespace: "test-namespace",
+				labels.LegacyControllerName:      "test-controller",
 			},
 		},
 		{
@@ -649,9 +677,11 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 				"custom-label": "custom-value",
 			},
 			wantLabels: map[string]string{
-				labels.ControllerNamespace: "test-namespace",
-				labels.ControllerName:      "test-controller",
-				"custom-label":             "custom-value",
+				labels.ControllerNamespace:       "test-namespace",
+				labels.ControllerName:            "test-controller",
+				labels.LegacyControllerNamespace: "test-namespace",
+				labels.LegacyControllerName:      "test-controller",
+				"custom-label":                   "custom-value",
 			},
 		},
 	}
