@@ -58,11 +58,26 @@ type EndpointWithDomain interface {
 	SetDomainRef(*K8sObjectRefOptionalNamespace)
 }
 
+// +kubebuilder:object:generate=false
+// EndpointWithTrafficPolicy represents an endpoint resource whose spec carries
+// a TrafficPolicyCfg. The trafficpolicy.Manager uses this interface to resolve
+// the policy and update the TrafficPolicyApplied condition consistently across
+// endpoint kinds. Endpoint kinds that want a status field summarizing the
+// resolved attachment write it themselves from Result.Source.
+type EndpointWithTrafficPolicy interface {
+	client.Object
+	GetConditions() *[]metav1.Condition
+	GetGeneration() int64
+	GetTrafficPolicyCfg() *TrafficPolicyCfg
+}
+
 // ToClientObjectKey converts the K8sObjectRefOptionalNamespace to a client.ObjectKey,
-// using the provided defaultNamespace if Namespace is nil
+// using the provided defaultNamespace when Namespace is unset (nil or empty).
+// This matches the wildcard semantics in Matches, where both nil and empty
+// string mean "unspecified".
 func (ref *K8sObjectRefOptionalNamespace) ToClientObjectKey(defaultNamespace string) client.ObjectKey {
 	namespace := defaultNamespace
-	if ref.Namespace != nil {
+	if ref.Namespace != nil && *ref.Namespace != "" {
 		namespace = *ref.Namespace
 	}
 	return client.ObjectKey{

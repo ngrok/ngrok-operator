@@ -587,7 +587,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			err := k8sClient.Create(context.Background(), agentEndpoint)
 			Expect(err).To(HaveOccurred()) // Should be rejected by validation
-			Expect(err.Error()).To(ContainSubstring("Only one of inline and targetRef can be configured"))
+			Expect(err.Error()).To(ContainSubstring("exactly one of inline or targetRef must be set on trafficPolicy"))
 		})
 	})
 

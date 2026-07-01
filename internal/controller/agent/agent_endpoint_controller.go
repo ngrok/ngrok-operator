@@ -39,21 +39,19 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 const (
-	trafficPolicyNameIndex     = "spec.trafficPolicy.targetRef.name"
 	clientCertificateRefsIndex = "spec.clientCertificateRefs"
 	tlsTerminationSecretsIndex = "spec.tlsTermination.secrets"
 )
@@ -91,10 +89,6 @@ func secretIndexKey(namespace string, ref ngrokv1alpha1.K8sObjectRef) string {
 	return namespace + "/" + ref.Name
 }
 
-var (
-	ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both targetRef and inline are set")
-)
-
 // AgentEndpointReconciler reconciles an AgentEndpoint object
 type AgentEndpointReconciler struct {
 	client.Client
@@ -109,6 +103,7 @@ type AgentEndpointReconciler struct {
 	ControllerLabels           labels.ControllerLabelValues
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 	DomainManager              *domainpkg.Manager
+	TrafficPolicyManager       *trafficpolicypkg.Manager
 
 	// DrainState is used to check if the operator is draining.
 	// If draining, non-delete reconciles are skipped to prevent new finalizers.
@@ -149,6 +144,10 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 		r.DomainManager = dm
 	}
 
+	if r.TrafficPolicyManager == nil {
+		r.TrafficPolicyManager = trafficpolicypkg.NewManager(r.Client, r.Recorder)
+	}
+
 	r.controller = &controller.BaseController[*ngrokv1alpha1.AgentEndpoint]{
 		Kube:       r.Client,
 		Log:        r.Log,
@@ -161,22 +160,23 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 			if errors.Is(err, domainpkg.ErrDomainNotReady) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
-			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
+			if errors.Is(err, trafficpolicypkg.ErrInvalidConfig) || errors.Is(err, trafficpolicypkg.ErrInvalidPolicyJSON) {
 				r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "ConfigError", "Reconcile", err.Error())
 				r.Log.Error(err, "invalid TrafficPolicy configuration", "name", cr.Name, "namespace", cr.Namespace)
 				return ctrl.Result{}, nil // Do not requeue
+			}
+			if errors.Is(err, trafficpolicypkg.ErrTrafficPolicyNotFound) {
+				// Terminal: the condition is already False and an event was
+				// emitted during Resolve. Don't requeue — the TrafficPolicy
+				// watch re-enqueues this endpoint when the policy is (re)created.
+				r.Log.Info("referenced TrafficPolicy not found; awaiting (re)creation", "name", cr.Name, "namespace", cr.Namespace)
+				return ctrl.Result{}, nil
 			}
 			return controller.CtrlResultForErr(err)
 		},
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &ngrokv1alpha1.AgentEndpoint{}, trafficPolicyNameIndex, func(o client.Object) []string {
-		aep, ok := o.(*ngrokv1alpha1.AgentEndpoint)
-		if !ok || aep.Spec.TrafficPolicy == nil || aep.Spec.TrafficPolicy.Reference == nil {
-			return nil
-		}
-		return []string{aep.Spec.TrafficPolicy.Reference.Name}
-	}); err != nil {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &ngrokv1alpha1.AgentEndpoint{}, trafficpolicypkg.RefIndex, trafficpolicypkg.IndexKeyForObject); err != nil {
 		return err
 	}
 
@@ -209,13 +209,6 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForTrafficPolicy),
-			// Don't process delete events as it will just fail to look it up.
-			// Instead rely on the user to either delete the AgentEndpoint CR or update it with a new TrafficPolicy name
-			builder.WithPredicates(&predicate.Funcs{
-				DeleteFunc: func(_ event.DeleteEvent) bool {
-					return false
-				},
-			}),
 		).
 		Watches(
 			&v1.Secret{},
@@ -242,47 +235,51 @@ func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1a
 	// EnsureDomainExists checks if the domain exists, creates it if needed, and sets conditions/domainRef
 	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint)
 	if err != nil {
-		return r.updateStatus(ctx, endpoint, nil, "", domainResult, err)
+		return r.updateStatus(ctx, endpoint, nil, domainResult, err)
 	}
 
-	// getTrafficPolicy checks if the traffic policy exists, creates it if needed, and sets conditions/trafficPolicyRef
-	trafficPolicy, err := r.getTrafficPolicy(ctx, endpoint)
+	// Populate status.trafficPolicy from the spec up front so a failure path
+	// reflects what the user is trying to attach rather than a stale success
+	// value from a prior generation. Resolve manages the condition's False
+	// path; we MarkApplied below only after the downstream create succeeds.
+	endpoint.Status.AttachedTrafficPolicy = trafficpolicypkg.IntendedSource(endpoint.Spec.TrafficPolicy)
+	tpResult, err := r.TrafficPolicyManager.Resolve(ctx, endpoint)
 	if err != nil {
-		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
+		return r.updateStatus(ctx, endpoint, nil, domainResult, err)
 	}
+	endpoint.Status.AttachedTrafficPolicy = tpResult.Source
 
 	clientCerts, err := r.getClientCerts(ctx, endpoint)
 	if err != nil {
 		setEndpointCreatedCondition(endpoint, false, ReasonConfigError, fmt.Sprintf("Failed to get client certificates: %v", err))
-		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
+		return r.updateStatus(ctx, endpoint, nil, domainResult, err)
 	}
 
 	agentTLS, err := r.getAgentTLSTermination(ctx, endpoint)
 	if err != nil {
 		setEndpointCreatedCondition(endpoint, false, ReasonConfigError, fmt.Sprintf("Failed to get TLS termination config: %v", err))
-		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
+		return r.updateStatus(ctx, endpoint, nil, domainResult, err)
 	}
 
 	// Create the endpoint
 	tunnelName := r.statusID(endpoint)
-	result, err := r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, trafficPolicy, clientCerts, agentTLS)
+	result, err := r.AgentDriver.CreateAgentEndpoint(ctx, tunnelName, endpoint.Spec, tpResult.Policy, clientCerts, agentTLS)
 	if err != nil {
 		// Mark the endpoint as failed creation
 		setEndpointCreatedCondition(endpoint, false, ReasonNgrokAPIError, fmt.Sprintf("Failed to create endpoint: %v", err))
-		// If error indicates traffic policy issue, also set that condition
-		if trafficPolicy != "" && ngrokapi.IsTrafficPolicyError(err.Error()) {
-			setTrafficPolicyCondition(endpoint, false, ReasonTrafficPolicyError, ngrokapi.SanitizeErrorMessage(err.Error()))
+		// If error indicates traffic policy issue, surface it via the shared condition too.
+		if tpResult.Policy != "" && ngrokapi.IsTrafficPolicyError(err.Error()) {
+			r.TrafficPolicyManager.SetError(endpoint, ngrokapi.SanitizeErrorMessage(err.Error()))
 		}
-		return r.updateStatus(ctx, endpoint, nil, trafficPolicy, domainResult, err)
+		return r.updateStatus(ctx, endpoint, nil, domainResult, err)
 	}
 
-	// Mark the endpoint as successfully created
+	// Downstream create succeeded — record the policy as applied (true)
+	// and mark the endpoint as created.
+	r.TrafficPolicyManager.MarkApplied(endpoint)
 	setEndpointCreatedCondition(endpoint, true, ReasonEndpointCreated, "Endpoint successfully created")
-	if trafficPolicy != "" {
-		setTrafficPolicyCondition(endpoint, true, "TrafficPolicyApplied", "Traffic policy successfully applied")
-	}
 
-	return r.updateStatus(ctx, endpoint, result, trafficPolicy, domainResult, nil)
+	return r.updateStatus(ctx, endpoint, result, domainResult, nil)
 }
 
 func (r *AgentEndpointReconciler) delete(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
@@ -295,18 +292,19 @@ func (r *AgentEndpointReconciler) statusID(endpoint *ngrokv1alpha1.AgentEndpoint
 	return fmt.Sprintf("%s/%s", endpoint.Namespace, endpoint.Name)
 }
 
-// findAgentEndpointForTrafficPolicy searches for any Agent Endpoints CRs that have a reference to a particular Traffic Policy
+// findAgentEndpointForTrafficPolicy searches for any AgentEndpoint CRs that
+// reference a particular TrafficPolicy in the policy's namespace.
 func (r *AgentEndpointReconciler) findAgentEndpointForTrafficPolicy(ctx context.Context, o client.Object) []ctrl.Request {
 	tp, ok := o.(*ngrokv1alpha1.NgrokTrafficPolicy)
 	if !ok {
 		return nil
 	}
 
-	// Use the index to find AgentEndpoints that reference this TrafficPolicy
+	// Use the shared composite-key index to find AgentEndpoints that reference
+	// this TrafficPolicy in its namespace.
 	var agentEndpointList ngrokv1alpha1.AgentEndpointList
 	if err := r.Client.List(ctx, &agentEndpointList,
-		client.InNamespace(tp.Namespace),
-		client.MatchingFields{trafficPolicyNameIndex: tp.Name}); err != nil {
+		client.MatchingFields{trafficpolicypkg.RefIndex: trafficpolicypkg.LookupKey(tp)}); err != nil {
 		r.Log.Error(err, "failed to list AgentEndpoints using index")
 		return nil
 	}
@@ -398,43 +396,6 @@ func (r *AgentEndpointReconciler) findAgentEndpointsForDomain(ctx context.Contex
 		}
 	}
 	return requests
-}
-
-// getTrafficPolicy returns the TrafficPolicy JSON string from either the name reference or inline policy.
-// Updates the passed in AgentEndpoint with the status conditions based on the results.
-func (r *AgentEndpointReconciler) getTrafficPolicy(ctx context.Context, aep *ngrokv1alpha1.AgentEndpoint) (string, error) {
-	if aep.Spec.TrafficPolicy == nil {
-		return "", nil // No traffic policy to fetch, no error
-	}
-
-	// Ensure mutually exclusive fields are not both set
-	if aep.Spec.TrafficPolicy.Reference != nil && aep.Spec.TrafficPolicy.Inline != nil {
-		setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, ErrInvalidTrafficPolicyConfig.Error())
-		return "", ErrInvalidTrafficPolicyConfig
-	}
-
-	var policy string
-	var err error
-
-	switch aep.Spec.TrafficPolicy.Type() {
-	case ngrokv1alpha1.TrafficPolicyCfgType_Inline:
-		policyBytes, err := aep.Spec.TrafficPolicy.Inline.MarshalJSON()
-		if err != nil {
-			errMsg := fmt.Sprintf("failed to marshal inline TrafficPolicy: %v", err)
-			setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, errMsg)
-			return "", errors.New(errMsg)
-		}
-		policy = string(policyBytes)
-	case ngrokv1alpha1.TrafficPolicyCfgType_K8sRef:
-		// Right now, we only support traffic policies that are in the same namespace as the agent endpoint
-		policy, err = r.findTrafficPolicyByName(ctx, aep.Spec.TrafficPolicy.Reference.Name, aep.Namespace)
-		if err != nil {
-			setTrafficPolicyCondition(aep, false, ReasonTrafficPolicyError, err.Error())
-			return "", err
-		}
-	}
-
-	return policy, nil
 }
 
 // getClientCerts retrieves client certificates for upstream TLS connections.
@@ -566,52 +527,13 @@ func clientAuthForMode(ctx context.Context, mode ngrokv1alpha1.EndpointMutualTLS
 	}
 }
 
-// findTrafficPolicyByName fetches the TrafficPolicy CRD from the API server and returns the JSON policy as a string
-func (r *AgentEndpointReconciler) findTrafficPolicyByName(ctx context.Context, tpName, tpNamespace string) (string, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues("name", tpName, "namespace", tpNamespace)
-
-	// Create a TrafficPolicy object to store the fetched result
-	tp := &ngrokv1alpha1.NgrokTrafficPolicy{}
-	key := client.ObjectKey{Name: tpName, Namespace: tpNamespace}
-
-	// Attempt to get the TrafficPolicy from the API server
-	if err := r.Client.Get(ctx, key, tp); err != nil {
-		r.Recorder.Eventf(tp, nil, v1.EventTypeWarning, "TrafficPolicyNotFound", "Reconcile", fmt.Sprintf("Failed to find TrafficPolicy %s", tpName))
-		return "", err
-	}
-
-	// Convert the JSON policy to a string
-	policyBytes, err := tp.Spec.Policy.MarshalJSON()
-	if err != nil {
-		log.Error(err, "failed to marshal TrafficPolicy JSON")
-		return "", err
-	}
-
-	return string(policyBytes), nil
-}
-
-// updateStatus updates the endpoint status fields, calculates Ready condition, and writes to k8s API
-func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint, result *agent.EndpointResult, trafficPolicy string, domainResult *domainpkg.DomainResult, statusErr error) error {
+// updateStatus updates the endpoint status fields, calculates Ready condition, and writes to k8s API.
+// The TrafficPolicyApplied condition is maintained by the trafficpolicy.Manager
+// during Resolve; the caller writes status.trafficPolicy from Result.Source.
+func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint, result *agent.EndpointResult, domainResult *domainpkg.DomainResult, statusErr error) error {
 	// Update status fields if we have a result
 	if result != nil {
 		endpoint.Status.AssignedURL = result.URL
-	}
-
-	// Set traffic policy status
-	if trafficPolicy != "" {
-		if endpoint.Spec.TrafficPolicy != nil && endpoint.Spec.TrafficPolicy.Reference != nil {
-			endpoint.Status.AttachedTrafficPolicy = endpoint.Spec.TrafficPolicy.Reference.Name
-		} else {
-			endpoint.Status.AttachedTrafficPolicy = "inline"
-		}
-	} else {
-		endpoint.Status.AttachedTrafficPolicy = "none"
-		// Only clear the traffic policy condition if no policy is configured.
-		// When a policy is configured but failed to resolve, getTrafficPolicy
-		// already set the condition to false with the error — don't remove it.
-		if endpoint.Spec.TrafficPolicy == nil {
-			meta.RemoveStatusCondition(&endpoint.Status.Conditions, ConditionTrafficPolicy)
-		}
 	}
 
 	// Calculate overall Ready condition based on other conditions and domain status

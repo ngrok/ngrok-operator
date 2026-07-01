@@ -27,6 +27,21 @@ operator image but leaves objects in whatever state the newer operator
 stamped them. Anything the newer operator wrote that the older release
 doesn't understand becomes a hazard.
 
+## Two-release pattern (deprecated-field-style cases)
+
+Used when the legacy form does not gate lifecycle and the old operator can
+keep operating on objects that still carry the legacy field. CRD field
+deprecations fall here.
+
+- **R1 (migration release):** the CRD CEL relaxes to accept both legacy
+  and canonical fields together; the controller dual-reads both shapes;
+  when both are set the canonical field wins and the legacy field is
+  ignored with a `DeprecatedField` warning event. Rollback to the prior
+  release is safe because objects carrying only the legacy field still
+  resolve in the old operator.
+- **R-cleanup (later release):** legacy field removed from the CRD,
+  controller normalization removed, `LEGACY-*` sentinels deleted.
+
 ## Three-release pattern (finalizer-style cases)
 
 Required when the legacy key gates object lifecycle. Finalizers are the
@@ -57,30 +72,36 @@ The IngressClass `spec.controller` flip is the only example so far. The
 operator binary gains dual-match in R1; the rendered manifest stays on the
 legacy value until R2.
 
-## The `LEGACY-PREFIX-MIGRATION` sentinel
+## `LEGACY-*` sentinels
 
-Every code site that exists *only* to support the legacy prefix during a
-migration window carries the marker `LEGACY-PREFIX-MIGRATION`. Two forms:
+Every code site that exists *only* to support a legacy form during a
+migration window carries a `LEGACY-<short-tag>` marker. The tag identifies
+the migration so each cleanup is an independent sweep. Forms:
 
 ```go
-// LEGACY-PREFIX-MIGRATION: BEGIN
+// LEGACY-trafficpolicy-name: BEGIN
 // ... block to delete ...
-// LEGACY-PREFIX-MIGRATION: END
+// LEGACY-trafficpolicy-name: END
 
-someLegacyCall(...) // LEGACY-PREFIX-MIGRATION: drop in 1.0
+someLegacyCall(...) // LEGACY-trafficpolicy-name: drop in cleanup release
 ```
 
 In the cleanup release for each migration, run:
 
 ```sh
-git grep 'LEGACY-PREFIX-MIGRATION'
+git grep '// LEGACY-'
 ```
 
-For each hit, delete the block between `BEGIN` / `END` or delete the
-marked line. The sentinel exists so cleanup is a single, auditable sweep
-rather than archaeology.
+…then narrow by tag (e.g. `git grep 'LEGACY-trafficpolicy-name'`) and
+delete the marked blocks / lines for that specific migration.
 
-## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
+Current sentinel tags:
+
+- `LEGACY-PREFIX-MIGRATION` — `k8s.ngrok.com/` → `ngrok.com/` prefix renames.
+- `LEGACY-trafficpolicy-name` — `CloudEndpoint.spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`.
+- `LEGACY-trafficpolicy-policy` — `CloudEndpoint.spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`.
+
+## Per-shim catalog
 
 ### Operator finalizer (operator-written, lifecycle-gating)
 
@@ -98,26 +119,74 @@ rather than archaeology.
 - **R3 cleanup (0.26):** delete `LegacyFinalizerName`, the legacy branches
   in `HasFinalizer`, and the legacy `RemoveFinalizer` call.
 
-## Why we don't shortcut the finalizer
+### `CloudEndpoint.spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`
 
-A few alternatives were considered and rejected:
+- **Pattern:** Two-release (deprecated field). Tag: `LEGACY-trafficpolicy-name`.
+- **R1 (0.24):**
+  - CRD: the CloudEndpoint schema never carried a spec-level CEL rule
+    rejecting `trafficPolicyName` + `trafficPolicy`; the R1 CRD stays
+    permissive, so the two can coexist at admission during a staged
+    rollout or a rollback that resurrects an older manifest. What
+    changes in R1 is the **controller**: the previous runtime rejection
+    of the coexistence (`ErrInvalidTrafficPolicyConfig`) is relaxed so
+    the fields can be set together. Note the 0.23 controller still
+    rejects the coexistence at runtime, so **dual-setting top-level
+    fields is not rollback-safe**. Users keep `trafficPolicyName`
+    alone during the migration window; the controller normalizes
+    legacy-only manifests in-memory.
+  - `cloudendpoint_controller.go::normalizeLegacyTrafficPolicy`: when an
+    effective `spec.trafficPolicy` is set alongside `trafficPolicyName`,
+    emit a `DeprecatedField` warning event and use `spec.trafficPolicy`.
+    An empty struct (`trafficPolicy: {}`) is **not** treated as
+    effective, so a templating system that emits `{}` does not silently
+    detach the legacy attachment. When only `trafficPolicyName` is set
+    (or `trafficPolicy` is empty), normalize in-memory to
+    `spec.trafficPolicy.targetRef`.
+  - Deprecation events are suppressed for operator-managed
+    CloudEndpoints — those carrying either a controller OwnerReference
+    (Service path) or the operator's controller label
+    (`k8s.ngrok.com/controller-name`, managerdriver Ingress/Gateway
+    path) — because the user can't act on them and we'd otherwise
+    spam events every reconcile.
+  - `indexCloudEndpointTrafficPolicyRefs` falls back to the legacy
+    name field only when `spec.trafficPolicy` carries no effective
+    policy (no inline, no targetRef, no nested `policy`). When the
+    canonical field is effective — including inline-only — the
+    legacy field is not indexed, so updates to a TrafficPolicy that
+    matches `trafficPolicyName` cannot stale-requeue an endpoint
+    whose canonical field has already won.
+- **R-cleanup:** delete the `TrafficPolicyName` field from
+  `CloudEndpointSpec`, drop the legacy branch in `normalizeLegacyTrafficPolicy`
+  and the legacy key emission in `indexCloudEndpointTrafficPolicyRefs`.
 
-- **Keep the legacy finalizer forever.** Lowest-risk option; the operator
-  finalizer name is internal and users don't select on it. Rejected
-  because the prefix unification is being done specifically to make all
-  ngrok-owned keys consistent ahead of 1.0.
-- **Two-release dual-write of both finalizers.** Forward-safe but
-  rollback-broken: the older operator only knows how to strip the legacy
-  finalizer, so the new finalizer would block deletion of any object that
-  reached `Terminating` after rollback. The finalizer **must** be
-  single-written at any given time — only the *identity* of the
-  single-written key changes between R1 and R2.
-- **Skip R1 entirely (flip writes in 0.24).** Equivalent to the current
-  PR's first cut, and the reason this strategy exists at all.
+### `CloudEndpoint.spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`
 
-If you find yourself adding a new finalizer rename, follow the
-three-release pattern above; there is no two-release shortcut that
-preserves rollback safety.
+- **Pattern:** Two-release (deprecated nested field). Tag: `LEGACY-trafficpolicy-policy`.
+- **R1 (0.24):**
+  - CRD: union CEL on `CloudEndpointTrafficPolicyCfg` relaxed from
+    "exactly one of inline/targetRef/policy" to "at most one of
+    inline/targetRef" so `policy` may coexist with either canonical
+    field. (`inline + targetRef` is still rejected — those are both
+    canonical and ambiguous.)
+  - `CloudEndpointTrafficPolicyCfg.ToTrafficPolicyCfg` folds `policy`
+    into `inline` only when neither canonical field is set.
+  - When `policy` is set alongside `inline` or `targetRef`, the controller
+    emits a `DeprecatedField` warning event noting `policy` is ignored.
+    The wording is differentiated for canonical=`inline` vs
+    canonical=`targetRef` so users get the right replacement field
+    in the message.
+  - **Operator-generated CloudEndpoints dual-write `policy + inline`.**
+    The 0.23 CRD prunes the unknown `inline` field but preserves
+    `policy`, so dual-writing keeps generated objects rollback-safe.
+    The new controller prefers `inline`. The deprecation event is
+    suppressed for these objects because they are operator-managed
+    (controller OwnerReference for the Service path, operator
+    controller label for the managerdriver Ingress/Gateway path).
+- **R-cleanup:** delete the `Policy` field, `HasDeprecatedPolicy`, the
+  fallback branch in `ToTrafficPolicyCfg`, the deprecation event in
+  the controller, and the dual-write in
+  `pkg/managerdriver/translator.go` and
+  `internal/controller/service/controller.go`.
 
 ### IngressClass `spec.controller` (rollout-race deferral)
 
@@ -141,3 +210,62 @@ preserves rollback safety.
 - **R2 (0.25):** flip the helm-rendered IngressClass to the new prefix.
   At this point no pre-migration operator pod can observe the change.
 - **R3 cleanup:** drop the dual-match branch in `store.go`.
+
+## Why we don't shortcut the CloudEndpoint trafficpolicy migration
+
+A few alternatives were considered and rejected for the two `CloudEndpoint`
+trafficpolicy field renames:
+
+- **Reject the legacy field at admission once the canonical shape exists**
+  (the original CEL on `CloudEndpointSpec` did this). Rejected because it
+  is not passive: a user who migrates their manifest to the canonical
+  field and then needs to roll back hits admission rejection from the
+  prior release's controller — or, worse, the legacy R0 operator reads
+  no policy at all from the new-shape manifest. R1 must accept the
+  legacy + canonical combination so the legacy field can stay as a
+  rollback fallback.
+- **Three-release dance like the finalizer migration.** Rejected because
+  CloudEndpoint traffic policy attachment does not gate object lifecycle.
+  The worst rollback consequence here is a detached policy: a canonical-only
+  object that is rolled back has its `inline`/`targetRef` pruned by the API
+  server, so the prior-release controller sees no policy. In practice this
+  surfaces as a persistent failing reconcile (`CloudEndpointCreationFailed`,
+  since a CloudEndpoint with no terminal traffic-policy action is rejected
+  by the ngrok API) rather than a silent blip — but it is fully recoverable
+  by re-adding the legacy field, and because the failing call is an *update*
+  of an already-created endpoint, ngrok keeps the last-good policy live on
+  the data plane. With finalizers, by contrast, the worst consequence is an
+  object stuck in `Terminating` forever. A two-release pattern is sufficient.
+- **Skip R1 entirely and remove the legacy fields in 0.24.** Rejected
+  because it gives users no rollback-safe migration window and no
+  deprecation signal in their reconcile events.
+- **Force-normalize the legacy field by writing back the canonical
+  shape to the API.** Rejected because it would mutate user manifests
+  silently and leave the user's working copy diverged from the cluster
+  state. We normalize in-memory only.
+
+If you find yourself adding another `CloudEndpoint` field rename, follow
+this two-release pattern: relax CEL to accept coexistence, dual-read,
+emit `DeprecatedField` events, normalize in-memory only, sentinel-tag
+every legacy-only code path.
+
+## Why we don't shortcut the finalizer
+
+A few alternatives were considered and rejected:
+
+- **Keep the legacy finalizer forever.** Lowest-risk option; the operator
+  finalizer name is internal and users don't select on it. Rejected
+  because the prefix unification is being done specifically to make all
+  ngrok-owned keys consistent ahead of 1.0.
+- **Two-release dual-write of both finalizers.** Forward-safe but
+  rollback-broken: the older operator only knows how to strip the legacy
+  finalizer, so the new finalizer would block deletion of any object that
+  reached `Terminating` after rollback. The finalizer **must** be
+  single-written at any given time — only the *identity* of the
+  single-written key changes between R1 and R2.
+- **Skip R1 entirely (flip writes in 0.24).** Equivalent to the current
+  PR's first cut, and the reason this strategy exists at all.
+
+If you find yourself adding a new finalizer rename, follow the
+three-release pattern above; there is no two-release shortcut that
+preserves rollback safety.
