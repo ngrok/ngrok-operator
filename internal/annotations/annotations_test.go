@@ -222,6 +222,88 @@ func TestExtractUseBindings(t *testing.T) {
 	}
 }
 
+func TestExtractComputedURL(t *testing.T) {
+	const (
+		newURL    = "tcp://1.tcp.ngrok.io:11111"
+		legacyURL = "tcp://2.tcp.ngrok.io:22222"
+	)
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+		expectedErr error
+	}{
+		{
+			name:        "no annotations returns missing",
+			annotations: nil,
+			expected:    "",
+			expectedErr: errors.ErrMissingAnnotations,
+		},
+		{
+			name: "new key only",
+			annotations: map[string]string{
+				annotations.ComputedURLAnnotation: newURL,
+			},
+			expected: newURL,
+		},
+		{
+			name: "legacy key only falls back",
+			annotations: map[string]string{
+				annotations.LegacyComputedURLAnnotation: legacyURL,
+			},
+			expected: legacyURL,
+		},
+		{
+			name: "new key wins over legacy",
+			annotations: map[string]string{
+				annotations.ComputedURLAnnotation:       newURL,
+				annotations.LegacyComputedURLAnnotation: legacyURL,
+			},
+			expected: newURL,
+		},
+		{
+			name: "empty new key falls back to legacy",
+			annotations: map[string]string{
+				annotations.ComputedURLAnnotation:       "",
+				annotations.LegacyComputedURLAnnotation: legacyURL,
+			},
+			expected: legacyURL,
+		},
+		{
+			name: "both present but empty returns missing",
+			annotations: map[string]string{
+				annotations.ComputedURLAnnotation:       "",
+				annotations.LegacyComputedURLAnnotation: "",
+			},
+			expected:    "",
+			expectedErr: errors.ErrMissingAnnotations,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tc.annotations,
+				},
+			}
+
+			got, err := annotations.ExtractComputedURL(obj)
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				assert.Equal(t, tc.expectedErr, err)
+				assert.Empty(t, got)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestExtractMetadata(t *testing.T) {
 	tests := []struct {
 		name        string

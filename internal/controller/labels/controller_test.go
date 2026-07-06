@@ -17,21 +17,25 @@ func TestControllerLabels(t *testing.T) {
 		want                map[string]string
 	}{
 		{
-			name:                "returns labels with namespace and name",
+			name:                "returns labels with namespace and name (dual-write)",
 			controllerNamespace: "ngrok-operator",
 			controllerName:      "my-controller",
 			want: map[string]string{
-				ControllerNamespace: "ngrok-operator",
-				ControllerName:      "my-controller",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
 			},
 		},
 		{
-			name:                "handles empty values",
+			name:                "handles empty values (dual-write)",
 			controllerNamespace: "",
 			controllerName:      "",
 			want: map[string]string{
-				ControllerNamespace: "",
-				ControllerName:      "",
+				ControllerNamespace:       "",
+				ControllerName:            "",
+				LegacyControllerNamespace: "",
+				LegacyControllerName:      "",
 			},
 		},
 	}
@@ -166,7 +170,7 @@ func TestEnsureControllerLabels(t *testing.T) {
 		wantLabels          map[string]string
 	}{
 		{
-			name: "adds labels to object with nil labels",
+			name: "adds labels to object with nil labels (dual-write)",
 			obj: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: nil,
@@ -176,12 +180,14 @@ func TestEnsureControllerLabels(t *testing.T) {
 			controllerName:      "my-controller",
 			wantModified:        true,
 			wantLabels: map[string]string{
-				ControllerNamespace: "ngrok-operator",
-				ControllerName:      "my-controller",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
 			},
 		},
 		{
-			name: "adds labels to object with empty labels",
+			name: "adds labels to object with empty labels (dual-write)",
 			obj: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{},
@@ -191,12 +197,14 @@ func TestEnsureControllerLabels(t *testing.T) {
 			controllerName:      "my-controller",
 			wantModified:        true,
 			wantLabels: map[string]string{
-				ControllerNamespace: "ngrok-operator",
-				ControllerName:      "my-controller",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
 			},
 		},
 		{
-			name: "preserves existing labels and adds controller labels",
+			name: "preserves existing labels and adds controller labels (dual-write)",
 			obj: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -208,18 +216,22 @@ func TestEnsureControllerLabels(t *testing.T) {
 			controllerName:      "my-controller",
 			wantModified:        true,
 			wantLabels: map[string]string{
-				"app":               "my-app",
-				ControllerNamespace: "ngrok-operator",
-				ControllerName:      "my-controller",
+				"app":                     "my-app",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
 			},
 		},
 		{
-			name: "returns false when labels already match",
+			name: "returns false when both new and legacy labels already match",
 			obj: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						ControllerNamespace: "ngrok-operator",
-						ControllerName:      "my-controller",
+						ControllerNamespace:       "ngrok-operator",
+						ControllerName:            "my-controller",
+						LegacyControllerNamespace: "ngrok-operator",
+						LegacyControllerName:      "my-controller",
 					},
 				},
 			},
@@ -227,16 +239,18 @@ func TestEnsureControllerLabels(t *testing.T) {
 			controllerName:      "my-controller",
 			wantModified:        false,
 			wantLabels: map[string]string{
-				ControllerNamespace: "ngrok-operator",
-				ControllerName:      "my-controller",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
 			},
 		},
 		{
-			name: "updates namespace label when different",
+			name: "ensure-sets legacy pair when only new pair is present",
 			obj: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						ControllerNamespace: "old-namespace",
+						ControllerNamespace: "ngrok-operator",
 						ControllerName:      "my-controller",
 					},
 				},
@@ -245,8 +259,54 @@ func TestEnsureControllerLabels(t *testing.T) {
 			controllerName:      "my-controller",
 			wantModified:        true,
 			wantLabels: map[string]string{
-				ControllerNamespace: "ngrok-operator",
-				ControllerName:      "my-controller",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
+			},
+		},
+		{
+			name: "ensure-sets new pair when only legacy pair is present (R1 keeps legacy)",
+			obj: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						LegacyControllerNamespace: "ngrok-operator",
+						LegacyControllerName:      "my-controller",
+						"app":                     "my-app",
+					},
+				},
+			},
+			controllerNamespace: "ngrok-operator",
+			controllerName:      "my-controller",
+			wantModified:        true,
+			wantLabels: map[string]string{
+				"app":                     "my-app",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
+			},
+		},
+		{
+			name: "updates namespace label when different",
+			obj: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						ControllerNamespace:       "old-namespace",
+						ControllerName:            "my-controller",
+						LegacyControllerNamespace: "old-namespace",
+						LegacyControllerName:      "my-controller",
+					},
+				},
+			},
+			controllerNamespace: "ngrok-operator",
+			controllerName:      "my-controller",
+			wantModified:        true,
+			wantLabels: map[string]string{
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
 			},
 		},
 		{
@@ -254,8 +314,10 @@ func TestEnsureControllerLabels(t *testing.T) {
 			obj: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						ControllerNamespace: "ngrok-operator",
-						ControllerName:      "old-controller",
+						ControllerNamespace:       "ngrok-operator",
+						ControllerName:            "old-controller",
+						LegacyControllerNamespace: "ngrok-operator",
+						LegacyControllerName:      "old-controller",
 					},
 				},
 			},
@@ -263,8 +325,10 @@ func TestEnsureControllerLabels(t *testing.T) {
 			controllerName:      "my-controller",
 			wantModified:        true,
 			wantLabels: map[string]string{
-				ControllerNamespace: "ngrok-operator",
-				ControllerName:      "my-controller",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
 			},
 		},
 		{
@@ -272,7 +336,8 @@ func TestEnsureControllerLabels(t *testing.T) {
 			obj: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						ControllerName: "my-controller",
+						ControllerName:       "my-controller",
+						LegacyControllerName: "my-controller",
 					},
 				},
 			},
@@ -280,8 +345,10 @@ func TestEnsureControllerLabels(t *testing.T) {
 			controllerName:      "my-controller",
 			wantModified:        true,
 			wantLabels: map[string]string{
-				ControllerNamespace: "ngrok-operator",
-				ControllerName:      "my-controller",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
 			},
 		},
 		{
@@ -289,7 +356,8 @@ func TestEnsureControllerLabels(t *testing.T) {
 			obj: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						ControllerNamespace: "ngrok-operator",
+						ControllerNamespace:       "ngrok-operator",
+						LegacyControllerNamespace: "ngrok-operator",
 					},
 				},
 			},
@@ -297,8 +365,10 @@ func TestEnsureControllerLabels(t *testing.T) {
 			controllerName:      "my-controller",
 			wantModified:        true,
 			wantLabels: map[string]string{
-				ControllerNamespace: "ngrok-operator",
-				ControllerName:      "my-controller",
+				ControllerNamespace:       "ngrok-operator",
+				ControllerName:            "my-controller",
+				LegacyControllerNamespace: "ngrok-operator",
+				LegacyControllerName:      "my-controller",
 			},
 		},
 	}
@@ -358,8 +428,10 @@ func TestControllerLabelValues(t *testing.T) {
 		clv := ControllerLabelValues{Namespace: "ngrok-operator", Name: "my-controller"}
 		got := clv.Labels()
 		want := map[string]string{
-			ControllerNamespace: "ngrok-operator",
-			ControllerName:      "my-controller",
+			ControllerNamespace:       "ngrok-operator",
+			ControllerName:            "my-controller",
+			LegacyControllerNamespace: "ngrok-operator",
+			LegacyControllerName:      "my-controller",
 		}
 		assert.Equal(t, want, got)
 	})
@@ -396,8 +468,10 @@ func TestControllerLabelValues(t *testing.T) {
 		modified := clv.EnsureLabels(obj)
 		assert.True(t, modified)
 		assert.Equal(t, map[string]string{
-			ControllerNamespace: "ngrok-operator",
-			ControllerName:      "my-controller",
+			ControllerNamespace:       "ngrok-operator",
+			ControllerName:            "my-controller",
+			LegacyControllerNamespace: "ngrok-operator",
+			LegacyControllerName:      "my-controller",
 		}, obj.GetLabels())
 
 		modified = clv.EnsureLabels(obj)
@@ -413,4 +487,66 @@ func TestControllerLabelValues(t *testing.T) {
 		}
 		assert.Equal(t, want, got)
 	})
+}
+
+func TestHasControllerLabels_DualPrefix(t *testing.T) {
+	t.Run("matches legacy prefix", func(t *testing.T) {
+		obj := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			LegacyControllerNamespace: "ngrok-operator",
+			LegacyControllerName:      "my-controller",
+		}}}
+		assert.True(t, HasControllerLabels(obj, "ngrok-operator", "my-controller"))
+	})
+
+	t.Run("matches new prefix", func(t *testing.T) {
+		obj := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			ControllerNamespace: "ngrok-operator",
+			ControllerName:      "my-controller",
+		}}}
+		assert.True(t, HasControllerLabels(obj, "ngrok-operator", "my-controller"))
+	})
+
+	t.Run("no match when both partial", func(t *testing.T) {
+		obj := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			ControllerNamespace:  "ngrok-operator",
+			LegacyControllerName: "my-controller",
+		}}}
+		assert.False(t, HasControllerLabels(obj, "ngrok-operator", "my-controller"),
+			"requires a full pair on one prefix; partials must not cross-match")
+	})
+}
+
+func TestEnsureControllerLabels_R1KeepsLegacy(t *testing.T) {
+	// R1 dual-writes: an object that arrives with only the legacy pair must
+	// be promoted to having both pairs, not have the legacy pair removed.
+	obj := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+		LegacyControllerNamespace: "ngrok-operator",
+		LegacyControllerName:      "my-controller",
+		"app":                     "my-app",
+	}}}
+
+	modified := EnsureControllerLabels(obj, "ngrok-operator", "my-controller")
+	assert.True(t, modified)
+
+	got := obj.GetLabels()
+	assert.Equal(t, "ngrok-operator", got[ControllerNamespace])
+	assert.Equal(t, "my-controller", got[ControllerName])
+	assert.Equal(t, "ngrok-operator", got[LegacyControllerNamespace],
+		"R1 must preserve the legacy pair (in R2 this becomes a delete)")
+	assert.Equal(t, "my-controller", got[LegacyControllerName],
+		"R1 must preserve the legacy pair (in R2 this becomes a delete)")
+	assert.Equal(t, "my-app", got["app"], "unrelated labels are preserved")
+}
+
+func TestControllerLabelSelectors_ReturnsBoth(t *testing.T) {
+	got := ControllerLabelSelectors("ngrok-operator", "my-controller")
+	assert.Len(t, got, 2)
+	assert.Equal(t, client.MatchingLabels{
+		ControllerNamespace: "ngrok-operator",
+		ControllerName:      "my-controller",
+	}, got[0])
+	assert.Equal(t, client.MatchingLabels{
+		LegacyControllerNamespace: "ngrok-operator",
+		LegacyControllerName:      "my-controller",
+	}, got[1])
 }

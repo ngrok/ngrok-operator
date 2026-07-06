@@ -31,26 +31,25 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 	)
 	translationResult := translator.Translate()
 
-	currentAgentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
-	currentCloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
-
-	matchLabels := d.controllerLabels.Selector()
-
-	if err := c.List(ctx, currentAgentEndpoints, matchLabels); err != nil {
+	// LEGACY-PREFIX-MIGRATION: BEGIN (read-side cleanup): collapse to single-selector c.List calls
+	currentAgentEndpoints, err := d.listAgentEndpointsForController(ctx, c)
+	if err != nil {
 		d.log.Error(err, "error listing agent endpoints")
 		return err
 	}
 
-	if err := c.List(ctx, currentCloudEndpoints, matchLabels); err != nil {
+	currentCloudEndpoints, err := d.listCloudEndpointsForController(ctx, c)
+	if err != nil {
 		d.log.Error(err, "error listing cloud endpoints")
 		return err
 	}
+	// LEGACY-PREFIX-MIGRATION: END
 
-	if err := d.applyAgentEndpoints(ctx, c, translationResult.AgentEndpoints, currentAgentEndpoints.Items); err != nil {
+	if err := d.applyAgentEndpoints(ctx, c, translationResult.AgentEndpoints, currentAgentEndpoints); err != nil {
 		d.log.Error(err, "applying agent endpoints")
 		return err
 	}
-	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currentCloudEndpoints.Items); err != nil {
+	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currentCloudEndpoints); err != nil {
 		d.log.Error(err, "applying cloud endpoints")
 		return err
 	}

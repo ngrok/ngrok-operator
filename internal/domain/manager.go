@@ -207,11 +207,13 @@ func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, d
 		return nil
 	}
 
-	l := domainObj.GetLabels()
-	_, hasControllerNameLabel := l[labels.ControllerName]
-	_, hasControllerNamespaceLabel := l[labels.ControllerNamespace]
-
-	if hasControllerNameLabel && hasControllerNamespaceLabel {
+	// Clone-and-probe: EnsureLabels reports whether it would change anything.
+	// Running it against a copy tells us whether every label the operator wants
+	// (during the migration window, both the new and legacy pairs) is already
+	// present with the correct value, without mutating domainObj. When
+	// EnsureLabels later stops dual-writing the legacy pair, this probe collapses
+	// along with it — there is no migration-specific code to clean up here.
+	if !m.controllerLabels.EnsureLabels(domainObj.DeepCopy()) {
 		return nil
 	}
 
