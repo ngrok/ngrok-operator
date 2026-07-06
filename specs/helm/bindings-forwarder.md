@@ -34,4 +34,4 @@ All settings below override global defaults. See [common.md](common.md) for over
 
 ## App Config
 
-No bindings-forwarder-specific config keys at this time. The forwarder reads all shared config from `ngrok.*` and feature flags from `features.*`.
+No bindings-forwarder-specific config keys at this time. The forwarder reads all shared config from `ngrok.*` and feature flags from `features.*`. Keys set under `bindingsForwarder.config` are merged into the forwarder's config ConfigMap on top of the shared config and win for this component only.

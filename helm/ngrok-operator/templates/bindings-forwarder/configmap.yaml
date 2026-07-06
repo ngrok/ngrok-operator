@@ -1,0 +1,19 @@
+{{- if and .Values.features.bindings.enabled (not .Values.apiManager.config.oneClickDemoMode) }}
+{{- $config := fromYaml (include "ngrok-operator.componentConfig" (dict "context" $ "config" .Values.bindingsForwarder.config)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-bindings-forwarder-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bindings-forwarder
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+data:
+  {{- range $key, $value := $config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}

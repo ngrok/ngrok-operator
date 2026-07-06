@@ -1,0 +1,5 @@
+{{- /*
+Renders nothing. Fails the release when values from the pre-v1 layout are
+present so they are never silently ignored.
+*/ -}}
+{{- include "ngrok-operator.validateValues" . -}}

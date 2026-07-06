@@ -2,14 +2,14 @@ suite: test bindings forwarder rbac
 templates:
 - bindings-forwarder/role.yaml
 set:
-  bindings.enabled: true
+  features.bindings.enabled: true
 tests:
 - it: Should match snapshot
   asserts:
   - matchSnapshot: {}
-- it: should not create a role or role binding if bindings.enabled is false
+- it: should not create a role or role binding if features.bindings.enabled is false
   set:
-    bindings.enabled: false
+    features.bindings.enabled: false
   asserts:
   - hasDocuments:
       count: 0

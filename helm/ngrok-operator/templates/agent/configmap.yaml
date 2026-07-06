@@ -1,12 +1,13 @@
-{{- $config := fromYaml (include "ngrok-operator.componentConfig" (dict "context" $ "config" .Values.apiManager.config)) }}
+{{- if and .Values.features.ingress.enabled (not .Values.apiManager.config.oneClickDemoMode) }}
+{{- $config := fromYaml (include "ngrok-operator.componentConfig" (dict "context" $ "config" .Values.agent.config)) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "ngrok-operator.fullname" . }}-api-manager-config
+  name: {{ include "ngrok-operator.fullname" . }}-agent-config
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
-    app.kubernetes.io/component: controller
+    app.kubernetes.io/component: agent
   {{- with (include "ngrok-operator.commonAnnotations" .) }}
   annotations:
     {{- . | nindent 4 }}
@@ -15,3 +16,4 @@ data:
   {{- range $key, $value := $config }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}
+{{- end }}

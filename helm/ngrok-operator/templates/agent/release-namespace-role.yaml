@@ -1,4 +1,4 @@
-{{- if .Values.ingress.enabled }}
+{{- if .Values.features.ingress.enabled }}
 # Operator-state RBAC for the agent: the agent reads the singleton
 # KubernetesOperator CR for drain state. The CR always lives in the release
 # namespace regardless of `watchNamespace`, and the agent's controller-runtime
@@ -10,6 +10,10 @@ kind: Role
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-agent-operator-state-role
   namespace: {{ .Release.Namespace }}
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -25,6 +29,10 @@ kind: RoleBinding
 metadata:
   name: {{ include "ngrok-operator.fullname" . }}-agent-operator-state-rolebinding
   namespace: {{ .Release.Namespace }}
+  {{- with (include "ngrok-operator.commonAnnotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

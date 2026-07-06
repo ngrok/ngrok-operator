@@ -7,7 +7,7 @@ release:
 tests:
 - it: should match snapshot
   set:
-    podDisruptionBudget:
+    apiManager.podDisruptionBudget:
       create: true
   asserts:
   - matchSnapshot: {}
@@ -15,7 +15,7 @@ tests:
   template: api-manager/pdb.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    podDisruptionBudget:
+    apiManager.podDisruptionBudget:
       create: true
   asserts:
   - equal:
@@ -25,7 +25,7 @@ tests:
   template: api-manager/pdb.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    podDisruptionBudget:
+    apiManager.podDisruptionBudget:
       create: true
       minAvailable: "1"
       maxUnavailable: null
