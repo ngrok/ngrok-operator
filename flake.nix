@@ -91,16 +91,7 @@
               kubernetes-controller-tools
               (pkgs.wrapHelm pkgs.kubernetes-helm {
                 plugins = [
-                  # helm-unittest 1.1.0 changed plugin.yaml from a single `command` field
-                  # to `platformCommand` entries with platform-suffixed binary names, but
-                  # nixpkgs builds one binary from source and installs it as plain `untt`.
-                  # Patch plugin.yaml to match, mirroring the fix planned for upstream nixpkgs.
-                  (pkgs.kubernetes-helmPlugins.helm-unittest.overrideAttrs (old: {
-                    nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.yq-go ];
-                    postPatch = ''
-                      yq -i 'del(.platformCommand) | del(.platformHooks) | .command = "''${HELM_PLUGIN_DIR}/untt"' plugin.yaml
-                    '';
-                  }))
+                  pkgs.kubernetes-helmPlugins.helm-unittest
                 ];
               })
               kyverno-chainsaw
