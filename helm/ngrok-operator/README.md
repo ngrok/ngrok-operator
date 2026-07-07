@@ -211,15 +211,13 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### Cleanup Hook configuration
 
-| Name                                    | Description                                                                                                                                      | Value             |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
-| `drainPolicy`                           | Policy for what to do with ngrok API resources while draining during an Uninstall. "Delete" removes ngrok API resources, "Retain" preserves them | `Retain`          |
-| `cleanupHook.enabled`                   | Enable the pre-delete cleanup hook that drains resources before uninstall                                                                        | `true`            |
-| `cleanupHook.timeout`                   | Timeout in seconds for the cleanup process                                                                                                       | `300`             |
-| `cleanupHook.image.repository`          | The repository for the kubectl image used by the cleanup hook                                                                                    | `bitnami/kubectl` |
-| `cleanupHook.image.tag`                 | The tag for the kubectl image                                                                                                                    | `latest`          |
-| `cleanupHook.image.pullPolicy`          | The pull policy for the cleanup hook image                                                                                                       | `IfNotPresent`    |
-| `cleanupHook.resources.limits.cpu`      | CPU limit for the cleanup hook container                                                                                                         | `100m`            |
-| `cleanupHook.resources.limits.memory`   | Memory limit for the cleanup hook container                                                                                                      | `128Mi`           |
-| `cleanupHook.resources.requests.cpu`    | CPU request for the cleanup hook container                                                                                                       | `50m`             |
-| `cleanupHook.resources.requests.memory` | Memory request for the cleanup hook container                                                                                                    | `64Mi`            |
+| Name                             | Description                                                                                                                                      | Value             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| `drainPolicy`                    | Policy for what to do with ngrok API resources while draining during an Uninstall. "Delete" removes ngrok API resources, "Retain" preserves them | `Retain`          |
+| `cleanupHook.enabled`            | Enable the pre-delete cleanup hook that drains resources before uninstall                                                                        | `true`            |
+| `cleanupHook.timeout`            | Timeout in seconds for the cleanup process                                                                                                       | `300`             |
+| `cleanupHook.image.repository`   | The repository for the kubectl image used by the cleanup hook                                                                                    | `bitnami/kubectl` |
+| `cleanupHook.image.tag`          | The tag for the kubectl image                                                                                                                    | `latest`          |
+| `cleanupHook.image.pullPolicy`   | The pull policy for the cleanup hook image                                                                                                       | `IfNotPresent`    |
+| `cleanupHook.resources.limits`   | The resources limits for the cleanup hook container                                                                                              | `{}`              |
+| `cleanupHook.resources.requests` | The requested resources for the cleanup hook container                                                                                           | `{}`              |
