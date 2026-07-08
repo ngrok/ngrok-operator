@@ -125,6 +125,7 @@ type apiManagerOpts struct {
 		serviceAnnotations string
 		serviceLabels      string
 		ingressEndpoint    string
+		tlsSecretName      string
 	}
 
 	// env vars
@@ -171,6 +172,7 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
+	c.Flags().StringVar(&opts.bindings.tlsSecretName, "bindings-tls-secret-name", "", "Name of the k8s Secret holding the bindings mTLS certificate")
 	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
 	c.Flags().StringVar((*string)(&opts.drainPolicy), "drain-policy", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
 
@@ -822,9 +824,12 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 		}
 
 		if opts.enableFeatureBindings {
+			if opts.bindings.tlsSecretName == "" {
+				return errors.New("--bindings-tls-secret-name is required when bindings are enabled")
+			}
 			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
 			k8sOperator.Spec.Binding = &ngrokv1alpha1.KubernetesOperatorBinding{
-				TlsSecretName:     "ngrok-operator-default-tls",
+				TlsSecretName:     opts.bindings.tlsSecretName,
 				EndpointSelectors: opts.bindings.endpointSelectors,
 			}
 			if opts.bindings.ingressEndpoint != "" {

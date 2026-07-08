@@ -236,6 +236,29 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --bindings-endpoint-selectors=true,false
+- it: Defaults the bindings TLS secret name to <fullname>-default-tls
+  set:
+    bindings:
+      enabled: true
+  release:
+    name: ngrok-operator
+  template: api-manager/deployment.yaml
+  documentIndex: 0
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --bindings-tls-secret-name=ngrok-operator-default-tls
+- it: Allows overriding the bindings TLS secret name
+  set:
+    bindings:
+      enabled: true
+      tlsSecretName: my-custom-tls
+  template: api-manager/deployment.yaml
+  documentIndex: 0
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --bindings-tls-secret-name=my-custom-tls
 - it: Should pass one-click-demo mode if set
   set:
     oneClickDemoMode: true

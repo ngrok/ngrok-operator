@@ -68,7 +68,7 @@ The operator pods mount the Secret as environment variables:
 
 ## mTLS for Bindings
 
-When the bindings feature is enabled, the operator generates a self-signed TLS certificate and creates a Certificate Signing Request (CSR) with the ngrok API. This certificate is stored in a Secret (default name: `default-tls`) in the operator's namespace and is used for mTLS communication between the bindings forwarder and ngrok's ingress endpoint.
+When the bindings feature is enabled, the operator generates a self-signed TLS certificate and creates a Certificate Signing Request (CSR) with the ngrok API. This certificate is stored in a Secret in the operator's namespace and is used for mTLS communication between the bindings forwarder and ngrok's ingress endpoint. The Secret name is configurable via the `bindings.tlsSecretName` Helm value; when empty it defaults to `<release-fullname>-default-tls` (e.g. `ngrok-operator-default-tls`).
 
 ## One-Click Demo Mode
 

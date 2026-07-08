@@ -39,7 +39,7 @@ Bindings is opt-in (`features.bindings.enabled: false` by default).
 The bindings forwarder uses mutual TLS for secure communication with ngrok's ingress endpoint:
 
 - The operator generates a self-signed TLS certificate and submits a CSR to the ngrok API.
-- The certificate is stored in a Kubernetes Secret (default name: `default-tls`).
+- The certificate is stored in a Kubernetes Secret in the operator's namespace. The name is set via the `bindings.tlsSecretName` Helm value, which plumbs through to the `--bindings-tls-secret-name` flag and onto the `KubernetesOperator` CR's `binding.tlsSecretName` field. When the Helm value is empty it defaults to `<release-fullname>-default-tls` (e.g. `ngrok-operator-default-tls`), prefixed per-release to avoid collisions between operators sharing a namespace.
 - The forwarder uses this certificate to authenticate with the ingress endpoint.
 
 ## Related Specs

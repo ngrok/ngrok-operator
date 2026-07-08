@@ -61,7 +61,7 @@ This prevents different clusters with identical release names from clobbering ea
 
 The controller calls `findOrCreateTLSSecret` to manage the operator's mTLS certificate:
 
-1. Reads the Secret named `default-tls` (or the configured name) from the release namespace.
+1. Reads the Secret named by `binding.tlsSecretName` (default `<release-fullname>-default-tls`) from the release namespace.
 2. If it doesn't exist, generates a self-signed certificate and creates the Secret.
 3. Submits a CSR to the ngrok API so the certificate is trusted for bindings mTLS.
 4. On subsequent reconciles, reads the existing Secret and refreshes the CSR if the certificate is near expiry.

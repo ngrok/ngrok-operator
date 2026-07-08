@@ -35,7 +35,7 @@
 |---------------------|----------|----------|----------------|---------------------------------------|
 | `endpointSelectors` | []string | Yes      |                | CEL expressions filtering endpoints   |
 | `ingressEndpoint`   | *string  | No       |                | Bindings ingress endpoint hostname    |
-| `tlsSecretName`     | string   | Yes      | `"default-tls"`| Secret name for mTLS certificate      |
+| `tlsSecretName`     | string   | Yes      | _(none)_       | Secret name for mTLS certificate. Required, no schema default; the operator always sets it from `--bindings-tls-secret-name` (Helm `bindings.tlsSecretName`, default `<release-fullname>-default-tls`). |
 
 ### DrainConfig
 

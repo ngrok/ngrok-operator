@@ -50,7 +50,7 @@ type KubernetesOperatorBinding struct {
 
 	// TlsSecretName is the name of the k8s secret that contains the TLS private/public keys to use for the ngrok forwarding endpoint
 	// +kubebuilder:validation:Required
-	// +kubebuilder:default="default-tls"
+	// +kubebuilder:validation:MinLength=1
 	TlsSecretName string `json:"tlsSecretName"`
 }
 

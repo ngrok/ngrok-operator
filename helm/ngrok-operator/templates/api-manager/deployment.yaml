@@ -98,6 +98,7 @@ spec:
           {{- $serviceLabels | join "," }}
         {{- end }}
         - --bindings-ingress-endpoint={{ .Values.bindings.ingressEndpoint }}
+        - --bindings-tls-secret-name={{ .Values.bindings.tlsSecretName | default (printf "%s-default-tls" (include "ngrok-operator.fullname" .)) }}
         {{- end }}
         {{- if .Values.description }}
         - {{ printf "--description=%s" .Values.description | quote }}

@@ -352,6 +352,7 @@ gateway:
 ## @param bindings.serviceAnnotations Annotations to add to projected services bound to an endpoint
 ## @param bindings.serviceLabels Labels to add to projected services bound to an endpoint
 ## @param bindings.ingressEndpoint The hostname of the ingress endpoint for the bindings
+## @param bindings.tlsSecretName Name of the Secret holding the bindings mTLS certificate. When empty, defaults to "<fullname>-default-tls".
 ##
 bindings:
   enabled: false # in-development
@@ -360,6 +361,7 @@ bindings:
   serviceAnnotations: {}
   serviceLabels: {}
   ingressEndpoint: "kubernetes-binding-ingress.ngrok.io:443"
+  tlsSecretName: ""
 
   forwarder:
     ## @param bindings.forwarder.replicaCount The number of bindings forwarders to run.
