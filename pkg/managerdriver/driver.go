@@ -168,7 +168,7 @@ func NewDriver(logger logr.Logger, scheme *runtime.Scheme, controllerName string
 
 // WithNgrokMetadata allows you to pass in custom ngrokmetadata to be added to all resources created by the controller
 func (d *Driver) WithNgrokMetadata(customNgrokMetadata map[string]string) *Driver {
-	ingressNgrokMetadata, err := d.setNgrokMetadataOwner("kubernetes-ingress-controller", customNgrokMetadata)
+	ingressNgrokMetadata, err := d.setNgrokMetadataOwner("ngrok-operator", customNgrokMetadata)
 	if err != nil {
 		d.log.Error(err, "error marshalling custom ngrokmetadata", "customNgrokMetadata", d.ingressNgrokMetadata)
 		return d
