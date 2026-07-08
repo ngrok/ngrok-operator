@@ -37,6 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -120,8 +121,12 @@ func TestOrchestrator_HandleDrain_CompletesSuccessfully(t *testing.T) {
 	assert.Equal(t, OutcomeComplete, outcome)
 
 	// Status should be updated to completed
-	assert.Equal(t, ngrokv1alpha1.DrainStatusCompleted, ko.Status.DrainStatus)
-	assert.Equal(t, "Drain completed successfully", ko.Status.DrainMessage)
+	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+	require.NotNil(t, drainingCond)
+	assert.Equal(t, metav1.ConditionFalse, drainingCond.Status)
+	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted, drainingCond.Reason)
+	assert.Equal(t, "Drain completed successfully", drainingCond.Message)
+	assert.True(t, ko.IsDrainComplete())
 
 	// State should now report draining
 	assert.True(t, orchestrator.State().IsDraining(ctx))
@@ -154,15 +159,15 @@ func TestOrchestrator_HandleDrain_SetsStatusToDraining(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Before drain, status is empty
-	assert.Empty(t, ko.Status.DrainStatus)
+	// Before drain, no Draining condition exists
+	assert.Nil(t, meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining))
 
 	// HandleDrain should update status
 	_, err := orchestrator.HandleDrain(ctx, ko)
 	require.NoError(t, err)
 
 	// Status was set during drain
-	assert.Equal(t, ngrokv1alpha1.DrainStatusCompleted, ko.Status.DrainStatus)
+	assert.True(t, ko.IsDrainComplete())
 }
 
 func TestOrchestrator_HandleDrain_AlreadyCompleted(t *testing.T) {
@@ -174,8 +179,13 @@ func TestOrchestrator_HandleDrain_AlreadyCompleted(t *testing.T) {
 			Namespace: "ngrok-operator",
 		},
 		Status: ngrokv1alpha1.KubernetesOperatorStatus{
-			DrainStatus:  ngrokv1alpha1.DrainStatusCompleted,
-			DrainMessage: "Drain completed successfully",
+			Conditions: []metav1.Condition{{
+				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
+				Status:             metav1.ConditionFalse,
+				Reason:             ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted,
+				Message:            "Drain completed successfully",
+				LastTransitionTime: metav1.Now(),
+			}},
 		},
 	}
 
@@ -197,7 +207,7 @@ func TestOrchestrator_HandleDrain_AlreadyCompleted(t *testing.T) {
 	outcome, err := orchestrator.HandleDrain(context.Background(), ko)
 	require.NoError(t, err)
 	assert.Equal(t, OutcomeComplete, outcome, "should return complete when already completed")
-	assert.Equal(t, ngrokv1alpha1.DrainStatusCompleted, ko.Status.DrainStatus)
+	assert.True(t, ko.IsDrainComplete())
 }
 
 func TestOrchestrator_HandleDrain_TransientErrors_OutcomeRetry(t *testing.T) {
@@ -245,7 +255,11 @@ func TestOrchestrator_HandleDrain_TransientErrors_OutcomeRetry(t *testing.T) {
 	outcome, err := orchestrator.HandleDrain(context.Background(), ko)
 	require.NoError(t, err)
 	assert.Equal(t, OutcomeRetry, outcome, "should return retry when there are transient errors")
-	assert.Contains(t, ko.Status.DrainMessage, "errors")
+	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+	require.NotNil(t, drainingCond)
+	assert.Equal(t, metav1.ConditionTrue, drainingCond.Status)
+	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress, drainingCond.Reason)
+	assert.Contains(t, drainingCond.Message, "errors")
 }
 
 type updateErrorClient struct {
@@ -299,8 +313,11 @@ func TestOrchestrator_HandleDrain_ListError_OutcomeRetry(t *testing.T) {
 	outcome, err := orchestrator.HandleDrain(context.Background(), ko)
 	require.NoError(t, err)
 	assert.Equal(t, OutcomeRetry, outcome, "should return retry when there are list errors")
-	assert.Contains(t, ko.Status.DrainMessage, "errors")
-	assert.NotEmpty(t, ko.Status.DrainErrors)
+	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+	require.NotNil(t, drainingCond)
+	assert.Contains(t, drainingCond.Message, "errors")
+	require.NotNil(t, ko.Status.Drain)
+	assert.NotEmpty(t, ko.Status.Drain.Errors)
 }
 
 type listErrorClient struct {

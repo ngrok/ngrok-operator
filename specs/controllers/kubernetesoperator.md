@@ -24,10 +24,10 @@ The controller only reconciles the specific KubernetesOperator CR matching the o
 
 Deletion of the KubernetesOperator CR triggers the drain orchestration workflow:
 
-1. Set `status.drainStatus` to `draining`.
+1. Set the `Draining` condition to `True` (reason `DrainInProgress`) and `Ready` to `False` (reason `Draining`).
 2. Set in-memory drain flag for fast propagation.
 3. Run `Drainer.DrainAll()` to process all managed resources.
-4. Update drain status with progress and errors.
+4. Update `status.drain` with progress and errors; on completion set `Draining` to `False` (reason `DrainCompleted`).
 5. Remove finalizer on completion.
 
 See [features/draining.md](../features/draining.md) for full details.
@@ -43,10 +43,12 @@ See [features/draining.md](../features/draining.md) for full details.
 |----------------------------|-----------------------------------------------------|
 | `id`                       | ngrok API resource ID                               |
 | `uri`                      | ngrok API resource URI                              |
-| `registrationStatus`       | `registered`, `error`, or `pending`                 |
-| `enabledFeatures`          | Comma-separated enabled features                    |
+| `conditions`               | `Ready`, `Registered`, `Draining` (during deletion) |
+| `enabledFeatures`          | Enabled features reported by the ngrok API          |
 | `bindingsIngressEndpoint`  | Resolved bindings ingress endpoint                  |
-| Drain fields               | `drainStatus`, `drainMessage`, `drainProgress`, `drainErrors` |
+| `drain`                    | Structured drain progress (`drainedResources`, `totalResources`, `errors`) |
+
+See [crds/kubernetesoperator.md](../crds/kubernetesoperator.md) for condition semantics.
 
 ## Cluster Identity and Deduplication
 

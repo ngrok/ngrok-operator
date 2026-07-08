@@ -16,6 +16,25 @@ All resources are consolidated into a single group in v1:
 |------------------|---------|---------------------------------------------------------------------------------------|
 | `ngrok.com`      | `v1`    | AgentEndpoint, CloudEndpoint, KubernetesOperator, TrafficPolicy, Domain, IPPolicy, BoundEndpoint |
 
+## Status Field Changes
+
+### KubernetesOperator
+
+The KubernetesOperator status was restructured around standard status conditions
+ahead of 1.0. Tooling reading the old fields must switch to the replacements:
+
+| Removed field              | Replacement                                                                 |
+|----------------------------|------------------------------------------------------------------------------|
+| `registrationStatus`       | `Registered` condition (`True`/`False`; reason `Pending` before registration) |
+| `registrationErrorCode`    | `Registered` condition reason (the `ERR_NGROK_*` code when available)        |
+| `errorMessage`             | `Registered` condition message                                               |
+| `drainStatus`              | `Draining` condition (`True` = in progress/retrying, `False` + reason `DrainCompleted` = done) |
+| `drainMessage`             | `Draining` condition message                                                 |
+| `drainProgress` (`"X/Y"`)  | `drain.drainedResources` / `drain.totalResources` integers                   |
+| `drainErrors`              | `drain.errors`                                                               |
+
+`enabledFeatures` changed from a comma-separated string to a `[]string`.
+
 ## Upgrade Path
 
 A conversion webhook handles in-place conversion from the old group/version combinations to `ngrok.com/v1`. The webhook is installed automatically as part of the operator upgrade.
