@@ -3204,10 +3204,6 @@ spec:
               echo "Deleting KubernetesOperator 'ngrok-operator' to trigger drain..."
               kubectl delete kubernetesoperator "ngrok-operator" -n ngrok-operator --wait=true --timeout=300s || true
           resources:
-            limits:
-              cpu: 100m
-              memory: 128Mi
-            requests:
-              cpu: 50m
-              memory: 64Mi
+            limits: {}
+            requests: {}
 

@@ -615,33 +615,13 @@
                     "properties": {
                         "limits": {
                             "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string",
-                                    "description": "CPU limit for the cleanup hook container",
-                                    "default": "100m"
-                                },
-                                "memory": {
-                                    "type": "string",
-                                    "description": "Memory limit for the cleanup hook container",
-                                    "default": "128Mi"
-                                }
-                            }
+                            "description": "The resources limits for the cleanup hook container",
+                            "default": {}
                         },
                         "requests": {
                             "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string",
-                                    "description": "CPU request for the cleanup hook container",
-                                    "default": "50m"
-                                },
-                                "memory": {
-                                    "type": "string",
-                                    "description": "Memory request for the cleanup hook container",
-                                    "default": "64Mi"
-                                }
-                            }
+                            "description": "The requested resources for the cleanup hook container",
+                            "default": {}
                         }
                     }
                 }

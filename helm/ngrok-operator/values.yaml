@@ -439,10 +439,13 @@ installCRDs: true
 ## @param cleanupHook.image.repository The repository for the kubectl image used by the cleanup hook
 ## @param cleanupHook.image.tag The tag for the kubectl image
 ## @param cleanupHook.image.pullPolicy The pull policy for the cleanup hook image
-## @param cleanupHook.resources.limits.cpu CPU limit for the cleanup hook container
-## @param cleanupHook.resources.limits.memory Memory limit for the cleanup hook container
-## @param cleanupHook.resources.requests.cpu CPU request for the cleanup hook container
-## @param cleanupHook.resources.requests.memory Memory request for the cleanup hook container
+## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+## We usually recommend not to specify default resources and to leave this as a conscious
+## choice for the user. This also increases chances charts run on environments with little
+## resources, such as Minikube. If you do want to specify resources, uncomment the following
+## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+## @param cleanupHook.resources.limits The resources limits for the cleanup hook container
+## @param cleanupHook.resources.requests The requested resources for the cleanup hook container
 ##
 drainPolicy: "Retain"  # "Delete" or "Retain"
 
@@ -454,9 +457,15 @@ cleanupHook:
     tag: latest
     pullPolicy: IfNotPresent
   resources:
-    limits:
-      cpu: 100m
-      memory: 128Mi
-    requests:
-      cpu: 50m
-      memory: 64Mi
+    ## Example:
+    ## limits:
+    ##    cpu: 100m
+    ##    memory: 128Mi
+    ##
+    limits: {}
+    ## Examples:
+    ## requests:
+    ##    cpu: 50m
+    ##    memory: 64Mi
+    ##
+    requests: {}
