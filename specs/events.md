@@ -68,10 +68,17 @@ The two are not mutually exclusive — a meaningful transition often both sets a
 
 ## Emission cadence (anti-spam)
 
-The modern `events.k8s.io` recorder has **no client-side spam filter** — the well-known ≈25-burst token bucket belongs to the legacy `record` API we don't use, and server-side the `EventRateLimit` admission plugin is off by default. Its only defense is dedup: recurrences identical on (type, action, reason, reportingController, reportingInstance, regarding, related) collapse into an `EventSeries`. The `note` is **not** part of that key. Consequences:
+The modern `events.k8s.io` recorder has **no client-side spam filter** — the well-known ≈25-burst token bucket belongs to the legacy `record` API we don't use, and server-side the `EventRateLimit` admission plugin is off by default. Its only defense is dedup: recurrences identical on (type, action, reason, reportingController, reportingInstance, regarding, related) collapse into an `EventSeries`. The `note` is **not** part of that key.
 
-- A hot loop emitting a stable tuple produces one Event with a growing Series count (later notes are lost).
-- A hot loop with a **varying** reason or action produces unbounded distinct Event objects with zero throttling anywhere.
+The dedup key is weaker than it looks: `regarding` and `related` are compared as **full `ObjectReference` structs, including `resourceVersion` and `uid`** (client-go `tools/events/event_broadcaster.go` `getKey`, verified v0.36.1). Any write to the object — a user edit, *or our own status update* — changes `resourceVersion`, so the next emit is a brand-new Event object, not a Series bump. Verified empirically: five annotation bumps on an `NgrokTrafficPolicy` produced six distinct `PolicyDeprecation` Event objects, zero coalescing. Consequences:
+
+- Series coalescing only helps for reconciles where the object was **not** written in between (e.g. periodic resyncs). Any reconcile-triggered-by-change that re-emits produces a new Event object.
+- A controller that writes status every reconcile and also emits every reconcile gets **zero** dedup — unbounded distinct Event objects (observed: 24 Event objects on one CloudEndpoint in 2 seconds during a create-retry loop).
+- A hot loop with a **varying** reason or action likewise produces unbounded distinct Event objects with zero throttling anywhere.
+- Coalescing also has a **time window**: the broadcaster evicts a Series from its dedup cache after ~6 min without a recurrence. Requeue backoff caps at 1000s (16.7 min), so a *chronically failing* resource ends up minting a fresh batch of Event objects on **every** retry, forever (~14 objects/hr observed for one broken resource emitting 4 events per reconcile). Neither Series dedup nor backoff bounds a per-reconcile emit — only transition-gating does.
+- `kubectl get events` counts **lag real emissions by minutes**: series increments flush on 6/30-minute heartbeats (observed 72 actual emits displayed as 18). Don't treat live counts as ground truth, and don't put per-occurrence detail in the note expecting it to be visible.
+
+The empirically confirmed good news: a healthy resource that nobody touches emits nothing — controller-runtime's ~10h sync period plus generation/annotation predicates mean steady-state reconciles simply don't happen. Event volume is entirely a function of churn and *failing* resources, which is exactly what transition-gating addresses.
 - The broadcaster queue is 1000 deep and silently drops on overflow; Series counts flush on 6/30-minute heartbeats, so `kubectl get events` counts can lag.
 
 Discipline at the emit site is therefore the only real control. Requirements:
