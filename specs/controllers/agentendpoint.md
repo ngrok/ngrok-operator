@@ -10,7 +10,7 @@ The AgentEndpoint controller reconciles `AgentEndpoint` resources by creating an
 |-----------------------|------------|----------------------------------------------|
 | `AgentEndpoint`       | Primary    | AnnotationChanged or GenerationChanged       |
 | `TrafficPolicy`  | Secondary  | Indexed by `spec.trafficPolicyName`; DELETE events filtered |
-| `Secret`              | Secondary  | Indexed by client certificate refs; DELETE events filtered |
+| `Secret`              | Secondary  | Secrets referenced by client certs or TLS termination        |
 | `Domain`              | Owned      | All events                                   |
 
 ## Reconciliation Flow
@@ -44,10 +44,10 @@ AgentEndpoints support agent-side TLS termination via `spec.tlsTermination`. Whe
 
 | Field      | Type           | Description |
 |------------|----------------|-------------|
-| `caBundleRef` | `K8sObjectRef` | Reference to a Secret whose `ca.crt` key holds a PEM-encoded CA bundle trusted to sign client certificates. |
+| `clientCAsRef` | `K8sObjectRef` | Reference to a Secret whose `ca.crt` key holds a PEM-encoded CA bundle trusted to sign client certificates. Must be in the same namespace as the AgentEndpoint. |
 | `mode`     | string         | `"require"` (client cert required) or `"request"` (client cert requested but optional). |
 
-The controller watches referenced Secrets (via secondary watch indexed by `spec.clientCertificateRefs`) and re-reconciles when they change so that certificate rotations are picked up automatically.
+The controller watches the referenced Secrets and re-reconciles when they change, so certificate rotations are picked up automatically.
 
 ## Status
 
