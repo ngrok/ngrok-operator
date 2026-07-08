@@ -69,7 +69,7 @@ func TestStateChecker_NoDraining(t *testing.T) {
 	assert.False(t, checker.IsDraining(context.Background()))
 }
 
-func TestStateChecker_DrainStatusDraining(t *testing.T) {
+func TestStateChecker_DrainingConditionTrue(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
@@ -80,7 +80,12 @@ func TestStateChecker_DrainStatusDraining(t *testing.T) {
 		},
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
 		Status: ngrokv1alpha1.KubernetesOperatorStatus{
-			DrainStatus: ngrokv1alpha1.DrainStatusDraining,
+			Conditions: []metav1.Condition{{
+				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
+				Status:             metav1.ConditionTrue,
+				Reason:             ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress,
+				LastTransitionTime: metav1.Now(),
+			}},
 		},
 	}
 
@@ -96,7 +101,7 @@ func TestStateChecker_DrainStatusDraining(t *testing.T) {
 
 func TestStateChecker_DeletionTimestampWithoutStatus(t *testing.T) {
 	// DeletionTimestamp alone does NOT make IsDraining return true.
-	// The controller must set DrainStatus first.
+	// The controller must set the Draining condition first.
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
@@ -109,7 +114,7 @@ func TestStateChecker_DeletionTimestampWithoutStatus(t *testing.T) {
 			Finalizers:        []string{"test-finalizer"},
 		},
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
-		// Status.DrainStatus is empty
+		// Status.Conditions has no Draining condition
 	}
 
 	client := fake.NewClientBuilder().
@@ -150,7 +155,12 @@ func TestStateChecker_CachesDrainingState(t *testing.T) {
 		},
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
 		Status: ngrokv1alpha1.KubernetesOperatorStatus{
-			DrainStatus: ngrokv1alpha1.DrainStatusDraining,
+			Conditions: []metav1.Condition{{
+				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
+				Status:             metav1.ConditionTrue,
+				Reason:             ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress,
+				LastTransitionTime: metav1.Now(),
+			}},
 		},
 	}
 

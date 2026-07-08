@@ -2,23 +2,35 @@ package ngrok
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
+	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 // TestCalculateFeaturesEnabled is a pure unit test for the calculateFeaturesEnabled function.
@@ -57,6 +69,178 @@ func TestCalculateFeaturesEnabled(t *testing.T) {
 			assert.Equal(t, tt.expected, calculateFeaturesEnabled(tt.in))
 		})
 	}
+}
+
+func TestUpdateStatus_Conditions(t *testing.T) {
+	registeredKO := &ngrok.KubernetesOperator{
+		ID:              "k8sop_123",
+		URI:             "https://api.ngrok.com/kubernetes_operators/k8sop_123",
+		EnabledFeatures: []string{"ingress", "bindings"},
+	}
+
+	tests := []struct {
+		name            string
+		ngrokKo         *ngrok.KubernetesOperator
+		err             error
+		wantRegistered  metav1.ConditionStatus
+		wantRegReason   string
+		wantReady       metav1.ConditionStatus
+		wantReadyReason string
+	}{
+		{
+			name:            "registered",
+			ngrokKo:         registeredKO,
+			wantRegistered:  metav1.ConditionTrue,
+			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonRegistered,
+			wantReady:       metav1.ConditionTrue,
+			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonRegistered,
+		},
+		{
+			name:            "pending",
+			wantRegistered:  metav1.ConditionFalse,
+			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonPending,
+			wantReady:       metav1.ConditionFalse,
+			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonPending,
+		},
+		{
+			name:            "ngrok api error uses error code as reason",
+			err:             &ngrok.Error{ErrorCode: "ERR_NGROK_123", Msg: "something broke"},
+			wantRegistered:  metav1.ConditionFalse,
+			wantRegReason:   "ERR_NGROK_123",
+			wantReady:       metav1.ConditionFalse,
+			wantReadyReason: "ERR_NGROK_123",
+		},
+		{
+			name:            "generic error",
+			err:             errors.New("boom"),
+			wantRegistered:  metav1.ConditionFalse,
+			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+			wantReady:       metav1.ConditionFalse,
+			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+		},
+		{
+			name:            "registered but later step failed",
+			ngrokKo:         registeredKO,
+			err:             errors.New("failed to update TLS secret"),
+			wantRegistered:  metav1.ConditionTrue,
+			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonRegistered,
+			wantReady:       metav1.ConditionFalse,
+			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+			ko := &ngrokv1alpha1.KubernetesOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "ko",
+					Namespace:  "test-ns",
+					Generation: 2,
+				},
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(ko).
+				WithStatusSubresource(ko).
+				Build()
+
+			reconciler := &KubernetesOperatorReconciler{
+				Client: fakeClient,
+				controller: &controller.BaseController[*ngrokv1alpha1.KubernetesOperator]{
+					Kube:     fakeClient,
+					Log:      logr.Discard(),
+					Recorder: events.NewFakeRecorder(10),
+				},
+			}
+
+			err := reconciler.updateStatus(context.Background(), ko, tt.ngrokKo, tt.err)
+			assert.Equal(t, tt.err, err, "updateStatus passes the original error through")
+
+			registered := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered)
+			require.NotNil(t, registered)
+			assert.Equal(t, tt.wantRegistered, registered.Status)
+			assert.Equal(t, tt.wantRegReason, registered.Reason)
+			assert.Equal(t, int64(2), registered.ObservedGeneration)
+
+			ready := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+			require.NotNil(t, ready)
+			assert.Equal(t, tt.wantReady, ready.Status)
+			assert.Equal(t, tt.wantReadyReason, ready.Reason)
+
+			if tt.ngrokKo != nil {
+				assert.Equal(t, tt.ngrokKo.ID, ko.Status.ID)
+				assert.Equal(t, tt.ngrokKo.EnabledFeatures, ko.Status.EnabledFeatures)
+			}
+		})
+	}
+}
+
+// TestDelete_DrainLifecycle runs the delete flow end-to-end on an empty cluster:
+// drain is initiated (Draining=True), completes (Draining=False/DrainCompleted),
+// and the KubernetesOperator is removed from the ngrok API.
+func TestDelete_DrainLifecycle(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
+	require.NoError(t, v1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, gatewayv1.Install(scheme))
+	require.NoError(t, gatewayv1alpha2.Install(scheme))
+
+	mockClientset := nmockapi.NewClientset()
+	ngrokKO, err := mockClientset.KubernetesOperators().Create(context.Background(), &ngrok.KubernetesOperatorCreate{
+		Description: "test",
+	})
+	require.NoError(t, err)
+
+	ko := &ngrokv1alpha1.KubernetesOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-release",
+			Namespace: "test-ns",
+		},
+		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+			ID: ngrokKO.ID,
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ko).
+		WithStatusSubresource(ko).
+		Build()
+
+	reconciler := &KubernetesOperatorReconciler{
+		Client:         fakeClient,
+		NgrokClientset: mockClientset,
+		DrainOrchestrator: drain.NewOrchestrator(drain.OrchestratorConfig{
+			Client:         fakeClient,
+			Recorder:       events.NewFakeRecorder(10),
+			Log:            logr.Discard(),
+			K8sOpNamespace: "test-ns",
+			K8sOpName:      "my-release",
+		}),
+	}
+
+	require.NoError(t, reconciler.delete(context.Background(), ko))
+
+	draining := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+	require.NotNil(t, draining)
+	assert.Equal(t, metav1.ConditionFalse, draining.Status)
+	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted, draining.Reason)
+	assert.True(t, ko.IsDrainComplete())
+
+	ready := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+	require.NotNil(t, ready)
+	assert.Equal(t, metav1.ConditionFalse, ready.Status)
+
+	assert.Empty(t, ko.Status.ID, "ID is cleared after deletion from the ngrok API")
+	_, err = mockClientset.KubernetesOperators().Get(context.Background(), ngrokKO.ID)
+	assert.True(t, ngrok.IsNotFound(err), "KubernetesOperator is deleted from the ngrok API")
 }
 
 func TestBindingCertRenewalState(t *testing.T) {
@@ -358,7 +542,8 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
 			koFetched := fetched.(*ngrokv1alpha1.KubernetesOperator)
 			g.Expect(koFetched.Status.ID).NotTo(BeEmpty())
-			g.Expect(koFetched.Status.RegistrationStatus).To(Equal(ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess))
+			g.Expect(meta.IsStatusConditionTrue(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered)).To(BeTrue())
+			g.Expect(meta.IsStatusConditionTrue(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)).To(BeTrue())
 		}, testutils.WithTimeout(timeout))
 	})
 
@@ -418,7 +603,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
 			koFetched := fetched.(*ngrokv1alpha1.KubernetesOperator)
 			g.Expect(koFetched.Status.ID).NotTo(BeEmpty())
-			g.Expect(koFetched.Status.RegistrationStatus).To(Equal(ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess))
+			g.Expect(meta.IsStatusConditionTrue(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered)).To(BeTrue())
 		}, testutils.WithTimeout(timeout))
 	})
 })

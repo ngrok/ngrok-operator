@@ -24,7 +24,7 @@ spec:
             binding:
               tlsSecretName: ngrok-operator-default-tls
           status:
-            registrationStatus: registered
+            "(length(to_array(conditions)[? type == 'Registered' && status == 'True']) > `0`)": true
             (id != null && starts_with(id, 'k8sop_')): true
             (uri != null): true
 

@@ -11,7 +11,7 @@ Draining is triggered by deletion of the KubernetesOperator CR. This typically h
 ## Drain Workflow
 
 1. KubernetesOperator deletion is detected (DeletionTimestamp set).
-2. Controller sets `status.drainStatus` to `draining`.
+2. Controller sets the `Draining` condition to `True` (reason `DrainInProgress`) and `Ready` to `False` (reason `Draining`).
 3. In-memory drain flag is set via `StateChecker.SetDraining()` for fast propagation to other controllers in the same pod.
 4. A 2-second pause allows other controllers to observe the drain state.
 5. `Drainer.DrainAll()` processes all managed resources.
@@ -24,7 +24,7 @@ Draining is triggered by deletion of the KubernetesOperator CR. This typically h
 - Other controllers check `DrainState.IsDraining()` before processing non-delete reconciles.
 - During drain, create/update reconciles are skipped (no new finalizers are added).
 - Delete reconciles proceed normally to allow cleanup.
-- Across multiple replicas, drain state propagates via the KubernetesOperator CR's `status.drainStatus` field.
+- Across multiple replicas, drain state propagates via the KubernetesOperator CR's `Draining` status condition.
 
 ## Resource Processing
 

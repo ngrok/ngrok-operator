@@ -36,11 +36,11 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -239,17 +239,17 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1al
 	log := ctrl.LoggerFrom(ctx)
 
 	// Step 1: Initiate drain if not already started
-	if ko.Status.DrainStatus == "" {
+	if meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining) == nil {
 		log.Info("KubernetesOperator deletion detected, initiating drain")
-		ko.Status.DrainStatus = ngrokv1alpha1.DrainStatusDraining
-		ko.Status.DrainMessage = "Drain initiated"
+		setKubernetesOperatorDrainingCondition(ko, true, ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress, "Drain initiated")
+		setKubernetesOperatorReadyCondition(ko, false, ngrokv1alpha1.KubernetesOperatorReasonDraining, "KubernetesOperator is being deleted")
 		if err := r.Client.Status().Update(ctx, ko); err != nil {
 			return err
 		}
 	}
 
 	// Step 2: Run drain workflow (if not already completed)
-	if ko.Status.DrainStatus != ngrokv1alpha1.DrainStatusCompleted {
+	if !ko.IsDrainComplete() {
 		outcome, err := r.DrainOrchestrator.HandleDrain(ctx, ko)
 		if err != nil {
 			return err
@@ -286,37 +286,26 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 	if existsInNgrokAPI {
 		ko.Status.ID = ngrokKo.ID
 		ko.Status.URI = ngrokKo.URI
-
-		if ngrokKo.EnabledFeatures != nil {
-			ko.Status.EnabledFeatures = strings.Join(ngrokKo.EnabledFeatures, ",")
-		}
+		ko.Status.EnabledFeatures = ngrokKo.EnabledFeatures
 		if ngrokKo.Binding != nil {
 			ko.Status.BindingsIngressEndpoint = ngrokKo.Binding.IngressEndpoint
 		}
-
-		ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess
-	} else {
-		if err != nil {
-			ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusError
-		}
-		ko.Status.RegistrationStatus = ngrokv1alpha1.KubernetesOperatorRegistrationStatusPending
 	}
 
-	errorCode := ""
-	errorMessage := ""
-
-	// Handle errors
+	// Failures caused by an ngrok API error use the ERR_NGROK_* error code as
+	// the condition reason so it stays machine-readable.
+	errReason := ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed
+	errMessage := ""
 	if err != nil {
-		errorMessage := err.Error() // default to the error message
+		errMessage = err.Error()
 
 		var ngrokErr *ngrok.Error
 		if errors.As(err, &ngrokErr) {
-			errorCode = ngrokErr.ErrorCode
-			errorMessage = ngrokErr.Msg
+			if ngrokErr.ErrorCode != "" {
+				errReason = ngrokErr.ErrorCode
+			}
+			errMessage = ngrokErr.Msg
 		}
-
-		ko.Status.RegistrationErrorCode = errorCode
-		ko.Status.RegistrationErrorMessage = errorMessage
 
 		// Special case for NotFound errors, we'll clear the ID and URI so we can re-queue the reconciliation
 		if ngrok.IsNotFound(err) {
@@ -325,8 +314,25 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 		}
 	}
 
-	ko.Status.RegistrationErrorCode = errorCode
-	ko.Status.RegistrationErrorMessage = errorMessage
+	// Registered reflects whether the KubernetesOperator exists in the ngrok
+	// API, even if a later step (e.g. updating the bindings TLS cert) errored.
+	switch {
+	case existsInNgrokAPI:
+		setKubernetesOperatorRegisteredCondition(ko, true, ngrokv1alpha1.KubernetesOperatorReasonRegistered, "Registered with the ngrok API")
+	case err != nil:
+		setKubernetesOperatorRegisteredCondition(ko, false, errReason, errMessage)
+	default:
+		setKubernetesOperatorRegisteredCondition(ko, false, ngrokv1alpha1.KubernetesOperatorReasonPending, "Waiting to be registered with the ngrok API")
+	}
+
+	switch {
+	case err != nil:
+		setKubernetesOperatorReadyCondition(ko, false, errReason, errMessage)
+	case existsInNgrokAPI:
+		setKubernetesOperatorReadyCondition(ko, true, ngrokv1alpha1.KubernetesOperatorReasonRegistered, "KubernetesOperator is registered and ready")
+	default:
+		setKubernetesOperatorReadyCondition(ko, false, ngrokv1alpha1.KubernetesOperatorReasonPending, "Waiting to be registered with the ngrok API")
+	}
 
 	return r.controller.ReconcileStatus(ctx, ko, err)
 }

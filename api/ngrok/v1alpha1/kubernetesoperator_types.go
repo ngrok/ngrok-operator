@@ -25,6 +25,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -68,62 +69,73 @@ type KubernetesOperatorStatus struct {
 	// URI is the URI for this Kubernetes Operator
 	URI string `json:"uri,omitempty"`
 
-	// RegistrationStatus is the status of the registration of this Kubernetes Operator with the ngrok API
-	// +kubebuilder:validation:Enum=registered;error;pending
-	// +kubebuilder:default="pending"
-	RegistrationStatus string `json:"registrationStatus,omitempty"`
+	// Conditions describe the current state of the KubernetesOperator.
+	// Known condition types are "Ready", "Registered" and "Draining".
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:MaxItems=8
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// RegistrationErrorCode is the returned ngrok error code
-	// +kubebuilder:validation:Pattern=`^ERR_NGROK_\d+$`
-	RegistrationErrorCode string `json:"registrationErrorCode,omitempty"`
-
-	// RegistrationErrorMessage is a free-form error message if the status is error
-	// +kubebuilder:validation:MaxLength=4096
-	RegistrationErrorMessage string `json:"errorMessage,omitempty"`
-
-	// EnabledFeatures is the string representation of the features enabled for this Kubernetes Operator
-	EnabledFeatures string `json:"enabledFeatures,omitempty"`
+	// EnabledFeatures are the features enabled for this Kubernetes Operator, as
+	// reported by the ngrok API
+	EnabledFeatures []string `json:"enabledFeatures,omitempty"`
 
 	// BindingsIngressEndpoint is the URL that the operator will use to talk
 	// to the ngrok edge when forwarding traffic for k8s-bound endpoints
 	BindingsIngressEndpoint string `json:"bindingsIngressEndpoint,omitempty"`
 
-	// DrainStatus indicates the current state of the drain process
-	DrainStatus DrainStatus `json:"drainStatus,omitempty"`
-
-	// DrainMessage provides additional information about the drain status
-	DrainMessage string `json:"drainMessage,omitempty"`
-
-	// DrainProgress indicates how many resources have been drained vs total
-	// Format: "X/Y" where X is processed (completed + failed) and Y is total
-	DrainProgress string `json:"drainProgress,omitempty"`
-
-	// DrainErrors contains the most recent errors encountered during drain
+	// Drain reports the progress of the drain triggered by deleting this resource
 	// +optional
-	DrainErrors []string `json:"drainErrors,omitempty"`
+	Drain *KubernetesOperatorDrainStatus `json:"drain,omitempty"`
 }
 
+// KubernetesOperatorDrainStatus reports drain progress while the operator is
+// cleaning up the resources it manages during deletion
+type KubernetesOperatorDrainStatus struct {
+	// DrainedResources is the number of resources processed so far, including failures
+	DrainedResources int `json:"drainedResources"`
+
+	// TotalResources is the total number of resources the drain will process
+	TotalResources int `json:"totalResources"`
+
+	// Errors contains the most recent errors encountered during drain
+	// +optional
+	Errors []string `json:"errors,omitempty"`
+}
+
+// Condition types for KubernetesOperator. The condition type and reason string
+// values are part of the public API contract — tooling like kubectl wait,
+// Argo CD and Flux health checks depend on them.
 const (
-	KubernetesOperatorRegistrationStatusSuccess = "registered"
-	KubernetesOperatorRegistrationStatusError   = "error"
-	KubernetesOperatorRegistrationStatusPending = "pending"
+	// KubernetesOperatorConditionReady summarizes the overall health of the
+	// KubernetesOperator
+	KubernetesOperatorConditionReady = "Ready"
+	// KubernetesOperatorConditionRegistered reports whether this operator is
+	// registered with the ngrok API
+	KubernetesOperatorConditionRegistered = "Registered"
+	// KubernetesOperatorConditionDraining is present only while this resource is
+	// being deleted: True while the drain of managed resources is in progress or
+	// retrying after errors, False with reason DrainCompleted once it finishes
+	KubernetesOperatorConditionDraining = "Draining"
+)
+
+// Condition reasons for KubernetesOperator. Registration failures caused by an
+// ngrok API error use the ERR_NGROK_* error code as the reason instead.
+const (
+	KubernetesOperatorReasonRegistered         = "Registered"
+	KubernetesOperatorReasonPending            = "Pending"
+	KubernetesOperatorReasonRegistrationFailed = "RegistrationFailed"
+	KubernetesOperatorReasonDraining           = "Draining"
+	KubernetesOperatorReasonDrainInProgress    = "DrainInProgress"
+	KubernetesOperatorReasonDrainFailed        = "DrainFailed"
+	KubernetesOperatorReasonDrainCompleted     = "DrainCompleted"
 )
 
 const (
 	KubernetesOperatorFeatureIngress  = "ingress"
 	KubernetesOperatorFeatureGateway  = "gateway"
 	KubernetesOperatorFeatureBindings = "bindings"
-)
-
-// DrainStatus indicates the current state of the drain process
-// +kubebuilder:validation:Enum=pending;draining;completed;failed
-type DrainStatus string
-
-const (
-	DrainStatusPending   DrainStatus = "pending"
-	DrainStatusDraining  DrainStatus = "draining"
-	DrainStatusCompleted DrainStatus = "completed"
-	DrainStatusFailed    DrainStatus = "failed"
 )
 
 // DrainPolicy determines how ngrok API resources are handled during drain
@@ -178,11 +190,14 @@ type DrainConfig struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Kubernetes Operator ID"
-// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.registrationStatus"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`
 // +kubebuilder:printcolumn:name="Enabled Features",type="string",JSONPath=".status.enabledFeatures"
 // +kubebuilder:printcolumn:name="Endpoint Selectors",type="string",JSONPath=".spec.binding.endpointSelectors"
 // +kubebuilder:printcolumn:name="Binding Ingress Endpoint", type="string", JSONPath=".spec.binding.ingressEndpoint",priority=2
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].reason`,priority=1
+// +kubebuilder:printcolumn:name="Drained",type=integer,JSONPath=`.status.drain.drainedResources`,priority=1
+// +kubebuilder:printcolumn:name="Drain Total",type=integer,JSONPath=`.status.drain.totalResources`,priority=1
 
 // KubernetesOperator is the Schema for the ngrok kubernetesoperators API
 type KubernetesOperator struct {
@@ -208,4 +223,10 @@ func (ko *KubernetesOperator) GetDrainPolicy() DrainPolicy {
 		return ko.Spec.Drain.Policy
 	}
 	return DrainPolicyRetain
+}
+
+// IsDrainComplete reports whether the drain triggered by deleting this resource
+// has finished (the Draining condition is False with reason DrainCompleted).
+func (ko *KubernetesOperator) IsDrainComplete() bool {
+	return meta.IsStatusConditionFalse(ko.Status.Conditions, KubernetesOperatorConditionDraining)
 }
