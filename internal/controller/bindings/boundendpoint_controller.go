@@ -611,9 +611,15 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 
 }
 
-// determineAndSetBindingEndpointStatus determines what the status of an endpoint should be
-// updateStatus is the single point where controller writes status to k8s API
-// Note: Controller does NOT set Endpoints or EndpointsSummary status fields - the poller owns them
+// updateStatus writes the controller-owned BoundEndpoint status fields.
+//
+// BoundEndpoint status has two concurrent writers: this controller (Conditions,
+// TargetServiceRef, UpstreamServiceRef) and the poller (Endpoints,
+// EndpointsSummary, HashedName; see boundendpoint_poller.go). To avoid
+// clobbering, each writer re-fetches the object and copies only its own fields
+// onto that fresh copy before writing. Keep that pattern when changing status
+// fields; the write mechanism itself (BaseController.ReconcileStatus here, bare
+// Status().Update in the poller) is not what protects us.
 func (r *BoundEndpointReconciler) updateStatus(ctx context.Context, be *bindingsv1alpha1.BoundEndpoint, statusErr error) error {
 	// Get the current version to preserve poller-owned fields (Endpoints, EndpointsSummary, HashedName)
 	current := &bindingsv1alpha1.BoundEndpoint{}

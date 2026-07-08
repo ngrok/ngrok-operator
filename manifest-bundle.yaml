@@ -435,6 +435,21 @@ spec:
                 description: Region is the region in which to reserve the domain
                 type: string
               resolves_to:
+                description: 'Deprecated: Use ResolvesTo (resolvesTo) instead. Will
+                  be removed in a future release.'
+                items:
+                  description: DomainResolvesToEntry contains a resolving target for
+                    this domain
+                  properties:
+                    value:
+                      description: Value is a point-of-presence alias, an IP address
+                        (coming soon), or an IP group alias (coming soon)
+                      type: string
+                  required:
+                  - value
+                  type: object
+                type: array
+              resolvesTo:
                 description: ResolvesTo is the list of resolving targets for the domain
                 items:
                   description: DomainResolvesToEntry contains a resolving target for
@@ -454,7 +469,7 @@ spec:
           status:
             description: DomainStatus defines the observed state of Domain
             properties:
-              acmeChallengeCnameTarget:
+              acmeChallengeCNAMETarget:
                 description: ACMEChallengeCNAMETarget is the CNAME target for ACME
                   challenge (wildcards only)
                 type: string
@@ -586,7 +601,7 @@ spec:
               region:
                 description: Region is the region in which the domain was created
                 type: string
-              resolves_to:
+              resolvesTo:
                 description: ResolvesTo is the list of resolving targets for the domain
                 items:
                   description: DomainResolvesToEntry contains a resolving target for

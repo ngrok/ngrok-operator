@@ -37,14 +37,22 @@
 
 ## Status
 
-| Field                | Type                            | Description                                  |
-|----------------------|---------------------------------|----------------------------------------------|
-| `endpoints`          | []BindingEndpoint               | ngrok endpoint references (id, uri)          |
-| `hashedName`         | string                          | Hashed name for the bound endpoint           |
-| `endpointsSummary`   | string                          | Human-readable summary of endpoints          |
-| `conditions`         | []Condition                     | MaxItems: 8                                  |
-| `targetServiceRef`   | *K8sObjectRefOptionalNamespace  | Reference to the created target service      |
-| `upstreamServiceRef` | *K8sObjectRef                   | Reference to the created upstream service    |
+> **Concurrent writers:** BoundEndpoint status has two writers split by the
+> `Owner` column below — the poller and the controller. The invariant that
+> prevents clobbering: each writer re-fetches the object and copies only the
+> fields it owns onto that fresh copy before writing. The write mechanism
+> differs and is fine either way — the poller uses a bare `Status().Update()`,
+> the controller uses `BaseController.ReconcileStatus`. Preserve this
+> re-fetch + copy-only-owned-fields pattern when changing status fields.
+
+| Field                | Type                            | Owner      | Description                                  |
+|----------------------|---------------------------------|------------|----------------------------------------------|
+| `endpoints`          | []BindingEndpoint               | poller     | ngrok endpoint references (id, uri)          |
+| `hashedName`         | string                          | poller     | Hashed name for the bound endpoint           |
+| `endpointsSummary`   | string                          | poller     | Human-readable summary of endpoints          |
+| `conditions`         | []Condition                     | controller | MaxItems: 8                                  |
+| `targetServiceRef`   | *K8sObjectRefOptionalNamespace  | controller | Reference to the created target service      |
+| `upstreamServiceRef` | *K8sObjectRef                   | controller | Reference to the created upstream service    |
 
 ## Conditions
 
