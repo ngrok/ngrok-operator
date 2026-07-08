@@ -1441,10 +1441,10 @@ spec:
                     description: The public ingress endpoint for this Kubernetes Operator
                     type: string
                   tlsSecretName:
-                    default: default-tls
                     description: TlsSecretName is the name of the k8s secret that
                       contains the TLS private/public keys to use for the ngrok forwarding
                       endpoint
+                    minLength: 1
                     type: string
                 required:
                 - endpointSelectors
