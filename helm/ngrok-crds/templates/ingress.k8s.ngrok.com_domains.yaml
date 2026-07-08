@@ -268,6 +268,13 @@ spec:
               id:
                 description: ID is the unique identifier of the domain
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               region:
                 description: Region is the region in which the domain was created
                 type: string

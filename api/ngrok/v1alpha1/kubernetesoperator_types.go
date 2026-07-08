@@ -56,6 +56,12 @@ type KubernetesOperatorBinding struct {
 
 // KubernetesOperatorStatus defines the observed state of KubernetesOperator
 type KubernetesOperatorStatus struct {
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// ID is the unique identifier for this Kubernetes Operator
 	ID string `json:"id,omitempty"`
 
@@ -185,6 +191,11 @@ type KubernetesOperator struct {
 
 	Spec   KubernetesOperatorSpec   `json:"spec,omitempty"`
 	Status KubernetesOperatorStatus `json:"status,omitempty"`
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (ko *KubernetesOperator) SetObservedGeneration(generation int64) {
+	ko.Status.ObservedGeneration = generation
 }
 
 // +kubebuilder:object:root=true

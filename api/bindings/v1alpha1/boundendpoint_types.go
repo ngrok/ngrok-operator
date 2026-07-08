@@ -75,6 +75,12 @@ func (s *BoundEndpointSpec) GetEndpointURL() string {
 
 // BoundEndpointStatus defines the observed state of BoundEndpoint
 type BoundEndpointStatus struct {
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// Endpoints is the list of ngrok API endpoint references bound to this BoundEndpoint
 	// All endpoints share the same underlying Kubernetes services
 	Endpoints []BindingEndpoint `json:"endpoints,omitempty"`
@@ -165,6 +171,11 @@ type BoundEndpoint struct {
 
 	Spec   BoundEndpointSpec   `json:"spec,omitempty"`
 	Status BoundEndpointStatus `json:"status,omitempty"`
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (b *BoundEndpoint) SetObservedGeneration(generation int64) {
+	b.Status.ObservedGeneration = generation
 }
 
 // +kubebuilder:object:root=true

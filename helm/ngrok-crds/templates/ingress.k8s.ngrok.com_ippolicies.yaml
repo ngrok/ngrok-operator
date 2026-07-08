@@ -166,6 +166,13 @@ spec:
                 x-kubernetes-list-type: map
               id:
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               rules:
                 items:
                   properties:

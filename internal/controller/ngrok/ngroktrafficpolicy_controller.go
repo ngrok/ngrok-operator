@@ -85,7 +85,21 @@ func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.R
 		r.Recorder.Eventf(policy, nil, v1.EventTypeWarning, EventPolicyDeprecation, "Validate", "Traffic Policy has 'enabled' set. This is a legacy option that will stop being supported soon.")
 	}
 
-	return managerdriver.HandleSyncResult(r.Driver.SyncEndpoints(ctx, r.Client))
+	res, err := managerdriver.HandleSyncResult(r.Driver.SyncEndpoints(ctx, r.Client))
+	if err != nil {
+		return res, err
+	}
+
+	// Stamp observedGeneration only on success: the CRD has no conditions yet to
+	// signal failure, so stamping on error would read as a healthy reconcile.
+	if policy.Status.ObservedGeneration != policy.Generation {
+		policy.Status.ObservedGeneration = policy.Generation
+		if err := r.Status().Update(ctx, policy); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	return res, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

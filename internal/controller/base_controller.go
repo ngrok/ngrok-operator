@@ -153,6 +153,14 @@ func (self *BaseController[T]) handleErr(op BaseControllerOp, obj T, err error) 
 	return CtrlResultForErr(err)
 }
 
+// ObservedGenerationSetter is implemented by CRDs whose status records the most
+// recently reconciled metadata.generation. ReconcileStatus stamps it
+// automatically so external tooling (kubectl wait, Argo CD, etc.) can detect
+// whether the status reflects the latest spec.
+type ObservedGenerationSetter interface {
+	SetObservedGeneration(generation int64)
+}
+
 // ReconcileStatus reconciles the status of an object, retrying on conflict.
 //
 // Status update conflicts are common because the object's resourceVersion can
@@ -166,6 +174,10 @@ func (self *BaseController[T]) handleErr(op BaseControllerOp, obj T, err error) 
 // callers manage their own retry/conflict logic and should not use this method.
 func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T, origErr error) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("originalError", origErr)
+
+	if setter, ok := client.Object(obj).(ObservedGenerationSetter); ok {
+		setter.SetObservedGeneration(obj.GetGeneration())
+	}
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		err := self.Kube.Status().Update(ctx, obj)

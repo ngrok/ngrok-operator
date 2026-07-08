@@ -54,6 +54,7 @@ Requires `spec.url` to use the `tls://` scheme (enforced by XValidation). Cannot
 
 | Field                    | Type                            | Description                              |
 |--------------------------|---------------------------------|------------------------------------------|
+| `observedGeneration`     | int64                           | Generation last reconciled by the controller |
 | `assignedURL`            | string                          | The URL assigned by ngrok                |
 | `attachedTrafficPolicy`  | string                          | `"none"`, `"inline"`, or policy ref name |
 | `domainRef`              | *K8sObjectRefOptionalNamespace  | Reference to the associated Domain CR    |

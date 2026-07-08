@@ -47,6 +47,7 @@
 
 | Field                | Type                            | Owner      | Description                                  |
 |----------------------|---------------------------------|------------|----------------------------------------------|
+| `observedGeneration` | int64                           | controller | Generation last reconciled by the controller |
 | `endpoints`          | []BindingEndpoint               | poller     | ngrok endpoint references (id, uri)          |
 | `hashedName`         | string                          | poller     | Hashed name for the bound endpoint           |
 | `endpointsSummary`   | string                          | poller     | Human-readable summary of endpoints          |

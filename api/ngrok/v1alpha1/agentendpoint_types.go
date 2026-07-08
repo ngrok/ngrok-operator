@@ -234,6 +234,12 @@ func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {
 
 // AgentEndpointStatus defines the observed state of an AgentEndpoint
 type AgentEndpointStatus struct {
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// The assigned URL. This will either be the user-supplied url, or the generated assigned url
 	// depending on the configuration of spec.url
 	AssignedURL string `json:"assignedURL,omitempty"`
@@ -275,6 +281,11 @@ func (a *AgentEndpoint) GetConditions() *[]metav1.Condition {
 // GetGeneration returns the generation for AgentEndpoint
 func (a *AgentEndpoint) GetGeneration() int64 {
 	return a.Generation
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (a *AgentEndpoint) SetObservedGeneration(generation int64) {
+	a.Status.ObservedGeneration = generation
 }
 
 // GetDomainRef returns the domain reference for AgentEndpoint
