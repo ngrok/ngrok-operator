@@ -488,6 +488,11 @@
                     "description": "The hostname of the ingress endpoint for the bindings",
                     "default": "kubernetes-binding-ingress.ngrok.io:443"
                 },
+                "tlsSecretName": {
+                    "type": "string",
+                    "description": "Name of the Secret holding the bindings mTLS certificate. When empty, defaults to \"<fullname>-default-tls\".",
+                    "default": ""
+                },
                 "forwarder": {
                     "type": "object",
                     "properties": {

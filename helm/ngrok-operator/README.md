@@ -191,6 +191,7 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `bindings.serviceAnnotations`                      | Annotations to add to projected services bound to an endpoint                                                 | `{}`                                      |
 | `bindings.serviceLabels`                           | Labels to add to projected services bound to an endpoint                                                      | `{}`                                      |
 | `bindings.ingressEndpoint`                         | The hostname of the ingress endpoint for the bindings                                                         | `kubernetes-binding-ingress.ngrok.io:443` |
+| `bindings.tlsSecretName`                           | Name of the Secret holding the bindings mTLS certificate. When empty, defaults to "<fullname>-default-tls".   | `""`                                      |
 | `bindings.forwarder.replicaCount`                  | The number of bindings forwarders to run.                                                                     | `1`                                       |
 | `bindings.forwarder.resources.limits`              | The resources limits for the container                                                                        | `{}`                                      |
 | `bindings.forwarder.resources.requests`            | The requested resources for the container                                                                     | `{}`                                      |
