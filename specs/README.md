@@ -27,6 +27,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 
 - [authentication.md](authentication.md) — Credentials, secrets, API key/authtoken management
 - [annotations.md](annotations.md) — Central reference for all `ngrok.com/` annotations
+- [events.md](events.md) — Conventions for emitting Kubernetes Events across controllers
 - [design-decisions.md](design-decisions.md) — Settled architectural trade-offs and their rationale
 
 ### [rbac/](rbac/) — RBAC Configuration
