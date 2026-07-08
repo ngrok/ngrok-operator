@@ -155,6 +155,24 @@ finalizer and IngressClass shims) instead embed a specific release like
 exists so each cleanup release is a single, auditable sweep rather than
 archaeology.
 
+## The `LEGACY-FIELD-MIGRATION` sentinel
+
+CRD **field renames** (a `json:` tag changing name) are a different
+migration from the prefix unification, so they carry their own marker,
+`LEGACY-FIELD-MIGRATION`, using the same `BEGIN` / `END` block and
+`(read-side cleanup)` / `(write-side cleanup)` line forms as above. Keeping
+the two families separate means the prefix-migration cleanup sweep
+(`git grep 'LEGACY-PREFIX-MIGRATION'`) and the field-rename cleanup sweep
+(`git grep 'LEGACY-FIELD-MIGRATION'`) stay independent — they ship on
+different release cadences.
+
+One CRD-specific gotcha: the doc comment immediately above a struct field
+becomes that field's description in the generated CRD (`kubectl explain`).
+A `LEGACY-FIELD-MIGRATION` marker placed there would leak implementation
+detail into user-facing API docs, so separate the marker from the field's
+doc comment with a blank line — controller-gen only reads the contiguous
+comment block directly above the field.
+
 ## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
 
 Each entry below describes one passivity shim, which release does what,
@@ -311,3 +329,40 @@ preserves rollback safety.
 - **R2 (0.25):** flip the helm-rendered IngressClass to the new prefix.
   At this point no pre-migration operator pod can observe the change.
 - **R3 cleanup:** drop the dual-match branch in `store.go`.
+
+## Per-shim catalog: CRD field renames (`LEGACY-FIELD-MIGRATION`)
+
+CRD field renames are two-release cases (see "When two releases is enough"):
+the shim touches no K8s object state beyond the CR itself, and the dual-read
+lives in a `Get*` helper that collapses once every stored object has been
+rewritten under the new field name. R1 adds the new field and keeps the
+legacy field readable; the cleanup release drops the legacy field and the
+fallback read. No write-side step is needed for **spec** fields — the
+operator only reads spec, so there is nothing to dual-write.
+
+### `Domain.spec.resolves_to` → `resolvesTo` (user-written spec field)
+
+- **R1 — migration release (0.24):** `api/ingress/v1alpha1/domain_types.go`:
+  - `ResolvesTo` carries the new `json:"resolvesTo"` tag.
+  - `ResolvesToLegacy` (`json:"resolves_to"`) is added, marked
+    `Deprecated`, and wrapped in a `LEGACY-FIELD-MIGRATION: BEGIN/END`
+    block (separated from its doc comment by a blank line so the marker
+    does not leak into the CRD description).
+  - `DomainSpec.GetResolvesTo()` prefers `ResolvesTo`, falling back to
+    `ResolvesToLegacy`; the fallback return carries a
+    `LEGACY-FIELD-MIGRATION (read-side cleanup)` marker.
+  - `internal/controller/ingress/domain_controller.go` reads via
+    `domain.Spec.GetResolvesTo()` at both call sites, never the fields
+    directly.
+- **Cleanup release:** delete the `ResolvesToLegacy` field and the fallback
+  in `GetResolvesTo` (collapse to `return s.ResolvesTo`). `resolves_to` is
+  brand-new in 0.24, so the break window is small; still noted in the
+  user-facing migration guide.
+
+### Note: `BoundEndpoint.spec.endpointURI` → `endpointURL`
+
+This earlier field rename (#779) predates the `LEGACY-FIELD-MIGRATION`
+marker. It follows the same shape — a `Deprecated` `EndpointURI` field plus
+a `GetEndpointURL()` dual-read helper — but is not marked with a sentinel.
+Its removal is tracked in K8SOP-276; when doing that cleanup, delete
+`EndpointURI` and collapse `GetEndpointURL`.

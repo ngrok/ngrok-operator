@@ -56,9 +56,14 @@ type DomainSpec struct {
 	// ResolvesTo is the list of resolving targets for the domain
 	ResolvesTo *[]DomainResolvesToEntry `json:"resolvesTo,omitempty"`
 
-	// Deprecated: Use ResolvesTo (resolvesTo) instead. Will be removed in a future release.
+	// LEGACY-FIELD-MIGRATION: BEGIN — delete the ResolvesToLegacy field in the
+	// cleanup release once users have migrated resolves_to -> resolvesTo. The
+	// blank line below keeps this marker out of the generated CRD description.
+
+	// Deprecated: use resolvesTo instead. Will be removed in a future release.
 	// +kubebuilder:validation:Optional
 	ResolvesToLegacy *[]DomainResolvesToEntry `json:"resolves_to,omitempty"`
+	// LEGACY-FIELD-MIGRATION: END
 
 	// DomainReclaimPolicy is the policy to use when the domain is deleted
 	// +kubebuilder:validation:Enum=Delete;Retain
@@ -72,6 +77,8 @@ func (s *DomainSpec) GetResolvesTo() *[]DomainResolvesToEntry {
 	if s.ResolvesTo != nil {
 		return s.ResolvesTo
 	}
+	// LEGACY-FIELD-MIGRATION (read-side cleanup): drop this fallback and the
+	// deprecated ResolvesToLegacy field; collapse to `return s.ResolvesTo`.
 	return s.ResolvesToLegacy
 }
 
