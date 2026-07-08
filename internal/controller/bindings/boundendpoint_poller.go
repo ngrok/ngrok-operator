@@ -555,6 +555,15 @@ func (r *BoundEndpointPoller) deleteBinding(ctx context.Context, boundEndpoint b
 	return nil
 }
 
+// updateBindingStatus writes the poller-owned BoundEndpoint status fields.
+//
+// BoundEndpoint status has two concurrent writers: this poller (Endpoints,
+// EndpointsSummary, HashedName) and the controller (Conditions,
+// TargetServiceRef, UpstreamServiceRef; see boundendpoint_controller.go). To
+// avoid clobbering, each writer re-fetches the object and copies only its own
+// fields onto that fresh copy before writing. Keep that pattern when changing
+// status fields; the write mechanism itself (bare Status().Update here,
+// BaseController.ReconcileStatus in the controller) is not what protects us.
 func (r *BoundEndpointPoller) updateBindingStatus(ctx context.Context, desired *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 

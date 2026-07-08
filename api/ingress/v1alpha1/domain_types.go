@@ -54,12 +54,32 @@ type DomainSpec struct {
 	Region string `json:"region,omitempty"`
 
 	// ResolvesTo is the list of resolving targets for the domain
-	ResolvesTo *[]DomainResolvesToEntry `json:"resolves_to,omitempty"`
+	ResolvesTo *[]DomainResolvesToEntry `json:"resolvesTo,omitempty"`
+
+	// LEGACY-FIELD-MIGRATION: BEGIN — delete the ResolvesToLegacy field in the
+	// cleanup release once users have migrated resolves_to -> resolvesTo. The
+	// blank line below keeps this marker out of the generated CRD description.
+
+	// Deprecated: use resolvesTo instead. Will be removed in a future release.
+	// +kubebuilder:validation:Optional
+	ResolvesToLegacy *[]DomainResolvesToEntry `json:"resolves_to,omitempty"`
+	// LEGACY-FIELD-MIGRATION: END
 
 	// DomainReclaimPolicy is the policy to use when the domain is deleted
 	// +kubebuilder:validation:Enum=Delete;Retain
 	// +kubebuilder:default=Delete
 	ReclaimPolicy DomainReclaimPolicy `json:"reclaimPolicy,omitempty"`
+}
+
+// GetResolvesTo returns ResolvesTo if set, falling back to the deprecated
+// ResolvesToLegacy (resolves_to) field.
+func (s *DomainSpec) GetResolvesTo() *[]DomainResolvesToEntry {
+	if s.ResolvesTo != nil {
+		return s.ResolvesTo
+	}
+	// LEGACY-FIELD-MIGRATION (read-side cleanup): drop this fallback and the
+	// deprecated ResolvesToLegacy field; collapse to `return s.ResolvesTo`.
+	return s.ResolvesToLegacy
 }
 
 // DomainStatus defines the observed state of Domain
@@ -75,13 +95,13 @@ type DomainStatus struct {
 	Region string `json:"region,omitempty"`
 
 	// ResolvesTo is the list of resolving targets for the domain
-	ResolvesTo *[]DomainResolvesToEntry `json:"resolves_to,omitempty"`
+	ResolvesTo *[]DomainResolvesToEntry `json:"resolvesTo,omitempty"`
 
 	// CNAMETarget is the CNAME target for the domain
 	CNAMETarget *string `json:"cnameTarget,omitempty"`
 
 	// ACMEChallengeCNAMETarget is the CNAME target for ACME challenge (wildcards only)
-	ACMEChallengeCNAMETarget *string `json:"acmeChallengeCnameTarget,omitempty"`
+	ACMEChallengeCNAMETarget *string `json:"acmeChallengeCNAMETarget,omitempty"`
 
 	// Certificate contains information about the TLS certificate
 	Certificate *DomainStatusCertificateInfo `json:"certificate,omitempty"`

@@ -87,7 +87,7 @@ type CloudEndpointStatus struct {
 	// For internal endpoints, this will be nil.
 	// +kubebuilder:validation:Optional
 	// +nullable
-	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
+	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
 
 	// Conditions describe the current conditions of the CloudEndpoint.
 	//

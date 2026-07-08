@@ -173,7 +173,7 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 			Region:      domain.Spec.Region,
 			Description: domain.Spec.Description,
 			Metadata:    domain.Spec.Metadata,
-			ResolvesTo:  buildResolvesToRequest(domain.Spec.ResolvesTo),
+			ResolvesTo:  buildResolvesToRequest(domain.Spec.GetResolvesTo()),
 		}
 		resp, err = r.DomainsClient.Create(ctx, req)
 		if err != nil {
@@ -198,7 +198,7 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 	}
 
 	// Only update the domain if updatable fields have changed
-	specResolvesTo := buildResolvesToRequest(domain.Spec.ResolvesTo)
+	specResolvesTo := buildResolvesToRequest(domain.Spec.GetResolvesTo())
 	if domain.Spec.Description == resp.Description &&
 		domain.Spec.Metadata == resp.Metadata &&
 		reflect.DeepEqual(specResolvesTo, resp.ResolvesTo) {

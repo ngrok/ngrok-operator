@@ -86,13 +86,13 @@ type EndpointUpstream struct {
 	//
 	// +kubebuilder:validation:Enum=http1;http2
 	// +kubebuilder:validation:Optional
-	Protocol *commonv1alpha1.ApplicationProtocol `json:"protocol"`
+	Protocol *commonv1alpha1.ApplicationProtocol `json:"protocol,omitempty"`
 
 	// Optionally specify the version of proxy protocol to use if the upstream requires it
 	//
 	// +kubebuilder:validation:Enum="1";"2"
 	// +kubebuilder:validation:Optional
-	ProxyProtocolVersion *commonv1alpha1.ProxyProtocolVersion `json:"proxyProtocolVersion"`
+	ProxyProtocolVersion *commonv1alpha1.ProxyProtocolVersion `json:"proxyProtocolVersion,omitempty"`
 }
 
 // AgentEndpointSpec defines the desired state of an AgentEndpoint
@@ -245,7 +245,7 @@ type AgentEndpointStatus struct {
 	// For internal endpoints, this will be nil.
 	// +kubebuilder:validation:Optional
 	// +nullable
-	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
+	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
 
 	// Conditions describe the current conditions of the AgentEndpoint.
 	//
