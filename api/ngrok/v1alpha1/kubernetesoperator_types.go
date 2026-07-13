@@ -193,11 +193,6 @@ type KubernetesOperator struct {
 	Status KubernetesOperatorStatus `json:"status,omitempty"`
 }
 
-// SetObservedGeneration records the generation the controller reconciled.
-func (ko *KubernetesOperator) SetObservedGeneration(generation int64) {
-	ko.Status.ObservedGeneration = generation
-}
-
 // +kubebuilder:object:root=true
 
 // KubernetesOperatorList contains a list of KubernetesOperator
