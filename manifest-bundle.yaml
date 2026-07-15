@@ -1815,12 +1815,8 @@ rules:
   resources:
   - configmaps
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ""
@@ -1850,8 +1846,6 @@ rules:
   resources:
   - services
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch
@@ -2047,7 +2041,6 @@ rules:
   resources:
   - ippolicies
   verbs:
-  - create
   - delete
   - get
   - list
@@ -2070,10 +2063,10 @@ rules:
   - patch
   - update
 # --- bindings.k8s.ngrok.com ---
-# BoundEndpoint is intentionally NOT in this role. The BoundEndpoint controller
-# (binding poller) runs in api-manager and operates cluster-wide regardless of
-# `watchNamespace`, so its rules live in bindings-cluster-role.yaml (gated on
-# `bindings.enabled`).
+# BoundEndpoint rules require a ClusterRole (the binding poller reconciles
+# BoundEndpoints and creates Services in any namespace, independent of
+# `watchNamespace`), so they live in bindings-cluster-role.yaml rather than this
+# watchNamespace-following Role.
 # --- ngrok.k8s.ngrok.com ---
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -2138,28 +2131,9 @@ rules:
   resources:
   - ngroktrafficpolicies
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - ngroktrafficpolicies/finalizers
-  verbs:
-  - patch
-  - update
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - ngroktrafficpolicies/status
-  verbs:
-  - get
-  - patch
-  - update
 # --- cluster-scoped Kubernetes resources (inline when ClusterRole) ---
 - apiGroups:
   - ""
@@ -2168,7 +2142,6 @@ rules:
   verbs:
   - get
   - list
-  - update
   - watch
 - apiGroups:
   - networking.k8s.io
@@ -2802,7 +2775,6 @@ rules:
   - kubernetesoperators
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
@@ -2993,7 +2965,7 @@ metadata:
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: f40b5f0c128c0618a357d8547b09cbdb40218194f924dbab8e402e98c8d87de7
+    checksum/controller-role: ba719302d2447a8e1d0dbe93d87cdf5ef16f354d9e217658ad854775edc2c45b
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -3008,7 +2980,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: f40b5f0c128c0618a357d8547b09cbdb40218194f924dbab8e402e98c8d87de7
+        checksum/controller-role: ba719302d2447a8e1d0dbe93d87cdf5ef16f354d9e217658ad854775edc2c45b
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:

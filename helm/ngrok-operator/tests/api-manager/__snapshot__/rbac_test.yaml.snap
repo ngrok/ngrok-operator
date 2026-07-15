@@ -10,12 +10,8 @@ should match snapshot in default mode:
         resources:
           - configmaps
         verbs:
-          - create
-          - delete
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - ""
@@ -45,8 +41,6 @@ should match snapshot in default mode:
         resources:
           - services
         verbs:
-          - create
-          - delete
           - get
           - list
           - patch
@@ -239,7 +233,6 @@ should match snapshot in default mode:
         resources:
           - ippolicies
         verbs:
-          - create
           - delete
           - get
           - list
@@ -320,28 +313,9 @@ should match snapshot in default mode:
         resources:
           - ngroktrafficpolicies
         verbs:
-          - create
-          - delete
           - get
           - list
-          - patch
-          - update
           - watch
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - ngroktrafficpolicies/finalizers
-        verbs:
-          - patch
-          - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - ngroktrafficpolicies/status
-        verbs:
-          - get
-          - patch
-          - update
       - apiGroups:
           - ""
         resources:
@@ -349,7 +323,6 @@ should match snapshot in default mode:
         verbs:
           - get
           - list
-          - update
           - watch
       - apiGroups:
           - networking.k8s.io
@@ -412,12 +385,8 @@ should match snapshot in namespaced mode:
         resources:
           - configmaps
         verbs:
-          - create
-          - delete
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - ""
@@ -447,8 +416,6 @@ should match snapshot in namespaced mode:
         resources:
           - services
         verbs:
-          - create
-          - delete
           - get
           - list
           - patch
@@ -641,7 +608,6 @@ should match snapshot in namespaced mode:
         resources:
           - ippolicies
         verbs:
-          - create
           - delete
           - get
           - list
@@ -722,28 +688,9 @@ should match snapshot in namespaced mode:
         resources:
           - ngroktrafficpolicies
         verbs:
-          - create
-          - delete
           - get
           - list
-          - patch
-          - update
           - watch
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - ngroktrafficpolicies/finalizers
-        verbs:
-          - patch
-          - update
-      - apiGroups:
-          - ngrok.k8s.ngrok.com
-        resources:
-          - ngroktrafficpolicies/status
-        verbs:
-          - get
-          - patch
-          - update
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
@@ -757,7 +704,6 @@ should match snapshot in namespaced mode:
         verbs:
           - get
           - list
-          - update
           - watch
       - apiGroups:
           - networking.k8s.io
