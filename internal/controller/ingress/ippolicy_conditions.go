@@ -12,7 +12,7 @@ const (
 	// condition types for IPPolicy
 	ConditionIPPolicyReady           = "Ready"
 	ConditionIPPolicyCreated         = "IPPolicyCreated"
-	ConditionIPPolicyRulesConfigured = "RulesConfigured"
+	ConditionIPPolicyRulesConfigured = "IPPolicyRulesConfigured"
 
 	// condition reasons for IPPolicy
 	ReasonIPPolicyActive                  = "IPPolicyActive"

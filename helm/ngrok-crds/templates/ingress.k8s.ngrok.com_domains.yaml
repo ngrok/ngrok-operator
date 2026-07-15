@@ -40,11 +40,6 @@ spec:
       name: CNAME Target
       priority: 2
       type: string
-    - description: Region
-      jsonPath: .status.region
-      name: Region
-      priority: 2
-      type: string
     - description: Ready Reason
       jsonPath: .status.conditions[?(@.type=='Ready')].reason
       name: Reason
@@ -275,9 +270,6 @@ spec:
                   latest spec.
                 format: int64
                 type: integer
-              region:
-                description: Region is the region in which the domain was created
-                type: string
               resolvesTo:
                 description: ResolvesTo is the list of resolving targets for the domain
                 items:

@@ -22,6 +22,9 @@ const (
 	ReasonCloudEndpointActive         = "CloudEndpointActive"
 	ReasonCloudEndpointCreated        = "CloudEndpointCreated"
 	ReasonCloudEndpointCreationFailed = "CloudEndpointCreationFailed"
+	ReasonDomainNotReady              = "DomainNotReady"
+	ReasonPending                     = "Pending"
+	ReasonUnknown                     = "Unknown"
 )
 
 // setCloudEndpointReadyCondition sets the Ready condition
@@ -74,7 +77,7 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 			reason = domainResult.ReadyReason
 			message = domainResult.ReadyMessage
 		} else {
-			reason = "DomainNotReady"
+			reason = ReasonDomainNotReady
 			message = "Domain is not ready"
 		}
 	case !trafficPolicyReady:
@@ -89,11 +92,11 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 			reason = createdCondition.Reason
 			message = createdCondition.Message
 		} else {
-			reason = "Pending"
+			reason = ReasonPending
 			message = "Waiting for CloudEndpoint to be ready"
 		}
 	default:
-		reason = "Unknown"
+		reason = ReasonUnknown
 		message = "CloudEndpoint is not ready"
 	}
 

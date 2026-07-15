@@ -54,7 +54,7 @@ type DomainSpec struct {
 	Region string `json:"region,omitempty"`
 
 	// ResolvesTo is the list of resolving targets for the domain
-	ResolvesTo *[]DomainResolvesToEntry `json:"resolvesTo,omitempty"`
+	ResolvesTo []DomainResolvesToEntry `json:"resolvesTo,omitempty"`
 
 	// LEGACY-FIELD-MIGRATION: BEGIN — delete the ResolvesToLegacy field in the
 	// cleanup release once users have migrated resolves_to -> resolvesTo. The
@@ -73,13 +73,16 @@ type DomainSpec struct {
 
 // GetResolvesTo returns ResolvesTo if set, falling back to the deprecated
 // ResolvesToLegacy (resolves_to) field.
-func (s *DomainSpec) GetResolvesTo() *[]DomainResolvesToEntry {
+func (s *DomainSpec) GetResolvesTo() []DomainResolvesToEntry {
 	if s.ResolvesTo != nil {
 		return s.ResolvesTo
 	}
 	// LEGACY-FIELD-MIGRATION (read-side cleanup): drop this fallback and the
 	// deprecated ResolvesToLegacy field; collapse to `return s.ResolvesTo`.
-	return s.ResolvesToLegacy
+	if s.ResolvesToLegacy != nil {
+		return *s.ResolvesToLegacy
+	}
+	return nil
 }
 
 // DomainStatus defines the observed state of Domain
@@ -97,11 +100,8 @@ type DomainStatus struct {
 	// Domain is the domain that was reserved
 	Domain string `json:"domain,omitempty"`
 
-	// Region is the region in which the domain was created
-	Region string `json:"region,omitempty"`
-
 	// ResolvesTo is the list of resolving targets for the domain
-	ResolvesTo *[]DomainResolvesToEntry `json:"resolvesTo,omitempty"`
+	ResolvesTo []DomainResolvesToEntry `json:"resolvesTo,omitempty"`
 
 	// CNAMETarget is the CNAME target for the domain
 	CNAMETarget *string `json:"cnameTarget,omitempty"`
@@ -173,7 +173,6 @@ type DomainStatusProvisioningJob struct {
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`,description="Domain Ready"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 // +kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cnameTarget`,description="CNAME Target",priority=2
-// +kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`,description="Region",priority=2
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].reason`,description="Ready Reason",priority=1
 // +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].message`,description="Ready Message",priority=1
 

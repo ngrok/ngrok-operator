@@ -82,16 +82,21 @@ spec:
                       - deny
                       type: string
                     cidr:
+                      description: CIDR is an IPv4 or IPv6 address range in CIDR notation
+                        (e.g. 10.0.0.0/8 or 2001:db8::/32)
+                      pattern: ^(((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])/(3[0-2]|[12]?[0-9])|[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){1,7}/(12[0-8]|1[01][0-9]|[1-9]?[0-9]))$
                       type: string
                     description:
                       default: Created by ngrok-operator
                       description: Description is a human-readable description of
                         the object in the ngrok API/Dashboard
+                      maxLength: 255
                       type: string
                     metadata:
                       default: '{"owned-by":"ngrok-operator"}'
                       description: Metadata is a string of arbitrary data associated
                         with the object in the ngrok API/Dashboard
+                      maxLength: 4096
                       type: string
                   required:
                   - action
@@ -173,17 +178,6 @@ spec:
                   latest spec.
                 format: int64
                 type: integer
-              rules:
-                items:
-                  properties:
-                    action:
-                      type: string
-                    cidr:
-                      type: string
-                    id:
-                      type: string
-                  type: object
-                type: array
             type: object
         type: object
     served: true

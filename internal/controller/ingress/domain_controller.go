@@ -244,7 +244,6 @@ func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, dom
 func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain, createErr error) error {
 	if ngrokDomain != nil {
 		domain.Status.ID = ngrokDomain.ID
-		domain.Status.Region = ngrokDomain.Region
 		domain.Status.Domain = ngrokDomain.Domain
 		domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
 		domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
@@ -259,7 +258,7 @@ func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Do
 	return r.controller.ReconcileStatus(ctx, domain, createErr)
 }
 
-func buildResolvesToStatus(resolvesTo []ngrok.ReservedDomainResolvesToEntry) *[]v1alpha1.DomainResolvesToEntry {
+func buildResolvesToStatus(resolvesTo []ngrok.ReservedDomainResolvesToEntry) []v1alpha1.DomainResolvesToEntry {
 	if len(resolvesTo) == 0 {
 		return nil
 	}
@@ -270,16 +269,16 @@ func buildResolvesToStatus(resolvesTo []ngrok.ReservedDomainResolvesToEntry) *[]
 			Value: entry.Value,
 		}
 	}
-	return &result
+	return result
 }
 
-func buildResolvesToRequest(resolvesTo *[]v1alpha1.DomainResolvesToEntry) []ngrok.ReservedDomainResolvesToEntry {
-	if resolvesTo == nil || len(*resolvesTo) == 0 {
+func buildResolvesToRequest(resolvesTo []v1alpha1.DomainResolvesToEntry) []ngrok.ReservedDomainResolvesToEntry {
+	if len(resolvesTo) == 0 {
 		return nil
 	}
 
-	result := make([]ngrok.ReservedDomainResolvesToEntry, len(*resolvesTo))
-	for i, entry := range *resolvesTo {
+	result := make([]ngrok.ReservedDomainResolvesToEntry, len(resolvesTo))
+	for i, entry := range resolvesTo {
 		result[i] = ngrok.ReservedDomainResolvesToEntry{
 			Value: entry.Value,
 		}
