@@ -97,7 +97,8 @@ Roles bound to this ServiceAccount:
 | `cloudendpoints` | create, delete, get, list, patch, update, watch | CloudEndpoint controller, Drain |
 | `cloudendpoints/finalizers` | patch, update | CloudEndpoint controller |
 | `cloudendpoints/status` | get, patch, update | CloudEndpoint controller |
-| `trafficpolicies` | get, list, watch | TrafficPolicy controller — read-only (resolves policy refs; no writes, finalizer, or status) |
+| `trafficpolicies` | get, list, watch | TrafficPolicy controller — no spec writes or finalizer (resolves policy refs) |
+| `trafficpolicies/status` | get, patch, update | TrafficPolicy controller — writes `Ready`/`Valid` validation conditions |
 
 ## Leader election (always Role in release namespace)
 

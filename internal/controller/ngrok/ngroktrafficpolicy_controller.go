@@ -68,13 +68,20 @@ func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	policy := &ngrokv1alpha1.NgrokTrafficPolicy{}
 	if err := r.Get(ctx, req.NamespacedName, policy); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	parsedTrafficPolicy, parseErr := util.NewTrafficPolicyFromJson(policy.Spec.Policy)
+	setTrafficPolicyConditions(policy, parsedTrafficPolicy, parseErr)
+	policy.SetObservedGeneration(policy.Generation)
+	if err := r.Status().Update(ctx, policy); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	parsedTrafficPolicy, err := util.NewTrafficPolicyFromJson(policy.Spec.Policy)
-	if err != nil {
+	if parseErr != nil {
 		r.Recorder.Eventf(policy, nil, v1.EventTypeWarning, EventTrafficPolicyParseFailed, "Validate", "Failed to parse Traffic Policy, possibly malformed.")
-		return ctrl.Result{}, err
+		// A malformed policy will not fix itself; wait for a spec change.
+		return ctrl.Result{}, nil
 	}
 
 	if parsedTrafficPolicy.IsLegacyPolicy() {
@@ -85,21 +92,7 @@ func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.R
 		r.Recorder.Eventf(policy, nil, v1.EventTypeWarning, EventPolicyDeprecation, "Validate", "Traffic Policy has 'enabled' set. This is a legacy option that will stop being supported soon.")
 	}
 
-	res, err := managerdriver.HandleSyncResult(r.Driver.SyncEndpoints(ctx, r.Client))
-	if err != nil {
-		return res, err
-	}
-
-	// Stamp observedGeneration only on success: the CRD has no conditions yet to
-	// signal failure, so stamping on error would read as a healthy reconcile.
-	if policy.Status.ObservedGeneration != policy.Generation {
-		policy.Status.ObservedGeneration = policy.Generation
-		if err := r.Status().Update(ctx, policy); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-
-	return res, nil
+	return managerdriver.HandleSyncResult(r.Driver.SyncEndpoints(ctx, r.Client))
 }
 
 // SetupWithManager sets up the controller with the Manager.
