@@ -206,6 +206,13 @@ spec:
               id:
                 description: ID is the unique identifier for this endpoint
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
             type: object
         type: object
     served: true

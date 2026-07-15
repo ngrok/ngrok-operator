@@ -85,6 +85,12 @@ func (s *DomainSpec) GetResolvesTo() *[]DomainResolvesToEntry {
 // DomainStatus defines the observed state of Domain
 type DomainStatus struct {
 
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// ID is the unique identifier of the domain
 	ID string `json:"id,omitempty"`
 
@@ -178,6 +184,11 @@ type Domain struct {
 
 	Spec   DomainSpec   `json:"spec,omitempty"`
 	Status DomainStatus `json:"status,omitempty"`
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (d *Domain) SetObservedGeneration(generation int64) {
+	d.Status.ObservedGeneration = generation
 }
 
 // +kubebuilder:object:root=true

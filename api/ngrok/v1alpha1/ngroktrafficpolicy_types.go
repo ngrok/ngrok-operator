@@ -42,6 +42,12 @@ type NgrokTrafficPolicySpec struct {
 // NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
 type NgrokTrafficPolicyStatus struct {
 
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// The raw json encoded policy that was applied to the ngrok API
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
@@ -59,6 +65,11 @@ type NgrokTrafficPolicy struct {
 
 	Spec   NgrokTrafficPolicySpec   `json:"spec,omitempty"`
 	Status NgrokTrafficPolicyStatus `json:"status,omitempty"`
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (tp *NgrokTrafficPolicy) SetObservedGeneration(generation int64) {
+	tp.Status.ObservedGeneration = generation
 }
 
 // +kubebuilder:object:root=true

@@ -297,6 +297,13 @@ spec:
                 description: HashName is the hashed output of the TargetService and
                   TargetNamespace for unique identification
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               targetServiceRef:
                 description: TargetServiceRef references the created ExternalName
                   Service in the target namespace
@@ -598,6 +605,13 @@ spec:
               id:
                 description: ID is the unique identifier of the domain
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               region:
                 description: Region is the region in which the domain was created
                 type: string
@@ -791,6 +805,13 @@ spec:
                 x-kubernetes-list-type: map
               id:
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               rules:
                 items:
                   properties:
@@ -1150,6 +1171,13 @@ spec:
                 required:
                 - name
                 type: object
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               trafficPolicy:
                 description: Identifies any traffic policies attached to the AgentEndpoint
                   ("inline", "none", or reference name).
@@ -1370,6 +1398,13 @@ spec:
               id:
                 description: ID is the unique identifier for this endpoint
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
             type: object
         type: object
     served: true
@@ -1560,6 +1595,13 @@ spec:
               id:
                 description: ID is the unique identifier for this Kubernetes Operator
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               registrationErrorCode:
                 description: RegistrationErrorCode is the returned ngrok error code
                 pattern: ^ERR_NGROK_\d+$
@@ -1635,6 +1677,13 @@ spec:
           status:
             description: NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
             properties:
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               policy:
                 description: The raw json encoded policy that was applied to the ngrok
                   API

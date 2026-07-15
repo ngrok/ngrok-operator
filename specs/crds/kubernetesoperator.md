@@ -47,6 +47,7 @@
 
 | Field                      | Type        | Description                                         |
 |----------------------------|-------------|-----------------------------------------------------|
+| `observedGeneration`       | int64       | Generation last reconciled by the controller        |
 | `id`                       | string      | ngrok API resource ID                               |
 | `uri`                      | string      | ngrok API resource URI                              |
 | `registrationStatus`       | string      | Enum: `registered`, `error`, `pending` (default: `pending`) |

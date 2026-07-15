@@ -245,6 +245,13 @@ spec:
                 description: HashName is the hashed output of the TargetService and
                   TargetNamespace for unique identification
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               targetServiceRef:
                 description: TargetServiceRef references the created ExternalName
                   Service in the target namespace

@@ -80,6 +80,12 @@ type CloudEndpointSpec struct {
 
 // CloudEndpointStatus defines the observed state of CloudEndpoint
 type CloudEndpointStatus struct {
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// ID is the unique identifier for this endpoint
 	ID string `json:"id,omitempty"`
 
@@ -139,6 +145,11 @@ func (c *CloudEndpoint) GetConditions() *[]metav1.Condition {
 // GetGeneration returns the generation for CloudEndpoint
 func (c *CloudEndpoint) GetGeneration() int64 {
 	return c.Generation
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (c *CloudEndpoint) SetObservedGeneration(generation int64) {
+	c.Status.ObservedGeneration = generation
 }
 
 // GetDomainRef returns the domain reference for CloudEndpoint

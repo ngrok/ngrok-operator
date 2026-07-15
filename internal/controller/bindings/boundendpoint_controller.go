@@ -614,8 +614,9 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 // updateStatus writes the controller-owned BoundEndpoint status fields.
 //
 // BoundEndpoint status has two concurrent writers: this controller (Conditions,
-// TargetServiceRef, UpstreamServiceRef) and the poller (Endpoints,
-// EndpointsSummary, HashedName; see boundendpoint_poller.go). To avoid
+// TargetServiceRef, UpstreamServiceRef, ObservedGeneration — stamped by
+// ReconcileStatus) and the poller (Endpoints, EndpointsSummary, HashedName; see
+// boundendpoint_poller.go). To avoid
 // clobbering, each writer re-fetches the object and copies only its own fields
 // onto that fresh copy before writing. Keep that pattern when changing status
 // fields; the write mechanism itself (BaseController.ReconcileStatus here, bare

@@ -49,6 +49,13 @@ spec:
           status:
             description: NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
             properties:
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               policy:
                 description: The raw json encoded policy that was applied to the ngrok
                   API

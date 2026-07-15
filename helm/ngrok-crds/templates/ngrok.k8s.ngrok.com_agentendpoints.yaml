@@ -338,6 +338,13 @@ spec:
                 required:
                 - name
                 type: object
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               trafficPolicy:
                 description: Identifies any traffic policies attached to the AgentEndpoint
                   ("inline", "none", or reference name).
