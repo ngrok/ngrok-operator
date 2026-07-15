@@ -282,6 +282,7 @@ func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv
 	// Update status fields if we have an endpoint
 	if ngrokClep != nil {
 		clep.Status.ID = ngrokClep.ID
+		clep.Status.AssignedURL = ngrokClep.URL
 	}
 
 	// Calculate overall Ready condition based on other conditions and domain status

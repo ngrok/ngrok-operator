@@ -370,4 +370,29 @@ var _ = Describe("BoundEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 		})
 	})
+
+	Context("Schema validation", func() {
+		It("should reject a BoundEndpoint without endpointURL", func(ctx SpecContext) {
+			be := &bindingsv1alpha1.BoundEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "missing-endpoint-url",
+					Namespace: pollerController.Namespace,
+				},
+				Spec: bindingsv1alpha1.BoundEndpointSpec{
+					Scheme: "https",
+					Port:   8080,
+					Target: bindingsv1alpha1.EndpointTarget{
+						Service:   "test-service",
+						Namespace: "test-namespace",
+						Protocol:  "TCP",
+						Port:      8080,
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, be)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("endpointURL"))
+		})
+	})
 })

@@ -73,6 +73,11 @@ type CloudEndpointSpec struct {
 	// Bindings is the list of Binding IDs to associate with the endpoint
 	// Accepted values are "public", "internal", or "kubernetes"
 	//
+	// The ngrok API currently supports a single binding per endpoint, so this
+	// list is capped at one item. It is a list (rather than a scalar) so that
+	// multiple bindings can be supported in the future without a breaking
+	// schema change.
+	//
 	// +kubebuilder:validation:MaxItems=1
 	// +kubebuilder:validation:items:Pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
@@ -88,6 +93,10 @@ type CloudEndpointStatus struct {
 
 	// ID is the unique identifier for this endpoint
 	ID string `json:"id,omitempty"`
+
+	// The assigned URL. This will either be the user-supplied url, or the generated assigned url
+	// depending on the configuration of spec.url
+	AssignedURL string `json:"assignedURL,omitempty"`
 
 	// DomainRef is a reference to the Domain resource associated with this endpoint.
 	// For internal endpoints, this will be nil.

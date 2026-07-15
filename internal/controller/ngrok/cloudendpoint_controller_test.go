@@ -105,6 +105,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 				// Check that endpoint was created
 				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				g.Expect(obj.Status.AssignedURL).To(Equal("https://test.internal"))
 
 				// Check ready condition
 				cond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)

@@ -13,7 +13,7 @@
 
 | Field          | Type           | Required | Default    | Validation                                             |
 |----------------|----------------|----------|------------|--------------------------------------------------------|
-| `endpointURL`  | string         | No       |            | Pattern: `^((?P<scheme>(tcp\|http\|https\|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$` |
+| `endpointURL`  | string         | Yes      |            | Pattern: `^((?P<scheme>(tcp\|http\|https\|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$` |
 | `scheme`       | string         | Yes      | `"https"`  | Enum: `tcp`, `http`, `https`, `tls`                    |
 | `port`         | uint16         | Yes      |            |                                                        |
 | `target`       | EndpointTarget | Yes      |            |                                                        |
