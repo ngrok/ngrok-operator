@@ -930,3 +930,73 @@ func decodeViaScheme(s *runtime.Scheme, rawObj map[string]any) (runtime.Object, 
 
 	return obj, nil
 }
+
+func TestGatewayTLSTermConfigToIROptionPrecedence(t *testing.T) {
+	testCases := []struct {
+		name    string
+		options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue
+		want    map[string]string
+		wantErr bool
+	}{
+		{
+			name: "canonical only",
+			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+				"ngrok.com/terminate-tls.min_version": "1.3",
+			},
+			want: map[string]string{"min_version": "1.3"},
+		},
+		{
+			name: "legacy only",
+			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+				"k8s.ngrok.com/terminate-tls.min_version": "1.2",
+			},
+			want: map[string]string{"min_version": "1.2"},
+		},
+		{
+			name: "both set canonical wins",
+			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+				"ngrok.com/terminate-tls.min_version":     "1.3",
+				"k8s.ngrok.com/terminate-tls.min_version": "1.2",
+			},
+			want: map[string]string{"min_version": "1.3"},
+		},
+		{
+			name: "mixed suffixes merge",
+			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+				"ngrok.com/terminate-tls.min_version":        "1.3",
+				"k8s.ngrok.com/terminate-tls.mutual_tls_crt": "abc",
+			},
+			want: map[string]string{"min_version": "1.3", "mutual_tls_crt": "abc"},
+		},
+		{
+			name: "legacy reserved key rejected",
+			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+				"k8s.ngrok.com/terminate-tls.server_private_key": "x",
+			},
+			wantErr: true,
+		},
+		{
+			name: "canonical reserved key rejected",
+			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+				"ngrok.com/terminate-tls.server_private_key": "x",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tr := &translator{log: logr.New(logr.Discard().GetSink())}
+			listenerTLS := &gatewayv1.ListenerTLSConfig{Options: tc.options}
+			gateway := &gatewayv1.Gateway{}
+
+			tlsTermCfg, err := tr.gatewayTLSTermConfigToIR(listenerTLS, gateway)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, tlsTermCfg.ExtendedOptions)
+		})
+	}
+}

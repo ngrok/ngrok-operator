@@ -163,6 +163,125 @@ you.
 because the rendered IngressClass and the operator's controller name flip
 together without an intermediate dual-match release.
 
+### User-set annotations: `k8s.ngrok.com/` → `ngrok.com/`
+
+Status: in progress. 0.24 reads both prefixes; **1.0 reads `ngrok.com/`
+only**. Unlike the operator-written keys above, these annotations live in
+*your* manifests — the operator cannot migrate them for you, so the legacy
+prefix's removal lands exactly at the 1.0 major version.
+
+#### What changes for you
+
+These are the affected keys. The 0.24 operator reads both prefixes; if both
+are present on the same object, the `ngrok.com/` value wins.
+
+| Legacy                                  | New                                | Applies to                |
+| --------------------------------------- | ----------------------------------- | -------------------------- |
+| `k8s.ngrok.com/url`                     | `ngrok.com/url`                    | Service (LoadBalancer)    |
+| `k8s.ngrok.com/mapping-strategy`        | `ngrok.com/mapping-strategy`       | Service, Ingress, Gateway |
+| `k8s.ngrok.com/traffic-policy`          | `ngrok.com/traffic-policy`         | Service, Ingress, Gateway |
+| `k8s.ngrok.com/pooling-enabled`         | `ngrok.com/pooling-enabled`        | Service, Ingress, Gateway |
+| `k8s.ngrok.com/bindings`                | `ngrok.com/bindings`               | Service, Ingress, Gateway |
+| `k8s.ngrok.com/metadata`                | `ngrok.com/metadata`               | Ingress, Gateway          |
+| `k8s.ngrok.com/description`             | `ngrok.com/description`            | Ingress, Gateway          |
+| `k8s.ngrok.com/app-protocols`           | `ngrok.com/app-protocols`          | Service backing an Ingress / Gateway route |
+| `k8s.ngrok.com/terminate-tls.<option>`  | `ngrok.com/terminate-tls.<option>` | Gateway listener TLS options |
+
+The Service port `appProtocol` field value `k8s.ngrok.com/http2` also has a
+new spelling, `ngrok.com/http2`; both are recognized through 0.24.
+
+Pod annotations forwarded as bindings pod identity are also affected: the
+forwarder passes along pod annotations under either prefix during the
+migration window, but keys are forwarded **verbatim** — if your ngrok
+traffic-policy expressions match on `k8s.ngrok.com/*` pod-annotation keys,
+update the pod annotations and the policy expressions together; from 1.0 the
+forwarder only passes `ngrok.com/*` keys.
+
+**Labels:** there are no user-written ngrok-prefixed labels. This was
+audited during this migration — the only prefixed label families are the
+operator-written controller and bindings labels, covered by the
+operator-written keys migration above.
+
+#### How to migrate
+
+The default, rollback-safe procedure:
+
+1. On 0.24, **add** each `ngrok.com/` key alongside its `k8s.ngrok.com/`
+   twin with the same value. With both present the operator uses the
+   `ngrok.com/` key, and a rollback to a pre-0.24 operator still reads the
+   legacy one — behavior is identical on both sides of a rollback.
+2. Once rolling back below 0.24 is no longer possible, delete the legacy
+   keys.
+3. Finish both steps before upgrading to 1.0 — from 1.0 the operator reads
+   `ngrok.com/` only.
+
+If a rollback below 0.24 is already ruled out (or you can roll your
+manifests back together with the operator), a straight rename is
+equivalent. The two-step dance exists only because a pre-0.24 operator
+silently ignores `ngrok.com/*` keys — after a rollback an endpoint would
+keep serving, but without its traffic policy, bindings, or URL settings.
+
+**`appProtocol` cannot dual-key:** `Service.spec.ports[].appProtocol` is a
+single scalar value, so the recipe above does not apply to it. Switching a
+port from `k8s.ngrok.com/http2` to `ngrok.com/http2` and then rolling back
+below 0.24 silently drops HTTP/2 for that upstream. Keep the legacy value
+until a rollback below 0.24 is ruled out, then switch it — before 1.0.
+
+#### Finding legacy keys
+
+When the operator reconciles an Ingress, Gateway, or LoadBalancer Service
+it manages that carries legacy-prefixed annotations, it emits a Warning
+event with reason `LegacyAnnotation`:
+
+    kubectl get events -A --field-selector reason=LegacyAnnotation
+
+Treat events as a best-effort immediate signal, **not** as proof your
+cluster is ready for 1.0: they expire (typically after an hour), objects
+that fail earlier reconcile checks are not scanned, and several surfaces
+are log-only (see the exceptions below). The scan is also key-based, not
+kind-aware — a stray legacy key that does nothing on that resource kind is
+still flagged; deleting it is as valid as renaming it. For a complete
+point-in-time inventory, audit directly:
+
+```sh
+# Ingresses, Gateways, and Services with legacy-prefixed annotations
+for kind in ingress gateway service; do
+  kubectl get "$kind" -A -o json | jq -r --arg k "$kind" \
+    '.items[] | select((.metadata.annotations // {}) | keys | any(startswith("k8s.ngrok.com/"))) | "\($k) \(.metadata.namespace)/\(.metadata.name)"'
+done
+
+# Gateway listeners with legacy TLS option keys
+kubectl get gateway -A -o json | jq -r \
+  '.items[] | select([.spec.listeners[]?.tls.options // {} | keys[]] | any(startswith("k8s.ngrok.com/"))) | "gateway \(.metadata.namespace)/\(.metadata.name)"'
+
+# Service ports with the legacy appProtocol value
+kubectl get service -A -o json | jq -r \
+  '.items[] | select([.spec.ports[]?.appProtocol] | any(. == "k8s.ngrok.com/http2")) | "service \(.metadata.namespace)/\(.metadata.name)"'
+```
+
+> **Exceptions (no events):**
+>
+> - `k8s.ngrok.com/app-protocols` and the `k8s.ngrok.com/http2` appProtocol
+>   value are read from the backend Service of an Ingress or Gateway route —
+>   those Services are not reconciled directly, so legacy use surfaces in the
+>   operator logs only. Grep the logs for `legacy annotation key in use` and
+>   `legacy appProtocol value in use`.
+> - Legacy-prefixed **pod annotations** forwarded as bindings pod identity
+>   produce no events or logs (they are read per connection on a hot path).
+>   Audit for them directly:
+>
+>   ```sh
+>   kubectl get pods -A -o json | jq -r \
+>     '.items[] | select((.metadata.annotations // {}) | keys | any(startswith("k8s.ngrok.com/"))) | "\(.metadata.namespace)/\(.metadata.name)"'
+>   ```
+
+#### Action required, by release
+
+| Release | Reads | What you do |
+| ------- | ----- | ----------- |
+| 0.24 (this) | Both prefixes | Add `ngrok.com/` keys alongside the legacy ones (see *How to migrate*); drop the legacy keys once rollback below 0.24 is ruled out. Use the `LegacyAnnotation` events and the audit commands above to find stragglers. |
+| 1.0 | `ngrok.com/` only | Confirm no `k8s.ngrok.com/` annotation keys remain in your manifests. The operator no longer reads them. |
+
 ## What did *not* change in this set of migrations
 
 The CRD API groups (`ingress.k8s.ngrok.com/v1alpha1`,

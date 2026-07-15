@@ -186,7 +186,21 @@ func sanitizeStringForURL(s string) string {
 	return s
 }
 
+const (
+	// AppProtocolsAnnotation maps service port names to protocols, e.g. '{"grpc-port":"http2"}'
+	AppProtocolsAnnotation = "ngrok.com/app-protocols"
+
+	// LEGACY-PREFIX-MIGRATION: BEGIN
+	// LegacyAppProtocolsAnnotation is the deprecated form of
+	// AppProtocolsAnnotation, still read during the migration window.
+	LegacyAppProtocolsAnnotation = "k8s.ngrok.com/app-protocols"
+
+	// LEGACY-PREFIX-MIGRATION: END
+)
+
 var knownApplicationProtocols = map[string]common.ApplicationProtocol{
+	"ngrok.com/http2": common.ApplicationProtocol_HTTP2,
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop the legacy value
 	"k8s.ngrok.com/http2": common.ApplicationProtocol_HTTP2,
 	"kubernetes.io/h2c":   common.ApplicationProtocol_HTTP2,
 	"http":                common.ApplicationProtocol_HTTP1,
@@ -198,6 +212,12 @@ func getPortAppProtocol(log logr.Logger, service *corev1.Service, port *corev1.S
 	}
 
 	proto := *port.AppProtocol
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop this legacy-value log
+	if proto == "k8s.ngrok.com/http2" {
+		log.Info("legacy appProtocol value in use; please migrate",
+			"legacyValue", "k8s.ngrok.com/http2", "newValue", "ngrok.com/http2",
+			"namespace", service.Namespace, "service", service.Name, "port", port.Name)
+	}
 	if knownProto, ok := knownApplicationProtocols[proto]; ok {
 		return new(knownProto)
 	}
@@ -353,9 +373,21 @@ func protocolStringToIRScheme(irProtocol ir.IRProtocol) (ir.IRScheme, error) {
 
 func getProtoForServicePort(log logr.Logger, service *corev1.Service, portName string, defaultProtocol ir.IRProtocol) (ir.IRProtocol, error) {
 	if service.Annotations != nil {
-		annotation := service.Annotations["k8s.ngrok.com/app-protocols"]
+		annotation, ok := service.Annotations[AppProtocolsAnnotation]
+		sourceKey := AppProtocolsAnnotation
+		// LEGACY-PREFIX-MIGRATION: BEGIN (read-side cleanup deletes this fallback)
+		if !ok {
+			if legacyVal, legacyOK := service.Annotations[LegacyAppProtocolsAnnotation]; legacyOK {
+				annotation = legacyVal
+				sourceKey = LegacyAppProtocolsAnnotation
+				log.Info("legacy annotation key in use; please migrate",
+					"legacyKey", LegacyAppProtocolsAnnotation, "newKey", AppProtocolsAnnotation,
+					"namespace", service.Namespace, "service", service.Name)
+			}
+		}
+		// LEGACY-PREFIX-MIGRATION: END
 		if annotation != "" {
-			log.Info("annotated app-protocols found", "annotation", annotation, "namespace", service.Namespace, "service", service.Name, "port name", portName)
+			log.Info("annotated app-protocols found", "annotationKey", sourceKey, "annotation", annotation, "namespace", service.Namespace, "service", service.Name, "port name", portName)
 			protocolMap := map[string]string{}
 			err := json.Unmarshal([]byte(annotation), &protocolMap)
 			if err != nil {
@@ -375,7 +407,7 @@ func getProtoForServicePort(log logr.Logger, service *corev1.Service, portName s
 				case "TLS":
 					return ir.IRProtocol_TLS, nil
 				default:
-					log.Error(fmt.Errorf("service uses \"k8s.ngrok.com/app-protocols\" annotation to configure protocols, but a valid entry is missing for portName :%q. defaulting to %s", portName, defaultProtocol), "missing protocol annotation entry for service",
+					log.Error(fmt.Errorf("service uses %q annotation to configure protocols, but a valid entry is missing for portName :%q. defaulting to %s", sourceKey, portName, defaultProtocol), "missing protocol annotation entry for service",
 						"service", fmt.Sprintf("%s.%s", service.Name, service.Namespace),
 					)
 				}

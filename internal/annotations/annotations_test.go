@@ -56,6 +56,31 @@ func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
 			expected:    "",
 			expectedErr: errors.New("multiple traffic policies are not supported: [policy1 policy2]"),
 		},
+		{
+			name: "legacy prefix only",
+			annotations: map[string]string{
+				"k8s.ngrok.com/traffic-policy": "policy-old",
+			},
+			expected:    "policy-old",
+			expectedErr: nil,
+		},
+		{
+			name: "new prefix",
+			annotations: map[string]string{
+				"ngrok.com/traffic-policy": "policy-a",
+			},
+			expected:    "policy-a",
+			expectedErr: nil,
+		},
+		{
+			name: "both prefixes, new wins",
+			annotations: map[string]string{
+				"ngrok.com/traffic-policy":     "policy-new",
+				"k8s.ngrok.com/traffic-policy": "policy-old",
+			},
+			expected:    "policy-new",
+			expectedErr: nil,
+		},
 	}
 
 	for _, tc := range tests {
@@ -125,6 +150,23 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 			},
 			expected:    nil,
 			expectedErr: errors.InvalidContent{Name: "the annotation k8s.ngrok.com/pooling-enabled does not contain a valid value ()"},
+		},
+		{
+			name: "new prefix",
+			annotations: map[string]string{
+				"ngrok.com/pooling-enabled": "true",
+			},
+			expected:    new(true),
+			expectedErr: nil,
+		},
+		{
+			name: "both prefixes, new wins",
+			annotations: map[string]string{
+				"ngrok.com/pooling-enabled":     "true",
+				"k8s.ngrok.com/pooling-enabled": "false",
+			},
+			expected:    new(true),
+			expectedErr: nil,
 		},
 	}
 
@@ -198,6 +240,23 @@ func TestExtractUseBindings(t *testing.T) {
 			expected:    nil,
 			expectedErr: nil,
 		},
+		{
+			name: "new prefix",
+			annotations: map[string]string{
+				"ngrok.com/bindings": "public",
+			},
+			expected:    []string{"public"},
+			expectedErr: nil,
+		},
+		{
+			name: "both prefixes, new wins",
+			annotations: map[string]string{
+				"ngrok.com/bindings":     "public",
+				"k8s.ngrok.com/bindings": "internal",
+			},
+			expected:    []string{"public"},
+			expectedErr: nil,
+		},
 	}
 
 	for _, tc := range tests {
@@ -217,6 +276,62 @@ func TestExtractUseBindings(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tc.expected, binding)
+			}
+		})
+	}
+}
+
+func TestExtractURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+		expectedErr error
+	}{
+		{
+			name: "legacy prefix only",
+			annotations: map[string]string{
+				"k8s.ngrok.com/url": "tcp://1.tcp.ngrok.io:12345",
+			},
+			expected:    "tcp://1.tcp.ngrok.io:12345",
+			expectedErr: nil,
+		},
+		{
+			name: "new prefix",
+			annotations: map[string]string{
+				"ngrok.com/url": "tcp://1.tcp.ngrok.io:12345",
+			},
+			expected:    "tcp://1.tcp.ngrok.io:12345",
+			expectedErr: nil,
+		},
+		{
+			name: "both prefixes, new wins",
+			annotations: map[string]string{
+				"ngrok.com/url":     "tls://new.example.com",
+				"k8s.ngrok.com/url": "tls://old.example.com",
+			},
+			expected:    "tls://new.example.com",
+			expectedErr: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tc.annotations,
+				},
+			}
+
+			got, err := annotations.ExtractURL(obj)
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				assert.Equal(t, tc.expectedErr, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, got)
 			}
 		})
 	}
@@ -325,6 +440,19 @@ func TestExtractMetadata(t *testing.T) {
 			annotations: map[string]string{"k8s.ngrok.com/metadata": "not-json"},
 			expected:    "not-json",
 		},
+		{
+			name:        "new prefix",
+			annotations: map[string]string{"ngrok.com/metadata": `{"env":"prod"}`},
+			expected:    `{"env":"prod"}`,
+		},
+		{
+			name: "both prefixes, new wins",
+			annotations: map[string]string{
+				"ngrok.com/metadata":     `{"env":"new"}`,
+				"k8s.ngrok.com/metadata": `{"env":"old"}`,
+			},
+			expected: `{"env":"new"}`,
+		},
 	}
 
 	for _, tc := range tests {
@@ -363,6 +491,19 @@ func TestExtractDescription(t *testing.T) {
 			name:        "multi-word description",
 			annotations: map[string]string{"k8s.ngrok.com/description": "My production service v2"},
 			expected:    "My production service v2",
+		},
+		{
+			name:        "new prefix",
+			annotations: map[string]string{"ngrok.com/description": "My production service"},
+			expected:    "My production service",
+		},
+		{
+			name: "both prefixes, new wins",
+			annotations: map[string]string{
+				"ngrok.com/description":     "New description",
+				"k8s.ngrok.com/description": "Old description",
+			},
+			expected: "New description",
 		},
 	}
 

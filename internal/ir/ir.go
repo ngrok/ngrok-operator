@@ -96,7 +96,7 @@ type IRVirtualHost struct {
 	Metadata string
 
 	// Description to set on any created CloudEndpoints/AgentEndpoints.
-	// Sourced from the k8s.ngrok.com/description annotation on the resource.
+	// Sourced from the ngrok.com/description annotation on the resource.
 	Description string
 
 	// Bindings to set on generated Endpoints

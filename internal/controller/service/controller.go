@@ -41,6 +41,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -66,9 +67,11 @@ import (
 )
 
 const (
-	OwnerReferencePath     = "metadata.ownerReferences.uid"
-	ModuleSetPath          = "metadata.annotations.k8s.ngrok.com/module-set"
-	TrafficPolicyPath      = "metadata.annotations.k8s.ngrok.com/traffic-policy"
+	OwnerReferencePath = "metadata.ownerReferences.uid"
+	// TrafficPolicyIndexKey is the field-index name for Services indexed by the
+	// traffic policy their annotation references (either annotation prefix).
+	// The name is opaque — it is an index key, not an object field path.
+	TrafficPolicyIndexKey  = "ngrok-operator.trafficpolicy-by-name"
 	NgrokLoadBalancerClass = "ngrok"
 )
 
@@ -186,7 +189,7 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	// Index the services by the traffic policy they reference
-	err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Service{}, TrafficPolicyPath, func(obj client.Object) []string {
+	err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Service{}, TrafficPolicyIndexKey, func(obj client.Object) []string {
 		policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(obj)
 		if err != nil {
 			return nil
@@ -274,6 +277,9 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop this scan
+	deprecation.ScanAnnotations(log, r.Recorder, svc)
+
 	if len(svc.Spec.Ports) < 1 {
 		r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "NoPorts", "Reconcile", "Unable to handle service with no ports")
 		return ctrl.Result{}, nil
@@ -338,7 +344,7 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 	services := &corev1.ServiceList{}
 	listOpts := &client.ListOptions{
 		Namespace:     policyNamespace,
-		FieldSelector: fields.OneTermEqualSelector(TrafficPolicyPath, policyName),
+		FieldSelector: fields.OneTermEqualSelector(TrafficPolicyIndexKey, policyName),
 	}
 	err := r.Client.List(ctx, services, listOpts)
 	if err != nil {

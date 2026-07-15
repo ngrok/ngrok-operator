@@ -28,6 +28,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -45,6 +46,7 @@ import (
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -110,6 +112,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.V(1).Info("unsupported gatewayclass controllername, ignoring", "gatewayclass", gwClass.Name, "controllername", gwClass.Spec.ControllerName)
 		return ctrl.Result{}, nil
 	}
+
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop this scan
+	deprecation.ScanAnnotations(log, r.Recorder, gw)
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop this warning helper
+	r.warnIfLegacyTLSOptions(log, gw)
 
 	// Skip non-delete reconciles during drain to prevent adding new finalizers
 	if controller.IsDraining(ctx, r.DrainState) {
@@ -501,3 +508,29 @@ func certRefMatches(refName gatewayv1.ObjectName, refNs *gatewayv1.Namespace, gw
 	return string(refName) == objName &&
 		string(ptr.Deref(refNs, gatewayv1.Namespace(gwNs))) == objNs
 }
+
+// LEGACY-PREFIX-MIGRATION: BEGIN (read-side cleanup deletes this helper)
+
+// warnIfLegacyTLSOptions emits one Warning event when any listener on the
+// Gateway still uses k8s.ngrok.com/terminate-tls.* TLS option keys.
+func (r *GatewayReconciler) warnIfLegacyTLSOptions(log logr.Logger, gw *gatewayv1.Gateway) {
+	for _, listener := range gw.Spec.Listeners {
+		if listener.TLS == nil {
+			continue
+		}
+		for key := range listener.TLS.Options {
+			if strings.HasPrefix(string(key), managerdriver.LegacyTLSOptionKeyPrefix) {
+				log.Info("legacy TLS option key in use; please migrate",
+					"legacyPrefix", managerdriver.LegacyTLSOptionKeyPrefix,
+					"newPrefix", managerdriver.TLSOptionKeyPrefix)
+				if r.Recorder != nil {
+					r.Recorder.Eventf(gw, nil, v1.EventTypeWarning, deprecation.ReasonLegacyAnnotation, "Reconcile",
+						"TLS option keys with the %q prefix are deprecated and support will be removed in ngrok-operator 1.0; rename them to the %q prefix", managerdriver.LegacyTLSOptionKeyPrefix, managerdriver.TLSOptionKeyPrefix)
+				}
+				return
+			}
+		}
+	}
+}
+
+// LEGACY-PREFIX-MIGRATION: END

@@ -3,8 +3,8 @@ kind: Service
 metadata:
   name: test-tls-custom-domain-lb
   annotations:
-    k8s.ngrok.com/url: (join('', ['tls://tls-test', $ngrokDomainSuffix, ':443']))
-    k8s.ngrok.com/mapping-strategy: endpoints-verbose
+    ngrok.com/url: (join('', ['tls://tls-test', $ngrokDomainSuffix, ':443']))
+    ngrok.com/mapping-strategy: endpoints-verbose
   labels:
     app.kubernetes.io/name: test-server
 spec:

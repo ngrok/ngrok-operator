@@ -53,6 +53,29 @@ The following annotations influence behavior. They are supported on `Gateway` re
 
 See [annotations.md](../annotations.md) for details.
 
+## Listener TLS Options
+
+Keys in a Gateway listener's `spec.listeners[].tls.options` map with the `ngrok.com/terminate-tls.` prefix configure the `terminate-tls` traffic-policy action on endpoints generated for that listener; the suffix after the prefix becomes the action option name.
+
+```yaml
+listeners:
+- name: https
+  port: 443
+  protocol: HTTPS
+  tls:
+    options:
+      ngrok.com/terminate-tls.min_version: "1.3"
+```
+
+| Detail          | Value                                                  |
+|-----------------|--------------------------------------------------------|
+| Key form        | `ngrok.com/terminate-tls.<option>`                     |
+| Reserved suffixes (rejected) | `server_private_key`, `server_certificate`, `mutual_tls_certificate_authorities` — managed via `certificateRefs`, not options |
+
+Keys without the prefix are ignored. Supplying a reserved suffix fails translation for the Gateway.
+
+During the `k8s.ngrok.com/` → `ngrok.com/` migration window the operator also reads the legacy `k8s.ngrok.com/terminate-tls.` prefix; when both prefixes define the same option suffix, the `ngrok.com/` key wins. Legacy support is removed in 1.0 — see [`docs/v1-migration-guide.md`](../../docs/v1-migration-guide.md).
+
 ## ReferenceGrants
 
 By default, cross-namespace references require a `ReferenceGrant` in the target namespace. This can be disabled via `gateway.disableReferenceGrants: true`, which allows cross-namespace references without explicit grants.

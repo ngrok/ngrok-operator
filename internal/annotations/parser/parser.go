@@ -28,13 +28,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// DefaultAnnotationsPrefix defines the common prefix used in the nginx ingress controller
-const DefaultAnnotationsPrefix = "k8s.ngrok.com"
+// CanonicalAnnotationsPrefix is the prefix for ngrok annotations on user
+// objects (Ingress, Gateway, Service).
+const CanonicalAnnotationsPrefix = "ngrok.com"
 
-var (
-	// AnnotationsPrefix is the mutable attribute that the controller explicitly refers to
-	AnnotationsPrefix = DefaultAnnotationsPrefix
-)
+// LEGACY-PREFIX-MIGRATION: BEGIN
+// LegacyAnnotationsPrefix is the deprecated user-annotation prefix. Every
+// Get* helper falls back to it when the canonical key is absent — see
+// annotationKeyFor. Read-side cleanup deletes this const and the fallback.
+const LegacyAnnotationsPrefix = "k8s.ngrok.com"
+
+// LEGACY-PREFIX-MIGRATION: END
 
 // Annotation has a method to parse annotations located in client.Object
 type Annotation interface {
@@ -137,70 +141,81 @@ func checkAnnotation(name string, obj client.Object) error {
 	return nil
 }
 
+// annotationKeyFor resolves which prefixed key to read for the given suffix.
+// The canonical key wins on presence alone, so a canonical key with invalid
+// content surfaces a parse error instead of silently deferring to the legacy
+// value.
+func annotationKeyFor(suffix string, obj client.Object) string {
+	canonical := GetAnnotationWithPrefix(suffix)
+	anns := obj.GetAnnotations()
+	if _, ok := anns[canonical]; ok {
+		return canonical
+	}
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop the fallback below;
+	// this function collapses to `return GetAnnotationWithPrefix(suffix)`.
+	legacy := fmt.Sprintf("%v/%v", LegacyAnnotationsPrefix, suffix)
+	if _, ok := anns[legacy]; ok {
+		return legacy
+	}
+	return canonical
+}
+
 // GetBoolAnnotation extracts a boolean from a client.Object annotation
 func GetBoolAnnotation(name string, obj client.Object) (bool, error) {
-	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, obj)
-	if err != nil {
+	if err := checkAnnotation(name, obj); err != nil {
 		return false, err
 	}
+	v := annotationKeyFor(name, obj)
 	return annotations(obj.GetAnnotations()).parseBool(v)
 }
 
 // GetStringAnnotation extracts a string from an client.Object annotation
 func GetStringAnnotation(name string, obj client.Object) (string, error) {
-	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, obj)
-	if err != nil {
+	if err := checkAnnotation(name, obj); err != nil {
 		return "", err
 	}
-
+	v := annotationKeyFor(name, obj)
 	return annotations(obj.GetAnnotations()).parseString(v)
 }
 
 func GetStringSliceAnnotation(name string, obj client.Object) ([]string, error) {
-	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, obj)
-	if err != nil {
+	if err := checkAnnotation(name, obj); err != nil {
 		return []string{}, err
 	}
-
+	v := annotationKeyFor(name, obj)
 	return annotations(obj.GetAnnotations()).parseStringSlice(v)
 }
 
 func GetStringMapAnnotation(name string, obj client.Object) (map[string]string, error) {
-	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, obj)
-	if err != nil {
+	if err := checkAnnotation(name, obj); err != nil {
 		return nil, err
 	}
-
+	v := annotationKeyFor(name, obj)
 	return annotations(obj.GetAnnotations()).parseStringMap(v)
 }
 
 // GetIntAnnotation extracts an int from a client.Object annotation
 func GetIntAnnotation(name string, obj client.Object) (int, error) {
-	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, obj)
-	if err != nil {
+	if err := checkAnnotation(name, obj); err != nil {
 		return 0, err
 	}
+	v := annotationKeyFor(name, obj)
 	return annotations(obj.GetAnnotations()).parseInt(v)
 }
 
 // GetFloatAnnotation extracts a float32 from a client.Object annotation
 func GetFloatAnnotation(name string, obj client.Object) (float32, error) {
-	v := GetAnnotationWithPrefix(name)
-	err := checkAnnotation(v, obj)
-	if err != nil {
+	if err := checkAnnotation(name, obj); err != nil {
 		return 0, err
 	}
+	v := annotationKeyFor(name, obj)
 	return annotations(obj.GetAnnotations()).parseFloat32(v)
 }
 
-// GetAnnotationWithPrefix returns the annotation prefixed with the AnnotationsPrefix
+// GetAnnotationWithPrefix returns the canonical (ngrok.com/) annotation key
+// for the given suffix.
 func GetAnnotationWithPrefix(suffix string) string {
-	return fmt.Sprintf("%v/%v", AnnotationsPrefix, suffix)
+	return fmt.Sprintf("%v/%v", CanonicalAnnotationsPrefix, suffix)
 }
 
 func normalizeString(input string) string {

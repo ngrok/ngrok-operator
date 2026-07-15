@@ -14,8 +14,8 @@ input:
       name: test-gateway
       namespace: default
       annotations:
-        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
-        k8s.ngrok.com/bindings: "foo-binding"
+        ngrok.com/mapping-strategy: "endpoints-verbose"
+        ngrok.com/bindings: "foo-binding"
     spec:
       gatewayClassName: ngrok
       listeners:

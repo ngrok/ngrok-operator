@@ -36,21 +36,26 @@ const (
 	DeniedKeyName = "Denied"
 
 	// This annotation can be used on ingress/gateway resources to control which ngrok resources (endpoints/edges) get created from it
-	MappingStrategyAnnotation    = "k8s.ngrok.com/mapping-strategy"
+	MappingStrategyAnnotation    = "ngrok.com/mapping-strategy"
 	MappingStrategyAnnotationKey = "mapping-strategy"
 
-	EndpointPoolingAnnotation    = "k8s.ngrok.com/pooling-enabled"
+	EndpointPoolingAnnotation    = "ngrok.com/pooling-enabled"
 	EndpointPoolingAnnotationKey = "pooling-enabled"
 
-	TrafficPolicyAnnotation    = "k8s.ngrok.com/traffic-policy"
+	TrafficPolicyAnnotation    = "ngrok.com/traffic-policy"
 	TrafficPolicyAnnotationKey = "traffic-policy"
+
+	// This annotation controls where the endpoint created from this resource is
+	// bound (its visibility), e.g. public, internal, or kubernetes.
+	BindingsAnnotation    = "ngrok.com/bindings"
+	BindingsAnnotationKey = "bindings"
 
 	// This annotation can be used on a service to control whether the endpoint is a TCP or TLS endpoint.
 	// Examples:
 	//   * tcp://1.tcp.ngrok.io:12345
 	//   * tls://my-domain.com
 	//
-	URLAnnotation = "k8s.ngrok.com/url"
+	URLAnnotation = "ngrok.com/url"
 	URLKey        = "url"
 
 	// MetadataAnnotation allows setting ngrok metadata on the endpoint created from this resource.
@@ -58,13 +63,13 @@ const (
 	// This metadata is merged with the operator-level default metadata; keys in this annotation take precedence.
 	// When multiple annotated resources share the same endpoint, the metadata from the
 	// alphabetically-first resource (by namespace/name) takes precedence per key.
-	MetadataAnnotation = "k8s.ngrok.com/metadata"
+	MetadataAnnotation = "ngrok.com/metadata"
 	MetadataKey        = "metadata"
 
 	// DescriptionAnnotation sets a human-readable description on the endpoint created from this resource.
 	// When multiple resources share the same endpoint, the description from the alphabetically-first
 	// resource (by namespace/name) is used; if none is set, the operator default is used.
-	DescriptionAnnotation = "k8s.ngrok.com/description"
+	DescriptionAnnotation = "ngrok.com/description"
 	DescriptionKey        = "description"
 )
 
@@ -91,7 +96,7 @@ const (
 )
 
 // Extracts a single traffic policy str from the annotation
-// k8s.ngrok.com/traffic-policy: "module1"
+// ngrok.com/traffic-policy: "module1"
 func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error) {
 	policies, err := parser.GetStringSliceAnnotation(TrafficPolicyAnnotationKey, obj)
 
@@ -111,7 +116,7 @@ func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error)
 }
 
 // Whether or not we should use endpoint pooling
-// from the annotation "k8s.ngrok.com/pooling-enabled" if it is present.
+// from the annotation "ngrok.com/pooling-enabled" if it is present.
 // Returns nil if the annotation is not set, allowing the caller to distinguish
 // between "not configured" and "explicitly disabled".
 func ExtractUseEndpointPooling(obj client.Object) (*bool, error) {
@@ -128,9 +133,9 @@ func ExtractUseEndpointPooling(obj client.Object) (*bool, error) {
 }
 
 // Determines which traffic is allowed to reach an endpoint
-// from the annotation "k8s.ngrok.com/bindings" if it is present. Otherwise, it defaults to public
+// from the annotation "ngrok.com/bindings" if it is present. Otherwise, it defaults to public
 func ExtractUseBindings(obj client.Object) ([]string, error) {
-	bindings, err := parser.GetStringSliceAnnotation("bindings", obj)
+	bindings, err := parser.GetStringSliceAnnotation(BindingsAnnotationKey, obj)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return nil, nil
@@ -149,7 +154,7 @@ func ExtractUseBindings(obj client.Object) ([]string, error) {
 	}
 }
 
-// Retrieves the value of the annotation "k8s.ngrok.com/url" if it is present. Otherwise, it returns
+// Retrieves the value of the annotation "ngrok.com/url" if it is present. Otherwise, it returns
 // an error.
 func ExtractURL(obj client.Object) (string, error) {
 	return parser.GetStringAnnotation(URLKey, obj)
@@ -164,10 +169,10 @@ func ExtractURL(obj client.Object) (string, error) {
 // legacy-only value gets migrated to the new key.
 //
 // This reads the annotation map directly rather than going through the parser
-// helpers, because the parser is locked to a single global prefix
-// (parser.AnnotationsPrefix == "k8s.ngrok.com") and cannot read the new
-// ngrok.com/ key without re-prefixing every other annotation read. Reading the
-// map directly also treats a present-but-empty value as missing; that's safe
+// helpers. This predates the parser's dual-read support and stays direct-read
+// only to keep the operator-written key's behavior self-contained here rather
+// than depending on the parser's generic fallback semantics. Reading the map
+// directly also treats a present-but-empty value as missing; that's safe
 // here because the value is operator-written (never user-authored, never empty
 // — clearComputedURLAnnotation deletes the key rather than emptying it).
 //
@@ -191,7 +196,7 @@ func ExtractComputedURL(obj client.Object) (string, error) {
 	return "", errors.ErrMissingAnnotations
 }
 
-// ExtractMetadata extracts the ngrok metadata JSON string from the annotation "k8s.ngrok.com/metadata".
+// ExtractMetadata extracts the ngrok metadata JSON string from the annotation "ngrok.com/metadata".
 // Returns ("", nil) if the annotation is not set.
 func ExtractMetadata(obj client.Object) (string, error) {
 	val, err := parser.GetStringAnnotation(MetadataKey, obj)
@@ -204,7 +209,7 @@ func ExtractMetadata(obj client.Object) (string, error) {
 	return val, nil
 }
 
-// ExtractDescription extracts the description string from the annotation "k8s.ngrok.com/description".
+// ExtractDescription extracts the description string from the annotation "ngrok.com/description".
 // Returns ("", nil) if the annotation is not set.
 func ExtractDescription(obj client.Object) (string, error) {
 	val, err := parser.GetStringAnnotation(DescriptionKey, obj)
