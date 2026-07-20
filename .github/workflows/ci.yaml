@@ -25,6 +25,7 @@ jobs:
       tag: ${{ steps.changes.outputs.tag }}
       tests: ${{ steps.changes.outputs.tests }}
       make: ${{ steps.changes.outputs.make }}
+      nix: ${{ steps.changes.outputs.nix }}
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
@@ -40,6 +41,7 @@ jobs:
     with:
       go-changed: ${{ needs.changes.outputs.go == 'true' }}
       make-changed: ${{ needs.changes.outputs.make == 'true' }}
+      nix-changed: ${{ needs.changes.outputs.nix == 'true' }}
 
   manifest-bundle-diff:
     name: Manifest Bundle Diff
@@ -48,7 +50,8 @@ jobs:
     - changes
     if: |
       (needs.changes.outputs.charts == 'true') ||
-      (needs.changes.outputs.make == 'true')
+      (needs.changes.outputs.make == 'true') ||
+      (needs.changes.outputs.nix == 'true')
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
@@ -102,7 +105,8 @@ jobs:
           (needs.changes.outputs.charts == 'true') ||
           (needs.changes.outputs.chartyaml == 'true') ||
           (needs.changes.outputs.tests == 'true') ||
-          (needs.changes.outputs.make == 'true')
+          (needs.changes.outputs.make == 'true') ||
+          (needs.changes.outputs.nix == 'true')
         )
       )
     permissions:
@@ -125,7 +129,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.charts == 'true'
+    if: |
+      (needs.changes.outputs.nix == 'true') ||
+      (needs.changes.outputs.charts == 'true')
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
@@ -162,7 +168,8 @@ jobs:
         (needs.changes.outputs.charts == 'true') ||
         (needs.changes.outputs.chartyaml == 'true') ||
         (needs.changes.outputs.tests == 'true') ||
-        (needs.changes.outputs.make == 'true')
+        (needs.changes.outputs.make == 'true') ||
+        (needs.changes.outputs.nix == 'true')
       )
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -198,7 +205,8 @@ jobs:
         (needs.changes.outputs.charts == 'true') ||
         (needs.changes.outputs.chartyaml == 'true') ||
         (needs.changes.outputs.tests == 'true') ||
-        (needs.changes.outputs.make == 'true')
+        (needs.changes.outputs.make == 'true') ||
+        (needs.changes.outputs.nix == 'true')
       )
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -247,7 +255,8 @@ jobs:
         (needs.changes.outputs.charts == 'true') ||
         (needs.changes.outputs.chartyaml == 'true') ||
         (needs.changes.outputs.tests == 'true') ||
-        (needs.changes.outputs.make == 'true')
+        (needs.changes.outputs.make == 'true') ||
+        (needs.changes.outputs.nix == 'true')
       )
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
