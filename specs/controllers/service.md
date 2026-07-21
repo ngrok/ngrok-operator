@@ -65,17 +65,7 @@ Default: (none — uses ngrok platform default)
 
 When set, the value is passed through to the created `CloudEndpoint`'s `spec.poolingEnabled` field (for `endpoints-verbose` strategy) or to the `AgentEndpoint` (for `endpoints` strategy).
 
-#### `ngrok.com/description`
-
-Sets a human-readable description on the created ngrok endpoint resource(s).
-
-Default: `"Created by the ngrok-operator"`
-
-#### `ngrok.com/metadata`
-
-Sets arbitrary key-value metadata on the created ngrok endpoint resource(s). Value is a JSON object string that is parsed into `map[string]string`. Merged with operator-level ``ngrok.metadata``; annotation keys take precedence on conflict.
-
-Default: `{"owned-by": "ngrok-operator"}`
+Note: `ngrok.com/description` and `ngrok.com/metadata` are **not** read from LoadBalancer Services — endpoints created from Services always use the operator default description and metadata. Those annotations apply to `Ingress` and `Gateway` resources only; see [annotations.md](../annotations.md).
 
 #### `ngrok.com/bindings`
 

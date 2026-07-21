@@ -149,6 +149,21 @@ var _ = Describe("podIdentityFromPod", func() {
 		Expect(pid.Annotations).To(HaveKey("k8s.ngrok.com/keep"))
 		Expect(pid.Annotations).To(Not(HaveKey("some.other/strip")))
 	})
+
+	It("keeps both canonical and legacy prefixed annotations", func() {
+		pod.Annotations = map[string]string{
+			"ngrok.com/foo":     "new",
+			"k8s.ngrok.com/bar": "old",
+			"unrelated.io/baz":  "skip",
+		}
+
+		pid := podIdentityFromPod(pod)
+		Expect(pid).To(Not(BeNil()))
+		Expect(pid.Annotations).To(Equal(map[string]string{
+			"ngrok.com/foo":     "new",
+			"k8s.ngrok.com/bar": "old",
+		}))
+	})
 })
 
 var _ = Describe("ForwarderReconciler field indexer integration", func() {

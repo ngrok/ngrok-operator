@@ -330,6 +330,63 @@ preserves rollback safety.
   At this point no pre-migration operator pod can observe the change.
 - **R3 cleanup:** drop the dual-match branch in `store.go`.
 
+### User-facing annotations (read-side compatibility)
+
+- **Pattern:** Two-release. These are user-written keys — the operator never
+  writes them, so there is no write side and no delete-on-reconcile
+  migration. The dual-read *is* the user contract, which places its removal
+  at the 1.0 major-version boundary rather than the R3 read-side sweep:
+  dropping it in a post-1.0 minor would be a user-visible breaking change.
+- **R1 (0.24):** `internal/annotations/parser/parser.go` resolves each key
+  via `annotationKeyFor` — canonical `ngrok.com/<suffix>` wins on presence,
+  legacy `k8s.ngrok.com/<suffix>` is the fallback. All `Extract*` helpers in
+  `internal/annotations/annotations.go` inherit this through the parser with
+  no signature changes. The Ingress, Gateway, and Service controllers call
+  `deprecation.ScanAnnotations` once per reconcile to emit `LegacyAnnotation`
+  Warning events per legacy key present.
+- **Cleanup (1.0, read-side):** delete the fallback in `annotationKeyFor`
+  and the `LegacyAnnotationsPrefix` const, the entire `internal/deprecation`
+  package, and the `ScanAnnotations` call sites.
+
+### Gateway TLS option keys (read-side compatibility)
+
+- **Pattern:** Two-release, read-side only (same rationale as user-facing
+  annotations; removal at 1.0).
+- **R1 (0.24):** `pkg/managerdriver/translate_gatewayapi.go` reads both
+  `ngrok.com/terminate-tls.*` and `k8s.ngrok.com/terminate-tls.*`; when both
+  prefixes define the same option suffix the canonical key wins,
+  deterministically (canonical suffixes are collected before the merge loop
+  so precedence never depends on map iteration order). The Gateway controller
+  emits a single `LegacyAnnotation` Warning event per reconcile via
+  `warnIfLegacyTLSOptions` when any listener uses legacy keys.
+- **Cleanup (1.0, read-side):** delete `LegacyTLSOptionKeyPrefix`, the legacy
+  case in the options loop, the legacy reserved-key entries, and
+  `warnIfLegacyTLSOptions`.
+
+### Service `app-protocols` annotation and `http2` appProtocol value (read-side compatibility)
+
+- **Pattern:** Two-release, read-side only (removal at 1.0).
+- **R1 (0.24):** `pkg/managerdriver/utils.go::getProtoForServicePort` reads
+  `ngrok.com/app-protocols` (presence-based) and falls back to
+  `k8s.ngrok.com/app-protocols`; `knownApplicationProtocols` accepts both
+  `ngrok.com/http2` and `k8s.ngrok.com/http2` port `appProtocol` values,
+  with a deprecation log on the legacy value in `getPortAppProtocol`. Both
+  are read only from backend Services of Ingress/Gateway routes, in
+  translator hot paths with no event recorder — legacy hits are log-only
+  (`legacy annotation key in use` / `legacy appProtocol value in use`).
+- **Cleanup (1.0, read-side):** delete `LegacyAppProtocolsAnnotation`, the
+  fallback read, the legacy-value log, and the legacy `k8s.ngrok.com/http2`
+  map entry.
+
+### Bindings-forwarder pod identity prefix filter (read-side compatibility)
+
+- **Pattern:** Two-release, read-side only (removal at 1.0).
+- **R1 (0.24):** `internal/controller/bindings/forwarder_controller.go::podIdentityFromPod`
+  forwards pod annotations under either prefix. Keys are forwarded verbatim,
+  so upstream traffic-policy expressions that match on annotation key names
+  migrate on the pod owner's schedule, not the operator's.
+- **Cleanup (1.0, read-side):** drop the legacy prefix match.
+
 ## Per-shim catalog: CRD field renames (`LEGACY-FIELD-MIGRATION`)
 
 CRD field renames are two-release cases (see "When two releases is enough"):

@@ -3,6 +3,7 @@ kind: Service
 metadata:
   name: test-tcp-lb
   annotations:
+    # LEGACY-PREFIX-MIGRATION (read-side cleanup): deliberate legacy-prefix e2e coverage; flip to ngrok.com/ at 1.0
     k8s.ngrok.com/mapping-strategy: endpoints-verbose
   labels:
     app.kubernetes.io/name: test-server

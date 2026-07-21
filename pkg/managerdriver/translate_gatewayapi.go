@@ -22,15 +22,29 @@ import (
 
 const (
 	// Within the gateway, any keys in the tls.options field with this prefix get added to the terminate-tls action
-	TLSOptionKeyPrefix = "k8s.ngrok.com/terminate-tls."
+	TLSOptionKeyPrefix = "ngrok.com/terminate-tls."
+
+	// LEGACY-PREFIX-MIGRATION: BEGIN
+	// LegacyTLSOptionKeyPrefix is the deprecated form of TLSOptionKeyPrefix,
+	// still read during the migration window. Read-side cleanup deletes this
+	// const, the legacy branch in the options loop, and the legacy entries in
+	// TLSOptionKeyReservedKeys.
+	LegacyTLSOptionKeyPrefix = "k8s.ngrok.com/terminate-tls."
+
+	// LEGACY-PREFIX-MIGRATION: END
 )
 
 var (
 	// These keys may not be supplied to the gateway listener's tls.options field since they are supported elsewhere and we don't want conflicts
 	TLSOptionKeyReservedKeys = []string{
-		"k8s.ngrok.com/terminate-tls.server_private_key",
-		"k8s.ngrok.com/terminate-tls.server_certificate",
-		"k8s.ngrok.com/terminate-tls.mutual_tls_certificate_authorities",
+		TLSOptionKeyPrefix + "server_private_key",
+		TLSOptionKeyPrefix + "server_certificate",
+		TLSOptionKeyPrefix + "mutual_tls_certificate_authorities",
+		// LEGACY-PREFIX-MIGRATION: BEGIN
+		LegacyTLSOptionKeyPrefix + "server_private_key",
+		LegacyTLSOptionKeyPrefix + "server_certificate",
+		LegacyTLSOptionKeyPrefix + "mutual_tls_certificate_authorities",
+		// LEGACY-PREFIX-MIGRATION: END
 	}
 )
 
@@ -147,11 +161,11 @@ func (t *translator) findMatchingVHostsForXRoute(
 
 		useEndpointPooling, err := annotations.ExtractUseEndpointPooling(gateway)
 		if err != nil {
-			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.MappingStrategyAnnotation))
+			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.EndpointPoolingAnnotation))
 		}
 		if useEndpointPooling != nil && *useEndpointPooling {
 			t.log.Info(fmt.Sprintf("the following Gateway and its routes will create endpoint(s) with pooling enabled because of the %q annotation",
-				annotations.MappingStrategyAnnotation),
+				annotations.EndpointPoolingAnnotation),
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 		}
@@ -173,14 +187,14 @@ func (t *translator) findMatchingVHostsForXRoute(
 
 		gatewayMetadata, err := annotations.ExtractMetadata(gateway)
 		if err != nil {
-			t.log.Error(err, "failed to read k8s.ngrok.com/metadata annotation for gateway",
+			t.log.Error(err, fmt.Sprintf("failed to read %q annotation for gateway", annotations.MetadataAnnotation),
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 		}
 
 		gatewayDescription, err := annotations.ExtractDescription(gateway)
 		if err != nil {
-			t.log.Error(err, "failed to read k8s.ngrok.com/description annotation for gateway",
+			t.log.Error(err, fmt.Sprintf("failed to read %q annotation for gateway", annotations.DescriptionAnnotation),
 				"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 			)
 		}
@@ -1452,16 +1466,35 @@ func (t *translator) gatewayTLSTermConfigToIR(listenerTLS *gatewayv1.ListenerTLS
 		}
 	}
 
-	for key, val := range listenerTLS.Options {
-		if strings.HasPrefix(string(key), TLSOptionKeyPrefix) {
-			for _, reservedKey := range TLSOptionKeyReservedKeys {
-				if string(key) == reservedKey {
-					return nil, fmt.Errorf("invalid option supplied to listener tls options. %q is a reserved field and may not be provided here", reservedKey)
-				}
-			}
-			keySuffix := strings.TrimPrefix(string(key), TLSOptionKeyPrefix)
-			tlsTermCfg.ExtendedOptions[keySuffix] = string(val)
+	// Canonical-prefixed options always win over legacy-prefixed ones with
+	// the same suffix; collect canonical suffixes first so precedence does
+	// not depend on map iteration order.
+	canonicalSuffixes := map[string]bool{}
+	for key := range listenerTLS.Options {
+		if after, ok := strings.CutPrefix(string(key), TLSOptionKeyPrefix); ok {
+			canonicalSuffixes[after] = true
 		}
+	}
+	for key, val := range listenerTLS.Options {
+		var keySuffix string
+		switch {
+		case strings.HasPrefix(string(key), TLSOptionKeyPrefix):
+			keySuffix = strings.TrimPrefix(string(key), TLSOptionKeyPrefix)
+		// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop this case
+		case strings.HasPrefix(string(key), LegacyTLSOptionKeyPrefix):
+			keySuffix = strings.TrimPrefix(string(key), LegacyTLSOptionKeyPrefix)
+			if canonicalSuffixes[keySuffix] {
+				continue
+			}
+		default:
+			continue
+		}
+		for _, reservedKey := range TLSOptionKeyReservedKeys {
+			if string(key) == reservedKey {
+				return nil, fmt.Errorf("invalid option supplied to listener tls options. %q is a reserved field and may not be provided here", reservedKey)
+			}
+		}
+		tlsTermCfg.ExtendedOptions[keySuffix] = string(val)
 	}
 
 	return tlsTermCfg, nil

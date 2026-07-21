@@ -387,6 +387,26 @@ var _ = Describe("Driver", func() {
 				})
 			})
 
+			When("The appProtocol is ngrok.com/http2", func() {
+				BeforeEach(func() {
+					// Set the appProtocol on the httpsService
+					httpsService.Spec.Ports[0].AppProtocol = new("ngrok.com/http2")
+
+					// Modify the ingress to include the httpsService
+					setIngressTargetService(ingress, httpsService)
+				})
+
+				It("Should create an AgentEndpoint with an upstream protocol of http2", func() {
+					// We expect one AgentEndpoint to be created
+					Expect(len(agentEndpoints.Items)).To(Equal(1))
+
+					By("Creating an AgentEndpoint with appProtocol http2")
+					foundAgentEndpoint := agentEndpoints.Items[0]
+					Expect(foundAgentEndpoint.Spec.Upstream.Protocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
+					Expect(foundAgentEndpoint.Spec.Upstream.URL).To(Equal("https://https-service.app-proto-namespace:443"))
+				})
+			})
+
 			When("The appProtocol is k8s.ngrok.com/http2", func() {
 				BeforeEach(func() {
 					// Set the appProtocol on the httpService
@@ -423,6 +443,27 @@ var _ = Describe("Driver", func() {
 					By("Creating an AgentEndpoint with appProtocol http2")
 					foundAgentEndpoint := agentEndpoints.Items[0]
 					Expect(foundAgentEndpoint.Spec.Upstream.Protocol).To(Equal(ptr.To(common.ApplicationProtocol_HTTP2)))
+					Expect(foundAgentEndpoint.Spec.Upstream.URL).To(Equal("https://https-service.app-proto-namespace:443"))
+				})
+			})
+
+			When("The service uses the canonical ngrok.com/app-protocols annotation", func() {
+				BeforeEach(func() {
+					// Switch httpsService from the legacy annotation key to the canonical one
+					httpsService.Annotations = map[string]string{
+						"ngrok.com/app-protocols": `{"https": "https"}`,
+					}
+
+					// Modify the ingress to include the httpsService
+					setIngressTargetService(ingress, httpsService)
+				})
+
+				It("Should create an AgentEndpoint with an https upstream", func() {
+					// We expect one AgentEndpoint to be created
+					Expect(len(agentEndpoints.Items)).To(Equal(1))
+
+					By("Creating an AgentEndpoint using the https protocol from the canonical annotation")
+					foundAgentEndpoint := agentEndpoints.Items[0]
 					Expect(foundAgentEndpoint.Spec.Upstream.URL).To(Equal("https://https-service.app-proto-namespace:443"))
 				})
 			})

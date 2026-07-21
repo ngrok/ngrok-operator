@@ -34,11 +34,11 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 
 		useEndpointPooling, err := annotations.ExtractUseEndpointPooling(ingress)
 		if err != nil {
-			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.MappingStrategyAnnotation))
+			t.log.Error(err, fmt.Sprintf("failed to check %q annotation", annotations.EndpointPoolingAnnotation))
 		}
 		if useEndpointPooling != nil && *useEndpointPooling {
 			t.log.Info(fmt.Sprintf("the following ingress will create endpoint(s) with pooling enabled because of the %q annotation",
-				annotations.MappingStrategyAnnotation),
+				annotations.EndpointPoolingAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
 		}
@@ -71,14 +71,14 @@ func (t *translator) ingressesToIR() []*ir.IRVirtualHost {
 
 		resourceMetadata, err := annotations.ExtractMetadata(ingress)
 		if err != nil {
-			t.log.Error(err, "failed to read k8s.ngrok.com/metadata annotation for ingress",
+			t.log.Error(err, fmt.Sprintf("failed to read %q annotation for ingress", annotations.MetadataAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
 		}
 
 		resourceDescription, err := annotations.ExtractDescription(ingress)
 		if err != nil {
-			t.log.Error(err, "failed to read k8s.ngrok.com/description annotation for ingress",
+			t.log.Error(err, fmt.Sprintf("failed to read %q annotation for ingress", annotations.DescriptionAnnotation),
 				"ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 			)
 		}
@@ -184,13 +184,13 @@ func (t *translator) ingressToIR(
 			// the first-processed resource's values win for both metadata and description.
 			mergedMetadata := ir.MergeMetadata(t.defaultIngressMetadata, resourceMetadata)
 			if mergedMetadata != "" && irVHost.Metadata != "" && mergedMetadata != irVHost.Metadata {
-				t.log.Info("multiple ingresses sharing the same hostname have different k8s.ngrok.com/metadata annotations; the metadata from the first-processed ingress will be used",
+				t.log.Info(fmt.Sprintf("multiple ingresses sharing the same hostname have different %q annotations; the metadata from the first-processed ingress will be used", annotations.MetadataAnnotation),
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 					"hostname", ruleHostname,
 				)
 			}
 			if resourceDescription != "" && irVHost.Description != "" && resourceDescription != irVHost.Description {
-				t.log.Info("multiple ingresses sharing the same hostname have different k8s.ngrok.com/description annotations; the description from the first-processed ingress will be used",
+				t.log.Info(fmt.Sprintf("multiple ingresses sharing the same hostname have different %q annotations; the description from the first-processed ingress will be used", annotations.DescriptionAnnotation),
 					"current ingress", fmt.Sprintf("%s.%s", ingress.Name, ingress.Namespace),
 					"hostname", ruleHostname,
 				)

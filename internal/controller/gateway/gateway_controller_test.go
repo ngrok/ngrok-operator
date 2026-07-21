@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -268,6 +269,23 @@ var _ = Describe("Gateway controller", Ordered, func() {
 			})
 		})
 
+		When("the gateway has a legacy-prefixed annotation", func() {
+			BeforeEach(func() {
+				gw.Annotations = map[string]string{"k8s.ngrok.com/pooling-enabled": "true"}
+			})
+
+			It("emits a LegacyAnnotation warning event", func(ctx SpecContext) {
+				Eventually(func(g Gomega) {
+					events := &corev1.EventList{}
+					g.Expect(k8sClient.List(ctx, events, client.InNamespace(gw.Namespace))).To(Succeed())
+					g.Expect(events.Items).To(ContainElement(SatisfyAll(
+						HaveField("Reason", deprecation.ReasonLegacyAnnotation),
+						HaveField("InvolvedObject.Name", gw.Name),
+					)))
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
 		When("the gateway has a UDP listener", func() {
 			BeforeEach(func() {
 				gw.Spec.Listeners = []gatewayv1.Listener{
@@ -330,6 +348,30 @@ var _ = Describe("Gateway controller", Ordered, func() {
 				cond := meta.FindStatusCondition(obj.Status.Conditions, string(gatewayv1.GatewayConditionAccepted))
 				g.Expect(cond.Status).NotTo(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
+		})
+
+		When("the gateway has a legacy-prefixed annotation", func() {
+			// Placement pin: this proves ScanAnnotations sits AFTER the
+			// ShouldHandleGatewayClass filter, since gw's class is not ours.
+			It("does not emit a LegacyAnnotation warning event", func(ctx SpecContext) {
+				Eventually(func() error {
+					fetched := &gatewayv1.Gateway{}
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), fetched); err != nil {
+						return err
+					}
+					fetched.Annotations = map[string]string{"k8s.ngrok.com/pooling-enabled": "true"}
+					return k8sClient.Update(ctx, fetched)
+				}, timeout, interval).Should(Succeed())
+
+				Consistently(func(g Gomega) {
+					events := &corev1.EventList{}
+					g.Expect(k8sClient.List(ctx, events, client.InNamespace(gw.Namespace))).To(Succeed())
+					g.Expect(events.Items).NotTo(ContainElement(SatisfyAll(
+						HaveField("Reason", deprecation.ReasonLegacyAnnotation),
+						HaveField("InvolvedObject.Name", gw.Name),
+					)))
+				}, "2s", interval).Should(Succeed())
+			})
 		})
 	})
 })
