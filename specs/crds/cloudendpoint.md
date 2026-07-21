@@ -26,6 +26,7 @@
 
 | Field                    | Type                            | Description                              |
 |--------------------------|---------------------------------|------------------------------------------|
+| `observedGeneration`     | int64                           | Generation last reconciled by the controller |
 | `id`                     | string                          | The ngrok API resource ID                |
 | `assignedURL`            | string                          | The URL assigned by ngrok                |
 | `attachedTrafficPolicy`  | string                          | `"none"`, `"inline"`, or policy ref name |

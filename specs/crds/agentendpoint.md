@@ -21,7 +21,8 @@
 | `description`           | string                            | No       | `"Created by the ngrok-operator"`      |                                       |
 | `metadata`              | map[string]string                 | No       | `{"owned-by": "ngrok-operator"}`      |                                       |
 | `bindings`              | []string                          | No       |                                        | MaxItems: 1, Pattern: `^(public\|internal\|kubernetes)$` |
-| `clientCertificateRefs` | []K8sObjectRefOptionalNamespace   | No       |                                        |                                       |
+| `clientCertificateRefs` | []K8sObjectRef                    | No       |                                        | References to `kubernetes.io/tls` Secrets (`tls.crt` + `tls.key`) presented to the upstream during the TLS handshake. Must be in the same namespace as the AgentEndpoint. |
+| `tlsTermination`        | EndpointTLSTermination            | No       |                                        | XValidation: `spec.url` must be a `tls://` URL when set |
 
 ### EndpointUpstream
 
@@ -31,10 +32,29 @@
 | `protocol`             | ApplicationProtocol      | No       | Enum: `http1`, `http2`  |
 | `proxyProtocolVersion` | ProxyProtocolVersion     | No       | Enum: `"1"`, `"2"`     |
 
+### EndpointTLSTermination
+
+Configures agent-side ("zero-knowledge") TLS termination. When set, the ngrok edge routes the encrypted stream to the in-cluster agent based on SNI; the TLS handshake completes between the client and the agent, so ngrok never sees the plaintext. The agent then forwards to the upstream defined by `spec.upstream`.
+
+Requires `spec.url` to use the `tls://` scheme (enforced by XValidation). Cannot be combined with the edge-side `terminate-tls` traffic-policy action, which terminates before traffic reaches the agent.
+
+| Field                  | Type              | Required | Description |
+|------------------------|-------------------|----------|-------------|
+| `serverCertificateRef` | K8sObjectRef      | Yes      | Reference to a `kubernetes.io/tls` Secret containing the server certificate (`tls.crt`) and key (`tls.key`) the agent presents to clients. Must be in the same namespace as the AgentEndpoint. |
+| `mutualTLS`            | EndpointMutualTLS | No       | When set, enables mTLS — the agent requires or requests client certificates during the handshake and validates them against the supplied CA bundle. |
+
+### EndpointMutualTLS
+
+| Field          | Type         | Required | Default   | Validation                | Description |
+|----------------|--------------|----------|-----------|---------------------------|-------------|
+| `clientCAsRef` | K8sObjectRef | Yes      |           |                           | Reference to a Secret whose `ca.crt` key holds a PEM-encoded CA bundle trusted to sign client certificates. Must be in the same namespace as the AgentEndpoint. |
+| `mode`         | string       | No       | `require` | Enum: `require`, `request` | `require` rejects the handshake if no valid client cert is presented; `request` requests a client cert but does not require one. |
+
 ## Status
 
 | Field                    | Type                            | Description                              |
 |--------------------------|---------------------------------|------------------------------------------|
+| `observedGeneration`     | int64                           | Generation last reconciled by the controller |
 | `assignedURL`            | string                          | The URL assigned by ngrok                |
 | `attachedTrafficPolicy`  | string                          | `"none"`, `"inline"`, or policy ref name |
 | `domainRef`              | *K8sObjectRefOptionalNamespace  | Reference to the associated Domain CR    |

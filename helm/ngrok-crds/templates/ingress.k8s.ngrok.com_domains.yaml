@@ -81,7 +81,7 @@ spec:
             description: DomainSpec defines the desired state of Domain
             properties:
               description:
-                default: Created by kubernetes-ingress-controller
+                default: Created by ngrok-operator
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
@@ -89,7 +89,7 @@ spec:
                 description: Domain is the domain name to reserve
                 type: string
               metadata:
-                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                default: '{"owned-by":"ngrok-operator"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
@@ -105,6 +105,21 @@ spec:
                 description: Region is the region in which to reserve the domain
                 type: string
               resolves_to:
+                description: 'Deprecated: use resolvesTo instead. Will be removed
+                  in a future release.'
+                items:
+                  description: DomainResolvesToEntry contains a resolving target for
+                    this domain
+                  properties:
+                    value:
+                      description: Value is a point-of-presence alias, an IP address
+                        (coming soon), or an IP group alias (coming soon)
+                      type: string
+                  required:
+                  - value
+                  type: object
+                type: array
+              resolvesTo:
                 description: ResolvesTo is the list of resolving targets for the domain
                 items:
                   description: DomainResolvesToEntry contains a resolving target for
@@ -124,7 +139,7 @@ spec:
           status:
             description: DomainStatus defines the observed state of Domain
             properties:
-              acmeChallengeCnameTarget:
+              acmeChallengeCNAMETarget:
                 description: ACMEChallengeCNAMETarget is the CNAME target for ACME
                   challenge (wildcards only)
                 type: string
@@ -253,10 +268,17 @@ spec:
               id:
                 description: ID is the unique identifier of the domain
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               region:
                 description: Region is the region in which the domain was created
                 type: string
-              resolves_to:
+              resolvesTo:
                 description: ResolvesTo is the list of resolving targets for the domain
                 items:
                   description: DomainResolvesToEntry contains a resolving target for

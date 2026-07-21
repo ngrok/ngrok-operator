@@ -63,12 +63,12 @@ spec:
             description: IPPolicySpec defines the desired state of IPPolicy
             properties:
               description:
-                default: Created by kubernetes-ingress-controller
+                default: Created by ngrok-operator
                 description: Description is a human-readable description of the object
                   in the ngrok API/Dashboard
                 type: string
               metadata:
-                default: '{"owned-by":"kubernetes-ingress-controller"}'
+                default: '{"owned-by":"ngrok-operator"}'
                 description: Metadata is a string of arbitrary data associated with
                   the object in the ngrok API/Dashboard
                 type: string
@@ -84,12 +84,12 @@ spec:
                     cidr:
                       type: string
                     description:
-                      default: Created by kubernetes-ingress-controller
+                      default: Created by ngrok-operator
                       description: Description is a human-readable description of
                         the object in the ngrok API/Dashboard
                       type: string
                     metadata:
-                      default: '{"owned-by":"kubernetes-ingress-controller"}'
+                      default: '{"owned-by":"ngrok-operator"}'
                       description: Metadata is a string of arbitrary data associated
                         with the object in the ngrok API/Dashboard
                       type: string
@@ -166,6 +166,13 @@ spec:
                 x-kubernetes-list-type: map
               id:
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               rules:
                 items:
                   properties:

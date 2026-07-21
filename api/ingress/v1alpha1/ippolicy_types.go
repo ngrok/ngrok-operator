@@ -30,10 +30,10 @@ import (
 
 type IPPolicyRule struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`Created by kubernetes-ingress-controller`
+	// +kubebuilder:default:=`Created by ngrok-operator`
 	Description string `json:"description,omitempty"`
 	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`{"owned-by":"kubernetes-ingress-controller"}`
+	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
 	Metadata string `json:"metadata,omitempty"`
 	// +kubebuilder:validation:Required
 	CIDR string `json:"cidr,omitempty"`
@@ -52,10 +52,10 @@ type IPPolicyRuleStatus struct {
 // IPPolicySpec defines the desired state of IPPolicy
 type IPPolicySpec struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`Created by kubernetes-ingress-controller`
+	// +kubebuilder:default:=`Created by ngrok-operator`
 	Description string `json:"description,omitempty"`
 	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
-	// +kubebuilder:default:=`{"owned-by":"kubernetes-ingress-controller"}`
+	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
 	Metadata string `json:"metadata,omitempty"`
 	// Rules is a list of rules that belong to the policy
 	Rules []IPPolicyRule `json:"rules,omitempty"`
@@ -63,6 +63,12 @@ type IPPolicySpec struct {
 
 // IPPolicyStatus defines the observed state of IPPolicy
 type IPPolicyStatus struct {
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	ID string `json:"id,omitempty"`
 
 	// Conditions represent the latest available observations of the IP policy's state
@@ -89,6 +95,11 @@ type IPPolicy struct {
 
 	Spec   IPPolicySpec   `json:"spec,omitempty"`
 	Status IPPolicyStatus `json:"status,omitempty"`
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (p *IPPolicy) SetObservedGeneration(generation int64) {
+	p.Status.ObservedGeneration = generation
 }
 
 // +kubebuilder:object:root=true

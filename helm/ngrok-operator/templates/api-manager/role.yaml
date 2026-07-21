@@ -16,12 +16,8 @@ rules:
   resources:
   - configmaps
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ""
@@ -51,8 +47,6 @@ rules:
   resources:
   - services
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch
@@ -248,7 +242,6 @@ rules:
   resources:
   - ippolicies
   verbs:
-  - create
   - delete
   - get
   - list
@@ -271,10 +264,10 @@ rules:
   - patch
   - update
 # --- bindings.k8s.ngrok.com ---
-# BoundEndpoint is intentionally NOT in this role. The BoundEndpoint controller
-# (binding poller) runs in api-manager and operates cluster-wide regardless of
-# `watchNamespace`, so its rules live in bindings-cluster-role.yaml (gated on
-# `bindings.enabled`).
+# BoundEndpoint rules require a ClusterRole (the binding poller reconciles
+# BoundEndpoints and creates Services in any namespace, independent of
+# `watchNamespace`), so they live in bindings-cluster-role.yaml rather than this
+# watchNamespace-following Role.
 # --- ngrok.k8s.ngrok.com ---
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -339,20 +332,9 @@ rules:
   resources:
   - ngroktrafficpolicies
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - ngroktrafficpolicies/finalizers
-  verbs:
-  - patch
-  - update
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:

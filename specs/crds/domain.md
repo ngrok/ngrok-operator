@@ -38,6 +38,7 @@ The default can be overridden globally via the Helm value `defaultDomainReclaimP
 
 | Field                           | Type                                    | Description                                |
 |---------------------------------|-----------------------------------------|--------------------------------------------|
+| `observedGeneration`            | int64                                   | Generation last reconciled by the controller |
 | `id`                            | string                                  | ngrok domain ID                            |
 | `domain`                        | string                                  | The domain name                            |
 | `resolvesTo`                    | []DomainResolvesToEntry                | Resolved targets                           |

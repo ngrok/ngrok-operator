@@ -43,6 +43,32 @@ Condition type constants must be defined in the API package, not in internal con
 
 The API package must only contain API types and constants. Internal implementation details (controller interfaces, reconciliation helpers, etc.) must not be defined in the API package.
 
+## Status `observedGeneration`
+
+Every CRD status carries a top-level `observedGeneration` field recording the
+`metadata.generation` the controller most recently reconciled.
+
+**Why:** a status field like `Ready=True` is ambiguous on its own — right after a
+user applies a spec change it may still describe the previous generation. External
+tooling (`kubectl wait`, Argo CD health checks, Flux, other controllers composing on
+our CRDs) compares `status.observedGeneration == metadata.generation` to decide
+whether the status reflects the latest spec. It is the standard Kubernetes
+convention for this (Deployments, Gateway API, cert-manager all follow it), and the
+top-level field is where generic tooling looks — per-condition `observedGeneration`
+alone is not enough.
+
+**Rules:**
+
+- Controllers stamp it on every status write for the generation they reconciled.
+  In the implementation this happens centrally (`BaseController.ReconcileStatus` via
+  the `ObservedGenerationSetter` interface), not per-controller.
+- It is an **external contract only**. Controllers must not use it to skip
+  reconciliation or ngrok API calls: `metadata.generation` only changes on spec
+  writes, while ngrok-side state can drift without any generation change (dashboard
+  edits, deletes, cert expiry). Reconciliation stays level-based.
+- Conditions additionally carry their own per-condition `observedGeneration`, set
+  automatically by the shared condition helper.
+
 ## Finalizers
 
 The operator adds the finalizer `ngrok.com/finalizer` to resources it manages. This ensures that:

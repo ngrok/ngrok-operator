@@ -4,7 +4,7 @@ description: "Sets up Nix with caching and puts tools in PATH for use in later s
 runs:
   using: "composite"
   steps:
-  - uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
+  - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
   - uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
   - name: Install direnv
     shell: bash

@@ -97,7 +97,9 @@ expected:
         annotation-key: annotation-val
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-namespace: test-manager-namespace
         label-key: label-val
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
@@ -129,7 +131,9 @@ expected:
         annotation-key: annotation-val
       labels:
         k8s.ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-name: test-manager-name
         k8s.ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/controller-namespace: test-manager-namespace
         label-key: label-val
       name: e3b0c-same-namespace-svc-default-8080
       namespace: default

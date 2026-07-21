@@ -159,7 +159,6 @@ These resources have no namespace and always require a ClusterRole, regardless o
   verbs:
   - get
   - list
-  - update
   - watch
 - apiGroups:
   - networking.k8s.io

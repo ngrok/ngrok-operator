@@ -26,6 +26,7 @@ package ngrok
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -68,13 +69,25 @@ func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	policy := &ngrokv1alpha1.NgrokTrafficPolicy{}
 	if err := r.Get(ctx, req.NamespacedName, policy); err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	parsedTrafficPolicy, err := util.NewTrafficPolicyFromJson(policy.Spec.Policy)
-	if err != nil {
+	prevStatus := *policy.Status.DeepCopy()
+
+	parsedTrafficPolicy, parseErr := util.NewTrafficPolicyFromJson(policy.Spec.Policy)
+	setTrafficPolicyConditions(policy, parsedTrafficPolicy, parseErr)
+	policy.SetObservedGeneration(policy.Generation)
+
+	if !reflect.DeepEqual(prevStatus, policy.Status) {
+		if err := r.Status().Update(ctx, policy); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	if parseErr != nil {
 		r.Recorder.Eventf(policy, nil, v1.EventTypeWarning, EventTrafficPolicyParseFailed, "Validate", "Failed to parse Traffic Policy, possibly malformed.")
-		return ctrl.Result{}, err
+		// A malformed policy will not fix itself; wait for a spec change.
+		return ctrl.Result{}, nil
 	}
 
 	if parsedTrafficPolicy.IsLegacyPolicy() {

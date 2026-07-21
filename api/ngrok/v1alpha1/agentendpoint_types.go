@@ -86,13 +86,13 @@ type EndpointUpstream struct {
 	//
 	// +kubebuilder:validation:Enum=http1;http2
 	// +kubebuilder:validation:Optional
-	Protocol *commonv1alpha1.ApplicationProtocol `json:"protocol"`
+	Protocol *commonv1alpha1.ApplicationProtocol `json:"protocol,omitempty"`
 
 	// Optionally specify the version of proxy protocol to use if the upstream requires it
 	//
 	// +kubebuilder:validation:Enum="1";"2"
 	// +kubebuilder:validation:Optional
-	ProxyProtocolVersion *commonv1alpha1.ProxyProtocolVersion `json:"proxyProtocolVersion"`
+	ProxyProtocolVersion *commonv1alpha1.ProxyProtocolVersion `json:"proxyProtocolVersion,omitempty"`
 }
 
 // AgentEndpointSpec defines the desired state of an AgentEndpoint
@@ -137,11 +137,20 @@ type AgentEndpointSpec struct {
 	// List of Binding IDs to associate with the endpoint
 	// Accepted values are "public", "internal", or "kubernetes"
 	//
+	// The ngrok API currently supports a single binding per endpoint, so this
+	// list is capped at one item. It is a list (rather than a scalar) so that
+	// multiple bindings can be supported in the future without a breaking
+	// schema change.
+	//
 	// +kubebuilder:validation:MaxItems=1
 	// +kubebuilder:validation:items:Pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 
-	// List of client certificates to present to the upstream when performing a TLS handshake
+	// List of references to kubernetes.io/tls Secrets containing the client
+	// certificates to present to the upstream when performing a TLS handshake.
+	// Each Secret must contain the certificate under the `tls.crt` key and its
+	// private key under the `tls.key` key, and must live in the same namespace
+	// as the AgentEndpoint.
 	ClientCertificateRefs []K8sObjectRef `json:"clientCertificateRefs,omitempty"`
 
 	// TLSTermination configures the agent to terminate TLS in-cluster for incoming
@@ -239,6 +248,12 @@ func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {
 
 // AgentEndpointStatus defines the observed state of an AgentEndpoint
 type AgentEndpointStatus struct {
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// The assigned URL. This will either be the user-supplied url, or the generated assigned url
 	// depending on the configuration of spec.url
 	AssignedURL string `json:"assignedURL,omitempty"`
@@ -250,7 +265,7 @@ type AgentEndpointStatus struct {
 	// For internal endpoints, this will be nil.
 	// +kubebuilder:validation:Optional
 	// +nullable
-	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef"`
+	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
 
 	// Conditions describe the current conditions of the AgentEndpoint.
 	//
@@ -288,6 +303,11 @@ func (a *AgentEndpoint) GetConditions() *[]metav1.Condition {
 // GetGeneration returns the generation for AgentEndpoint
 func (a *AgentEndpoint) GetGeneration() int64 {
 	return a.Generation
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (a *AgentEndpoint) SetObservedGeneration(generation int64) {
+	a.Status.ObservedGeneration = generation
 }
 
 // GetDomainRef returns the domain reference for AgentEndpoint
