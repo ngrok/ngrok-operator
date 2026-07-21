@@ -319,8 +319,8 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, 
 				// process from list
 				for _, binding := range remainingBindings {
 					if err := action(ctx, binding); err != nil {
-						name := hashURL(binding.Spec.GetEndpointURL())
-						log.Error(err, "Failed to reconcile BoundEndpoint", "action", actionMsg, "name", name, "url", binding.Spec.GetEndpointURL())
+						name := hashURL(binding.Spec.EndpointURL)
+						log.Error(err, "Failed to reconcile BoundEndpoint", "action", actionMsg, "name", name, "url", binding.Spec.EndpointURL)
 						failedBindings = append(failedBindings, binding)
 					}
 				}
@@ -345,10 +345,10 @@ func (r *BoundEndpointPoller) filterBoundEndpointActions(ctx context.Context, ex
 	log.V(9).Info("Filtering BoundEndpoints", "existing", existingBoundEndpoints, "desired", desiredEndpoints)
 
 	for _, existingBoundEndpoint := range existingBoundEndpoints {
-		endpointURL := existingBoundEndpoint.Spec.GetEndpointURL()
+		endpointURL := existingBoundEndpoint.Spec.EndpointURL
 
 		if desiredBoundEndpoint, ok := desiredEndpoints[endpointURL]; ok {
-			expectedName := hashURL(desiredBoundEndpoint.Spec.GetEndpointURL())
+			expectedName := hashURL(desiredBoundEndpoint.Spec.EndpointURL)
 
 			// if the names match, then they are the same resource and we can update it
 			if existingBoundEndpoint.Name == expectedName {
@@ -383,12 +383,12 @@ func (r *BoundEndpointPoller) filterBoundEndpointActions(ctx context.Context, ex
 func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	name := hashURL(desired.Spec.GetEndpointURL())
+	name := hashURL(desired.Spec.EndpointURL)
 
 	// allocate a port
 	port, err := r.portAllocator.SetAny()
 	if err != nil {
-		r.Log.Error(err, "Failed to allocate port for BoundEndpoint", "name", name, "url", desired.Spec.GetEndpointURL())
+		r.Log.Error(err, "Failed to allocate port for BoundEndpoint", "name", name, "url", desired.Spec.EndpointURL)
 		return err
 	}
 
@@ -402,7 +402,7 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 			Namespace: r.Namespace,
 		},
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
-			EndpointURL: desired.Spec.GetEndpointURL(),
+			EndpointURL: desired.Spec.EndpointURL,
 			Scheme:      desired.Spec.Scheme,
 			Port:        port,
 			Target: bindingsv1alpha1.EndpointTarget{
@@ -418,15 +418,15 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 		},
 	}
 
-	log.Info("Creating new BoundEndpoint", "name", name, "url", toCreate.Spec.GetEndpointURL())
+	log.Info("Creating new BoundEndpoint", "name", name, "url", toCreate.Spec.EndpointURL)
 	if err := r.Create(ctx, toCreate); err != nil {
 		if client.IgnoreAlreadyExists(err) != nil {
-			log.Error(err, "Failed to create BoundEndpoint", "name", name, "url", toCreate.Spec.GetEndpointURL())
+			log.Error(err, "Failed to create BoundEndpoint", "name", name, "url", toCreate.Spec.EndpointURL)
 			r.Recorder.Eventf(toCreate, nil, v1.EventTypeWarning, "Created", "Create", fmt.Sprintf("Failed to create BoundEndpoint: %v", err))
 			return err
 		}
 
-		log.Info("BoundEndpoint already exists, skipping create...", "name", name, "url", toCreate.Spec.GetEndpointURL())
+		log.Info("BoundEndpoint already exists, skipping create...", "name", name, "url", toCreate.Spec.EndpointURL)
 
 		if toCreate.Status.HashedName != "" && len(toCreate.Status.Endpoints) > 0 {
 			// Status is filled, no need to update
@@ -434,10 +434,10 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 		}
 
 		// intentionally fall through and fill in status
-		log.Info("BoundEndpoint already exists, but status is empty, filling in status...", "name", name, "url", toCreate.Spec.GetEndpointURL(), "toCreate", toCreate)
+		log.Info("BoundEndpoint already exists, but status is empty, filling in status...", "name", name, "url", toCreate.Spec.EndpointURL, "toCreate", toCreate)
 
 		if err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: name}, toCreate); err != nil {
-			log.Error(err, "Failed to get existing BoundEndpoint, skipping status update...", "name", name, "url", toCreate.Spec.GetEndpointURL())
+			log.Error(err, "Failed to get existing BoundEndpoint, skipping status update...", "name", name, "url", toCreate.Spec.EndpointURL)
 			return nil
 		}
 	}
@@ -472,7 +472,7 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	desiredName := hashURL(desired.Spec.GetEndpointURL())
+	desiredName := hashURL(desired.Spec.EndpointURL)
 
 	// Attach the metadata fields to the desired boundendpoint
 	desired.Spec.Target.Metadata.Annotations = r.TargetServiceAnnotations
@@ -483,16 +483,16 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// BoundEndpoint doesn't exist, create it on the next polling loop
-			log.Info("Unable to find existing BoundEndpoint, skipping update...", "name", desiredName, "url", desired.Spec.GetEndpointURL())
+			log.Info("Unable to find existing BoundEndpoint, skipping update...", "name", desiredName, "url", desired.Spec.EndpointURL)
 			return nil // not an error
 		}
 		// real error
-		log.Error(err, "Failed to find existing BoundEndpoint", "name", desiredName, "url", desired.Spec.GetEndpointURL())
+		log.Error(err, "Failed to find existing BoundEndpoint", "name", desiredName, "url", desired.Spec.EndpointURL)
 		return err
 	}
 
 	if !boundEndpointNeedsUpdate(ctx, *existing, desired) {
-		log.Info("BoundEndpoint already matches existing state, skipping update...", "name", desiredName, "url", desired.Spec.GetEndpointURL())
+		log.Info("BoundEndpoint already matches existing state, skipping update...", "name", desiredName, "url", desired.Spec.EndpointURL)
 		return nil
 	}
 
@@ -502,11 +502,11 @@ func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired binding
 	toUpdate.Spec.Port = existing.Spec.Port // keep the same port
 	toUpdate.Spec.Scheme = desired.Spec.Scheme
 	toUpdate.Spec.Target = desired.Spec.Target
-	toUpdate.Spec.EndpointURL = desired.Spec.GetEndpointURL()
+	toUpdate.Spec.EndpointURL = desired.Spec.EndpointURL
 
-	log.Info("Updating BoundEndpoint", "name", toUpdate.Name, "url", toUpdate.Spec.GetEndpointURL())
+	log.Info("Updating BoundEndpoint", "name", toUpdate.Name, "url", toUpdate.Spec.EndpointURL)
 	if err := r.Update(ctx, toUpdate); err != nil {
-		log.Error(err, "Failed updating BoundEndpoint", "name", toUpdate.Name, "url", toUpdate.Spec.GetEndpointURL())
+		log.Error(err, "Failed updating BoundEndpoint", "name", toUpdate.Name, "url", toUpdate.Spec.EndpointURL)
 		r.Recorder.Eventf(toUpdate, nil, v1.EventTypeWarning, "Updated", "Update", fmt.Sprintf("Failed to update BoundEndpoint: %v", err))
 		return err
 	}
@@ -542,10 +542,10 @@ func (r *BoundEndpointPoller) deleteBinding(ctx context.Context, boundEndpoint b
 	log := ctrl.LoggerFrom(ctx)
 
 	if err := r.Delete(ctx, &boundEndpoint); err != nil {
-		log.Error(err, "Failed to delete BoundEndpoint", "name", boundEndpoint.Name, "url", boundEndpoint.Spec.GetEndpointURL())
+		log.Error(err, "Failed to delete BoundEndpoint", "name", boundEndpoint.Name, "url", boundEndpoint.Spec.EndpointURL)
 		return err
 	}
-	log.Info("Deleted BoundEndpoint", "name", boundEndpoint.Name, "url", boundEndpoint.Spec.GetEndpointURL())
+	log.Info("Deleted BoundEndpoint", "name", boundEndpoint.Name, "url", boundEndpoint.Spec.EndpointURL)
 
 	// unset the port allocation
 	if err := r.portAllocator.Unset(boundEndpoint.Spec.Port); err != nil {
@@ -582,11 +582,11 @@ func (r *BoundEndpointPoller) updateBindingStatus(ctx context.Context, desired *
 	current.Status.HashedName = desired.Status.HashedName
 
 	if err := r.Status().Update(ctx, current); err != nil {
-		log.Error(err, "Failed to update BoundEndpoint status", "name", current.Name, "uri", current.Spec.GetEndpointURL())
+		log.Error(err, "Failed to update BoundEndpoint status", "name", current.Name, "url", current.Spec.EndpointURL)
 		return err
 	}
 
-	log.Info("Updated BoundEndpoint status", "name", current.Name, "uri", current.Spec.GetEndpointURL())
+	log.Info("Updated BoundEndpoint status", "name", current.Name, "url", current.Spec.EndpointURL)
 	return nil
 }
 
@@ -612,7 +612,7 @@ func boundEndpointNeedsUpdate(ctx context.Context, existing bindingsv1alpha1.Bou
 		existing.Spec.Target.Protocol != desired.Spec.Target.Protocol ||
 		existing.Spec.Target.Service != desired.Spec.Target.Service ||
 		existing.Spec.Target.Namespace != desired.Spec.Target.Namespace ||
-		existing.Spec.GetEndpointURL() != desired.Spec.GetEndpointURL() ||
+		existing.Spec.EndpointURL != desired.Spec.EndpointURL ||
 		!targetMetadataIsEqual(existing.Spec.Target.Metadata, desired.Spec.Target.Metadata)
 
 	if hasSpecChanged {

@@ -27,6 +27,12 @@ Steps:
 3. Migrate your manifests to use `apiVersion: ngrok.com/v1` at your own pace.
 4. Once all manifests are updated, the old API group aliases can be removed in a future release.
 
+## Breaking Field Removals
+
+| Resource      | Removed field       | Replacement         | Notes |
+|---------------|---------------------|---------------------|-------|
+| BoundEndpoint | `spec.endpointURI`  | `spec.endpointURL`  | `endpointURL` is now required. `endpointURI` was deprecated in favor of `endpointURL` (same format) and the dual-read fallback has been removed. BoundEndpoints are created by the operator's poller, which has written `endpointURL` since the rename, so user action is only needed for manually created resources. |
+
 ## Removal Timeline
 
 Support for the `v1alpha1` API groups will be removed in a future minor release after v1. The exact version will be announced in the release notes. After removal, manifests still using the old API groups will stop being accepted by the API server.

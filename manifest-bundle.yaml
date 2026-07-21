@@ -119,11 +119,6 @@ spec:
           spec:
             description: BoundEndpointSpec defines the desired state of BoundEndpoint
             properties:
-              endpointURI:
-                description: 'Deprecated: Use EndpointURL instead. Will be removed
-                  in a future release.'
-                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$
-                type: string
               endpointURL:
                 description: |-
                   EndpointURL is the unique identifier
@@ -201,12 +196,22 @@ spec:
                 - service
                 type: object
             required:
+            - endpointURL
             - port
             - scheme
             - target
             type: object
           status:
-            description: BoundEndpointStatus defines the observed state of BoundEndpoint
+            description: |-
+              BoundEndpointStatus defines the observed state of BoundEndpoint
+
+              Status fields have split ownership between two writers:
+                - The BoundEndpoint controller owns Conditions, TargetServiceRef, and
+                  UpstreamServiceRef (set while reconciling the projected Services), as
+                  well as ObservedGeneration.
+                - The BoundEndpoint poller owns Endpoints, EndpointsSummary, and
+                  HashedName (set from the ngrok API when syncing the desired set of
+                  BoundEndpoints).
             properties:
               conditions:
                 description: Conditions represent the latest available observations
@@ -294,8 +299,8 @@ spec:
                   Examples: "1 endpoint", "2 endpoints"
                 type: string
               hashedName:
-                description: HashName is the hashed output of the TargetService and
-                  TargetNamespace for unique identification
+                description: HashedName is the hashed output of the TargetService
+                  and TargetNamespace for unique identification
                 type: string
               observedGeneration:
                 description: |-
@@ -902,14 +907,23 @@ spec:
                 description: |-
                   List of Binding IDs to associate with the endpoint
                   Accepted values are "public", "internal", or "kubernetes"
+
+                  The ngrok API currently supports a single binding per endpoint, so this
+                  list is capped at one item. It is a list (rather than a scalar) so that
+                  multiple bindings can be supported in the future without a breaking
+                  schema change.
                 items:
                   pattern: ^(public|internal|kubernetes)$
                   type: string
                 maxItems: 1
                 type: array
               clientCertificateRefs:
-                description: List of client certificates to present to the upstream
-                  when performing a TLS handshake
+                description: |-
+                  List of references to kubernetes.io/tls Secrets containing the client
+                  certificates to present to the upstream when performing a TLS handshake.
+                  Each Secret must contain the certificate under the `tls.crt` key and its
+                  private key under the `tls.key` key, and must live in the same namespace
+                  as the AgentEndpoint.
                 items:
                   description: K8sObjectRef defines a reference to a Kubernetes Object
                   properties:
@@ -1264,6 +1278,11 @@ spec:
                 description: |-
                   Bindings is the list of Binding IDs to associate with the endpoint
                   Accepted values are "public", "internal", or "kubernetes"
+
+                  The ngrok API currently supports a single binding per endpoint, so this
+                  list is capped at one item. It is a list (rather than a scalar) so that
+                  multiple bindings can be supported in the future without a breaking
+                  schema change.
                 items:
                   pattern: ^(public|internal|kubernetes)$
                   type: string
@@ -1324,6 +1343,11 @@ spec:
           status:
             description: CloudEndpointStatus defines the observed state of CloudEndpoint
             properties:
+              assignedURL:
+                description: |-
+                  The assigned URL. This will either be the user-supplied url, or the generated assigned url
+                  depending on the configuration of spec.url
+                type: string
               conditions:
                 description: Conditions describe the current conditions of the CloudEndpoint.
                 items:

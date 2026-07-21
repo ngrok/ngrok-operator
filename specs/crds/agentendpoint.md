@@ -21,7 +21,7 @@
 | `description`           | string                            | No       | `"Created by the ngrok-operator"`      |                                       |
 | `metadata`              | map[string]string                 | No       | `{"owned-by": "ngrok-operator"}`      |                                       |
 | `bindings`              | []string                          | No       |                                        | MaxItems: 1, Pattern: `^(public\|internal\|kubernetes)$` |
-| `clientCertificateRefs` | []K8sObjectRef                    | No       |                                        | Client certificates presented to the upstream during the TLS handshake |
+| `clientCertificateRefs` | []K8sObjectRef                    | No       |                                        | References to `kubernetes.io/tls` Secrets (`tls.crt` + `tls.key`) presented to the upstream during the TLS handshake. Must be in the same namespace as the AgentEndpoint. |
 | `tlsTermination`        | EndpointTLSTermination            | No       |                                        | XValidation: `spec.url` must be a `tls://` URL when set |
 
 ### EndpointUpstream

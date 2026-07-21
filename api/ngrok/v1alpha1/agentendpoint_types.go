@@ -137,11 +137,20 @@ type AgentEndpointSpec struct {
 	// List of Binding IDs to associate with the endpoint
 	// Accepted values are "public", "internal", or "kubernetes"
 	//
+	// The ngrok API currently supports a single binding per endpoint, so this
+	// list is capped at one item. It is a list (rather than a scalar) so that
+	// multiple bindings can be supported in the future without a breaking
+	// schema change.
+	//
 	// +kubebuilder:validation:MaxItems=1
 	// +kubebuilder:validation:items:Pattern=`^(public|internal|kubernetes)$`
 	Bindings []string `json:"bindings,omitempty"`
 
-	// List of client certificates to present to the upstream when performing a TLS handshake
+	// List of references to kubernetes.io/tls Secrets containing the client
+	// certificates to present to the upstream when performing a TLS handshake.
+	// Each Secret must contain the certificate under the `tls.crt` key and its
+	// private key under the `tls.key` key, and must live in the same namespace
+	// as the AgentEndpoint.
 	ClientCertificateRefs []K8sObjectRef `json:"clientCertificateRefs,omitempty"`
 
 	// TLSTermination configures the agent to terminate TLS in-cluster for incoming

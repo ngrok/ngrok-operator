@@ -67,11 +67,6 @@ spec:
           spec:
             description: BoundEndpointSpec defines the desired state of BoundEndpoint
             properties:
-              endpointURI:
-                description: 'Deprecated: Use EndpointURL instead. Will be removed
-                  in a future release.'
-                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$
-                type: string
               endpointURL:
                 description: |-
                   EndpointURL is the unique identifier
@@ -149,12 +144,22 @@ spec:
                 - service
                 type: object
             required:
+            - endpointURL
             - port
             - scheme
             - target
             type: object
           status:
-            description: BoundEndpointStatus defines the observed state of BoundEndpoint
+            description: |-
+              BoundEndpointStatus defines the observed state of BoundEndpoint
+
+              Status fields have split ownership between two writers:
+                - The BoundEndpoint controller owns Conditions, TargetServiceRef, and
+                  UpstreamServiceRef (set while reconciling the projected Services), as
+                  well as ObservedGeneration.
+                - The BoundEndpoint poller owns Endpoints, EndpointsSummary, and
+                  HashedName (set from the ngrok API when syncing the desired set of
+                  BoundEndpoints).
             properties:
               conditions:
                 description: Conditions represent the latest available observations
@@ -242,8 +247,8 @@ spec:
                   Examples: "1 endpoint", "2 endpoints"
                 type: string
               hashedName:
-                description: HashName is the hashed output of the TargetService and
-                  TargetNamespace for unique identification
+                description: HashedName is the hashed output of the TargetService
+                  and TargetNamespace for unique identification
                 type: string
               observedGeneration:
                 description: |-

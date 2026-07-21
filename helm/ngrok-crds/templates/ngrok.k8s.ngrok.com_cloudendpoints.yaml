@@ -72,6 +72,11 @@ spec:
                 description: |-
                   Bindings is the list of Binding IDs to associate with the endpoint
                   Accepted values are "public", "internal", or "kubernetes"
+
+                  The ngrok API currently supports a single binding per endpoint, so this
+                  list is capped at one item. It is a list (rather than a scalar) so that
+                  multiple bindings can be supported in the future without a breaking
+                  schema change.
                 items:
                   pattern: ^(public|internal|kubernetes)$
                   type: string
@@ -132,6 +137,11 @@ spec:
           status:
             description: CloudEndpointStatus defines the observed state of CloudEndpoint
             properties:
+              assignedURL:
+                description: |-
+                  The assigned URL. This will either be the user-supplied url, or the generated assigned url
+                  depending on the configuration of spec.url
+                type: string
               conditions:
                 description: Conditions describe the current conditions of the CloudEndpoint.
                 items:
