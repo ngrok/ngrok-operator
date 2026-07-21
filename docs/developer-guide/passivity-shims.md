@@ -416,10 +416,11 @@ operator only reads spec, so there is nothing to dual-write.
   brand-new in 0.24, so the break window is small; still noted in the
   user-facing migration guide.
 
-### Note: `BoundEndpoint.spec.endpointURI` → `endpointURL`
+### Note: `BoundEndpoint.spec.endpointURI` → `endpointURL` (removed)
 
-This earlier field rename (#779) predates the `LEGACY-FIELD-MIGRATION`
-marker. It follows the same shape — a `Deprecated` `EndpointURI` field plus
-a `GetEndpointURL()` dual-read helper — but is not marked with a sentinel.
-Its removal is tracked in K8SOP-276; when doing that cleanup, delete
-`EndpointURI` and collapse `GetEndpointURL`.
+This earlier field rename (#779) predated the `LEGACY-FIELD-MIGRATION`
+marker. It followed the same shape — a `Deprecated` `EndpointURI` field plus
+a `GetEndpointURL()` dual-read helper — but was not marked with a sentinel.
+The cleanup landed via K8SOP-276: `EndpointURI` is deleted, `GetEndpointURL`
+is collapsed to direct `EndpointURL` reads, and `endpointURL` is now
+required.

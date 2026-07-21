@@ -63,6 +63,12 @@ type IPPolicySpec struct {
 
 // IPPolicyStatus defines the observed state of IPPolicy
 type IPPolicyStatus struct {
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	ID string `json:"id,omitempty"`
 
 	// Conditions represent the latest available observations of the IP policy's state
@@ -89,6 +95,11 @@ type IPPolicy struct {
 
 	Spec   IPPolicySpec   `json:"spec,omitempty"`
 	Status IPPolicyStatus `json:"status,omitempty"`
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (p *IPPolicy) SetObservedGeneration(generation int64) {
+	p.Status.ObservedGeneration = generation
 }
 
 // +kubebuilder:object:root=true

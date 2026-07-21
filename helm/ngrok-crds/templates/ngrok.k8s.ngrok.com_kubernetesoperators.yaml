@@ -180,6 +180,13 @@ spec:
               id:
                 description: ID is the unique identifier for this Kubernetes Operator
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               registrationErrorCode:
                 description: RegistrationErrorCode is the returned ngrok error code
                 pattern: ^ERR_NGROK_\d+$

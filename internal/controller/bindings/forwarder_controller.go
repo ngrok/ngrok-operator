@@ -166,7 +166,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		return errors.New("operator binding configuration does not have an ingress endpoint")
 	}
 
-	endpointURL, err := url.Parse(epb.Spec.GetEndpointURL())
+	endpointURL, err := url.Parse(epb.Spec.EndpointURL)
 	if err != nil {
 		return err
 	}

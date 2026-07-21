@@ -38,7 +38,6 @@ rules:
   - kubernetesoperators
   verbs:
   - create
-  - delete
   - get
   - list
   - patch

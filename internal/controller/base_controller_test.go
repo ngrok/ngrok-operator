@@ -32,6 +32,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -296,6 +297,60 @@ func TestBaseController_Reconcile_Delete_NotFound(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, ctrl.Result{}, result)
+}
+
+func TestBaseController_ReconcileStatus_SetsObservedGeneration(t *testing.T) {
+	ctx := context.Background()
+	s := runtime.NewScheme()
+	require.NoError(t, ingressv1alpha1.AddToScheme(s))
+
+	domain := &ingressv1alpha1.Domain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-domain",
+			Namespace:  "default",
+			Generation: 3,
+		},
+	}
+
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(domain).WithStatusSubresource(domain).Build()
+
+	bc := &BaseController[*ingressv1alpha1.Domain]{
+		Kube:     c,
+		Log:      logr.Discard(),
+		Recorder: events.NewFakeRecorder(10),
+	}
+
+	require.NoError(t, bc.ReconcileStatus(ctx, domain, nil))
+
+	updated := &ingressv1alpha1.Domain{}
+	require.NoError(t, c.Get(ctx, types.NamespacedName{Name: "test-domain", Namespace: "default"}, updated))
+	assert.Equal(t, int64(3), updated.Status.ObservedGeneration)
+}
+
+func TestBaseController_ReconcileStatus_NoObservedGenerationSetter(t *testing.T) {
+	// netv1.Ingress does not implement ObservedGenerationSetter; ReconcileStatus
+	// must still update the status without stamping anything.
+	ctx := context.Background()
+	s := runtime.NewScheme()
+	require.NoError(t, scheme.AddToScheme(s))
+
+	ingress := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-ingress",
+			Namespace:  "default",
+			Generation: 2,
+		},
+	}
+
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).WithStatusSubresource(ingress).Build()
+
+	bc := &BaseController[*netv1.Ingress]{
+		Kube:     c,
+		Log:      logr.Discard(),
+		Recorder: events.NewFakeRecorder(10),
+	}
+
+	assert.NoError(t, bc.ReconcileStatus(ctx, ingress, nil))
 }
 
 func TestCtrlResultForErr(t *testing.T) {

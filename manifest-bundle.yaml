@@ -119,11 +119,6 @@ spec:
           spec:
             description: BoundEndpointSpec defines the desired state of BoundEndpoint
             properties:
-              endpointURI:
-                description: 'Deprecated: Use EndpointURL instead. Will be removed
-                  in a future release.'
-                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$
-                type: string
               endpointURL:
                 description: |-
                   EndpointURL is the unique identifier
@@ -201,12 +196,22 @@ spec:
                 - service
                 type: object
             required:
+            - endpointURL
             - port
             - scheme
             - target
             type: object
           status:
-            description: BoundEndpointStatus defines the observed state of BoundEndpoint
+            description: |-
+              BoundEndpointStatus defines the observed state of BoundEndpoint
+
+              Status fields have split ownership between two writers:
+                - The BoundEndpoint controller owns Conditions, TargetServiceRef, and
+                  UpstreamServiceRef (set while reconciling the projected Services), as
+                  well as ObservedGeneration.
+                - The BoundEndpoint poller owns Endpoints, EndpointsSummary, and
+                  HashedName (set from the ngrok API when syncing the desired set of
+                  BoundEndpoints).
             properties:
               conditions:
                 description: Conditions represent the latest available observations
@@ -294,9 +299,16 @@ spec:
                   Examples: "1 endpoint", "2 endpoints"
                 type: string
               hashedName:
-                description: HashName is the hashed output of the TargetService and
-                  TargetNamespace for unique identification
+                description: HashedName is the hashed output of the TargetService
+                  and TargetNamespace for unique identification
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               targetServiceRef:
                 description: TargetServiceRef references the created ExternalName
                   Service in the target namespace
@@ -598,6 +610,13 @@ spec:
               id:
                 description: ID is the unique identifier of the domain
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               region:
                 description: Region is the region in which the domain was created
                 type: string
@@ -791,6 +810,13 @@ spec:
                 x-kubernetes-list-type: map
               id:
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               rules:
                 items:
                   properties:
@@ -881,14 +907,23 @@ spec:
                 description: |-
                   List of Binding IDs to associate with the endpoint
                   Accepted values are "public", "internal", or "kubernetes"
+
+                  The ngrok API currently supports a single binding per endpoint, so this
+                  list is capped at one item. It is a list (rather than a scalar) so that
+                  multiple bindings can be supported in the future without a breaking
+                  schema change.
                 items:
                   pattern: ^(public|internal|kubernetes)$
                   type: string
                 maxItems: 1
                 type: array
               clientCertificateRefs:
-                description: List of client certificates to present to the upstream
-                  when performing a TLS handshake
+                description: |-
+                  List of references to kubernetes.io/tls Secrets containing the client
+                  certificates to present to the upstream when performing a TLS handshake.
+                  Each Secret must contain the certificate under the `tls.crt` key and its
+                  private key under the `tls.key` key, and must live in the same namespace
+                  as the AgentEndpoint.
                 items:
                   description: K8sObjectRef defines a reference to a Kubernetes Object
                   properties:
@@ -1150,6 +1185,13 @@ spec:
                 required:
                 - name
                 type: object
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               trafficPolicy:
                 description: Identifies any traffic policies attached to the AgentEndpoint
                   ("inline", "none", or reference name).
@@ -1236,6 +1278,11 @@ spec:
                 description: |-
                   Bindings is the list of Binding IDs to associate with the endpoint
                   Accepted values are "public", "internal", or "kubernetes"
+
+                  The ngrok API currently supports a single binding per endpoint, so this
+                  list is capped at one item. It is a list (rather than a scalar) so that
+                  multiple bindings can be supported in the future without a breaking
+                  schema change.
                 items:
                   pattern: ^(public|internal|kubernetes)$
                   type: string
@@ -1261,8 +1308,13 @@ spec:
                 description: Allows inline definition of a TrafficPolicy object
                 properties:
                   policy:
-                    description: The raw json encoded policy that was applied to the
-                      ngrok API
+                    description: |-
+                      The raw json encoded policy that was applied to the ngrok API.
+                      Intentionally schemaless: the traffic policy language is defined and
+                      versioned by the ngrok API, so validating its shape here would break
+                      whenever new phases, actions, or fields ship server-side. The policy is
+                      parsed at reconcile time and the result is reported via the Ready/Valid
+                      conditions.
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
                 type: object
@@ -1291,6 +1343,11 @@ spec:
           status:
             description: CloudEndpointStatus defines the observed state of CloudEndpoint
             properties:
+              assignedURL:
+                description: |-
+                  The assigned URL. This will either be the user-supplied url, or the generated assigned url
+                  depending on the configuration of spec.url
+                type: string
               conditions:
                 description: Conditions describe the current conditions of the CloudEndpoint.
                 items:
@@ -1370,6 +1427,13 @@ spec:
               id:
                 description: ID is the unique identifier for this endpoint
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
             type: object
         type: object
     served: true
@@ -1560,6 +1624,13 @@ spec:
               id:
                 description: ID is the unique identifier for this Kubernetes Operator
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
               registrationErrorCode:
                 description: RegistrationErrorCode is the returned ngrok error code
                 pattern: ^ERR_NGROK_\d+$
@@ -1600,7 +1671,18 @@ spec:
     singular: ngroktrafficpolicy
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].reason
+      name: Reason
+      priority: 1
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies
@@ -1627,19 +1709,87 @@ spec:
             description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
             properties:
               policy:
-                description: The raw json encoded policy that was applied to the ngrok
-                  API
+                description: |-
+                  The raw json encoded policy that was applied to the ngrok API.
+                  Intentionally schemaless: the traffic policy language is defined and
+                  versioned by the ngrok API, so validating its shape here would break
+                  whenever new phases, actions, or fields ship server-side. The policy is
+                  parsed at reconcile time and the result is reported via the Ready/Valid
+                  conditions.
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
             type: object
           status:
             description: NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
             properties:
-              policy:
-                description: The raw json encoded policy that was applied to the ngrok
-                  API
-                type: object
-                x-kubernetes-preserve-unknown-fields: true
+              conditions:
+                description: Conditions describe the current conditions of the NgrokTrafficPolicy.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                maxItems: 8
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
             type: object
         type: object
     served: true
@@ -1815,12 +1965,8 @@ rules:
   resources:
   - configmaps
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ""
@@ -1850,8 +1996,6 @@ rules:
   resources:
   - services
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch
@@ -2047,7 +2191,6 @@ rules:
   resources:
   - ippolicies
   verbs:
-  - create
   - delete
   - get
   - list
@@ -2070,10 +2213,10 @@ rules:
   - patch
   - update
 # --- bindings.k8s.ngrok.com ---
-# BoundEndpoint is intentionally NOT in this role. The BoundEndpoint controller
-# (binding poller) runs in api-manager and operates cluster-wide regardless of
-# `watchNamespace`, so its rules live in bindings-cluster-role.yaml (gated on
-# `bindings.enabled`).
+# BoundEndpoint rules require a ClusterRole (the binding poller reconciles
+# BoundEndpoints and creates Services in any namespace, independent of
+# `watchNamespace`), so they live in bindings-cluster-role.yaml rather than this
+# watchNamespace-following Role.
 # --- ngrok.k8s.ngrok.com ---
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -2138,20 +2281,9 @@ rules:
   resources:
   - ngroktrafficpolicies
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
-- apiGroups:
-  - ngrok.k8s.ngrok.com
-  resources:
-  - ngroktrafficpolicies/finalizers
-  verbs:
-  - patch
-  - update
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -2168,7 +2300,6 @@ rules:
   verbs:
   - get
   - list
-  - update
   - watch
 - apiGroups:
   - networking.k8s.io
@@ -2802,7 +2933,6 @@ rules:
   - kubernetesoperators
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
@@ -2993,7 +3123,7 @@ metadata:
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: f40b5f0c128c0618a357d8547b09cbdb40218194f924dbab8e402e98c8d87de7
+    checksum/controller-role: a5feb00a9d952701b7df9be2e793e7fad0b3b9fc71a1dab956d3637b293da537
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -3008,7 +3138,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: f40b5f0c128c0618a357d8547b09cbdb40218194f924dbab8e402e98c8d87de7
+        checksum/controller-role: a5feb00a9d952701b7df9be2e793e7fad0b3b9fc71a1dab956d3637b293da537
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:

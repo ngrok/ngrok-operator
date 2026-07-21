@@ -39,15 +39,10 @@ type BoundEndpointSpec struct {
 	// representing the BoundEndpoint + its Endpoints
 	// Format: <scheme>://<service>.<namespace>:<port>
 	//
-	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Required
 	// See: https://regex101.com/r/9QkXWl/1
 	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$`
-	EndpointURL string `json:"endpointURL,omitempty"`
-
-	// Deprecated: Use EndpointURL instead. Will be removed in a future release.
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$`
-	EndpointURI string `json:"endpointURI,omitempty"`
+	EndpointURL string `json:"endpointURL"`
 
 	// Scheme is a user-defined field for endpoints that describe how the data packets
 	// are framed by the pod forwarders mTLS connection to the ngrok edge
@@ -65,27 +60,23 @@ type BoundEndpointSpec struct {
 	Target EndpointTarget `json:"target"`
 }
 
-// GetEndpointURL returns EndpointURL if set, falling back to the deprecated EndpointURI field.
-func (s *BoundEndpointSpec) GetEndpointURL() string {
-	if s.EndpointURL != "" {
-		return s.EndpointURL
-	}
-	return s.EndpointURI
-}
-
 // BoundEndpointStatus defines the observed state of BoundEndpoint
+//
+// Status fields have split ownership between two writers:
+//   - The BoundEndpoint controller owns Conditions, TargetServiceRef, and
+//     UpstreamServiceRef (set while reconciling the projected Services), as
+//     well as ObservedGeneration.
+//   - The BoundEndpoint poller owns Endpoints, EndpointsSummary, and
+//     HashedName (set from the ngrok API when syncing the desired set of
+//     BoundEndpoints).
 type BoundEndpointStatus struct {
-	// Endpoints is the list of ngrok API endpoint references bound to this BoundEndpoint
-	// All endpoints share the same underlying Kubernetes services
-	Endpoints []BindingEndpoint `json:"endpoints,omitempty"`
+	// Fields owned by the BoundEndpoint controller:
 
-	// HashName is the hashed output of the TargetService and TargetNamespace for unique identification
-	HashedName string `json:"hashedName,omitempty"`
-
-	// EndpointsSummary provides a human-readable count of bound endpoints
-	// Format: "N endpoint" or "N endpoints"
-	// Examples: "1 endpoint", "2 endpoints"
-	EndpointsSummary string `json:"endpointsSummary,omitempty"`
+	// ObservedGeneration is the most recent metadata.generation observed by the
+	// controller. When it matches metadata.generation, the status reflects the
+	// latest spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// Conditions represent the latest available observations of the BoundEndpoint's state
 	// +listType=map
@@ -98,6 +89,20 @@ type BoundEndpointStatus struct {
 
 	// UpstreamServiceRef references the created ClusterIP Service pointing to pod forwarders
 	UpstreamServiceRef *ngrokv1alpha1.K8sObjectRef `json:"upstreamServiceRef,omitempty"`
+
+	// Fields owned by the BoundEndpoint poller:
+
+	// Endpoints is the list of ngrok API endpoint references bound to this BoundEndpoint
+	// All endpoints share the same underlying Kubernetes services
+	Endpoints []BindingEndpoint `json:"endpoints,omitempty"`
+
+	// HashedName is the hashed output of the TargetService and TargetNamespace for unique identification
+	HashedName string `json:"hashedName,omitempty"`
+
+	// EndpointsSummary provides a human-readable count of bound endpoints
+	// Format: "N endpoint" or "N endpoints"
+	// Examples: "1 endpoint", "2 endpoints"
+	EndpointsSummary string `json:"endpointsSummary,omitempty"`
 }
 
 // EndpointTarget hold the data for the projected Service that binds the endpoint to the k8s cluster resource
@@ -165,6 +170,11 @@ type BoundEndpoint struct {
 
 	Spec   BoundEndpointSpec   `json:"spec,omitempty"`
 	Status BoundEndpointStatus `json:"status,omitempty"`
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (b *BoundEndpoint) SetObservedGeneration(generation int64) {
+	b.Status.ObservedGeneration = generation
 }
 
 // +kubebuilder:object:root=true

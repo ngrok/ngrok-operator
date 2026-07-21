@@ -243,21 +243,19 @@ kind-aware — a stray legacy key that does nothing on that resource kind is
 still flagged; deleting it is as valid as renaming it. For a complete
 point-in-time inventory, audit directly:
 
-```sh
-# Ingresses, Gateways, and Services with legacy-prefixed annotations
-for kind in ingress gateway service; do
-  kubectl get "$kind" -A -o json | jq -r --arg k "$kind" \
-    '.items[] | select((.metadata.annotations // {}) | keys | any(startswith("k8s.ngrok.com/"))) | "\($k) \(.metadata.namespace)/\(.metadata.name)"'
-done
+    # Ingresses, Gateways, and Services with legacy-prefixed annotations
+    for kind in ingress gateway service; do
+      kubectl get "$kind" -A -o json | jq -r --arg k "$kind" \
+        '.items[] | select((.metadata.annotations // {}) | keys | any(startswith("k8s.ngrok.com/"))) | "\($k) \(.metadata.namespace)/\(.metadata.name)"'
+    done
 
-# Gateway listeners with legacy TLS option keys
-kubectl get gateway -A -o json | jq -r \
-  '.items[] | select([.spec.listeners[]?.tls.options // {} | keys[]] | any(startswith("k8s.ngrok.com/"))) | "gateway \(.metadata.namespace)/\(.metadata.name)"'
+    # Gateway listeners with legacy TLS option keys
+    kubectl get gateway -A -o json | jq -r \
+      '.items[] | select([.spec.listeners[]?.tls.options // {} | keys[]] | any(startswith("k8s.ngrok.com/"))) | "gateway \(.metadata.namespace)/\(.metadata.name)"'
 
-# Service ports with the legacy appProtocol value
-kubectl get service -A -o json | jq -r \
-  '.items[] | select([.spec.ports[]?.appProtocol] | any(. == "k8s.ngrok.com/http2")) | "service \(.metadata.namespace)/\(.metadata.name)"'
-```
+    # Service ports with the legacy appProtocol value
+    kubectl get service -A -o json | jq -r \
+      '.items[] | select([.spec.ports[]?.appProtocol] | any(. == "k8s.ngrok.com/http2")) | "service \(.metadata.namespace)/\(.metadata.name)"'
 
 > **Exceptions (no events):**
 >
@@ -270,10 +268,8 @@ kubectl get service -A -o json | jq -r \
 >   produce no events or logs (they are read per connection on a hot path).
 >   Audit for them directly:
 >
->   ```sh
->   kubectl get pods -A -o json | jq -r \
->     '.items[] | select((.metadata.annotations // {}) | keys | any(startswith("k8s.ngrok.com/"))) | "\(.metadata.namespace)/\(.metadata.name)"'
->   ```
+>       kubectl get pods -A -o json | jq -r \
+>         '.items[] | select((.metadata.annotations // {}) | keys | any(startswith("k8s.ngrok.com/"))) | "\(.metadata.namespace)/\(.metadata.name)"'
 
 #### Action required, by release
 
@@ -281,6 +277,28 @@ kubectl get service -A -o json | jq -r \
 | ------- | ----- | ----------- |
 | 0.24 (this) | Both prefixes | Add `ngrok.com/` keys alongside the legacy ones (see *How to migrate*); drop the legacy keys once rollback below 0.24 is ruled out. Use the `LegacyAnnotation` events and the audit commands above to find stragglers. |
 | 1.0 | `ngrok.com/` only | Confirm no `k8s.ngrok.com/` annotation keys remain in your manifests. The operator no longer reads them. |
+
+### NgrokTrafficPolicy: `status.policy` removed, conditions added
+
+Status: complete in 0.24.
+
+`NgrokTrafficPolicy.status.policy` has been removed. It only mirrored
+`spec.policy` back into status and carried no additional information —
+`observedGeneration` on the new conditions is the correct signal for "what
+did the controller last see".
+
+In its place, the resource now reports `status.conditions` (`Ready` and
+`Valid`) reflecting the parse/validation result of `spec.policy`, along
+with `Ready`/`Reason`/`Age` printer columns. Parse failures and
+legacy-format warnings that were previously only visible as Events now
+surface on the resource itself and work with
+`kubectl wait --for=condition=Ready`.
+
+#### What changes for you
+
+Nothing, unless external tooling reads `status.policy`; point it at
+`spec.policy` instead, which always holds the same value. No manifest
+changes are needed — status is operator-written.
 
 ## What did *not* change in this set of migrations
 

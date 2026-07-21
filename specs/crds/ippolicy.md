@@ -28,9 +28,10 @@
 
 ## Status
 
-| Field        | Type                 | Description                |
-|--------------|----------------------|----------------------------|
-| `id`         | string               | ngrok IP policy ID         |
+| Field                | Type                 | Description                                  |
+|----------------------|----------------------|----------------------------------------------|
+| `observedGeneration` | int64                | Generation last reconciled by the controller |
+| `id`                 | string               | ngrok IP policy ID         |
 | `conditions` | []Condition          | MaxItems: 8                |
 | `rules`      | []IPPolicyRuleStatus | Status of each rule        |
 

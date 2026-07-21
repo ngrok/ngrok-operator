@@ -13,7 +13,7 @@
 
 | Field          | Type           | Required | Default    | Validation                                             |
 |----------------|----------------|----------|------------|--------------------------------------------------------|
-| `endpointURL`  | string         | No       |            | Pattern: `^((?P<scheme>(tcp\|http\|https\|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$` |
+| `endpointURL`  | string         | Yes      |            | Pattern: `^((?P<scheme>(tcp\|http\|https\|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$` |
 | `scheme`       | string         | Yes      | `"https"`  | Enum: `tcp`, `http`, `https`, `tls`                    |
 | `port`         | uint16         | Yes      |            |                                                        |
 | `target`       | EndpointTarget | Yes      |            |                                                        |
@@ -47,6 +47,7 @@
 
 | Field                | Type                            | Owner      | Description                                  |
 |----------------------|---------------------------------|------------|----------------------------------------------|
+| `observedGeneration` | int64                           | controller | Generation last reconciled by the controller |
 | `endpoints`          | []BindingEndpoint               | poller     | ngrok endpoint references (id, uri)          |
 | `hashedName`         | string                          | poller     | Hashed name for the bound endpoint           |
 | `endpointsSummary`   | string                          | poller     | Human-readable summary of endpoints          |

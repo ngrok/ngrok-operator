@@ -53,8 +53,8 @@ Controllers that support traffic policy references watch TrafficPolicy resources
 
 The TrafficPolicy controller performs:
 
-1. **JSON syntax validation**: Ensures the policy field contains valid JSON.
-2. **Deprecation warnings**: Emits events for deprecated features:
+1. **JSON syntax validation**: Ensures the policy field contains valid JSON. The result is reported on the resource via `Ready`/`Valid` conditions (see [crds/trafficpolicy.md](../crds/trafficpolicy.md)) in addition to Events.
+2. **Deprecation warnings**: Emits events and sets condition reasons for deprecated features:
    - Legacy `directions` field
    - `enabled` field on rules
 
