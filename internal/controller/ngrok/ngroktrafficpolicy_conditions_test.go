@@ -2,6 +2,7 @@ package ngrok
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,4 +74,44 @@ func TestSetTrafficPolicyConditions(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStatusChangeDetection guards the Reconcile skip-write-if-unchanged logic
+// (compare against a DeepCopy taken before mutating). meta.SetStatusCondition
+// mutates an existing condition's fields in place, so a shallow copy of
+// Status would share the same backing array and always compare equal to the
+// post-mutation value, even when something actually changed.
+func TestStatusChangeDetection(t *testing.T) {
+	tp := &ngrokv1alpha1.NgrokTrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{Generation: 1},
+		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+			Policy: json.RawMessage(`{"on_http_request":[{"actions":[{"type":"deny"}]}]}`),
+		},
+	}
+
+	// First reconcile: conditions don't exist yet, must report changed.
+	prevStatus := *tp.Status.DeepCopy()
+	parsed, parseErr := util.NewTrafficPolicyFromJson(tp.Spec.Policy)
+	setTrafficPolicyConditions(tp, parsed, parseErr)
+	tp.SetObservedGeneration(tp.Generation)
+	assert.False(t, reflect.DeepEqual(prevStatus, tp.Status), "initial condition set must be detected as a change")
+
+	// Second reconcile with identical inputs: no real change, must be a no-op.
+	prevStatus = *tp.Status.DeepCopy()
+	parsed, parseErr = util.NewTrafficPolicyFromJson(tp.Spec.Policy)
+	setTrafficPolicyConditions(tp, parsed, parseErr)
+	tp.SetObservedGeneration(tp.Generation)
+	assert.True(t, reflect.DeepEqual(prevStatus, tp.Status), "unchanged inputs must not be reported as a change")
+
+	// Third reconcile with a legacy policy: reason/message change while
+	// Status stays True — must still be detected (this is the case a
+	// LastTransitionTime-based check would miss).
+	prevStatus = *tp.Status.DeepCopy()
+	tp.Spec.Policy = json.RawMessage(`{"inbound":[{"actions":[{"type":"deny"}]}]}`)
+	parsed, parseErr = util.NewTrafficPolicyFromJson(tp.Spec.Policy)
+	setTrafficPolicyConditions(tp, parsed, parseErr)
+	tp.SetObservedGeneration(tp.Generation)
+	assert.True(t, reflect.DeepEqual(metav1.ConditionTrue, meta.FindStatusCondition(tp.Status.Conditions, ConditionTrafficPolicyReady).Status),
+		"Ready should still be true for a legacy-format policy")
+	assert.False(t, reflect.DeepEqual(prevStatus, tp.Status), "reason/message change without a status flip must be detected")
 }

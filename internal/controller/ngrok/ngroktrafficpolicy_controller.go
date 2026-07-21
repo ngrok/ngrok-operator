@@ -26,6 +26,7 @@ package ngrok
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -71,11 +72,16 @@ func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	prevStatus := *policy.Status.DeepCopy()
+
 	parsedTrafficPolicy, parseErr := util.NewTrafficPolicyFromJson(policy.Spec.Policy)
 	setTrafficPolicyConditions(policy, parsedTrafficPolicy, parseErr)
 	policy.SetObservedGeneration(policy.Generation)
-	if err := r.Status().Update(ctx, policy); err != nil {
-		return ctrl.Result{}, err
+
+	if !reflect.DeepEqual(prevStatus, policy.Status) {
+		if err := r.Status().Update(ctx, policy); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	if parseErr != nil {
