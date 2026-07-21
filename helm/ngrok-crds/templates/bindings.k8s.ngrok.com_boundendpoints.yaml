@@ -247,8 +247,8 @@ spec:
                   Examples: "1 endpoint", "2 endpoints"
                 type: string
               hashedName:
-                description: HashName is the hashed output of the TargetService and
-                  TargetNamespace for unique identification
+                description: HashedName is the hashed output of the TargetService
+                  and TargetNamespace for unique identification
                 type: string
               observedGeneration:
                 description: |-
