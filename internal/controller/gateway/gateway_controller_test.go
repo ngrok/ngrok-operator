@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -278,7 +279,7 @@ var _ = Describe("Gateway controller", Ordered, func() {
 					events := &corev1.EventList{}
 					g.Expect(k8sClient.List(ctx, events, client.InNamespace(gw.Namespace))).To(Succeed())
 					g.Expect(events.Items).To(ContainElement(SatisfyAll(
-						HaveField("Reason", "LegacyAnnotation"),
+						HaveField("Reason", deprecation.ReasonLegacyAnnotation),
 						HaveField("InvolvedObject.Name", gw.Name),
 					)))
 				}, timeout, interval).Should(Succeed())
@@ -366,7 +367,7 @@ var _ = Describe("Gateway controller", Ordered, func() {
 					events := &corev1.EventList{}
 					g.Expect(k8sClient.List(ctx, events, client.InNamespace(gw.Namespace))).To(Succeed())
 					g.Expect(events.Items).NotTo(ContainElement(SatisfyAll(
-						HaveField("Reason", "LegacyAnnotation"),
+						HaveField("Reason", deprecation.ReasonLegacyAnnotation),
 						HaveField("InvolvedObject.Name", gw.Name),
 					)))
 				}, "2s", interval).Should(Succeed())

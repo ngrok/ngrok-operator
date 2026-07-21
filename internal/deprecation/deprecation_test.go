@@ -73,8 +73,10 @@ func TestScanAnnotations(t *testing.T) {
 				assert.Equal(t, corev1.EventTypeWarning, ev.eventtype)
 				assert.Equal(t, ReasonLegacyAnnotation, ev.reason)
 			}
-			for _, want := range tc.wantNotes {
-				assert.Contains(t, rec.events[0].note, want)
+			if len(tc.wantNotes) > 0 && assert.NotEmpty(t, rec.events) {
+				for _, want := range tc.wantNotes {
+					assert.Contains(t, rec.events[0].note, want)
+				}
 			}
 		})
 	}
