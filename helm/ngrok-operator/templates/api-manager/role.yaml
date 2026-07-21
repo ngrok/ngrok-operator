@@ -335,6 +335,14 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ngrok.k8s.ngrok.com
+  resources:
+  - ngroktrafficpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
 {{- if not (include "ngrok-operator.isNamespaced" .) }}
 # --- cluster-scoped Kubernetes resources (inline when ClusterRole) ---
 {{ include "ngrok-operator.api-manager.clusterScopedRules" . }}

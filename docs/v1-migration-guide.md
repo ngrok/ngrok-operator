@@ -163,6 +163,28 @@ you.
 because the rendered IngressClass and the operator's controller name flip
 together without an intermediate dual-match release.
 
+### NgrokTrafficPolicy: `status.policy` removed, conditions added
+
+Status: complete in 0.24.
+
+`NgrokTrafficPolicy.status.policy` has been removed. It only mirrored
+`spec.policy` back into status and carried no additional information —
+`observedGeneration` on the new conditions is the correct signal for "what
+did the controller last see".
+
+In its place, the resource now reports `status.conditions` (`Ready` and
+`Valid`) reflecting the parse/validation result of `spec.policy`, along
+with `Ready`/`Reason`/`Age` printer columns. Parse failures and
+legacy-format warnings that were previously only visible as Events now
+surface on the resource itself and work with
+`kubectl wait --for=condition=Ready`.
+
+#### What changes for you
+
+Nothing, unless external tooling reads `status.policy`; point it at
+`spec.policy` instead, which always holds the same value. No manifest
+changes are needed — status is operator-written.
+
 ## What did *not* change in this set of migrations
 
 The CRD API groups (`ingress.k8s.ngrok.com/v1alpha1`,

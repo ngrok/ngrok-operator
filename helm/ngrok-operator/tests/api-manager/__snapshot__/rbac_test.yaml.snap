@@ -317,6 +317,14 @@ should match snapshot in default mode:
           - list
           - watch
       - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - ngroktrafficpolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
           - ""
         resources:
           - namespaces
@@ -691,6 +699,14 @@ should match snapshot in namespaced mode:
           - get
           - list
           - watch
+      - apiGroups:
+          - ngrok.k8s.ngrok.com
+        resources:
+          - ngroktrafficpolicies/status
+        verbs:
+          - get
+          - patch
+          - update
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
