@@ -582,11 +582,11 @@ func (r *BoundEndpointPoller) updateBindingStatus(ctx context.Context, desired *
 	current.Status.HashedName = desired.Status.HashedName
 
 	if err := r.Status().Update(ctx, current); err != nil {
-		log.Error(err, "Failed to update BoundEndpoint status", "name", current.Name, "uri", current.Spec.EndpointURL)
+		log.Error(err, "Failed to update BoundEndpoint status", "name", current.Name, "url", current.Spec.EndpointURL)
 		return err
 	}
 
-	log.Info("Updated BoundEndpoint status", "name", current.Name, "uri", current.Spec.EndpointURL)
+	log.Info("Updated BoundEndpoint status", "name", current.Name, "url", current.Spec.EndpointURL)
 	return nil
 }
 

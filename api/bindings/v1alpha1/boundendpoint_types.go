@@ -96,7 +96,7 @@ type BoundEndpointStatus struct {
 	// All endpoints share the same underlying Kubernetes services
 	Endpoints []BindingEndpoint `json:"endpoints,omitempty"`
 
-	// HashName is the hashed output of the TargetService and TargetNamespace for unique identification
+	// HashedName is the hashed output of the TargetService and TargetNamespace for unique identification
 	HashedName string `json:"hashedName,omitempty"`
 
 	// EndpointsSummary provides a human-readable count of bound endpoints

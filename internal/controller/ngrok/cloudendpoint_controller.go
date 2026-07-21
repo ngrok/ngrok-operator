@@ -236,6 +236,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 	if ngrok.IsNotFound(err) {
 		r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "EndpointNotFound", "Reconcile", fmt.Sprintf("Failed to find endpoint %s by ID. Creating a new one", clep.Status.ID))
 		clep.Status.ID = ""
+		clep.Status.AssignedURL = ""
 		if err := r.controller.ReconcileStatus(ctx, clep, nil); err != nil {
 			return err
 		}
