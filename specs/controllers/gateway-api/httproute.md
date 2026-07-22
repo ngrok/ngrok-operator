@@ -37,10 +37,4 @@ The finalizer is **conditional**:
 
 ## Annotations
 
-The following annotations on HTTPRoute resources influence behavior:
-
-- `ngrok.com/mapping-strategy`
-- `ngrok.com/traffic-policy`
-- `ngrok.com/pooling-enabled`
-- `ngrok.com/description`
-- `ngrok.com/metadata`
+Endpoint-influencing annotations (`ngrok.com/mapping-strategy`, `ngrok.com/traffic-policy`, `ngrok.com/pooling-enabled`, `ngrok.com/description`, `ngrok.com/metadata`) are read from the parent **Gateway**, not from HTTPRoute resources — per-route annotation overrides are not supported. See [features/gateway-api.md](../../features/gateway-api.md).

@@ -1,4 +1,7 @@
-# Tests that the bindings annotation set on a Gateway will be configured on generated CloudEndpoint resources
+# Tests that canonical ngrok.com/terminate-tls.* listener TLS options are translated into a
+# terminate-tls traffic policy action on the generated CloudEndpoint.
+# The gateway deliberately keeps the legacy k8s.ngrok.com/mapping-strategy annotation:
+# legacy and canonical prefixes coexisting on the same resource is intentional coverage.
 input:
   gatewayClasses:
   - apiVersion: gateway.networking.k8s.io/v1
@@ -15,14 +18,30 @@ input:
       namespace: default
       annotations:
         k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
-        k8s.ngrok.com/bindings: "foo-binding"
     spec:
       gatewayClassName: ngrok
+      tls:
+        frontend:
+          default:
+            validation:
+              caCertificateRefs:
+              - group: ""
+                kind: ConfigMap
+                name: ca-configmap
       listeners:
-        - name: test-hostname
+        - name: test-invalid-1
           hostname: "test-hostname.ngrok.io"
           port: 443
           protocol: HTTPS
+          tls:
+            mode: Terminate
+            certificateRefs:
+            - kind: Secret
+              name: tls-secret
+            options:
+              "ngrok.com/terminate-tls.min_version": "1.2"
+              "ngrok.com/terminate-tls.max_version": "1.3"
+              "ngrok.com/terminate-tls.mutual_tls_verification_strategy": "require-and-verify"
   httpRoutes:
   - apiVersion: gateway.networking.k8s.io/v1
     kind: HTTPRoute
@@ -61,6 +80,24 @@ input:
         protocol: TCP
         targetPort: http
       type: ClusterIP
+  secrets:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: tls-secret
+      namespace: default
+    type: kubernetes.io/tls
+    data:
+      tls.key: U2VydmVyUHJpdmF0ZUtleQ==
+      tls.crt: U2VydmVyQ2VydA==
+  configMaps:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ca-configmap
+      namespace: default
+    data:
+      ca.crt: CACert
 expected:
   cloudEndpoints:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
@@ -74,8 +111,6 @@ expected:
       name: test-gateway.default-test-hostname.ngrok.io
       namespace: default
     spec:
-      bindings:
-      - foo-binding
       trafficPolicy:
         inline:
             on_http_request:
@@ -94,6 +129,18 @@ expected:
                     content: "No route was found for this ngrok Endpoint"
                     headers:
                       content-type: text/plain
+            on_tcp_connect:
+            - name: Gateway-TLS-Termination
+              actions:
+              - type: terminate-tls
+                config:
+                  "mutual_tls_verification_strategy": "require-and-verify"
+                  "min_version": "1.2"
+                  "max_version": "1.3"
+                  "mutual_tls_certificate_authorities":
+                  - "CACert"
+                  "server_certificate": "ServerCert"
+                  "server_private_key": "ServerPrivateKey"
       url: https://test-hostname.ngrok.io
   agentEndpoints:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1

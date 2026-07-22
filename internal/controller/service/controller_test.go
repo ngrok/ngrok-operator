@@ -273,6 +273,57 @@ var _ = Describe("ServiceController", func() {
 				})
 			})
 
+			When("the service has a legacy-prefixed annotation", func() {
+				BeforeEach(func() {
+					modifiers.Add(AddAnnotation("k8s.ngrok.com/url", "tcp://"))
+				})
+
+				It("emits a LegacyAnnotation warning event", func() {
+					Eventually(func(g Gomega) {
+						events := &corev1.EventList{}
+						g.Expect(k8sClient.List(ctx, events, client.InNamespace(namespace))).To(Succeed())
+						g.Expect(events.Items).To(ContainElement(HaveField("Reason", "LegacyAnnotation")))
+					}, timeout, interval).Should(Succeed())
+				})
+			})
+
+			When("the service has only a canonical-prefixed annotation", func() {
+				BeforeEach(func() {
+					modifiers.Add(AddAnnotation(Annotation_URL, "tcp://"))
+				})
+
+				It("does not emit a LegacyAnnotation warning event", func() {
+					Consistently(func(g Gomega) {
+						events := &corev1.EventList{}
+						g.Expect(k8sClient.List(ctx, events, client.InNamespace(namespace))).To(Succeed())
+						g.Expect(events.Items).NotTo(ContainElement(HaveField("Reason", "LegacyAnnotation")))
+					}, "2s", interval).Should(Succeed())
+				})
+			})
+
+			// LEGACY-PREFIX-MIGRATION (read-side cleanup): delete this context
+			When("the service uses legacy-prefixed annotations end to end", func() {
+				BeforeEach(func() {
+					modifiers.Add(AddAnnotation("k8s.ngrok.com/url", "tcp://1.tcp.ngrok.io:12345"))
+					modifiers.Add(AddAnnotation("k8s.ngrok.com/mapping-strategy", string(annotations.MappingStrategy_EndpointsVerbose)))
+				})
+
+				It("still creates endpoints from them", func() {
+					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+						By("checking a cloud endpoint exists")
+						g.Expect(cleps).To(HaveLen(1))
+
+						By("checking the cloud endpoint has the legacy-annotation TCP URL")
+						g.Expect(cleps[0].Spec.URL).To(Equal("tcp://1.tcp.ngrok.io:12345"))
+					})
+
+					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+						By("checking an agent endpoint exists")
+						g.Expect(aeps).To(HaveLen(1))
+					})
+				})
+			})
+
 			When("endpoints verbose", func() {
 				BeforeEach(func() {
 					modifiers.Add(SetMappingStrategy(annotations.MappingStrategy_EndpointsVerbose))

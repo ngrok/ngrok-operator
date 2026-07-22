@@ -7,6 +7,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	internalerrors "github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
@@ -113,6 +114,9 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 	}
+
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop this scan
+	deprecation.ScanAnnotations(log, r.Recorder, ingress)
 
 	// Skip non-delete reconciles during drain to prevent adding new finalizers
 	if controller.IsDraining(ctx, r.DrainState) {

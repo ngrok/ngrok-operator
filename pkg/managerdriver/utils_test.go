@@ -4,11 +4,14 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestSanitizeStringForURL(t *testing.T) {
@@ -421,6 +424,97 @@ func TestDoHostGlobsMatch(t *testing.T) {
 				assert.NoError(t, err, "did not expect an error for test case: %s", tc.name)
 				assert.Equal(t, tc.expected, result, "unexpected result for test case: %s", tc.name)
 			}
+		})
+	}
+}
+
+func TestGetProtoForServicePort(t *testing.T) {
+	testCases := []struct {
+		name        string
+		annotations map[string]string
+		want        ir.IRProtocol
+		wantErr     bool
+	}{
+		{
+			name:        "canonical only",
+			annotations: map[string]string{"ngrok.com/app-protocols": `{"p":"HTTPS"}`},
+			want:        ir.IRProtocol_HTTPS,
+		},
+		{
+			name:        "legacy only falls back",
+			annotations: map[string]string{"k8s.ngrok.com/app-protocols": `{"p":"TLS"}`},
+			want:        ir.IRProtocol_TLS,
+		},
+		{
+			name: "both present canonical wins",
+			annotations: map[string]string{
+				"ngrok.com/app-protocols":     `{"p":"HTTPS"}`,
+				"k8s.ngrok.com/app-protocols": `{"p":"TCP"}`,
+			},
+			want: ir.IRProtocol_HTTPS,
+		},
+		{
+			name: "canonical present but invalid does not fall back",
+			annotations: map[string]string{
+				"ngrok.com/app-protocols":     `not-json`,
+				"k8s.ngrok.com/app-protocols": `{"p":"TCP"}`,
+			},
+			wantErr: true,
+		},
+		{
+			// Empty-as-unset is the pre-existing semantic (the current code
+			// ignores an empty legacy annotation); making empty error would
+			// break upgrades for anyone carrying an empty legacy key. An
+			// empty canonical key still shadows the legacy key (presence
+			// wins), it just resolves to "unset" → default protocol.
+			name: "canonical present but empty shadows legacy and means unset",
+			annotations: map[string]string{
+				"ngrok.com/app-protocols":     "",
+				"k8s.ngrok.com/app-protocols": `{"p":"TCP"}`,
+			},
+			want: ir.IRProtocol_HTTP,
+		},
+		{
+			name:        "neither present uses default",
+			annotations: nil,
+			want:        ir.IRProtocol_HTTP,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+				Name: "svc", Namespace: "ns", Annotations: tc.annotations,
+			}}
+			got, err := getProtoForServicePort(logr.Discard(), svc, "p", ir.IRProtocol_HTTP)
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestGetPortAppProtocol(t *testing.T) {
+	testCases := []struct {
+		name        string
+		appProtocol *string
+		want        *common.ApplicationProtocol
+	}{
+		{name: "nil", appProtocol: nil, want: nil},
+		{name: "canonical http2", appProtocol: new("ngrok.com/http2"), want: new(common.ApplicationProtocol_HTTP2)},
+		{name: "legacy http2", appProtocol: new("k8s.ngrok.com/http2"), want: new(common.ApplicationProtocol_HTTP2)},
+		{name: "h2c", appProtocol: new("kubernetes.io/h2c"), want: new(common.ApplicationProtocol_HTTP2)},
+		{name: "unknown ignored", appProtocol: new("grpc"), want: nil},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "svc", Namespace: "ns"}}
+			port := &corev1.ServicePort{Name: "p", AppProtocol: tc.appProtocol}
+			assert.Equal(t, tc.want, getPortAppProtocol(logr.Discard(), svc, port))
 		})
 	}
 }

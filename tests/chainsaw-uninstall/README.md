@@ -13,7 +13,7 @@ This distinction drives all test assertions.
 
 ### Mapping Strategy: endpoints-verbose
 
-All Ingress and Gateway fixtures use the `k8s.ngrok.com/mapping-strategy: "endpoints-verbose"` annotation.
+All Ingress and Gateway fixtures use the `ngrok.com/mapping-strategy: "endpoints-verbose"` annotation.
 This ensures **both** a CloudEndpoint (public URL) and an internal AgentEndpoint are created:
 
 - **CloudEndpoint**: e.g., `https://uninstall-test-ingress.internal` - respects Retain/Delete policy

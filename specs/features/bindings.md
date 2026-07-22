@@ -42,6 +42,18 @@ The bindings forwarder uses mutual TLS for secure communication with ngrok's ing
 - The certificate is stored in a Kubernetes Secret (default name: `default-tls`).
 - The forwarder uses this certificate to authenticate with the ingress endpoint.
 
+## Pod Identity
+
+When a workload connects through a projected bound-endpoint Service, the bindings forwarder looks up the source Pod by client IP and attaches a pod identity (UID, name, namespace, annotations) to the upstream connection. Only pod annotations under the `ngrok.com/` prefix are forwarded; all other annotations are pruned. Keys and values are forwarded verbatim, so ngrok traffic-policy expressions on the bound endpoint can match on them.
+
+| Detail          | Value                                                  |
+|-----------------|--------------------------------------------------------|
+| Applies to      | `Pod` annotations on workloads connecting through bound-endpoint Services |
+| Key form        | `ngrok.com/<anything>` — free-form, user-defined       |
+| Consumed by     | ngrok traffic-policy expressions on the bound endpoint |
+
+During the `k8s.ngrok.com/` → `ngrok.com/` migration window the forwarder forwards pod annotations under either prefix, verbatim — policy expressions matching `k8s.ngrok.com/*` key names keep working until the pod annotations themselves are renamed. Legacy-prefix forwarding is removed in 1.0 — see [`docs/v1-migration-guide.md`](../../docs/v1-migration-guide.md).
+
 ## Related Specs
 
 - [BoundEndpoint CRD](../crds/boundendpoint.md)

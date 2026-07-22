@@ -4,6 +4,10 @@
 
 The ngrok-operator uses annotations under the `ngrok.com/` prefix to configure behavior on Kubernetes resources. This document serves as a central reference. See individual CRD specs in [crds/](crds/) for full details on how each annotation is used.
 
+Other user-supplied ngrok-prefixed key namespaces that are *not* object annotations are specced where they belong: Gateway listener TLS option keys in [features/gateway-api.md](features/gateway-api.md), recognized Service port `appProtocol` field values in [upstream-protocols.md](upstream-protocols.md), and pod annotations forwarded as bindings pod identity in [features/bindings.md](features/bindings.md).
+
+During the `k8s.ngrok.com/` → `ngrok.com/` migration window the operator also reads every annotation below under the legacy `k8s.ngrok.com/` prefix; when both prefixes are present on the same object, the `ngrok.com/` key wins. Precedence is decided by key *presence*, even when the canonical value is empty or invalid — what an empty value then means differs per annotation (most annotations reject an empty value as invalid content; `app-protocols` treats empty as unset). Legacy-prefix support is removed in 1.0. See [`docs/v1-migration-guide.md`](../docs/v1-migration-guide.md).
+
 ## User-Configurable Annotations
 
 ### `ngrok.com/url`
@@ -63,8 +67,10 @@ Sets a human-readable description on the ngrok endpoint resource.
 
 | Detail          | Value                                                  |
 |-----------------|--------------------------------------------------------|
-| Applies to      | `Service` (LoadBalancer), `Ingress`, `Gateway` routes  |
+| Applies to      | `Ingress`, `Gateway`                                   |
 | Default         | `"Created by the ngrok-operator"`                      |
+
+Note: read from `Ingress` and `Gateway` objects only — LoadBalancer `Service` endpoints always use the operator default description.
 
 ### `ngrok.com/metadata`
 
@@ -72,8 +78,10 @@ Sets arbitrary key-value metadata on the ngrok endpoint resource. Value is a JSO
 
 | Detail          | Value                                                  |
 |-----------------|--------------------------------------------------------|
-| Applies to      | `Service` (LoadBalancer), `Ingress`, `Gateway` routes  |
+| Applies to      | `Ingress`, `Gateway`                                   |
 | Default         | `{"owned-by": "ngrok-operator"}`                       |
+
+Note: read from `Ingress` and `Gateway` objects only — LoadBalancer `Service` endpoints always use the operator default metadata.
 
 ### `ngrok.com/bindings`
 
@@ -84,6 +92,21 @@ Controls traffic visibility for an endpoint. Comma-separated list of binding typ
 | Applies to      | `Service` (LoadBalancer), `Ingress`, `Gateway` routes  |
 | Allowed values  | `public`, `internal`, `kubernetes`                     |
 | Default         | (none — uses ngrok platform default)                   |
+
+### `ngrok.com/app-protocols`
+
+Maps upstream Service port names to the protocol the operator should use when proxying to that port. Read from the **backend Service** referenced by an Ingress rule or Gateway route — not from LoadBalancer Services the operator exposes directly.
+
+| Detail          | Value                                                  |
+|-----------------|--------------------------------------------------------|
+| Applies to      | `Service` referenced as an Ingress / Gateway route backend |
+| Value           | JSON object string mapping port name → protocol, e.g. `{"grpc-port":"HTTPS","raw-port":"TCP"}` |
+| Allowed values  | `HTTP`, `HTTPS`, `TCP`, `TLS` (case-insensitive)       |
+| Default         | (none — the route type's default protocol is used, `HTTP` for HTTP routes) |
+
+An empty value is treated as unset. Invalid non-empty JSON logs an error and the backend falls back to its default protocol — translation still succeeds. A valid JSON map with an unrecognized protocol value likewise logs an error and falls back to the default protocol for that port.
+
+See: [upstream-protocols.md](upstream-protocols.md) for how this interacts with the `appProtocol` field and default protocol selection.
 
 ## Internal Annotations (set by the operator)
 
