@@ -765,6 +765,82 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 		})
 
+		It("should recreate a legacy trafficPolicyName endpoint when update returns 404", func(ctx SpecContext) {
+			// Regression test: update()'s 404 fallback used to call
+			// resolveTrafficPolicy a second time on the same object in the
+			// same reconcile — a wasted extra TrafficPolicy CR fetch and a
+			// duplicate DeprecatedField event (see
+			// TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy in
+			// cloudendpoint_controller_unit_test.go for the event-count
+			// assertion). createWithPolicy now reuses the policy resolved
+			// once in update(), so the recreated endpoint must still carry
+			// the correct policy content.
+			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "recreate-legacy-policy",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+					Policy: []byte(`{"on_http_request":[{"name":"recreate-legacy"}]}`),
+				},
+			}
+			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
+
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "recreate-legacy-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:               "https://recreate-legacy.internal",
+					TrafficPolicyName: "recreate-legacy-policy",
+				},
+			}
+
+			By("Creating the CloudEndpoint with deprecated trafficPolicyName")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			var originalID string
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				originalID = obj.Status.ID
+			}, timeout, interval).Should(Succeed())
+
+			By("Manually deleting the endpoint from mock to simulate 404")
+			Expect(mockClientset.Endpoints().Delete(context.Background(), originalID)).To(Succeed())
+
+			By("Updating the CloudEndpoint spec to trigger reconcile")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+
+				obj.Spec.Description = "Updated after deletion"
+				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying the recreated endpoint still carries the legacy-resolved policy")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+				endpoint, err := mockClientset.Endpoints().Get(context.Background(), obj.Status.ID)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(endpoint.Description).To(Equal("Updated after deletion"))
+				g.Expect(endpoint.TrafficPolicy).To(ContainSubstring("recreate-legacy"))
+			}, timeout, interval).Should(Succeed())
+
+			// The event emitted by a second, redundant resolveTrafficPolicy
+			// call on this path is covered at the unit level
+			// (TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy in
+			// cloudendpoint_controller_unit_test.go) — the real event API
+			// aggregates repeated (reason, regarding) events within a short
+			// window and keeps only the first Note, so it can't distinguish
+			// the misleading second message from here.
+		})
+
 		It("should update URL successfully", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
 				ObjectMeta: metav1.ObjectMeta{

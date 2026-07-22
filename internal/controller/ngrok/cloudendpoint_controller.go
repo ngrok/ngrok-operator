@@ -214,6 +214,18 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
+	return r.createWithPolicy(ctx, clep, domainResult, policy)
+}
+
+// createWithPolicy issues the ngrok API Create call using an already-resolved
+// policy. Split out of create() so the update() → 404 → recreate fallback can
+// reuse the policy it already resolved instead of calling resolveTrafficPolicy
+// a second time on the same reconcile: the ReconcileStatus call in that
+// fallback (needed to clear the stale Status.ID before recreating) resets
+// clep's in-memory Spec back to what's stored on the API server, so a second
+// call wouldn't misresolve — it would just redundantly re-fetch the
+// referenced TrafficPolicy and re-emit the same DeprecatedField event.
+func (r *CloudEndpointReconciler) createWithPolicy(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult, policy string) error {
 	createParams := &ngrok.EndpointCreate{
 		Type:           "cloud",
 		URL:            clep.Spec.URL,
@@ -256,7 +268,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		if err := r.controller.ReconcileStatus(ctx, clep, nil); err != nil {
 			return err
 		}
-		return r.create(ctx, clep)
+		return r.createWithPolicy(ctx, clep, domainResult, policy)
 	}
 	if err != nil {
 		return r.updateStatus(ctx, clep, nil, domainResult, err)

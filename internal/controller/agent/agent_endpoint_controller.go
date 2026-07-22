@@ -172,6 +172,16 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 				r.Log.Info("referenced TrafficPolicy not found; awaiting (re)creation", "name", cr.Name, "namespace", cr.Namespace)
 				return ctrl.Result{}, nil
 			}
+			if ngrokapi.IsTrafficPolicyError(err.Error()) {
+				// Terminal: CreateAgentEndpoint rejected the policy itself and
+				// TrafficPolicyManager.SetError already recorded it on the
+				// TrafficPolicyApplied condition. This error comes from the
+				// agent SDK (golang.ngrok.com/ngrok/v2), not ngrok-api-go, so
+				// CtrlResultForErr's *ngrok.Error unwrap below can't catch it —
+				// without this it would requeue a permanent user-config error
+				// forever.
+				return ctrl.Result{}, nil
+			}
 			return controller.CtrlResultForErr(err)
 		},
 	}

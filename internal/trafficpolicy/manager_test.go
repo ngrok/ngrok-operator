@@ -305,6 +305,52 @@ func TestSetError_FlipsConditionToFalse(t *testing.T) {
 	assert.Equal(t, "ngrok api rejected policy", cond.Message)
 }
 
+func TestResolve_Success_ClearsStalePriorFailure(t *testing.T) {
+	m, _ := newTestManager(t)
+	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
+		Inline: json.RawMessage(`{}`),
+	})
+	// Seed a False condition from a previous, now-resolved failure.
+	meta.SetStatusCondition(&ep.Status.Conditions, metav1.Condition{
+		Type:    ConditionTrafficPolicy,
+		Status:  metav1.ConditionFalse,
+		Reason:  ReasonTrafficPolicyError,
+		Message: "stale error from a prior reconcile",
+	})
+
+	_, err := m.Resolve(context.Background(), ep)
+	require.NoError(t, err)
+
+	// A fresh successful Resolve must clear the stale False condition rather
+	// than leaving it in place. Otherwise, if the downstream Create/Update
+	// then fails for an unrelated reason, the Ready condition would report
+	// this stale, already-resolved policy error instead of the real cause.
+	assert.Nil(t, findCondition(ep.Status.Conditions, ConditionTrafficPolicy))
+}
+
+func TestResolve_Success_LeavesTrueConditionUntouched(t *testing.T) {
+	m, _ := newTestManager(t)
+	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
+		Inline: json.RawMessage(`{}`),
+	})
+	m.MarkApplied(ep)
+	before := findCondition(ep.Status.Conditions, ConditionTrafficPolicy)
+	require.NotNil(t, before)
+	beforeTransition := before.LastTransitionTime
+
+	_, err := m.Resolve(context.Background(), ep)
+	require.NoError(t, err)
+
+	// A steady-state successful Resolve must not touch an already-True
+	// condition — only MarkApplied owns flipping it True, and re-writing it
+	// here would bump LastTransitionTime on every reconcile even when
+	// nothing changed.
+	after := findCondition(ep.Status.Conditions, ConditionTrafficPolicy)
+	require.NotNil(t, after)
+	assert.Equal(t, metav1.ConditionTrue, after.Status)
+	assert.Equal(t, beforeTransition, after.LastTransitionTime)
+}
+
 func TestIntendedSource(t *testing.T) {
 	cases := []struct {
 		name       string

@@ -45,6 +45,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -147,6 +148,7 @@ func (m *Manager) Resolve(ctx context.Context, ep ngrokv1alpha1.EndpointWithTraf
 			m.setCondition(ep, false, ReasonTrafficPolicyError, err.Error())
 			return nil, err
 		}
+		m.clearStaleError(ep)
 		return &Result{Policy: policy, Source: SourceInline}, nil
 
 	case ngrokv1alpha1.TrafficPolicyCfgType_K8sRef:
@@ -155,11 +157,30 @@ func (m *Manager) Resolve(ctx context.Context, ep ngrokv1alpha1.EndpointWithTraf
 			m.setCondition(ep, false, ReasonTrafficPolicyError, err.Error())
 			return nil, err
 		}
+		m.clearStaleError(ep)
 		return &Result{Policy: policy, Source: IntendedSource(cfg)}, nil
 
 	default:
 		m.setCondition(ep, false, ReasonTrafficPolicyError, ErrInvalidConfig.Error())
 		return nil, ErrInvalidConfig
+	}
+}
+
+// clearStaleError removes a previously-recorded False TrafficPolicyApplied
+// condition once resolution succeeds again. Resolve only manages the
+// negative side of the condition, and MarkApplied only fires after a
+// downstream Create/Update succeeds — so without this, a policy error that
+// already cleared (Resolve succeeds) but is followed by an unrelated
+// downstream failure (e.g. quota, duplicate URL) leaves the old, now
+// irrelevant, policy-error reason/message in place. Since ready-condition
+// calculation checks TrafficPolicyApplied before the endpoint-created
+// condition, that stale entry would mask the real failure reason. A True
+// condition is left untouched: MarkApplied owns flipping it True, and
+// touching it here would bump LastTransitionTime on every steady-state
+// reconcile even when nothing changed.
+func (m *Manager) clearStaleError(ep ngrokv1alpha1.EndpointWithTrafficPolicy) {
+	if c := meta.FindStatusCondition(*ep.GetConditions(), ConditionTrafficPolicy); c != nil && c.Status == metav1.ConditionFalse {
+		meta.RemoveStatusCondition(ep.GetConditions(), ConditionTrafficPolicy)
 	}
 }
 

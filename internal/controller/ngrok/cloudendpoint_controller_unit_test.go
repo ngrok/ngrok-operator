@@ -1,16 +1,24 @@
 package ngrok
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
+	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
+	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestEndpointNeedsUpdate(t *testing.T) {
@@ -394,4 +402,80 @@ func TestNormalizeLegacyTrafficPolicy_EventSuppression(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy is a regression
+// test for the update() -> Get() 404 -> create() fallback. That fallback
+// used to call r.create(ctx, clep), which re-ran resolveTrafficPolicy (and
+// therefore normalizeLegacyTrafficPolicy) a second time on the very same
+// object in the same reconcile — a wasted extra TrafficPolicy CR fetch plus
+// a duplicate "DeprecatedField" event on every recreate. (The second call
+// does *not* misresolve the policy: the ReconcileStatus call the fallback
+// makes first, to clear the stale Status.ID before recreating, resets
+// clep's in-memory Spec back to the API server's stored copy, so the second
+// normalizeLegacyTrafficPolicy call sees the same legacy-only shape as the
+// first and just redundantly repeats it — confirmed empirically.)
+//
+// createWithPolicy now lets the fallback reuse the policy update() already
+// resolved instead of re-resolving, so resolveTrafficPolicy — and the
+// DeprecatedField event it can emit — must run exactly once per reconcile.
+// A real k8s Event API can't distinguish "emitted once" from "emitted twice
+// with identical text" (it aggregates repeated (reason, regarding) events
+// within a short window into a single object), so this exercises update()
+// directly with a FakeRecorder instead of going through envtest.
+func TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+	trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-policy", Namespace: "ns"},
+		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+			Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy"}]}`),
+		},
+	}
+	clep := &ngrokv1alpha1.CloudEndpoint{
+		ObjectMeta: metav1.ObjectMeta{Name: "legacy-only", Namespace: "ns"},
+		Spec: ngrokv1alpha1.CloudEndpointSpec{
+			URL:               "https://legacy-only.internal",
+			TrafficPolicyName: "my-policy",
+		},
+		// A Status.ID the mock ngrok clientset doesn't know about, so
+		// Endpoints().Get returns 404 and update() falls through to create.
+		Status: ngrokv1alpha1.CloudEndpointStatus{ID: "ep_does_not_exist"},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(trafficPolicy, clep).
+		WithStatusSubresource(&ngrokv1alpha1.CloudEndpoint{}).
+		Build()
+
+	recorder := events.NewFakeRecorder(50)
+	dm, err := domainpkg.NewManager(fakeClient, recorder)
+	require.NoError(t, err)
+
+	r := &CloudEndpointReconciler{
+		Client:               fakeClient,
+		Recorder:             recorder,
+		NgrokClientset:       nmockapi.NewClientset(),
+		DomainManager:        dm,
+		TrafficPolicyManager: trafficpolicypkg.NewManager(fakeClient, recorder),
+	}
+	r.controller = &controller.BaseController[*ngrokv1alpha1.CloudEndpoint]{
+		Kube:     fakeClient,
+		Recorder: recorder,
+	}
+
+	require.NoError(t, r.update(context.Background(), clep))
+
+	close(recorder.Events)
+	var deprecatedEvents []string
+	for ev := range recorder.Events {
+		if strings.Contains(ev, "DeprecatedField") {
+			deprecatedEvents = append(deprecatedEvents, ev)
+		}
+	}
+
+	assert.Len(t, deprecatedEvents, 1,
+		"resolveTrafficPolicy must run exactly once per reconcile on the 404-recreate fallback, got events: %v", deprecatedEvents)
 }
