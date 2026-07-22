@@ -170,7 +170,6 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 	if resp == nil {
 		req := &ngrok.ReservedDomainCreate{
 			Domain:      domain.Spec.Domain,
-			Region:      domain.Spec.Region,
 			Description: domain.Spec.Description,
 			Metadata:    domain.Spec.Metadata,
 			ResolvesTo:  buildResolvesToRequest(domain.Spec.GetResolvesTo()),

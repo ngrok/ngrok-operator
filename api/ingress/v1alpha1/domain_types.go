@@ -50,9 +50,6 @@ type DomainSpec struct {
 	// +kubebuilder:validation:Required
 	Domain string `json:"domain"`
 
-	// Region is the region in which to reserve the domain
-	Region string `json:"region,omitempty"`
-
 	// ResolvesTo is the list of resolving targets for the domain
 	ResolvesTo []DomainResolvesToEntry `json:"resolvesTo,omitempty"`
 
