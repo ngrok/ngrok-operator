@@ -830,6 +830,15 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(endpoint.Description).To(Equal("Updated after deletion"))
 				g.Expect(endpoint.TrafficPolicy).To(ContainSubstring("recreate-legacy"))
+
+				// Regression: the ReconcileStatus call made to clear the
+				// stale Status.ID above decodes the un-normalized Spec back
+				// into the object, which used to make MarkApplied silently
+				// skip setting this condition for a trafficPolicyName-only
+				// endpoint even though the policy really was applied.
+				tpCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionTrafficPolicy)
+				g.Expect(tpCond).NotTo(BeNil())
+				g.Expect(tpCond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
 
 			// The event emitted by a second, redundant resolveTrafficPolicy

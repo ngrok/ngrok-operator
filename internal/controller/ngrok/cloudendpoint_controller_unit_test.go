@@ -15,6 +15,7 @@ import (
 	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -382,7 +383,7 @@ func TestNormalizeLegacyTrafficPolicy_EventSuppression(t *testing.T) {
 			recorder := events.NewFakeRecorder(10)
 			r := &CloudEndpointReconciler{Recorder: recorder}
 
-			r.normalizeLegacyTrafficPolicy(tt.clep)
+			r.normalizeLegacyTrafficPolicy(tt.clep, true)
 
 			gotEvent := false
 			for {
@@ -423,6 +424,15 @@ func TestNormalizeLegacyTrafficPolicy_EventSuppression(t *testing.T) {
 // with identical text" (it aggregates repeated (reason, regarding) events
 // within a short window into a single object), so this exercises update()
 // directly with a FakeRecorder instead of going through envtest.
+//
+// This also regression-tests a second bug in the same path: the
+// ReconcileStatus call used to clear the stale Status.ID decodes the API
+// server's un-normalized Spec back into clep, so by the time
+// recordWriteSuccess calls MarkApplied, clep.GetTrafficPolicyCfg() saw nil
+// for a trafficPolicyName-only endpoint and silently skipped setting
+// TrafficPolicyApplied=True — even though the policy was correctly applied
+// to the real ngrok endpoint. Fixed by re-normalizing (without re-emitting
+// the event) right after the reset.
 func TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
@@ -467,6 +477,11 @@ func TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy(t *testing.T) {
 	}
 
 	require.NoError(t, r.update(context.Background(), clep))
+
+	cond := meta.FindStatusCondition(clep.Status.Conditions, trafficpolicypkg.ConditionTrafficPolicy)
+	require.NotNil(t, cond, "TrafficPolicyApplied condition must be set after the 404-recreate path, even for a trafficPolicyName-only endpoint")
+	assert.Equal(t, metav1.ConditionTrue, cond.Status)
+	assert.Equal(t, trafficpolicypkg.ReasonTrafficPolicyApplied, cond.Reason)
 
 	close(recorder.Events)
 	var deprecatedEvents []string

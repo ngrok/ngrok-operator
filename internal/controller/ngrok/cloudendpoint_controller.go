@@ -268,6 +268,13 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		if err := r.controller.ReconcileStatus(ctx, clep, nil); err != nil {
 			return err
 		}
+		// ReconcileStatus decoded the API server's stored Spec back into
+		// clep, undoing resolveTrafficPolicy's in-memory legacy-field fold
+		// above. Restore it (without re-emitting the deprecation event) so
+		// MarkApplied — called via createWithPolicy's recordWriteSuccess —
+		// sees a non-nil canonical TrafficPolicy and actually flips
+		// TrafficPolicyApplied to True instead of silently no-oping.
+		r.normalizeLegacyTrafficPolicy(clep, false)
 		return r.createWithPolicy(ctx, clep, domainResult, policy)
 	}
 	if err != nil {
@@ -320,7 +327,7 @@ func (r *CloudEndpointReconciler) recordWriteError(ctx context.Context, clep *ng
 // resolveTrafficPolicy folds CloudEndpoint's deprecated legacy fields into the
 // canonical shape and delegates to the shared trafficpolicy.Manager.
 func (r *CloudEndpointReconciler) resolveTrafficPolicy(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) (string, error) {
-	r.normalizeLegacyTrafficPolicy(clep)
+	r.normalizeLegacyTrafficPolicy(clep, true)
 
 	result, err := r.TrafficPolicyManager.Resolve(ctx, clep)
 	if err != nil {
@@ -347,10 +354,19 @@ func (r *CloudEndpointReconciler) resolveTrafficPolicy(ctx context.Context, clep
 // dual-written legacy fields for rollback safety and the user can't act on
 // the event anyway.
 //
+// emitEvents lets a caller re-run the fold without emitting a second
+// deprecation event for the same reconcile. update()'s 404-recreate fallback
+// needs this: the ReconcileStatus call it makes to clear the stale Status.ID
+// decodes the API server's stored (un-normalized) Spec back into clep,
+// undoing this function's in-memory-only fold. Re-normalizing afterwards
+// with emitEvents=false restores the canonical shape — so
+// MarkApplied's GetTrafficPolicyCfg() check sees it and actually sets
+// TrafficPolicyApplied=True — without emitting a duplicate event.
+//
 // LEGACY-trafficpolicy-name / LEGACY-trafficpolicy-policy: delete this
 // function in the cleanup release.
-func (r *CloudEndpointReconciler) normalizeLegacyTrafficPolicy(clep *ngrokv1alpha1.CloudEndpoint) {
-	emit := !isOperatorOwned(clep)
+func (r *CloudEndpointReconciler) normalizeLegacyTrafficPolicy(clep *ngrokv1alpha1.CloudEndpoint, emitEvents bool) {
+	emit := emitEvents && !isOperatorOwned(clep)
 
 	// trafficPolicyName → trafficPolicy.targetRef.name
 	if clep.Spec.TrafficPolicyName != "" { //nolint:staticcheck // intentionally reading the deprecated field
