@@ -77,7 +77,7 @@ expected:
       bindings:
       - foo-binding
       trafficPolicy:
-        policy:
+        inline:
             on_http_request:
               - name: Generated-Route
                 expressions:

@@ -45,7 +45,6 @@
 |----------------|---------------------------------------------------------------|----------|
 | ID             | `.status.id`                                                  | 0        |
 | URL            | `.spec.url`                                                   | 0        |
-| Traffic Policy | `.spec.trafficPolicy.targetRef.name`                          | 0        |
 | Bindings       | `.spec.bindings`                                              | 0        |
 | Age            | `.metadata.creationTimestamp`                                 | 0        |
 | Ready          | `.status.conditions[?(@.type=='Ready')].status`               | 0        |

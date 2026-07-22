@@ -7,12 +7,16 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
+	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 )
 
 const (
 	// condition types for CloudEndpoint
 	ConditionCloudEndpointReady   = "Ready"
 	ConditionCloudEndpointCreated = "CloudEndpointCreated"
+	// ConditionTrafficPolicy is sourced from the shared trafficpolicy package
+	// so both endpoint controllers report the same condition type.
+	ConditionTrafficPolicy = trafficpolicypkg.ConditionTrafficPolicy
 
 	// condition reasons for CloudEndpoint
 	ReasonCloudEndpointActive         = "CloudEndpointActive"
@@ -30,7 +34,9 @@ func setCloudEndpointCreatedCondition(clep *ngrokv1alpha1.CloudEndpoint, created
 	conditions.Set(&clep.Status.Conditions, clep.Generation, ConditionCloudEndpointCreated, created, reason, message)
 }
 
-// calculateCloudEndpointReadyCondition calculates the overall Ready condition based on other conditions and domain status
+// calculateCloudEndpointReadyCondition calculates the overall Ready condition
+// based on the per-sub-component conditions (CloudEndpointCreated,
+// TrafficPolicyApplied) and the domain status.
 func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult) {
 	// Check CloudEndpoint created condition
 	cloudEndpointCreated := false
@@ -39,14 +45,22 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 		cloudEndpointCreated = true
 	}
 
+	// TrafficPolicy condition is optional — only blocks Ready when it exists
+	// and is False (matches the AgentEndpoint logic).
+	trafficPolicyCondition := meta.FindStatusCondition(clep.Status.Conditions, ConditionTrafficPolicy)
+	trafficPolicyReady := true
+	if trafficPolicyCondition != nil && trafficPolicyCondition.Status == metav1.ConditionFalse {
+		trafficPolicyReady = false
+	}
+
 	// Check if domain is ready (default to false for safety)
 	domainReady := false
 	if domainResult != nil {
 		domainReady = domainResult.IsReady
 	}
 
-	// Overall ready status
-	ready := cloudEndpointCreated && domainReady
+	// Overall ready status — all required sub-conditions must be true
+	ready := cloudEndpointCreated && trafficPolicyReady && domainReady
 
 	// Determine reason and message based on state
 	var reason, message string
@@ -63,6 +77,12 @@ func calculateCloudEndpointReadyCondition(clep *ngrokv1alpha1.CloudEndpoint, dom
 			reason = "DomainNotReady"
 			message = "Domain is not ready"
 		}
+	case !trafficPolicyReady:
+		// A failed traffic-policy resolution (e.g. TrafficPolicyNotFound) is the
+		// actionable root cause and is surfaced before the generic "not yet
+		// created" pending state, since policy resolution gates creation.
+		reason = trafficPolicyCondition.Reason
+		message = trafficPolicyCondition.Message
 	case !cloudEndpointCreated:
 		// If CloudEndpointCreated condition exists and is False, use its reason/message
 		if createdCondition != nil && createdCondition.Status == metav1.ConditionFalse {

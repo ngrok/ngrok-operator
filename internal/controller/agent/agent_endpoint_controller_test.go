@@ -587,7 +587,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			err := k8sClient.Create(context.Background(), agentEndpoint)
 			Expect(err).To(HaveOccurred()) // Should be rejected by validation
-			Expect(err.Error()).To(ContainSubstring("Only one of inline and targetRef can be configured"))
+			Expect(err.Error()).To(ContainSubstring("exactly one of inline or targetRef must be set on trafficPolicy"))
 		})
 	})
 
@@ -1232,6 +1232,69 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(cond.Reason).To(Equal(ReasonNgrokAPIError))
 			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should not infinitely requeue when the ngrok API rejects the traffic policy", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "policy-rejected-runtime",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "tcp://99.tcp.ngrok.io:99999",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
+						Inline: []byte(`{"on_http_request":[]}`),
+					},
+				},
+			}
+
+			// A downstream error whose message matches
+			// ngrokapi.IsTrafficPolicyError (contains "policy"), simulating
+			// the ngrok API rejecting the attached traffic policy. This
+			// comes from the agent SDK (golang.ngrok.com/ngrok/v2), not
+			// ngrok-api-go, so CtrlResultForErr's *ngrok.Error unwrap can't
+			// classify it — it's a permanent, user-fixable config error, not
+			// a transient failure that should retry forever.
+			endpointKey := namespace + "/policy-rejected-runtime"
+			envMockDriver.SetEndpointError(endpointKey, errors.New("invalid traffic policy: bad rule"))
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Waiting for the controller to surface the policy error on both conditions")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				// The Ready condition surfaces the TrafficPolicyApplied
+				// reason, since a failed policy resolution takes priority
+				// over the generic "endpoint not created" state.
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(readyCond.Reason).To(Equal(ReasonTrafficPolicyError))
+
+				tpCond := testutils.FindCondition(obj.Status.Conditions, ConditionTrafficPolicy)
+				g.Expect(tpCond).NotTo(BeNil())
+				g.Expect(tpCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+
+			createCallCount := func() int {
+				count := 0
+				for _, call := range envMockDriver.CreateCalls {
+					if call.Name == endpointKey {
+						count++
+					}
+				}
+				return count
+			}
+
+			By("Confirming the controller stops retrying instead of requeuing forever")
+			stableCount := createCallCount()
+			Consistently(createCallCount, 3*time.Second, 500*time.Millisecond).Should(Equal(stableCount))
 		})
 
 		It("should handle endpoint deletion with runtime controller", func(ctx SpecContext) {

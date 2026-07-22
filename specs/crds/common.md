@@ -119,7 +119,7 @@ Configures a traffic policy via either an inline definition or a reference to a 
 | Field       | Type            | Required | Description                              |
 |-------------|-----------------|----------|------------------------------------------|
 | `inline`    | json.RawMessage | No       | Inline traffic policy JSON (schemaless)  |
-| `targetRef` | K8sObjectRef | No | Reference to a TrafficPolicy in the same namespace |
+| `targetRef` | K8sObjectRef | No | Reference to a TrafficPolicy in the same namespace as the endpoint |
 
 ### ApplicationProtocol
 

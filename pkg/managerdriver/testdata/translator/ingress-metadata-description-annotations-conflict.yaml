@@ -99,7 +99,7 @@ expected:
       metadata: '{"owner":"team-a"}'
       description: "Team A description"
       trafficPolicy:
-        policy:
+        inline:
           on_http_request:
           - name: Generated-Route
             expressions:

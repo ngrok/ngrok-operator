@@ -12,6 +12,157 @@ that implement these transitions, see
 
 ## Migrations
 
+### CloudEndpoint: `spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`, and `spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`
+
+Status: in progress starting 0.24, cleanup planned for a later 1.0 release.
+
+The `CloudEndpoint` traffic policy fields are being consolidated onto the
+same shape `AgentEndpoint` already uses (`spec.trafficPolicy.inline` /
+`spec.trafficPolicy.targetRef`). Two legacy fields are deprecated in
+parallel:
+
+- `spec.trafficPolicyName` — replaced by `spec.trafficPolicy.targetRef.name`.
+- `spec.trafficPolicy.policy` — replaced by `spec.trafficPolicy.inline`.
+
+The operator dual-reads both shapes during the deprecation window. When a
+legacy field is set alongside its canonical replacement, the canonical
+field wins and the legacy field is ignored with a `DeprecatedField`
+warning event. Manifests carrying only the legacy field continue to work
+unchanged.
+
+#### What changes for you
+
+| Legacy                                       | New                                        |
+| -------------------------------------------- | ------------------------------------------ |
+| `spec.trafficPolicyName: my-policy`          | `spec.trafficPolicy.targetRef.name: my-policy` |
+| `spec.trafficPolicy.policy: { ... }`         | `spec.trafficPolicy.inline: { ... }`        |
+
+A `targetRef` resolves the referenced `NgrokTrafficPolicy` in the same
+namespace as the `CloudEndpoint`; cross-namespace references are not
+supported.
+
+#### Rollback safety during the migration window
+
+These two field renames have different rollback shapes because of how the
+prior 0.23 CRD validated each one. Plan your migration accordingly.
+
+**Top-level rename (`trafficPolicyName` → `trafficPolicy.targetRef.name`)
+— rollback-safe with the legacy field _only_:**
+
+The 0.23 controller rejects manifests where both `spec.trafficPolicyName`
+and `spec.trafficPolicy` are set (invalid-config error). And because the
+0.23 CRD does not know about `trafficPolicy.targetRef`, server-side
+pruning strips that field on rollback, leaving `trafficPolicy: {}` — which
+the 0.23 controller treats as the rejected "both set" case.
+
+So during 0.24, leave existing manifests on `trafficPolicyName` alone
+(canonical-only and dual-set are not rollback-safe to pre-0.24). Migrate
+to `trafficPolicy.targetRef.name` only once you no longer need to roll
+back below 0.24.
+
+```yaml
+# Rollback-safe to 0.23: legacy-only during the migration window.
+spec:
+  url: https://my-endpoint.internal
+  trafficPolicyName: my-policy
+```
+
+The 0.24 controller normalizes legacy-only manifests in-memory to the
+canonical shape, so you keep all the new behavior (status, conditions,
+re-enqueue on policy changes) without changing the manifest.
+
+**Nested rename (`trafficPolicy.policy` → `trafficPolicy.inline`) —
+rollback-safe when dual-set:**
+
+The 0.23 CRD preserves unknown fields under `trafficPolicy.policy` but
+prunes the unknown `trafficPolicy.inline` on rollback. If you set both
+fields with the same content, the 0.24 controller prefers `inline` and
+the 0.23 controller reads `policy`. The combination is rollback-safe.
+
+```yaml
+# Rollback-safe to 0.23: dual-set the inline content.
+spec:
+  url: https://my-endpoint.internal
+  trafficPolicy:
+    inline: { on_http_request: [{ actions: [{ type: deny }] }] }
+    policy: { on_http_request: [{ actions: [{ type: deny }] }] }
+```
+
+The operator-generated CloudEndpoints (those created by the
+Ingress/Gateway/Service controllers from your manifests) automatically
+dual-write both `inline` and `policy` so they remain rollback-safe
+without any user action. Drop the `policy` value from your own manifests
+in the cleanup release.
+
+**What "not rollback-safe" actually means.** If you roll back a
+CloudEndpoint whose only policy lived in a canonical field
+(`trafficPolicy.targetRef` or `trafficPolicy.inline`), the prior release's
+CRD does not define that field, so the API server prunes it and the prior
+controller sees an endpoint with no policy at all. Because a CloudEndpoint
+has no policy to handle traffic, the ngrok API rejects the reconcile and
+the endpoint reports `Ready=False` / `CloudEndpointCreationFailed` until
+you re-add a legacy field (`trafficPolicyName` or `trafficPolicy.policy`).
+The previously-applied policy generally stays live on the ngrok side in the
+meantime, since the failing call is an update of an already-created
+endpoint. This is recoverable, but it is why you should keep a legacy
+field populated while you still need to roll back.
+
+#### Action required, by release
+
+| Release | Operator behavior | What you do |
+| ------- | ----------------- | ----------- |
+| 0.24 (this) | Reads both shapes; canonical wins when both are effective; emits a `DeprecatedField` warning event when a legacy field is in use. | Keep `trafficPolicyName` as the only top-level form during 0.24 if you need rollback to 0.23. For nested policies you can dual-set `inline + policy` for rollback safety. |
+| Next | Same. | Once rollback to 0.23 or earlier is no longer a concern, migrate `trafficPolicyName` → `trafficPolicy.targetRef.name`. Manifests that dual-set the nested form can drop `policy`. |
+| Cleanup release | Legacy fields removed from the `CloudEndpoint` CRD. | Manifests must use the canonical fields. |
+
+#### Supported upgrade path
+
+Any prior 0.2x release → 0.24 → … → cleanup release. A rollback from
+0.24 to 0.23 is safe **only if your manifests still match the prior
+release's accepted shapes** (legacy-only top-level form, and either
+`policy`-only or dual-set nested form).
+
+#### External tooling
+
+If you have GitOps validators, dashboards, custom admission policies, or
+linters that match on `spec.trafficPolicyName` or
+`spec.trafficPolicy.policy` literally, update those selectors to also
+recognize `spec.trafficPolicy.targetRef.name` / `spec.trafficPolicy.inline`
+before the cleanup release.
+
+The `Traffic Policy` column on `kubectl get cloudendpoint` was removed
+in 0.24. The old column rendered the legacy `spec.trafficPolicyName`
+field; once `targetRef` and inline policies became first-class shapes a
+single string summary was misleading. Use
+`kubectl describe cloudendpoint <name>` or the `TrafficPolicyApplied`
+status condition (visible in the `Ready`/`Reason`/`Message` columns
+when policy resolution fails) instead.
+
+#### Go API surface change
+
+If you import `github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1`
+directly from a typed Go client, note that `CloudEndpointSpec.TrafficPolicy`
+changed type from `*NgrokTrafficPolicySpec` to
+`*CloudEndpointTrafficPolicyCfg`. The JSON/YAML wire format is unchanged
+— Helm values, kustomize overlays, raw manifests, and unstructured
+clients are unaffected — but typed consumers will fail to compile until
+they switch to the new struct. The new type carries the canonical
+`Inline` / `Reference` fields plus the deprecated `Policy` fold-in for
+rollback safety during the migration window.
+
+#### Same-namespace policy references
+
+A `spec.trafficPolicy.targetRef` resolves the referenced
+`NgrokTrafficPolicy` in the same namespace as the endpoint;
+cross-namespace references are not supported. A `targetRef` to a policy
+that does not exist in the endpoint's namespace surfaces as
+`TrafficPolicyApplied=False` with a `TrafficPolicyNotFound` event. This
+matches the same-namespace restriction applied to AgentEndpoint
+`clientCertificateRefs` and avoids a confused-deputy path where an
+endpoint author could direct the operator (which can read
+`NgrokTrafficPolicy` resources cluster-wide) to attach a policy from a
+namespace they cannot otherwise access.
+
 ### Controller labels, computed-url, and bindings labels: `k8s.ngrok.com/` → `ngrok.com/`
 
 Status: in progress. The first release (0.24) reads and writes both

@@ -192,7 +192,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 		})
 
-		It("should handle endpoint with traffic policy reference", func(ctx SpecContext) {
+		It("R1: legacy spec.trafficPolicyName-only manifest resolves via in-memory normalization", func(ctx SpecContext) {
 			// Create traffic policy first
 			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
@@ -218,7 +218,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				},
 			}
 
-			By("Creating the CloudEndpoint with traffic policy")
+			By("Creating the CloudEndpoint with deprecated trafficPolicyName")
 			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
 
 			By("Waiting for controller to reconcile")
@@ -229,6 +229,78 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				// Check that endpoint was created
 				g.Expect(obj.Status.ID).NotTo(BeEmpty())
 			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should handle endpoint with trafficPolicy.targetRef", func(ctx SpecContext) {
+			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "new-shape-policy",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
+				},
+			}
+			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
+
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "new-shape-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "https://new-shape.internal",
+					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+						Reference: &ngrokv1alpha1.K8sObjectRef{
+							Name: "new-shape-policy",
+						},
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+				tpCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionTrafficPolicy)
+				g.Expect(tpCond).NotTo(BeNil())
+				g.Expect(tpCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("R1: legacy spec.trafficPolicy.policy-only manifest resolves via the fold path", func(ctx SpecContext) {
+			// Verifies the LEGACY-trafficpolicy-policy fold in
+			// CloudEndpointTrafficPolicyCfg.ToTrafficPolicyCfg: when only
+			// the deprecated `policy` field is set, the resolver still
+			// produces the policy JSON. Cleanup release removes this test.
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "legacy-policy-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "https://legacy-policy.internal",
+					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy"}]}`),
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			var endpointID string
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				endpointID = obj.Status.ID
+			}, timeout, interval).Should(Succeed())
+
+			endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(endpoint.TrafficPolicy).To(ContainSubstring("legacy"))
 		})
 
 		It("should handle endpoint deletion", func(ctx SpecContext) {
@@ -306,34 +378,223 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		})
 	})
 
+	// R1 of the two-release CloudEndpoint trafficpolicy field migration.
+	// These cases assert the legacy/canonical coexistence semantics needed
+	// for rollback safety: legacy + canonical together is the recommended
+	// R1 manifest shape during the deprecation window. Cleanup release
+	// must delete every R1-prefixed case in this Context.
 	Context("Traffic policy validation", func() {
-		It("should reject CloudEndpoint with both TrafficPolicyName and TrafficPolicy set", func(ctx SpecContext) {
+		It("R1: trafficPolicyName + trafficPolicy.targetRef coexist, canonical wins", func(ctx SpecContext) {
+			// The controller must handle the case where a user has set
+			// both top-level fields. Canonical wins; the legacy is
+			// ignored. Note: this combination is NOT rollback-safe to
+			// pre-0.24 (the prior controller rejects coexistence) — the
+			// migration guide recommends keeping `trafficPolicyName`
+			// alone until the rollback floor moves past 0.24.
+			canonicalPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "canonical-policy",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+					Policy: []byte(`{"on_http_request":[{"name":"canonical"}]}`),
+				},
+			}
+			Expect(k8sClient.Create(ctx, canonicalPolicy)).To(Succeed())
+
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid-policy-endpoint",
+					Name:      "both-fields-endpoint",
 					Namespace: namespace,
 				},
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
-					URL:               "https://invalid.internal",
-					Description:       "Invalid policy config",
+					URL:               "https://both-fields.internal",
+					Description:       "Both legacy and canonical fields set",
 					Metadata:          "{}",
-					TrafficPolicyName: "some-policy",
-					TrafficPolicy: &ngrokv1alpha1.NgrokTrafficPolicySpec{
-						Policy: json.RawMessage(`{"on_http_request":[]}`),
+					TrafficPolicyName: "ignored-legacy-name",
+					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "canonical-policy"},
 					},
 				},
 			}
 
-			By("Creating the CloudEndpoint with invalid config")
 			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
 
-			By("Waiting for controller to detect the configuration error")
+			By("Verifying the canonical policy was attached and the legacy field ignored")
+			var endpointID string
 			Eventually(func(g Gomega) {
 				obj := &ngrokv1alpha1.CloudEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				endpointID = obj.Status.ID
 
-				// Should not have created an endpoint
-				g.Expect(obj.Status.ID).To(BeEmpty())
+				tpCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionTrafficPolicy)
+				g.Expect(tpCond).NotTo(BeNil())
+				g.Expect(tpCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+
+			endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(endpoint.TrafficPolicy).To(ContainSubstring("canonical"))
+		})
+
+		It("rejects spec.trafficPolicy.inline + spec.trafficPolicy.targetRef at admission", func() {
+			// Both canonical fields together is ambiguous — not a
+			// migration scenario. The CEL rule on
+			// CloudEndpointTrafficPolicyCfg rejects this. `policy` may
+			// coexist with either canonical field during R1; only the
+			// inline+targetRef union is rejected.
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-tp-union-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "https://invalid-tp-union.internal",
+					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+						Inline:    json.RawMessage(`{"on_http_request":[]}`),
+						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy"},
+					},
+				},
+			}
+
+			err := k8sClient.Create(context.Background(), cloudEndpoint)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("inline and spec.trafficPolicy.targetRef cannot both be set"))
+		})
+
+		It("R1: trafficPolicy.policy + trafficPolicy.inline coexist (rollback-safe), canonical wins", func(ctx SpecContext) {
+			// Inline form of the recommended R1 manifest shape: keep
+			// the deprecated nested `policy` field for rollback while
+			// the R1+ operator uses the new `inline` field.
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "policy-and-inline-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "https://policy-and-inline.internal",
+					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+						Inline: json.RawMessage(`{"on_http_request":[{"name":"canonical-inline"}]}`),
+						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy-policy"}]}`),
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			var endpointID string
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				endpointID = obj.Status.ID
+			}, timeout, interval).Should(Succeed())
+
+			endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(endpoint.TrafficPolicy).To(ContainSubstring("canonical-inline"))
+			Expect(endpoint.TrafficPolicy).NotTo(ContainSubstring("legacy-policy"))
+		})
+
+		It("R1: empty trafficPolicy:{} alongside trafficPolicyName falls back to the legacy field", func(ctx SpecContext) {
+			// Templating systems often emit an empty object for absent
+			// optional fields. The controller must not let a stray
+			// `trafficPolicy: {}` silently detach a policy that the user
+			// declared via the legacy `trafficPolicyName` field.
+			legacyPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{Name: "fallback-legacy", Namespace: namespace},
+				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"fallback-rule"}]}`)},
+			}
+			Expect(k8sClient.Create(ctx, legacyPolicy)).To(Succeed())
+
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "fallback-endpoint", Namespace: namespace},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:               "https://fallback.internal",
+					TrafficPolicyName: "fallback-legacy",
+					// Empty struct mimics a templating system emitting `{}`.
+					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			var endpointID string
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				endpointID = obj.Status.ID
+
+				tpCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionTrafficPolicy)
+				g.Expect(tpCond).NotTo(BeNil())
+				g.Expect(tpCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+
+			endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(endpoint.TrafficPolicy).To(ContainSubstring("fallback-rule"))
+		})
+
+		It("R1: transitioning an endpoint from legacy trafficPolicyName to canonical targetRef updates the attached policy", func(ctx SpecContext) {
+			// Mirrors the user's actual R1 migration path: start with
+			// the legacy-only shape, then add the canonical field
+			// (still keeping the legacy for rollback). The attached
+			// policy must reflect the canonical field after the update.
+			legacyPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{Name: "transition-legacy", Namespace: namespace},
+				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-legacy"}]}`)},
+			}
+			Expect(k8sClient.Create(ctx, legacyPolicy)).To(Succeed())
+
+			canonicalPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{Name: "transition-canonical", Namespace: namespace},
+				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-canonical"}]}`)},
+			}
+			Expect(k8sClient.Create(ctx, canonicalPolicy)).To(Succeed())
+
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: "transition-endpoint", Namespace: namespace},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:               "https://transition.internal",
+					TrafficPolicyName: "transition-legacy",
+				},
+			}
+
+			By("Creating with the legacy-only shape")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			var endpointID string
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				endpointID = obj.Status.ID
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(endpoint.TrafficPolicy).To(ContainSubstring("from-legacy"))
+			}, timeout, interval).Should(Succeed())
+
+			By("Adding the canonical field alongside the legacy one (rollback-safe migration step)")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				obj.Spec.TrafficPolicy = &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+					Reference: &ngrokv1alpha1.K8sObjectRef{Name: "transition-canonical"},
+				}
+				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying the canonical policy wins and the legacy is ignored")
+			Eventually(func(g Gomega) {
+				endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(endpoint.TrafficPolicy).To(ContainSubstring("from-canonical"))
+				g.Expect(endpoint.TrafficPolicy).NotTo(ContainSubstring("from-legacy"))
 			}, timeout, interval).Should(Succeed())
 		})
 	})
@@ -439,7 +700,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				obj := &ngrokv1alpha1.CloudEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
 
-				obj.Spec.TrafficPolicyName = "policy-v2"
+				obj.Spec.TrafficPolicyName = "policy-v2" //nolint:staticcheck // test of deprecated field
 				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
 			}, timeout, interval).Should(Succeed())
 
@@ -502,6 +763,91 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(endpoint.Description).To(Equal("Updated after deletion"))
 			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should recreate a legacy trafficPolicyName endpoint when update returns 404", func(ctx SpecContext) {
+			// Regression test: update()'s 404 fallback used to call
+			// resolveTrafficPolicy a second time on the same object in the
+			// same reconcile — a wasted extra TrafficPolicy CR fetch and a
+			// duplicate DeprecatedField event (see
+			// TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy in
+			// cloudendpoint_controller_unit_test.go for the event-count
+			// assertion). createWithPolicy now reuses the policy resolved
+			// once in update(), so the recreated endpoint must still carry
+			// the correct policy content.
+			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "recreate-legacy-policy",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+					Policy: []byte(`{"on_http_request":[{"name":"recreate-legacy"}]}`),
+				},
+			}
+			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
+
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "recreate-legacy-endpoint",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:               "https://recreate-legacy.internal",
+					TrafficPolicyName: "recreate-legacy-policy",
+				},
+			}
+
+			By("Creating the CloudEndpoint with deprecated trafficPolicyName")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			var originalID string
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				originalID = obj.Status.ID
+			}, timeout, interval).Should(Succeed())
+
+			By("Manually deleting the endpoint from mock to simulate 404")
+			Expect(mockClientset.Endpoints().Delete(context.Background(), originalID)).To(Succeed())
+
+			By("Updating the CloudEndpoint spec to trigger reconcile")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+
+				obj.Spec.Description = "Updated after deletion"
+				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying the recreated endpoint still carries the legacy-resolved policy")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+				endpoint, err := mockClientset.Endpoints().Get(context.Background(), obj.Status.ID)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(endpoint.Description).To(Equal("Updated after deletion"))
+				g.Expect(endpoint.TrafficPolicy).To(ContainSubstring("recreate-legacy"))
+
+				// Regression: the ReconcileStatus call made to clear the
+				// stale Status.ID above decodes the un-normalized Spec back
+				// into the object, which used to make MarkApplied silently
+				// skip setting this condition for a trafficPolicyName-only
+				// endpoint even though the policy really was applied.
+				tpCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionTrafficPolicy)
+				g.Expect(tpCond).NotTo(BeNil())
+				g.Expect(tpCond.Status).To(Equal(metav1.ConditionTrue))
+			}, timeout, interval).Should(Succeed())
+
+			// The event emitted by a second, redundant resolveTrafficPolicy
+			// call on this path is covered at the unit level
+			// (TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy in
+			// cloudendpoint_controller_unit_test.go) — the real event API
+			// aggregates repeated (reason, regarding) events within a short
+			// window and keeps only the first Note, so it can't distinguish
+			// the misleading second message from here.
 		})
 
 		It("should update URL successfully", func(ctx SpecContext) {

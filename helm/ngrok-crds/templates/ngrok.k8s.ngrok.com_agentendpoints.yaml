@@ -173,13 +173,15 @@ spec:
                 properties:
                   inline:
                     description: |-
-                      Inline definition of a TrafficPolicy to attach to the agent Endpoint
-                      The raw JSON-encoded policy that was applied to the ngrok API
+                      Inline definition of a TrafficPolicy to attach to the Endpoint.
+                      The raw JSON-encoded policy that was applied to the ngrok API.
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
                   targetRef:
-                    description: Reference to a TrafficPolicy resource to attach to
-                      the Agent Endpoint
+                    description: |-
+                      Reference to a TrafficPolicy resource to attach to the Endpoint. The
+                      referenced NgrokTrafficPolicy must live in the same namespace as the
+                      endpoint.
                     properties:
                       name:
                         description: The name of the Kubernetes resource being referenced
@@ -189,11 +191,8 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: targetRef or inline must be provided to trafficPolicy
-                  rule: has(self.inline) || has(self.targetRef)
-                - message: Only one of inline and targetRef can be configured for
-                    trafficPolicy
-                  rule: has(self.inline) != has(self.targetRef)
+                - message: exactly one of inline or targetRef must be set on trafficPolicy
+                  rule: '[has(self.inline), has(self.targetRef)].exists_one(x, x)'
               upstream:
                 description: Defines the destination for traffic to this AgentEndpoint
                 properties:

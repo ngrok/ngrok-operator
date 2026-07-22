@@ -32,12 +32,12 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
@@ -48,10 +48,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
-)
-
-const (
-	trafficPolicyNameIndex = "spec.trafficPolicyName"
+	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 )
 
 // CloudEndpointReconciler reconciles a CloudEndpoint object
@@ -68,16 +65,11 @@ type CloudEndpointReconciler struct {
 	ControllerLabels           labels.ControllerLabelValues
 	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
 	DomainManager              *domainpkg.Manager
+	TrafficPolicyManager       *trafficpolicypkg.Manager
 }
 
-// Define a custom error types to catch and handle requeuing logic for
-var (
-	ErrInvalidTrafficPolicyConfig = errors.New("invalid TrafficPolicy configuration: both TrafficPolicyName and TrafficPolicy are set")
-)
-
 // SetupWithManager sets up the controller with the Manager.
-// It also sets up a Field Indexer to index Cloud Endpoints by their Traffic Policy name
-// Additionally, this triggers updates when a trafficPolicy is created or updated but not when deleted
+// It also sets up a Field Indexer to index Cloud Endpoints by their Traffic Policy name.
 func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.NgrokClientset == nil {
 		return errors.New("NgrokClientset is required")
@@ -102,6 +94,10 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return err
 		}
 		r.DomainManager = dm
+	}
+
+	if r.TrafficPolicyManager == nil {
+		r.TrafficPolicyManager = trafficpolicypkg.NewManager(r.Client, r.Recorder)
 	}
 
 	r.controller = &controller.BaseController[*ngrokv1alpha1.CloudEndpoint]{
@@ -133,22 +129,23 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if errors.Is(err, domainpkg.ErrDomainNotReady) {
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
-			if errors.Is(err, ErrInvalidTrafficPolicyConfig) {
+			if errors.Is(err, trafficpolicypkg.ErrInvalidConfig) || errors.Is(err, trafficpolicypkg.ErrInvalidPolicyJSON) {
 				r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "ConfigError", "Reconcile", err.Error())
 				r.Log.Error(err, "invalid TrafficPolicy configuration", "name", cr.Name, "namespace", cr.Namespace)
 				return ctrl.Result{}, nil // Do not requeue
+			}
+			if errors.Is(err, trafficpolicypkg.ErrTrafficPolicyNotFound) {
+				// Terminal: the condition is already False and an event was
+				// emitted during Resolve. Don't requeue — the TrafficPolicy
+				// watch re-enqueues this endpoint when the policy is (re)created.
+				r.Log.Info("referenced TrafficPolicy not found; awaiting (re)creation", "name", cr.Name, "namespace", cr.Namespace)
+				return ctrl.Result{}, nil
 			}
 			return controller.CtrlResultForErr(err)
 		},
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &ngrokv1alpha1.CloudEndpoint{}, trafficPolicyNameIndex, func(o client.Object) []string {
-		clep, ok := o.(*ngrokv1alpha1.CloudEndpoint)
-		if !ok {
-			return nil
-		}
-		return []string{clep.Spec.TrafficPolicyName}
-	}); err != nil {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &ngrokv1alpha1.CloudEndpoint{}, trafficpolicypkg.RefIndex, indexCloudEndpointTrafficPolicyRefs); err != nil {
 		return err
 	}
 
@@ -159,19 +156,42 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointForTrafficPolicy),
-			// Don't process delete events as it will just fail to look it up.
-			// Instead rely on the user to either delete the CloudEndpoint CR or update it with a new TrafficPolicy name
-			builder.WithPredicates(&predicate.Funcs{
-				DeleteFunc: func(_ event.DeleteEvent) bool {
-					return false
-				},
-			}),
 		).
 		Watches(
 			&ingressv1alpha1.Domain{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointsForDomain),
 		).
 		Complete(r)
+}
+
+// indexCloudEndpointTrafficPolicyRefs returns the composite key for the
+// TrafficPolicy this CloudEndpoint depends on so updates to that policy
+// requeue the endpoint. Canonical spec.trafficPolicy wins when it carries
+// any effective policy (inline, targetRef, or legacy nested policy) —
+// inline and policy-only shapes produce no index entry because they have
+// no external ref to watch. Only when no canonical policy is set do we
+// fall back to the deprecated spec.trafficPolicyName so legacy manifests
+// still get requeued during the deprecation window.
+func indexCloudEndpointTrafficPolicyRefs(o client.Object) []string {
+	clep, ok := o.(*ngrokv1alpha1.CloudEndpoint)
+	if !ok {
+		return nil
+	}
+	if hasEffectivePolicy(clep.Spec.TrafficPolicy) {
+		if k := trafficpolicypkg.IndexKey(clep); k != "" {
+			return []string{k}
+		}
+		// Canonical wins (e.g. inline-only or policy-only) — don't fall
+		// back to the legacy name field, which would produce stale
+		// requeues from a TrafficPolicy the controller never resolves.
+		return nil
+	}
+	// LEGACY-trafficpolicy-name: delete this fallback in the cleanup release.
+	//nolint:staticcheck // indexing the deprecated field during the deprecation window
+	if clep.Spec.TrafficPolicyName != "" {
+		return []string{clep.Namespace + "/" + clep.Spec.TrafficPolicyName} //nolint:staticcheck // see above
+	}
+	return nil
 }
 
 // #region Reconcile CRUD
@@ -189,11 +209,23 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
-	policy, err := r.getTrafficPolicy(ctx, clep)
+	policy, err := r.resolveTrafficPolicy(ctx, clep)
 	if err != nil {
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
+	return r.createWithPolicy(ctx, clep, domainResult, policy)
+}
+
+// createWithPolicy issues the ngrok API Create call using an already-resolved
+// policy. Split out of create() so the update() → 404 → recreate fallback can
+// reuse the policy it already resolved instead of calling resolveTrafficPolicy
+// a second time on the same reconcile: the ReconcileStatus call in that
+// fallback (needed to clear the stale Status.ID before recreating) resets
+// clep's in-memory Spec back to what's stored on the API server, so a second
+// call wouldn't misresolve — it would just redundantly re-fetch the
+// referenced TrafficPolicy and re-emit the same DeprecatedField event.
+func (r *CloudEndpointReconciler) createWithPolicy(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult, policy string) error {
 	createParams := &ngrok.EndpointCreate{
 		Type:           "cloud",
 		URL:            clep.Spec.URL,
@@ -206,14 +238,10 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 
 	ngrokClep, err := r.NgrokClientset.Endpoints().Create(ctx, createParams)
 	if err != nil {
-		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to create cloud endpoint: %v", err))
-		return r.updateStatus(ctx, clep, nil, domainResult, err)
+		return r.recordWriteError(ctx, clep, domainResult, policy, err, fmt.Sprintf("Failed to create cloud endpoint: %v", err))
 	}
 
-	// Set success condition
-	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint created successfully")
-
-	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
+	return r.recordWriteSuccess(ctx, clep, ngrokClep, domainResult, "CloudEndpoint created successfully")
 }
 
 // Update is called when we have a status ID and want to update the resource in the ngrok API
@@ -224,7 +252,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
 
-	policy, err := r.getTrafficPolicy(ctx, clep)
+	policy, err := r.resolveTrafficPolicy(ctx, clep)
 	if err != nil {
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
 	}
@@ -240,7 +268,14 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		if err := r.controller.ReconcileStatus(ctx, clep, nil); err != nil {
 			return err
 		}
-		return r.create(ctx, clep)
+		// ReconcileStatus decoded the API server's stored Spec back into
+		// clep, undoing resolveTrafficPolicy's in-memory legacy-field fold
+		// above. Restore it (without re-emitting the deprecation event) so
+		// MarkApplied — called via createWithPolicy's recordWriteSuccess —
+		// sees a non-nil canonical TrafficPolicy and actually flips
+		// TrafficPolicyApplied to True instead of silently no-oping.
+		r.normalizeLegacyTrafficPolicy(clep, false)
+		return r.createWithPolicy(ctx, clep, domainResult, policy)
 	}
 	if err != nil {
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
@@ -248,8 +283,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 
 	// Skip the API update if nothing has changed
 	if !endpointNeedsUpdate(currentEndpoint, clep.Spec, policy) {
-		setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint updated successfully")
-		return r.updateStatus(ctx, clep, currentEndpoint, domainResult, nil)
+		return r.recordWriteSuccess(ctx, clep, currentEndpoint, domainResult, "CloudEndpoint updated successfully")
 	}
 
 	updateParams := &ngrok.EndpointUpdate{
@@ -264,14 +298,151 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 
 	ngrokClep, err := r.NgrokClientset.Endpoints().Update(ctx, updateParams)
 	if err != nil {
-		setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, fmt.Sprintf("Failed to update cloud endpoint: %v", err))
-		return r.updateStatus(ctx, clep, nil, domainResult, err)
+		return r.recordWriteError(ctx, clep, domainResult, policy, err, fmt.Sprintf("Failed to update cloud endpoint: %v", err))
 	}
 
-	// Set success condition
-	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, "CloudEndpoint updated successfully")
+	return r.recordWriteSuccess(ctx, clep, ngrokClep, domainResult, "CloudEndpoint updated successfully")
+}
 
+// recordWriteSuccess marks the resolved traffic policy as applied and the
+// endpoint as created, then writes status. Called after a downstream
+// create/update (or a skipped no-op update) succeeds.
+func (r *CloudEndpointReconciler) recordWriteSuccess(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, ngrokClep *ngrok.Endpoint, domainResult *domainpkg.DomainResult, message string) error {
+	r.TrafficPolicyManager.MarkApplied(clep)
+	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, message)
 	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
+}
+
+// recordWriteError marks the endpoint creation as failed and, when the ngrok
+// API rejected the request because of the policy itself, surfaces that on the
+// TrafficPolicyApplied condition. Called after a downstream create/update fails.
+func (r *CloudEndpointReconciler) recordWriteError(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult, policy string, err error, message string) error {
+	setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, message)
+	if policy != "" && ngrokapi.IsTrafficPolicyError(err.Error()) {
+		r.TrafficPolicyManager.SetError(clep, ngrokapi.SanitizeErrorMessage(err.Error()))
+	}
+	return r.updateStatus(ctx, clep, nil, domainResult, err)
+}
+
+// resolveTrafficPolicy folds CloudEndpoint's deprecated legacy fields into the
+// canonical shape and delegates to the shared trafficpolicy.Manager.
+func (r *CloudEndpointReconciler) resolveTrafficPolicy(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) (string, error) {
+	r.normalizeLegacyTrafficPolicy(clep, true)
+
+	result, err := r.TrafficPolicyManager.Resolve(ctx, clep)
+	if err != nil {
+		return "", err
+	}
+	return result.Policy, nil
+}
+
+// normalizeLegacyTrafficPolicy folds the deprecated legacy fields into the
+// canonical shape and emits deprecation events for user-authored manifests
+// that still use them. The legacy paths are:
+//
+//   - spec.trafficPolicyName  (the old bare-string ref)
+//   - spec.trafficPolicy.policy  (the old inline nested under a `policy` key)
+//
+// R1 of the two-release trafficpolicy migration: both legacy fields are still
+// honored. When a legacy field is set alongside its canonical replacement,
+// the canonical field wins. Empty canonical objects (e.g. `trafficPolicy: {}`)
+// do NOT win — we fall back to the legacy field so a templating system that
+// emits an empty object doesn't silently detach an attached policy.
+//
+// Deprecation events are suppressed when the CloudEndpoint is operator-owned
+// (has a controller OwnerReference); generated objects intentionally carry
+// dual-written legacy fields for rollback safety and the user can't act on
+// the event anyway.
+//
+// emitEvents lets a caller re-run the fold without emitting a second
+// deprecation event for the same reconcile. update()'s 404-recreate fallback
+// needs this: the ReconcileStatus call it makes to clear the stale Status.ID
+// decodes the API server's stored (un-normalized) Spec back into clep,
+// undoing this function's in-memory-only fold. Re-normalizing afterwards
+// with emitEvents=false restores the canonical shape — so
+// MarkApplied's GetTrafficPolicyCfg() check sees it and actually sets
+// TrafficPolicyApplied=True — without emitting a duplicate event.
+//
+// LEGACY-trafficpolicy-name / LEGACY-trafficpolicy-policy: delete this
+// function in the cleanup release.
+func (r *CloudEndpointReconciler) normalizeLegacyTrafficPolicy(clep *ngrokv1alpha1.CloudEndpoint, emitEvents bool) {
+	emit := emitEvents && !isOperatorOwned(clep)
+
+	// trafficPolicyName → trafficPolicy.targetRef.name
+	if clep.Spec.TrafficPolicyName != "" { //nolint:staticcheck // intentionally reading the deprecated field
+		if hasEffectivePolicy(clep.Spec.TrafficPolicy) {
+			// Both effective: canonical wins. Warn only if we actually
+			// ignored a legacy value the user set explicitly.
+			if emit {
+				r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "DeprecatedField", "Reconcile",
+					"spec.trafficPolicyName is deprecated and is ignored when spec.trafficPolicy is also set; use spec.trafficPolicy.targetRef.name instead")
+			}
+		} else {
+			// Either trafficPolicy is nil, or it's a non-nil but empty
+			// struct (templating systems often emit `{}`). Treat as
+			// legacy-only and normalize in-memory to canonical so the
+			// resolver/indexer/watch mappers all operate on one shape. We
+			// do not write this back to the API; the user's manifest is
+			// preserved.
+			if emit {
+				r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "DeprecatedField", "Reconcile",
+					"spec.trafficPolicyName is deprecated; use spec.trafficPolicy.targetRef.name instead")
+			}
+			clep.Spec.TrafficPolicy = &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+				Reference: &ngrokv1alpha1.K8sObjectRef{
+					Name: clep.Spec.TrafficPolicyName, //nolint:staticcheck // see above
+				},
+			}
+		}
+	}
+
+	// trafficPolicy.policy → trafficPolicy.inline
+	if clep.Spec.TrafficPolicy.HasDeprecatedPolicy() && emit {
+		switch {
+		case clep.Spec.TrafficPolicy.Reference != nil:
+			r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "DeprecatedField", "Reconcile",
+				"spec.trafficPolicy.policy is deprecated and is ignored when spec.trafficPolicy.targetRef is also set; use spec.trafficPolicy.targetRef instead")
+		case clep.Spec.TrafficPolicy.Inline != nil:
+			// Both inline forms set: usually the operator's dual-write
+			// (which is suppressed above). For a user manifest, point
+			// them at the canonical field.
+			r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "DeprecatedField", "Reconcile",
+				"spec.trafficPolicy.policy is deprecated and is ignored when spec.trafficPolicy.inline is also set; use spec.trafficPolicy.inline instead")
+		default:
+			r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "DeprecatedField", "Reconcile",
+				"spec.trafficPolicy.policy is deprecated; use spec.trafficPolicy.inline instead")
+		}
+	}
+}
+
+// hasEffectivePolicy reports whether cfg carries an actually-resolvable policy
+// (any of canonical inline, canonical targetRef, or deprecated nested policy).
+// An empty struct returns false so a templating-emitted `trafficPolicy: {}`
+// does not silently override a coexisting legacy `spec.trafficPolicyName`.
+func hasEffectivePolicy(cfg *ngrokv1alpha1.CloudEndpointTrafficPolicyCfg) bool {
+	if cfg == nil {
+		return false
+	}
+	return cfg.Inline != nil || cfg.Reference != nil || cfg.Policy != nil //nolint:staticcheck // LEGACY-trafficpolicy-policy fallback
+}
+
+// isOperatorOwned reports whether the object was generated by another
+// reconciler (Ingress/Gateway/Service) rather than authored by the user.
+// The Service path sets a controller OwnerReference; the managerdriver
+// (Ingress/Gateway) path sets the operator's controller labels but no
+// OwnerReference. Either signal is enough — any operator instance that
+// stamped the label did the dual-write, so the user can't act on a
+// DeprecatedField event regardless.
+func isOperatorOwned(obj metav1.Object) bool {
+	for _, ref := range obj.GetOwnerReferences() {
+		if ref.Controller != nil && *ref.Controller {
+			return true
+		}
+	}
+	if _, ok := obj.GetLabels()[labels.ControllerName]; ok {
+		return true
+	}
+	return false
 }
 
 // Simply attempt to delete it. The base controller handles not found errors
@@ -303,33 +474,26 @@ func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv
 
 // #region Helper Functions
 
-// findCloudEndpointForTrafficPolicy searches for any Cloud Endpoints CRs that have a reference to a particular Traffic Policy
+// findCloudEndpointForTrafficPolicy returns reconcile requests for every
+// CloudEndpoint that references the supplied NgrokTrafficPolicy via the new
+// targetRef shape or the deprecated spec.trafficPolicyName — both flow through
+// the same composite-key index.
 func (r *CloudEndpointReconciler) findCloudEndpointForTrafficPolicy(ctx context.Context, o client.Object) []ctrl.Request {
 	tp, ok := o.(*ngrokv1alpha1.NgrokTrafficPolicy)
 	if !ok {
 		return nil
 	}
 
-	// Use the index to find CloudEndpoints that reference this TrafficPolicy
-	var cloudEndpointList ngrokv1alpha1.CloudEndpointList
-	if err := r.Client.List(ctx, &cloudEndpointList,
-		client.InNamespace(tp.Namespace),
-		client.MatchingFields{trafficPolicyNameIndex: tp.Name}); err != nil {
+	var list ngrokv1alpha1.CloudEndpointList
+	if err := r.Client.List(ctx, &list, client.MatchingFields{trafficpolicypkg.RefIndex: trafficpolicypkg.LookupKey(tp)}); err != nil {
 		r.Log.Error(err, "failed to list CloudEndpoints using index")
 		return nil
 	}
 
-	// Collect the requests for matching CloudEndpoints
-	var requests []ctrl.Request
-	for _, clep := range cloudEndpointList.Items {
-		requests = append(requests, ctrl.Request{
-			NamespacedName: client.ObjectKey{
-				Name:      clep.Name,
-				Namespace: clep.Namespace,
-			},
-		})
+	requests := make([]ctrl.Request, 0, len(list.Items))
+	for _, clep := range list.Items {
+		requests = append(requests, ctrl.Request{NamespacedName: client.ObjectKey{Name: clep.Name, Namespace: clep.Namespace}})
 	}
-
 	return requests
 }
 
@@ -379,56 +543,4 @@ func endpointNeedsUpdate(current *ngrok.Endpoint, spec ngrokv1alpha1.CloudEndpoi
 		return true
 	}
 	return false
-}
-
-// getTrafficPolicy returns the TrafficPolicy JSON string from either the name reference or inline policy
-func (r *CloudEndpointReconciler) getTrafficPolicy(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) (string, error) {
-	// Ensure mutually exclusive fields are not both set
-	if clep.Spec.TrafficPolicyName != "" && clep.Spec.TrafficPolicy != nil {
-		return "", ErrInvalidTrafficPolicyConfig
-	}
-
-	var policy string
-	var err error
-
-	// Handle either finding the TrafficPolicy by name or using the inline policy
-	if clep.Spec.TrafficPolicyName != "" {
-		policy, err = r.findTrafficPolicyByName(ctx, clep.Spec.TrafficPolicyName, clep.Namespace)
-		if err != nil {
-			return "", err
-		}
-	} else if clep.Spec.TrafficPolicy != nil {
-		// Marshal the inline TrafficPolicy to JSON
-		policyBytes, err := clep.Spec.TrafficPolicy.Policy.MarshalJSON()
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal inline TrafficPolicy: %w", err)
-		}
-		policy = string(policyBytes)
-	}
-
-	return policy, nil
-}
-
-// findTrafficPolicyByName fetches the TrafficPolicy CRD from the API server and returns the JSON policy as a string
-func (r *CloudEndpointReconciler) findTrafficPolicyByName(ctx context.Context, tpName, tpNamespace string) (string, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues("name", tpName, "namespace", tpNamespace)
-
-	// Create a TrafficPolicy object to store the fetched result
-	tp := &ngrokv1alpha1.NgrokTrafficPolicy{}
-	key := client.ObjectKey{Name: tpName, Namespace: tpNamespace}
-
-	// Attempt to get the TrafficPolicy from the API server
-	if err := r.Client.Get(ctx, key, tp); err != nil {
-		r.Recorder.Eventf(tp, nil, v1.EventTypeWarning, "TrafficPolicyNotFound", "Reconcile", fmt.Sprintf("Failed to find TrafficPolicy %s", tpName))
-		return "", err
-	}
-
-	// Convert the JSON policy to a string
-	policyBytes, err := tp.Spec.Policy.MarshalJSON()
-	if err != nil {
-		log.Error(err, "failed to marshal TrafficPolicy JSON")
-		return "", err
-	}
-
-	return string(policyBytes), nil
 }
