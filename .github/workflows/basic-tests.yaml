@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: true
+      nix-changed:
+        description: "Whether the nix flake has changed"
+        required: false
+        type: boolean
+        default: true
   schedule:
     # Run every 8 hours on the main branch to catch flakey tests
     - cron: '0 */8 * * *'
@@ -22,7 +27,7 @@ jobs:
   kubebuilder-diff:
     name: Kubebuilder Diff
     runs-on: ubuntu-latest
-    if: ${{ inputs.go-changed || inputs.make-changed }}
+    if: ${{ inputs.go-changed || inputs.make-changed || inputs.nix-changed }}
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
@@ -39,7 +44,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: ${{ inputs.go-changed || inputs.make-changed }}
+    if: ${{ inputs.go-changed || inputs.make-changed || inputs.nix-changed }}
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
@@ -51,7 +56,7 @@ jobs:
   go-mod-tidy:
     name: Go Mod Tidy Check
     runs-on: ubuntu-latest
-    if: ${{ inputs.go-changed }}
+    if: ${{ inputs.go-changed || inputs.nix-changed }}
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
@@ -64,7 +69,7 @@ jobs:
   go-fix:
     name: Go Fix Check
     runs-on: ubuntu-latest
-    if: ${{ inputs.go-changed }}
+    if: ${{ inputs.go-changed || inputs.nix-changed }}
     permissions:
       contents: read
     steps:
@@ -80,7 +85,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    if: ${{ inputs.go-changed || inputs.make-changed || github.event_name == 'schedule' }}
+    if: ${{ inputs.go-changed || inputs.make-changed || inputs.nix-changed || github.event_name == 'schedule' }}
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:

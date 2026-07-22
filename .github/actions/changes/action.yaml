@@ -23,6 +23,9 @@ outputs:
   make:
     description: "If the Makefile has changed"
     value: ${{ steps.filter.outputs.make }}
+  nix:
+    description: "If the nix flake has changed"
+    value: ${{ steps.filter.outputs.nix }}
 
 runs:
   using: "composite"
@@ -58,5 +61,8 @@ runs:
           make:
             - 'Makefile'
             - 'tools/make/**'
+          nix:
+            - 'flake.nix'
+            - 'flake.lock'
           tag:
             - 'VERSION'
