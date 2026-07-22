@@ -14,7 +14,7 @@
 | Field         | Type           | Required | Default                                              |
 |---------------|----------------|----------|------------------------------------------------------|
 | `description` | string         | No       | `"Created by the ngrok-operator"`                     |
-| `metadata`    | map[string]string | No    | `{"owned-by": "ngrok-operator"}`                      |
+| `metadata`    | string | No    | `{"owned-by": "ngrok-operator"}`                      |
 | `rules`       | []IPPolicyRule | No       |                                                      |
 
 ### IPPolicyRule
@@ -22,7 +22,7 @@
 | Field         | Type   | Required | Default                                              | Validation           |
 |---------------|--------|----------|------------------------------------------------------|----------------------|
 | `description` | string | No       | `"Created by the ngrok-operator"`                     | MaxLength: 255       |
-| `metadata`    | map[string]string | No | `{"owned-by": "ngrok-operator"}`                 | MaxLength: 4096      |
+| `metadata`    | string | No | `{"owned-by": "ngrok-operator"}`                 | MaxLength: 4096      |
 | `cidr`        | string | Yes      |                                                      | Pattern: IPv4 or IPv6 CIDR notation (prefix length required) |
 | `action`      | string | Yes      |                                                      | Enum: `allow`, `deny`|
 

@@ -261,14 +261,23 @@ var _ = Describe("IPPolicy schema validation", func() {
 	}
 
 	It("accepts valid IPv4 and IPv6 CIDRs", func(ctx SpecContext) {
-		for i, cidr := range []string{"10.0.0.0/8", "192.168.1.128/25", "0.0.0.0/0", "2001:db8::/32", "::/0", "fe80::1/128"} {
+		for i, cidr := range []string{
+			"10.0.0.0/8", "192.168.1.128/25", "0.0.0.0/0",
+			"2001:db8::/32", "::/0", "fe80::1/128", "::1/128",
+			"1:2:3:4:5:6:7:8/128", "2001:db8:0:0:0:0:2:1/64",
+		} {
 			ip := newPolicy(fmt.Sprintf("schema-valid-cidr-%d", i), cidr)
 			Expect(k8sClient.Create(ctx, ip)).To(Succeed(), "expected CIDR %q to be accepted", cidr)
 		}
 	})
 
 	It("rejects invalid CIDRs", func(ctx SpecContext) {
-		for i, cidr := range []string{"10.0.0.1", "not-a-cidr", "10.0.0.0/33", "300.0.0.0/8", "2001:db8::/129", ""} {
+		for i, cidr := range []string{
+			"10.0.0.1", "not-a-cidr", "10.0.0.0/33", "300.0.0.0/8", "2001:db8::/129", "",
+			// malformed compressed/leading/trailing-colon IPv6 forms that a too-loose
+			// pattern could otherwise admit
+			":::/64", ":/64", "2001:db8:::/32", "1::2::3/64", "::g/64",
+		} {
 			ip := newPolicy(fmt.Sprintf("schema-invalid-cidr-%d", i), cidr)
 			err := k8sClient.Create(ctx, ip)
 			Expect(err).To(HaveOccurred(), "expected CIDR %q to be rejected", cidr)
