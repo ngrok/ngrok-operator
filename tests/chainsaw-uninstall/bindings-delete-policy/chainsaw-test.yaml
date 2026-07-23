@@ -67,7 +67,7 @@ spec:
               metadata:
                 namespace: uninstall-test
               status:
-                registrationStatus: registered
+                "(length(to_array(conditions)[? type == 'Registered' && status == 'True']) > `0`)": true
                 (id != null): true
 
     - name: capture KubernetesOperator ID

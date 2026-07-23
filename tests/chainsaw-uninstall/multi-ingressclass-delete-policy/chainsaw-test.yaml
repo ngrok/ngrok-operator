@@ -100,7 +100,7 @@ spec:
               metadata:
                 namespace: namespace-a
               status:
-                registrationStatus: registered
+                "(length(to_array(conditions)[? type == 'Registered' && status == 'True']) > `0`)": true
                 (id != null): true
         - assert:
             timeout: 2m
@@ -110,7 +110,7 @@ spec:
               metadata:
                 namespace: namespace-b
               status:
-                registrationStatus: registered
+                "(length(to_array(conditions)[? type == 'Registered' && status == 'True']) > `0`)": true
                 (id != null): true
 
     - name: capture KubernetesOperator IDs

@@ -45,31 +45,45 @@
 
 ## Status
 
-| Field                      | Type        | Description                                         |
-|----------------------------|-------------|-----------------------------------------------------|
-| `observedGeneration`       | int64       | Generation last reconciled by the controller        |
-| `id`                       | string      | ngrok API resource ID                               |
-| `uri`                      | string      | ngrok API resource URI                              |
-| `registrationStatus`       | string      | Enum: `registered`, `error`, `pending` (default: `pending`) |
-| `registrationErrorCode`    | string      | Pattern: `^ERR_NGROK_\d+$`                         |
-| `registrationErrorMessage` | string      | MaxLength: 4096                                     |
-| `enabledFeatures`          | string      | Comma-separated list of enabled features            |
-| `bindingsIngressEndpoint`  | string      | Resolved bindings ingress endpoint                  |
-| `drainStatus`              | DrainStatus | Enum: `pending`, `draining`, `completed`, `failed`  |
-| `drainMessage`             | string      | Human-readable drain progress message               |
-| `drainProgress`            | string      | Drain progress indicator                            |
-| `drainErrors`              | []string    | Errors encountered during drain                     |
+| Field                      | Type                          | Description                                         |
+|----------------------------|-------------------------------|-----------------------------------------------------|
+| `observedGeneration`       | int64                         | Generation last reconciled by the controller        |
+| `id`                       | string                        | ngrok API resource ID                               |
+| `uri`                      | string                        | ngrok API resource URI                              |
+| `conditions`               | []Condition                   | MaxItems: 8                                         |
+| `enabledFeatures`          | []string                      | Enabled features reported by the ngrok API          |
+| `bindingsIngressEndpoint`  | string                        | Resolved bindings ingress endpoint                  |
+| `drain`                    | *KubernetesOperatorDrainStatus | Drain progress, present only once deletion starts  |
+
+### KubernetesOperatorDrainStatus
+
+| Field              | Type     | Description                                        |
+|--------------------|----------|----------------------------------------------------|
+| `drainedResources` | int      | Resources processed so far, including failures     |
+| `totalResources`   | int      | Total resources the drain will process             |
+| `errors`           | []string | Most recent errors encountered during drain        |
+
+## Conditions
+
+| Type         | Description                                                                 |
+|--------------|-----------------------------------------------------------------------------|
+| `Ready`      | Overall readiness. `False` with reason `Draining`/`DrainFailed`/`DrainCompleted` during deletion |
+| `Registered` | Whether this operator is registered with the ngrok API. Failure reasons use the `ERR_NGROK_*` error code when available, otherwise `RegistrationFailed`; `Pending` before registration |
+| `Draining`   | Present only during deletion. `True` while the drain is in progress or retrying after errors (reason `DrainInProgress`/`DrainFailed`), `False` with reason `DrainCompleted` once finished |
 
 ## Printer Columns
 
-| Name                      | Source                                  | Priority |
-|---------------------------|-----------------------------------------|----------|
-| ID                        | `.status.id`                            | 0        |
-| Status                    | `.status.registrationStatus`            | 0        |
-| Enabled Features          | `.status.enabledFeatures`               | 0        |
-| Endpoint Selectors        | `.spec.binding.endpointSelectors`       | 0        |
-| Binding Ingress Endpoint  | `.spec.binding.ingressEndpoint`         | 2        |
-| Age                       | `.metadata.creationTimestamp`           | 0        |
+| Name                      | Source                                            | Priority |
+|---------------------------|---------------------------------------------------|----------|
+| ID                        | `.status.id`                                      | 0        |
+| Ready                     | `.status.conditions[?(@.type=='Ready')].status`   | 0        |
+| Enabled Features          | `.status.enabledFeatures`                         | 0        |
+| Endpoint Selectors        | `.spec.binding.endpointSelectors`                 | 0        |
+| Binding Ingress Endpoint  | `.spec.binding.ingressEndpoint`                   | 2        |
+| Age                       | `.metadata.creationTimestamp`                     | 0        |
+| Reason                    | `.status.conditions[?(@.type=='Ready')].reason`   | 1        |
+| Drained                   | `.status.drain.drainedResources`                  | 1        |
+| Drain Total               | `.status.drain.totalResources`                    | 1        |
 
 ## Annotations
 

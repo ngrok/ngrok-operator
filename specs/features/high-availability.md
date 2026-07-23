@@ -58,4 +58,4 @@ Leader election applies **only to the API Manager**. With multiple API Manager r
 
 ## Drain State Across Replicas
 
-When draining is initiated, the drain state propagates across replicas via the KubernetesOperator CR's `status.drainStatus` field. This ensures all replicas observe the drain state regardless of which replica is the leader.
+When draining is initiated, the drain state propagates across replicas via the KubernetesOperator CR's `Draining` status condition. This ensures all replicas observe the drain state regardless of which replica is the leader.
