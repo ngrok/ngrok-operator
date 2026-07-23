@@ -14,7 +14,7 @@
 | Field           | Type                    | Required | Default                                               | Validation                   |
 |-----------------|-------------------------|----------|-------------------------------------------------------|------------------------------|
 | `description`   | string                  | No       | `"Created by the ngrok-operator"`                      |                              |
-| `metadata`      | string       | No       | `{"owned-by": "ngrok-operator"}`                       |                              |
+| `metadata`      | map[string]string       | No       | `{"owned-by": "ngrok-operator"}`                       |                              |
 | `domain`        | string                  | Yes      |                                                       |                              |
 | `resolvesTo`    | []DomainResolvesToEntry| No       |                                                       |                              |
 | `reclaimPolicy` | DomainReclaimPolicy     | No       | `"Delete"`                                            | Enum: `Delete`, `Retain`     |

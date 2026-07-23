@@ -14,7 +14,7 @@
 | Field             | Type                          | Required | Default                                | Validation                               |
 |-------------------|-------------------------------|----------|----------------------------------------|------------------------------------------|
 | `description`     | string                        | No       | `"Created by the ngrok-operator"`      |                                          |
-| `metadata`        | string             | No       | `{"owned-by": "ngrok-operator"}`      |                                          |
+| `metadata`        | map[string]string             | No       | `{"owned-by": "ngrok-operator"}`      |                                          |
 | `enabledFeatures` | []string                      | No       |                                        | Items enum: `ingress`, `gateway`, `bindings` |
 | `region`          | string                        | No       | `"global"`                             |                                          |
 | `deployment`      | KubernetesOperatorDeployment  | No       |                                        |                                          |

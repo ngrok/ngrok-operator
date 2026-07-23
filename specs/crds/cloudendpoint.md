@@ -19,7 +19,7 @@
 | `trafficPolicy`     | TrafficPolicyCfg          | No       |                                        | XValidation: exactly one of `inline` or `targetRef` |
 | `poolingEnabled`    | *bool                     | No       |                                        |                                       |
 | `description`       | string                    | No       | `"Created by the ngrok-operator"`      |                                       |
-| `metadata`          | string         | No       | `{"owned-by": "ngrok-operator"}`      |                                       |
+| `metadata`          | map[string]string         | No       | `{"owned-by": "ngrok-operator"}`      |                                       |
 | `bindings`          | []string                  | No       |                                        | MaxItems: 1, Pattern: `^(public\|internal\|kubernetes)$` |
 
 ## Status
