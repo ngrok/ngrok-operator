@@ -152,6 +152,19 @@ var _ = Describe("IPPolicyReconciler", func() {
 			g.Expect(err).NotTo(HaveOccurred())
 		}, timeout, interval).Should(Succeed())
 
+		By("touching an annotation to trigger a reconcile, since status-only changes are now filtered")
+		Eventually(func(g Gomega) {
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(ip), ip)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			if ip.Annotations == nil {
+				ip.Annotations = map[string]string{}
+			}
+			ip.Annotations["test.k8s.ngrok.com/force-reconcile"] = "1"
+			err = k8sClient.Update(ctx, ip)
+			g.Expect(err).NotTo(HaveOccurred())
+		}, timeout, interval).Should(Succeed())
+
 		By("verifying the created and ready conditions are set again")
 		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
 		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
@@ -181,6 +194,19 @@ var _ = Describe("IPPolicyReconciler", func() {
 
 			ip.Status.Conditions = []metav1.Condition{}
 			err = k8sClient.Status().Update(ctx, ip)
+			g.Expect(err).NotTo(HaveOccurred())
+		}, timeout, interval).Should(Succeed())
+
+		By("touching an annotation to trigger a reconcile, since status-only changes are now filtered")
+		Eventually(func(g Gomega) {
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(ip), ip)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			if ip.Annotations == nil {
+				ip.Annotations = map[string]string{}
+			}
+			ip.Annotations["test.k8s.ngrok.com/force-reconcile"] = "1"
+			err = k8sClient.Update(ctx, ip)
 			g.Expect(err).NotTo(HaveOccurred())
 		}, timeout, interval).Should(Succeed())
 
