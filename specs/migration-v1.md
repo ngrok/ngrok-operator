@@ -32,6 +32,15 @@ Steps:
 | Resource      | Removed field       | Replacement         | Notes |
 |---------------|---------------------|---------------------|-------|
 | BoundEndpoint | `spec.endpointURI`  | `spec.endpointURL`  | `endpointURL` is now required. `endpointURI` was deprecated in favor of `endpointURL` (same format) and the dual-read fallback has been removed. BoundEndpoints are created by the operator's poller, which has written `endpointURL` since the rename, so user action is only needed for manually created resources. |
+| Domain        | `status.region`, `spec.region` | — | Region selection for reserved domains is deprecated in the ngrok API; both fields are removed. |
+| Domain        | `Progressing` condition | —               | Was only set to True in a rare certificate-provisioning error path and never reset to False. Use the `Ready`, `CertificateReady`, and `DNSConfigured` conditions instead. |
+| IPPolicy      | `status.rules`      | `spec.rules`        | Never populated by the controller; rule state is reflected by the `IPPolicyRulesConfigured` condition. |
+
+## Changed Condition Types
+
+| Resource | Old condition type | New condition type        | Notes |
+|----------|--------------------|---------------------------|-------|
+| IPPolicy | `RulesConfigured`  | `IPPolicyRulesConfigured` | Renamed for consistency with the `IPPolicyCreated` condition. |
 
 ## Removal Timeline
 

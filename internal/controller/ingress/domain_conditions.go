@@ -18,7 +18,6 @@ const (
 	ConditionDomainCreated    = "DomainCreated"
 	ConditionCertificateReady = "CertificateReady"
 	ConditionDNSConfigured    = "DNSConfigured"
-	ConditionProgressing      = "Progressing"
 
 	// condition reasons for Domain
 	ReasonDomainActive            = "DomainActive"
@@ -34,17 +33,11 @@ const (
 	ReasonDanglingDNSRecord       = "DanglingDNSRecord"
 	ReasonProtectedDomain         = "ProtectedDomain"
 	ReasonDomainCreationFailed    = "DomainCreationFailed"
-	ReasonProvisioning            = "Provisioning"
 )
 
 // setReadyCondition sets the Ready condition based on the overall domain state
 func setDomainReadyCondition(domain *ingressv1alpha1.Domain, ready bool, reason, message string) {
 	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionDomainReady, ready, reason, message)
-}
-
-// setProgressingCondition sets the Progressing condition
-func setProgressingCondition(domain *ingressv1alpha1.Domain, progressing bool, reason, message string) {
-	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionProgressing, progressing, reason, message)
 }
 
 // setDomainCreatedCondition sets the DomainCreated condition
@@ -128,7 +121,6 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 	setCertificateReadyCondition(domain, false, ReasonProvisioningError, message)
 	setDNSConfiguredCondition(domain, false, ReasonProvisioningError, message)
 	setDomainReadyCondition(domain, false, ReasonProvisioningError, message)
-	setProgressingCondition(domain, true, ReasonProvisioning, message)
 }
 
 // Helper functions to determine domain and certificate status

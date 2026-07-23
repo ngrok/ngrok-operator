@@ -21,9 +21,9 @@
 
 | Field         | Type   | Required | Default                                              | Validation           |
 |---------------|--------|----------|------------------------------------------------------|----------------------|
-| `description` | string | No       | `"Created by the ngrok-operator"`                     |                      |
-| `metadata`    | map[string]string | No | `{"owned-by": "ngrok-operator"}`                 |                      |
-| `cidr`        | string | Yes      |                                                      |                      |
+| `description` | string | No       | `"Created by the ngrok-operator"`                     | MaxLength: 255       |
+| `metadata`    | map[string]string | No | `{"owned-by": "ngrok-operator"}`                 | MaxLength: 4096      |
+| `cidr`        | string | Yes      |                                                      | Pattern: IPv4 or IPv6 CIDR notation (prefix length required) |
 | `action`      | string | Yes      |                                                      | Enum: `allow`, `deny`|
 
 ## Status
@@ -33,15 +33,6 @@
 | `observedGeneration` | int64                | Generation last reconciled by the controller |
 | `id`                 | string               | ngrok IP policy ID         |
 | `conditions` | []Condition          | MaxItems: 8                |
-| `rules`      | []IPPolicyRuleStatus | Status of each rule        |
-
-### IPPolicyRuleStatus
-
-| Field    | Type   | Description           |
-|----------|--------|-----------------------|
-| `id`     | string | ngrok rule ID         |
-| `cidr`   | string | The CIDR range        |
-| `action` | string | `allow` or `deny`     |
 
 ## Conditions
 

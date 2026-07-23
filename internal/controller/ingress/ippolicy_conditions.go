@@ -12,7 +12,11 @@ const (
 	// condition types for IPPolicy
 	ConditionIPPolicyReady           = "Ready"
 	ConditionIPPolicyCreated         = "IPPolicyCreated"
-	ConditionIPPolicyRulesConfigured = "RulesConfigured"
+	ConditionIPPolicyRulesConfigured = "IPPolicyRulesConfigured"
+
+	// LEGACY-CONDITION-MIGRATION: delete this once all IPPolicies have been
+	// reconciled at least once past the ConditionIPPolicyRulesConfigured rename.
+	legacyConditionIPPolicyRulesConfigured = "RulesConfigured"
 
 	// condition reasons for IPPolicy
 	ReasonIPPolicyActive                  = "IPPolicyActive"
@@ -36,6 +40,9 @@ func setIPPolicyCreatedCondition(ipPolicy *ingressv1alpha1.IPPolicy, created boo
 // setIPPolicyRulesConfiguredCondition sets the RulesConfigured condition
 func setIPPolicyRulesConfiguredCondition(ipPolicy *ingressv1alpha1.IPPolicy, configured bool, reason, message string) {
 	conditions.Set(&ipPolicy.Status.Conditions, ipPolicy.Generation, ConditionIPPolicyRulesConfigured, configured, reason, message)
+	// LEGACY-CONDITION-MIGRATION: clear the pre-rename condition so it doesn't
+	// linger alongside the new one on IPPolicies that reconciled before the rename.
+	meta.RemoveStatusCondition(&ipPolicy.Status.Conditions, legacyConditionIPPolicyRulesConfigured)
 }
 
 // sets the Ready condition based on the other conditions

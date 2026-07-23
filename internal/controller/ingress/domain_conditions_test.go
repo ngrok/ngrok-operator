@@ -167,12 +167,6 @@ func TestUpdateDomainConditions_CustomDomainProvisioning(t *testing.T) {
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
 	assert.Equal(t, ReasonProvisioningError, readyCondition.Reason)
-
-	// Progressing should be true
-	progressingCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionProgressing)
-	assert.NotNil(t, progressingCondition)
-	assert.Equal(t, metav1.ConditionTrue, progressingCondition.Status)
-	assert.Equal(t, ReasonProvisioning, progressingCondition.Reason)
 }
 
 func TestUpdateDomainConditions_CustomDomainWithProvisioningJob(t *testing.T) {
@@ -350,7 +344,7 @@ func TestIsDomainReady(t *testing.T) {
 func TestBuildResolvesToRequest(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    *[]ingressv1alpha1.DomainResolvesToEntry
+		input    []ingressv1alpha1.DomainResolvesToEntry
 		expected []ngrok.ReservedDomainResolvesToEntry
 	}{
 		{
@@ -360,17 +354,17 @@ func TestBuildResolvesToRequest(t *testing.T) {
 		},
 		{
 			name:     "empty slice",
-			input:    &[]ingressv1alpha1.DomainResolvesToEntry{},
+			input:    []ingressv1alpha1.DomainResolvesToEntry{},
 			expected: nil,
 		},
 		{
 			name:     "single entry",
-			input:    &[]ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
+			input:    []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
 			expected: []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}},
 		},
 		{
 			name:     "multiple entries",
-			input:    &[]ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
+			input:    []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
 			expected: []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
 		},
 	}
@@ -387,7 +381,7 @@ func TestBuildResolvesToStatus(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    []ngrok.ReservedDomainResolvesToEntry
-		expected *[]ingressv1alpha1.DomainResolvesToEntry
+		expected []ingressv1alpha1.DomainResolvesToEntry
 	}{
 		{
 			name:     "nil input",
@@ -402,12 +396,12 @@ func TestBuildResolvesToStatus(t *testing.T) {
 		{
 			name:     "single entry",
 			input:    []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}},
-			expected: &[]ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
+			expected: []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
 		},
 		{
 			name:     "multiple entries",
 			input:    []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
-			expected: &[]ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
+			expected: []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
 		},
 	}
 
