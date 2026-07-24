@@ -1,0 +1,111 @@
+{{- if and (hasKey .Values.compute "remoteAccess") .Values.compute.remoteAccess.enabled }}
+{{- $name := include "ngrok-operator.computeGatewayName" . }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: compute-api
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods", "events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create", "update", "patch", "delete"]
+- apiGroups: ["ngrok.k8s.ngrok.com"]
+  resources: ["agentendpoints"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    {{- include "ngrok-operator.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: compute-api
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: compute-api
+spec:
+  replicas: {{ default 1 .Values.compute.remoteAccess.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: compute-api
+  template:
+    metadata:
+      labels:
+        {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: compute-api
+    spec:
+      serviceAccountName: {{ $name }}
+      containers:
+      - name: gateway
+        image: {{ include "ngrok-operator.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - compute-api-gateway
+        ports:
+        - name: http
+          containerPort: 8080
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop: ["ALL"]
+        readinessProbe:
+          httpGet:
+            path: /version
+            port: http
+          initialDelaySeconds: 2
+          periodSeconds: 10
+{{- end }}
