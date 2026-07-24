@@ -436,6 +436,12 @@ bindings:
 ## Used for compute pool scheduling. Pass via --set-json to preserve snake_case keys.
 ## Example: --set-json 'compute={"pool_join_key":"cp_xxx","scheduler_props":{"region":"us-west-2"}}'
 compute: {}
+# Remote access is intentionally opt-in until the Compute registration API is deployed.
+# compute:
+#   enabled: false
+#   remoteAccess:
+#     enabled: true
+#     replicaCount: 1
 
 ## @section Custom Resource Definitions installation
 ##
