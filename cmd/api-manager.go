@@ -100,6 +100,8 @@ type apiManagerOpts struct {
 	serverAddr            string
 	apiURL                string
 	computeBaseURL        string
+	computeRemoteAccess   bool
+	computeGatewayService string
 	ingressControllerName string
 	ingressWatchNamespace string
 	ngrokMetadata         string
@@ -162,6 +164,8 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.apiURL, "api-url", "", "The base URL to use for the ngrok api")
 	c.Flags().StringVar(&opts.ingressControllerName, "ingress-controller-name", "ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.computeBaseURL, "compute-base-url", "", "The base URL of the compute service")
+	c.Flags().BoolVar(&opts.computeRemoteAccess, "compute-remote-access", false, "Provision remote Kubernetes API access for Compute")
+	c.Flags().StringVar(&opts.computeGatewayService, "compute-gateway-service", "ngrok-operator-compute-api", "Service backing the Compute Kubernetes API endpoint")
 	c.Flags().StringVar(&opts.ingressWatchNamespace, "ingress-watch-namespace", "", "Namespace to watch for Kubernetes Ingress resources. Defaults to all namespaces.")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
@@ -430,7 +434,16 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	// cluster API, and running the poller would reap compute's resources as
 	// orphans (it polls an empty desired set and deletes everything labeled with
 	// a replica id).
-	if computePollerEnabled(opts.computeMetadata) {
+	if opts.computeRemoteAccess {
+		if err := mgr.Add(&computecontroller.RemoteAccess{
+			Client: mgr.GetClient(), Log: ctrl.Log.WithName("controllers").WithName("ComputeRemoteAccess"),
+			Namespace: opts.namespace, K8sOpName: opts.releaseName,
+			NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig), ComputeBaseURL: opts.computeBaseURL,
+			GatewayService: opts.computeGatewayService, Interval: 10 * time.Second,
+		}); err != nil {
+			return fmt.Errorf("unable to add Compute remote access: %w", err)
+		}
+	} else if computePollerEnabled(opts.computeMetadata) {
 		if err := mgr.Add(&computecontroller.AppReplicaPoller{
 			Client:          mgr.GetClient(),
 			Log:             ctrl.Log.WithName("controllers").WithName("AppReplicaPoller"),

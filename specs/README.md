@@ -53,6 +53,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 - [gateway-api.md](features/gateway-api.md) — Kubernetes Gateway API feature
 - [bindings.md](features/bindings.md) — Endpoint bindings feature
 - [high-availability.md](features/high-availability.md) — Replicas, leader election, PDB
+- [compute-remote-kubernetes-api.md](features/compute-remote-kubernetes-api.md) — Ship/Compute remote Kubernetes API transport and server contract
 - [traffic-policy.md](features/traffic-policy.md) — Traffic policy resolution across controllers
 - [namespace-watching.md](features/namespace-watching.md) — Namespace scoping configuration
 
