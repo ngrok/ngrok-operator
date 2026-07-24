@@ -130,4 +130,3 @@ type TCPAddressesClient interface {
 func (c *DefaultClientset) TCPAddresses() TCPAddressesClient {
 	return c.tcpAddrsClient
 }
-

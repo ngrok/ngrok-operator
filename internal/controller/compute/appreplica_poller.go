@@ -15,6 +15,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -49,6 +50,10 @@ type computeReplica struct {
 	Endpoints              []replicaEndpoint       `json:"endpoints"`
 	EnvironmentVars        map[string]string       `json:"environment_vars"`
 	RegistryPullCredential *registryPullCredential `json:"registry_pull_credential"`
+	// Per-replica resource requirements; zero means no request/limit.
+	CPUMillicores int32 `json:"cpu_millicores"`
+	MemoryMiB     int32 `json:"memory_mib"`
+	GPUs          int32 `json:"gpus"`
 }
 
 // computeReplicaList represents the response from the runner replicas endpoint.
@@ -267,6 +272,56 @@ func (r *AppReplicaPoller) fetchDesiredReplicas(ctx context.Context) ([]computeR
 	return resp.Replicas, nil
 }
 
+// nvidiaGPUResource is the extended resource the NVIDIA device plugin
+// advertises for schedulable GPUs.
+const nvidiaGPUResource corev1.ResourceName = "nvidia.com/gpu"
+
+// replicaResources maps a replica's requested resources onto Kubernetes
+// requests/limits. CPU is request-only (compressible, so a limit would only
+// cause throttling); memory sets request==limit for predictable OOM behavior;
+// GPUs are a limit on the nvidia.com/gpu extended resource (Kubernetes sets the
+// matching request itself). Zero values are omitted so unset means no
+// request/limit.
+func replicaResources(replica computeReplica) corev1.ResourceRequirements {
+	requests := corev1.ResourceList{}
+	limits := corev1.ResourceList{}
+	if replica.CPUMillicores > 0 {
+		requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(int64(replica.CPUMillicores), resource.DecimalSI)
+	}
+	if replica.MemoryMiB > 0 {
+		mem := *resource.NewQuantity(int64(replica.MemoryMiB)*1024*1024, resource.BinarySI)
+		requests[corev1.ResourceMemory] = mem
+		limits[corev1.ResourceMemory] = mem
+	}
+	if replica.GPUs > 0 {
+		limits[nvidiaGPUResource] = *resource.NewQuantity(int64(replica.GPUs), resource.DecimalSI)
+	}
+
+	var res corev1.ResourceRequirements
+	if len(requests) > 0 {
+		res.Requests = requests
+	}
+	if len(limits) > 0 {
+		res.Limits = limits
+	}
+	return res
+}
+
+// replicaTolerations returns the tolerations a replica's pod needs. GPU
+// replicas tolerate the standard NVIDIA taint, since managed Kubernetes GPU
+// node pools are commonly tainted to keep non-GPU workloads off them. On
+// clusters without the taint (e.g. single-node k3s) the toleration is a no-op.
+func replicaTolerations(replica computeReplica) []corev1.Toleration {
+	if replica.GPUs <= 0 {
+		return nil
+	}
+	return []corev1.Toleration{{
+		Key:      string(nvidiaGPUResource),
+		Operator: corev1.TolerationOpExists,
+		Effect:   corev1.TaintEffectNoSchedule,
+	}}
+}
+
 func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger, replica computeReplica) error {
 	name := deploymentName(replica.EnvironmentName, replica.ReplicaIndex, replica.ID)
 	labels := map[string]string{LabelNgrokID: replica.ID}
@@ -337,12 +392,14 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
 					ImagePullSecrets: imagePullSecrets,
+					Tolerations:      replicaTolerations(replica),
 					Containers: []corev1.Container{
 						{
-							Name:  "app",
-							Image: replica.ContainerImage,
-							Ports: containerPorts,
-							Env:   envVars,
+							Name:      "app",
+							Image:     replica.ContainerImage,
+							Ports:     containerPorts,
+							Env:       envVars,
+							Resources: replicaResources(replica),
 						},
 					},
 				},
