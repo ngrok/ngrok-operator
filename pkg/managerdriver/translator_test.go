@@ -135,7 +135,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			assert.Equal(t, tc.irService.Namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
 			assert.Equal(t, tc.irVirtualHost.LabelsToAdd, result.Labels, "unexpected labels for test case: %s", tc.name)
 			assert.Equal(t, tc.irVirtualHost.AnnotationsToAdd, result.Annotations, "unexpected annotations for test case: %s", tc.name)
-			assert.Equal(t, tc.metadata, result.Spec.Metadata, "unexpected metadata for test case: %s", tc.name)
+			assert.Equal(t, tc.metadata, result.Spec.Metadata.APIString(), "unexpected metadata for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedURL, result.Spec.URL, "unexpected URL for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedUpstream, result.Spec.Upstream.URL, "unexpected upstream URL for test case: %s", tc.name)
 			assert.ElementsMatch(t, []string{}, result.Spec.Bindings, "unexpected bindings for test case: %s", tc.name)
@@ -225,7 +225,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			assert.Equal(t, tc.irVHost.Namespace, result.Namespace, "unexpected namespace for test case")
 			assert.Equal(t, tc.irVHost.LabelsToAdd, result.Labels, "unexpected labels for test case")
 			assert.Equal(t, tc.irVHost.AnnotationsToAdd, result.Annotations, "unexpected annotations for test case")
-			assert.Equal(t, tc.irVHost.Metadata, result.Spec.Metadata, "unexpected metadata for test case")
+			assert.Equal(t, tc.irVHost.Metadata, result.Spec.Metadata.APIString(), "unexpected metadata for test case")
 		})
 	}
 }
@@ -605,7 +605,7 @@ func TestTranslate(t *testing.T) {
 					assert.Nil(t, actualCLEP.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedCLEP.Spec.Description, actualCLEP.Spec.Description)
-				assert.Equal(t, expectedCLEP.Spec.Metadata, actualCLEP.Spec.Metadata)
+				assert.Equal(t, expectedCLEP.Spec.Metadata.APIString(), actualCLEP.Spec.Metadata.APIString())
 				assert.Equal(t, expectedCLEP.Spec.Bindings, actualCLEP.Spec.Bindings)
 			}
 
@@ -634,7 +634,7 @@ func TestTranslate(t *testing.T) {
 					assert.Nil(t, actualAE.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedAE.Spec.Description, actualAE.Spec.Description)
-				assert.Equal(t, expectedAE.Spec.Metadata, actualAE.Spec.Metadata)
+				assert.Equal(t, expectedAE.Spec.Metadata.APIString(), actualAE.Spec.Metadata.APIString())
 				assert.Equal(t, expectedAE.Spec.Bindings, actualAE.Spec.Bindings)
 				assert.Equal(t, expectedAE.Spec.Upstream.Protocol, actualAE.Spec.Upstream.Protocol)
 				assert.Equal(t, expectedAE.Spec.Upstream.URL, actualAE.Spec.Upstream.URL)
@@ -734,7 +734,7 @@ func TestTranslate(t *testing.T) {
 					assert.Nil(t, actualCLEP.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedCLEP.Spec.Description, actualCLEP.Spec.Description)
-				assert.Equal(t, expectedCLEP.Spec.Metadata, actualCLEP.Spec.Metadata)
+				assert.Equal(t, expectedCLEP.Spec.Metadata.APIString(), actualCLEP.Spec.Metadata.APIString())
 				assert.Equal(t, expectedCLEP.Spec.Bindings, actualCLEP.Spec.Bindings)
 			}
 
@@ -763,7 +763,7 @@ func TestTranslate(t *testing.T) {
 					assert.Nil(t, actualAE.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedAE.Spec.Description, actualAE.Spec.Description)
-				assert.Equal(t, expectedAE.Spec.Metadata, actualAE.Spec.Metadata)
+				assert.Equal(t, expectedAE.Spec.Metadata.APIString(), actualAE.Spec.Metadata.APIString())
 				assert.Equal(t, expectedAE.Spec.Bindings, actualAE.Spec.Bindings)
 				assert.Equal(t, expectedAE.Spec.Upstream.Protocol, actualAE.Spec.Upstream.Protocol)
 				assert.Equal(t, expectedAE.Spec.Upstream.URL, actualAE.Spec.Upstream.URL)

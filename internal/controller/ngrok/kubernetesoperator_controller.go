@@ -162,6 +162,7 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (err error) {
+	controller.WarnIfDeprecatedMetadata(r.Recorder, ko, ko.Spec.Metadata)
 	var k8sOp *ngrok.KubernetesOperator
 	k8sOp, err = r.findExisting(ctx, ko)
 	if err != nil {
@@ -224,6 +225,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 }
 
 func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
+	controller.WarnIfDeprecatedMetadata(r.Recorder, ko, ko.Spec.Metadata)
 	log := ctrl.LoggerFrom(ctx).WithValues("id", ko.Status.ID)
 
 	log.V(3).Info("fetching KubernetesOperator from ngrok API")
@@ -598,12 +600,12 @@ func (r *KubernetesOperatorReconciler) bindingCertRenewalWindow() time.Duration 
 func (r *KubernetesOperatorReconciler) tryMergeMetadata(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) string {
 	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
 	if err != nil {
-		return ko.Spec.Metadata
+		return ko.Spec.Metadata.APIString()
 	}
 
-	metadata, err := mergeMetadata(ko.Spec.Metadata, namespaceUID)
+	metadata, err := mergeMetadata(ko.Spec.Metadata.APIString(), namespaceUID)
 	if err != nil {
-		return ko.Spec.Metadata
+		return ko.Spec.Metadata.APIString()
 	}
 
 	return metadata

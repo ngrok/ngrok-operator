@@ -280,7 +280,7 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 	endpointOpts := []ngrok.EndpointOption{
 		ngrok.WithURL(spec.URL),
 		ngrok.WithBindings(spec.Bindings...),
-		ngrok.WithMetadata(spec.Metadata),
+		ngrok.WithMetadata(spec.Metadata.APIString()),
 		// TODO(stacks): This may end up being configurable on a per-endpoint basis in the future
 		ngrok.WithPoolingEnabled(true),
 		ngrok.WithDescription(spec.Description),

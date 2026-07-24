@@ -98,9 +98,10 @@ func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
+	controller.WarnIfDeprecatedMetadata(r.Recorder, policy, policy.Spec.Metadata)
 	remotePolicy, err := r.IPPoliciesClient.Create(ctx, &ngrok.IPPolicyCreate{
 		Description: policy.Spec.Description,
-		Metadata:    policy.Spec.Metadata,
+		Metadata:    policy.Spec.Metadata.APIString(),
 	})
 	if err != nil {
 		setIPPolicyCreatedCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
@@ -118,6 +119,7 @@ func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1
 }
 
 func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
+	controller.WarnIfDeprecatedMetadata(r.Recorder, policy, policy.Spec.Metadata)
 	remotePolicy, err := r.IPPoliciesClient.Get(ctx, policy.Status.ID)
 	if err != nil {
 		if ngrok.IsNotFound(err) {
@@ -136,12 +138,12 @@ func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1
 	setIPPolicyCreatedCondition(policy, true, ReasonIPPolicyCreated, "IP Policy already exists")
 
 	if remotePolicy.Description != policy.Spec.Description ||
-		remotePolicy.Metadata != policy.Spec.Metadata {
+		remotePolicy.Metadata != policy.Spec.Metadata.APIString() {
 		r.Recorder.Eventf(policy, nil, v1.EventTypeNormal, "Updating", "Update", fmt.Sprintf("Updating IPPolicy %s", policy.Name))
 		_, err := r.IPPoliciesClient.Update(ctx, &ngrok.IPPolicyUpdate{
 			ID:          policy.Status.ID,
 			Description: new(policy.Spec.Description),
-			Metadata:    new(policy.Spec.Metadata),
+			Metadata:    new(policy.Spec.Metadata.APIString()),
 		})
 		if err != nil {
 			setIPPolicyReadyCondition(policy, false, ReasonIPPolicyCreationFailed, err.Error())
@@ -398,7 +400,7 @@ func (d *IPPolicyDiff) createRule(rule ingressv1alpha1.IPPolicyRule) *ngrok.IPPo
 		IPPolicyID:  d.policyID,
 		CIDR:        rule.CIDR,
 		Action:      new(rule.Action),
-		Metadata:    rule.Metadata,
+		Metadata:    rule.Metadata.APIString(),
 		Description: rule.Description,
 	}
 }
@@ -406,14 +408,14 @@ func (d *IPPolicyDiff) createRule(rule ingressv1alpha1.IPPolicyRule) *ngrok.IPPo
 func (d *IPPolicyDiff) addUpdateIfNeeded(rule ingressv1alpha1.IPPolicyRule, remoteRule *ngrok.IPPolicyRule) {
 	updatedNeeded := rule.CIDR == remoteRule.CIDR &&
 		rule.Action == remoteRule.Action &&
-		(rule.Metadata != remoteRule.Metadata || rule.Description != remoteRule.Description)
+		(rule.Metadata.APIString() != remoteRule.Metadata || rule.Description != remoteRule.Description)
 	if !updatedNeeded {
 		return
 	}
 
 	d.updates = append(d.updates, &ngrok.IPPolicyRuleUpdate{
 		ID:          remoteRule.ID,
-		Metadata:    new(rule.Metadata),
+		Metadata:    new(rule.Metadata.APIString()),
 		Description: new(rule.Description),
 		CIDR:        new(rule.CIDR),
 	})

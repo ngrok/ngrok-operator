@@ -27,6 +27,7 @@ package v1alpha1
 import (
 	"encoding/json"
 
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -69,10 +70,14 @@ type CloudEndpointSpec struct {
 	// +kubebuilder:default:=`Created by the ngrok-operator`
 	Description string `json:"description,omitempty"`
 
-	// String of arbitrary data associated with the object in the ngrok API/Dashboard
+	// Metadata is arbitrary key/value data associated with the object in the
+	// ngrok API/Dashboard. A raw JSON string is also accepted for backward
+	// compatibility and is deprecated; use a map of string values instead.
 	//
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata string `json:"metadata,omitempty"`
+	Metadata *commonv1alpha1.MetadataValue `json:"metadata,omitempty"`
 
 	// Bindings is the list of Binding IDs to associate with the endpoint
 	// Accepted values are "public", "internal", or "kubernetes"

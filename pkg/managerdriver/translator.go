@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
@@ -815,9 +816,11 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1alpha1.CloudEndpoint
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL:            publicURL,
 			PoolingEnabled: irVHost.EndpointPoolingEnabled,
-			Metadata:       irVHost.Metadata,
-			Description:    irVHost.Description,
-			Bindings:       irVHost.Bindings,
+			// LEGACY-metadata-format: operator-generated objects keep writing the
+			// string form during the migration window for rollback safety.
+			Metadata:    commonv1alpha1.MetadataFromLegacyString(irVHost.Metadata),
+			Description: irVHost.Description,
+			Bindings:    irVHost.Bindings,
 		},
 	}, nil
 }
@@ -862,8 +865,10 @@ func buildAgentEndpoint(
 			Annotations: irVHost.AnnotationsToAdd,
 		},
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
-			URL:         url,
-			Metadata:    metadata,
+			URL: url,
+			// LEGACY-metadata-format: operator-generated objects keep writing the
+			// string form during the migration window for rollback safety.
+			Metadata:    commonv1alpha1.MetadataFromLegacyString(metadata),
 			Description: description,
 			Upstream: ngrokv1alpha1.EndpointUpstream{
 				URL:      agentEndpointUpstreamURL(irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.Scheme),

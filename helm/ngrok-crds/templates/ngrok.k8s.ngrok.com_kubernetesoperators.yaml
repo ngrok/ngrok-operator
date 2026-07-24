@@ -126,9 +126,11 @@ spec:
                 type: array
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
-                description: Metadata is a string of arbitrary data associated with
-                  the object in the ngrok API/Dashboard
-                type: string
+                description: |-
+                  Metadata is arbitrary key/value data associated with the object in the
+                  ngrok API/Dashboard. A raw JSON string is also accepted for backward
+                  compatibility and is deprecated; use a map of string values instead.
+                x-kubernetes-preserve-unknown-fields: true
               region:
                 default: global
                 description: |-

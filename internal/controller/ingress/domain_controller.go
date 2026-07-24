@@ -158,6 +158,7 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) error {
+	basecontroller.WarnIfDeprecatedMetadata(r.Recorder, domain, domain.Spec.Metadata)
 	// First check if the reserved domain already exists. The API is sometimes returning dangling CNAME records
 	// errors right now, so we'll check if the domain already exists before trying to create it.
 	resp, err := r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
@@ -172,7 +173,7 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 			Domain:      domain.Spec.Domain,
 			Region:      domain.Spec.Region,
 			Description: domain.Spec.Description,
-			Metadata:    domain.Spec.Metadata,
+			Metadata:    domain.Spec.Metadata.APIString(),
 			ResolvesTo:  buildResolvesToRequest(domain.Spec.GetResolvesTo()),
 		}
 		resp, err = r.DomainsClient.Create(ctx, req)
@@ -185,6 +186,7 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 }
 
 func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) error {
+	basecontroller.WarnIfDeprecatedMetadata(r.Recorder, domain, domain.Spec.Metadata)
 	resp, err := r.DomainsClient.Get(ctx, domain.Status.ID)
 	if err != nil {
 		// If the domain is gone, clear the status and trigger a re-reconcile
@@ -199,8 +201,9 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 
 	// Only update the domain if updatable fields have changed
 	specResolvesTo := buildResolvesToRequest(domain.Spec.GetResolvesTo())
+	specMetadata := domain.Spec.Metadata.APIString()
 	if domain.Spec.Description == resp.Description &&
-		domain.Spec.Metadata == resp.Metadata &&
+		specMetadata == resp.Metadata &&
 		reflect.DeepEqual(specResolvesTo, resp.ResolvesTo) {
 		// No changes needed, still update status to ensure conditions are current
 		return r.updateStatus(ctx, domain, resp, nil)
@@ -209,7 +212,7 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 	req := &ngrok.ReservedDomainUpdate{
 		ID:          domain.Status.ID,
 		Description: &domain.Spec.Description,
-		Metadata:    &domain.Spec.Metadata,
+		Metadata:    &specMetadata,
 		ResolvesTo:  specResolvesTo,
 	}
 	resp, err = r.DomainsClient.Update(ctx, req)

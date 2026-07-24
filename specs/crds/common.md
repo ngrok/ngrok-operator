@@ -93,6 +93,20 @@ Most CRDs that correspond to ngrok API resources include:
 | `description` | `"Created by the ngrok-operator"`     |
 | `metadata`    | `{"owned-by": "ngrok-operator"}`      |
 
+### `metadata` format
+
+`metadata` is a map of string key/value pairs (`map[string]string`), serialized
+to the ngrok API as a JSON-object string. For backward compatibility the field
+also accepts a raw JSON string — the form the operator previously required,
+where the object was hand-rolled into a string
+(`metadata: '{"owned-by":"ngrok-operator"}'`). The string form is **deprecated**
+and slated for removal; the operator emits a `DeprecatedField` warning event when
+a user-authored object still uses it. The default value is still written in the
+string form during the migration window so objects that take the default remain
+readable by a rolled-back prior release. See
+[`docs/v1-migration-guide.md`](../../docs/v1-migration-guide.md) for the migration
+timeline.
+
 ## Shared Types
 
 ### K8sObjectRef

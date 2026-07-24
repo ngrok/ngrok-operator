@@ -203,6 +203,7 @@ func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // Create will make sure a domain is created before creating the Cloud Endpoint
 // It also looks up the Traffic Policy and creates the Cloud Endpoint using this Traffic Policy JSON
 func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
+	controller.WarnIfDeprecatedMetadata(r.Recorder, clep, clep.Spec.Metadata)
 	// EnsureDomainExists handles its own domain-related status
 	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep)
 	if err != nil {
@@ -226,11 +227,12 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 // call wouldn't misresolve — it would just redundantly re-fetch the
 // referenced TrafficPolicy and re-emit the same DeprecatedField event.
 func (r *CloudEndpointReconciler) createWithPolicy(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult, policy string) error {
+	metadata := clep.Spec.Metadata.APIString()
 	createParams := &ngrok.EndpointCreate{
 		Type:           "cloud",
 		URL:            clep.Spec.URL,
 		Description:    &clep.Spec.Description,
-		Metadata:       &clep.Spec.Metadata,
+		Metadata:       &metadata,
 		TrafficPolicy:  policy,
 		Bindings:       clep.Spec.Bindings,
 		PoolingEnabled: clep.Spec.PoolingEnabled,
@@ -247,6 +249,7 @@ func (r *CloudEndpointReconciler) createWithPolicy(ctx context.Context, clep *ng
 // Update is called when we have a status ID and want to update the resource in the ngrok API
 // If it fails to find the resource by ID, create a new one instead
 func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
+	controller.WarnIfDeprecatedMetadata(r.Recorder, clep, clep.Spec.Metadata)
 	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep)
 	if err != nil {
 		return r.updateStatus(ctx, clep, nil, domainResult, err)
@@ -286,11 +289,12 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return r.recordWriteSuccess(ctx, clep, currentEndpoint, domainResult, "CloudEndpoint updated successfully")
 	}
 
+	metadata := clep.Spec.Metadata.APIString()
 	updateParams := &ngrok.EndpointUpdate{
 		ID:             clep.Status.ID,
 		Url:            &clep.Spec.URL,
 		Description:    &clep.Spec.Description,
-		Metadata:       &clep.Spec.Metadata,
+		Metadata:       &metadata,
 		TrafficPolicy:  &policy,
 		Bindings:       clep.Spec.Bindings,
 		PoolingEnabled: clep.Spec.PoolingEnabled,
@@ -530,7 +534,7 @@ func endpointNeedsUpdate(current *ngrok.Endpoint, spec ngrokv1alpha1.CloudEndpoi
 	if current.Description != spec.Description {
 		return true
 	}
-	if current.Metadata != spec.Metadata {
+	if current.Metadata != spec.Metadata.APIString() {
 		return true
 	}
 	if current.TrafficPolicy != policy {

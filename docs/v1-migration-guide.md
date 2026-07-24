@@ -451,6 +451,65 @@ Nothing, unless external tooling reads `status.policy`; point it at
 `spec.policy` instead, which always holds the same value. No manifest
 changes are needed — status is operator-written.
 
+### CRD `spec.metadata`: raw JSON string → `map[string]string`
+
+Status: in progress. 0.24 accepts both forms; the string form is removed in a
+later cleanup release.
+
+Every ngrok-backed CRD carries a `spec.metadata` field that is attached to the
+corresponding object in the ngrok API/Dashboard: `Domain`, `IPPolicy` (both the
+policy and each rule), `KubernetesOperator`, `CloudEndpoint`, and
+`AgentEndpoint`. It used to be typed as a plain string, so a structured value
+had to be hand-rolled into a JSON-object string:
+
+```yaml
+spec:
+  metadata: '{"owned-by":"ngrok-operator","team":"platform"}'
+```
+
+It is now a map of string key/value pairs:
+
+```yaml
+spec:
+  metadata:
+    owned-by: ngrok-operator
+    team: platform
+```
+
+#### What changes for you
+
+The operator reads both forms. The map form is canonical; the raw JSON string is
+deprecated. When a user-authored object still uses the string form, the operator
+emits a `DeprecatedField` warning event on reconcile (objects that only carry the
+default value are not flagged, and operator-generated objects are exempt because
+you can't act on them). Both forms serialize to the same value on the ngrok side,
+so switching a manifest from a JSON-object string to the equivalent map is a
+no-op against the API.
+
+The CRD field is schemaless (`x-kubernetes-preserve-unknown-fields`) for the
+duration of the migration so the API server accepts either shape; the operator
+validates and normalizes. A value that is neither a string nor a flat
+string→string object (for example an object with nested values) is passed
+through to the ngrok API verbatim.
+
+#### Rollback safety
+
+The default value is still written as a JSON string during the migration window,
+so an object that takes the default is rollback-safe to a prior release. A
+manifest you switch to the **map** form is *not* rollback-safe below the
+migration release: the prior CRD types `metadata` as a string and the API server
+rejects the object shape. Keep `metadata` in string form if you need to roll back
+below the migration release; switch to the map form once rollback is no longer a
+concern. This matches the `resolvesTo` / CloudEndpoint traffic-policy field
+migrations.
+
+#### Action required, by release
+
+| Release | Operator behavior | What you do |
+| ------- | ----------------- | ----------- |
+| 0.24 (this) | Reads both forms; canonicalizes the map form; emits a `DeprecatedField` warning for user-authored string-form metadata. | Nothing required. Optionally migrate `spec.metadata` from the JSON-object string to the equivalent map once rollback below 0.24 is ruled out. |
+| Cleanup release | String form removed; `spec.metadata` is `map[string]string` only. | Ensure no `spec.metadata` values remain in raw-string form before upgrading. |
+
 ## What did *not* change in this set of migrations
 
 The CRD API groups (`ingress.k8s.ngrok.com/v1alpha1`,

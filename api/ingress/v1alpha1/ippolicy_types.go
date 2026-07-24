@@ -25,6 +25,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -32,9 +33,14 @@ type IPPolicyRule struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
 	// +kubebuilder:default:=`Created by ngrok-operator`
 	Description string `json:"description,omitempty"`
-	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
+	// Metadata is arbitrary key/value data associated with the object in the
+	// ngrok API/Dashboard. A raw JSON string is also accepted for backward
+	// compatibility and is deprecated; use a map of string values instead.
+	//
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata string `json:"metadata,omitempty"`
+	Metadata *commonv1alpha1.MetadataValue `json:"metadata,omitempty"`
 	// +kubebuilder:validation:Required
 	CIDR string `json:"cidr,omitempty"`
 	// +kubebuilder:validation:Required
@@ -54,9 +60,14 @@ type IPPolicySpec struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
 	// +kubebuilder:default:=`Created by ngrok-operator`
 	Description string `json:"description,omitempty"`
-	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
+	// Metadata is arbitrary key/value data associated with the object in the
+	// ngrok API/Dashboard. A raw JSON string is also accepted for backward
+	// compatibility and is deprecated; use a map of string values instead.
+	//
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata string `json:"metadata,omitempty"`
+	Metadata *commonv1alpha1.MetadataValue `json:"metadata,omitempty"`
 	// Rules is a list of rules that belong to the policy
 	Rules []IPPolicyRule `json:"rules,omitempty"`
 }

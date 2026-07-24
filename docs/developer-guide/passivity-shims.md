@@ -197,6 +197,7 @@ Current sentinel tags:
   `Domain.spec.resolves_to` → `resolvesTo`.
 - `LEGACY-trafficpolicy-name` — `CloudEndpoint.spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`.
 - `LEGACY-trafficpolicy-policy` — `CloudEndpoint.spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`.
+- `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
 
 ## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
 
@@ -563,3 +564,64 @@ a `GetEndpointURL()` dual-read helper — but was not marked with a sentinel.
 The cleanup landed via K8SOP-276: `EndpointURI` is deleted, `GetEndpointURL`
 is collapsed to direct `EndpointURL` reads, and `endpointURL` is now
 required.
+
+## Per-shim catalog: CRD `spec.metadata` type change (`LEGACY-metadata-format`)
+
+This is a different animal from the field renames above. The other CRD
+migrations parked the new shape on a **new** `json:` key and let the old key
+age out. Here the shape we want (a `map[string]string`) has to live on the key
+that is already occupied by string data in the wild (`metadata`). You cannot
+passively change the type a live key accepts — existing stored objects hold a
+string under `metadata`, and re-typing the key to an object would make them
+unreadable by the typed operator and un-appliable. So instead of a rename, the
+field becomes **schemaless** for the migration window: the API server accepts
+either a JSON string or a JSON object under the same key, and the operator
+normalizes both.
+
+- **Pattern:** Two-release (deprecated form, same key). Tag: `LEGACY-metadata-format`.
+- **Type:** `api/common/v1alpha1/metadata_types.go::MetadataValue` — a custom type
+  whose `UnmarshalJSON` retains the raw bytes and whose `APIString()` returns the
+  string the ngrok API expects (a legacy string is passed through verbatim; a map
+  is re-marshaled with sorted keys so it produces no spurious API diffs). It is
+  hand-written DeepCopy so controller-gen uses it rather than generating a shallow
+  copy of the raw slice. The field markers are `+kubebuilder:validation:Schemaless`
+  and `+kubebuilder:pruning:PreserveUnknownFields`.
+- **Affected fields:** `Domain.spec.metadata`, `IPPolicy.spec.metadata` and
+  `IPPolicy.spec.rules[].metadata`, `KubernetesOperator.spec.metadata`,
+  `CloudEndpoint.spec.metadata`, `AgentEndpoint.spec.metadata`.
+- **R1 (0.24):**
+  - CRD: the field is schemaless, so both string and object shapes admit. The
+    `+kubebuilder:default` stays a **JSON string** (`{"owned-by":"ngrok-operator"}`)
+    so defaulted objects remain rollback-safe to a prior release (see below).
+  - Controllers read via `spec.Metadata.APIString()` at every ngrok API call site
+    and drift comparison. `MetadataValue.UsesDeprecatedStringForm()` gates a
+    `DeprecatedField` warning event emitted from each reconciler's create/update
+    path via `controller.WarnIfDeprecatedMetadata`. The default value is excluded
+    from the warning (so untouched objects don't nag), and operator-managed objects
+    are excluded via `labels.IsOperatorManaged` (they can't act on the event).
+  - Operator-generated objects (`pkg/managerdriver/translator.go`,
+    `pkg/managerdriver/domains.go`) keep writing the **string** form via
+    `commonv1alpha1.MetadataFromLegacyString` for rollback safety.
+- **R-cleanup:** collapse `MetadataValue` to a plain `map[string]string` (drop the
+  string branch in `UnmarshalJSON`/`APIString`, the `IsLegacyString` /
+  `UsesDeprecatedStringForm` helpers, and the `WarnIfDeprecatedMetadata` call
+  sites); flip the CRD default to the object form; switch the operator-generated
+  write paths to the map form; make the CRD schema a real
+  `additionalProperties: {type: string}` object. Sweep with
+  `git grep 'LEGACY-metadata-format'`.
+
+#### Why not a rename or a conversion webhook
+
+- **Rename to a new key** (`metadataMap`, etc.) would force users through *two*
+  migrations — first onto the interim key, then back onto `metadata` once the
+  string field is removed — and leave an awkward field name in the API for the
+  whole 0.2x line. Rejected.
+- **A storage-version conversion webhook** cleanly retypes a live key, but the
+  operator does not otherwise use a conversion webhook, and the planned
+  `ngrok.com/v1` group move is itself expected to be a dual-read migration rather
+  than a webhook. Not adopting one just for this field.
+
+The cost of the schemaless approach is weaker server-side validation (the API
+server no longer enforces string values on the map) — the operator validates
+instead — and the rollback caveat for object-form adopters documented in the
+user-facing guide.

@@ -241,6 +241,7 @@ func (r *AgentEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 func (r *AgentEndpointReconciler) update(ctx context.Context, endpoint *ngrokv1alpha1.AgentEndpoint) error {
+	controller.WarnIfDeprecatedMetadata(r.Recorder, endpoint, endpoint.Spec.Metadata)
 
 	// EnsureDomainExists checks if the domain exists, creates it if needed, and sets conditions/domainRef
 	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, endpoint)

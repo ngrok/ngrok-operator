@@ -5,6 +5,7 @@ import (
 	"time"
 
 	ngrok "github.com/ngrok/ngrok-api-go/v7"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,7 +35,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy", Namespace: "default"},
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: "test",
+				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
 		}
 		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{
@@ -58,7 +59,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy-update", Namespace: "default"},
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: "test",
+				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
 		}
 		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{
@@ -94,7 +95,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy-del", Namespace: "default"},
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: "test",
+				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
 		}
 		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{
@@ -132,7 +133,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-existing-policy", Namespace: "default"},
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: "test",
+				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
 		}
 		ip.Spec.Description = "test-existing"
@@ -162,7 +163,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-existing-policy-rules", Namespace: "default"},
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: "test",
+				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
 		}
 		ip.Spec.Description = "test-with-rules"
