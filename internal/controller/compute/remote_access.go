@@ -84,57 +84,22 @@ func (r *RemoteAccess) reconcile(ctx context.Context) error {
 	}
 
 	if !r.registered {
-		accessKey, accessKeyHash, err := newAccessKey()
-		if err != nil {
+		if err := r.provision(ctx, ko.Status.ID); err != nil {
 			return err
 		}
-		var registration remoteAccessResponse
-		if err := r.register(ctx, ko.Status.ID, remoteAccessRequest{
-			State: "provisioning", AccessKey: accessKey,
-		}, &registration); err != nil {
-			return err
-		}
-		if err := validateEndpointURL(registration.Endpoint); err != nil {
-			return fmt.Errorf("compute remote-access registration returned invalid endpoint: %w", err)
-		}
-
-		var endpointConfig corev1.ConfigMap
-		key := client.ObjectKey{Namespace: r.Namespace, Name: r.GatewayName}
-		err = r.Get(ctx, key, &endpointConfig)
-		switch {
-		case err == nil:
-			endpointConfig.Data = map[string]string{
-				remoteEndpointKey:  registration.Endpoint,
-				remoteTokenHashKey: accessKeyHash,
-			}
-			if err := r.Update(ctx, &endpointConfig); err != nil {
-				return err
-			}
-		case !apierrors.IsNotFound(err):
-			return err
-		default:
-			endpointConfig = corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{Name: r.GatewayName, Namespace: r.Namespace},
-				Data: map[string]string{
-					remoteEndpointKey:  registration.Endpoint,
-					remoteTokenHashKey: accessKeyHash,
-				},
-			}
-			if err := r.Create(ctx, &endpointConfig); err != nil {
-				return err
-			}
-		}
-
-		r.registered = true
-		r.Log.Info("provisioned remote Kubernetes API access",
-			"runner_id", ko.Status.ID,
-			"endpoint", registration.Endpoint,
-			"gateway", r.GatewayName,
-		)
 	}
 
 	var endpointConfig corev1.ConfigMap
-	if err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: r.GatewayName}, &endpointConfig); err != nil {
+	endpointConfigKey := client.ObjectKey{Namespace: r.Namespace, Name: r.GatewayName}
+	if err := r.Get(ctx, endpointConfigKey, &endpointConfig); apierrors.IsNotFound(err) {
+		r.registered = false
+		if err := r.provision(ctx, ko.Status.ID); err != nil {
+			return err
+		}
+		if err := r.Get(ctx, endpointConfigKey, &endpointConfig); err != nil {
+			return err
+		}
+	} else if err != nil {
 		return err
 	}
 	endpoint := endpointConfig.Data[remoteEndpointKey]
@@ -168,6 +133,57 @@ func (r *RemoteAccess) reconcile(ctx context.Context) error {
 		)
 		r.lastReportedState = state
 	}
+	return nil
+}
+
+func (r *RemoteAccess) provision(ctx context.Context, runnerID string) error {
+	accessKey, accessKeyHash, err := newAccessKey()
+	if err != nil {
+		return err
+	}
+	var registration remoteAccessResponse
+	if err := r.register(ctx, runnerID, remoteAccessRequest{
+		State: "provisioning", AccessKey: accessKey,
+	}, &registration); err != nil {
+		return err
+	}
+	if err := validateEndpointURL(registration.Endpoint); err != nil {
+		return fmt.Errorf("compute remote-access registration returned invalid endpoint: %w", err)
+	}
+
+	var endpointConfig corev1.ConfigMap
+	key := client.ObjectKey{Namespace: r.Namespace, Name: r.GatewayName}
+	err = r.Get(ctx, key, &endpointConfig)
+	switch {
+	case err == nil:
+		endpointConfig.Data = map[string]string{
+			remoteEndpointKey:  registration.Endpoint,
+			remoteTokenHashKey: accessKeyHash,
+		}
+		if err := r.Update(ctx, &endpointConfig); err != nil {
+			return err
+		}
+	case !apierrors.IsNotFound(err):
+		return err
+	default:
+		endpointConfig = corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: r.GatewayName, Namespace: r.Namespace},
+			Data: map[string]string{
+				remoteEndpointKey:  registration.Endpoint,
+				remoteTokenHashKey: accessKeyHash,
+			},
+		}
+		if err := r.Create(ctx, &endpointConfig); err != nil {
+			return err
+		}
+	}
+
+	r.registered = true
+	r.Log.Info("provisioned remote Kubernetes API access",
+		"runner_id", runnerID,
+		"endpoint", registration.Endpoint,
+		"gateway", r.GatewayName,
+	)
 	return nil
 }
 

@@ -41,3 +41,16 @@ tests:
       path: spec.template.spec.volumes[0].configMap.name
       value: RELEASE-NAME-ngrok-operator-compute-api
     documentIndex: 3
+- it: Propagates image pull secrets to the gateway
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+    image:
+      pullSecrets:
+      - name: private-registry
+  asserts:
+  - equal:
+      path: spec.template.spec.imagePullSecrets[0].name
+      value: private-registry
+    documentIndex: 3
