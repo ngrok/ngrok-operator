@@ -158,7 +158,6 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) error {
-	basecontroller.WarnIfDeprecatedMetadata(r.Recorder, domain, domain.Spec.Metadata)
 	// First check if the reserved domain already exists. The API is sometimes returning dangling CNAME records
 	// errors right now, so we'll check if the domain already exists before trying to create it.
 	resp, err := r.findReservedDomainByHostname(ctx, domain.Spec.Domain)
@@ -185,7 +184,6 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 }
 
 func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) error {
-	basecontroller.WarnIfDeprecatedMetadata(r.Recorder, domain, domain.Spec.Metadata)
 	resp, err := r.DomainsClient.Get(ctx, domain.Status.ID)
 	if err != nil {
 		// If the domain is gone, clear the status and trigger a re-reconcile

@@ -479,16 +479,14 @@ spec:
 #### What changes for you
 
 The operator reads both forms. The map form is canonical; the raw JSON string is
-deprecated. When a user-authored object still uses the string form, the operator
-emits a `DeprecatedField` warning event on reconcile (objects that only carry the
-default value are not flagged, and operator-generated objects are exempt because
-you can't act on them). Both forms serialize to the same value on the ngrok side,
-so switching a manifest from a JSON-object string to the equivalent map is a
-no-op against the API.
+deprecated. Both forms serialize to the same value on the ngrok side, so
+switching a manifest from a JSON-object string to the equivalent map is a no-op
+against the API. The string form is not flagged at runtime; the strict schema in
+the cleanup release (below) is what enforces the migration.
 
 The CRD field is schemaless (`x-kubernetes-preserve-unknown-fields`) for the
 duration of the migration so the API server accepts either shape; the operator
-validates and normalizes. A value that is neither a string nor a flat
+normalizes both to the same ngrok API string. A value that is neither a string nor a flat
 string→string object (for example an object with nested values) is passed
 through to the ngrok API verbatim.
 
@@ -507,7 +505,7 @@ migrations.
 
 | Release | Operator behavior | What you do |
 | ------- | ----------------- | ----------- |
-| 0.24 (this) | Reads both forms; canonicalizes the map form; emits a `DeprecatedField` warning for user-authored string-form metadata. | Nothing required. Optionally migrate `spec.metadata` from the JSON-object string to the equivalent map once rollback below 0.24 is ruled out. |
+| 0.24 (this) | Reads both forms; canonicalizes the map form. | Nothing required. Optionally migrate `spec.metadata` from the JSON-object string to the equivalent map once rollback below 0.24 is ruled out. |
 | Cleanup release | String form removed; `spec.metadata` is `map[string]string` only. | Ensure no `spec.metadata` values remain in raw-string form before upgrading. |
 
 ## What did *not* change in this set of migrations

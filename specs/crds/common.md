@@ -170,15 +170,13 @@ operator injects keys in two places:
 For backward compatibility the field currently also accepts a raw JSON string —
 the form the operator previously required, where the object was hand-rolled into
 a string (`metadata: '{"owned-by":"ngrok-operator"}'`). The string form is
-**deprecated**; the operator emits a `DeprecatedField` warning event when a
-user-authored object still uses it (the default value and operator-generated
-objects are exempt). Both forms serialize to the same opaque string on the ngrok
-side, so switching a manifest from the JSON-object string to the equivalent map
-is a no-op against the API.
+**deprecated** and documented for removal at the cleanup release. Both forms
+serialize to the same opaque string on the ngrok side, so switching a manifest
+from the JSON-object string to the equivalent map is a no-op against the API.
 
 During the migration window the CRD field is schemaless
 (`x-kubernetes-preserve-unknown-fields`) so the API server accepts either shape;
-the operator validates and normalizes. The default value is still written in the
+the operator normalizes both to the same ngrok API string. The default value is still written in the
 **string** form so objects that take the default remain readable by a rolled-back
 prior release. In the cleanup release the field collapses to a real
 `map[string]string` (`additionalProperties: {type: string}`) and the default

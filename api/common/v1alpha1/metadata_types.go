@@ -27,14 +27,6 @@ type MetadataValue struct {
 	raw json.RawMessage
 }
 
-// DefaultMetadataJSON is the operator's default metadata value. It is still a
-// JSON string (legacy form) during the migration window so that objects which
-// take the default remain readable by a rolled-back prior release.
-//
-// LEGACY-metadata-format: flip this default to the object form in the cleanup
-// release.
-const DefaultMetadataJSON = `{"owned-by":"ngrok-operator"}`
-
 // MetadataFromMap builds a canonical (object-form) MetadataValue from a map.
 func MetadataFromMap(m map[string]string) *MetadataValue {
 	// json.Marshal emits map keys in sorted order, so the encoding is stable.
@@ -96,64 +88,6 @@ func (m *MetadataValue) APIString() string {
 	// Not a flat string map (e.g. nested values): pass the raw JSON through
 	// verbatim rather than failing the reconcile.
 	return string(t)
-}
-
-// UsesDeprecatedStringForm reports whether the value is a user-authored legacy
-// JSON string that should be migrated to the map form. The operator default
-// value is excluded, so objects that merely took the default are not flagged
-// (they would otherwise emit a deprecation event on every reconcile).
-//
-// LEGACY-metadata-format: delete in the cleanup release.
-func (m *MetadataValue) UsesDeprecatedStringForm() bool {
-	return m.IsLegacyString() && m.APIString() != DefaultMetadataJSON
-}
-
-// HasNonStringValues reports whether the value is an object that is not a flat
-// map of string values (a nested object, or non-string scalar values). Such
-// values are accepted and passed through to the ngrok API verbatim for now, but
-// they will be rejected once the field becomes a strict map[string]string in the
-// cleanup release. Legacy string values and flat string maps return false.
-//
-// LEGACY-metadata-format: delete in the cleanup release — the strict CRD schema
-// enforces this at admission instead.
-func (m *MetadataValue) HasNonStringValues() bool {
-	if m == nil {
-		return false
-	}
-	t := bytes.TrimSpace(m.raw)
-	if len(t) == 0 || t[0] != '{' {
-		return false
-	}
-	var mm map[string]string
-	return json.Unmarshal(t, &mm) != nil
-}
-
-// IsLegacyString reports whether the value is in the deprecated JSON-string form.
-//
-// LEGACY-metadata-format: delete in the cleanup release.
-func (m *MetadataValue) IsLegacyString() bool {
-	if m == nil {
-		return false
-	}
-	t := bytes.TrimSpace(m.raw)
-	return len(t) > 0 && t[0] == '"'
-}
-
-// Map returns the value as a map when it is in canonical object form. The second
-// return is false for the legacy string form or a non-flat object.
-func (m *MetadataValue) Map() (map[string]string, bool) {
-	if m == nil {
-		return nil, false
-	}
-	t := bytes.TrimSpace(m.raw)
-	if len(t) == 0 || t[0] != '{' {
-		return nil, false
-	}
-	var mm map[string]string
-	if err := json.Unmarshal(t, &mm); err != nil {
-		return nil, false
-	}
-	return mm, true
 }
 
 // MarshalJSON implements json.Marshaler, echoing the raw value so it round-trips.

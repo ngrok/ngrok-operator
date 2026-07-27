@@ -2,7 +2,6 @@ package common
 
 import (
 	"encoding/json"
-	"reflect"
 	"testing"
 )
 
@@ -59,31 +58,6 @@ func TestMetadataValue_NilAPIString(t *testing.T) {
 	if got := m.APIString(); got != "" {
 		t.Errorf("nil APIString() = %q, want empty", got)
 	}
-	if m.IsLegacyString() {
-		t.Errorf("nil IsLegacyString() = true, want false")
-	}
-}
-
-func TestMetadataValue_IsLegacyString(t *testing.T) {
-	tests := []struct {
-		json string
-		want bool
-	}{
-		{`"legacy"`, true},
-		{`"{\"a\":\"b\"}"`, true},
-		{`{"a":"b"}`, false},
-		{`{}`, false},
-		{`null`, false},
-	}
-	for _, tt := range tests {
-		var m MetadataValue
-		if err := json.Unmarshal([]byte(tt.json), &m); err != nil {
-			t.Fatalf("unmarshal %s: %v", tt.json, err)
-		}
-		if got := m.IsLegacyString(); got != tt.want {
-			t.Errorf("IsLegacyString(%s) = %v, want %v", tt.json, got, tt.want)
-		}
-	}
 }
 
 func TestMetadataValue_Constructors(t *testing.T) {
@@ -94,11 +68,9 @@ func TestMetadataValue_Constructors(t *testing.T) {
 	if got := MetadataFromLegacyString(`{"owned-by":"ngrok-operator"}`).APIString(); got != `{"owned-by":"ngrok-operator"}` {
 		t.Errorf("MetadataFromLegacyString APIString = %q", got)
 	}
-	if !MetadataFromLegacyString("x").IsLegacyString() {
-		t.Errorf("MetadataFromLegacyString should be legacy form")
-	}
-	if MetadataFromMap(map[string]string{"a": "b"}).IsLegacyString() {
-		t.Errorf("MetadataFromMap should not be legacy form")
+	// a non-JSON legacy string is passed through verbatim
+	if got := MetadataFromLegacyString("free text").APIString(); got != "free text" {
+		t.Errorf("MetadataFromLegacyString(non-json) APIString = %q", got)
 	}
 }
 
@@ -115,67 +87,6 @@ func TestMetadataValue_RoundTrip(t *testing.T) {
 		if string(out) != in {
 			t.Errorf("round-trip %s = %s", in, out)
 		}
-	}
-}
-
-func TestMetadataValue_UsesDeprecatedStringForm(t *testing.T) {
-	tests := []struct {
-		json string
-		want bool
-	}{
-		{`{"a":"b"}`, false}, // object form
-		{`null`, false},      // unset
-		{`"` + `{\"owned-by\":\"ngrok-operator\"}` + `"`, false}, // legacy but equals default -> not flagged
-		{`"{\"owned-by\":\"someone\"}"`, true},                   // user-authored legacy string
-		{`"free text"`, true},                                    // user-authored legacy string
-	}
-	for _, tt := range tests {
-		var m MetadataValue
-		if err := json.Unmarshal([]byte(tt.json), &m); err != nil {
-			t.Fatalf("unmarshal %s: %v", tt.json, err)
-		}
-		if got := m.UsesDeprecatedStringForm(); got != tt.want {
-			t.Errorf("UsesDeprecatedStringForm(%s) = %v, want %v", tt.json, got, tt.want)
-		}
-	}
-	var nilM *MetadataValue
-	if nilM.UsesDeprecatedStringForm() {
-		t.Errorf("nil UsesDeprecatedStringForm() = true, want false")
-	}
-}
-
-func TestMetadataValue_HasNonStringValues(t *testing.T) {
-	tests := []struct {
-		json string
-		want bool
-	}{
-		{`{"a":"b"}`, false},      // flat string map
-		{`{}`, false},             // empty object
-		{`"legacy"`, false},       // legacy string form
-		{`null`, false},           // unset
-		{`{"a":{"b":"c"}}`, true}, // nested object
-		{`{"count":5}`, true},     // non-string scalar
-		{`{"a":"b","c":true}`, true},
-	}
-	for _, tt := range tests {
-		var m MetadataValue
-		if err := json.Unmarshal([]byte(tt.json), &m); err != nil {
-			t.Fatalf("unmarshal %s: %v", tt.json, err)
-		}
-		if got := m.HasNonStringValues(); got != tt.want {
-			t.Errorf("HasNonStringValues(%s) = %v, want %v", tt.json, got, tt.want)
-		}
-	}
-}
-
-func TestMetadataValue_Map(t *testing.T) {
-	m := MetadataFromMap(map[string]string{"a": "b"})
-	got, ok := m.Map()
-	if !ok || !reflect.DeepEqual(got, map[string]string{"a": "b"}) {
-		t.Errorf("Map() = %v, %v", got, ok)
-	}
-	if _, ok := MetadataFromLegacyString("x").Map(); ok {
-		t.Errorf("legacy string Map() ok = true, want false")
 	}
 }
 

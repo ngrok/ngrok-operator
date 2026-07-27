@@ -594,20 +594,20 @@ normalizes both.
     `+kubebuilder:default` stays a **JSON string** (`{"owned-by":"ngrok-operator"}`)
     so defaulted objects remain rollback-safe to a prior release (see below).
   - Controllers read via `spec.Metadata.APIString()` at every ngrok API call site
-    and drift comparison. `MetadataValue.UsesDeprecatedStringForm()` gates a
-    `DeprecatedField` warning event emitted from each reconciler's create/update
-    path via `controller.WarnIfDeprecatedMetadata`. The default value is excluded
-    from the warning (so untouched objects don't nag), and operator-managed objects
-    are excluded via `labels.IsOperatorManaged` (they can't act on the event).
+    and drift comparison. There is deliberately **no** runtime deprecation event
+    for the string form: the only reliable signal that would need it (an object
+    that isn't operator-managed) requires ownership-suppression machinery not worth
+    its weight, and the strict schema at cleanup rejects the string form at
+    admission — a hard error that supersedes any transient event. The deprecation
+    lives in the docs (this guide, the migration guide, and the CRD field
+    description) only.
   - Operator-generated objects (`pkg/managerdriver/translator.go`,
     `pkg/managerdriver/domains.go`) keep writing the **string** form via
     `commonv1alpha1.MetadataFromLegacyString` for rollback safety.
 - **R-cleanup:** collapse `MetadataValue` to a plain `map[string]string` (drop the
-  string branch in `UnmarshalJSON`/`APIString`, the `IsLegacyString` /
-  `UsesDeprecatedStringForm` helpers, and the `WarnIfDeprecatedMetadata` call
-  sites); flip the CRD default to the object form; switch the operator-generated
-  write paths to the map form; make the CRD schema a real
-  `additionalProperties: {type: string}` object. Sweep with
+  string branch in `UnmarshalJSON`/`APIString`); flip the CRD default to the
+  object form; switch the operator-generated write paths to the map form; make the
+  CRD schema a real `additionalProperties: {type: string}` object. Sweep with
   `git grep 'LEGACY-metadata-format'`.
 
 #### Why not a rename or a conversion webhook

@@ -162,7 +162,6 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (err error) {
-	controller.WarnIfDeprecatedMetadata(r.Recorder, ko, ko.Spec.Metadata)
 	var k8sOp *ngrok.KubernetesOperator
 	k8sOp, err = r.findExisting(ctx, ko)
 	if err != nil {
@@ -225,7 +224,6 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 }
 
 func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
-	controller.WarnIfDeprecatedMetadata(r.Recorder, ko, ko.Spec.Metadata)
 	log := ctrl.LoggerFrom(ctx).WithValues("id", ko.Status.ID)
 
 	log.V(3).Info("fetching KubernetesOperator from ngrok API")

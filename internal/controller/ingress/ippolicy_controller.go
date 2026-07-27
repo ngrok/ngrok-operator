@@ -105,7 +105,6 @@ func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
-	controller.WarnIfDeprecatedMetadata(r.Recorder, policy, policy.Spec.Metadata)
 	remotePolicy, err := r.IPPoliciesClient.Create(ctx, &ngrok.IPPolicyCreate{
 		Description: policy.Spec.Description,
 		Metadata:    policy.Spec.Metadata.APIString(),
@@ -126,7 +125,6 @@ func (r *IPPolicyReconciler) create(ctx context.Context, policy *ingressv1alpha1
 }
 
 func (r *IPPolicyReconciler) update(ctx context.Context, policy *ingressv1alpha1.IPPolicy) error {
-	controller.WarnIfDeprecatedMetadata(r.Recorder, policy, policy.Spec.Metadata)
 	remotePolicy, err := r.IPPoliciesClient.Get(ctx, policy.Status.ID)
 	if err != nil {
 		if ngrok.IsNotFound(err) {
