@@ -1,8 +1,11 @@
 package computeapi
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -12,14 +15,15 @@ import (
 )
 
 // Gateway exposes the Kubernetes API through the identity and permissions of
-// its ServiceAccount. Authentication at the public side is performed by the
-// mTLS AgentEndpoint; Kubernetes RBAC is the authorization layer.
+// its ServiceAccount. Compute authenticates with an ephemeral bearer key, and
+// Kubernetes RBAC is the authorization layer.
 type Gateway struct {
-	TokenFile string
-	Proxy     *httputil.ReverseProxy
+	TokenFile     string
+	TokenHashFile string
+	Proxy         *httputil.ReverseProxy
 }
 
-func NewGateway(upstream, tokenFile, caFile string) (*Gateway, error) {
+func NewGateway(upstream, tokenFile, tokenHashFile, caFile string) (*Gateway, error) {
 	target, err := url.Parse(upstream)
 	if err != nil {
 		return nil, fmt.Errorf("parse Kubernetes API URL: %w", err)
@@ -35,7 +39,7 @@ func NewGateway(upstream, tokenFile, caFile string) (*Gateway, error) {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.Transport = &http.Transport{TLSClientConfig: tlsConfig(roots)}
 	proxy.FlushInterval = -1 // flush watch events immediately
-	return &Gateway{TokenFile: tokenFile, Proxy: proxy}, nil
+	return &Gateway{TokenFile: tokenFile, TokenHashFile: tokenHashFile, Proxy: proxy}, nil
 }
 
 func tlsConfig(roots *x509.CertPool) *tls.Config {
@@ -43,6 +47,11 @@ func tlsConfig(roots *x509.CertPool) *tls.Config {
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !g.authorized(r.Header.Get("Authorization")) {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	token, err := os.ReadFile(g.TokenFile)
 	if err != nil {
 		http.Error(w, "gateway credentials unavailable", http.StatusServiceUnavailable)
@@ -51,4 +60,21 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Header.Del("Authorization")
 	r.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	g.Proxy.ServeHTTP(w, r)
+}
+
+func (g *Gateway) authorized(authorization string) bool {
+	const bearerPrefix = "Bearer "
+	if !strings.HasPrefix(authorization, bearerPrefix) {
+		return false
+	}
+	expectedHashText, err := os.ReadFile(g.TokenHashFile)
+	if err != nil {
+		return false
+	}
+	expectedHash, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(string(expectedHashText)))
+	if err != nil || len(expectedHash) != sha256.Size {
+		return false
+	}
+	actualHash := sha256.Sum256([]byte(strings.TrimPrefix(authorization, bearerPrefix)))
+	return subtle.ConstantTimeCompare(actualHash[:], expectedHash) == 1
 }
