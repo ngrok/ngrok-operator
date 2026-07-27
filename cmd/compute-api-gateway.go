@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -26,6 +28,9 @@ func computeAPIGatewayCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "compute-api-gateway",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
 			gateway, err := computeapi.NewGateway(upstream, tokenFile, accessKeyHashFile, caFile)
 			if err != nil {
 				return err
@@ -51,7 +56,7 @@ func computeAPIGatewayCmd() *cobra.Command {
 				}
 			}()
 
-			listener, err := computeapi.Listen(cmd.Context(), computeapi.EndpointConfig{
+			listener, err := computeapi.Listen(ctx, computeapi.EndpointConfig{
 				URLFile: endpointFile, Authtoken: os.Getenv("NGROK_AUTHTOKEN"),
 				ConnectURL: serverAddr, RootCAs: rootCAs,
 				Logger: slog.New(logr.ToSlogHandler(ctrl.Log.WithName("compute-api").WithName("agent"))),
@@ -72,11 +77,12 @@ func computeAPIGatewayCmd() *cobra.Command {
 			}()
 
 			select {
-			case <-cmd.Context().Done():
+			case <-ctx.Done():
 				ready.Store(false)
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 				_ = server.Shutdown(shutdownCtx)
+				_ = listener.CloseWithContext(shutdownCtx)
 				_ = healthServer.Shutdown(shutdownCtx)
 				return nil
 			case err := <-healthErr:
