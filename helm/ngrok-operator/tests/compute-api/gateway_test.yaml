@@ -9,7 +9,7 @@ tests:
 - it: Serves proxy traffic through the ngrok SDK without a Service
   set:
     compute:
-      enabled: false
+      enabled: true # Deprecated poller setting; remote access takes precedence.
       remoteAccess:
         enabled: true
     credentials:
