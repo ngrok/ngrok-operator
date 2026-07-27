@@ -93,6 +93,11 @@ Most CRDs that correspond to ngrok API resources include:
 | `description` | `"Created by the ngrok-operator"`     |
 | `metadata`    | `{"owned-by": "ngrok-operator"}`      |
 
+> The `metadata` default shows the logical key/value content. During the
+> migration window (0.24) it is written in the **JSON-string** form
+> (`'{"owned-by":"ngrok-operator"}'`) for rollback safety; it flips to the object
+> form at the cleanup release. See [`metadata` format](#metadata-format) below.
+
 ### `metadata` format
 
 **End goal:** `metadata` is a map of string key/value pairs
@@ -171,8 +176,10 @@ For backward compatibility the field currently also accepts a raw JSON string â€
 the form the operator previously required, where the object was hand-rolled into
 a string (`metadata: '{"owned-by":"ngrok-operator"}'`). The string form is
 **deprecated** and documented for removal at the cleanup release. Both forms
-serialize to the same opaque string on the ngrok side, so switching a manifest
-from the JSON-object string to the equivalent map is a no-op against the API.
+carry the same key/value data, so switching a manifest from the JSON-object
+string to the equivalent map is semantically equivalent â€” though because the map
+form is sent with sorted keys, a legacy string with unsorted keys may trigger one
+normalization update against the API.
 
 During the migration window the CRD field is schemaless
 (`x-kubernetes-preserve-unknown-fields`) so the API server accepts either shape;

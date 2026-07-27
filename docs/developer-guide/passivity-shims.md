@@ -579,13 +579,15 @@ either a JSON string or a JSON object under the same key, and the operator
 normalizes both.
 
 - **Pattern:** Two-release (deprecated form, same key). Tag: `LEGACY-metadata-format`.
-- **Type:** `api/common/v1alpha1/metadata_types.go::MetadataValue` — a custom type
-  whose `UnmarshalJSON` retains the raw bytes and whose `APIString()` returns the
-  string the ngrok API expects (a legacy string is passed through verbatim; a map
-  is re-marshaled with sorted keys so it produces no spurious API diffs). It is
-  hand-written DeepCopy so controller-gen uses it rather than generating a shallow
-  copy of the raw slice. The field markers are `+kubebuilder:validation:Schemaless`
-  and `+kubebuilder:pruning:PreserveUnknownFields`.
+- **Type:** the field is a bare `json.RawMessage` with
+  `+kubebuilder:validation:Schemaless` and `+kubebuilder:pruning:PreserveUnknownFields`
+  markers (the same shape as `CloudEndpoint.spec.trafficPolicy.inline`), so
+  `encoding/json` and controller-gen handle (un)marshaling and deepcopy — no wrapper
+  type. `common.MetadataAPIString` (in `api/common/v1alpha1/metadata_types.go`) turns
+  a raw value into the string the ngrok API expects: a legacy string passes through
+  verbatim; a flat string→string map is re-marshaled with sorted keys (no spurious
+  API diffs); any other JSON (nested, null, or non-string values) is passed through
+  unchanged.
 - **Affected fields:** `Domain.spec.metadata`, `IPPolicy.spec.metadata` and
   `IPPolicy.spec.rules[].metadata`, `KubernetesOperator.spec.metadata`,
   `CloudEndpoint.spec.metadata`, `AgentEndpoint.spec.metadata`.
@@ -593,8 +595,8 @@ normalizes both.
   - CRD: the field is schemaless, so both string and object shapes admit. The
     `+kubebuilder:default` stays a **JSON string** (`{"owned-by":"ngrok-operator"}`)
     so defaulted objects remain rollback-safe to a prior release (see below).
-  - Controllers read via `spec.Metadata.APIString()` at every ngrok API call site
-    and drift comparison. There is deliberately **no** runtime deprecation event
+  - Controllers read via `common.MetadataAPIString(spec.Metadata)` at every ngrok
+    API call site and drift comparison. There is deliberately **no** runtime deprecation event
     for the string form: the only reliable signal that would need it (an object
     that isn't operator-managed) requires ownership-suppression machinery not worth
     its weight, and the strict schema at cleanup rejects the string form at
@@ -604,13 +606,14 @@ normalizes both.
   - Operator-generated objects (`pkg/managerdriver/translator.go`,
     `pkg/managerdriver/domains.go`) keep writing the **string** form via
     `commonv1alpha1.MetadataFromLegacyString` for rollback safety.
-- **R-cleanup:** collapse `MetadataValue` to a plain `map[string]string` (drop the
-  string branch in `UnmarshalJSON`/`APIString`); flip the CRD default to the
-  object form; switch the operator-generated write paths to the map form; make the
-  CRD schema a real `additionalProperties: {type: string}` object. Sweep with
+- **R-cleanup:** drop the legacy string branch in `MetadataAPIString` and delete
+  `MetadataFromLegacyString`; change the fields from `json.RawMessage` to
+  `map[string]string`; flip the CRD default to the object form; switch the
+  operator-generated write paths to the map form; make the CRD schema a real
+  `additionalProperties: {type: string}` object. Sweep with
   `git grep 'LEGACY-metadata-format'`.
 
-#### Why not a rename or a conversion webhook
+### Why not a rename or a conversion webhook
 
 - **Rename to a new key** (`metadataMap`, etc.) would force users through *two*
   migrations — first onto the interim key, then back onto `metadata` once the
@@ -621,7 +624,8 @@ normalizes both.
   `ngrok.com/v1` group move is itself expected to be a dual-read migration rather
   than a webhook. Not adopting one just for this field.
 
-The cost of the schemaless approach is weaker server-side validation (the API
-server no longer enforces string values on the map) — the operator validates
-instead — and the rollback caveat for object-form adopters documented in the
-user-facing guide.
+The cost of the schemaless approach is weaker server-side validation: the API
+server no longer enforces string values on the map. The operator normalizes the
+supported forms (legacy string, flat string map) and passes any other JSON
+through to ngrok unchanged rather than rejecting it — plus the rollback caveat
+for object-form adopters documented in the user-facing guide.

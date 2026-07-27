@@ -479,8 +479,10 @@ spec:
 #### What changes for you
 
 The operator reads both forms. The map form is canonical; the raw JSON string is
-deprecated. Both forms serialize to the same value on the ngrok side, so
-switching a manifest from a JSON-object string to the equivalent map is a no-op
+deprecated. The two forms carry the same key/value data, so switching a manifest
+from a JSON-object string to the equivalent map is semantically equivalent.
+Because the map form is written to ngrok with sorted keys, a legacy string whose
+keys were not already sorted may produce a single one-time normalization update
 against the API. The string form is not flagged at runtime; the strict schema in
 the cleanup release (below) is what enforces the migration.
 
@@ -493,7 +495,8 @@ through to the ngrok API verbatim.
 #### Rollback safety
 
 The default value is still written as a JSON string during the migration window,
-so an object that takes the default is rollback-safe to a prior release. A
+so a resource that takes the default is rollback-safe to a prior release (the
+default it receives is a string, which the prior CRD accepts). A
 manifest you switch to the **map** form is *not* rollback-safe below the
 migration release: the prior CRD types `metadata` as a string and the API server
 rejects the object shape. Keep `metadata` in string form if you need to roll back

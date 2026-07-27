@@ -39,6 +39,16 @@ func TestMetadataAPIString(t *testing.T) {
 			json: `{"a":{"b":"c"}}`,
 			want: `{"a":{"b":"c"}}`,
 		},
+		{
+			name: "null-valued key preserved verbatim (not coerced to empty string)",
+			json: `{"a":null}`,
+			want: `{"a":null}`,
+		},
+		{
+			name: "numeric-valued key passthrough verbatim",
+			json: `{"a":1}`,
+			want: `{"a":1}`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -63,5 +73,16 @@ func TestMetadataConstructors(t *testing.T) {
 	}
 	if got := MetadataAPIString(MetadataFromLegacyString("free text")); got != "free text" {
 		t.Errorf("MetadataFromLegacyString(non-json) = %q", got)
+	}
+	// Empty inputs return nil so the field is omitted and the CRD default applies
+	// (rather than sending an empty value to ngrok).
+	if got := MetadataFromLegacyString(""); got != nil {
+		t.Errorf("MetadataFromLegacyString(\"\") = %v, want nil", got)
+	}
+	if got := MetadataFromMap(nil); got != nil {
+		t.Errorf("MetadataFromMap(nil) = %v, want nil", got)
+	}
+	if got := MetadataFromMap(map[string]string{}); got != nil {
+		t.Errorf("MetadataFromMap(empty) = %v, want nil", got)
 	}
 }
