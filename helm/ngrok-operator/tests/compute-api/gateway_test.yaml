@@ -1,0 +1,43 @@
+suite: test compute API gateway
+templates:
+- compute-api/gateway.yaml
+tests:
+- it: Does not render when remote access is disabled
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: Serves proxy traffic through the ngrok SDK without a Service
+  set:
+    compute:
+      enabled: false
+      remoteAccess:
+        enabled: true
+    credentials:
+      apiKey: test-api-key
+      authtoken: test-authtoken
+  asserts:
+  - hasDocuments:
+      count: 4
+  - isKind:
+      of: Deployment
+    documentIndex: 3
+  - equal:
+      path: spec.template.spec.containers[0].args[0]
+      value: compute-api-gateway
+    documentIndex: 3
+  - equal:
+      path: spec.template.spec.containers[0].ports[0].name
+      value: health
+    documentIndex: 3
+  - equal:
+      path: spec.template.spec.containers[0].ports[0].containerPort
+      value: 8081
+    documentIndex: 3
+  - equal:
+      path: spec.template.spec.containers[0].env[0].name
+      value: NGROK_AUTHTOKEN
+    documentIndex: 3
+  - equal:
+      path: spec.template.spec.volumes[0].configMap.name
+      value: RELEASE-NAME-ngrok-operator-compute-api
+    documentIndex: 3
