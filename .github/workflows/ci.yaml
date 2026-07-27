@@ -27,7 +27,7 @@ jobs:
       make: ${{ steps.changes.outputs.make }}
       nix: ${{ steps.changes.outputs.nix }}
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - uses: "./.github/actions/changes"
@@ -53,7 +53,7 @@ jobs:
       (needs.changes.outputs.make == 'true') ||
       (needs.changes.outputs.nix == 'true')
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - uses: ./.github/actions/nix-setup
@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - name: Set up QEMU
@@ -113,7 +113,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
@@ -133,7 +133,7 @@ jobs:
       (needs.changes.outputs.nix == 'true') ||
       (needs.changes.outputs.charts == 'true')
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
@@ -172,7 +172,7 @@ jobs:
         (needs.changes.outputs.nix == 'true')
       )
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
@@ -209,7 +209,7 @@ jobs:
         (needs.changes.outputs.nix == 'true')
       )
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
@@ -259,7 +259,7 @@ jobs:
         (needs.changes.outputs.nix == 'true')
       )
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
