@@ -27,7 +27,6 @@ package v1alpha1
 import (
 	"encoding/json"
 
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -78,7 +77,7 @@ type CloudEndpointSpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata *commonv1alpha1.MetadataValue `json:"metadata,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// Bindings is the list of Binding IDs to associate with the endpoint
 	// Accepted values are "public", "internal", or "kubernetes"

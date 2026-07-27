@@ -137,7 +137,7 @@ type AgentEndpointSpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default=`{"owned-by":"ngrok-operator"}`
-	Metadata *commonv1alpha1.MetadataValue `json:"metadata,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// List of Binding IDs to associate with the endpoint
 	// Accepted values are "public", "internal", or "kubernetes"

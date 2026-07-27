@@ -113,7 +113,8 @@ func (in *DomainSpec) DeepCopyInto(out *DomainSpec) {
 	*out = *in
 	if in.Metadata != nil {
 		in, out := &in.Metadata, &out.Metadata
-		*out = (*in).DeepCopy()
+		*out = make(json.RawMessage, len(*in))
+		copy(*out, *in)
 	}
 	if in.ResolvesTo != nil {
 		in, out := &in.ResolvesTo, &out.ResolvesTo
@@ -415,7 +416,8 @@ func (in *IPPolicyRule) DeepCopyInto(out *IPPolicyRule) {
 	*out = *in
 	if in.Metadata != nil {
 		in, out := &in.Metadata, &out.Metadata
-		*out = (*in).DeepCopy()
+		*out = make(json.RawMessage, len(*in))
+		copy(*out, *in)
 	}
 }
 
@@ -434,7 +436,8 @@ func (in *IPPolicySpec) DeepCopyInto(out *IPPolicySpec) {
 	*out = *in
 	if in.Metadata != nil {
 		in, out := &in.Metadata, &out.Metadata
-		*out = (*in).DeepCopy()
+		*out = make(json.RawMessage, len(*in))
+		copy(*out, *in)
 	}
 	if in.Rules != nil {
 		in, out := &in.Rules, &out.Rules

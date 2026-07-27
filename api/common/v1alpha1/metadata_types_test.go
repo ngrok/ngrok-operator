@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestMetadataValue_APIString(t *testing.T) {
+func TestMetadataAPIString(t *testing.T) {
 	tests := []struct {
 		name string
 		json string // the raw JSON value of the metadata field
@@ -42,67 +42,26 @@ func TestMetadataValue_APIString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var m MetadataValue
-			if err := json.Unmarshal([]byte(tt.json), &m); err != nil {
-				t.Fatalf("unmarshal: %v", err)
-			}
-			if got := m.APIString(); got != tt.want {
-				t.Errorf("APIString() = %q, want %q", got, tt.want)
+			if got := MetadataAPIString(json.RawMessage(tt.json)); got != tt.want {
+				t.Errorf("MetadataAPIString(%s) = %q, want %q", tt.json, got, tt.want)
 			}
 		})
 	}
-}
-
-func TestMetadataValue_NilAPIString(t *testing.T) {
-	var m *MetadataValue
-	if got := m.APIString(); got != "" {
-		t.Errorf("nil APIString() = %q, want empty", got)
+	// nil is unset
+	if got := MetadataAPIString(nil); got != "" {
+		t.Errorf("MetadataAPIString(nil) = %q, want empty", got)
 	}
 }
 
-func TestMetadataValue_Constructors(t *testing.T) {
-	if got := MetadataFromMap(map[string]string{"owned-by": "ngrok-operator"}).APIString(); got != `{"owned-by":"ngrok-operator"}` {
-		t.Errorf("MetadataFromMap APIString = %q", got)
+func TestMetadataConstructors(t *testing.T) {
+	if got := MetadataAPIString(MetadataFromMap(map[string]string{"owned-by": "ngrok-operator"})); got != `{"owned-by":"ngrok-operator"}` {
+		t.Errorf("MetadataFromMap = %q", got)
 	}
 	// legacy constructor passes the string through verbatim
-	if got := MetadataFromLegacyString(`{"owned-by":"ngrok-operator"}`).APIString(); got != `{"owned-by":"ngrok-operator"}` {
-		t.Errorf("MetadataFromLegacyString APIString = %q", got)
+	if got := MetadataAPIString(MetadataFromLegacyString(`{"owned-by":"ngrok-operator"}`)); got != `{"owned-by":"ngrok-operator"}` {
+		t.Errorf("MetadataFromLegacyString(json) = %q", got)
 	}
-	// a non-JSON legacy string is passed through verbatim
-	if got := MetadataFromLegacyString("free text").APIString(); got != "free text" {
-		t.Errorf("MetadataFromLegacyString(non-json) APIString = %q", got)
-	}
-}
-
-func TestMetadataValue_RoundTrip(t *testing.T) {
-	for _, in := range []string{`{"a":"b"}`, `"legacy"`, `null`} {
-		var m MetadataValue
-		if err := json.Unmarshal([]byte(in), &m); err != nil {
-			t.Fatalf("unmarshal %s: %v", in, err)
-		}
-		out, err := json.Marshal(m)
-		if err != nil {
-			t.Fatalf("marshal %s: %v", in, err)
-		}
-		if string(out) != in {
-			t.Errorf("round-trip %s = %s", in, out)
-		}
-	}
-}
-
-func TestMetadataValue_DeepCopy(t *testing.T) {
-	m := MetadataFromMap(map[string]string{"a": "b"})
-	c := m.DeepCopy()
-	if c.APIString() != m.APIString() {
-		t.Errorf("deepcopy mismatch")
-	}
-	// mutate original raw; copy must be unaffected
-	m.raw[0] = 'X'
-	if c.raw[0] == 'X' {
-		t.Errorf("deepcopy aliased the raw slice")
-	}
-	var nilM *MetadataValue
-	if nilM.DeepCopy() != nil {
-		t.Errorf("nil DeepCopy should be nil")
+	if got := MetadataAPIString(MetadataFromLegacyString("free text")); got != "free text" {
+		t.Errorf("MetadataFromLegacyString(non-json) = %q", got)
 	}
 }

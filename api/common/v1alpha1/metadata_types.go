@@ -3,72 +3,37 @@ package common
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 )
 
-// MetadataValue is the free-form "metadata" associated with an ngrok API object
-// (Domain, IPPolicy, CloudEndpoint, AgentEndpoint, KubernetesOperator).
+// The ngrok "metadata" field on a CRD (Domain, IPPolicy, CloudEndpoint,
+// AgentEndpoint, KubernetesOperator) is a raw JSON value. Canonically it is an
+// object of string key/value pairs; the operator serializes it to the string
+// the ngrok API expects via MetadataAPIString. The CRD field is a bare
+// json.RawMessage with schemaless/preserve-unknown-fields markers, so
+// encoding/json and controller-gen handle (un)marshaling and deepcopy — no
+// wrapper type is needed.
 //
-// Canonically it is a map of string key/value pairs. It is serialized to the
-// ngrok API as a compact JSON-object string (see APIString).
-//
-// LEGACY-metadata-format: for backward compatibility during the metadata-format
-// migration the value also accepts a raw JSON string — the wire form the
-// operator previously required, where users hand-rolled a JSON object into a
-// string (e.g. `metadata: '{"owned-by":"ngrok-operator"}'`). Legacy string
-// values are passed through to the ngrok API verbatim. In the cleanup release
-// the string form is dropped and this collapses to a plain map[string]string.
-//
-// The field is schemaless with pruning disabled in the CRD so the API server
-// accepts both the string and object forms during the migration window; the
-// operator validates and normalizes the value. The raw JSON is preserved so the
-// value round-trips through the API server byte-for-byte.
-type MetadataValue struct {
-	raw json.RawMessage
-}
+// LEGACY-metadata-format: during the migration window the value also accepts a
+// raw JSON string (the wire form the operator previously required, e.g.
+// `metadata: '{"owned-by":"ngrok-operator"}'`), passed through verbatim. In the
+// cleanup release the string form is dropped and these fields become plain
+// map[string]string.
 
-// MetadataFromMap builds a canonical (object-form) MetadataValue from a map.
-func MetadataFromMap(m map[string]string) *MetadataValue {
-	// json.Marshal emits map keys in sorted order, so the encoding is stable.
-	b, err := json.Marshal(m)
-	if err != nil {
-		return &MetadataValue{}
-	}
-	return &MetadataValue{raw: b}
-}
-
-// MetadataFromLegacyString builds a legacy (string-form) MetadataValue that is
-// passed through to the ngrok API verbatim. Used by operator-generated objects,
-// which keep writing the string form during the migration window for rollback
-// safety.
+// MetadataAPIString converts a raw CRD metadata value into the string the ngrok
+// API expects:
 //
-// LEGACY-metadata-format: delete in the cleanup release once operator-generated
-// objects write the object form only.
-func MetadataFromLegacyString(s string) *MetadataValue {
-	b, err := json.Marshal(s)
-	if err != nil {
-		return &MetadataValue{}
-	}
-	return &MetadataValue{raw: b}
-}
-
-// APIString returns the string the ngrok API expects for the metadata field.
-//
-//   - object form  -> a compact JSON object string with sorted keys (stable, so
-//     it does not produce spurious diffs against the API's stored value)
+//   - object form -> compact JSON object with sorted keys (stable, no spurious
+//     diffs against the API's stored value)
 //   - legacy string form -> the string verbatim
-//   - unset/null   -> ""
-func (m *MetadataValue) APIString() string {
-	if m == nil {
-		return ""
-	}
-	t := bytes.TrimSpace(m.raw)
+//   - unset/null / non-flat object -> "" / raw JSON verbatim respectively
+func MetadataAPIString(raw json.RawMessage) string {
+	t := bytes.TrimSpace(raw)
 	if len(t) == 0 || string(t) == "null" {
 		return ""
 	}
 
 	// LEGACY-metadata-format (read-side cleanup): drop this string branch; the
-	// value is always an object form after the string form is removed.
+	// value is always object form once the string form is removed.
 	if t[0] == '"' {
 		var s string
 		if err := json.Unmarshal(t, &s); err == nil {
@@ -77,7 +42,7 @@ func (m *MetadataValue) APIString() string {
 		return ""
 	}
 
-	// Canonical object form. Re-marshal through map[string]string so the output
+	// Canonical object form: re-marshal through map[string]string so the output
 	// is key-sorted and stable.
 	var mm map[string]string
 	if err := json.Unmarshal(t, &mm); err == nil {
@@ -90,39 +55,27 @@ func (m *MetadataValue) APIString() string {
 	return string(t)
 }
 
-// MarshalJSON implements json.Marshaler, echoing the raw value so it round-trips.
-func (m MetadataValue) MarshalJSON() ([]byte, error) {
-	if len(m.raw) == 0 {
-		return []byte("null"), nil
-	}
-	return m.raw, nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler, retaining the raw bytes as received.
-func (m *MetadataValue) UnmarshalJSON(data []byte) error {
-	if m == nil {
-		return errors.New("MetadataValue: UnmarshalJSON on nil pointer")
-	}
-	m.raw = append(m.raw[:0], data...)
-	return nil
-}
-
-// DeepCopyInto is a hand-written deepcopy (the raw slice must be copied, not
-// aliased). controller-gen uses this instead of generating its own.
-func (m *MetadataValue) DeepCopyInto(out *MetadataValue) {
-	*out = MetadataValue{}
-	if m.raw != nil {
-		out.raw = make(json.RawMessage, len(m.raw))
-		copy(out.raw, m.raw)
-	}
-}
-
-// DeepCopy is a hand-written deepcopy.
-func (m *MetadataValue) DeepCopy() *MetadataValue {
-	if m == nil {
+// MetadataFromMap builds a canonical (object-form) metadata value. json.Marshal
+// emits map keys in sorted order, so the encoding is stable.
+func MetadataFromMap(m map[string]string) json.RawMessage {
+	b, err := json.Marshal(m)
+	if err != nil {
 		return nil
 	}
-	out := new(MetadataValue)
-	m.DeepCopyInto(out)
-	return out
+	return b
+}
+
+// MetadataFromLegacyString builds a legacy (string-form) metadata value that is
+// passed through to the ngrok API verbatim. Used by operator-generated objects,
+// which keep writing the string form during the migration window for rollback
+// safety.
+//
+// LEGACY-metadata-format: delete in the cleanup release once operator-generated
+// objects write the object form only.
+func MetadataFromLegacyString(s string) json.RawMessage {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return nil
+	}
+	return b
 }

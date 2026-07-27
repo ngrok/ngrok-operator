@@ -105,7 +105,8 @@ func (in *AgentEndpointSpec) DeepCopyInto(out *AgentEndpointSpec) {
 	}
 	if in.Metadata != nil {
 		in, out := &in.Metadata, &out.Metadata
-		*out = (*in).DeepCopy()
+		*out = make(json.RawMessage, len(*in))
+		copy(*out, *in)
 	}
 	if in.Bindings != nil {
 		in, out := &in.Bindings, &out.Bindings
@@ -235,7 +236,8 @@ func (in *CloudEndpointSpec) DeepCopyInto(out *CloudEndpointSpec) {
 	}
 	if in.Metadata != nil {
 		in, out := &in.Metadata, &out.Metadata
-		*out = (*in).DeepCopy()
+		*out = make(json.RawMessage, len(*in))
+		copy(*out, *in)
 	}
 	if in.Bindings != nil {
 		in, out := &in.Bindings, &out.Bindings
@@ -527,7 +529,8 @@ func (in *KubernetesOperatorSpec) DeepCopyInto(out *KubernetesOperatorSpec) {
 	*out = *in
 	if in.Metadata != nil {
 		in, out := &in.Metadata, &out.Metadata
-		*out = (*in).DeepCopy()
+		*out = make(json.RawMessage, len(*in))
+		copy(*out, *in)
 	}
 	if in.EnabledFeatures != nil {
 		in, out := &in.EnabledFeatures, &out.EnabledFeatures

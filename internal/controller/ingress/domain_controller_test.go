@@ -342,7 +342,7 @@ var _ = Describe("DomainReconciler", func() {
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				g.Expect(d.Spec.Metadata.APIString()).To(Equal("updated metadata"))
+				g.Expect(commonv1alpha1.MetadataAPIString(d.Spec.Metadata)).To(Equal("updated metadata"))
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
 				g.Expect(d.Status.Domain).To(Equal(domainName))
 			}, timeout, interval).Should(Succeed())

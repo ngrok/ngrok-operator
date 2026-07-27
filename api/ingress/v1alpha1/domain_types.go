@@ -25,9 +25,9 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"encoding/json"
 	"strings"
 
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -51,7 +51,7 @@ type DomainSpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata *commonv1alpha1.MetadataValue `json:"metadata,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// Domain is the domain name to reserve
 	// +kubebuilder:validation:Required

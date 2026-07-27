@@ -25,7 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -154,7 +155,7 @@ type KubernetesOperatorSpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata *commonv1alpha1.MetadataValue `json:"metadata,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// Features enabled for this Kubernetes Operator
 	// +kubebuilder:validation:items:Enum=ingress;gateway;bindings

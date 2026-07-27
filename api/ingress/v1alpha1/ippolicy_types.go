@@ -25,7 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -42,7 +43,7 @@ type IPPolicyRule struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata *commonv1alpha1.MetadataValue `json:"metadata,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 	// CIDR is an IPv4 or IPv6 address range in CIDR notation (e.g. 10.0.0.0/8 or 2001:db8::/32)
 	// Pattern adapted from the standard IPv4/IPv6 validation regex documented at
 	// https://www.ditig.com/validating-ipv4-and-ipv6-addresses-with-regexp
@@ -67,7 +68,7 @@ type IPPolicySpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata *commonv1alpha1.MetadataValue `json:"metadata,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 	// Rules is a list of rules that belong to the policy
 	Rules []IPPolicyRule `json:"rules,omitempty"`
 }
