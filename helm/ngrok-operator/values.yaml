@@ -59,7 +59,7 @@ serverAddr: ""
 apiURL: "" # default to ngrok-api-go SDK's default
 
 ## @param computeBaseURL  This is the base URL of the compute service.
-## Used by the operator to poll for app-replica assignments directly.
+## Used to poll app-replica assignments and register remote Kubernetes API access.
 ##
 computeBaseURL: ""
 
@@ -432,13 +432,18 @@ bindings:
 ##
 ## @section Compute configuration
 ##
-## @param compute Free-form compute metadata block passed to the KubernetesOperator API resource.
-## Used for compute pool scheduling. Pass via --set-json to preserve snake_case keys.
+## @param compute Compute mode configuration and metadata passed to the KubernetesOperator API resource.
+## Set exactly one of compute.poller.enabled or compute.remoteAccess.enabled.
+## compute.enabled is deprecated and maps to compute.poller.enabled when remote access is disabled.
+## Additional keys are used for compute pool scheduling. Pass via --set-json to preserve snake_case keys.
 ## Example: --set-json 'compute={"pool_join_key":"cp_xxx","scheduler_props":{"region":"us-west-2"}}'
 compute: {}
 # Remote access is intentionally opt-in until the Compute registration API is deployed.
 # compute:
-#   enabled: false
+#   poller:
+#     enabled: true
+# Or:
+# compute:
 #   remoteAccess:
 #     enabled: true
 #     replicaCount: 1
