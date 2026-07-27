@@ -20,6 +20,8 @@ intended client.
   upstream request to Kubernetes with its projected ServiceAccount token.
 - The internal endpoint is served directly from `Agent.Listen`; there is no
   Kubernetes Service or pod port for proxy traffic.
+- The endpoint is pooled so multiple gateway replicas can serve the same stable
+  URL during scaling and rolling updates.
 - The in-cluster gateway authenticates to Kubernetes with its projected
   ServiceAccount token. Kubernetes credentials are never returned to Compute.
 
