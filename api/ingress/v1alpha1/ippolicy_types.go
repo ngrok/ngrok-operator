@@ -31,21 +31,20 @@ import (
 type IPPolicyRule struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
 	// +kubebuilder:default:=`Created by ngrok-operator`
+	// +kubebuilder:validation:MaxLength=255
 	Description string `json:"description,omitempty"`
 	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
+	// +kubebuilder:validation:MaxLength=4096
 	Metadata string `json:"metadata,omitempty"`
+	// CIDR is an IPv4 or IPv6 address range in CIDR notation (e.g. 10.0.0.0/8 or 2001:db8::/32)
+	// Pattern adapted from the standard IPv4/IPv6 validation regex documented at
+	// https://www.ditig.com/validating-ipv4-and-ipv6-addresses-with-regexp
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^(((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])/(3[0-2]|[12]?[0-9])|(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))/(12[0-8]|1[01][0-9]|[1-9]?[0-9]))$`
 	CIDR string `json:"cidr,omitempty"`
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=allow;deny
-	Action string `json:"action,omitempty"`
-}
-
-type IPPolicyRuleStatus struct {
-	ID string `json:"id,omitempty"`
-
-	CIDR   string `json:"cidr,omitempty"`
 	Action string `json:"action,omitempty"`
 }
 
@@ -76,8 +75,6 @@ type IPPolicyStatus struct {
 	// +listMapKey=type
 	// +kubebuilder:validation:MaxItems=8
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
-
-	Rules []IPPolicyRuleStatus `json:"rules,omitempty"`
 }
 
 // +kubebuilder:object:root=true

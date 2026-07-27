@@ -105,3 +105,31 @@ func TestSetIPPolicyRulesConfiguredCondition(t *testing.T) {
 	assert.Equal(t, "Failed to configure IP Policy rules", condition.Message)
 	assert.Equal(t, int64(1), condition.ObservedGeneration)
 }
+
+// Tests that the pre-rename RulesConfigured condition is cleared once the
+// renamed IPPolicyRulesConfigured condition is set
+func TestSetIPPolicyRulesConfiguredCondition_ClearsLegacyCondition(t *testing.T) {
+	ipPolicy := &ingressv1alpha1.IPPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-ip-policy",
+			Generation: 1,
+		},
+		Status: ingressv1alpha1.IPPolicyStatus{
+			Conditions: []metav1.Condition{
+				{
+					Type:               legacyConditionIPPolicyRulesConfigured,
+					Status:             metav1.ConditionTrue,
+					Reason:             "RulesConfigured",
+					Message:            "IP Policy rules have been configured",
+					ObservedGeneration: 1,
+					LastTransitionTime: metav1.Now(),
+				},
+			},
+		},
+	}
+
+	setIPPolicyRulesConfiguredCondition(ipPolicy, true, ReasonIPPolicyRulesConfigured, "IP Policy rules have been configured")
+
+	assert.Nil(t, meta.FindStatusCondition(ipPolicy.Status.Conditions, legacyConditionIPPolicyRulesConfigured), "expected legacy RulesConfigured condition to be removed")
+	assert.NotNil(t, meta.FindStatusCondition(ipPolicy.Status.Conditions, ConditionIPPolicyRulesConfigured), "expected IPPolicyRulesConfigured condition to be set")
+}

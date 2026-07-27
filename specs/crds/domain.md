@@ -51,9 +51,12 @@ The default can be overridden globally via the Helm value `defaultDomainReclaimP
 
 ## Conditions
 
-| Type    | Description                                    |
-|---------|------------------------------------------------|
-| `Ready` | Whether the domain is reserved and available   |
+| Type               | Description                                       |
+|--------------------|---------------------------------------------------|
+| `Ready`            | Whether the domain is reserved and available      |
+| `DomainCreated`    | Whether the domain was reserved in the ngrok API  |
+| `CertificateReady` | Whether the TLS certificate is provisioned        |
+| `DNSConfigured`    | Whether DNS records are configured                |
 
 ## Printer Columns
 
