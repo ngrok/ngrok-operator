@@ -33,7 +33,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
@@ -84,7 +86,12 @@ func (r *IPPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ingressv1alpha1.IPPolicy{}).
+		For(&ingressv1alpha1.IPPolicy{}, builder.WithPredicates(
+			predicate.Or(
+				predicate.AnnotationChangedPredicate{},
+				predicate.GenerationChangedPredicate{},
+			),
+		)).
 		Complete(r)
 }
 

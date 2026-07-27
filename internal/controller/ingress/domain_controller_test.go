@@ -109,7 +109,7 @@ var _ = Describe("DomainReconciler", func() {
 					JustBeforeEach(func() {
 						Eventually(func(g Gomega) {
 							g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), domain)).To(Succeed())
-							domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
+							domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
 								{
 									Value: "us",
 								},
@@ -130,7 +130,7 @@ var _ = Describe("DomainReconciler", func() {
 							g.Expect(foundDomain.Status.Domain).To(Equal(domainName))
 							g.Expect(foundDomain.Status.CNAMETarget).To(BeNil())
 							g.Expect(foundDomain.Status.ResolvesTo).ToNot(BeNil())
-							g.Expect(*foundDomain.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
+							g.Expect(foundDomain.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
 								{
 									Value: "us",
 								},
@@ -367,7 +367,7 @@ var _ = Describe("DomainReconciler", func() {
 		It("updates the domain ResolvesTo and reflects it in status", func() {
 			Eventually(func(g Gomega) {
 				patch := client.MergeFrom(domain.DeepCopy())
-				domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
+				domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
 					{
 						Value: "us",
 					},
@@ -383,7 +383,7 @@ var _ = Describe("DomainReconciler", func() {
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
 				g.Expect(d.Status.Domain).To(Equal(domainName))
 				g.Expect(d.Status.ResolvesTo).ToNot(BeNil())
-				g.Expect(*d.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
+				g.Expect(d.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
 					{
 						Value: "us",
 					},
@@ -394,7 +394,7 @@ var _ = Describe("DomainReconciler", func() {
 		It("updates the domain ResolvesTo with multiple entries", func() {
 			Eventually(func(g Gomega) {
 				patch := client.MergeFrom(domain.DeepCopy())
-				domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
+				domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
 					{Value: "us"},
 					{Value: "eu"},
 				}
@@ -408,7 +408,7 @@ var _ = Describe("DomainReconciler", func() {
 
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
 				g.Expect(d.Status.ResolvesTo).ToNot(BeNil())
-				g.Expect(*d.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
+				g.Expect(d.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
 					{Value: "us"},
 					{Value: "eu"},
 				}))
@@ -417,7 +417,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		When("domain IPs are already present", func() {
 			JustBeforeEach(func() {
-				domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
+				domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
 					{
 						Value: "us",
 					},
@@ -426,7 +426,7 @@ var _ = Describe("DomainReconciler", func() {
 
 			It("removes the domain IPs", func() {
 				patch := client.MergeFrom(domain.DeepCopy())
-				domain.Spec.ResolvesTo = &[]ingressv1alpha1.DomainResolvesToEntry{
+				domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
 					{
 						Value: "us",
 					},

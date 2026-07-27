@@ -16,7 +16,7 @@ The Domain controller reconciles `Domain` resources by creating and managing dom
    - If internal: skip ngrok API calls, remove finalizer, done.
 2. Add finalizer.
 3. Create or update the domain reservation via `DomainsClient`.
-4. Update status with ID, domain, region, CNAME target, certificate info, and conditions.
+4. Update status with ID, domain, CNAME target, certificate info, and conditions.
 5. Call `ReconcileStatus()`.
 
 ## Created Resources
@@ -29,7 +29,6 @@ The Domain controller reconciles `Domain` resources by creating and managing dom
 |---------------------------------|------------------------------------------|
 | `id`                            | ngrok domain ID                          |
 | `domain`                        | The domain name                          |
-| `region`                        | The domain's region                      |
 | `cnameTarget`                   | CNAME target for custom domains          |
 | `acmeChallengeCNAMETarget`      | ACME challenge CNAME target              |
 | `certificate`                   | Certificate info                         |

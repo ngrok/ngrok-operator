@@ -26,6 +26,9 @@ const (
 	ReasonUpstreamError      = "UpstreamError"
 	ReasonEndpointCreated    = "EndpointCreated"
 	ReasonConfigError        = "ConfigurationError"
+	ReasonDomainNotReady     = "DomainNotReady"
+	ReasonPending            = "Pending"
+	ReasonUnknown            = "Unknown"
 )
 
 // setReadyCondition sets the Ready condition based on the overall endpoint state
@@ -72,7 +75,7 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 			reason = domainResult.ReadyReason
 			message = domainResult.ReadyMessage
 		} else {
-			reason = "DomainNotReady"
+			reason = ReasonDomainNotReady
 			message = "Domain is not ready"
 		}
 	case !trafficPolicyReady:
@@ -87,11 +90,11 @@ func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, doma
 			reason = endpointCreatedCondition.Reason
 			message = endpointCreatedCondition.Message
 		} else {
-			reason = "Pending"
+			reason = ReasonPending
 			message = "Waiting for endpoint creation"
 		}
 	default:
-		reason = "Unknown"
+		reason = ReasonUnknown
 		message = "AgentEndpoint is not ready"
 	}
 

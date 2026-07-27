@@ -151,7 +151,10 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ngrokv1alpha1.CloudEndpoint{}, builder.WithPredicates(
-			predicate.GenerationChangedPredicate{},
+			predicate.Or(
+				predicate.AnnotationChangedPredicate{},
+				predicate.GenerationChangedPredicate{},
+			),
 		)).
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
