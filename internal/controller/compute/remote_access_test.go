@@ -101,6 +101,59 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 	require.Equal(t, base64.RawURLEncoding.EncodeToString(restartedHash[:]), config.Data[remoteTokenHashKey])
 }
 
+func TestRemoteAccessReprovisionsDeletedConfigMap(t *testing.T) {
+	ctx := context.Background()
+	var requests []remoteAccessRequest
+	httpClient := &http.Client{Transport: computeRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		var request remoteAccessRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		requests = append(requests, request)
+		if request.AccessKey != "" {
+			return jsonResponse(t, remoteAccessResponse{
+				Endpoint: "https://ko-abc123.k8s.compute.internal",
+			}), nil
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader("")),
+		}, nil
+	})}
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		&ngrokv1alpha1.KubernetesOperator{
+			ObjectMeta: metav1.ObjectMeta{Name: "operator", Namespace: "ngrok"},
+			Status:     ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_ABC123"},
+		},
+	).Build()
+	const computeBaseURL = "https://compute.example"
+	remote := &RemoteAccess{
+		Client: k8sClient, Log: logr.Discard(),
+		NgrokBaseClient: ngrok.NewBaseClient(ngrok.NewClientConfig(
+			"api-key", ngrok.WithBaseURL(computeBaseURL), ngrok.WithHTTPClient(httpClient),
+		)),
+		ComputeBaseURL: computeBaseURL, Namespace: "ngrok", K8sOpName: "operator",
+		GatewayName: "operator-compute-api",
+	}
+
+	require.NoError(t, remote.reconcile(ctx))
+	var config corev1.ConfigMap
+	key := client.ObjectKey{Name: "operator-compute-api", Namespace: "ngrok"}
+	require.NoError(t, k8sClient.Get(ctx, key, &config))
+	firstHash := config.Data[remoteTokenHashKey]
+	require.NoError(t, k8sClient.Delete(ctx, &config))
+
+	require.NoError(t, remote.reconcile(ctx))
+	require.NoError(t, k8sClient.Get(ctx, key, &config))
+	require.NotEqual(t, firstHash, config.Data[remoteTokenHashKey])
+	require.Len(t, requests, 4)
+	require.NotEmpty(t, requests[2].AccessKey)
+}
+
 func TestNewAccessKey(t *testing.T) {
 	key, encodedHash, err := newAccessKey()
 	require.NoError(t, err)
