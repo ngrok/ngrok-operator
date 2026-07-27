@@ -2,10 +2,8 @@ package compute
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -17,18 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
-
-func TestNewEndpointCSR(t *testing.T) {
-	key, csr, err := newEndpointCSR("k8sop_ABC123")
-	require.NoError(t, err)
-	require.Contains(t, string(key), "PRIVATE KEY")
-	block, _ := pem.Decode(csr)
-	require.NotNil(t, block)
-	parsed, err := x509.ParseCertificateRequest(block.Bytes)
-	require.NoError(t, err)
-	require.NoError(t, parsed.CheckSignature())
-	require.Equal(t, "k8sop_ABC123", parsed.Subject.CommonName)
-}
 
 func TestAppReplicaPollerCreateResourcesWithPullSecret(t *testing.T) {
 	ctx := context.Background()

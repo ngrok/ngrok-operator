@@ -116,7 +116,7 @@ spec:
         {{- end }}
         {{- if and (hasKey .Values.compute "remoteAccess") .Values.compute.remoteAccess.enabled }}
         - --compute-remote-access=true
-        - --compute-gateway-service={{ include "ngrok-operator.computeGatewayName" . }}
+        - --compute-gateway-name={{ include "ngrok-operator.computeGatewayName" . }}
         {{- end }}
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}
