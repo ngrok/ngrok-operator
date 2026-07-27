@@ -83,15 +83,15 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### ngrok configuration
 
-| Name            | Description                                                                                                           | Value               |
-| --------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `region`        | ngrok region to create tunnels in. Defaults to connect to the closest geographical region.                            | `""`                |
-| `rootCAs`       | Set to "trusted" for the ngrok agent CA or "host" to trust the host's CA. Defaults to "trusted".                      | `""`                |
-| `serverAddr`    | This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address. | `""`                |
-| `apiURL`        | This is the URL of the ngrok API. You should set this if you are using a custom API URL.                              | `""`                |
-| `metaData`      | DEPRECATED: Use ngrokMetadata instead                                                                                 |                     |
-| `ngrokMetadata` | This is a map of key=value,key=value pairs that will be added as metadata to all ngrok api resources created          | `{}`                |
-| `clusterDomain` | Configure the default cluster base domain for your kubernetes cluster DNS resolution                                  | `svc.cluster.local` |
+| Name            | Description                                                                                                                                                                                                                                                                                                                   | Value               |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `region`        | ngrok region to create tunnels in. Defaults to connect to the closest geographical region.                                                                                                                                                                                                                                    | `""`                |
+| `rootCAs`       | Set to "trusted" for the ngrok agent CA or "host" to trust the host's CA. Defaults to "trusted".                                                                                                                                                                                                                              | `""`                |
+| `serverAddr`    | This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address.                                                                                                                                                                                                         | `""`                |
+| `apiURL`        | This is the URL of the ngrok API. You should set this if you are using a custom API URL.                                                                                                                                                                                                                                      | `""`                |
+| `metaData`      | DEPRECATED: Use ngrokMetadata instead                                                                                                                                                                                                                                                                                         |                     |
+| `ngrokMetadata` | Map of key=value,key=value pairs added as metadata to the ngrok API resources the operator generates from Ingress and Gateway API resources. It does NOT apply to resources you create directly via CRDs (Domain, IPPolicy, CloudEndpoint, AgentEndpoint, KubernetesOperator) — set `spec.metadata` on those objects instead. | `{}`                |
+| `clusterDomain` | Configure the default cluster base domain for your kubernetes cluster DNS resolution                                                                                                                                                                                                                                          | `svc.cluster.local` |
 
 ### Operator Manager parameters
 

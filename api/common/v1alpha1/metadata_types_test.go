@@ -144,6 +144,30 @@ func TestMetadataValue_UsesDeprecatedStringForm(t *testing.T) {
 	}
 }
 
+func TestMetadataValue_HasNonStringValues(t *testing.T) {
+	tests := []struct {
+		json string
+		want bool
+	}{
+		{`{"a":"b"}`, false},      // flat string map
+		{`{}`, false},             // empty object
+		{`"legacy"`, false},       // legacy string form
+		{`null`, false},           // unset
+		{`{"a":{"b":"c"}}`, true}, // nested object
+		{`{"count":5}`, true},     // non-string scalar
+		{`{"a":"b","c":true}`, true},
+	}
+	for _, tt := range tests {
+		var m MetadataValue
+		if err := json.Unmarshal([]byte(tt.json), &m); err != nil {
+			t.Fatalf("unmarshal %s: %v", tt.json, err)
+		}
+		if got := m.HasNonStringValues(); got != tt.want {
+			t.Errorf("HasNonStringValues(%s) = %v, want %v", tt.json, got, tt.want)
+		}
+	}
+}
+
 func TestMetadataValue_Map(t *testing.T) {
 	m := MetadataFromMap(map[string]string{"a": "b"})
 	got, ok := m.Map()

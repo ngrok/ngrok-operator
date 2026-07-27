@@ -17,9 +17,15 @@ import (
 //
 // LEGACY-metadata-format: delete this helper and its call sites in the cleanup release.
 func WarnIfDeprecatedMetadata(recorder events.EventRecorder, obj client.Object, md *commonv1alpha1.MetadataValue) {
-	if recorder == nil || !md.UsesDeprecatedStringForm() || labels.IsOperatorManaged(obj) {
+	if recorder == nil || labels.IsOperatorManaged(obj) {
 		return
 	}
-	recorder.Eventf(obj, nil, v1.EventTypeWarning, "DeprecatedField", "Reconcile",
-		"spec.metadata is set as a raw JSON string, which is deprecated; use a map of string key/value pairs instead")
+	if md.UsesDeprecatedStringForm() {
+		recorder.Eventf(obj, nil, v1.EventTypeWarning, "DeprecatedField", "Reconcile",
+			"spec.metadata is set as a raw JSON string, which is deprecated; use a map of string key/value pairs instead")
+	}
+	if md.HasNonStringValues() {
+		recorder.Eventf(obj, nil, v1.EventTypeWarning, "InvalidField", "Reconcile",
+			"spec.metadata contains values that are not strings; only a flat map of string key/value pairs is supported and non-string values will be rejected in a future release")
+	}
 }

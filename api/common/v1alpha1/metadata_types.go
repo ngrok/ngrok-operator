@@ -108,6 +108,26 @@ func (m *MetadataValue) UsesDeprecatedStringForm() bool {
 	return m.IsLegacyString() && m.APIString() != DefaultMetadataJSON
 }
 
+// HasNonStringValues reports whether the value is an object that is not a flat
+// map of string values (a nested object, or non-string scalar values). Such
+// values are accepted and passed through to the ngrok API verbatim for now, but
+// they will be rejected once the field becomes a strict map[string]string in the
+// cleanup release. Legacy string values and flat string maps return false.
+//
+// LEGACY-metadata-format: delete in the cleanup release — the strict CRD schema
+// enforces this at admission instead.
+func (m *MetadataValue) HasNonStringValues() bool {
+	if m == nil {
+		return false
+	}
+	t := bytes.TrimSpace(m.raw)
+	if len(t) == 0 || t[0] != '{' {
+		return false
+	}
+	var mm map[string]string
+	return json.Unmarshal(t, &mm) != nil
+}
+
 // IsLegacyString reports whether the value is in the deprecated JSON-string form.
 //
 // LEGACY-metadata-format: delete in the cleanup release.
