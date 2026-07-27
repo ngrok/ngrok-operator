@@ -28,6 +28,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -35,6 +36,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	maxDrainErrors      = 20
+	maxDrainErrorLength = 1024
 )
 
 // Outcome represents the result of a drain operation
@@ -134,7 +140,7 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 		message := fmt.Sprintf("Drain failed: %v", err)
 		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionDraining, true, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, message)
 		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionReady, false, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, message)
-		if statusErr := o.client.Status().Update(ctx, ko); statusErr != nil {
+		if statusErr := o.updateStatus(ctx, ko); statusErr != nil {
 			log.Error(statusErr, "Failed to update drain status after error")
 		}
 		o.recorder.Eventf(ko, nil, v1.EventTypeWarning, "DrainFailed", "Drain", message)
@@ -144,14 +150,15 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 	// Update progress
 	o.setDrainProgress(ko, result)
 
-	// If there were transient errors (e.g., conflict updating a resource), retry
+	// Keep the finalizer and retry when any resources could not be drained.
 	if result.HasErrors() {
-		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionDraining, true, ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress,
-			fmt.Sprintf("Drain encountered %d errors, will retry", result.Failed))
+		message := fmt.Sprintf("Drain encountered %d errors, will retry", len(result.Errors))
+		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionDraining, true, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, message)
+		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionReady, false, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, message)
 		for _, drainErr := range result.Errors {
 			log.Error(drainErr, "Drain error")
 		}
-		if statusErr := o.client.Status().Update(ctx, ko); statusErr != nil {
+		if statusErr := o.updateStatus(ctx, ko); statusErr != nil {
 			log.Error(statusErr, "Failed to update drain status")
 		}
 		return OutcomeRetry, nil
@@ -160,7 +167,7 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 	// Drain completed successfully (no errors means all resources processed)
 	conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionDraining, false, ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted, "Drain completed successfully")
 	conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionReady, false, ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted, "Drain completed successfully")
-	if err := o.client.Status().Update(ctx, ko); err != nil {
+	if err := o.updateStatus(ctx, ko); err != nil {
 		return OutcomeFailed, fmt.Errorf("failed to update drain completed status: %w", err)
 	}
 	o.recorder.Eventf(ko, nil, v1.EventTypeNormal, "DrainCompleted", "Drain", "All managed resources have been drained")
@@ -175,8 +182,29 @@ func (o *Orchestrator) setDrainProgress(ko *ngrokv1alpha1.KubernetesOperator, re
 		return
 	}
 	ko.Status.Drain = &ngrokv1alpha1.KubernetesOperatorDrainStatus{
-		DrainedResources: result.Completed + result.Failed,
+		DrainedResources: result.Completed,
+		FailedResources:  result.Failed,
 		TotalResources:   result.Total,
-		Errors:           result.ErrorStrings(),
+		Errors:           boundedDrainErrors(result.ErrorStrings()),
 	}
+}
+
+func (o *Orchestrator) updateStatus(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
+	ko.SetObservedGeneration(ko.Generation)
+	return o.client.Status().Update(ctx, ko)
+}
+
+func boundedDrainErrors(errors []string) []string {
+	if len(errors) > maxDrainErrors {
+		errors = errors[len(errors)-maxDrainErrors:]
+	}
+
+	bounded := make([]string, len(errors))
+	for i, message := range errors {
+		if utf8.RuneCountInString(message) > maxDrainErrorLength {
+			message = string([]rune(message)[:maxDrainErrorLength])
+		}
+		bounded[i] = message
+	}
+	return bounded
 }

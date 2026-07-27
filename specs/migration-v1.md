@@ -26,14 +26,23 @@ ahead of 1.0. Tooling reading the old fields must switch to the replacements:
 | Removed field              | Replacement                                                                 |
 |----------------------------|------------------------------------------------------------------------------|
 | `registrationStatus`       | `Registered` condition (`True`/`False`; reason `Pending` before registration) |
-| `registrationErrorCode`    | `Registered` condition reason (the `ERR_NGROK_*` code when available)        |
-| `errorMessage`             | `Registered` condition message                                               |
+| `registrationErrorCode`    | `Registered` condition message for registration failures (the reason is the stable token `RegistrationFailed`) |
+| `errorMessage`             | `Ready` condition message                                                    |
 | `drainStatus`              | `Draining` condition (`True` = in progress/retrying, `False` + reason `DrainCompleted` = done) |
 | `drainMessage`             | `Draining` condition message                                                 |
 | `drainProgress` (`"X/Y"`)  | `drain.drainedResources` / `drain.totalResources` integers                   |
 | `drainErrors`              | `drain.errors`                                                               |
 
-`enabledFeatures` changed from a comma-separated string to a `[]string`.
+`Registered.message` describes registration failures. Failures after a remote
+registration already exists leave `Registered=True` and are reported through
+`Ready=False` and `Ready.message`.
+
+`enabledFeatures` changed from a comma-separated string to a `[]string`. The
+v1alpha1 Go type contains a temporary, read-only compatibility decoder that
+accepts both representations during an in-place upgrade. Current versions
+always write an array, so the next status update passively normalizes the
+stored value. The decoder can be removed once upgrades from versions that
+wrote the string representation are outside the supported upgrade window.
 
 ## Upgrade Path
 

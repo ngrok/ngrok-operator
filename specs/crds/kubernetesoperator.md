@@ -59,16 +59,17 @@
 
 | Field              | Type     | Description                                        |
 |--------------------|----------|----------------------------------------------------|
-| `drainedResources` | int      | Resources processed so far, including failures     |
+| `drainedResources` | int      | Resources successfully drained in the latest attempt |
+| `failedResources`  | int      | Resources that failed to drain in the latest attempt |
 | `totalResources`   | int      | Total resources the drain will process             |
-| `errors`           | []string | Most recent errors encountered during drain        |
+| `errors`           | []string | Up to 20 recent errors encountered during drain    |
 
 ## Conditions
 
 | Type         | Description                                                                 |
 |--------------|-----------------------------------------------------------------------------|
-| `Ready`      | Overall readiness. `False` with reason `Draining`/`DrainFailed`/`DrainCompleted` during deletion |
-| `Registered` | Whether this operator is registered with the ngrok API. Failure reasons use the `ERR_NGROK_*` error code when available, otherwise `RegistrationFailed`; `Pending` before registration |
+| `Ready`      | Overall readiness. Uses `Registered`, `Pending`, or `ConfigurationFailed` normally; `Draining`, `DrainFailed`, or `DrainCompleted` during deletion |
+| `Registered` | Whether this operator is registered with the ngrok API. Uses `Pending`, `RegistrationFailed`, or `Deregistered` when False; provider error codes remain in the message |
 | `Draining`   | Present only during deletion. `True` while the drain is in progress or retrying after errors (reason `DrainInProgress`/`DrainFailed`), `False` with reason `DrainCompleted` once finished |
 
 ## Printer Columns
@@ -77,7 +78,6 @@
 |---------------------------|---------------------------------------------------|----------|
 | ID                        | `.status.id`                                      | 0        |
 | Ready                     | `.status.conditions[?(@.type=='Ready')].status`   | 0        |
-| Enabled Features          | `.status.enabledFeatures`                         | 0        |
 | Endpoint Selectors        | `.spec.binding.endpointSelectors`                 | 0        |
 | Binding Ingress Endpoint  | `.spec.binding.ingressEndpoint`                   | 2        |
 | Age                       | `.metadata.creationTimestamp`                     | 0        |

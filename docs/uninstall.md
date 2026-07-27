@@ -44,7 +44,7 @@ kubectl get kubernetesoperator <name> -n <namespace> -o yaml
 
 Status fields:
 - `Draining` condition: `True` while the drain is running or retrying (reason `DrainInProgress`/`DrainFailed`), `False` with reason `DrainCompleted` when finished
-- `drain.drainedResources` / `drain.totalResources`: progress counters
+- `drain.drainedResources` / `drain.failedResources` / `drain.totalResources`: latest-attempt counters
 - `drain.errors`: Error messages if any
 
 ## Multi-Instance Installations

@@ -22,9 +22,6 @@ spec:
     - jsonPath: .status.conditions[?(@.type=='Ready')].status
       name: Ready
       type: string
-    - jsonPath: .status.enabledFeatures
-      name: Enabled Features
-      type: string
     - jsonPath: .spec.binding.endpointSelectors
       name: Endpoint Selectors
       type: string
@@ -227,21 +224,28 @@ spec:
                   deleting this resource
                 properties:
                   drainedResources:
-                    description: DrainedResources is the number of resources processed
-                      so far, including failures
+                    description: DrainedResources is the number of resources successfully
+                      drained in the latest attempt
                     type: integer
                   errors:
                     description: Errors contains the most recent errors encountered
                       during drain
                     items:
+                      maxLength: 1024
                       type: string
+                    maxItems: 20
                     type: array
+                  failedResources:
+                    description: FailedResources is the number of resources that could
+                      not be drained in the latest attempt
+                    type: integer
                   totalResources:
                     description: TotalResources is the total number of resources the
                       drain will process
                     type: integer
                 required:
                 - drainedResources
+                - failedResources
                 - totalResources
                 type: object
               enabledFeatures:

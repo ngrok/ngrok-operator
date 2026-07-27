@@ -81,7 +81,7 @@ type KubernetesOperatorStatus struct {
 
 	// EnabledFeatures are the features enabled for this Kubernetes Operator, as
 	// reported by the ngrok API
-	EnabledFeatures []string `json:"enabledFeatures,omitempty"`
+	EnabledFeatures KubernetesOperatorEnabledFeatures `json:"enabledFeatures,omitempty"`
 
 	// BindingsIngressEndpoint is the URL that the operator will use to talk
 	// to the ngrok edge when forwarding traffic for k8s-bound endpoints
@@ -95,14 +95,19 @@ type KubernetesOperatorStatus struct {
 // KubernetesOperatorDrainStatus reports drain progress while the operator is
 // cleaning up the resources it manages during deletion
 type KubernetesOperatorDrainStatus struct {
-	// DrainedResources is the number of resources processed so far, including failures
+	// DrainedResources is the number of resources successfully drained in the latest attempt
 	DrainedResources int `json:"drainedResources"`
+
+	// FailedResources is the number of resources that could not be drained in the latest attempt
+	FailedResources int `json:"failedResources"`
 
 	// TotalResources is the total number of resources the drain will process
 	TotalResources int `json:"totalResources"`
 
 	// Errors contains the most recent errors encountered during drain
 	// +optional
+	// +kubebuilder:validation:MaxItems=20
+	// +kubebuilder:validation:items:MaxLength=1024
 	Errors []string `json:"errors,omitempty"`
 }
 
@@ -122,16 +127,18 @@ const (
 	KubernetesOperatorConditionDraining = "Draining"
 )
 
-// Condition reasons for KubernetesOperator. Registration failures caused by an
-// ngrok API error use the ERR_NGROK_* error code as the reason instead.
+// Condition reasons for KubernetesOperator. Provider-specific error codes are
+// included in condition messages rather than expanding this stable reason set.
 const (
-	KubernetesOperatorReasonRegistered         = "Registered"
-	KubernetesOperatorReasonPending            = "Pending"
-	KubernetesOperatorReasonRegistrationFailed = "RegistrationFailed"
-	KubernetesOperatorReasonDraining           = "Draining"
-	KubernetesOperatorReasonDrainInProgress    = "DrainInProgress"
-	KubernetesOperatorReasonDrainFailed        = "DrainFailed"
-	KubernetesOperatorReasonDrainCompleted     = "DrainCompleted"
+	KubernetesOperatorReasonRegistered          = "Registered"
+	KubernetesOperatorReasonDeregistered        = "Deregistered"
+	KubernetesOperatorReasonPending             = "Pending"
+	KubernetesOperatorReasonRegistrationFailed  = "RegistrationFailed"
+	KubernetesOperatorReasonConfigurationFailed = "ConfigurationFailed"
+	KubernetesOperatorReasonDraining            = "Draining"
+	KubernetesOperatorReasonDrainInProgress     = "DrainInProgress"
+	KubernetesOperatorReasonDrainFailed         = "DrainFailed"
+	KubernetesOperatorReasonDrainCompleted      = "DrainCompleted"
 )
 
 const (
@@ -199,7 +206,6 @@ type DrainConfig struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Kubernetes Operator ID"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`
-// +kubebuilder:printcolumn:name="Enabled Features",type="string",JSONPath=".status.enabledFeatures"
 // +kubebuilder:printcolumn:name="Endpoint Selectors",type="string",JSONPath=".spec.binding.endpointSelectors"
 // +kubebuilder:printcolumn:name="Binding Ingress Endpoint", type="string", JSONPath=".spec.binding.ingressEndpoint",priority=2
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
@@ -236,5 +242,13 @@ func (ko *KubernetesOperator) GetDrainPolicy() DrainPolicy {
 // IsDrainComplete reports whether the drain triggered by deleting this resource
 // has finished (the Draining condition is False with reason DrainCompleted).
 func (ko *KubernetesOperator) IsDrainComplete() bool {
-	return meta.IsStatusConditionFalse(ko.Status.Conditions, KubernetesOperatorConditionDraining)
+	condition := meta.FindStatusCondition(ko.Status.Conditions, KubernetesOperatorConditionDraining)
+	return condition != nil &&
+		condition.Status == metav1.ConditionFalse &&
+		condition.Reason == KubernetesOperatorReasonDrainCompleted
+}
+
+// SetObservedGeneration records the generation the controller reconciled.
+func (ko *KubernetesOperator) SetObservedGeneration(generation int64) {
+	ko.Status.ObservedGeneration = generation
 }

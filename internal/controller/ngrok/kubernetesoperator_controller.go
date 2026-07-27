@@ -70,6 +70,8 @@ const (
 	defaultBindingCertRenewalWindow = 30 * 24 * time.Hour
 )
 
+var errBindingsConfiguration = errors.New("bindings feature enabled but spec.binding is not configured")
+
 // KubernetesOperatorReconciler reconciles a KubernetesOperator object
 type KubernetesOperatorReconciler struct {
 	client.Client
@@ -128,13 +130,20 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		WithEventFilter(
 			predicate.And(
 				ownKOPredicate,
-				predicate.Or(
-					predicate.AnnotationChangedPredicate{},
-					predicate.GenerationChangedPredicate{},
-				),
+				kubernetesOperatorReconcilePredicate(),
 			),
 		).
 		Complete(r)
+}
+
+func kubernetesOperatorReconcilePredicate() predicate.Predicate {
+	return predicate.Or(
+		predicate.AnnotationChangedPredicate{},
+		predicate.GenerationChangedPredicate{},
+		predicate.NewPredicateFuncs(func(obj client.Object) bool {
+			return !obj.GetDeletionTimestamp().IsZero()
+		}),
+	)
 }
 
 // For more details, check Reconcile and its Result here:
@@ -197,12 +206,13 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 
 	if bindingsEnabled {
 		if ko.Spec.Binding == nil {
-			return r.updateStatus(ctx, ko, nil, errors.New("bindings feature enabled but spec.binding is not configured"))
+			return r.updateStatus(ctx, ko, nil, errBindingsConfiguration)
 		}
 
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
-			return ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateCSR, "failed to create TLS secret for CSR")
+			wrappedErr := ngrokapi.NewNgrokError(err, ngrokapi.NgrokOpErrFailedToCreateCSR, "failed to create TLS secret for CSR")
+			return r.updateStatus(ctx, ko, nil, wrappedErr)
 		}
 
 		createParams.Binding = &ngrok.KubernetesOperatorBindingCreate{
@@ -239,11 +249,13 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1al
 func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// Step 1: Initiate drain if not already started
-	if meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining) == nil {
+	// Step 1: Initiate drain if it is neither in progress nor already complete.
+	if !meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining) &&
+		!ko.IsDrainComplete() {
 		log.Info("KubernetesOperator deletion detected, initiating drain")
 		setKubernetesOperatorDrainingCondition(ko, true, ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress, "Drain initiated")
 		setKubernetesOperatorReadyCondition(ko, false, ngrokv1alpha1.KubernetesOperatorReasonDraining, "KubernetesOperator is being deleted")
+		ko.SetObservedGeneration(ko.Generation)
 		if err := r.Client.Status().Update(ctx, ko); err != nil {
 			return err
 		}
@@ -273,7 +285,13 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1al
 		if err != nil && !ngrok.IsNotFound(err) {
 			return err
 		}
-		ko.Status.ID = ""
+	}
+	ko.Status.ID = ""
+	ko.Status.URI = ""
+	setKubernetesOperatorRegisteredCondition(ko, false, ngrokv1alpha1.KubernetesOperatorReasonDeregistered, "Deregistered from the ngrok API")
+	ko.SetObservedGeneration(ko.Generation)
+	if err := r.Client.Status().Update(ctx, ko); err != nil {
+		return err
 	}
 
 	// BaseController will now remove the finalizer
@@ -293,8 +311,6 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 		}
 	}
 
-	// Failures caused by an ngrok API error use the ERR_NGROK_* error code as
-	// the condition reason so it stays machine-readable.
 	errReason := ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed
 	errMessage := ""
 	if err != nil {
@@ -302,10 +318,12 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 
 		var ngrokErr *ngrok.Error
 		if errors.As(err, &ngrokErr) {
-			if ngrokErr.ErrorCode != "" {
-				errReason = ngrokErr.ErrorCode
+			if ngrokErr.Msg != "" {
+				errMessage = ngrokErr.Msg
 			}
-			errMessage = ngrokErr.Msg
+			if ngrokErr.ErrorCode != "" {
+				errMessage = fmt.Sprintf("%s: %s", ngrokErr.ErrorCode, errMessage)
+			}
 		}
 
 		// Special case for NotFound errors, we'll clear the ID and URI so we can re-queue the reconciliation
@@ -315,25 +333,36 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 		}
 	}
 
-	// Registered reflects whether the KubernetesOperator exists in the ngrok
-	// API, even if a later step (e.g. updating the bindings TLS cert) errored.
-	switch {
-	case existsInNgrokAPI:
-		setKubernetesOperatorRegisteredCondition(ko, true, ngrokv1alpha1.KubernetesOperatorReasonRegistered, "Registered with the ngrok API")
-	case err != nil:
-		setKubernetesOperatorRegisteredCondition(ko, false, errReason, errMessage)
-	default:
-		setKubernetesOperatorRegisteredCondition(ko, false, ngrokv1alpha1.KubernetesOperatorReasonPending, "Waiting to be registered with the ngrok API")
+	registered := existsInNgrokAPI
+	registeredReason := ngrokv1alpha1.KubernetesOperatorReasonPending
+	registeredMessage := "Waiting to be registered with the ngrok API"
+	ready := existsInNgrokAPI
+	readyReason := registeredReason
+	readyMessage := registeredMessage
+
+	if existsInNgrokAPI {
+		registeredReason = ngrokv1alpha1.KubernetesOperatorReasonRegistered
+		registeredMessage = "Registered with the ngrok API"
+		readyReason = ngrokv1alpha1.KubernetesOperatorReasonRegistered
+		readyMessage = "KubernetesOperator is registered and ready"
+	}
+	if err != nil {
+		if !existsInNgrokAPI {
+			registeredReason = errReason
+			registeredMessage = errMessage
+		}
+		ready = false
+		readyReason = errReason
+		readyMessage = errMessage
+		if existsInNgrokAPI || errors.Is(err, errBindingsConfiguration) {
+			readyReason = ngrokv1alpha1.KubernetesOperatorReasonConfigurationFailed
+		}
 	}
 
-	switch {
-	case err != nil:
-		setKubernetesOperatorReadyCondition(ko, false, errReason, errMessage)
-	case existsInNgrokAPI:
-		setKubernetesOperatorReadyCondition(ko, true, ngrokv1alpha1.KubernetesOperatorReasonRegistered, "KubernetesOperator is registered and ready")
-	default:
-		setKubernetesOperatorReadyCondition(ko, false, ngrokv1alpha1.KubernetesOperatorReasonPending, "Waiting to be registered with the ngrok API")
-	}
+	// Registered describes remote existence; Ready also accounts for local
+	// configuration failures after registration.
+	setKubernetesOperatorRegisteredCondition(ko, registered, registeredReason, registeredMessage)
+	setKubernetesOperatorReadyCondition(ko, ready, readyReason, readyMessage)
 
 	return r.controller.ReconcileStatus(ctx, ko, err)
 }
@@ -365,12 +394,12 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 
 	if bindingsEnabled {
 		if ko.Spec.Binding == nil {
-			return r.updateStatus(ctx, ko, nil, errors.New("bindings feature enabled but spec.binding is not configured"))
+			return r.updateStatus(ctx, ko, ngrokKo, errBindingsConfiguration)
 		}
 
 		tlsSecret, err = r.findOrCreateTLSSecret(ctx, ko)
 		if err != nil {
-			return r.updateStatus(ctx, ko, nil, err)
+			return r.updateStatus(ctx, ko, ngrokKo, err)
 		}
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
@@ -380,11 +409,15 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 	}
 
 	log.V(1).Info("updating KubernetesOperator in ngrok API", "id", ngrokKo.ID)
-	ngrokKo, err = r.NgrokClientset.KubernetesOperators().Update(ctx, updateParams)
+	updatedNgrokKo, err := r.NgrokClientset.KubernetesOperators().Update(ctx, updateParams)
 	if err != nil {
 		log.Error(err, "failed to update KubernetesOperator in ngrok API")
-		return r.updateStatus(ctx, ko, nil, err)
+		if ngrok.IsNotFound(err) {
+			return r.updateStatus(ctx, ko, nil, err)
+		}
+		return r.updateStatus(ctx, ko, ngrokKo, err)
 	}
+	ngrokKo = updatedNgrokKo
 
 	log.V(1).Info("successfully updated KubernetesOperator in ngrok API", "id", ngrokKo.ID)
 

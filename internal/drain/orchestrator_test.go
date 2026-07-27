@@ -27,6 +27,8 @@ package drain
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -258,8 +260,17 @@ func TestOrchestrator_HandleDrain_TransientErrors_OutcomeRetry(t *testing.T) {
 	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
 	require.NotNil(t, drainingCond)
 	assert.Equal(t, metav1.ConditionTrue, drainingCond.Status)
-	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress, drainingCond.Reason)
+	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, drainingCond.Reason)
 	assert.Contains(t, drainingCond.Message, "errors")
+	readyCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+	require.NotNil(t, readyCond)
+	assert.Equal(t, metav1.ConditionFalse, readyCond.Status)
+	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, readyCond.Reason)
+	assert.Equal(t, ko.Generation, ko.Status.ObservedGeneration)
+	require.NotNil(t, ko.Status.Drain)
+	assert.Zero(t, ko.Status.Drain.DrainedResources)
+	assert.Equal(t, 1, ko.Status.Drain.FailedResources)
+	assert.Equal(t, 1, ko.Status.Drain.TotalResources)
 }
 
 type updateErrorClient struct {
@@ -317,7 +328,23 @@ func TestOrchestrator_HandleDrain_ListError_OutcomeRetry(t *testing.T) {
 	require.NotNil(t, drainingCond)
 	assert.Contains(t, drainingCond.Message, "errors")
 	require.NotNil(t, ko.Status.Drain)
+	assert.Zero(t, ko.Status.Drain.FailedResources)
+	assert.Zero(t, ko.Status.Drain.TotalResources)
 	assert.NotEmpty(t, ko.Status.Drain.Errors)
+}
+
+func TestBoundedDrainErrors(t *testing.T) {
+	errors := make([]string, maxDrainErrors+5)
+	for i := range errors {
+		errors[i] = fmt.Sprintf("%02d-%s", i, strings.Repeat("x", maxDrainErrorLength+5))
+	}
+
+	bounded := boundedDrainErrors(errors)
+	require.Len(t, bounded, maxDrainErrors)
+	assert.True(t, strings.HasPrefix(bounded[0], "05-"), "the most recent errors should be retained")
+	for _, message := range bounded {
+		assert.Len(t, []rune(message), maxDrainErrorLength)
+	}
 }
 
 type listErrorClient struct {

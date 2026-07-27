@@ -48,8 +48,8 @@ Deletion polling waits up to 60 seconds at 500ms intervals for each resource to 
 | Outcome    | Description                                          |
 |------------|------------------------------------------------------|
 | `Complete` | All resources drained successfully                   |
-| `Retry`    | Transient errors encountered; will retry             |
-| `Failed`   | Non-transient errors; drain cannot complete          |
+| `Retry`    | One or more operations failed; the finalizer is kept and cleanup is retried |
+| `Failed`   | The drain workflow itself failed before it could produce a resource result |
 
 ## Configuration
 
