@@ -2,45 +2,42 @@ package compute
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	ngrok "github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	remoteEndpointName = "ngrok-compute-kubernetes-api"
-	remoteTLSSecret    = "ngrok-compute-kubernetes-api-tls"
-	remoteClientCA     = "ngrok-compute-client-ca"
+	remoteEndpointKey  = "endpoint"
+	remoteTokenHashKey = "access-key-sha256"
 )
 
 type remoteAccessRequest struct {
 	State       string `json:"state"`
-	CSR         string `json:"csr,omitempty"`
+	AccessKey   string `json:"access_key,omitempty"`
 	Endpoint    string `json:"endpoint,omitempty"`
 	AssignedURL string `json:"assigned_url,omitempty"`
 }
 
 type remoteAccessResponse struct {
-	Endpoint          string `json:"endpoint"`
-	ServerCertificate string `json:"server_certificate"`
-	ClientCA          string `json:"client_ca"`
+	Endpoint string `json:"endpoint"`
 }
 
-// RemoteAccess provisions the mTLS AgentEndpoint and reports its lifecycle to Compute.
+// RemoteAccess provisions an ephemeral bearer key and the internal endpoint
+// configuration consumed by the Compute Kubernetes API gateway.
 type RemoteAccess struct {
 	client.Client
 	Log             logr.Logger
@@ -48,10 +45,11 @@ type RemoteAccess struct {
 	ComputeBaseURL  string
 	Namespace       string
 	K8sOpName       string
-	GatewayService  string
+	GatewayName     string
 	Interval        time.Duration
 
 	lastReportedState string
+	registered        bool
 }
 
 // NeedLeaderElection ensures only one api-manager instance provisions and
@@ -85,80 +83,91 @@ func (r *RemoteAccess) reconcile(ctx context.Context) error {
 		return nil
 	}
 
-	var endpoint ngrokv1alpha1.AgentEndpoint
-	err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: remoteEndpointName}, &endpoint)
+	if !r.registered {
+		accessKey, accessKeyHash, err := newAccessKey()
+		if err != nil {
+			return err
+		}
+		var registration remoteAccessResponse
+		if err := r.register(ctx, ko.Status.ID, remoteAccessRequest{
+			State: "provisioning", AccessKey: accessKey,
+		}, &registration); err != nil {
+			return err
+		}
+		if err := validateEndpointURL(registration.Endpoint); err != nil {
+			return fmt.Errorf("compute remote-access registration returned invalid endpoint: %w", err)
+		}
+
+		var endpointConfig corev1.ConfigMap
+		key := client.ObjectKey{Namespace: r.Namespace, Name: r.GatewayName}
+		err = r.Get(ctx, key, &endpointConfig)
+		switch {
+		case err == nil:
+			endpointConfig.Data = map[string]string{
+				remoteEndpointKey:  registration.Endpoint,
+				remoteTokenHashKey: accessKeyHash,
+			}
+			if err := r.Update(ctx, &endpointConfig); err != nil {
+				return err
+			}
+		case !apierrors.IsNotFound(err):
+			return err
+		default:
+			endpointConfig = corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: r.GatewayName, Namespace: r.Namespace},
+				Data: map[string]string{
+					remoteEndpointKey:  registration.Endpoint,
+					remoteTokenHashKey: accessKeyHash,
+				},
+			}
+			if err := r.Create(ctx, &endpointConfig); err != nil {
+				return err
+			}
+		}
+
+		r.registered = true
+		r.Log.Info("provisioned remote Kubernetes API access",
+			"runner_id", ko.Status.ID,
+			"endpoint", registration.Endpoint,
+			"gateway", r.GatewayName,
+		)
+	}
+
+	var endpointConfig corev1.ConfigMap
+	if err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: r.GatewayName}, &endpointConfig); err != nil {
+		return err
+	}
+	endpoint := endpointConfig.Data[remoteEndpointKey]
+	if endpoint == "" {
+		return fmt.Errorf("compute remote-access ConfigMap %q is missing %q", r.GatewayName, remoteEndpointKey)
+	}
+
+	var deployment appsv1.Deployment
+	err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: r.GatewayName}, &deployment)
 	if client.IgnoreNotFound(err) != nil {
 		return err
 	}
-	if err == nil {
-		ready := meta.IsStatusConditionTrue(endpoint.Status.Conditions, "Ready")
-		state := "provisioning"
-		if ready {
-			state = "ready"
-		}
-		if err := r.register(ctx, ko.Status.ID, remoteAccessRequest{
-			State: state, Endpoint: endpoint.Spec.URL, AssignedURL: endpoint.Status.AssignedURL,
-		}, nil); err != nil {
-			return err
-		}
-		if state != r.lastReportedState {
-			r.Log.Info("reported remote Kubernetes API access state",
-				"runner_id", ko.Status.ID,
-				"state", state,
-				"endpoint", endpoint.Spec.URL,
-				"assigned_url", endpoint.Status.AssignedURL,
-			)
-			r.lastReportedState = state
-		}
-		return nil
+	ready := err == nil && deployment.Status.AvailableReplicas > 0
+	state := "provisioning"
+	assignedURL := ""
+	if ready {
+		state = "ready"
+		assignedURL = endpoint
 	}
-
-	keyPEM, csrPEM, err := newEndpointCSR(ko.Status.ID)
-	if err != nil {
+	if err := r.register(ctx, ko.Status.ID, remoteAccessRequest{
+		State: state, Endpoint: endpoint, AssignedURL: assignedURL,
+	}, nil); err != nil {
 		return err
 	}
-	var registration remoteAccessResponse
-	if err := r.register(ctx, ko.Status.ID, remoteAccessRequest{State: "provisioning", CSR: string(csrPEM)}, &registration); err != nil {
-		return err
+	if state != r.lastReportedState {
+		r.Log.Info("reported remote Kubernetes API access state",
+			"runner_id", ko.Status.ID,
+			"state", state,
+			"endpoint", endpoint,
+			"assigned_url", assignedURL,
+		)
+		r.lastReportedState = state
 	}
-	if registration.Endpoint == "" || registration.ServerCertificate == "" || registration.ClientCA == "" {
-		return fmt.Errorf("compute remote-access registration returned incomplete credentials")
-	}
-	if err := r.Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: remoteTLSSecret, Namespace: r.Namespace},
-		Type:       corev1.SecretTypeTLS,
-		Data:       map[string][]byte{corev1.TLSPrivateKeyKey: keyPEM, corev1.TLSCertKey: []byte(registration.ServerCertificate)},
-	}); client.IgnoreAlreadyExists(err) != nil {
-		return err
-	}
-	if err := r.Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: remoteClientCA, Namespace: r.Namespace},
-		Data:       map[string][]byte{"ca.crt": []byte(registration.ClientCA)},
-	}); client.IgnoreAlreadyExists(err) != nil {
-		return err
-	}
-	if err := r.Create(ctx, &ngrokv1alpha1.AgentEndpoint{
-		ObjectMeta: metav1.ObjectMeta{Name: remoteEndpointName, Namespace: r.Namespace},
-		Spec: ngrokv1alpha1.AgentEndpointSpec{
-			URL:      registration.Endpoint,
-			Upstream: ngrokv1alpha1.EndpointUpstream{URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080", r.GatewayService, r.Namespace)},
-			TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
-				ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: remoteTLSSecret},
-				MutualTLS: &ngrokv1alpha1.EndpointMutualTLS{
-					ClientCAsRef: ngrokv1alpha1.K8sObjectRef{Name: remoteClientCA},
-					Mode:         ngrokv1alpha1.EndpointMutualTLSModeRequire,
-				},
-			},
-		},
-	}); err != nil {
-		return err
-	}
-	r.Log.Info("provisioned remote Kubernetes API access",
-		"runner_id", ko.Status.ID,
-		"endpoint", registration.Endpoint,
-		"agent_endpoint", remoteEndpointName,
-		"gateway_service", r.GatewayService,
-	)
 	return nil
 }
 
@@ -176,21 +185,29 @@ func (r *RemoteAccess) register(ctx context.Context, runnerID string, request re
 	return r.NgrokBaseClient.Do(ctx, "PUT", u, request, response)
 }
 
-func newEndpointCSR(runnerID string) (keyPEM, csrPEM []byte, err error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, err
+func newAccessKey() (accessKey, accessKeyHash string, err error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", "", fmt.Errorf("generate compute remote-access key: %w", err)
 	}
-	keyDER, err := x509.MarshalECPrivateKey(key)
+	accessKey = base64.RawURLEncoding.EncodeToString(raw)
+	hash := sha256.Sum256([]byte(accessKey))
+	return accessKey, base64.RawURLEncoding.EncodeToString(hash[:]), nil
+}
+
+func validateEndpointURL(endpoint string) error {
+	u, err := url.Parse(endpoint)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-	csrDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: runnerID},
-	}, key)
-	if err != nil {
-		return nil, nil, err
+	if u.Scheme != "https" ||
+		u.Hostname() == "" ||
+		!strings.HasSuffix(u.Hostname(), ".internal") ||
+		(u.Path != "" && u.Path != "/") ||
+		u.RawQuery != "" ||
+		u.Fragment != "" ||
+		u.User != nil {
+		return fmt.Errorf("endpoint must be an https:// URL with a .internal hostname")
 	}
-	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}),
-		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER}), nil
+	return nil
 }

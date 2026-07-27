@@ -52,20 +52,6 @@ subjects:
   name: {{ $name }}
   namespace: {{ .Release.Namespace }}
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ $name }}
-  namespace: {{ .Release.Namespace }}
-spec:
-  selector:
-    {{- include "ngrok-operator.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: compute-api
-  ports:
-  - name: http
-    port: 8080
-    targetPort: http
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -93,9 +79,25 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
         - compute-api-gateway
+        {{- if .Values.serverAddr }}
+        - --server-addr={{ .Values.serverAddr }}
+        {{- end }}
+        {{- if .Values.rootCAs }}
+        - --root-cas={{ .Values.rootCAs }}
+        {{- end }}
         ports:
-        - name: http
-          containerPort: 8080
+        - name: health
+          containerPort: 8081
+        env:
+        - name: NGROK_AUTHTOKEN
+          valueFrom:
+            secretKeyRef:
+              key: AUTHTOKEN
+              name: {{ include "ngrok-operator.credentialsSecretName" . }}
+        volumeMounts:
+        - name: endpoint-config
+          mountPath: /etc/ngrok/compute-api
+          readOnly: true
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -104,8 +106,18 @@ spec:
             drop: ["ALL"]
         readinessProbe:
           httpGet:
-            path: /version
-            port: http
+            path: /readyz
+            port: health
           initialDelaySeconds: 2
           periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 15
+          periodSeconds: 20
+      volumes:
+      - name: endpoint-config
+        configMap:
+          name: {{ $name }}
 {{- end }}
