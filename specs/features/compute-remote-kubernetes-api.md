@@ -22,6 +22,8 @@ intended client.
   Kubernetes Service or pod port for proxy traffic.
 - The endpoint is pooled so multiple gateway replicas can serve the same stable
   URL during scaling and rolling updates.
+- Remote access and the app-replica poller are mutually exclusive. When remote
+  access is enabled, it takes precedence and the poller does not start.
 - The in-cluster gateway authenticates to Kubernetes with its projected
   ServiceAccount token. Kubernetes credentials are never returned to Compute.
 
@@ -33,7 +35,7 @@ required.
 ## Registration API
 
 The operator calls this operation with the same ngrok API authentication used
-for the runner-replicas API:
+to register and manage the KubernetesOperator:
 
 ```http
 PUT /v1/runners/{runner_id}/kubernetes-access
@@ -154,10 +156,9 @@ creation, RBAC, impersonation, cluster-scoped resources, and other namespaces
 are denied by the configured Role. Broadening that Role immediately broadens
 the remote API surface without requiring a gateway change.
 
-Compute SHOULD use server-side apply with field manager `ngrok-compute`, label
-every managed object with `ngrok-id=<replica-id>`, and establish list/watch
-streams using `resourceVersion`. It MUST perform a full relist after watch
-expiration or reconnection.
+The poller labels every managed object with `ngrok-id=<replica-id>`. Compute
+SHOULD establish list/watch streams using `resourceVersion` and MUST perform a
+full relist after watch expiration or reconnection.
 
 ## Replica readiness
 
@@ -178,11 +179,12 @@ The Helm opt-in is:
 
 ```yaml
 compute:
-  enabled: false
   remoteAccess:
     enabled: true
     replicaCount: 1
 ```
 
-`computeBaseURL` must address a server implementing this contract. Remote mode
-and the app-replica poller are mutually exclusive.
+`computeBaseURL` must address a server implementing this contract. Remote access
+and the app-replica poller are mutually exclusive. Poller-mode installations
+use `compute.poller.enabled: true`. The deprecated `compute.enabled` field maps
+to poller mode only when remote access is disabled.
