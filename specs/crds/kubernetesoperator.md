@@ -78,6 +78,7 @@
 |---------------------------|---------------------------------------------------|----------|
 | ID                        | `.status.id`                                      | 0        |
 | Ready                     | `.status.conditions[?(@.type=='Ready')].status`   | 0        |
+| Enabled Features          | `.status.enabledFeatures`                         | 0        |
 | Endpoint Selectors        | `.spec.binding.endpointSelectors`                 | 0        |
 | Binding Ingress Endpoint  | `.spec.binding.ingressEndpoint`                   | 2        |
 | Age                       | `.metadata.creationTimestamp`                     | 0        |

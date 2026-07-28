@@ -223,7 +223,7 @@ func (d *Drainer) drainList(
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, 0, []error{fmt.Errorf("failed to iterate %s list: %w", kind, err)}
+		return completed, total, failed, append(errs, fmt.Errorf("failed to iterate %s list: %w", kind, err))
 	}
 
 	return completed, total, failed, errs

@@ -30,7 +30,7 @@ ahead of 1.0. Tooling reading the old fields must switch to the replacements:
 | `errorMessage`             | `Ready` condition message                                                    |
 | `drainStatus`              | `Draining` condition (`True` = in progress/retrying, `False` + reason `DrainCompleted` = done) |
 | `drainMessage`             | `Draining` condition message                                                 |
-| `drainProgress` (`"X/Y"`)  | `drain.drainedResources` / `drain.totalResources` integers                   |
+| `drainProgress` (`"X/Y"`)  | `drain.drainedResources` (successes only) / `drain.failedResources` / `drain.totalResources` integers |
 | `drainErrors`              | `drain.errors`                                                               |
 
 `Registered.message` describes registration failures. Failures after a remote

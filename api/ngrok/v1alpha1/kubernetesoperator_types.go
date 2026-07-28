@@ -206,6 +206,7 @@ type DrainConfig struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Kubernetes Operator ID"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`
+// +kubebuilder:printcolumn:name="Enabled Features",type="string",JSONPath=".status.enabledFeatures"
 // +kubebuilder:printcolumn:name="Endpoint Selectors",type="string",JSONPath=".spec.binding.endpointSelectors"
 // +kubebuilder:printcolumn:name="Binding Ingress Endpoint", type="string", JSONPath=".spec.binding.ingressEndpoint",priority=2
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
@@ -241,6 +242,8 @@ func (ko *KubernetesOperator) GetDrainPolicy() DrainPolicy {
 
 // IsDrainComplete reports whether the drain triggered by deleting this resource
 // has finished (the Draining condition is False with reason DrainCompleted).
+// This only checks condition status, not reason: it relies on the invariant
+// that DrainCompleted is the only reason ever set alongside status False.
 func (ko *KubernetesOperator) IsDrainComplete() bool {
 	condition := meta.FindStatusCondition(ko.Status.Conditions, KubernetesOperatorConditionDraining)
 	return condition != nil &&

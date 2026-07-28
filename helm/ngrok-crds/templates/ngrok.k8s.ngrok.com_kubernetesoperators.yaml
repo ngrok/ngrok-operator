@@ -22,6 +22,9 @@ spec:
     - jsonPath: .status.conditions[?(@.type=='Ready')].status
       name: Ready
       type: string
+    - jsonPath: .status.enabledFeatures
+      name: Enabled Features
+      type: string
     - jsonPath: .spec.binding.endpointSelectors
       name: Endpoint Selectors
       type: string

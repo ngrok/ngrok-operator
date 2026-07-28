@@ -25,6 +25,7 @@ Draining is triggered by deletion of the KubernetesOperator CR. This typically h
 - During drain, create/update reconciles are skipped (no new finalizers are added).
 - Delete reconciles proceed normally to allow cleanup.
 - Across multiple replicas, drain state propagates via the KubernetesOperator CR's `Draining` status condition.
+- Drain is considered complete once `Draining` is `False`; `DrainCompleted` is the only reason ever paired with `False`.
 
 ## Resource Processing
 
