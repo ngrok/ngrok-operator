@@ -50,7 +50,8 @@ The operation is idempotent for a runner. The authenticated account MUST own
 ```json
 {
   "state": "provisioning",
-  "access_key": "QsdY07Kqk7mNmMTwFBqNlVYHBPm9gnqHrsEW96VoMSg"
+  "access_key": "QsdY07Kqk7mNmMTwFBqNlVYHBPm9gnqHrsEW96VoMSg",
+  "namespace": "my-operator-compute"
 }
 ```
 
@@ -71,6 +72,8 @@ Requirements:
 - `endpoint` MUST remain stable for the lifetime of the runner.
 - `access_key` is an opaque bearer credential. The server MUST store it using
   the same protections as other service credentials and MUST NOT log it.
+- `namespace` is the dedicated namespace in which Compute creates and manages
+  replica resources.
 - Repeating the request with a new `access_key` replaces the previous key
   without changing the endpoint.
 - A successful response means the server has committed the new access key.
@@ -89,7 +92,8 @@ operator sends:
 {
   "state": "ready",
   "endpoint": "https://ko-abc123.k8s.compute.internal",
-  "assigned_url": "https://ko-abc123.k8s.compute.internal"
+  "assigned_url": "https://ko-abc123.k8s.compute.internal",
+  "namespace": "my-operator-compute"
 }
 ```
 
@@ -137,7 +141,9 @@ clientset, err := kubernetes.NewForConfig(config)
 The gateway returns `401 Unauthorized` with `WWW-Authenticate: Bearer` when the
 header is missing or the access key is invalid. Once authenticated, the gateway
 does not perform application-layer path or method filtering. Kubernetes RBAC
-is the authorization layer. The gateway ServiceAccount is currently granted:
+is the authorization layer. The gateway runs in the operator's release
+namespace, while its Role and RoleBinding exist only in the dedicated replica
+namespace. The gateway ServiceAccount is currently granted:
 
 | Resource | Access |
 |---|---|
@@ -182,6 +188,9 @@ compute:
   remoteAccess:
     enabled: true
     replicaCount: 1
+    # Defaults to a chart-created <release fullname>-compute namespace.
+    # A custom value must name an existing namespace.
+    replicaNamespace: ""
 ```
 
 `computeBaseURL` must address a server implementing this contract. Remote access

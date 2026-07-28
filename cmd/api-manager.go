@@ -93,23 +93,24 @@ func init() {
 
 type apiManagerOpts struct {
 	// flags
-	releaseName           string
-	metricsAddr           string
-	electionID            string
-	probeAddr             string
-	serverAddr            string
-	apiURL                string
-	computeBaseURL        string
-	computeRemoteAccess   bool
-	computeGatewayName    string
-	ingressControllerName string
-	ingressWatchNamespace string
-	ngrokMetadata         string
-	computeMetadata       string
-	description           string
-	managerName           string
-	zapOpts               *zap.Options
-	clusterDomain         string
+	releaseName             string
+	metricsAddr             string
+	electionID              string
+	probeAddr               string
+	serverAddr              string
+	apiURL                  string
+	computeBaseURL          string
+	computeRemoteAccess     bool
+	computeGatewayName      string
+	computeReplicaNamespace string
+	ingressControllerName   string
+	ingressWatchNamespace   string
+	ngrokMetadata           string
+	computeMetadata         string
+	description             string
+	managerName             string
+	zapOpts                 *zap.Options
+	clusterDomain           string
 
 	// when true, ngrok-op will allow required fields to be optional
 	// then it will go Ready and log errors about registration state due to missing required fields
@@ -166,6 +167,7 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.computeBaseURL, "compute-base-url", "", "The base URL of the compute service")
 	c.Flags().BoolVar(&opts.computeRemoteAccess, "compute-remote-access", false, "Provision remote Kubernetes API access for Compute")
 	c.Flags().StringVar(&opts.computeGatewayName, "compute-gateway-name", "ngrok-operator-compute-api", "Deployment serving the Compute Kubernetes API endpoint")
+	c.Flags().StringVar(&opts.computeReplicaNamespace, "compute-replica-namespace", "ngrok-compute", "Namespace where Compute manages replicas")
 	c.Flags().StringVar(&opts.ingressWatchNamespace, "ingress-watch-namespace", "", "Namespace to watch for Kubernetes Ingress resources. Defaults to all namespaces.")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
@@ -272,6 +274,9 @@ func startOperator(ctx context.Context, opts apiManagerOpts) error {
 	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
 	if !ok {
 		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
+	}
+	if opts.computeRemoteAccess && opts.computeReplicaNamespace == opts.namespace {
+		return errors.New("compute replica namespace must differ from the operator namespace")
 	}
 
 	mgr, err := loadManager(k8sConfig, opts)
@@ -440,7 +445,8 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 			Client: mgr.GetClient(), Log: ctrl.Log.WithName("controllers").WithName("ComputeRemoteAccess"),
 			Namespace: opts.namespace, K8sOpName: opts.releaseName,
 			NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig), ComputeBaseURL: opts.computeBaseURL,
-			GatewayName: opts.computeGatewayName, Interval: 10 * time.Second,
+			GatewayName: opts.computeGatewayName, ReplicaNamespace: opts.computeReplicaNamespace,
+			Interval: 10 * time.Second,
 		}); err != nil {
 			return fmt.Errorf("unable to add Compute remote access: %w", err)
 		}

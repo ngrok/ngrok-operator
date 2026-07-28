@@ -17,30 +17,49 @@ tests:
       authtoken: test-authtoken
   asserts:
   - hasDocuments:
-      count: 4
+      count: 5
+  - isKind:
+      of: Namespace
+    documentIndex: 0
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-compute
+    documentIndex: 0
+  - equal:
+      path: metadata.namespace
+      value: RELEASE-NAME-ngrok-operator-compute
+    documentIndex: 2
+  - equal:
+      path: metadata.namespace
+      value: RELEASE-NAME-ngrok-operator-compute
+    documentIndex: 3
+  - equal:
+      path: subjects[0].namespace
+      value: NAMESPACE
+    documentIndex: 3
   - isKind:
       of: Deployment
-    documentIndex: 3
+    documentIndex: 4
   - equal:
       path: spec.template.spec.containers[0].args[0]
       value: compute-api-gateway
-    documentIndex: 3
+    documentIndex: 4
   - equal:
       path: spec.template.spec.containers[0].ports[0].name
       value: health
-    documentIndex: 3
+    documentIndex: 4
   - equal:
       path: spec.template.spec.containers[0].ports[0].containerPort
       value: 8081
-    documentIndex: 3
+    documentIndex: 4
   - equal:
       path: spec.template.spec.containers[0].env[0].name
       value: NGROK_AUTHTOKEN
-    documentIndex: 3
+    documentIndex: 4
   - equal:
       path: spec.template.spec.volumes[0].configMap.name
       value: RELEASE-NAME-ngrok-operator-compute-api
-    documentIndex: 3
+    documentIndex: 4
 - it: Propagates image pull secrets to the gateway
   set:
     compute:
@@ -53,4 +72,32 @@ tests:
   - equal:
       path: spec.template.spec.imagePullSecrets[0].name
       value: private-registry
-    documentIndex: 3
+    documentIndex: 4
+- it: Uses an existing custom replica namespace without creating it
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+        replicaNamespace: existing-replicas
+  asserts:
+  - hasDocuments:
+      count: 4
+  - equal:
+      path: metadata.namespace
+      value: existing-replicas
+    documentIndex: 1
+  - equal:
+      path: metadata.namespace
+      value: existing-replicas
+    documentIndex: 2
+- it: Rejects the operator namespace as the replica namespace
+  release:
+    namespace: management
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+        replicaNamespace: management
+  asserts:
+  - failedTemplate:
+      errorMessage: compute.remoteAccess.replicaNamespace must differ from the Helm release namespace
