@@ -166,7 +166,7 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.ingressControllerName, "ingress-controller-name", "ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
 	c.Flags().StringVar(&opts.computeBaseURL, "compute-base-url", "", "The base URL of the compute service")
 	c.Flags().BoolVar(&opts.computeRemoteAccess, "compute-remote-access", false, "Provision remote Kubernetes API access for Compute")
-	c.Flags().StringVar(&opts.computeGatewayName, "compute-gateway-name", "ngrok-operator-compute-api", "Deployment serving the Compute Kubernetes API endpoint")
+	c.Flags().StringVar(&opts.computeGatewayName, "compute-gateway-name", "ngrok-operator-gateway", "Deployment serving the Compute Kubernetes API endpoint")
 	c.Flags().StringVar(&opts.computeReplicaNamespace, "compute-replica-namespace", "ngrok-compute", "Namespace where Compute manages replicas")
 	c.Flags().StringVar(&opts.ingressWatchNamespace, "ingress-watch-namespace", "", "Namespace to watch for Kubernetes Ingress resources. Defaults to all namespaces.")
 	// TODO(operator-rename): Same as above, but for the manager name.

@@ -7,7 +7,7 @@ Expand the name of the chart.
 {{- end -}}
 
 {{- define "ngrok-operator.computeGatewayName" -}}
-{{- printf "%s-compute-api" (include "ngrok-operator.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-gateway" (include "ngrok-operator.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "ngrok-operator.computeReplicaNamespace" -}}
