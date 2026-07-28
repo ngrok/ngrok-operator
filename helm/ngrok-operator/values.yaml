@@ -447,6 +447,9 @@ compute: {}
 #   remoteAccess:
 #     enabled: true
 #     replicaCount: 1
+#     # Defaults to a chart-created <release fullname>-compute namespace.
+#     # A custom value must name an existing namespace.
+#     replicaNamespace: ""
 
 ## @section Custom Resource Definitions installation
 ##

@@ -1,4 +1,10 @@
 {{- $component := "controller" }}
+{{- if and (hasKey .Values.compute "remoteAccess") .Values.compute.remoteAccess.enabled }}
+{{- $replicaNamespace := include "ngrok-operator.computeReplicaNamespace" . }}
+{{- if eq $replicaNamespace .Release.Namespace }}
+{{- fail "compute.remoteAccess.replicaNamespace must differ from the Helm release namespace" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -117,6 +123,7 @@ spec:
         {{- if and (hasKey .Values.compute "remoteAccess") .Values.compute.remoteAccess.enabled }}
         - --compute-remote-access=true
         - --compute-gateway-name={{ include "ngrok-operator.computeGatewayName" . }}
+        - --compute-replica-namespace={{ include "ngrok-operator.computeReplicaNamespace" . }}
         {{- end }}
         {{- if .Values.serverAddr }}
         - --server-addr={{ .Values.serverAddr}}
