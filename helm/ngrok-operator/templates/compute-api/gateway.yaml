@@ -1,6 +1,12 @@
 {{- if and (hasKey .Values.compute "remoteAccess") .Values.compute.remoteAccess.enabled }}
 {{- $name := include "ngrok-operator.computeGatewayName" . }}
 {{- $replicaNamespace := include "ngrok-operator.computeReplicaNamespace" . }}
+{{- /*
+Pod-level settings live under .Values.computeGateway rather than under
+.Values.compute, because .Values.compute is serialized verbatim into
+--compute-metadata and sent to the ngrok API as KubernetesOperator metadata.
+*/}}
+{{- $gateway := .Values.computeGateway }}
 {{- if eq $replicaNamespace .Release.Namespace }}
 {{- fail "compute.remoteAccess.replicaNamespace must differ from the Helm release namespace" }}
 {{- end }}
@@ -75,17 +81,54 @@ metadata:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: compute-api
 spec:
-  replicas: {{ default 1 .Values.compute.remoteAccess.replicaCount }}
+  replicas: {{ $gateway.replicaCount }}
   selector:
     matchLabels:
       {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: compute-api
   template:
     metadata:
+      {{- if or $gateway.podAnnotations .Values.podAnnotations }}
+      annotations:
+        {{- if $gateway.podAnnotations }}
+          {{- toYaml $gateway.podAnnotations | nindent 8 }}
+        {{- else }}
+          {{- toYaml .Values.podAnnotations | nindent 8 }}
+        {{- end }}
+      {{- end }}
       labels:
         {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+          {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- end }}
         app.kubernetes.io/component: compute-api
     spec:
+      {{- if $gateway.priorityClassName }}
+      priorityClassName: {{ $gateway.priorityClassName | quote }}
+      {{- end }}
+      {{- if $gateway.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ $gateway.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" "compute-api" "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" "compute-api" "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+      {{- end }}
+      {{- with $gateway.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $gateway.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $gateway.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ $name }}
       {{- if .Values.image.pullSecrets }}
       imagePullSecrets:
@@ -134,6 +177,8 @@ spec:
             port: health
           initialDelaySeconds: 15
           periodSeconds: 20
+        resources:
+        {{- toYaml $gateway.resources | nindent 10 }}
       volumes:
       - name: endpoint-config
         configMap:

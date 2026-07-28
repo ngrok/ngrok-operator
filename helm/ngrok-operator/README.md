@@ -203,6 +203,21 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `bindings.forwarder.nodeSelector`                  | Node labels for the bindings forwarder pod(s)                                                                 | `{}`                                      |
 | `bindings.forwarder.topologySpreadConstraints`     | Topology Spread Constraints for the bindings forwarder pod(s)                                                 | `[]`                                      |
 
+### Compute configuration
+
+| Name                                             | Description                                                                                                             | Value  |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------ |
+| `compute`                                        | Compute mode configuration and metadata passed to the KubernetesOperator API resource.                                   | `{}`   |
+| `computeGateway.podAnnotations`                   | Custom pod annotations to apply to gateway pods. If not set, falls back to podAnnotations.                              | `{}`   |
+| `computeGateway.priorityClassName`                | Priority class for pod scheduling.                                                                                      | `""`   |
+| `computeGateway.replicaCount`                     | The number of gateway replicas to run. The ngrok endpoint is pooled, so several replicas serve the same URL.             | `1`    |
+| `computeGateway.terminationGracePeriodSeconds`    | Grace period for gateway pod termination.                                                                               | `""`   |
+| `computeGateway.nodeSelector`                     | Node labels for gateway pod assignment.                                                                                 | `{}`   |
+| `computeGateway.tolerations`                      | Tolerations for gateway pod assignment.                                                                                 | `[]`   |
+| `computeGateway.topologySpreadConstraints`        | Topology spread constraints for gateway pod assignment.                                                                 | `[]`   |
+| `computeGateway.resources.limits`                 | The resources limits for the container                                                                                  | `{}`   |
+| `computeGateway.resources.requests`               | The requested resources for the container                                                                               | `{}`   |
+
 ### Custom Resource Definitions installation
 
 | Name          | Description                                                        | Value  |
