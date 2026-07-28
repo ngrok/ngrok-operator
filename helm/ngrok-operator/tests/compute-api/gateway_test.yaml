@@ -23,15 +23,15 @@ tests:
     documentIndex: 0
   - equal:
       path: metadata.name
-      value: RELEASE-NAME-ngrok-operator-compute
+      value: NAMESPACE-compute
     documentIndex: 0
   - equal:
       path: metadata.namespace
-      value: RELEASE-NAME-ngrok-operator-compute
+      value: NAMESPACE-compute
     documentIndex: 2
   - equal:
       path: metadata.namespace
-      value: RELEASE-NAME-ngrok-operator-compute
+      value: NAMESPACE-compute
     documentIndex: 3
   - equal:
       path: subjects[0].namespace
@@ -69,7 +69,7 @@ tests:
     documentIndex: 5
   - equal:
       path: metadata.namespace
-      value: RELEASE-NAME-ngrok-operator-compute
+      value: NAMESPACE-compute
     documentIndex: 5
   - isKind:
       of: RoleBinding
@@ -91,6 +91,22 @@ tests:
       path: spec.template.spec.imagePullSecrets[0].name
       value: private-registry
     documentIndex: 4
+- it: Bases the default replica namespace on the operator namespace
+  release:
+    namespace: operator-system
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+  asserts:
+  - equal:
+      path: metadata.name
+      value: operator-system-compute
+    documentIndex: 0
+  - equal:
+      path: metadata.namespace
+      value: operator-system-compute
+    documentIndex: 2
 - it: Uses an existing custom replica namespace without creating it
   set:
     compute:

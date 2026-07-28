@@ -11,7 +11,7 @@ Expand the name of the chart.
 {{- end -}}
 
 {{- define "ngrok-operator.computeReplicaNamespace" -}}
-{{- $defaultName := printf "%s-compute" (include "ngrok-operator.fullname" . | trunc 55 | trimSuffix "-") -}}
+{{- $defaultName := printf "%s-compute" (.Release.Namespace | trunc 55 | trimSuffix "-") -}}
 {{- default $defaultName .Values.compute.remoteAccess.replicaNamespace | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
