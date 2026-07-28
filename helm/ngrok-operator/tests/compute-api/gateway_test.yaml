@@ -37,6 +37,10 @@ tests:
       path: subjects[0].namespace
       value: NAMESPACE
     documentIndex: 3
+  - contains:
+      path: rules[5].verbs
+      content: list
+    documentIndex: 2
   - isKind:
       of: Deployment
     documentIndex: 4
