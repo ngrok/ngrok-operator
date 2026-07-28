@@ -446,6 +446,8 @@ compute: {}
 #   remoteAccess:
 #     enabled: true
 #     replicaCount: 1
+#     # Remote access composes with ingress.enabled: the agent watches the
+#     # replica namespace in addition to watchNamespace, not instead of it.
 #     # Defaults to a chart-created <operator namespace>-compute namespace.
 #     # A custom value must name an existing namespace.
 #     replicaNamespace: ""

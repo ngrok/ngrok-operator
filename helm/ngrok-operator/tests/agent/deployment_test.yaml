@@ -197,7 +197,7 @@ tests:
   - notContains:
       path: spec.template.spec.containers[0].args
       content: --watch-namespace=
-- it: Watches the Compute namespace when remote access is enabled
+- it: Watches only the Compute namespace when remote access is enabled without Ingress
   set:
     ingress:
       enabled: false
@@ -216,3 +216,39 @@ tests:
   - notContains:
       path: spec.template.spec.containers[0].args
       content: --watch-namespace=operator-workloads
+- it: Watches both the Ingress and Compute namespaces when remote access runs alongside Ingress
+  set:
+    ingress:
+      enabled: true
+      watchNamespace: operator-workloads
+    compute:
+      remoteAccess:
+        enabled: true
+        replicaNamespace: compute-instances
+  template: agent/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --watch-namespace=operator-workloads
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --watch-namespace=compute-instances
+- it: Watches all namespaces when remote access runs alongside cluster-wide Ingress
+  set:
+    ingress:
+      enabled: true
+      watchNamespace: ""
+    compute:
+      remoteAccess:
+        enabled: true
+        replicaNamespace: compute-instances
+  template: agent/deployment.yaml
+  asserts:
+  # An empty ingress watchNamespace already covers the replica namespace, so the
+  # agent must stay cluster-wide rather than being narrowed to Compute.
+  - notContains:
+      path: spec.template.spec.containers[0].args
+      content: --watch-namespace=compute-instances
+  - notContains:
+      path: spec.template.spec.containers[0].args
+      content: --watch-namespace=
