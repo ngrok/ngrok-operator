@@ -197,3 +197,22 @@ tests:
   - notContains:
       path: spec.template.spec.containers[0].args
       content: --watch-namespace=
+- it: Watches the Compute namespace when remote access is enabled
+  set:
+    ingress:
+      enabled: false
+      watchNamespace: operator-workloads
+    compute:
+      remoteAccess:
+        enabled: true
+        replicaNamespace: compute-instances
+  template: agent/deployment.yaml
+  asserts:
+  - hasDocuments:
+      count: 1
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --watch-namespace=compute-instances
+  - notContains:
+      path: spec.template.spec.containers[0].args
+      content: --watch-namespace=operator-workloads

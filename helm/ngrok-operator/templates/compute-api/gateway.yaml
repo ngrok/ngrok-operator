@@ -138,4 +138,46 @@ spec:
       - name: endpoint-config
         configMap:
           name: {{ $name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-agent
+  namespace: {{ $replicaNamespace }}
+rules:
+- apiGroups: ["events.k8s.io"]
+  resources: ["events"]
+  verbs: ["create", "patch", "update"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["ingress.k8s.ngrok.com"]
+  resources: ["domains"]
+  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+- apiGroups: ["ngrok.k8s.ngrok.com"]
+  resources: ["agentendpoints"]
+  verbs: ["get", "list", "patch", "update", "watch"]
+- apiGroups: ["ngrok.k8s.ngrok.com"]
+  resources: ["agentendpoints/finalizers"]
+  verbs: ["patch", "update"]
+- apiGroups: ["ngrok.k8s.ngrok.com"]
+  resources: ["agentendpoints/status"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["ngrok.k8s.ngrok.com"]
+  resources: ["ngroktrafficpolicies"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-agent
+  namespace: {{ $replicaNamespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-agent
+subjects:
+- kind: ServiceAccount
+  name: {{ template "ngrok-operator.agent.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
 {{- end }}

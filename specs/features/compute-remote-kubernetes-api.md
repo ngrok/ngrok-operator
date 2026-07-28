@@ -143,7 +143,9 @@ header is missing or the access key is invalid. Once authenticated, the gateway
 does not perform application-layer path or method filtering. Kubernetes RBAC
 is the authorization layer. The gateway runs in the operator's release
 namespace, while its Role and RoleBinding exist only in the dedicated replica
-namespace. The gateway ServiceAccount is currently granted:
+namespace. The agent manager also watches the replica namespace and has a
+separate Role there so it can reconcile AgentEndpoints created by Compute. The
+gateway ServiceAccount is currently granted:
 
 | Resource | Access |
 |---|---|
