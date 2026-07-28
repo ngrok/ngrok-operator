@@ -427,9 +427,12 @@ spec:
                 type: string
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
-                description: Metadata is a string of arbitrary data associated with
-                  the object in the ngrok API/Dashboard
-                type: string
+                description: |-
+                  Metadata is arbitrary key/value data associated with the object in the
+                  ngrok API/Dashboard. A raw JSON string is also accepted for backward
+                  compatibility and is deprecated; use a map of string values instead.
+                  The ngrokMetadata Helm value is not merged into this field.
+                x-kubernetes-preserve-unknown-fields: true
               reclaimPolicy:
                 default: Delete
                 description: DomainReclaimPolicy is the policy to use when the domain
@@ -702,9 +705,12 @@ spec:
                 type: string
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
-                description: Metadata is a string of arbitrary data associated with
-                  the object in the ngrok API/Dashboard
-                type: string
+                description: |-
+                  Metadata is arbitrary key/value data associated with the object in the
+                  ngrok API/Dashboard. A raw JSON string is also accepted for backward
+                  compatibility and is deprecated; use a map of string values instead.
+                  The ngrokMetadata Helm value is not merged into this field.
+                x-kubernetes-preserve-unknown-fields: true
               rules:
                 description: Rules is a list of rules that belong to the policy
                 items:
@@ -729,10 +735,12 @@ spec:
                       type: string
                     metadata:
                       default: '{"owned-by":"ngrok-operator"}'
-                      description: Metadata is a string of arbitrary data associated
-                        with the object in the ngrok API/Dashboard
-                      maxLength: 4096
-                      type: string
+                      description: |-
+                        Metadata is arbitrary key/value data associated with the object in the
+                        ngrok API/Dashboard. A raw JSON string is also accepted for backward
+                        compatibility and is deprecated; use a map of string values instead.
+                        The ngrokMetadata Helm value is not merged into this field.
+                      x-kubernetes-preserve-unknown-fields: true
                   required:
                   - action
                   - cidr
@@ -925,9 +933,12 @@ spec:
                 type: string
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
-                description: String of arbitrary data associated with the object in
-                  the ngrok API/Dashboard
-                type: string
+                description: |-
+                  Metadata is arbitrary key/value data associated with the object in the
+                  ngrok API/Dashboard. A raw JSON string is also accepted for backward
+                  compatibility and is deprecated; use a map of string values instead.
+                  The ngrokMetadata Helm value is not merged into this field.
+                x-kubernetes-preserve-unknown-fields: true
               tlsTermination:
                 description: |-
                   TLSTermination configures the agent to terminate TLS in-cluster for incoming
@@ -1275,9 +1286,12 @@ spec:
                 type: string
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
-                description: String of arbitrary data associated with the object in
-                  the ngrok API/Dashboard
-                type: string
+                description: |-
+                  Metadata is arbitrary key/value data associated with the object in the
+                  ngrok API/Dashboard. A raw JSON string is also accepted for backward
+                  compatibility and is deprecated; use a map of string values instead.
+                  The ngrokMetadata Helm value is not merged into this field.
+                x-kubernetes-preserve-unknown-fields: true
               poolingEnabled:
                 description: |-
                   Controls whether or not the Cloud Endpoint should allow pooling with other
@@ -1572,9 +1586,12 @@ spec:
                 type: array
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
-                description: Metadata is a string of arbitrary data associated with
-                  the object in the ngrok API/Dashboard
-                type: string
+                description: |-
+                  Metadata is arbitrary key/value data associated with the object in the
+                  ngrok API/Dashboard. A raw JSON string is also accepted for backward
+                  compatibility and is deprecated; use a map of string values instead.
+                  The ngrokMetadata Helm value is not merged into this field.
+                x-kubernetes-preserve-unknown-fields: true
               region:
                 default: global
                 description: |-

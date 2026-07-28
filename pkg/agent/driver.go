@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/healthcheck"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -280,7 +281,7 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 	endpointOpts := []ngrok.EndpointOption{
 		ngrok.WithURL(spec.URL),
 		ngrok.WithBindings(spec.Bindings...),
-		ngrok.WithMetadata(spec.Metadata),
+		ngrok.WithMetadata(commonv1alpha1.MetadataAPIString(spec.Metadata)),
 		// TODO(stacks): This may end up being configurable on a per-endpoint basis in the future
 		ngrok.WithPoolingEnabled(true),
 		ngrok.WithDescription(spec.Description),

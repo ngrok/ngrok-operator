@@ -42,6 +42,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	"github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	basecontroller "github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -171,7 +172,7 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 		req := &ngrok.ReservedDomainCreate{
 			Domain:      domain.Spec.Domain,
 			Description: domain.Spec.Description,
-			Metadata:    domain.Spec.Metadata,
+			Metadata:    commonv1alpha1.MetadataAPIString(domain.Spec.Metadata),
 			ResolvesTo:  buildResolvesToRequest(domain.Spec.GetResolvesTo()),
 		}
 		resp, err = r.DomainsClient.Create(ctx, req)
@@ -198,8 +199,9 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 
 	// Only update the domain if updatable fields have changed
 	specResolvesTo := buildResolvesToRequest(domain.Spec.GetResolvesTo())
+	specMetadata := commonv1alpha1.MetadataAPIString(domain.Spec.Metadata)
 	if domain.Spec.Description == resp.Description &&
-		domain.Spec.Metadata == resp.Metadata &&
+		specMetadata == resp.Metadata &&
 		reflect.DeepEqual(specResolvesTo, resp.ResolvesTo) {
 		// No changes needed, still update status to ensure conditions are current
 		return r.updateStatus(ctx, domain, resp, nil)
@@ -208,7 +210,7 @@ func (r *DomainReconciler) update(ctx context.Context, domain *v1alpha1.Domain) 
 	req := &ngrok.ReservedDomainUpdate{
 		ID:          domain.Status.ID,
 		Description: &domain.Spec.Description,
-		Metadata:    &domain.Spec.Metadata,
+		Metadata:    &specMetadata,
 		ResolvesTo:  specResolvesTo,
 	}
 	resp, err = r.DomainsClient.Update(ctx, req)

@@ -51,6 +51,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/drain"
@@ -598,12 +599,12 @@ func (r *KubernetesOperatorReconciler) bindingCertRenewalWindow() time.Duration 
 func (r *KubernetesOperatorReconciler) tryMergeMetadata(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) string {
 	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
 	if err != nil {
-		return ko.Spec.Metadata
+		return commonv1alpha1.MetadataAPIString(ko.Spec.Metadata)
 	}
 
-	metadata, err := mergeMetadata(ko.Spec.Metadata, namespaceUID)
+	metadata, err := mergeMetadata(commonv1alpha1.MetadataAPIString(ko.Spec.Metadata), namespaceUID)
 	if err != nil {
-		return ko.Spec.Metadata
+		return commonv1alpha1.MetadataAPIString(ko.Spec.Metadata)
 	}
 
 	return metadata

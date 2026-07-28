@@ -42,6 +42,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v7"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
@@ -229,11 +230,12 @@ func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha
 // call wouldn't misresolve — it would just redundantly re-fetch the
 // referenced TrafficPolicy and re-emit the same DeprecatedField event.
 func (r *CloudEndpointReconciler) createWithPolicy(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult, policy string) error {
+	metadata := commonv1alpha1.MetadataAPIString(clep.Spec.Metadata)
 	createParams := &ngrok.EndpointCreate{
 		Type:           "cloud",
 		URL:            clep.Spec.URL,
 		Description:    &clep.Spec.Description,
-		Metadata:       &clep.Spec.Metadata,
+		Metadata:       &metadata,
 		TrafficPolicy:  policy,
 		Bindings:       clep.Spec.Bindings,
 		PoolingEnabled: clep.Spec.PoolingEnabled,
@@ -289,11 +291,12 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		return r.recordWriteSuccess(ctx, clep, currentEndpoint, domainResult, "CloudEndpoint updated successfully")
 	}
 
+	metadata := commonv1alpha1.MetadataAPIString(clep.Spec.Metadata)
 	updateParams := &ngrok.EndpointUpdate{
 		ID:             clep.Status.ID,
 		Url:            &clep.Spec.URL,
 		Description:    &clep.Spec.Description,
-		Metadata:       &clep.Spec.Metadata,
+		Metadata:       &metadata,
 		TrafficPolicy:  &policy,
 		Bindings:       clep.Spec.Bindings,
 		PoolingEnabled: clep.Spec.PoolingEnabled,
@@ -533,7 +536,7 @@ func endpointNeedsUpdate(current *ngrok.Endpoint, spec ngrokv1alpha1.CloudEndpoi
 	if current.Description != spec.Description {
 		return true
 	}
-	if current.Metadata != spec.Metadata {
+	if current.Metadata != commonv1alpha1.MetadataAPIString(spec.Metadata) {
 		return true
 	}
 	if current.TrafficPolicy != policy {

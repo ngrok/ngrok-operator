@@ -25,6 +25,8 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -33,10 +35,15 @@ type IPPolicyRule struct {
 	// +kubebuilder:default:=`Created by ngrok-operator`
 	// +kubebuilder:validation:MaxLength=255
 	Description string `json:"description,omitempty"`
-	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
+	// Metadata is arbitrary key/value data associated with the object in the
+	// ngrok API/Dashboard. A raw JSON string is also accepted for backward
+	// compatibility and is deprecated; use a map of string values instead.
+	// The ngrokMetadata Helm value is not merged into this field.
+	//
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	// +kubebuilder:validation:MaxLength=4096
-	Metadata string `json:"metadata,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 	// CIDR is an IPv4 or IPv6 address range in CIDR notation (e.g. 10.0.0.0/8 or 2001:db8::/32)
 	// Pattern adapted from the standard IPv4/IPv6 validation regex documented at
 	// https://www.ditig.com/validating-ipv4-and-ipv6-addresses-with-regexp
@@ -53,9 +60,15 @@ type IPPolicySpec struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
 	// +kubebuilder:default:=`Created by ngrok-operator`
 	Description string `json:"description,omitempty"`
-	// Metadata is a string of arbitrary data associated with the object in the ngrok API/Dashboard
+	// Metadata is arbitrary key/value data associated with the object in the
+	// ngrok API/Dashboard. A raw JSON string is also accepted for backward
+	// compatibility and is deprecated; use a map of string values instead.
+	// The ngrokMetadata Helm value is not merged into this field.
+	//
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata string `json:"metadata,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 	// Rules is a list of rules that belong to the policy
 	Rules []IPPolicyRule `json:"rules,omitempty"`
 }

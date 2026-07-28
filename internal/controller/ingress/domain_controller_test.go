@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ngrok/ngrok-api-go/v7"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
@@ -316,7 +317,7 @@ var _ = Describe("DomainReconciler", func() {
 				},
 				Spec: ingressv1alpha1.DomainSpec{
 					Description: "starting description",
-					Metadata:    "starting metadata",
+					Metadata:    commonv1alpha1.MetadataFromLegacyString("starting metadata"),
 					Domain:      domainName,
 				},
 			}
@@ -333,7 +334,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		It("updates the domain metadata", func() {
 			patch := client.MergeFrom(domain.DeepCopy())
-			domain.Spec.Metadata = "updated metadata"
+			domain.Spec.Metadata = commonv1alpha1.MetadataFromLegacyString("updated metadata")
 			Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -341,7 +342,7 @@ var _ = Describe("DomainReconciler", func() {
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				g.Expect(d.Spec.Metadata).To(Equal("updated metadata"))
+				g.Expect(commonv1alpha1.MetadataAPIString(d.Spec.Metadata)).To(Equal("updated metadata"))
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
 				g.Expect(d.Status.Domain).To(Equal(domainName))
 			}, timeout, interval).Should(Succeed())

@@ -85,9 +85,12 @@ spec:
                 type: string
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
-                description: String of arbitrary data associated with the object in
-                  the ngrok API/Dashboard
-                type: string
+                description: |-
+                  Metadata is arbitrary key/value data associated with the object in the
+                  ngrok API/Dashboard. A raw JSON string is also accepted for backward
+                  compatibility and is deprecated; use a map of string values instead.
+                  The ngrokMetadata Helm value is not merged into this field.
+                x-kubernetes-preserve-unknown-fields: true
               poolingEnabled:
                 description: |-
                   Controls whether or not the Cloud Endpoint should allow pooling with other
