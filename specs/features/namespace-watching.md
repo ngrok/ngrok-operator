@@ -13,6 +13,14 @@ The operator can be scoped to watch specific namespaces instead of the entire cl
 
 An empty value means "watch all namespaces" (cluster-wide).
 
+The agent-manager's `--watch-namespace` may be repeated to watch the union of
+several namespaces. An empty value widens the scope, so it takes precedence: if
+any occurrence is empty, the agent watches all namespaces regardless of the
+other values. The chart uses this so that Compute remote access, which needs the
+dedicated replica namespace, can run alongside Ingress support without either
+feature losing visibility — see
+[compute-remote-kubernetes-api.md](compute-remote-kubernetes-api.md).
+
 ## Behavior
 
 When a watch namespace is set:

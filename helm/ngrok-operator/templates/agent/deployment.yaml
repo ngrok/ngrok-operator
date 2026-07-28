@@ -1,4 +1,5 @@
 {{- $computeRemoteAccess := and (hasKey .Values.compute "remoteAccess") .Values.compute.remoteAccess.enabled }}
+{{- $watchNamespace := .Values.watchNamespace | default .Values.ingress.watchNamespace }}
 {{- if and (or .Values.ingress.enabled $computeRemoteAccess) (not .Values.oneClickDemoMode) }}
 {{- $component := "agent" }}
 {{- $rbacChecksum := include (print $.Template.BasePath "/agent/role.yaml") . | sha256sum }}
@@ -103,10 +104,19 @@ spec:
         - --manager-name={{ include "ngrok-operator.fullname" . }}-agent-manager
         - --release-name={{ .Release.Name }}
         - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
-        {{- if $computeRemoteAccess }}
+        {{- /*
+        --watch-namespace is repeatable, so Compute remote access and Ingress
+        support can each keep the namespace they need. An unset ingress
+        watchNamespace means "all namespaces", which already covers the replica
+        namespace, so in that case no flag is passed at all.
+        */}}
+        {{- if and $computeRemoteAccess (or (not .Values.ingress.enabled) $watchNamespace) }}
+        {{- if and .Values.ingress.enabled $watchNamespace }}
+        - --watch-namespace={{ $watchNamespace }}
+        {{- end }}
         - --watch-namespace={{ include "ngrok-operator.computeReplicaNamespace" . }}
-        {{- else if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
-        - --watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
+        {{- else if and (not $computeRemoteAccess) $watchNamespace }}
+        - --watch-namespace={{ $watchNamespace }}
         {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
