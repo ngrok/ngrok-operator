@@ -437,6 +437,9 @@ bindings:
 ## compute.enabled is deprecated and maps to compute.poller.enabled when remote access is disabled.
 ## Additional keys are used for compute pool scheduling. Pass via --set-json to preserve snake_case keys.
 ## Example: --set-json 'compute={"pool_join_key":"cp_xxx","scheduler_props":{"region":"us-west-2"}}'
+## Every key under `compute` is sent to the ngrok API as KubernetesOperator
+## metadata, so keep deployment settings out of it. Pod-level settings for the
+## remote-access gateway live under `computeGateway` below.
 compute: {}
 # compute:
 #   poller:
@@ -445,12 +448,58 @@ compute: {}
 # compute:
 #   remoteAccess:
 #     enabled: true
-#     replicaCount: 1
 #     # Remote access composes with ingress.enabled: the agent watches the
 #     # replica namespace in addition to watchNamespace, not instead of it.
 #     # Defaults to a chart-created <operator namespace>-compute namespace.
 #     # A custom value must name an existing namespace.
 #     replicaNamespace: ""
+
+## Deployment settings for the Compute remote-access gateway, which serves the
+## Kubernetes API to Compute over an internal ngrok endpoint. Only used when
+## compute.remoteAccess.enabled is true. Kept separate from `compute` because
+## that block is passed through to the ngrok API as metadata.
+##
+## @param computeGateway.podAnnotations Custom pod annotations to apply to gateway pods. If not set, falls back to podAnnotations.
+## @param computeGateway.priorityClassName Priority class for pod scheduling.
+## @param computeGateway.replicaCount The number of gateway replicas to run. The ngrok endpoint is pooled, so several replicas serve the same URL.
+## @param computeGateway.terminationGracePeriodSeconds Grace period for gateway pod termination.
+## @param computeGateway.nodeSelector Node labels for gateway pod assignment.
+## @param computeGateway.tolerations Tolerations for gateway pod assignment.
+## @param computeGateway.topologySpreadConstraints Topology spread constraints for gateway pod assignment.
+computeGateway:
+  podAnnotations: {}
+  priorityClassName: ""
+
+  replicaCount: 1
+
+  terminationGracePeriodSeconds: ""
+
+  nodeSelector: {}
+  tolerations: []
+  topologySpreadConstraints: []
+
+  ## Gateway container resource requests and limits
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ## We usually recommend not to specify default resources and to leave this as a conscious
+  ## choice for the user. This also increases chances charts run on environments with little
+  ## resources, such as Minikube. If you do want to specify resources, uncomment the following
+  ## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  ## @param computeGateway.resources.limits The resources limits for the container
+  ## @param computeGateway.resources.requests The requested resources for the container
+  ##
+  resources:
+    ## Example:
+    ## limits:
+    ##    cpu: 100m
+    ##    memory: 128Mi
+    ##
+    limits: {}
+    ## Examples:
+    ## requests:
+    ##    cpu: 100m
+    ##    memory: 128Mi
+    ##
+    requests: {}
 
 ## @section Custom Resource Definitions installation
 ##

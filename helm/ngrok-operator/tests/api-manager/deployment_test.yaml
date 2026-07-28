@@ -197,6 +197,27 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --compute-replica-namespace=isolated-replicas
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --compute-gateway-name=RELEASE-NAME-ngrok-operator-gateway
+- it: Keeps gateway deployment settings out of the ngrok API metadata
+  # Every key under .Values.compute is forwarded to the ngrok API, so gateway
+  # pod settings must live under .Values.computeGateway instead.
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+    computeGateway:
+      replicaCount: 3
+      resources:
+        requests:
+          cpu: 100m
+  template: api-manager/deployment.yaml
+  documentIndex: 0
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: '--compute-metadata={"remoteAccess":{"enabled":true}}'
 - it: Should pass bindings.serviceAnnotations and bindings.serviceLabels to the controller
   set:
     bindings:
