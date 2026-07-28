@@ -62,7 +62,7 @@ tests:
     documentIndex: 4
   - equal:
       path: spec.template.spec.volumes[0].configMap.name
-      value: RELEASE-NAME-ngrok-operator-compute-api
+      value: RELEASE-NAME-ngrok-operator-gateway
     documentIndex: 4
   - isKind:
       of: Role
@@ -91,6 +91,104 @@ tests:
       path: spec.template.spec.imagePullSecrets[0].name
       value: private-registry
     documentIndex: 4
+- it: Applies the standard pod scheduling settings to the gateway
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+    computeGateway:
+      replicaCount: 3
+      priorityClassName: high
+      terminationGracePeriodSeconds: 45
+      podAnnotations:
+        gatewayAnnotation: "set"
+      nodeSelector:
+        disktype: ssd
+      tolerations:
+      - key: dedicated
+        operator: Exists
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      resources:
+        requests:
+          cpu: 100m
+        limits:
+          memory: 256Mi
+  asserts:
+  - equal:
+      path: spec.replicas
+      value: 3
+    documentIndex: 4
+  - equal:
+      path: spec.template.spec.priorityClassName
+      value: high
+    documentIndex: 4
+  - equal:
+      path: spec.template.spec.terminationGracePeriodSeconds
+      value: 45
+    documentIndex: 4
+  - equal:
+      path: spec.template.metadata.annotations.gatewayAnnotation
+      value: set
+    documentIndex: 4
+  - equal:
+      path: spec.template.spec.nodeSelector.disktype
+      value: ssd
+    documentIndex: 4
+  - equal:
+      path: spec.template.spec.tolerations[0].key
+      value: dedicated
+    documentIndex: 4
+  - equal:
+      path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+      value: topology.kubernetes.io/zone
+    documentIndex: 4
+  - equal:
+      path: spec.template.spec.containers[0].resources.requests.cpu
+      value: 100m
+    documentIndex: 4
+  - equal:
+      path: spec.template.spec.containers[0].resources.limits.memory
+      value: 256Mi
+    documentIndex: 4
+- it: Falls back to the chart-wide podAnnotations and podLabels
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+    podAnnotations:
+      shared: "annotation"
+    podLabels:
+      team: infra
+  asserts:
+  - equal:
+      path: spec.template.metadata.annotations.shared
+      value: annotation
+    documentIndex: 4
+  - equal:
+      path: spec.template.metadata.labels.team
+      value: infra
+    documentIndex: 4
+- it: Names the gateway resources consistently
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+  asserts:
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-gateway
+    documentIndex: 1 # ServiceAccount
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-gateway
+    documentIndex: 4 # Deployment
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-gateway-agent
+    documentIndex: 5 # agent Role in the replica namespace
 - it: Bases the default replica namespace on the operator namespace
   release:
     namespace: operator-system

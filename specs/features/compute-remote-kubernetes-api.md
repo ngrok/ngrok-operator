@@ -197,11 +197,27 @@ The Helm opt-in is:
 compute:
   remoteAccess:
     enabled: true
-    replicaCount: 1
-    # Defaults to a chart-created <release fullname>-compute namespace.
+    # Defaults to a chart-created <operator namespace>-compute namespace.
     # A custom value must name an existing namespace.
     replicaNamespace: ""
 ```
+
+Every key under `compute` is forwarded to the ngrok API as KubernetesOperator
+metadata, so the gateway Deployment's own settings — `replicaCount`, `resources`,
+`nodeSelector`, `tolerations`, `affinity`, `priorityClassName`, `podAnnotations`,
+and `topologySpreadConstraints` — live under a separate `computeGateway` block:
+
+```yaml
+computeGateway:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+```
+
+The gateway's Deployment, ServiceAccount, ConfigMap, Role, and RoleBinding are
+all named `<release fullname>-gateway`, and the api-manager is pointed at them
+with `--compute-gateway-name`.
 
 `computeBaseURL` must address a server implementing this contract. Remote access
 and the app-replica poller are mutually exclusive. Poller-mode installations
