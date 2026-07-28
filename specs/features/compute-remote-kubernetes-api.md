@@ -144,8 +144,16 @@ does not perform application-layer path or method filtering. Kubernetes RBAC
 is the authorization layer. The gateway runs in the operator's release
 namespace, while its Role and RoleBinding exist only in the dedicated replica
 namespace. The agent manager also watches the replica namespace and has a
-separate Role there so it can reconcile AgentEndpoints created by Compute. The
-gateway ServiceAccount is currently granted:
+separate Role there so it can reconcile AgentEndpoints created by Compute.
+
+Remote access adds the replica namespace to the agent's watch scope rather than
+replacing it, so it composes with Ingress support: the chart passes
+`--watch-namespace` once per namespace when `ingress.watchNamespace` is set, and
+passes no `--watch-namespace` at all when Ingress is already cluster-wide (which
+covers the replica namespace). See
+[namespace-watching.md](namespace-watching.md).
+
+The gateway ServiceAccount is currently granted:
 
 | Resource | Access |
 |---|---|
