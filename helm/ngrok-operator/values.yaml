@@ -446,7 +446,7 @@ compute: {}
 #   remoteAccess:
 #     enabled: true
 #     replicaCount: 1
-#     # Defaults to a chart-created <release fullname>-compute namespace.
+#     # Defaults to a chart-created <operator namespace>-compute namespace.
 #     # A custom value must name an existing namespace.
 #     replicaNamespace: ""
 
