@@ -30,6 +30,7 @@ type remoteAccessRequest struct {
 	AccessKey   string `json:"access_key,omitempty"`
 	Endpoint    string `json:"endpoint,omitempty"`
 	AssignedURL string `json:"assigned_url,omitempty"`
+	Namespace   string `json:"namespace"`
 }
 
 type remoteAccessResponse struct {
@@ -40,13 +41,14 @@ type remoteAccessResponse struct {
 // configuration consumed by the Compute Kubernetes API gateway.
 type RemoteAccess struct {
 	client.Client
-	Log             logr.Logger
-	NgrokBaseClient *ngrok.BaseClient
-	ComputeBaseURL  string
-	Namespace       string
-	K8sOpName       string
-	GatewayName     string
-	Interval        time.Duration
+	Log              logr.Logger
+	NgrokBaseClient  *ngrok.BaseClient
+	ComputeBaseURL   string
+	Namespace        string
+	K8sOpName        string
+	GatewayName      string
+	ReplicaNamespace string
+	Interval         time.Duration
 
 	lastReportedState string
 	registered        bool
@@ -120,7 +122,7 @@ func (r *RemoteAccess) reconcile(ctx context.Context) error {
 		assignedURL = endpoint
 	}
 	if err := r.register(ctx, ko.Status.ID, remoteAccessRequest{
-		State: state, Endpoint: endpoint, AssignedURL: assignedURL,
+		State: state, Endpoint: endpoint, AssignedURL: assignedURL, Namespace: r.ReplicaNamespace,
 	}, nil); err != nil {
 		return err
 	}
@@ -143,7 +145,7 @@ func (r *RemoteAccess) provision(ctx context.Context, runnerID string) error {
 	}
 	var registration remoteAccessResponse
 	if err := r.register(ctx, runnerID, remoteAccessRequest{
-		State: "provisioning", AccessKey: accessKey,
+		State: "provisioning", AccessKey: accessKey, Namespace: r.ReplicaNamespace,
 	}, &registration); err != nil {
 		return err
 	}
