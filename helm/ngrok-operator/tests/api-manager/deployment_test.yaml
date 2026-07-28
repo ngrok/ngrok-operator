@@ -185,6 +185,18 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: '--compute-metadata={"poller":{"enabled":true}}'
+- it: Passes the Compute replica namespace
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+        replicaNamespace: isolated-replicas
+  template: api-manager/deployment.yaml
+  documentIndex: 0
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --compute-replica-namespace=isolated-replicas
 - it: Should pass bindings.serviceAnnotations and bindings.serviceLabels to the controller
   set:
     bindings:

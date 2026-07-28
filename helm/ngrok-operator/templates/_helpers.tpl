@@ -10,6 +10,11 @@ Expand the name of the chart.
 {{- printf "%s-compute-api" (include "ngrok-operator.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "ngrok-operator.computeReplicaNamespace" -}}
+{{- $defaultName := printf "%s-compute" (include "ngrok-operator.fullname" . | trunc 55 | trimSuffix "-") -}}
+{{- default $defaultName .Values.compute.remoteAccess.replicaNamespace | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{/*
 Create chart name and version as used by the chart label.
 */}}

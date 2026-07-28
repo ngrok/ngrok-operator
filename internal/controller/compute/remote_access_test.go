@@ -63,14 +63,16 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 	remote := &RemoteAccess{
 		Client: k8sClient, Log: logr.Discard(), NgrokBaseClient: apiClient,
 		ComputeBaseURL: computeBaseURL, Namespace: "ngrok", K8sOpName: "operator",
-		GatewayName: "operator-compute-api",
+		GatewayName: "operator-compute-api", ReplicaNamespace: "ngrok-compute",
 	}
 
 	require.NoError(t, remote.reconcile(ctx))
 	require.Len(t, requests, 2)
 	require.Equal(t, "provisioning", requests[0].State)
+	require.Equal(t, "ngrok-compute", requests[0].Namespace)
 	require.Len(t, requests[0].AccessKey, 43)
 	require.Equal(t, "ready", requests[1].State)
+	require.Equal(t, "ngrok-compute", requests[1].Namespace)
 	require.Empty(t, requests[1].AccessKey)
 	require.Equal(t, "https://ko-abc123.k8s.compute.internal", requests[1].AssignedURL)
 
@@ -89,7 +91,7 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 	restarted := &RemoteAccess{
 		Client: k8sClient, Log: logr.Discard(), NgrokBaseClient: apiClient,
 		ComputeBaseURL: computeBaseURL, Namespace: "ngrok", K8sOpName: "operator",
-		GatewayName: "operator-compute-api",
+		GatewayName: "operator-compute-api", ReplicaNamespace: "ngrok-compute",
 	}
 	require.NoError(t, restarted.reconcile(ctx))
 	require.Len(t, requests, 4)
@@ -137,7 +139,7 @@ func TestRemoteAccessReprovisionsDeletedConfigMap(t *testing.T) {
 			"api-key", ngrok.WithBaseURL(computeBaseURL), ngrok.WithHTTPClient(httpClient),
 		)),
 		ComputeBaseURL: computeBaseURL, Namespace: "ngrok", K8sOpName: "operator",
-		GatewayName: "operator-compute-api",
+		GatewayName: "operator-compute-api", ReplicaNamespace: "ngrok-compute",
 	}
 
 	require.NoError(t, remote.reconcile(ctx))
