@@ -21,8 +21,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
+	"slices"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -68,14 +70,14 @@ func init() {
 
 type agentManagerOpts struct {
 	// flags
-	releaseName    string
-	metricsAddr    string
-	probeAddr      string
-	serverAddr     string
-	description    string
-	managerName    string
-	watchNamespace string
-	zapOpts        *zap.Options
+	releaseName     string
+	metricsAddr     string
+	probeAddr       string
+	serverAddr      string
+	description     string
+	managerName     string
+	watchNamespaces []string
+	zapOpts         *zap.Options
 
 	// feature flags
 	enableFeatureIngress          bool
@@ -108,7 +110,7 @@ func agentCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
-	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for AgentEndpoint resources. Defaults to all namespaces.")
+	c.Flags().StringArrayVar(&opts.watchNamespaces, "watch-namespace", nil, "Namespace to watch for AgentEndpoint resources. May be repeated to watch several namespaces. Defaults to, and an empty value means, all namespaces.")
 
 	// agent(tunnel driver) flags
 	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
@@ -129,6 +131,26 @@ func agentCmd() *cobra.Command {
 	c.Flags().AddGoFlagSet(goFlagSet)
 
 	return c
+}
+
+// watchNamespaceCacheConfig turns the repeatable --watch-namespace flag into a
+// cache scope. Callers may pass the flag more than once to watch the union of
+// several namespaces — the Helm chart does this to watch both a user-specified
+// ingress namespace and the dedicated Compute replica namespace. An empty value
+// means "all namespaces", so it widens the scope rather than narrowing it: a
+// nil return tells the caller to leave DefaultNamespaces unset.
+func watchNamespaceCacheConfig(watchNamespaces []string) map[string]cache.Config {
+	if len(watchNamespaces) == 0 {
+		return nil
+	}
+	watched := make(map[string]cache.Config, len(watchNamespaces))
+	for _, ns := range watchNamespaces {
+		if ns == "" {
+			return nil
+		}
+		watched[ns] = cache.Config{}
+	}
+	return watched
 }
 
 func runAgentController(_ context.Context, opts agentManagerOpts) error {
@@ -171,11 +193,11 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 			},
 		},
 	}
-	if opts.watchNamespace != "" {
-		setupLog.Info("watching namespace", "namespace", opts.watchNamespace)
-		options.Cache.DefaultNamespaces = map[string]cache.Config{
-			opts.watchNamespace: {},
-		}
+	if watched := watchNamespaceCacheConfig(opts.watchNamespaces); watched != nil {
+		setupLog.Info("watching namespaces", "namespaces", slices.Sorted(maps.Keys(watched)))
+		options.Cache.DefaultNamespaces = watched
+	} else {
+		setupLog.Info("watching all namespaces")
 	}
 
 	// create default config and clientset for use outside the mgr.Start() blocking loop
