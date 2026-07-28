@@ -88,6 +88,71 @@ func TestAppReplicaPollerCreateResourcesWithoutPullSecret(t *testing.T) {
 	require.Empty(t, secrets.Items)
 }
 
+func TestAppReplicaPollerCreateResourcesWithGPUAndLimits(t *testing.T) {
+	ctx := context.Background()
+	poller := newAppReplicaPollerTestHarness(t)
+
+	replica := computeReplica{
+		ID:              "dplyrep_GPU",
+		ContainerImage:  "ghcr.io/acme/model:latest",
+		EnvironmentName: "Train",
+		ReplicaIndex:    0,
+		Endpoints: []replicaEndpoint{{
+			Name: "web",
+			URL:  "https://example.ngrok.app:8080",
+		}},
+		CPUMillicores: 500,
+		MemoryMiB:     2048,
+		GPUs:          1,
+	}
+
+	require.NoError(t, poller.createResources(ctx, logr.Discard(), replica))
+
+	var deploy appsv1.Deployment
+	require.NoError(t, poller.Get(ctx, client.ObjectKey{Namespace: "default", Name: "train-0-dplyrep-gpu"}, &deploy))
+
+	res := deploy.Spec.Template.Spec.Containers[0].Resources
+	const mib = int64(1024 * 1024)
+	require.Equal(t, "500m", res.Requests.Cpu().String())
+	require.Equal(t, 2048*mib, res.Requests.Memory().Value())
+	require.Equal(t, 2048*mib, res.Limits.Memory().Value())
+	gpuLimit := res.Limits[nvidiaGPUResource]
+	require.Equal(t, int64(1), gpuLimit.Value())
+	// CPU has no limit (compressible).
+	_, hasCPULimit := res.Limits[corev1.ResourceCPU]
+	require.False(t, hasCPULimit)
+
+	require.Equal(t, []corev1.Toleration{{
+		Key:      "nvidia.com/gpu",
+		Operator: corev1.TolerationOpExists,
+		Effect:   corev1.TaintEffectNoSchedule,
+	}}, deploy.Spec.Template.Spec.Tolerations)
+}
+
+func TestAppReplicaPollerCreateResourcesUnsetOmitsRequirements(t *testing.T) {
+	ctx := context.Background()
+	poller := newAppReplicaPollerTestHarness(t)
+
+	replica := computeReplica{
+		ID:              "dplyrep_NORES",
+		ContainerImage:  "docker.io/library/nginx:latest",
+		EnvironmentName: "Public",
+		ReplicaIndex:    0,
+		Endpoints: []replicaEndpoint{{
+			Name: "web",
+			URL:  "https://example.ngrok.app:8080",
+		}},
+	}
+
+	require.NoError(t, poller.createResources(ctx, logr.Discard(), replica))
+
+	var deploy appsv1.Deployment
+	require.NoError(t, poller.Get(ctx, client.ObjectKey{Namespace: "default", Name: "public-0-dplyrep-nores"}, &deploy))
+	require.Empty(t, deploy.Spec.Template.Spec.Containers[0].Resources.Requests)
+	require.Empty(t, deploy.Spec.Template.Spec.Containers[0].Resources.Limits)
+	require.Empty(t, deploy.Spec.Template.Spec.Tolerations)
+}
+
 func newAppReplicaPollerTestHarness(t *testing.T) *AppReplicaPoller {
 	t.Helper()
 
