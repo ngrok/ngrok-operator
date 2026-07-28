@@ -1,4 +1,4 @@
-{{- if .Values.ingress.enabled }}
+{{- if or .Values.ingress.enabled (and (hasKey .Values.compute "remoteAccess") .Values.compute.remoteAccess.enabled) }}
 # Operator-state RBAC for the agent: the agent reads the singleton
 # KubernetesOperator CR for drain state. The CR always lives in the release
 # namespace regardless of `watchNamespace`, and the agent's controller-runtime

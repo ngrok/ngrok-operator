@@ -17,7 +17,7 @@ tests:
       authtoken: test-authtoken
   asserts:
   - hasDocuments:
-      count: 5
+      count: 7
   - isKind:
       of: Namespace
     documentIndex: 0
@@ -64,6 +64,20 @@ tests:
       path: spec.template.spec.volumes[0].configMap.name
       value: RELEASE-NAME-ngrok-operator-compute-api
     documentIndex: 4
+  - isKind:
+      of: Role
+    documentIndex: 5
+  - equal:
+      path: metadata.namespace
+      value: RELEASE-NAME-ngrok-operator-compute
+    documentIndex: 5
+  - isKind:
+      of: RoleBinding
+    documentIndex: 6
+  - equal:
+      path: subjects[0].namespace
+      value: NAMESPACE
+    documentIndex: 6
 - it: Propagates image pull secrets to the gateway
   set:
     compute:
@@ -85,7 +99,7 @@ tests:
         replicaNamespace: existing-replicas
   asserts:
   - hasDocuments:
-      count: 4
+      count: 6
   - equal:
       path: metadata.namespace
       value: existing-replicas
