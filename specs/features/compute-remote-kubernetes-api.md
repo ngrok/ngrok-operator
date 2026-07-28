@@ -154,7 +154,7 @@ namespace. The gateway ServiceAccount is currently granted:
 | Pod metrics (`metrics.k8s.io`) | read |
 | Events | read, watch |
 | Services | read, watch, create, update, patch, delete |
-| `ngrok-container-registry-*` Secrets | read by name, create, update, patch, delete |
+| Secrets | read, list, create, update, patch, delete |
 | AgentEndpoints | read, watch, create, update, patch, delete |
 
 Exec, attach, port-forward, logs, proxy subresources, ServiceAccount token
