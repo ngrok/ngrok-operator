@@ -171,7 +171,7 @@ tests:
       path: spec.template.metadata.labels.team
       value: infra
     documentIndex: 4
-- it: Names the gateway resources consistently
+- it: Names and labels the gateway resources consistently
   set:
     compute:
       remoteAccess:
@@ -181,14 +181,40 @@ tests:
       path: metadata.name
       value: RELEASE-NAME-ngrok-operator-gateway
     documentIndex: 1 # ServiceAccount
+  - isSubset:
+      path: metadata.labels
+      content:
+        app.kubernetes.io/component: gateway
+    documentIndex: 1
   - equal:
       path: metadata.name
       value: RELEASE-NAME-ngrok-operator-gateway
     documentIndex: 4 # Deployment
+  - isSubset:
+      path: metadata.labels
+      content:
+        app.kubernetes.io/component: gateway
+    documentIndex: 4
+  - isSubset:
+      path: spec.selector.matchLabels
+      content:
+        app.kubernetes.io/component: gateway
+    documentIndex: 4
+  - isSubset:
+      path: spec.template.metadata.labels
+      content:
+        app.kubernetes.io/component: gateway
+    documentIndex: 4
   - equal:
       path: metadata.name
       value: RELEASE-NAME-ngrok-operator-gateway-agent
     documentIndex: 5 # agent Role in the replica namespace
+  # The replica namespace is a different component and keeps its own label.
+  - isSubset:
+      path: metadata.labels
+      content:
+        app.kubernetes.io/component: compute-replicas
+    documentIndex: 0 # Namespace
 - it: Bases the default replica namespace on the operator namespace
   release:
     namespace: operator-system
