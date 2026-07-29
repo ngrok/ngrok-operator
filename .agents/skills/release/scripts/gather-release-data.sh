@@ -96,7 +96,12 @@ gh auth status &>/dev/null 2>&1 || die "gh not authenticated. Run: gh auth login
 REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null || echo "ngrok/ngrok-operator")
 
 log "Fetching latest from origin..."
-git fetch origin --quiet
+git fetch origin --quiet --tags
+
+if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+  log "Local clone is shallow (fetch-depth-limited checkout) — deepening to full history so PR ranges are computed correctly..."
+  git fetch origin --quiet --unshallow --tags
+fi
 
 CONTAINER_TAG="${CONTAINER_TAG_OVERRIDE:-$(find_latest_tag 'ngrok-operator-*')}"
 HELM_TAG="${HELM_TAG_OVERRIDE:-$(find_latest_tag 'helm-chart-ngrok-operator-*')}"
