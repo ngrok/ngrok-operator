@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.24.0-rc.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.23.0...helm-chart-ngrok-operator-0.24.0-rc.1
 
+Before upgrading, review the
+[Helm chart 0.23 to 0.24 upgrade guide](../../docs/upgrading-to-0.24.md).
+
 - Update ngrok-operator image version to `0.22.0-rc.1`
 - Update Helm chart version to `0.24.0-rc.1`
 - Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.4.0-rc.1`
