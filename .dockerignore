@@ -1,16 +1,12 @@
 # More info: https://docs.docker.com/engine/reference/builder/#dockerignore-file
-# Ignore all files then explicitly whitelist ones we want
+# Ignore all files then explicitly whitelist ones we want.
+#
+# The binary is built on the host (see scripts/build.sh), so the image build
+# needs nothing from the source tree beyond the binaries and the CA bundle.
 *
-# Build script (shared with Makefile)
-!scripts/build.sh
-# Used to inject version build info
-!VERSION
-# Code
-!api/
-!cmd/
-!hack/
-!internal/
-!pkg/
+# Binaries built by `make image-binaries`, one per target platform
+!bin/ngrok-operator-*
+# CA certificates baked into the image
 !certs/*
 !**/*.go
 !**/*.mod

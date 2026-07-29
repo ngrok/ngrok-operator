@@ -67,7 +67,11 @@ jobs:
     needs:
     - changes
     - basic-tests
-    if: needs.changes.outputs.go == 'true'
+    # A nixpkgs bump changes the Go toolchain that compiles the binaries baked
+    # into the image, so this needs to run on nix changes too.
+    if: |
+      needs.changes.outputs.go == 'true' ||
+      needs.changes.outputs.nix == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -81,6 +85,12 @@ jobs:
       uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       with:
         platforms: ${{ env.DOCKER_BUILDX_PLATFORMS }}
+    - name: Setup Nix
+      uses: ./.github/actions/nix-setup
+    # The Dockerfile only COPYs prebuilt binaries, so they must exist before
+    # the image build. See scripts/build.sh.
+    - name: Build binaries
+      run: make image-binaries IMAGE_PLATFORMS=${{ env.DOCKER_BUILDX_PLATFORMS }}
     - name: Build
       uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
       with:

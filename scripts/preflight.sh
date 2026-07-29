@@ -2,10 +2,15 @@
 
 set -eu -o pipefail
 
+# The required minor comes from go.mod rather than being hardcoded here, so
+# that a Go version bump only touches flake.nix and go.mod. The exact patch
+# version is whatever flake.nix pins, and is not checked: the image is built
+# from that same toolchain (see scripts/build.sh), so there is nothing to drift.
+REQUIRED_MINOR="$(go mod edit -json | jq -r '.Go' | cut -d. -f1,2)"
 GOVERSION="$(go env GOVERSION || echo "not installed")"
 
-if ! [[ "$GOVERSION" == "go1.26" ||  "$GOVERSION" = "go1.26."* ]]; then
-  echo "Detected go version $GOVERSION, but 1.26 is required"
+if ! [[ "$GOVERSION" == "go${REQUIRED_MINOR}" || "$GOVERSION" = "go${REQUIRED_MINOR}."* ]]; then
+  echo "Detected go version $GOVERSION, but ${REQUIRED_MINOR} is required"
   exit 1
 fi
 
