@@ -16,6 +16,34 @@ All resources are consolidated into a single group in v1:
 |------------------|---------|---------------------------------------------------------------------------------------|
 | `ngrok.com`      | `v1`    | AgentEndpoint, CloudEndpoint, KubernetesOperator, TrafficPolicy, Domain, IPPolicy, BoundEndpoint |
 
+## Status Field Changes
+
+### KubernetesOperator
+
+The KubernetesOperator status was restructured around standard status conditions
+ahead of 1.0. Tooling reading the old fields must switch to the replacements:
+
+| Removed field              | Replacement                                                                 |
+|----------------------------|------------------------------------------------------------------------------|
+| `registrationStatus`       | `Registered` condition (`True`/`False`; reason `Pending` before registration) |
+| `registrationErrorCode`    | `Registered` condition message for registration failures (the reason is the stable token `RegistrationFailed`) |
+| `errorMessage`             | `Ready` condition message                                                    |
+| `drainStatus`              | `Draining` condition (`True` = in progress/retrying, `False` + reason `DrainCompleted` = done) |
+| `drainMessage`             | `Draining` condition message                                                 |
+| `drainProgress` (`"X/Y"`)  | `drain.drainedResources` (successes only) / `drain.failedResources` / `drain.totalResources` integers |
+| `drainErrors`              | `drain.errors`                                                               |
+
+`Registered.message` describes registration failures. Failures after a remote
+registration already exists leave `Registered=True` and are reported through
+`Ready=False` and `Ready.message`.
+
+`enabledFeatures` changed from a comma-separated string to a `[]string`. The
+v1alpha1 Go type contains a temporary, read-only compatibility decoder that
+accepts both representations during an in-place upgrade. Current versions
+always write an array, so the next status update passively normalizes the
+stored value. The decoder can be removed once upgrades from versions that
+wrote the string representation are outside the supported upgrade window.
+
 ## Upgrade Path
 
 A conversion webhook handles in-place conversion from the old group/version combinations to `ngrok.com/v1`. The webhook is installed automatically as part of the operator upgrade.

@@ -108,10 +108,10 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error) {
 
 	for _, h := range handlers {
 		d.Log.Info("Draining resource type", "type", h.name)
-		completed, total, errs := d.drainList(ctx, h.name, h.list, h.skipNoMatch, h.drainFunc)
+		completed, total, failed, errs := d.drainList(ctx, h.name, h.list, h.skipNoMatch, h.drainFunc)
 		result.Completed += completed
 		result.Total += total
-		result.Failed += len(errs)
+		result.Failed += failed
 		result.Errors = append(result.Errors, errs...)
 		d.Log.Info("Finished draining resource type",
 			"type", h.name,
@@ -196,13 +196,13 @@ func (d *Drainer) drainList(
 	list client.ObjectList,
 	skipNoMatch bool,
 	drainOne func(context.Context, client.Object) error,
-) (completed, total int, errs []error) {
+) (completed, total, failed int, errs []error) {
 	if err := d.Client.List(ctx, list); err != nil {
 		if skipNoMatch && meta.IsNoMatchError(err) {
 			d.Log.V(1).Info(kind + " CRD not installed, skipping")
-			return 0, 0, nil
+			return 0, 0, 0, nil
 		}
-		return 0, 0, []error{fmt.Errorf("failed to list %s: %w", kind, err)}
+		return 0, 0, 0, []error{fmt.Errorf("failed to list %s: %w", kind, err)}
 	}
 
 	if err := meta.EachListItem(list, func(obj runtime.Object) error {
@@ -216,14 +216,15 @@ func (d *Drainer) drainList(
 
 		total++
 		if err := drainOne(ctx, co); err != nil {
+			failed++
 			errs = append(errs, err)
 		} else {
 			completed++
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, []error{fmt.Errorf("failed to iterate %s list: %w", kind, err)}
+		return completed, total, failed, append(errs, fmt.Errorf("failed to iterate %s list: %w", kind, err))
 	}
 
-	return completed, total, errs
+	return completed, total, failed, errs
 }

@@ -386,7 +386,7 @@ func TestDrainer_drainList_ListError(t *testing.T) {
 		Policy: ngrokv1alpha1.DrainPolicyRetain,
 	}
 
-	completed, total, errs := drainer.drainList(
+	completed, total, failed, errs := drainer.drainList(
 		context.Background(),
 		"Domain",
 		&ingressv1alpha1.DomainList{},
@@ -396,6 +396,7 @@ func TestDrainer_drainList_ListError(t *testing.T) {
 
 	assert.Equal(t, 0, completed)
 	assert.Equal(t, 0, total)
+	assert.Equal(t, 0, failed)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "failed to list Domain")
 	assert.Contains(t, errs[0].Error(), "connection refused")
@@ -428,7 +429,7 @@ func TestDrainer_drainList_NoMatchError_SkipsOptionalCRD(t *testing.T) {
 		Policy: ngrokv1alpha1.DrainPolicyRetain,
 	}
 
-	completed, total, errs := drainer.drainList(
+	completed, total, failed, errs := drainer.drainList(
 		context.Background(),
 		"HTTPRoute",
 		&gatewayv1.HTTPRouteList{},
@@ -438,6 +439,7 @@ func TestDrainer_drainList_NoMatchError_SkipsOptionalCRD(t *testing.T) {
 
 	assert.Equal(t, 0, completed)
 	assert.Equal(t, 0, total)
+	assert.Equal(t, 0, failed)
 	assert.Len(t, errs, 0, "should skip NoMatch error when skipNoMatch is true")
 }
 

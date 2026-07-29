@@ -14,6 +14,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -140,7 +141,7 @@ func (r *BoundEndpointPoller) getKubernetesOperatorId(ctx context.Context) strin
 				continue
 			}
 
-			if ko.Status.RegistrationStatus != ngrokv1alpha1.KubernetesOperatorRegistrationStatusSuccess {
+			if !meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered) {
 				log.V(1).Info("KubernetesOperator not yet registered, waiting...")
 				continue
 			}
