@@ -1,4 +1,5 @@
 {{- if and (hasKey .Values.compute "remoteAccess") .Values.compute.remoteAccess.enabled }}
+{{- $component := "gateway" }}
 {{- $name := include "ngrok-operator.computeGatewayName" . }}
 {{- $replicaNamespace := include "ngrok-operator.computeReplicaNamespace" . }}
 {{- /*
@@ -28,7 +29,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
-    app.kubernetes.io/component: compute-api
+    app.kubernetes.io/component: {{ $component }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -79,13 +80,13 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
-    app.kubernetes.io/component: compute-api
+    app.kubernetes.io/component: {{ $component }}
 spec:
   replicas: {{ $gateway.replicaCount }}
   selector:
     matchLabels:
       {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: compute-api
+      app.kubernetes.io/component: {{ $component }}
   template:
     metadata:
       {{- if or $gateway.podAnnotations .Values.podAnnotations }}
@@ -101,7 +102,7 @@ spec:
         {{- if .Values.podLabels }}
           {{- toYaml .Values.podLabels | nindent 8 }}
         {{- end }}
-        app.kubernetes.io/component: compute-api
+        app.kubernetes.io/component: {{ $component }}
     spec:
       {{- if $gateway.priorityClassName }}
       priorityClassName: {{ $gateway.priorityClassName | quote }}
@@ -113,8 +114,8 @@ spec:
       affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
       {{- else }}
       affinity:
-        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" "compute-api" "context" $) | nindent 10 }}
-        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" "compute-api" "context" $) | nindent 10 }}
+        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
         nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
       {{- end }}
       {{- with $gateway.nodeSelector }}
