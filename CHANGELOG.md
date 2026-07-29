@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.22.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0-rc.1
+
+### Breaking Changes
+- Overhauled `KubernetesOperator` status: removed the `registrationStatus`, `registrationErrorCode`, `errorMessage`, `drainStatus`, `drainMessage`, `drainProgress`, and `drainErrors` fields in favor of standard `Ready`, `Registered`, and `Draining` conditions plus a structured `status.drain` object. `status.enabledFeatures` is now a `[]string`, and the `kubectl get kubernetesoperator` `Status` column has been replaced by `Ready`. See `specs/migration-v1.md` for the migration table. by @alex-bezek in [#846](https://github.com/ngrok/ngrok-operator/pull/846)
+- CRD `spec.metadata` (Domain, IPPolicy spec + rules, KubernetesOperator, CloudEndpoint, AgentEndpoint) is now a schemaless `map[string]string` (with backward-compatible acceptance of the legacy JSON-string form during the migration window). Typed Go consumers of `api/**/v1alpha1` must update — the `Metadata` field changed from `string` to `json.RawMessage`. Helm values, kustomize overlays, and raw manifests remain wire-compatible. by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
+
+### Added
+- Support native `map[string]string` for CRD `spec.metadata` fields, with legacy string form still accepted by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
+
+### Changed
+- `KubernetesOperator` drain progress is now reported through the structured `status.drain.{drainedResources, failedResources, totalResources, errors}` object and the `Draining` condition instead of the previous string-based `drainProgress`/`drainStatus` fields by @alex-bezek in [#846](https://github.com/ngrok/ngrok-operator/pull/846)
+- Normalize CRD metadata to a canonical, sorted-key representation before sending to the ngrok API to avoid spurious diffs and unnecessary updates by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
+
 ## 0.21.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.3...ngrok-operator-0.21.0
 

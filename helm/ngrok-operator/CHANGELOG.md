@@ -5,6 +5,16 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.24.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.23.0...helm-chart-ngrok-operator-0.24.0-rc.1
+
+- Update ngrok-operator image version to `0.22.0-rc.1`
+- Update Helm chart version to `0.24.0-rc.1`
+- Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.4.0-rc.1`
+
+### Changed
+- Clarify `ngrokMetadata` value description — it applies only to Ingress/Gateway-generated resources; set `spec.metadata` directly on CRDs. Updated `values.yaml`, `values.schema.json`, and README to match. by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
+
 ## 0.23.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.2...helm-chart-ngrok-operator-0.23.0
 

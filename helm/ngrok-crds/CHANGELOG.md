@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## 0.4.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.3.0...helm-chart-ngrok-crds-0.4.0-rc.1
+
+- Update CRDs Helm chart version to `0.4.0-rc.1`
+
+### Breaking Changes
+- `KubernetesOperator` CRD status overhaul: removed `registrationStatus`, `registrationErrorCode`, `errorMessage`, `drainStatus`, `drainMessage`, `drainProgress`, and `drainErrors` in favor of standard conditions (`Ready`, `Registered`, `Draining`) plus a structured `status.drain` object. `status.enabledFeatures` is now `[]string`. Printer columns: `Status` replaced by `Ready`; `Reason`, `Drained`, and `Drain Total` added. by @alex-bezek in [#846](https://github.com/ngrok/ngrok-operator/pull/846)
+- CRD `spec.metadata` (Domain, IPPolicy spec + rules, KubernetesOperator, CloudEndpoint, AgentEndpoint) is now schemaless (`x-kubernetes-preserve-unknown-fields`) and accepts a `map[string]string`. The legacy JSON-string form is still accepted during the migration window and will be dropped in a later cleanup release. by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
+
+### Added
+- Support native `map[string]string` for CRD `spec.metadata` fields, with backward-compatible acceptance of the legacy string form by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
+
 ## 0.3.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.2.1...helm-chart-ngrok-crds-0.3.0
 
