@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.22.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0-rc.1
+
+### Breaking Changes
+- Migrated ingress class handling to the new `ngrok.com` API group by @alex-bezek in [#819](https://github.com/ngrok/ngrok-operator/pull/819)
+- Migrated finalizers to the `ngrok.com` API group, writing the legacy finalizer while dual-reading both by @alex-bezek in [#820](https://github.com/ngrok/ngrok-operator/pull/820)
+- Migrated internally written labels and annotations from `k8s.ngrok.com` to `ngrok.com` by @alex-bezek in [#821](https://github.com/ngrok/ngrok-operator/pull/821)
+- Set up passive migrations to let CloudEndpoints reference NgrokTrafficPolicy resources under the new API group by @alex-bezek in [#823](https://github.com/ngrok/ngrok-operator/pull/823)
+- Migrated default metadata handling from the legacy kubernetes-ingress-controller by @alex-bezek in [#838](https://github.com/ngrok/ngrok-operator/pull/838)
+- Cleaned up user-facing `k8s.ngrok.com` references to use the new `ngrok.com` API group by @alex-bezek in [#849](https://github.com/ngrok/ngrok-operator/pull/849)
+- Overhauled KubernetesOperator status: replaced phase enums with structured Conditions and added structured drain reporting by @alex-bezek in [#846](https://github.com/ngrok/ngrok-operator/pull/846)
+- Consolidated status conditions across CRDs by @jonstacks in [#828](https://github.com/ngrok/ngrok-operator/pull/828)
+- Cleaned up Domain and IPPolicy status: dropped spec-duplicated fields and the dead `Progressing` condition by @alex-bezek in [#851](https://github.com/ngrok/ngrok-operator/pull/851)
+- Tightened CRD field validation, added `omitempty` on optional fields, and fixed Domain schema issues by @alex-bezek in [#843](https://github.com/ngrok/ngrok-operator/pull/843)
+- Restricted `clientCertificateRefs` on AgentEndpoint to same-namespace secrets by @jonstacks in [#826](https://github.com/ngrok/ngrok-operator/pull/826)
+- Support `map[string]string` for CRD metadata fields (K8SOP-295) by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
+- Updated Go and third-party dependencies by @jonstacks in [#822](https://github.com/ngrok/ngrok-operator/pull/822)
+
+### Added
+- Support agent TLS termination on AgentEndpoint by @jonstacks in [#814](https://github.com/ngrok/ngrok-operator/pull/814)
+- Added KubernetesOperator certificate renewal and per-connection forwarder cert reload for bindings by @copilot-swe-agent in [#818](https://github.com/ngrok/ngrok-operator/pull/818)
+- Added top-level `status.observedGeneration` to all CRDs by @alex-bezek in [#845](https://github.com/ngrok/ngrok-operator/pull/845)
+- Added additional CRD status fields and validation by @alex-bezek in [#850](https://github.com/ngrok/ngrok-operator/pull/850)
+- Allow chainsaw tests to reserve domains via a configurable suffix by @jonstacks in [#827](https://github.com/ngrok/ngrok-operator/pull/827)
+
+### Changed
+- Replaced `NgrokTrafficPolicy.status.policy` with `Ready`/`Valid` conditions and added printer columns by @alex-bezek in [#852](https://github.com/ngrok/ngrok-operator/pull/852)
+- Aligned IPPolicy and CloudEndpoint predicates with the common controller pattern by @alex-bezek in [#854](https://github.com/ngrok/ngrok-operator/pull/854)
+- Used `maps.Equal` when the map type is known at compile time by @jonstacks in [#825](https://github.com/ngrok/ngrok-operator/pull/825)
+
+### Fixed
+- Skip unparseable endpoints in the BoundEndpoint poller by @jonstacks in [#813](https://github.com/ngrok/ngrok-operator/pull/813)
+
 ## 0.21.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.20.3...ngrok-operator-0.21.0
 
