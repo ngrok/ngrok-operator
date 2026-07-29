@@ -5,6 +5,21 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.24.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.23.0...helm-chart-ngrok-operator-0.24.0-rc.1
+
+- Update ngrok-operator image version to `0.22.0-rc.1`
+- Update Helm chart version to `0.24.0-rc.1`
+- Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.4.0-rc.1`
+
+### Breaking Changes
+- Removed default resource requests from the cleanup hook helm values to follow chart conventions by @alex-bezek in [#839](https://github.com/ngrok/ngrok-operator/pull/839)
+- Tightened operator RBAC further and updated the RBAC specs by @alex-bezek in [#844](https://github.com/ngrok/ngrok-operator/pull/844)
+- Support `map[string]string` for CRD metadata fields (K8SOP-295) by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
+
+### Added
+- Added printer columns for `NgrokTrafficPolicy` (`Ready`/`Valid` conditions) by @alex-bezek in [#852](https://github.com/ngrok/ngrok-operator/pull/852)
+
 ## 0.23.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.2...helm-chart-ngrok-operator-0.23.0
 
