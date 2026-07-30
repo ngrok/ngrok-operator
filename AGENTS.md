@@ -97,4 +97,7 @@ make undeploy               # Remove from cluster
 - Manage finalizers on resource deletion to clean up external resources
 - Requeue on transient ngrok API errors (return `ctrl.Result{Requeue: true}`)
 - Prefer `BaseController` helpers over raw client operations
-
+- The Go version lives only in `flake.nix`. The `Dockerfile` has no builder
+  stage: binaries are cross-compiled on the host by `scripts/build.sh` into
+  `bin/ngrok-operator-<os>-<arch>` and `COPY`d into distroless. Don't reintroduce
+  a `golang:` base image — that is what created the version drift this replaced.
