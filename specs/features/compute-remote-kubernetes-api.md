@@ -161,16 +161,17 @@ The gateway ServiceAccount is currently granted:
 | Deployments | read, watch, create, update, patch, delete |
 | ReplicaSets | read, watch |
 | Pods | read, watch |
+| Pod logs | read |
 | Pod metrics (`metrics.k8s.io`) | read |
 | Events | read, watch |
 | Services | read, watch, create, update, patch, delete |
 | Secrets | read, list, create, update, patch, delete |
 | AgentEndpoints | read, watch, create, update, patch, delete |
 
-Exec, attach, port-forward, logs, proxy subresources, ServiceAccount token
-creation, RBAC, impersonation, cluster-scoped resources, and other namespaces
-are denied by the configured Role. Broadening that Role immediately broadens
-the remote API surface without requiring a gateway change.
+Exec, attach, port-forward, proxy subresources, ServiceAccount token creation,
+RBAC, impersonation, cluster-scoped resources, and other namespaces are denied
+by the configured Role. Broadening that Role immediately broadens the remote
+API surface without requiring a gateway change.
 
 The poller labels every managed object with `ngrok-id=<replica-id>`. Compute
 SHOULD establish list/watch streams using `resourceVersion` and MUST perform a
