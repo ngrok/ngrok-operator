@@ -38,8 +38,15 @@ tests:
       value: NAMESPACE
     documentIndex: 3
   - contains:
-      path: rules[5].verbs
+      path: rules[6].verbs
       content: list
+    documentIndex: 2
+  - contains:
+      path: rules
+      content:
+        apiGroups: [""]
+        resources: ["pods/log"]
+        verbs: ["get"]
     documentIndex: 2
   - isKind:
       of: Deployment
