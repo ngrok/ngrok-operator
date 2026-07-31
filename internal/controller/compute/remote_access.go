@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	ngrok "github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,12 +39,13 @@ type remoteAccessResponse struct {
 }
 
 // RemoteAccess provisions an ephemeral bearer key and the internal endpoint
-// configuration consumed by the Compute Kubernetes API gateway.
+// configuration consumed by the Compute Kubernetes API gateway. Access is
+// published against the ship runner identity, so the operator registers as a
+// runner (idempotent on the operator ID) before its first publication.
 type RemoteAccess struct {
 	client.Client
 	Log              logr.Logger
-	NgrokBaseClient  *ngrok.BaseClient
-	ComputeBaseURL   string
+	RunnerAPI        *RunnerClient
 	Namespace        string
 	K8sOpName        string
 	GatewayName      string
@@ -54,6 +54,7 @@ type RemoteAccess struct {
 
 	lastReportedReady *bool
 	registered        bool
+	runnerID          string
 }
 
 // NeedLeaderElection ensures only one api-manager instance provisions and
@@ -87,8 +88,16 @@ func (r *RemoteAccess) reconcile(ctx context.Context) error {
 		return nil
 	}
 
+	if r.runnerID == "" {
+		runnerID, err := r.RunnerAPI.Register(ctx, ko.Status.ID)
+		if err != nil {
+			return fmt.Errorf("register compute runner: %w", err)
+		}
+		r.runnerID = runnerID
+	}
+
 	if !r.registered {
-		if err := r.provision(ctx, ko.Status.ID); err != nil {
+		if err := r.provision(ctx, r.runnerID); err != nil {
 			return err
 		}
 	}
@@ -97,7 +106,7 @@ func (r *RemoteAccess) reconcile(ctx context.Context) error {
 	endpointConfigKey := client.ObjectKey{Namespace: r.Namespace, Name: r.GatewayName}
 	if err := r.Get(ctx, endpointConfigKey, &endpointConfig); apierrors.IsNotFound(err) {
 		r.registered = false
-		if err := r.provision(ctx, ko.Status.ID); err != nil {
+		if err := r.provision(ctx, r.runnerID); err != nil {
 			return err
 		}
 		if err := r.Get(ctx, endpointConfigKey, &endpointConfig); err != nil {
@@ -117,14 +126,14 @@ func (r *RemoteAccess) reconcile(ctx context.Context) error {
 		return err
 	}
 	ready := err == nil && deployment.Status.AvailableReplicas > 0
-	if err := r.register(ctx, ko.Status.ID, remoteAccessRequest{
+	if err := r.RunnerAPI.PublishKubernetesAccess(ctx, r.runnerID, remoteAccessRequest{
 		Namespace: r.ReplicaNamespace, Ready: ready,
 	}, nil); err != nil {
 		return err
 	}
 	if r.lastReportedReady == nil || *r.lastReportedReady != ready {
 		r.Log.Info("reported remote Kubernetes API access state",
-			"runner_id", ko.Status.ID,
+			"runner_id", r.runnerID,
 			"ready", ready,
 			"endpoint", endpoint,
 		)
@@ -139,7 +148,7 @@ func (r *RemoteAccess) provision(ctx context.Context, runnerID string) error {
 		return err
 	}
 	var registration remoteAccessResponse
-	if err := r.register(ctx, runnerID, remoteAccessRequest{
+	if err := r.RunnerAPI.PublishKubernetesAccess(ctx, runnerID, remoteAccessRequest{
 		AccessKey: accessKey, Namespace: r.ReplicaNamespace,
 	}, &registration); err != nil {
 		return err
@@ -182,20 +191,6 @@ func (r *RemoteAccess) provision(ctx context.Context, runnerID string) error {
 		"gateway", r.GatewayName,
 	)
 	return nil
-}
-
-func (r *RemoteAccess) register(ctx context.Context, runnerID string, request remoteAccessRequest, response *remoteAccessResponse) error {
-	u, err := url.Parse(fmt.Sprintf("%s/v1/runners/%s/kubernetes-access", r.ComputeBaseURL, url.PathEscape(runnerID)))
-	if err != nil {
-		return err
-	}
-	// Passing a typed nil pointer as interface{} produces a non-nil interface.
-	// Pass a literal nil so ngrok-api-go does not try to decode an intentionally
-	// empty lifecycle response.
-	if response == nil {
-		return r.NgrokBaseClient.Do(ctx, "PUT", u, request, nil)
-	}
-	return r.NgrokBaseClient.Do(ctx, "PUT", u, request, response)
 }
 
 func newAccessKey() (accessKey, accessKeyHash string, err error) {
