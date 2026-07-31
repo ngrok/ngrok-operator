@@ -417,21 +417,6 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	// please attach these to a feature set
 	// +kubebuilder:scaffold:builder
 
-	// Always register the ngrok KubernetesOperator controller. It is independent of the feature set.
-	if err := (&ngrokcontroller.KubernetesOperatorReconciler{
-		Client:            mgr.GetClient(),
-		Log:               ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
-		Scheme:            mgr.GetScheme(),
-		Recorder:          mgr.GetEventRecorder("kubernetes-operator-controller"),
-		K8sOpNamespace:    opts.namespace,
-		K8sOpName:         opts.releaseName,
-		NgrokClientset:    ngrokClientset,
-		DrainOrchestrator: drainOrchestrator,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "KubernetesOperator")
-		os.Exit(1)
-	}
-
 	computeMode := resolveComputeMode(opts.computeMetadata, opts.computeRemoteAccess)
 	if computeMode.legacyEnabledConfigured {
 		setupLog.Info("compute.enabled is deprecated; use compute.poller.enabled")
@@ -440,11 +425,48 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		setupLog.Info("remote access enabled; app-replica poller will not start")
 	}
 
+	// Runner protocol client for compute runners. It is shared by the
+	// app-replica poller (register + status exchange), the remote-access
+	// publisher (registration precedes access publication), and the
+	// KubernetesOperator deletion path (decommission on permanent removal).
+	var computeRunnerClient *computecontroller.RunnerClient
+	computeMeta := computecontroller.ParseComputeMetadata(opts.computeMetadata)
+	if computeMode.pollerEnabled || opts.computeRemoteAccess {
+		computeRunnerClient = &computecontroller.RunnerClient{
+			NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig),
+			ComputeBaseURL:  opts.computeBaseURL,
+			JoinKey:         computeMeta.PoolJoinKey,
+			Description:     computeMeta.Description,
+			Metadata:        computeMeta.Metadata,
+			Version:         version.GetVersion(),
+		}
+	}
+	var decommissionComputeRunner func(context.Context, string) error
+	if computeRunnerClient != nil {
+		decommissionComputeRunner = computeRunnerClient.DecommissionByKubernetesOperatorID
+	}
+
+	// Always register the ngrok KubernetesOperator controller. It is independent of the feature set.
+	if err := (&ngrokcontroller.KubernetesOperatorReconciler{
+		Client:                    mgr.GetClient(),
+		Log:                       ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
+		Scheme:                    mgr.GetScheme(),
+		Recorder:                  mgr.GetEventRecorder("kubernetes-operator-controller"),
+		K8sOpNamespace:            opts.namespace,
+		K8sOpName:                 opts.releaseName,
+		NgrokClientset:            ngrokClientset,
+		DrainOrchestrator:         drainOrchestrator,
+		DecommissionComputeRunner: decommissionComputeRunner,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "KubernetesOperator")
+		os.Exit(1)
+	}
+
 	if opts.computeRemoteAccess {
 		if err := mgr.Add(&computecontroller.RemoteAccess{
 			Client: mgr.GetClient(), Log: ctrl.Log.WithName("controllers").WithName("ComputeRemoteAccess"),
 			Namespace: opts.namespace, K8sOpName: opts.releaseName,
-			NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig), ComputeBaseURL: opts.computeBaseURL,
+			RunnerAPI:   computeRunnerClient,
 			GatewayName: opts.computeGatewayName, ReplicaNamespace: opts.computeReplicaNamespace,
 			Interval: 10 * time.Second,
 		}); err != nil {
@@ -452,6 +474,13 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		}
 	}
 
+	// App-replica poller: polls the runner status exchange and reconciles
+	// Deployments. Only run it for poll-mode runners (self-hosted / VM groups).
+	// Server-reconciled pools (DOKS/LKE) install the operator agent-only with
+	// the poller disabled; there compute converges replicas directly via the
+	// cluster API, and running the poller would reap compute's resources as
+	// orphans (it polls an empty desired set and deletes everything labeled with
+	// a replica id). Remote access likewise overrides the poller.
 	if computeMode.pollerEnabled {
 		if err := mgr.Add(&computecontroller.AppReplicaPoller{
 			Client:          mgr.GetClient(),
@@ -459,8 +488,8 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 			Namespace:       opts.namespace,
 			K8sOpName:       opts.releaseName,
 			K8sOpNamespace:  opts.namespace,
-			NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig),
-			ComputeBaseURL:  opts.computeBaseURL,
+			RunnerAPI:       computeRunnerClient,
+			ComputeMeta:     computeMeta,
 			PollingInterval: 3 * time.Second,
 		}); err != nil {
 			return fmt.Errorf("unable to add AppReplicaPoller: %w", err)

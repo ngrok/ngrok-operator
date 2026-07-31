@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
-	ngrok "github.com/ngrok/ngrok-api-go/v7"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -56,11 +57,6 @@ type computeReplica struct {
 	GPUs          int32 `json:"gpus"`
 }
 
-// computeReplicaList represents the response from the runner replicas endpoint.
-type computeReplicaList struct {
-	Replicas []computeReplica `json:"replicas"`
-}
-
 // urlPort extracts the port from a URL string. If no port is specified, returns 443.
 func urlPort(rawURL string) (int, error) {
 	u, err := url.Parse(rawURL)
@@ -96,8 +92,16 @@ func pullSecretName(registryID string) string {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;create;update
 // +kubebuilder:rbac:groups=ngrok.k8s.ngrok.com,resources=agentendpoints,verbs=get;list;watch;create;update;delete
 
-// AppReplicaPoller polls the ngrok Compute Replicas API for app-replica objects
-// and reconciles them as Deployments, Services, and AgentEndpoints in the cluster.
+// errRunnerDecommissioned signals that this operator identity has been
+// decommissioned server-side: a terminal condition that must not be retried.
+var errRunnerDecommissioned = errors.New("runner identity is decommissioned")
+
+// registerRetryInterval is the backoff between failed registration attempts.
+const registerRetryInterval = 30 * time.Second
+
+// AppReplicaPoller registers with the ship runner protocol and exchanges
+// status with it on an interval, reconciling the desired replica set as
+// Deployments, Services, and AgentEndpoints in the cluster.
 type AppReplicaPoller struct {
 	client.Client
 	Log logr.Logger
@@ -105,76 +109,171 @@ type AppReplicaPoller struct {
 	// Namespace is where resources are managed.
 	Namespace string
 
-	// K8sOpName is the name of the KubernetesOperator CR to look up for the runner ID.
+	// K8sOpName is the name of the KubernetesOperator CR to look up for the
+	// operator's registered identity.
 	K8sOpName string
 
 	// K8sOpNamespace is the namespace of the KubernetesOperator CR.
 	K8sOpNamespace string
 
-	// NgrokBaseClient is the ngrok API base client.
-	NgrokBaseClient *ngrok.BaseClient
+	// RunnerAPI speaks the ship runner protocol (register/status/decommission).
+	RunnerAPI *RunnerClient
 
-	// ComputeBaseURL is the base URL of the compute service.
-	ComputeBaseURL string
+	// ComputeMeta is the parsed --compute-metadata block (scheduler props etc.).
+	ComputeMeta ComputeMetadata
 
-	// PollingInterval is how often to poll the ngrok API.
+	// PollingInterval is the status exchange cadence.
 	PollingInterval time.Duration
 
 	runnerID string
-	stopCh   chan struct{}
+	// needsInitialStatus is set after each (re-)registration so the next
+	// status call uploads the runner facts once; steady-state ticks send an
+	// empty body and the server keeps the prior values.
+	needsInitialStatus bool
 }
 
 // Start implements manager.Runnable.
 func (r *AppReplicaPoller) Start(ctx context.Context) error {
 	log := ctrl.LoggerFrom(ctx).WithName("AppReplicaPoller")
 
-	r.runnerID = r.waitForRunnerID(ctx, log)
-	if r.runnerID == "" {
-		log.Info("Context canceled before runner ID was available, not starting")
+	kubernetesOperatorID := r.waitForKubernetesOperatorID(ctx, log)
+	if kubernetesOperatorID == "" {
+		log.Info("Context canceled before KubernetesOperator ID was available, not starting")
 		return nil
 	}
 
-	log.Info("Starting app-replica polling routine", "runner_id", r.runnerID)
-	r.stopCh = make(chan struct{})
-	defer close(r.stopCh)
+	if err := r.register(ctx, log, kubernetesOperatorID); err != nil {
+		if errors.Is(err, errRunnerDecommissioned) {
+			r.logTerminalDecommission(log, err)
+		}
+		return nil
+	}
 
-	go r.pollLoop(ctx, log)
-
-	<-ctx.Done()
-	log.Info("Stopping app-replica polling routine")
-	return nil
-}
-
-func (r *AppReplicaPoller) pollLoop(ctx context.Context, log logr.Logger) {
+	log.Info("Starting runner status loop", "runner_id", r.runnerID)
 	ticker := time.NewTicker(r.PollingInterval)
 	defer ticker.Stop()
 
-	// Reconcile immediately on startup.
-	if err := r.reconcile(ctx, log); err != nil {
-		log.Error(err, "reconcile failed")
+	// Exchange status immediately on startup.
+	if stop := r.statusTick(ctx, log, kubernetesOperatorID); stop {
+		return nil
 	}
 
 	for {
 		select {
 		case <-ticker.C:
-			log.V(9).Info("Polling compute replicas API")
-			if err := r.reconcile(ctx, log); err != nil {
-				log.Error(err, "reconcile failed")
+			log.V(9).Info("Exchanging runner status")
+			if stop := r.statusTick(ctx, log, kubernetesOperatorID); stop {
+				return nil
 			}
-		case <-r.stopCh:
-			return
+		case <-ctx.Done():
+			log.Info("Stopping runner status loop")
+			return nil
 		}
 	}
 }
 
-// reconcile fetches desired state from the Replicas API, fetches current
-// managed resources, then creates or deletes to converge.
-func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger) error {
-	desired, err := r.fetchDesiredReplicas(ctx)
-	if err != nil {
-		return fmt.Errorf("fetching compute replicas: %w", err)
+// register registers this operator identity with ship, retrying on transient
+// failures until success. It returns errRunnerDecommissioned on 410 (the
+// identity was decommissioned; a human must intervene) or the context error
+// if canceled.
+func (r *AppReplicaPoller) register(ctx context.Context, log logr.Logger, kubernetesOperatorID string) error {
+	for {
+		runnerID, err := r.RunnerAPI.Register(ctx, kubernetesOperatorID)
+		switch {
+		case err == nil:
+			r.runnerID = runnerID
+			r.needsInitialStatus = true
+			log.Info("Registered compute runner", "runner_id", runnerID, "kubernetes_operator_id", kubernetesOperatorID)
+			return nil
+		case httpStatusOf(err) == http.StatusGone:
+			return errRunnerDecommissioned
+		default:
+			log.Error(err, "Runner registration failed, will retry", "retry_after", registerRetryInterval)
+		}
+
+		select {
+		case <-time.After(registerRetryInterval):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+// statusTick performs one status exchange and convergence pass. It returns
+// true when the loop must stop: the runner has been decommissioned, either
+// acknowledged by us after a server-requested drain or detected terminally.
+func (r *AppReplicaPoller) statusTick(ctx context.Context, log logr.Logger, kubernetesOperatorID string) (stop bool) {
+	var req RunnerStatusRequest
+	if r.needsInitialStatus {
+		req.Version = r.RunnerAPI.Version
+		req.SchedulerProps = r.ComputeMeta.SchedulerProps
 	}
 
+	resp, err := r.RunnerAPI.Status(ctx, r.runnerID, req)
+	switch {
+	case err == nil:
+	case httpStatusOf(err) == http.StatusNotFound:
+		// Runner unknown (e.g. force-decommissioned then garbage-collected):
+		// attempt a single re-registration and resume on the next tick.
+		log.Info("Runner unknown to server, re-registering", "runner_id", r.runnerID)
+		runnerID, regErr := r.RunnerAPI.Register(ctx, kubernetesOperatorID)
+		if httpStatusOf(regErr) == http.StatusGone {
+			r.logTerminalDecommission(log, regErr)
+			return true
+		}
+		if regErr != nil {
+			log.Error(regErr, "Re-registration failed, will retry next tick")
+			return false
+		}
+		r.runnerID = runnerID
+		r.needsInitialStatus = true
+		return false
+	case httpStatusOf(err) == http.StatusGone:
+		r.logTerminalDecommission(log, err)
+		return true
+	default:
+		log.Error(err, "Runner status exchange failed")
+		return false
+	}
+
+	r.needsInitialStatus = false
+
+	if err := r.reconcile(ctx, log, resp.Replicas); err != nil {
+		log.Error(err, "reconcile failed")
+		return false
+	}
+
+	if resp.DecommissionRequested {
+		// The desired set was empty and the teardown pass above completed
+		// without error, so the cluster no longer runs any replicas:
+		// acknowledge so the server can finish decommissioning.
+		log.Info("Server requested decommission; cluster resources converged to empty, acknowledging")
+		_, ackErr := r.RunnerAPI.Status(ctx, r.runnerID, RunnerStatusRequest{DecommissionAcknowledged: true})
+		// A 410 here means the runner is already decommissioned; the ack is
+		// idempotent, so treat it as success.
+		if ackErr != nil && httpStatusOf(ackErr) != http.StatusGone {
+			log.Error(ackErr, "Failed to acknowledge decommission, will retry next tick")
+			return false
+		}
+		log.Info("Runner decommission acknowledged, stopping status loop", "runner_id", r.runnerID)
+		return true
+	}
+
+	return false
+}
+
+func (r *AppReplicaPoller) logTerminalDecommission(log logr.Logger, err error) {
+	log.Error(err, "TERMINAL: this operator's compute runner identity has been decommissioned. "+
+		"The app-replica poller is stopping and will NOT retry or re-register; "+
+		"human intervention (reinstalling the operator or removing the compute configuration) is required.",
+		"runner_id", r.runnerID)
+}
+
+// reconcile converges the cluster onto the desired replica set: it fetches
+// current managed resources, then creates or deletes to converge. The
+// returned error reports listing or deletion failures; creation failures are
+// logged and retried on the next pass, matching prior behavior.
+func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger, desired []computeReplica) error {
 	desiredByID := make(map[string]computeReplica, len(desired))
 	for _, d := range desired {
 		desiredByID[d.ID] = d
@@ -209,20 +308,25 @@ func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger) error
 	}
 
 	// Delete orphaned resources.
+	var deleteErrs []error
 	for _, deploy := range deployList.Items {
 		id := deploy.Labels[LabelNgrokID]
 		if _, exists := desiredByID[id]; exists {
 			continue
 		}
 		log.Info("Deleting orphaned resources", "id", id)
-		r.deleteResources(ctx, log, id, deploy.Name)
+		if err := r.deleteResources(ctx, log, id, deploy.Name); err != nil {
+			deleteErrs = append(deleteErrs, err)
+		}
 	}
 
-	return nil
+	return errors.Join(deleteErrs...)
 }
 
-// waitForRunnerID polls the KubernetesOperator CR until it has a registered ID to use as the runner ID.
-func (r *AppReplicaPoller) waitForRunnerID(ctx context.Context, log logr.Logger) string {
+// waitForKubernetesOperatorID polls the KubernetesOperator CR until it has a
+// registered ID to use as this operator's stable identity when registering
+// with the runner protocol.
+func (r *AppReplicaPoller) waitForKubernetesOperatorID(ctx context.Context, log logr.Logger) string {
 	log.Info("Waiting for KubernetesOperator to be registered")
 
 	ticker := time.NewTicker(1 * time.Second)
@@ -245,31 +349,12 @@ func (r *AppReplicaPoller) waitForRunnerID(ctx context.Context, log logr.Logger)
 				continue
 			}
 
-			log.Info("KubernetesOperator registered, using as runner ID", "id", ko.Status.ID)
+			log.Info("KubernetesOperator registered, using as kubernetes operator ID", "id", ko.Status.ID)
 			return ko.Status.ID
 		case <-ctx.Done():
 			return ""
 		}
 	}
-}
-
-// fetchDesiredReplicas calls the compute service's runner replicas endpoint.
-func (r *AppReplicaPoller) fetchDesiredReplicas(ctx context.Context) ([]computeReplica, error) {
-	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/runner-replicas?runner_id=%s", r.ComputeBaseURL, url.QueryEscape(r.runnerID)))
-	if err != nil {
-		return nil, fmt.Errorf("parsing compute URL: %w", err)
-	}
-
-	var resp computeReplicaList
-	if err := r.NgrokBaseClient.Do(ctx, "GET", reqURL, nil, &resp); err != nil {
-		return nil, fmt.Errorf("listing runner replicas: %w", err)
-	}
-
-	for i := range resp.Replicas {
-		resp.Replicas[i].ID = strings.ToLower(resp.Replicas[i].ID)
-	}
-
-	return resp.Replicas, nil
 }
 
 // nvidiaGPUResource is the extended resource the NVIDIA device plugin
@@ -499,8 +584,9 @@ func (r *AppReplicaPoller) ensurePullSecret(ctx context.Context, desired *corev1
 	return r.Update(ctx, &current)
 }
 
-func (r *AppReplicaPoller) deleteResources(ctx context.Context, log logr.Logger, id, name string) {
+func (r *AppReplicaPoller) deleteResources(ctx context.Context, log logr.Logger, id, name string) error {
 	ns := r.Namespace
+	var errs []error
 
 	// Delete all AgentEndpoints with this ngrok-id label.
 	var aepList ngrokv1alpha1.AgentEndpointList
@@ -509,10 +595,12 @@ func (r *AppReplicaPoller) deleteResources(ctx context.Context, log logr.Logger,
 		client.MatchingLabels{LabelNgrokID: id},
 	); err != nil {
 		log.Error(err, "failed to list agent endpoints for deletion", "id", id)
+		errs = append(errs, err)
 	} else {
 		for i := range aepList.Items {
 			if err := r.Delete(ctx, &aepList.Items[i]); client.IgnoreNotFound(err) != nil {
 				log.Error(err, "failed to delete agent endpoint", "id", id, "name", aepList.Items[i].Name)
+				errs = append(errs, err)
 			}
 		}
 	}
@@ -521,11 +609,15 @@ func (r *AppReplicaPoller) deleteResources(ctx context.Context, log logr.Logger,
 	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if err := r.Delete(ctx, svc); client.IgnoreNotFound(err) != nil {
 		log.Error(err, "failed to delete service", "id", id)
+		errs = append(errs, err)
 	}
 
 	// Delete Deployment
 	deploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if err := r.Delete(ctx, deploy); client.IgnoreNotFound(err) != nil {
 		log.Error(err, "failed to delete deployment", "id", id)
+		errs = append(errs, err)
 	}
+
+	return errors.Join(errs...)
 }
