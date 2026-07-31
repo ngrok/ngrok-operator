@@ -45,13 +45,18 @@ Content-Type: application/json
 The operation is idempotent for a runner. The authenticated account MUST own
 `runner_id`.
 
-### Provisioning request
+### Access publication
+
+The payload is replacement-style: empty or omitted fields leave the previously
+reported value in place. It is shaped to fold unchanged into a future runner
+status/sync exchange.
+
+First publication (mints the key; readiness not yet claimed):
 
 ```json
 {
-  "state": "provisioning",
-  "access_key": "QsdY07Kqk7mNmMTwFBqNlVYHBPm9gnqHrsEW96VoMSg",
-  "namespace": "my-operator-compute"
+  "kubernetes_access_key": "QsdY07Kqk7mNmMTwFBqNlVYHBPm9gnqHrsEW96VoMSg",
+  "kubernetes_access_namespace": "my-operator-compute"
 }
 ```
 
@@ -63,49 +68,36 @@ Successful response:
 }
 ```
 
-Requirements:
-
-- Compute derives `endpoint` by lowercasing the runner ID, replacing `_` with
-  `-`, and appending `.k8s.compute.internal`.
-- `endpoint` MUST use the `https` scheme and its hostname MUST end in
-  `.internal`.
-- `endpoint` MUST remain stable for the lifetime of the runner.
-- `access_key` is an opaque bearer credential. The server MUST store it using
-  the same protections as other service credentials and MUST NOT log it.
-- `namespace` is the dedicated namespace in which Compute creates and manages
-  replica resources.
-- Repeating the request with a new `access_key` replaces the previous key
-  without changing the endpoint.
-- A successful response means the server has committed the new access key.
-
-The following fields from the mTLS protocol are removed:
-
-- Provisioning request: `csr`
-- Provisioning response: `server_certificate`, `client_ca`
-
-### Lifecycle update
-
-After provisioning the gateway endpoint, and periodically thereafter, the
-operator sends:
+Steady-state report (periodically, and whenever readiness changes):
 
 ```json
 {
-  "state": "ready",
-  "endpoint": "https://ko-abc123.k8s.compute.internal",
-  "assigned_url": "https://ko-abc123.k8s.compute.internal",
-  "namespace": "my-operator-compute"
+  "kubernetes_access_namespace": "my-operator-compute",
+  "kubernetes_access_ready": true
 }
 ```
 
-Before the gateway Deployment is ready, `state` is `provisioning` and
-`assigned_url` may be empty. The server MUST accept an empty `assigned_url`
-while provisioning and MUST NOT connect until it has observed `ready`. When
-`state` is `ready`, `assigned_url` MUST equal the registered endpoint.
-Lifecycle updates return `200` with either an empty body or the current
-registration object.
+Requirements:
 
-Recommended future states are `unavailable` and `deleting`; they are not emitted
-by the first operator implementation.
+- Compute derives `endpoint` by lowercasing the runner ID, replacing `_` with
+  `-`, and appending `.k8s.compute.internal`. The endpoint is a pure function
+  of the runner ID: it MUST remain stable for the lifetime of the runner and
+  is returned by every publication.
+- `endpoint` MUST use the `https` scheme and its hostname MUST end in
+  `.internal`.
+- `kubernetes_access_key` is an opaque bearer credential. The server MUST
+  store it using the same protections as other service credentials and MUST
+  NOT log it. The first publication for a runner MUST carry it (and a
+  namespace); later publications carry it only to rotate. Repeating the
+  request with a new key replaces the previous key without changing the
+  endpoint.
+- `kubernetes_access_namespace` is the dedicated namespace in which Compute
+  creates and manages replica resources. The authenticated runner is
+  authoritative for it, including moves after the initial publication.
+- `kubernetes_access_ready` reports whether the runner's exported API
+  endpoint is up. The server MUST NOT connect until it has observed a ready
+  publication, and treats ready runners as server-reconciled.
+- A successful response means the server has committed the publication.
 
 ## Server implementation checklist
 
