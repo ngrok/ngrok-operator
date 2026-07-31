@@ -2,7 +2,6 @@ package domain
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -32,24 +31,12 @@ const (
 	ReasonNgrokAPIError  = "NgrokAPIError"
 )
 
-var (
-	ErrDomainNotReady = errors.New("domain is not ready yet")
-)
-
 // DomainResult contains the result of domain operations
 type DomainResult struct {
 	Domain       *ingressv1alpha1.Domain
 	IsReady      bool
 	ReadyReason  string // Reason from domain's Ready condition
 	ReadyMessage string // Message from domain's Ready condition
-}
-
-// RequeueError returns ErrDomainNotReady if the domain is not ready, otherwise nil
-func (r *DomainResult) RequeueError() error {
-	if !r.IsReady {
-		return ErrDomainNotReady
-	}
-	return nil
 }
 
 // ManagerOption is a functional option for configuring the Domain Manager

@@ -35,6 +35,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -1214,6 +1215,174 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			Consistently(func() int {
 				return mockEndpoints.UpdateCallCount()
 			}, 5*time.Second, 500*time.Millisecond).Should(Equal(0))
+		})
+
+		// Regression test for the CloudEndpoint reconcile hot-loop that spams
+		// "Failed to update" Warning events for endpoints whose Domain is
+		// permanently stuck non-Ready, even though the create/update against
+		// the ngrok API succeeded. Root cause: updateStatus() unconditionally
+		// returns domainResult.RequeueError() (ErrDomainNotReady) as a
+		// control-flow signal even on the success path; BaseController.Reconcile
+		// treats ANY non-nil error from Update() as a failure and emits an
+		// "UpdateError" Warning event before the CloudEndpoint's ErrResult ever
+		// gets a chance to recognize ErrDomainNotReady and swallow it.
+		It("should not emit a Warning UpdateError event when the write succeeds but the domain never becomes ready", func(ctx SpecContext) {
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "domain-stuck-no-warning",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:         "http://stuck-domain.example.com",
+					Description: "Endpoint whose domain never becomes ready",
+				},
+			}
+
+			By("Creating the CloudEndpoint")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Verifying the endpoint is created in the ngrok API despite the domain not being ready (PR #705 requirement)")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+				domainCond := findCloudEndpointCondition(obj.Status.Conditions, "DomainReady")
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+
+			By("Forcing a couple more reconciles while the domain stays non-Ready")
+			for i := range 2 {
+				Eventually(func(g Gomega) {
+					obj := &ngrokv1alpha1.CloudEndpoint{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+					if obj.Annotations == nil {
+						obj.Annotations = map[string]string{}
+					}
+					obj.Annotations["test.ngrok.com/touch"] = fmt.Sprintf("%d", i)
+					g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+				}, timeout, interval).Should(Succeed())
+			}
+
+			By("Waiting for the forced reconciles to complete (3 Updating events: create + 2 touches)")
+			var events *v1.EventList
+			Eventually(func(g Gomega) {
+				events = &v1.EventList{}
+				g.Expect(k8sClient.List(ctx, events, client.InNamespace(namespace))).To(Succeed())
+				count := 0
+				for _, e := range events.Items {
+					if e.InvolvedObject.Name == cloudEndpoint.Name && (e.Reason == "Creating" || e.Reason == "Updating") {
+						count++
+					}
+				}
+				g.Expect(count).To(BeNumerically(">=", 3))
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no Warning UpdateError event was ever recorded for this endpoint")
+			for _, e := range events.Items {
+				if e.InvolvedObject.Name != cloudEndpoint.Name {
+					continue
+				}
+				Expect(e.Reason).NotTo(Equal("UpdateError"),
+					fmt.Sprintf("got a spurious UpdateError event even though the write succeeded: %q", e.Message))
+				Expect(e.Type).NotTo(Equal(v1.EventTypeWarning),
+					fmt.Sprintf("got a spurious Warning event even though the write succeeded: reason=%q message=%q", e.Reason, e.Message))
+			}
+		})
+
+		// Regression test for the requeue-never-backs-off half of the same hot
+		// loop: spec updates must still propagate to the ngrok API while the
+		// domain is permanently non-Ready (required behavior from PR #705 must
+		// not regress for updates, not just creates).
+		It("should propagate spec updates to the ngrok API while the domain remains not ready", func(ctx SpecContext) {
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "domain-stuck-spec-update",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:         "http://stuck-domain-update.example.com",
+					Description: "Original description",
+				},
+			}
+
+			By("Creating the CloudEndpoint")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Waiting for the initial create despite the domain not being ready")
+			var endpointID string
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				endpointID = obj.Status.ID
+
+				domainCond := findCloudEndpointCondition(obj.Status.Conditions, "DomainReady")
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+
+			By("Updating the spec while the domain is still not ready")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				obj.Spec.Description = "Updated while domain is not ready"
+				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying the spec update reached the ngrok API even though the domain never became ready")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				domainCond := findCloudEndpointCondition(obj.Status.Conditions, "DomainReady")
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
+
+				endpoint, err := mockClientset.Endpoints().Get(context.Background(), endpointID)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(endpoint.Description).To(Equal("Updated while domain is not ready"))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		// Regression test for the requeue-never-backs-off problem: a
+		// permanently non-Ready domain used to pin the CloudEndpoint at a
+		// fixed 10s RequeueAfter forever (16k+ reconciles/events per endpoint
+		// over 2 days in the reported incident). Convergence now relies
+		// solely on the Domain watch, so with nothing else changing the
+		// CloudEndpoint must not keep re-reconciling (and re-writing status)
+		// on its own.
+		It("should not keep re-reconciling on a fixed timer once created against a non-ready domain", func(ctx SpecContext) {
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "domain-stuck-bounded-reconciles",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "http://stuck-domain-bounded.example.com",
+				},
+			}
+
+			By("Creating the CloudEndpoint")
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Waiting for the initial create despite the domain not being ready")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+
+				domainCond := findCloudEndpointCondition(obj.Status.Conditions, "DomainReady")
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying the CloudEndpoint's resourceVersion stays stable with nothing left to converge on")
+			// The old fixed 10s RequeueAfter would have driven at least one
+			// more status write (and resourceVersion bump) well within this
+			// window; the Domain watch has nothing new to tell it either,
+			// since the Domain hasn't changed since creation.
+			kginkgo.ConsistentlyExpectResourceVersionNotToChange(ctx, cloudEndpoint, testutils.WithTimeout(15*time.Second))
 		})
 
 		It("should handle multiple Kubernetes-bound endpoints with different domains", func(ctx SpecContext) {

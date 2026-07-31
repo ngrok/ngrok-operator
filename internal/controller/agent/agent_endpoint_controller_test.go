@@ -33,6 +33,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"time"
@@ -1759,6 +1760,84 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				}
 				return false
 			}, timeout, interval).Should(BeTrue())
+		})
+
+		// Regression test mirroring the CloudEndpoint hot-loop bug: writes
+		// that succeed while the domain is permanently non-Ready must not
+		// surface as a Warning UpdateError event. Root cause was
+		// updateStatus() unconditionally returning domainResult.RequeueError()
+		// even on the success path; BaseController.Reconcile treated that as
+		// a failure and emitted the event before ErrResult ever got a chance
+		// to recognize ErrDomainNotReady.
+		It("should not emit a Warning UpdateError event when the write succeeds but the domain never becomes ready", func(ctx SpecContext) {
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "domain-stuck-no-warning",
+					Namespace: namespace,
+				},
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "http://stuck-domain.example.com",
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://test-service:80",
+					},
+				},
+			}
+
+			envMockDriver.SetEndpointResult(namespace+"/domain-stuck-no-warning", &agent.EndpointResult{
+				URL: "http://stuck-domain.example.com",
+			})
+
+			By("Creating the AgentEndpoint")
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Verifying the endpoint is created despite the domain not being ready")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+				g.Expect(obj.Status.AssignedURL).To(Equal("http://stuck-domain.example.com"))
+
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
+			}, timeout, interval).Should(Succeed())
+
+			By("Forcing a couple more reconciles while the domain stays non-Ready")
+			for i := range 2 {
+				Eventually(func(g Gomega) {
+					obj := &ngrokv1alpha1.AgentEndpoint{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+					if obj.Annotations == nil {
+						obj.Annotations = map[string]string{}
+					}
+					obj.Annotations["test.ngrok.com/touch"] = fmt.Sprintf("%d", i)
+					g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+				}, timeout, interval).Should(Succeed())
+			}
+
+			By("Waiting for the forced reconciles to complete (3 Updating events: create + 2 touches)")
+			var events *v1.EventList
+			Eventually(func(g Gomega) {
+				events = &v1.EventList{}
+				g.Expect(k8sClient.List(ctx, events, client.InNamespace(namespace))).To(Succeed())
+				count := 0
+				for _, e := range events.Items {
+					if e.InvolvedObject.Name == agentEndpoint.Name && (e.Reason == "Creating" || e.Reason == "Updating") {
+						count++
+					}
+				}
+				g.Expect(count).To(BeNumerically(">=", 3))
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no Warning UpdateError event was ever recorded for this endpoint")
+			for _, e := range events.Items {
+				if e.InvolvedObject.Name != agentEndpoint.Name {
+					continue
+				}
+				Expect(e.Reason).NotTo(Equal("UpdateError"),
+					fmt.Sprintf("got a spurious UpdateError event even though the write succeeded: %q", e.Message))
+				Expect(e.Type).NotTo(Equal(v1.EventTypeWarning),
+					fmt.Sprintf("got a spurious Warning event even though the write succeeded: reason=%q message=%q", e.Reason, e.Message))
+			}
 		})
 
 		It("should reconcile endpoint when domain status becomes ready", func(ctx SpecContext) {

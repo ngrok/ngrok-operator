@@ -29,7 +29,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -126,9 +125,6 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 			if ngrok.IsErrorCode(err, retryableErrors...) {
 				return ctrl.Result{}, err
-			}
-			if errors.Is(err, domainpkg.ErrDomainNotReady) {
-				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			if errors.Is(err, trafficpolicypkg.ErrInvalidConfig) || errors.Is(err, trafficpolicypkg.ErrInvalidPolicyJSON) {
 				r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "ConfigError", "Reconcile", err.Error())
@@ -466,16 +462,12 @@ func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv
 	// Calculate overall Ready condition based on other conditions and domain status
 	calculateCloudEndpointReadyCondition(clep, domainResult)
 
-	// Write status to k8s API
-	if err := r.controller.ReconcileStatus(ctx, clep, statusErr); err != nil {
-		return err
-	}
-
-	// Requeue if domain is not ready (fallback to watch for convergence)
-	if domainResult != nil {
-		return domainResult.RequeueError()
-	}
-	return nil
+	// Write status to k8s API. Convergence once the domain becomes ready is
+	// driven by the Domain watch (findCloudEndpointsForDomain), not by a
+	// requeue here — see domain_controller.go's own exponential-backoff
+	// requeue, which re-touches the Domain object (and so re-triggers this
+	// watch) until it becomes ready.
+	return r.controller.ReconcileStatus(ctx, clep, statusErr)
 }
 
 // #region Helper Functions
