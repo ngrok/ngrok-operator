@@ -25,14 +25,24 @@ import (
 func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 	ctx := context.Background()
 	var requests []remoteAccessRequest
+	var registrations []runnerRegisterRequest
 	httpClient := &http.Client{Transport: computeRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/register") {
+			var request runnerRegisterRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			registrations = append(registrations, request)
+			return jsonResponse(t, runnerRegisterResponse{RunnerID: "rnr_XYZ789"}), nil
+		}
 		require.Equal(t, http.MethodPut, r.Method)
+		// Publication is addressed to the registered runner identity, not the
+		// operator ID.
+		require.Equal(t, "/v1/runners/rnr_XYZ789/kubernetes-access", r.URL.Path)
 		var request remoteAccessRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests = append(requests, request)
 		if request.AccessKey != "" {
 			return jsonResponse(t, remoteAccessResponse{
-				Endpoint: "https://ko-abc123.k8s.compute.internal",
+				Endpoint: "https://rnr-xyz789.k8s.compute.internal",
 			}), nil
 		}
 		return &http.Response{
@@ -61,12 +71,15 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 		"api-key", ngrok.WithBaseURL(computeBaseURL), ngrok.WithHTTPClient(httpClient),
 	))
 	remote := &RemoteAccess{
-		Client: k8sClient, Log: logr.Discard(), NgrokBaseClient: apiClient,
-		ComputeBaseURL: computeBaseURL, Namespace: "ngrok", K8sOpName: "operator",
+		Client: k8sClient, Log: logr.Discard(),
+		RunnerAPI: &RunnerClient{NgrokBaseClient: apiClient, ComputeBaseURL: computeBaseURL},
+		Namespace: "ngrok", K8sOpName: "operator",
 		GatewayName: "operator-compute-api", ReplicaNamespace: "ngrok-compute",
 	}
 
 	require.NoError(t, remote.reconcile(ctx))
+	require.Len(t, registrations, 1)
+	require.Equal(t, "k8sop_ABC123", registrations[0].KubernetesOperatorID)
 	require.Len(t, requests, 2)
 	// First publication mints the key; readiness is not yet claimed.
 	require.Len(t, requests[0].AccessKey, 43)
@@ -81,7 +94,7 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 	require.NoError(t, k8sClient.Get(ctx, client.ObjectKey{
 		Name: "operator-compute-api", Namespace: "ngrok",
 	}, &config))
-	require.Equal(t, "https://ko-abc123.k8s.compute.internal", config.Data[remoteEndpointKey])
+	require.Equal(t, "https://rnr-xyz789.k8s.compute.internal", config.Data[remoteEndpointKey])
 	hash := sha256.Sum256([]byte(requests[0].AccessKey))
 	require.Equal(t, base64.RawURLEncoding.EncodeToString(hash[:]), config.Data[remoteTokenHashKey])
 
@@ -90,8 +103,9 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 	require.Empty(t, secrets.Items)
 
 	restarted := &RemoteAccess{
-		Client: k8sClient, Log: logr.Discard(), NgrokBaseClient: apiClient,
-		ComputeBaseURL: computeBaseURL, Namespace: "ngrok", K8sOpName: "operator",
+		Client: k8sClient, Log: logr.Discard(),
+		RunnerAPI: &RunnerClient{NgrokBaseClient: apiClient, ComputeBaseURL: computeBaseURL},
+		Namespace: "ngrok", K8sOpName: "operator",
 		GatewayName: "operator-compute-api", ReplicaNamespace: "ngrok-compute",
 	}
 	require.NoError(t, restarted.reconcile(ctx))
@@ -108,12 +122,15 @@ func TestRemoteAccessReprovisionsDeletedConfigMap(t *testing.T) {
 	ctx := context.Background()
 	var requests []remoteAccessRequest
 	httpClient := &http.Client{Transport: computeRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/register") {
+			return jsonResponse(t, runnerRegisterResponse{RunnerID: "rnr_XYZ789"}), nil
+		}
 		var request remoteAccessRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests = append(requests, request)
 		if request.AccessKey != "" {
 			return jsonResponse(t, remoteAccessResponse{
-				Endpoint: "https://ko-abc123.k8s.compute.internal",
+				Endpoint: "https://rnr-xyz789.k8s.compute.internal",
 			}), nil
 		}
 		return &http.Response{
@@ -136,10 +153,13 @@ func TestRemoteAccessReprovisionsDeletedConfigMap(t *testing.T) {
 	const computeBaseURL = "https://compute.example"
 	remote := &RemoteAccess{
 		Client: k8sClient, Log: logr.Discard(),
-		NgrokBaseClient: ngrok.NewBaseClient(ngrok.NewClientConfig(
-			"api-key", ngrok.WithBaseURL(computeBaseURL), ngrok.WithHTTPClient(httpClient),
-		)),
-		ComputeBaseURL: computeBaseURL, Namespace: "ngrok", K8sOpName: "operator",
+		RunnerAPI: &RunnerClient{
+			NgrokBaseClient: ngrok.NewBaseClient(ngrok.NewClientConfig(
+				"api-key", ngrok.WithBaseURL(computeBaseURL), ngrok.WithHTTPClient(httpClient),
+			)),
+			ComputeBaseURL: computeBaseURL,
+		},
+		Namespace: "ngrok", K8sOpName: "operator",
 		GatewayName: "operator-compute-api", ReplicaNamespace: "ngrok-compute",
 	}
 

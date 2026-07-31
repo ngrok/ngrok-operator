@@ -94,6 +94,11 @@ type KubernetesOperatorReconciler struct {
 	// BindingCertRenewalWindow controls how far ahead of expiry bindings certificates
 	// are renewed. Defaults to 30 days when unset.
 	BindingCertRenewalWindow time.Duration
+
+	// DecommissionComputeRunner, when set, decommissions this operator's
+	// compute runner (by its KubernetesOperator ID) during deletion. It is
+	// only wired for poll-mode compute runners.
+	DecommissionComputeRunner func(ctx context.Context, kubernetesOperatorID string) error
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -265,7 +270,19 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1al
 		}
 	}
 
-	// Step 3: Drain complete - delete from ngrok API
+	// Step 3: Drain complete - decommission the compute runner (if this
+	// operator is one) and delete from ngrok API. Decommission tells ship the
+	// runner's workloads are gone and unassigns its replicas, which is only
+	// correct here — on permanent removal after a completed drain — never on
+	// ordinary pod restarts, where the workloads keep running.
+	if r.DecommissionComputeRunner != nil && ko.Status.ID != "" {
+		log.Info("Decommissioning compute runner", "kubernetes_operator_id", ko.Status.ID)
+		if err := r.DecommissionComputeRunner(ctx, ko.Status.ID); err != nil {
+			return fmt.Errorf("decommissioning compute runner: %w", err)
+		}
+	}
+
+	// Drain complete - delete from ngrok API
 	log.Info("Drain complete, deleting KubernetesOperator from ngrok API")
 	if ko.Status.ID != "" {
 		err := r.NgrokClientset.KubernetesOperators().Delete(ctx, ko.Status.ID)
