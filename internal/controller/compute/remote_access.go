@@ -25,12 +25,14 @@ const (
 	remoteTokenHashKey = "access-key-sha256"
 )
 
+// remoteAccessRequest is Ship's replacement-style access publication: empty
+// fields leave the previously reported value in place. AccessKey is sent only
+// when minting (first publication and per-startup rotation); Namespace and
+// Ready are restated on every report.
 type remoteAccessRequest struct {
-	State       string `json:"state"`
-	AccessKey   string `json:"access_key,omitempty"`
-	Endpoint    string `json:"endpoint,omitempty"`
-	AssignedURL string `json:"assigned_url,omitempty"`
-	Namespace   string `json:"namespace"`
+	AccessKey string `json:"kubernetes_access_key,omitempty"`
+	Namespace string `json:"kubernetes_access_namespace,omitempty"`
+	Ready     bool   `json:"kubernetes_access_ready,omitempty"`
 }
 
 type remoteAccessResponse struct {
@@ -50,7 +52,7 @@ type RemoteAccess struct {
 	ReplicaNamespace string
 	Interval         time.Duration
 
-	lastReportedState string
+	lastReportedReady *bool
 	registered        bool
 }
 
@@ -115,25 +117,18 @@ func (r *RemoteAccess) reconcile(ctx context.Context) error {
 		return err
 	}
 	ready := err == nil && deployment.Status.AvailableReplicas > 0
-	state := "provisioning"
-	assignedURL := ""
-	if ready {
-		state = "ready"
-		assignedURL = endpoint
-	}
 	if err := r.register(ctx, ko.Status.ID, remoteAccessRequest{
-		State: state, Endpoint: endpoint, AssignedURL: assignedURL, Namespace: r.ReplicaNamespace,
+		Namespace: r.ReplicaNamespace, Ready: ready,
 	}, nil); err != nil {
 		return err
 	}
-	if state != r.lastReportedState {
+	if r.lastReportedReady == nil || *r.lastReportedReady != ready {
 		r.Log.Info("reported remote Kubernetes API access state",
 			"runner_id", ko.Status.ID,
-			"state", state,
+			"ready", ready,
 			"endpoint", endpoint,
-			"assigned_url", assignedURL,
 		)
-		r.lastReportedState = state
+		r.lastReportedReady = &ready
 	}
 	return nil
 }
@@ -145,7 +140,7 @@ func (r *RemoteAccess) provision(ctx context.Context, runnerID string) error {
 	}
 	var registration remoteAccessResponse
 	if err := r.register(ctx, runnerID, remoteAccessRequest{
-		State: "provisioning", AccessKey: accessKey, Namespace: r.ReplicaNamespace,
+		AccessKey: accessKey, Namespace: r.ReplicaNamespace,
 	}, &registration); err != nil {
 		return err
 	}

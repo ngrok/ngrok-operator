@@ -68,13 +68,14 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 
 	require.NoError(t, remote.reconcile(ctx))
 	require.Len(t, requests, 2)
-	require.Equal(t, "provisioning", requests[0].State)
-	require.Equal(t, "ngrok-compute", requests[0].Namespace)
+	// First publication mints the key; readiness is not yet claimed.
 	require.Len(t, requests[0].AccessKey, 43)
-	require.Equal(t, "ready", requests[1].State)
-	require.Equal(t, "ngrok-compute", requests[1].Namespace)
+	require.Equal(t, "ngrok-compute", requests[0].Namespace)
+	require.False(t, requests[0].Ready)
+	// The steady-state report restates namespace + readiness, never the key.
 	require.Empty(t, requests[1].AccessKey)
-	require.Equal(t, "https://ko-abc123.k8s.compute.internal", requests[1].AssignedURL)
+	require.Equal(t, "ngrok-compute", requests[1].Namespace)
+	require.True(t, requests[1].Ready)
 
 	var config corev1.ConfigMap
 	require.NoError(t, k8sClient.Get(ctx, client.ObjectKey{
