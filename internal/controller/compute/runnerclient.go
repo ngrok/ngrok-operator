@@ -63,6 +63,13 @@ type RunnerStatusRequest struct {
 	Metadata                 map[string]string `json:"metadata,omitempty"`
 	SchedulerProps           map[string]any    `json:"scheduler_props,omitempty"`
 	DecommissionAcknowledged bool              `json:"decommission_acknowledged,omitempty"`
+
+	// Remote Kubernetes access, for runners that export their API to ship.
+	// AccessKey is sent only when minting (first publication and per-startup
+	// rotation); Namespace and Ready are restated on every report.
+	KubernetesAccessKey       string `json:"kubernetes_access_key,omitempty"`
+	KubernetesAccessNamespace string `json:"kubernetes_access_namespace,omitempty"`
+	KubernetesAccessReady     bool   `json:"kubernetes_access_ready,omitempty"`
 }
 
 // RunnerStatusResponse is the server's reply to a status exchange: the desired
@@ -70,6 +77,9 @@ type RunnerStatusRequest struct {
 type RunnerStatusResponse struct {
 	Replicas              []computeReplica `json:"replicas"`
 	DecommissionRequested bool             `json:"decommission_requested"`
+	// KubernetesAccessEndpoint is the private endpoint this runner must serve
+	// its API on, returned only when the report published access.
+	KubernetesAccessEndpoint string `json:"kubernetes_access_endpoint,omitempty"`
 }
 
 // RunnerClient speaks the ship runner protocol under
@@ -138,32 +148,14 @@ func (c *RunnerClient) Status(ctx context.Context, runnerID string, req RunnerSt
 	return &resp, nil
 }
 
-// PublishKubernetesAccess reports the runner's remote Kubernetes access
-// (replacement-style: empty fields leave previous values in place).
-func (c *RunnerClient) PublishKubernetesAccess(ctx context.Context, runnerID string, request remoteAccessRequest, response *remoteAccessResponse) error {
-	reqURL, err := c.runnerURL(url.PathEscape(runnerID) + "/kubernetes-access")
-	if err != nil {
-		return fmt.Errorf("parsing compute URL: %w", err)
-	}
-	// Passing a typed nil pointer as interface{} produces a non-nil interface.
-	// Pass a literal nil so ngrok-api-go does not try to decode an intentionally
-	// empty lifecycle response.
-	if response == nil {
-		return c.NgrokBaseClient.Do(ctx, http.MethodPut, reqURL, request, nil)
-	}
-	return c.NgrokBaseClient.Do(ctx, http.MethodPut, reqURL, request, response)
-}
-
 // Decommission tells ship this runner's workloads are gone and unassigns its
-// replicas. It is idempotent and must only be called on permanent removal —
-// never on ordinary pod restarts, since the workloads keep running and the
+// replicas. It is the same acknowledgement the poll loop sends on its way out,
+// so it travels on the status exchange rather than an endpoint of its own. It
+// is idempotent and must only be called on permanent removal — never on
+// ordinary pod restarts, since the workloads keep running and the
 // re-registering operator would find its identity gone.
 func (c *RunnerClient) Decommission(ctx context.Context, runnerID string) error {
-	reqURL, err := c.runnerURL(url.PathEscape(runnerID) + "/decommission")
-	if err != nil {
-		return fmt.Errorf("parsing compute URL: %w", err)
-	}
-	if err := c.NgrokBaseClient.Do(ctx, http.MethodPost, reqURL, nil, nil); err != nil {
+	if _, err := c.Status(ctx, runnerID, RunnerStatusRequest{DecommissionAcknowledged: true}); err != nil {
 		return fmt.Errorf("decommissioning runner: %w", err)
 	}
 	return nil
@@ -183,7 +175,14 @@ func (c *RunnerClient) DecommissionByKubernetesOperatorID(ctx context.Context, k
 		}
 		return err
 	}
-	if err := c.Decommission(ctx, runnerID); err != nil && httpStatusOf(err) != http.StatusNotFound {
+	// 404: the runner was already garbage-collected. 410: already
+	// decommissioned, and the acknowledgement is idempotent either way.
+	switch err := c.Decommission(ctx, runnerID); httpStatusOf(err) {
+	case 0:
+		return err
+	case http.StatusNotFound, http.StatusGone:
+		return nil
+	default:
 		return err
 	}
 	return nil
