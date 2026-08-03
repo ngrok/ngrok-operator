@@ -206,6 +206,7 @@ func (r *AppReplicaPoller) statusTick(ctx context.Context, log logr.Logger, kube
 	var req RunnerStatusRequest
 	if r.needsInitialStatus {
 		req.Version = r.RunnerAPI.Version
+		req.Description = r.RunnerAPI.Description
 		req.SchedulerProps = r.ComputeMeta.SchedulerProps
 	}
 
