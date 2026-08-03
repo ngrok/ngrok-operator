@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -300,6 +301,9 @@ func (r *AppReplicaPoller) reconcile(ctx context.Context, log logr.Logger, desir
 			if err := r.ensureReplicaPullSecret(ctx, replica); err != nil {
 				log.Error(err, "failed to ensure app-replica pull secret", "id", id)
 			}
+			if err := r.ensureReplicaAgentEndpoints(ctx, replica); err != nil {
+				log.Error(err, "failed to converge app-replica agent endpoints", "id", id)
+			}
 			continue
 		}
 		log.Info("Creating resources for app-replica", "id", id, "image", replica.ContainerImage)
@@ -514,25 +518,7 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 
 	// AgentEndpoint per endpoint
 	for _, up := range epPorts {
-		aepName := agentEndpointName(replica.EnvironmentName, replica.ReplicaIndex, up.endpoint.Name, replica.ID)
-		aep := &ngrokv1alpha1.AgentEndpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      aepName,
-				Namespace: r.Namespace,
-				Labels:    labels,
-			},
-			Spec: ngrokv1alpha1.AgentEndpointSpec{
-				URL: up.endpoint.URL,
-				Upstream: ngrokv1alpha1.EndpointUpstream{
-					URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", name, r.Namespace, up.port),
-				},
-			},
-		}
-		if up.endpoint.TrafficPolicy != "" {
-			aep.Spec.TrafficPolicy = &ngrokv1alpha1.TrafficPolicyCfg{
-				Inline: json.RawMessage(up.endpoint.TrafficPolicy),
-			}
-		}
+		aep := r.agentEndpointFor(name, labels, replica, up.endpoint, up.port)
 		if err := r.Create(ctx, aep); err != nil {
 			return fmt.Errorf("creating agent endpoint for URL %s: %w", up.endpoint.URL, err)
 		}
@@ -540,6 +526,113 @@ func (r *AppReplicaPoller) createResources(ctx context.Context, log logr.Logger,
 
 	log.Info("Created deployment, service, and agent endpoints", "id", replica.ID, "name", name)
 	return nil
+}
+
+// agentEndpointFor builds one replica endpoint's AgentEndpoint.
+func (r *AppReplicaPoller) agentEndpointFor(
+	deployName string,
+	labels map[string]string,
+	replica computeReplica,
+	endpoint replicaEndpoint,
+	port int,
+) *ngrokv1alpha1.AgentEndpoint {
+	aep := &ngrokv1alpha1.AgentEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      agentEndpointName(replica.EnvironmentName, replica.ReplicaIndex, endpoint.Name, replica.ID),
+			Namespace: r.Namespace,
+			Labels:    labels,
+		},
+		Spec: ngrokv1alpha1.AgentEndpointSpec{
+			URL: endpoint.URL,
+			Upstream: ngrokv1alpha1.EndpointUpstream{
+				URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", deployName, r.Namespace, port),
+			},
+			// Travels unchanged to the tunnel record, where ship reads it to
+			// attribute a live tunnel to this replica. Replicas of one
+			// deployment share endpoint URLs, so the URL cannot do it alone.
+			Metadata: replicaEndpointMetadata(replica.ID),
+		},
+	}
+	if endpoint.TrafficPolicy != "" {
+		aep.Spec.TrafficPolicy = &ngrokv1alpha1.TrafficPolicyCfg{
+			Inline: json.RawMessage(endpoint.TrafficPolicy),
+		}
+	}
+	return aep
+}
+
+// ensureReplicaAgentEndpoints converges the AgentEndpoints of a replica whose
+// resources already exist, so a change to what this operator puts on an
+// endpoint reaches endpoints it created earlier instead of waiting for the
+// replica to be replaced. Only the fields this operator authors are written;
+// anything the CRD defaults is left alone.
+func (r *AppReplicaPoller) ensureReplicaAgentEndpoints(ctx context.Context, replica computeReplica) error {
+	deployName := deploymentName(replica.EnvironmentName, replica.ReplicaIndex, replica.ID)
+	labels := map[string]string{LabelNgrokID: replica.ID}
+
+	var errs []error
+	for _, endpoint := range replica.Endpoints {
+		port, err := urlPort(endpoint.URL)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("parsing URL %q: %w", endpoint.URL, err))
+			continue
+		}
+		desired := r.agentEndpointFor(deployName, labels, replica, endpoint, port)
+
+		var current ngrokv1alpha1.AgentEndpoint
+		if err := r.Get(ctx, client.ObjectKeyFromObject(desired), &current); err != nil {
+			if apierrors.IsNotFound(err) {
+				if err := r.Create(ctx, desired); err != nil {
+					errs = append(errs, fmt.Errorf("creating agent endpoint %s: %w", desired.Name, err))
+				}
+				continue
+			}
+			errs = append(errs, err)
+			continue
+		}
+
+		if current.Spec.URL == desired.Spec.URL &&
+			current.Spec.Upstream.URL == desired.Spec.Upstream.URL &&
+			current.Spec.Metadata == desired.Spec.Metadata &&
+			trafficPolicyEqual(current.Spec.TrafficPolicy, desired.Spec.TrafficPolicy) {
+			continue
+		}
+		current.Spec.URL = desired.Spec.URL
+		current.Spec.Upstream = desired.Spec.Upstream
+		current.Spec.Metadata = desired.Spec.Metadata
+		current.Spec.TrafficPolicy = desired.Spec.TrafficPolicy
+		if err := r.Update(ctx, &current); err != nil {
+			errs = append(errs, fmt.Errorf("updating agent endpoint %s: %w", desired.Name, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// trafficPolicyEqual compares two inline policies by their serialized form,
+// which is how they are stored and how they reach ngrok.
+func trafficPolicyEqual(a, b *ngrokv1alpha1.TrafficPolicyCfg) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return bytes.Equal(a.Inline, b.Inline)
+}
+
+// endpointMetadataReplicaIDKey carries the replica an endpoint belongs to.
+// It must match ship's pool.EndpointMetadataReplicaIDKey.
+const endpointMetadataReplicaIDKey = "ngrok.com/replica-id"
+
+// replicaEndpointMetadata is the metadata ship expects on a replica endpoint.
+// The owner key restates the CRD's own default, which is only applied when the
+// field is absent — setting metadata at all replaces it.
+func replicaEndpointMetadata(replicaID string) string {
+	encoded, err := json.Marshal(map[string]string{
+		"owned-by":                   "ngrok-operator",
+		endpointMetadataReplicaIDKey: replicaID,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 
 func (r *AppReplicaPoller) ensureReplicaPullSecret(ctx context.Context, replica computeReplica) error {
