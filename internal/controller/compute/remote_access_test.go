@@ -24,7 +24,7 @@ import (
 
 func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 	ctx := context.Background()
-	var requests []remoteAccessRequest
+	var requests []RunnerStatusRequest
 	var registrations []runnerRegisterRequest
 	httpClient := &http.Client{Transport: computeRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/register") {
@@ -35,21 +35,17 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 		}
 		require.Equal(t, http.MethodPut, r.Method)
 		// Publication is addressed to the registered runner identity, not the
-		// operator ID.
-		require.Equal(t, "/v1/runners/rnr_XYZ789/kubernetes-access", r.URL.Path)
-		var request remoteAccessRequest
+		// operator ID, and rides the status exchange.
+		require.Equal(t, "/v1/runners/rnr_XYZ789/status", r.URL.Path)
+		var request RunnerStatusRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests = append(requests, request)
-		if request.AccessKey != "" {
-			return jsonResponse(t, remoteAccessResponse{
-				Endpoint: "https://rnr-xyz789.k8s.compute.internal",
+		if request.KubernetesAccessKey != "" {
+			return jsonResponse(t, RunnerStatusResponse{
+				KubernetesAccessEndpoint: "https://rnr-xyz789.k8s.compute.internal",
 			}), nil
 		}
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader("")),
-		}, nil
+		return jsonResponse(t, RunnerStatusResponse{}), nil
 	})}
 
 	scheme := runtime.NewScheme()
@@ -82,20 +78,22 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 	require.Equal(t, "k8sop_ABC123", registrations[0].KubernetesOperatorID)
 	require.Len(t, requests, 2)
 	// First publication mints the key; readiness is not yet claimed.
-	require.Len(t, requests[0].AccessKey, 43)
-	require.Equal(t, "ngrok-compute", requests[0].Namespace)
-	require.False(t, requests[0].Ready)
+	require.Len(t, requests[0].KubernetesAccessKey, 43)
+	require.Equal(t, "ngrok-compute", requests[0].KubernetesAccessNamespace)
+	require.False(t, requests[0].KubernetesAccessReady)
 	// The steady-state report restates namespace + readiness, never the key.
-	require.Empty(t, requests[1].AccessKey)
-	require.Equal(t, "ngrok-compute", requests[1].Namespace)
-	require.True(t, requests[1].Ready)
+	require.Empty(t, requests[1].KubernetesAccessKey)
+	require.Equal(t, "ngrok-compute", requests[1].KubernetesAccessNamespace)
+	// Not ready yet: the gateway has only just been rolled onto this key, and
+	// its running pods still hold the previous one.
+	require.False(t, requests[1].KubernetesAccessReady)
 
 	var config corev1.ConfigMap
 	require.NoError(t, k8sClient.Get(ctx, client.ObjectKey{
 		Name: "operator-compute-api", Namespace: "ngrok",
 	}, &config))
 	require.Equal(t, "https://rnr-xyz789.k8s.compute.internal", config.Data[remoteEndpointKey])
-	hash := sha256.Sum256([]byte(requests[0].AccessKey))
+	hash := sha256.Sum256([]byte(requests[0].KubernetesAccessKey))
 	require.Equal(t, base64.RawURLEncoding.EncodeToString(hash[:]), config.Data[remoteTokenHashKey])
 
 	var secrets corev1.SecretList
@@ -110,34 +108,152 @@ func TestRemoteAccessRegistersBearerKeyAndStoresOnlyVerifier(t *testing.T) {
 	}
 	require.NoError(t, restarted.reconcile(ctx))
 	require.Len(t, requests, 4)
-	require.NotEqual(t, requests[0].AccessKey, requests[2].AccessKey)
+	require.NotEqual(t, requests[0].KubernetesAccessKey, requests[2].KubernetesAccessKey)
 	require.NoError(t, k8sClient.Get(ctx, client.ObjectKey{
 		Name: "operator-compute-api", Namespace: "ngrok",
 	}, &config))
-	restartedHash := sha256.Sum256([]byte(requests[2].AccessKey))
+	restartedHash := sha256.Sum256([]byte(requests[2].KubernetesAccessKey))
 	require.Equal(t, base64.RawURLEncoding.EncodeToString(restartedHash[:]), config.Data[remoteTokenHashKey])
 }
 
-func TestRemoteAccessReprovisionsDeletedConfigMap(t *testing.T) {
+// TestRemoteAccessRollsGatewayAndGatesReadiness covers the handoff between the
+// two components: the manager publishes the endpoint and key, and the gateway
+// reads them once at startup. Republishing is only meaningful if the gateway's
+// pods restart, and Ship must not be told the runner is reachable until they
+// have.
+func TestRemoteAccessRollsGatewayAndGatesReadiness(t *testing.T) {
 	ctx := context.Background()
-	var requests []remoteAccessRequest
+	var requests []RunnerStatusRequest
+	endpoints := []string{
+		"https://rnr-first.k8s.compute.internal",
+		"https://rnr-first.k8s.compute.internal",
+	}
 	httpClient := &http.Client{Transport: computeRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/register") {
 			return jsonResponse(t, runnerRegisterResponse{RunnerID: "rnr_XYZ789"}), nil
 		}
-		var request remoteAccessRequest
+		var request RunnerStatusRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests = append(requests, request)
-		if request.AccessKey != "" {
-			return jsonResponse(t, remoteAccessResponse{
-				Endpoint: "https://rnr-xyz789.k8s.compute.internal",
+		if request.KubernetesAccessKey != "" {
+			endpoint := endpoints[0]
+			if len(endpoints) > 1 {
+				endpoints = endpoints[1:]
+			}
+			return jsonResponse(t, RunnerStatusResponse{KubernetesAccessEndpoint: endpoint}), nil
+		}
+		return jsonResponse(t, RunnerStatusResponse{}), nil
+	})}
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		&ngrokv1alpha1.KubernetesOperator{
+			ObjectMeta: metav1.ObjectMeta{Name: "operator", Namespace: "ngrok"},
+			Status:     ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_ABC123"},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "operator-compute-api", Namespace: "ngrok"},
+			// A pod is up, but it predates the key about to be published.
+			Status: appsv1.DeploymentStatus{Replicas: 1, UpdatedReplicas: 1, AvailableReplicas: 1},
+		},
+	).Build()
+	const computeBaseURL = "https://compute.example"
+	remote := &RemoteAccess{
+		Client: k8sClient, Log: logr.Discard(),
+		RunnerAPI: &RunnerClient{
+			NgrokBaseClient: ngrok.NewBaseClient(ngrok.NewClientConfig(
+				"api-key", ngrok.WithBaseURL(computeBaseURL), ngrok.WithHTTPClient(httpClient),
+			)),
+			ComputeBaseURL: computeBaseURL,
+		},
+		Namespace: "ngrok", K8sOpName: "operator",
+		GatewayName: "operator-compute-api", ReplicaNamespace: "ngrok-compute",
+	}
+
+	gatewayKey := client.ObjectKey{Name: "operator-compute-api", Namespace: "ngrok"}
+	configKey := gatewayKey
+
+	// First tick: publish, roll the gateway, and withhold readiness.
+	require.NoError(t, remote.reconcile(ctx))
+	var gateway appsv1.Deployment
+	require.NoError(t, k8sClient.Get(ctx, gatewayKey, &gateway))
+	firstRevision := gateway.Spec.Template.Annotations[accessRevisionAnnotation]
+	require.NotEmpty(t, firstRevision)
+	require.False(t, requests[len(requests)-1].KubernetesAccessReady)
+
+	// The ConfigMap dies with the gateway rather than outliving `helm uninstall`.
+	var config corev1.ConfigMap
+	require.NoError(t, k8sClient.Get(ctx, configKey, &config))
+	require.Len(t, config.OwnerReferences, 1)
+	require.Equal(t, "Deployment", config.OwnerReferences[0].Kind)
+	require.Equal(t, "operator-compute-api", config.OwnerReferences[0].Name)
+	require.Equal(t, firstRevision, accessRevision(config.Data))
+
+	// The rollout finishes: the serving pods now carry the published key.
+	gateway.Status = appsv1.DeploymentStatus{
+		Replicas: 1, UpdatedReplicas: 1, AvailableReplicas: 1,
+		ObservedGeneration: gateway.Generation,
+	}
+	require.NoError(t, k8sClient.Status().Update(ctx, &gateway))
+
+	require.NoError(t, remote.reconcile(ctx))
+	require.True(t, requests[len(requests)-1].KubernetesAccessReady)
+	require.NoError(t, k8sClient.Get(ctx, gatewayKey, &gateway))
+	require.Equal(t, firstRevision, gateway.Spec.Template.Annotations[accessRevisionAnnotation],
+		"a settled gateway must not be rolled again")
+
+	// A manager restart mints a fresh key. The running gateway still verifies
+	// against the old one, so it is rolled again and readiness drops.
+	remote.registered = false
+	require.NoError(t, remote.reconcile(ctx))
+	require.NoError(t, k8sClient.Get(ctx, gatewayKey, &gateway))
+	require.NotEqual(t, firstRevision, gateway.Spec.Template.Annotations[accessRevisionAnnotation])
+	require.False(t, requests[len(requests)-1].KubernetesAccessReady)
+}
+
+// TestRemoteAccessWithdrawsReadinessWhenGatewayIsGone asserts the absent case,
+// which the previous AvailableReplicas check also got right but for the wrong
+// reason.
+func TestRemoteAccessWithdrawsReadinessWhenGatewayIsGone(t *testing.T) {
+	require.False(t, gatewayRolloutComplete(&appsv1.Deployment{
+		Status: appsv1.DeploymentStatus{Replicas: 1, UpdatedReplicas: 1},
+	}), "no available replica")
+	require.False(t, gatewayRolloutComplete(&appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Generation: 4},
+		Status: appsv1.DeploymentStatus{
+			Replicas: 1, UpdatedReplicas: 1, AvailableReplicas: 1, ObservedGeneration: 3,
+		},
+	}), "status predates the template it is being compared against")
+	require.False(t, gatewayRolloutComplete(&appsv1.Deployment{
+		Status: appsv1.DeploymentStatus{Replicas: 2, UpdatedReplicas: 1, AvailableReplicas: 1},
+	}), "a pod from the previous template is still running")
+	require.True(t, gatewayRolloutComplete(&appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Generation: 4},
+		Status: appsv1.DeploymentStatus{
+			Replicas: 1, UpdatedReplicas: 1, AvailableReplicas: 1, ObservedGeneration: 4,
+		},
+	}))
+}
+
+func TestRemoteAccessReprovisionsDeletedConfigMap(t *testing.T) {
+	ctx := context.Background()
+	var requests []RunnerStatusRequest
+	httpClient := &http.Client{Transport: computeRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/register") {
+			return jsonResponse(t, runnerRegisterResponse{RunnerID: "rnr_XYZ789"}), nil
+		}
+		var request RunnerStatusRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		requests = append(requests, request)
+		if request.KubernetesAccessKey != "" {
+			return jsonResponse(t, RunnerStatusResponse{
+				KubernetesAccessEndpoint: "https://rnr-xyz789.k8s.compute.internal",
 			}), nil
 		}
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader("")),
-		}, nil
+		return jsonResponse(t, RunnerStatusResponse{}), nil
 	})}
 
 	scheme := runtime.NewScheme()
@@ -174,7 +290,7 @@ func TestRemoteAccessReprovisionsDeletedConfigMap(t *testing.T) {
 	require.NoError(t, k8sClient.Get(ctx, key, &config))
 	require.NotEqual(t, firstHash, config.Data[remoteTokenHashKey])
 	require.Len(t, requests, 4)
-	require.NotEmpty(t, requests[2].AccessKey)
+	require.NotEmpty(t, requests[2].KubernetesAccessKey)
 }
 
 func TestNewAccessKey(t *testing.T) {
