@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## 0.4.0-rc.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.4.0-rc.1...helm-chart-ngrok-crds-0.4.0-rc.2
+
+- Update CRDs Helm chart version to `0.4.0-rc.2`
+
+### Fixed
+- Regenerated `KubernetesOperator` CRD to include the legacy `enabledFeatures` string field used by the rollback-safe dual-write shim by @alex-bezek in [#865](https://github.com/ngrok/ngrok-operator/pull/865)
+
 ## 0.4.0-rc.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.3.0...helm-chart-ngrok-crds-0.4.0-rc.1
 

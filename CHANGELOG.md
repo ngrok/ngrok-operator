@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.22.0-rc.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.22.0-rc.1...ngrok-operator-0.22.0-rc.2
+
+### Fixed
+- Dual-write the legacy string form of `KubernetesOperator.status.enabledFeatures` so rolling back to the prior release doesn't crash on decode by @alex-bezek in [#865](https://github.com/ngrok/ngrok-operator/pull/865)
+- Downgrade `golang.ngrok.com/ngrok/v2` to `v2.1.1` to avoid an upstream connection leak in `v2.1.2+` HTTP forwarding by @alex-bezek in [#866](https://github.com/ngrok/ngrok-operator/pull/866)
+
 ## 0.22.0-rc.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0-rc.1
 
