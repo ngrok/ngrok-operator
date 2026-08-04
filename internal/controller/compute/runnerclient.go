@@ -42,12 +42,17 @@ func ParseComputeMetadata(raw string) ComputeMetadata {
 
 // runnerRegisterRequest is the body for POST /v1/runners/register.
 type runnerRegisterRequest struct {
-	JoinKey              string            `json:"join_key"`
-	KubernetesOperatorID string            `json:"kubernetes_operator_id"`
-	Runtime              string            `json:"runtime"`
-	Description          string            `json:"description,omitempty"`
-	Metadata             map[string]string `json:"metadata,omitempty"`
-	Version              string            `json:"version,omitempty"`
+	JoinKey              string `json:"join_key"`
+	KubernetesOperatorID string `json:"kubernetes_operator_id"`
+	Runtime              string `json:"runtime"`
+	// ReconcileMode declares who converges this runner's replicas: "poll"
+	// (this operator pulls desired state on its status exchange) or "server"
+	// (ship pushes through the published Kubernetes access). Ship fixes the
+	// mode at registration; it never changes on later status calls.
+	ReconcileMode string            `json:"reconcile_mode,omitempty"`
+	Description   string            `json:"description,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	Version       string            `json:"version,omitempty"`
 }
 
 type runnerRegisterResponse struct {
@@ -97,6 +102,13 @@ type RunnerClient struct {
 	// default pool.
 	JoinKey string
 
+	// ReconcileMode is the mode this runner registers with: "server" when
+	// the compute API gateway is enabled (ship converges replicas through
+	// the published access), otherwise "poll". Both registration paths (the
+	// app-replica poller and the remote-access publisher) share this client,
+	// so they always declare the same mode.
+	ReconcileMode string
+
 	// Description, Metadata, and Version describe this runner at
 	// registration time.
 	Description string
@@ -119,6 +131,7 @@ func (c *RunnerClient) Register(ctx context.Context, kubernetesOperatorID string
 		JoinKey:              c.JoinKey,
 		KubernetesOperatorID: kubernetesOperatorID,
 		Runtime:              "kube",
+		ReconcileMode:        c.ReconcileMode,
 		Description:          c.Description,
 		Metadata:             c.Metadata,
 		Version:              c.Version,
