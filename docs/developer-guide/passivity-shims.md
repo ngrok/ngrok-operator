@@ -198,6 +198,7 @@ Current sentinel tags:
 - `LEGACY-trafficpolicy-name` — `CloudEndpoint.spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`.
 - `LEGACY-trafficpolicy-policy` — `CloudEndpoint.spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`.
 - `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
+- `LEGACY-enabledfeatures-format` — `KubernetesOperator.status.enabledFeatures` comma-separated **string** → `[]string` (a field *type* change on an operator-only, operator-written status field; same `json:` tag).
 
 ## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
 
@@ -629,3 +630,73 @@ server no longer enforces string values on the map. The operator normalizes the
 supported forms (legacy string, flat string map) and passes any other JSON
 through to ngrok unchanged rather than rejecting it — plus the rollback caveat
 for object-form adopters documented in the user-facing guide.
+
+## Per-shim catalog: `KubernetesOperator.status.enabledFeatures` type change
+
+Same family as the `spec.metadata` type change above (a live key can't
+passively change the shape it accepts), but simpler: `status.enabledFeatures`
+is entirely operator-written — no user ever sets it — so there's no
+user-authored-legacy-object case to dual-read, and the operator fully
+recomputes the field from the ngrok API on every reconcile rather than
+merging into existing state, so it self-heals to the current wire format on
+the object's next reconcile with no backfill needed.
+
+Landed via #846 with only a read-side shim (`UnmarshalJSON` accepting either
+shape), which covers upgrades but not rollback: the *old* operator binary
+predates the shim entirely, so it can never be taught to read the array this
+release would otherwise write. Caught testing the 0.24 RC: rolling the
+operator back to the prior release while the array-shaped status was already
+live crashed api-manager (`unable to create KubernetesOperator: json: cannot
+unmarshal array into Go struct field ... of type string`) and spammed
+agent-manager's reflector with the same decode failure on every `List`. Both
+call sites — `controllerutil.CreateOrUpdate`'s `Get` in
+`cmd/api-manager.go::createKubernetesOperator`, and the informer's `List` —
+decode the *entire* stored object with the old binary's plain-`string`
+`EnabledFeatures` field, so the crash is unconditional and has no
+workaround short of `kubectl edit --subresource=status` on every existing
+object before starting the old binary.
+
+- **Pattern:** Two-release (deprecated form, same key), operator-written
+  variant — no coexistence window is needed because there is exactly one
+  writer. Tag: `LEGACY-enabledfeatures-format`.
+- **Type:** `api/ngrok/v1alpha1/kubernetesoperator_types.go`'s
+  `KubernetesOperatorStatus.EnabledFeatures` keeps its final-state type
+  (`KubernetesOperatorEnabledFeatures`, an eventual `[]string`) and doc
+  comment — only a `+kubebuilder:validation:Schemaless` /
+  `+kubebuilder:pruning:PreserveUnknownFields` marker pair is added so the
+  CRD accepts whichever shape is actually written this release
+  (`+kubebuilder:validation:Type=string` was tried first and rejected by
+  controller-gen: `conflicting types in allOf branches in schema: array vs
+  string`, because the field's underlying Go type is a slice).
+- **R1 (0.24):**
+  - `api/ngrok/v1alpha1/kubernetesoperator_status_compat.go`:
+    `UnmarshalJSON` (already landed in #846) keeps reading either shape.
+    A new `MarshalJSON` writes the legacy comma-separated string — the
+    write-side half #846 was missing — so a rollback to the prior release
+    can decode status this release wrote.
+  - CRD: `status.enabledFeatures` becomes schemaless (no `type:`,
+    `x-kubernetes-preserve-unknown-fields: true`) instead of the strict
+    `type: array` #846 generated, matching what's actually on the wire.
+  - No controller change: `kubernetesoperator_controller.go:308`
+    (`ko.Status.EnabledFeatures = ngrokKo.EnabledFeatures`) is unaware of
+    the wire format; the shim type's `MarshalJSON`/`UnmarshalJSON` handle
+    it transparently.
+- **R-cleanup:** delete `MarshalJSON` (write-side cleanup) so the field
+  marshals as a plain array again; drop the `Schemaless` /
+  `PreserveUnknownFields` markers and regenerate the CRD back to strict
+  `type: array`. Keep `UnmarshalJSON` one release longer — an object last
+  reconciled under R1 still carries the legacy string until its next
+  reconcile — then delete it too (read-side cleanup) along with the
+  `KubernetesOperatorEnabledFeatures` type, switching the field to plain
+  `[]string`. Sweep with `git grep 'LEGACY-enabledfeatures-format'`.
+
+### Why not a rename or a conversion webhook
+
+Same reasoning as `spec.metadata`: a new field name (e.g.
+`enabledFeatureList`) would need its own eventual deprecation once
+`enabledFeatures` was free to take the array shape, trading one migration
+for two; a conversion webhook is a pattern this operator has deliberately
+not adopted anywhere. Unlike `spec.metadata`, there's no user-authored form
+to ever reconcile away — once every operator's next reconcile has run
+against a release with `MarshalJSON` removed, no object anywhere is left
+carrying the string form.
