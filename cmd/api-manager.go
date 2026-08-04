@@ -432,10 +432,15 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	var computeRunnerClient *computecontroller.RunnerClient
 	computeMeta := computecontroller.ParseComputeMetadata(opts.computeMetadata)
 	if computeMode.pollerEnabled || opts.computeRemoteAccess {
+		reconcileMode := "poll"
+		if opts.computeRemoteAccess {
+			reconcileMode = "server"
+		}
 		computeRunnerClient = &computecontroller.RunnerClient{
 			NgrokBaseClient: ngrok.NewBaseClient(ngrokClientConfig),
 			ComputeBaseURL:  opts.computeBaseURL,
 			JoinKey:         computeMeta.PoolJoinKey,
+			ReconcileMode:   reconcileMode,
 			Description:     computeMeta.Description,
 			Metadata:        computeMeta.Metadata,
 			Version:         version.GetVersion(),
