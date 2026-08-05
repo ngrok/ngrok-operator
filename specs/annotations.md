@@ -6,8 +6,6 @@ The ngrok-operator uses annotations under the `ngrok.com/` prefix to configure b
 
 Other user-supplied ngrok-prefixed key namespaces that are *not* object annotations are specced where they belong: Gateway listener TLS option keys in [features/gateway-api.md](features/gateway-api.md), recognized Service port `appProtocol` field values in [upstream-protocols.md](upstream-protocols.md), and pod annotations forwarded as bindings pod identity in [features/bindings.md](features/bindings.md).
 
-During the `k8s.ngrok.com/` → `ngrok.com/` migration window the operator also reads every annotation below under the legacy `k8s.ngrok.com/` prefix; when both prefixes are present on the same object, the `ngrok.com/` key wins. Precedence is decided by key *presence*, even when the canonical value is empty or invalid — what an empty value then means differs per annotation (most annotations reject an empty value as invalid content; `app-protocols` treats empty as unset). Legacy-prefix support is removed in 1.0. See [`docs/v1-migration-guide.md`](../docs/v1-migration-guide.md).
-
 ## User-Configurable Annotations
 
 ### `ngrok.com/url`

@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.4.0-rc.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.3.0...helm-chart-ngrok-crds-0.4.0-rc.1
 
+For upgrade steps and required manifest migrations, see the
+[Helm chart 0.23 to 0.24 upgrade guide](../../docs/upgrading-to-0.24.md).
+
 - Update CRDs Helm chart version to `0.4.0-rc.1`
 
 ### Breaking Changes

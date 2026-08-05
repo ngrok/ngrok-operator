@@ -4,9 +4,9 @@ This document is for ngrok-operator maintainers. It describes how we stage
 backwards-incompatible changes across multiple releases using **passivity
 shims** — small pieces of read-side and/or write-side compatibility code
 that let an older operator coexist with a newer one during rolling
-upgrades and (where possible) survive a `helm rollback`. The user-facing
-counterpart that lists what each release means for users is
-[`docs/v1-migration-guide.md`](../v1-migration-guide.md).
+upgrades and (where possible) survive a `helm rollback`. User-facing
+instructions belong in release-specific upgrade guides under `docs/`, such as
+[`docs/upgrading-to-0.24.md`](../upgrading-to-0.24.md).
 
 ## Why we need shims
 
