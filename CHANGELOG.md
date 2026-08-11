@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrated ingress class handling to the new `ngrok.com` API group by @alex-bezek in [#819](https://github.com/ngrok/ngrok-operator/pull/819)
 - Migrated finalizers to the `ngrok.com` API group, writing the legacy finalizer while dual-reading both by @alex-bezek in [#820](https://github.com/ngrok/ngrok-operator/pull/820)
 - Migrated internally written labels and annotations from `k8s.ngrok.com` to `ngrok.com` by @alex-bezek in [#821](https://github.com/ngrok/ngrok-operator/pull/821)
-- Set up passive migrations to let CloudEndpoints reference NgrokTrafficPolicy resources under the new API group by @alex-bezek in [#823](https://github.com/ngrok/ngrok-operator/pull/823)
+- Set up passive migrations to let CloudEndpoints reference TrafficPolicy resources under the new API group by @alex-bezek in [#823](https://github.com/ngrok/ngrok-operator/pull/823)
 - Migrated default metadata handling from the legacy kubernetes-ingress-controller by @alex-bezek in [#838](https://github.com/ngrok/ngrok-operator/pull/838)
 - Cleaned up user-facing `k8s.ngrok.com` references to use the new `ngrok.com` API group by @alex-bezek in [#849](https://github.com/ngrok/ngrok-operator/pull/849)
 - Overhauled KubernetesOperator status: replaced phase enums with structured Conditions and added structured drain reporting by @alex-bezek in [#846](https://github.com/ngrok/ngrok-operator/pull/846)
@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allow chainsaw tests to reserve domains via a configurable suffix by @jonstacks in [#827](https://github.com/ngrok/ngrok-operator/pull/827)
 
 ### Changed
-- Replaced `NgrokTrafficPolicy.status.policy` with `Ready`/`Valid` conditions and added printer columns by @alex-bezek in [#852](https://github.com/ngrok/ngrok-operator/pull/852)
+- Replaced `TrafficPolicy.status.policy` with `Ready`/`Valid` conditions and added printer columns by @alex-bezek in [#852](https://github.com/ngrok/ngrok-operator/pull/852)
 - Aligned IPPolicy and CloudEndpoint predicates with the common controller pattern by @alex-bezek in [#854](https://github.com/ngrok/ngrok-operator/pull/854)
 - Used `maps.Equal` when the map type is known at compile time by @jonstacks in [#825](https://github.com/ngrok/ngrok-operator/pull/825)
 

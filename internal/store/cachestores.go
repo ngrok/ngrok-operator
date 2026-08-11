@@ -50,10 +50,10 @@ type CacheStores struct {
 	ReferenceGrant cache.Store
 
 	// Ngrok Stores
-	DomainV1             cache.Store
-	NgrokTrafficPolicyV1 cache.Store
-	AgentEndpointV1      cache.Store
-	CloudEndpointV1      cache.Store
+	DomainV1        cache.Store
+	TrafficPolicyV1 cache.Store
+	AgentEndpointV1 cache.Store
+	CloudEndpointV1 cache.Store
 
 	log logr.Logger
 	l   *sync.RWMutex
@@ -77,12 +77,12 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		TLSRoute:       cache.NewStore(keyFunc),
 		ReferenceGrant: cache.NewStore(keyFunc),
 		// Ngrok Stores
-		DomainV1:             cache.NewStore(keyFunc),
-		NgrokTrafficPolicyV1: cache.NewStore(keyFunc),
-		AgentEndpointV1:      cache.NewStore(keyFunc),
-		CloudEndpointV1:      cache.NewStore(keyFunc),
-		l:                    &sync.RWMutex{},
-		log:                  logger,
+		DomainV1:        cache.NewStore(keyFunc),
+		TrafficPolicyV1: cache.NewStore(keyFunc),
+		AgentEndpointV1: cache.NewStore(keyFunc),
+		CloudEndpointV1: cache.NewStore(keyFunc),
+		l:               &sync.RWMutex{},
+		log:             logger,
 	}
 }
 
@@ -146,8 +146,8 @@ func (c CacheStores) Get(obj runtime.Object) (item any, exists bool, err error) 
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		return c.DomainV1.Get(obj)
-	case *ngrokv1alpha1.NgrokTrafficPolicy:
-		return c.NgrokTrafficPolicyV1.Get(obj)
+	case *ngrokv1alpha1.TrafficPolicy:
+		return c.TrafficPolicyV1.Get(obj)
 	case *ngrokv1alpha1.AgentEndpoint:
 		return c.AgentEndpointV1.Get(obj)
 	case *ngrokv1alpha1.CloudEndpoint:
@@ -201,8 +201,8 @@ func (c CacheStores) Add(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		return c.DomainV1.Add(obj)
-	case *ngrokv1alpha1.NgrokTrafficPolicy:
-		return c.NgrokTrafficPolicyV1.Add(obj)
+	case *ngrokv1alpha1.TrafficPolicy:
+		return c.TrafficPolicyV1.Add(obj)
 	case *ngrokv1alpha1.AgentEndpoint:
 		return c.AgentEndpointV1.Add(obj)
 	case *ngrokv1alpha1.CloudEndpoint:
@@ -257,8 +257,8 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		return c.DomainV1.Delete(obj)
-	case *ngrokv1alpha1.NgrokTrafficPolicy:
-		return c.NgrokTrafficPolicyV1.Delete(obj)
+	case *ngrokv1alpha1.TrafficPolicy:
+		return c.TrafficPolicyV1.Delete(obj)
 	case *ngrokv1alpha1.AgentEndpoint:
 		return c.AgentEndpointV1.Delete(obj)
 	case *ngrokv1alpha1.CloudEndpoint:

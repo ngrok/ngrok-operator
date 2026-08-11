@@ -472,12 +472,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should resolve traffic policy reference", func(ctx SpecContext) {
 			// Create traffic policy
-			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			trafficPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "referenced-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
 			}
@@ -594,12 +594,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 	Context("when AgentEndpoint references a TrafficPolicy", func() {
 		It("should successfully apply traffic policy", func(ctx SpecContext) {
 			// Create a traffic policy
-			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			trafficPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"inbound":[{"type":"deny"}]}`),
 				},
 			}
@@ -659,12 +659,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should reconcile when traffic policy is updated", func(ctx SpecContext) {
 			// Create a traffic policy
-			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			trafficPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "update-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"inbound":[{"type":"deny"}]}`),
 				},
 			}
@@ -1347,12 +1347,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should reconcile traffic policy reference with runtime controller", func(ctx SpecContext) {
 			// Create traffic policy first
-			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			trafficPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "runtime-auto-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
 			}

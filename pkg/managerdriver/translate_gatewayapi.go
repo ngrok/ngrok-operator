@@ -836,15 +836,15 @@ func (t *translator) gatewayAPIFilterToTrafficPolicy(filter gatewayv1.HTTPRouteF
 		if extensionRef == nil {
 			return nil, fmt.Errorf("%w: filter type specified as ExtensionRef but the section config was nil", sharedErr)
 		}
-		if !strings.EqualFold(string(extensionRef.Kind), "NgrokTrafficPolicy") {
-			return nil, fmt.Errorf("%w: extension ref filter has unknown kind %q. only NgrokTrafficPolicy is currently supported", sharedErr, string(extensionRef.Kind))
+		if !strings.EqualFold(string(extensionRef.Kind), "TrafficPolicy") {
+			return nil, fmt.Errorf("%w: extension ref filter has unknown kind %q. only TrafficPolicy is currently supported", sharedErr, string(extensionRef.Kind))
 		}
 
 		if group := string(extensionRef.Group); group != "" && !strings.EqualFold(group, "ngrok.k8s.ngrok.com") {
 			return nil, fmt.Errorf("%w: extension ref filter has unknown group %q. only \"ngrok.k8s.ngrok.com\" is currently supported", sharedErr, group)
 		}
 
-		routePolicyCfg, err := store.GetNgrokTrafficPolicyV1(string(extensionRef.Name), namespace)
+		routePolicyCfg, err := store.GetTrafficPolicyV1(string(extensionRef.Name), namespace)
 		if err != nil {
 			return nil, fmt.Errorf("unable to resolve traffic policy backend for ingress rule: %w", err)
 		}

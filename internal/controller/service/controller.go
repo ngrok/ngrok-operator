@@ -157,7 +157,7 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)).
 		// Watch traffic policies for changes
 		Watches(
-			&ngrokv1alpha1.NgrokTrafficPolicy{},
+			&ngrokv1alpha1.TrafficPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.findServicesForTrafficPolicy),
 		)
 
@@ -190,7 +190,7 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Index the services by the traffic policy they reference
 	err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Service{}, TrafficPolicyIndexKey, func(obj client.Object) []string {
-		policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(obj)
+		policy, err := annotations.ExtractTrafficPolicyFromAnnotations(obj)
 		if err != nil {
 			return nil
 		}
@@ -438,7 +438,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 	// If an explicit traffic policy is defined on the service, merge it with the existing traffic policy
 	// before adding the forward-internal action.
 	// TODO: We still need to handle legacy traffic policy conversion
-	policy, err := getNgrokTrafficPolicyForService(ctx, r.Client, svc)
+	policy, err := getTrafficPolicyForService(ctx, r.Client, svc)
 	if err != nil {
 		log.Error(err, "Failed to get traffic policy")
 		return objects, err
@@ -877,8 +877,8 @@ func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
 	}
 }
 
-func getNgrokTrafficPolicyForService(ctx context.Context, c client.Client, svc *corev1.Service) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
-	policyName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(svc)
+func getTrafficPolicyForService(ctx context.Context, c client.Client, svc *corev1.Service) (*ngrokv1alpha1.TrafficPolicy, error) {
+	policyName, err := annotations.ExtractTrafficPolicyFromAnnotations(svc)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return nil, nil
@@ -886,7 +886,7 @@ func getNgrokTrafficPolicyForService(ctx context.Context, c client.Client, svc *
 		return nil, err
 	}
 
-	policy := &ngrokv1alpha1.NgrokTrafficPolicy{}
+	policy := &ngrokv1alpha1.TrafficPolicy{}
 	err = c.Get(ctx, client.ObjectKey{Namespace: svc.Namespace, Name: policyName}, policy)
 	return policy, err
 }

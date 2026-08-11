@@ -38,7 +38,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		&netv1.IngressClass{},
 		&corev1.Service{},
 		&ingressv1alpha1.Domain{},
-		&ngrokv1alpha1.NgrokTrafficPolicy{},
+		&ngrokv1alpha1.TrafficPolicy{},
 	}
 
 	builder := ctrl.NewControllerManagedBy(mgr).For(&netv1.Ingress{})

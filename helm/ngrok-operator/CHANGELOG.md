@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support `map[string]string` for CRD metadata fields (K8SOP-295) by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
 
 ### Added
-- Added printer columns for `NgrokTrafficPolicy` (`Ready`/`Valid` conditions) by @alex-bezek in [#852](https://github.com/ngrok/ngrok-operator/pull/852)
+- Added printer columns for `TrafficPolicy` (`Ready`/`Valid` conditions) by @alex-bezek in [#852](https://github.com/ngrok/ngrok-operator/pull/852)
 
 ## 0.23.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.22.2...helm-chart-ngrok-operator-0.23.0

@@ -54,9 +54,9 @@ func TestSetTrafficPolicyConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tp := &ngrokv1alpha1.NgrokTrafficPolicy{
+			tp := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{Generation: 3},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: json.RawMessage(tt.policy),
 				},
 			}
@@ -82,9 +82,9 @@ func TestSetTrafficPolicyConditions(t *testing.T) {
 // Status would share the same backing array and always compare equal to the
 // post-mutation value, even when something actually changed.
 func TestStatusChangeDetection(t *testing.T) {
-	tp := &ngrokv1alpha1.NgrokTrafficPolicy{
+	tp := &ngrokv1alpha1.TrafficPolicy{
 		ObjectMeta: metav1.ObjectMeta{Generation: 1},
-		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+		Spec: ngrokv1alpha1.TrafficPolicySpec{
 			Policy: json.RawMessage(`{"on_http_request":[{"actions":[{"type":"deny"}]}]}`),
 		},
 	}

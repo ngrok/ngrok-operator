@@ -27,7 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
+func TestExtractTrafficPolicyFromAnnotations(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
@@ -93,7 +93,7 @@ func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
 				},
 			}
 
-			policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(obj)
+			policy, err := annotations.ExtractTrafficPolicyFromAnnotations(obj)
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, tc.expectedErr, err)

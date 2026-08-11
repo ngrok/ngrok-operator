@@ -101,7 +101,7 @@ spec:
               trafficPolicy:
                 description: |-
                   TrafficPolicy attached to this CloudEndpoint, either inline or by reference
-                  to an NgrokTrafficPolicy resource in the same namespace as the endpoint.
+                  to an TrafficPolicy resource in the same namespace as the endpoint.
                 properties:
                   inline:
                     description: |-
@@ -118,7 +118,7 @@ spec:
                   targetRef:
                     description: |-
                       Reference to a TrafficPolicy resource to attach to the CloudEndpoint. The
-                      referenced NgrokTrafficPolicy must live in the same namespace as the
+                      referenced TrafficPolicy must live in the same namespace as the
                       endpoint.
                     properties:
                       name:

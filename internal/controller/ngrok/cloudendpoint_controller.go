@@ -158,7 +158,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		)).
 		Watches(
-			&ngrokv1alpha1.NgrokTrafficPolicy{},
+			&ngrokv1alpha1.TrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointForTrafficPolicy),
 		).
 		Watches(
@@ -481,11 +481,11 @@ func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv
 // #region Helper Functions
 
 // findCloudEndpointForTrafficPolicy returns reconcile requests for every
-// CloudEndpoint that references the supplied NgrokTrafficPolicy via the new
+// CloudEndpoint that references the supplied TrafficPolicy via the new
 // targetRef shape or the deprecated spec.trafficPolicyName — both flow through
 // the same composite-key index.
 func (r *CloudEndpointReconciler) findCloudEndpointForTrafficPolicy(ctx context.Context, o client.Object) []ctrl.Request {
-	tp, ok := o.(*ngrokv1alpha1.NgrokTrafficPolicy)
+	tp, ok := o.(*ngrokv1alpha1.TrafficPolicy)
 	if !ok {
 		return nil
 	}

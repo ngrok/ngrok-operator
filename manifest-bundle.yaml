@@ -1003,7 +1003,7 @@ spec:
               trafficPolicy:
                 description: |-
                   Allows configuring a TrafficPolicy to be used with this AgentEndpoint
-                  When configured, the traffic policy is provided inline or as a reference to an NgrokTrafficPolicy resource
+                  When configured, the traffic policy is provided inline or as a reference to an TrafficPolicy resource
                 properties:
                   inline:
                     description: |-
@@ -1014,7 +1014,7 @@ spec:
                   targetRef:
                     description: |-
                       Reference to a TrafficPolicy resource to attach to the Endpoint. The
-                      referenced NgrokTrafficPolicy must live in the same namespace as the
+                      referenced TrafficPolicy must live in the same namespace as the
                       endpoint.
                     properties:
                       name:
@@ -1302,7 +1302,7 @@ spec:
               trafficPolicy:
                 description: |-
                   TrafficPolicy attached to this CloudEndpoint, either inline or by reference
-                  to an NgrokTrafficPolicy resource in the same namespace as the endpoint.
+                  to an TrafficPolicy resource in the same namespace as the endpoint.
                 properties:
                   inline:
                     description: |-
@@ -1319,7 +1319,7 @@ spec:
                   targetRef:
                     description: |-
                       Reference to a TrafficPolicy resource to attach to the CloudEndpoint. The
-                      referenced NgrokTrafficPolicy must live in the same namespace as the
+                      referenced TrafficPolicy must live in the same namespace as the
                       endpoint.
                     properties:
                       name:
@@ -1737,20 +1737,20 @@ spec:
       status: {}
 
 ---
-# Source: ngrok-operator/charts/ngrok-crds/templates/ngrok.k8s.ngrok.com_ngroktrafficpolicies.yaml
+# Source: ngrok-operator/charts/ngrok-crds/templates/ngrok.k8s.ngrok.com_trafficpolicies.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-  name: ngroktrafficpolicies.ngrok.k8s.ngrok.com
+  name: trafficpolicies.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
   names:
-    kind: NgrokTrafficPolicy
-    listKind: NgrokTrafficPolicyList
-    plural: ngroktrafficpolicies
-    singular: ngroktrafficpolicy
+    kind: TrafficPolicy
+    listKind: TrafficPolicyList
+    plural: trafficpolicies
+    singular: trafficpolicy
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -1767,7 +1767,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies
+        description: TrafficPolicy is the Schema for the trafficpolicies
           API
         properties:
           apiVersion:
@@ -1788,7 +1788,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+            description: TrafficPolicySpec defines the desired state of TrafficPolicy
             properties:
               policy:
                 description: |-
@@ -1802,10 +1802,10 @@ spec:
                 x-kubernetes-preserve-unknown-fields: true
             type: object
           status:
-            description: NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
+            description: TrafficPolicyStatus defines the observed state of TrafficPolicy
             properties:
               conditions:
-                description: Conditions describe the current conditions of the NgrokTrafficPolicy.
+                description: Conditions describe the current conditions of the TrafficPolicy.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -1954,7 +1954,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies
+  - trafficpolicies
   verbs:
   - get
   - list
@@ -2361,7 +2361,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies
+  - trafficpolicies
   verbs:
   - get
   - list
@@ -2369,7 +2369,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies/status
+  - trafficpolicies/status
   verbs:
   - get
   - patch
@@ -2804,11 +2804,11 @@ rules:
   - get
 
 ---
-# Source: ngrok-operator/templates/rbac/crd-access/ngroktrafficpolicy-editor.yaml
+# Source: ngrok-operator/templates/rbac/crd-access/trafficpolicy-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ngrok-operator-ngroktrafficpolicy-editor-role
+  name: ngrok-operator-trafficpolicy-editor-role
   labels:
     app.kubernetes.io/component: rbac
     helm.sh/chart: ngrok-operator-0.24.0-rc.2
@@ -2821,7 +2821,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies
+  - trafficpolicies
   verbs:
   - create
   - delete
@@ -2833,16 +2833,16 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies/status
+  - trafficpolicies/status
   verbs:
   - get
 
 ---
-# Source: ngrok-operator/templates/rbac/crd-access/ngroktrafficpolicy-viewer.yaml
+# Source: ngrok-operator/templates/rbac/crd-access/trafficpolicy-viewer.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ngrok-operator-ngroktrafficpolicy-viewer-role
+  name: ngrok-operator-trafficpolicy-viewer-role
   labels:
     app.kubernetes.io/component: rbac
     helm.sh/chart: ngrok-operator-0.24.0-rc.2
@@ -2855,7 +2855,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies
+  - trafficpolicies
   verbs:
   - get
   - list
@@ -2863,7 +2863,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies/status
+  - trafficpolicies/status
   verbs:
   - get
 

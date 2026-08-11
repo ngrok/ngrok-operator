@@ -91,7 +91,7 @@ input:
       type: ClusterIP
   trafficPolicies:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
-    kind: NgrokTrafficPolicy
+    kind: TrafficPolicy
     metadata:
       name: response-503
       namespace: default

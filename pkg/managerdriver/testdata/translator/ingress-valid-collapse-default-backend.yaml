@@ -36,7 +36,7 @@ input:
                   resource:
                     name: response-503
                     apiGroup: "ngrok.k8s.ngrok.com"
-                    kind: "NgrokTrafficPolicy"
+                    kind: "TrafficPolicy"
   services:
   - apiVersion: v1
     kind: Service
@@ -52,7 +52,7 @@ input:
       type: ClusterIP
   trafficPolicies:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
-    kind: NgrokTrafficPolicy
+    kind: TrafficPolicy
     metadata:
       name: response-503
       namespace: default

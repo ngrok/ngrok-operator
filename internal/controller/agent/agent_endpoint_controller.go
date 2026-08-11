@@ -217,7 +217,7 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 			),
 		)).
 		Watches(
-			&ngrokv1alpha1.NgrokTrafficPolicy{},
+			&ngrokv1alpha1.TrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForTrafficPolicy),
 		).
 		Watches(
@@ -305,7 +305,7 @@ func (r *AgentEndpointReconciler) statusID(endpoint *ngrokv1alpha1.AgentEndpoint
 // findAgentEndpointForTrafficPolicy searches for any AgentEndpoint CRs that
 // reference a particular TrafficPolicy in the policy's namespace.
 func (r *AgentEndpointReconciler) findAgentEndpointForTrafficPolicy(ctx context.Context, o client.Object) []ctrl.Request {
-	tp, ok := o.(*ngrokv1alpha1.NgrokTrafficPolicy)
+	tp, ok := o.(*ngrokv1alpha1.TrafficPolicy)
 	if !ok {
 		return nil
 	}

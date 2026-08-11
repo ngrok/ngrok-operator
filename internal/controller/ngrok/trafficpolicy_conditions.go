@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	// condition types for NgrokTrafficPolicy
+	// condition types for TrafficPolicy
 	ConditionTrafficPolicyReady = "Ready"
 	ConditionTrafficPolicyValid = "Valid"
 
-	// condition reasons for NgrokTrafficPolicy
+	// condition reasons for TrafficPolicy
 	ReasonTrafficPolicyValid       = "TrafficPolicyValid"
 	ReasonTrafficPolicyParseFailed = "TrafficPolicyParseFailed"
 	ReasonLegacyPolicyFormat       = "LegacyPolicyFormat"
@@ -23,7 +23,7 @@ const (
 // setTrafficPolicyConditions sets the Valid and Ready conditions from the
 // result of parsing spec.policy. Both conditions share the same reason so
 // deprecation warnings surface in the Ready-based printer columns.
-func setTrafficPolicyConditions(tp *ngrokv1alpha1.NgrokTrafficPolicy, parsed util.TrafficPolicy, parseErr error) {
+func setTrafficPolicyConditions(tp *ngrokv1alpha1.TrafficPolicy, parsed util.TrafficPolicy, parseErr error) {
 	valid := parseErr == nil
 	reason := ReasonTrafficPolicyValid
 	message := "Traffic policy is valid"

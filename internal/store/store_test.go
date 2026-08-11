@@ -541,21 +541,21 @@ var _ = Describe("Store", func() {
 		)
 	})
 
-	var _ = Describe("GetNgrokTrafficPolicyV1", func() {
-		Context("when the NgrokTrafficPolicy exists", func() {
+	var _ = Describe("GetTrafficPolicyV1", func() {
+		Context("when the TrafficPolicy exists", func() {
 			BeforeEach(func() {
-				tp := testutils.NewTestNgrokTrafficPolicy("ngrok", "test", "{\"inbound\": \"you know this can be anything though\"}")
+				tp := testutils.NewTestTrafficPolicy("ngrok", "test", "{\"inbound\": \"you know this can be anything though\"}")
 				Expect(store.Add(&tp)).To(BeNil())
 			})
-			It("returns the NgrokTrafficPolicy", func() {
-				tp, err := store.GetNgrokTrafficPolicyV1("ngrok", "test")
+			It("returns the TrafficPolicy", func() {
+				tp, err := store.GetTrafficPolicyV1("ngrok", "test")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(tp.Spec.Policy).To(Equal(json.RawMessage("{\"inbound\": \"you know this can be anything though\"}")))
 			})
 		})
-		Context("when the NgrokTrafficPolicy does not exist", func() {
+		Context("when the TrafficPolicy does not exist", func() {
 			It("returns an error", func() {
-				tp, err := store.GetNgrokTrafficPolicyV1("does-not-exist", "does-not-exist")
+				tp, err := store.GetTrafficPolicyV1("does-not-exist", "does-not-exist")
 				Expect(err).To(HaveOccurred())
 				Expect(errors.IsErrorNotFound(err)).To(Equal(true))
 				Expect(tp).To(BeNil())

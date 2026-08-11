@@ -37,7 +37,7 @@ unchanged.
 | `spec.trafficPolicyName: my-policy`          | `spec.trafficPolicy.targetRef.name: my-policy` |
 | `spec.trafficPolicy.policy: { ... }`         | `spec.trafficPolicy.inline: { ... }`        |
 
-A `targetRef` resolves the referenced `NgrokTrafficPolicy` in the same
+A `targetRef` resolves the referenced `TrafficPolicy` in the same
 namespace as the `CloudEndpoint`; cross-namespace references are not
 supported.
 
@@ -142,7 +142,7 @@ when policy resolution fails) instead.
 
 If you import `github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1`
 directly from a typed Go client, note that `CloudEndpointSpec.TrafficPolicy`
-changed type from `*NgrokTrafficPolicySpec` to
+changed type from `*TrafficPolicySpec` to
 `*CloudEndpointTrafficPolicyCfg`. The JSON/YAML wire format is unchanged
 — Helm values, kustomize overlays, raw manifests, and unstructured
 clients are unaffected — but typed consumers will fail to compile until
@@ -153,14 +153,14 @@ rollback safety during the migration window.
 #### Same-namespace policy references
 
 A `spec.trafficPolicy.targetRef` resolves the referenced
-`NgrokTrafficPolicy` in the same namespace as the endpoint;
+`TrafficPolicy` in the same namespace as the endpoint;
 cross-namespace references are not supported. A `targetRef` to a policy
 that does not exist in the endpoint's namespace surfaces as
 `TrafficPolicyApplied=False` with a `TrafficPolicyNotFound` event. This
 matches the same-namespace restriction applied to AgentEndpoint
 `clientCertificateRefs` and avoids a confused-deputy path where an
 endpoint author could direct the operator (which can read
-`NgrokTrafficPolicy` resources cluster-wide) to attach a policy from a
+`TrafficPolicy` resources cluster-wide) to attach a policy from a
 namespace they cannot otherwise access.
 
 ### Controller labels, computed-url, and bindings labels: `k8s.ngrok.com/` → `ngrok.com/`
@@ -429,11 +429,11 @@ point-in-time inventory, audit directly:
 | 0.24 (this) | Both prefixes | Add `ngrok.com/` keys alongside the legacy ones (see *How to migrate*); drop the legacy keys once rollback below 0.24 is ruled out. Use the `LegacyAnnotation` events and the audit commands above to find stragglers. |
 | 1.0 | `ngrok.com/` only | Confirm no `k8s.ngrok.com/` annotation keys remain in your manifests. The operator no longer reads them. |
 
-### NgrokTrafficPolicy: `status.policy` removed, conditions added
+### TrafficPolicy: `status.policy` removed, conditions added
 
 Status: complete in 0.24.
 
-`NgrokTrafficPolicy.status.policy` has been removed. It only mirrored
+`TrafficPolicy.status.policy` has been removed. It only mirrored
 `spec.policy` back into status and carried no additional information —
 `observedGeneration` on the new conditions is the correct signal for "what
 did the controller last see".

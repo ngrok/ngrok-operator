@@ -77,7 +77,7 @@ const (
 // runtime check exists as a defense in depth and to make tests easier.
 var ErrInvalidConfig = errors.New("invalid TrafficPolicy configuration: exactly one of inline or targetRef must be set")
 
-// ErrTrafficPolicyNotFound is returned when a referenced NgrokTrafficPolicy
+// ErrTrafficPolicyNotFound is returned when a referenced TrafficPolicy
 // does not exist. It is a terminal (non-retryable) error: callers set the
 // TrafficPolicyApplied condition to False and do not requeue, relying on the
 // TrafficPolicy watch to re-enqueue the endpoint when the policy is
@@ -214,14 +214,14 @@ func IntendedSource(cfg *ngrokv1alpha1.TrafficPolicyCfg) string {
 	return SourceNone
 }
 
-// resolveRef fetches the referenced NgrokTrafficPolicy and marshals its
+// resolveRef fetches the referenced TrafficPolicy and marshals its
 // policy JSON. The policy is always read from the endpoint's own namespace;
 // cross-namespace references are not supported.
 func (m *Manager) resolveRef(ctx context.Context, ep ngrokv1alpha1.EndpointWithTrafficPolicy, ref *ngrokv1alpha1.K8sObjectRef) (string, error) {
 	key := client.ObjectKey{Namespace: ep.GetNamespace(), Name: ref.Name}
 	log := ctrl.LoggerFrom(ctx).WithValues("trafficPolicy", key)
 
-	tp := &ngrokv1alpha1.NgrokTrafficPolicy{}
+	tp := &ngrokv1alpha1.TrafficPolicy{}
 	if err := m.Client.Get(ctx, key, tp); err != nil {
 		if apierrors.IsNotFound(err) {
 			if m.Recorder != nil {

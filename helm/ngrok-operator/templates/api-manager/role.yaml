@@ -330,7 +330,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies
+  - trafficpolicies
   verbs:
   - get
   - list
@@ -338,7 +338,7 @@ rules:
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
-  - ngroktrafficpolicies/status
+  - trafficpolicies/status
   verbs:
   - get
   - patch

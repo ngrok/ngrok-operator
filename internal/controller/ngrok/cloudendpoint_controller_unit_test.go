@@ -288,7 +288,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.clep == nil {
-				assert.Nil(t, indexCloudEndpointTrafficPolicyRefs(&ngrokv1alpha1.NgrokTrafficPolicy{}))
+				assert.Nil(t, indexCloudEndpointTrafficPolicyRefs(&ngrokv1alpha1.TrafficPolicy{}))
 				return
 			}
 			got := indexCloudEndpointTrafficPolicyRefs(tt.clep)
@@ -438,9 +438,9 @@ func TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
-	trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+	trafficPolicy := &ngrokv1alpha1.TrafficPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-policy", Namespace: "ns"},
-		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+		Spec: ngrokv1alpha1.TrafficPolicySpec{
 			Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy"}]}`),
 		},
 	}

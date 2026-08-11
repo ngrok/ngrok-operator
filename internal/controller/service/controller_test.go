@@ -462,18 +462,18 @@ var _ = Describe("ServiceController", func() {
 
 				When("service has a traffic policy annotation", func() {
 					var (
-						policy     *ngrokv1alpha1.NgrokTrafficPolicy
+						policy     *ngrokv1alpha1.TrafficPolicy
 						policyName string
 					)
 
 					BeforeEach(func() {
 						policyName = fmt.Sprintf("test-policy-collapsed-%d", rand.IntN(100000))
-						policy = &ngrokv1alpha1.NgrokTrafficPolicy{
+						policy = &ngrokv1alpha1.TrafficPolicy{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      policyName,
 								Namespace: namespace,
 							},
-							Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+							Spec: ngrokv1alpha1.TrafficPolicySpec{
 								Policy: json.RawMessage(`{"on_tcp_connect": [{"actions": [{"type": "restrict-ips", "config": {"deny": ["5.6.7.8/32"]}}]}]}`),
 							},
 						}
@@ -508,7 +508,7 @@ var _ = Describe("ServiceController", func() {
 						})
 
 						// Update the policy
-						fetched := &ngrokv1alpha1.NgrokTrafficPolicy{}
+						fetched := &ngrokv1alpha1.TrafficPolicy{}
 						Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(policy), fetched)).To(Succeed())
 						fetched.Spec.Policy = json.RawMessage(`{"on_tcp_connect": [{"actions": [{"type": "restrict-ips", "config": {"allow": ["5.6.7.8/32"]}}]}]}`)
 						Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
@@ -854,18 +854,18 @@ var _ = Describe("ServiceController", func() {
 
 			When("service has a traffic policy annotation", func() {
 				var (
-					policy     *ngrokv1alpha1.NgrokTrafficPolicy
+					policy     *ngrokv1alpha1.TrafficPolicy
 					policyName string
 				)
 
 				BeforeEach(func() {
 					policyName = fmt.Sprintf("test-policy-%d", rand.IntN(100000))
-					policy = &ngrokv1alpha1.NgrokTrafficPolicy{
+					policy = &ngrokv1alpha1.TrafficPolicy{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      policyName,
 							Namespace: namespace,
 						},
-						Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+						Spec: ngrokv1alpha1.TrafficPolicySpec{
 							Policy: json.RawMessage(`{"on_tcp_connect": [{"actions": [{"type": "restrict-ips", "config": {"deny": ["1.2.3.4/32"]}}]}]}`),
 						},
 					}
@@ -910,7 +910,7 @@ var _ = Describe("ServiceController", func() {
 						})
 
 						// Update the policy
-						fetched := &ngrokv1alpha1.NgrokTrafficPolicy{}
+						fetched := &ngrokv1alpha1.TrafficPolicy{}
 						Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(policy), fetched)).To(Succeed())
 						fetched.Spec.Policy = json.RawMessage(`{"on_tcp_connect": [{"actions": [{"type": "restrict-ips", "config": {"allow": ["1.2.3.4/32"]}}]}]}`)
 						Expect(k8sClient.Update(ctx, fetched)).To(Succeed())

@@ -309,13 +309,13 @@ func NewReferenceGrant(name string, namespace string) gatewayv1beta1.ReferenceGr
 	}
 }
 
-func NewTestNgrokTrafficPolicy(name string, namespace string, policyStr string) ngrokv1alpha1.NgrokTrafficPolicy {
-	return ngrokv1alpha1.NgrokTrafficPolicy{
+func NewTestTrafficPolicy(name string, namespace string, policyStr string) ngrokv1alpha1.TrafficPolicy {
+	return ngrokv1alpha1.TrafficPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+		Spec: ngrokv1alpha1.TrafficPolicySpec{
 			Policy: json.RawMessage(policyStr),
 		},
 	}

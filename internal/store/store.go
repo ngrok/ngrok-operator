@@ -52,7 +52,7 @@ type Storer interface {
 	GetNamespaceV1(name string) (*corev1.Namespace, error)
 	GetConfigMapV1(name, namespace string) (*corev1.ConfigMap, error)
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
-	GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error)
+	GetTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.TrafficPolicy, error)
 	GetGateway(name string, namespace string) (*gatewayv1.Gateway, error)
 	GetGatewayClass(name string) (*gatewayv1.GatewayClass, error)
 	GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error)
@@ -170,8 +170,8 @@ func (s Store) GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	return ing, nil
 }
 
-func (s Store) GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
-	return genericGetByKey[ngrokv1alpha1.NgrokTrafficPolicy](s.stores.NgrokTrafficPolicyV1, getKey(name, namespace))
+func (s Store) GetTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.TrafficPolicy, error) {
+	return genericGetByKey[ngrokv1alpha1.TrafficPolicy](s.stores.TrafficPolicyV1, getKey(name, namespace))
 }
 
 func (s Store) GetGateway(name string, namespace string) (*gatewayv1.Gateway, error) {

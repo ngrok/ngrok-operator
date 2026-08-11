@@ -50,13 +50,13 @@ input:
         filters:
         - type: ExtensionRef # Bad Group
           group: "foo.com"
-          kind: NgrokTrafficPolicy
+          kind: TrafficPolicy
         - type: ExtensionRef # Bad Kind
           group: "ngrok.k8s.ngrok.com"
           kind: SomeResource
         - type: ExtensionRef # Missing traffic policy
           group: ""
-          kind: "NgrokTrafficPolicy"
+          kind: "TrafficPolicy"
           name: missing-trafficpolicy
   services:
   - apiVersion: v1

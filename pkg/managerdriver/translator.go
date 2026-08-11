@@ -135,7 +135,7 @@ func validateMappingStrategies(irVHosts []*ir.IRVirtualHost) {
 		}
 
 		// If there are no upstream services for the virtual host, it doesn't make sense to collapse it into an AgentEndpoint.
-		// This might happen in some situations, for example, an Ingress that only routes to NgrokTrafficPolicy resources
+		// This might happen in some situations, for example, an Ingress that only routes to TrafficPolicy resources
 		if irVHost.UniqueServiceCount() == 0 {
 			continue
 		}

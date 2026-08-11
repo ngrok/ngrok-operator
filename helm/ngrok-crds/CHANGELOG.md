@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update CRDs Helm chart version to `0.4.0-rc.1`
 
 ### Breaking Changes
-- Set up passive migrations to let CloudEndpoints reference NgrokTrafficPolicy resources under the new API group by @alex-bezek in [#823](https://github.com/ngrok/ngrok-operator/pull/823)
+- Set up passive migrations to let CloudEndpoints reference TrafficPolicy resources under the new API group by @alex-bezek in [#823](https://github.com/ngrok/ngrok-operator/pull/823)
 - Migrated default metadata handling from the legacy kubernetes-ingress-controller by @alex-bezek in [#838](https://github.com/ngrok/ngrok-operator/pull/838)
 - Overhauled KubernetesOperator status: replaced phase enums with structured Conditions and added structured drain reporting by @alex-bezek in [#846](https://github.com/ngrok/ngrok-operator/pull/846)
 - Cleaned up Domain and IPPolicy status: dropped spec-duplicated fields and the dead `Progressing` condition by @alex-bezek in [#851](https://github.com/ngrok/ngrok-operator/pull/851)
@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added additional CRD status fields and validation by @alex-bezek in [#850](https://github.com/ngrok/ngrok-operator/pull/850)
 
 ### Changed
-- Replaced `NgrokTrafficPolicy.status.policy` with `Ready`/`Valid` conditions and added printer columns by @alex-bezek in [#852](https://github.com/ngrok/ngrok-operator/pull/852)
+- Replaced `TrafficPolicy.status.policy` with `Ready`/`Valid` conditions and added printer columns by @alex-bezek in [#852](https://github.com/ngrok/ngrok-operator/pull/852)
 
 ## 0.3.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.2.1...helm-chart-ngrok-crds-0.3.0

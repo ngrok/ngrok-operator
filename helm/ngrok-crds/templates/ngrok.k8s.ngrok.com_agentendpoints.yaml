@@ -172,7 +172,7 @@ spec:
               trafficPolicy:
                 description: |-
                   Allows configuring a TrafficPolicy to be used with this AgentEndpoint
-                  When configured, the traffic policy is provided inline or as a reference to an NgrokTrafficPolicy resource
+                  When configured, the traffic policy is provided inline or as a reference to an TrafficPolicy resource
                 properties:
                   inline:
                     description: |-
@@ -183,7 +183,7 @@ spec:
                   targetRef:
                     description: |-
                       Reference to a TrafficPolicy resource to attach to the Endpoint. The
-                      referenced NgrokTrafficPolicy must live in the same namespace as the
+                      referenced TrafficPolicy must live in the same namespace as the
                       endpoint.
                     properties:
                       name:

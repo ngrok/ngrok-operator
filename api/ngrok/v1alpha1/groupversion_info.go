@@ -52,8 +52,8 @@ func addKnownTypes(s *runtime.Scheme) error {
 		&CloudEndpointList{},
 		&KubernetesOperator{},
 		&KubernetesOperatorList{},
-		&NgrokTrafficPolicy{},
-		&NgrokTrafficPolicyList{},
+		&TrafficPolicy{},
+		&TrafficPolicyList{},
 	)
 	metav1.AddToGroupVersion(s, GroupVersion)
 	return nil

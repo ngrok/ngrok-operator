@@ -61,7 +61,7 @@ type CloudEndpointSpec struct {
 	PoolingEnabled *bool `json:"poolingEnabled,omitempty"`
 
 	// TrafficPolicy attached to this CloudEndpoint, either inline or by reference
-	// to an NgrokTrafficPolicy resource in the same namespace as the endpoint.
+	// to an TrafficPolicy resource in the same namespace as the endpoint.
 	TrafficPolicy *CloudEndpointTrafficPolicyCfg `json:"trafficPolicy,omitempty"`
 
 	// Human-readable description of this cloud endpoint
@@ -173,7 +173,7 @@ type CloudEndpointTrafficPolicyCfg struct {
 	Inline json.RawMessage `json:"inline,omitempty"`
 
 	// Reference to a TrafficPolicy resource to attach to the CloudEndpoint. The
-	// referenced NgrokTrafficPolicy must live in the same namespace as the
+	// referenced TrafficPolicy must live in the same namespace as the
 	// endpoint.
 	Reference *K8sObjectRef `json:"targetRef,omitempty"`
 

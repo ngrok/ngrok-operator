@@ -195,12 +195,12 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("R1: legacy spec.trafficPolicyName-only manifest resolves via in-memory normalization", func(ctx SpecContext) {
 			// Create traffic policy first
-			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			trafficPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
 			}
@@ -233,12 +233,12 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		})
 
 		It("should handle endpoint with trafficPolicy.targetRef", func(ctx SpecContext) {
-			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			trafficPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "new-shape-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
 			}
@@ -392,12 +392,12 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// pre-0.24 (the prior controller rejects coexistence) — the
 			// migration guide recommends keeping `trafficPolicyName`
 			// alone until the rollback floor moves past 0.24.
-			canonicalPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			canonicalPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "canonical-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"canonical"}]}`),
 				},
 			}
@@ -503,9 +503,9 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// optional fields. The controller must not let a stray
 			// `trafficPolicy: {}` silently detach a policy that the user
 			// declared via the legacy `trafficPolicyName` field.
-			legacyPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			legacyPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{Name: "fallback-legacy", Namespace: namespace},
-				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"fallback-rule"}]}`)},
+				Spec:       ngrokv1alpha1.TrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"fallback-rule"}]}`)},
 			}
 			Expect(k8sClient.Create(ctx, legacyPolicy)).To(Succeed())
 
@@ -543,15 +543,15 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// the legacy-only shape, then add the canonical field
 			// (still keeping the legacy for rollback). The attached
 			// policy must reflect the canonical field after the update.
-			legacyPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			legacyPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{Name: "transition-legacy", Namespace: namespace},
-				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-legacy"}]}`)},
+				Spec:       ngrokv1alpha1.TrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-legacy"}]}`)},
 			}
 			Expect(k8sClient.Create(ctx, legacyPolicy)).To(Succeed())
 
-			canonicalPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			canonicalPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{Name: "transition-canonical", Namespace: namespace},
-				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-canonical"}]}`)},
+				Spec:       ngrokv1alpha1.TrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-canonical"}]}`)},
 			}
 			Expect(k8sClient.Create(ctx, canonicalPolicy)).To(Succeed())
 
@@ -707,12 +707,12 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should successfully update traffic policy", func(ctx SpecContext) {
 			// Create initial traffic policy
-			trafficPolicy1 := &ngrokv1alpha1.NgrokTrafficPolicy{
+			trafficPolicy1 := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "policy-v1",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"log"}]}`),
 				},
 			}
@@ -744,12 +744,12 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Creating new traffic policy")
-			trafficPolicy2 := &ngrokv1alpha1.NgrokTrafficPolicy{
+			trafficPolicy2 := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "policy-v2",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
 			}
@@ -835,12 +835,12 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// assertion). createWithPolicy now reuses the policy resolved
 			// once in update(), so the recreated endpoint must still carry
 			// the correct policy content.
-			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
+			trafficPolicy := &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "recreate-legacy-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"recreate-legacy"}]}`),
 				},
 			}

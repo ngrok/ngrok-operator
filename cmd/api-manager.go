@@ -619,7 +619,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		os.Exit(1)
 	}
 
-	if err := (&ngrokcontroller.NgrokTrafficPolicyReconciler{
+	if err := (&ngrokcontroller.TrafficPolicyReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),
 		Scheme:   mgr.GetScheme(),

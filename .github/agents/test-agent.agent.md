@@ -26,7 +26,7 @@ internal/
     bindings/        # BoundEndpoint controller tests
     gateway/         # Gateway API controller tests
     ingress/         # Ingress/Domain controller tests
-    ngrok/           # NgrokTrafficPolicy/CloudEndpoint controller tests
+    ngrok/           # TrafficPolicy/CloudEndpoint controller tests
     service/         # Service controller tests
     base_controller_test.go
   store/             # Store unit tests (store_test.go)

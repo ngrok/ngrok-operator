@@ -272,8 +272,8 @@ func listObjectsForType(ctx context.Context, client client.Reader, v any, listOp
 		domains := &ingressv1alpha1.DomainList{}
 		err := client.List(ctx, domains, listOpts...)
 		return util.ToClientObjects(domains.Items), err
-	case *ngrokv1alpha1.NgrokTrafficPolicy:
-		policies := &ngrokv1alpha1.NgrokTrafficPolicyList{}
+	case *ngrokv1alpha1.TrafficPolicy:
+		policies := &ngrokv1alpha1.TrafficPolicyList{}
 		err := client.List(ctx, policies, listOpts...)
 		return util.ToClientObjects(policies.Items), err
 	case *ngrokv1alpha1.AgentEndpoint:
@@ -320,7 +320,7 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.L
 		&corev1.ConfigMap{},
 		// CRDs
 		&ingressv1alpha1.Domain{},
-		&ngrokv1alpha1.NgrokTrafficPolicy{},
+		&ngrokv1alpha1.TrafficPolicy{},
 		&ngrokv1alpha1.AgentEndpoint{},
 		&ngrokv1alpha1.CloudEndpoint{},
 	}
@@ -1071,9 +1071,9 @@ type AddHeadersConfig struct {
 
 func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference, namespace string, trafficPolicy util.TrafficPolicy) error {
 	switch extensionRef.Kind {
-	case "NgrokTrafficPolicy":
+	case "TrafficPolicy":
 		// look up Policy CRD
-		policy, err := d.store.GetNgrokTrafficPolicyV1(string(extensionRef.Name), namespace)
+		policy, err := d.store.GetTrafficPolicyV1(string(extensionRef.Name), namespace)
 		if err != nil {
 			return err
 		}

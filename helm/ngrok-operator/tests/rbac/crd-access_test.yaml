@@ -12,8 +12,8 @@ templates:
 - rbac/crd-access/ippolicy-viewer.yaml
 - rbac/crd-access/kubernetesoperator-editor.yaml
 - rbac/crd-access/kubernetesoperator-viewer.yaml
-- rbac/crd-access/ngroktrafficpolicy-editor.yaml
-- rbac/crd-access/ngroktrafficpolicy-viewer.yaml
+- rbac/crd-access/trafficpolicy-editor.yaml
+- rbac/crd-access/trafficpolicy-viewer.yaml
 tests:
 - it: should match snapshot with defaults
   asserts:

@@ -475,7 +475,7 @@ var _ = Describe("Driver", func() {
 				namespace           = "edge-tp-test-namespace"
 				httpService         *v1.Service
 				ingress             *netv1.Ingress
-				trafficPolicy       *ngrokv1alpha1.NgrokTrafficPolicy
+				trafficPolicy       *ngrokv1alpha1.TrafficPolicy
 				foundAgentEndpoints *ngrokv1alpha1.AgentEndpointList
 				foundCloudEndpoints *ngrokv1alpha1.CloudEndpointList
 				ic                  = testutils.NewTestIngressClass("edge-tp-ingress-class", true, true)
@@ -492,12 +492,12 @@ var _ = Describe("Driver", func() {
 				rawPolicy, err := json.Marshal(pol)
 				Expect(err).ToNot(HaveOccurred())
 
-				trafficPolicy = &ngrokv1alpha1.NgrokTrafficPolicy{
+				trafficPolicy = &ngrokv1alpha1.TrafficPolicy{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-policy",
 						Namespace: namespace,
 					},
-					Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+					Spec: ngrokv1alpha1.TrafficPolicySpec{
 
 						Policy: rawPolicy,
 					},
@@ -1097,30 +1097,30 @@ var _ = Describe("Driver", func() {
 	Describe("createEndpointPolicyForGateway", func() {
 		var rule *gatewayv1.HTTPRouteRule
 		var namespace string
-		var policyCrd *ngrokv1alpha1.NgrokTrafficPolicy
-		var legacyPolicyCrd *ngrokv1alpha1.NgrokTrafficPolicy
+		var policyCrd *ngrokv1alpha1.TrafficPolicy
+		var legacyPolicyCrd *ngrokv1alpha1.TrafficPolicy
 
 		BeforeEach(func() {
 			rule = &gatewayv1.HTTPRouteRule{}
 			namespace = "test"
 
-			policyCrd = &ngrokv1alpha1.NgrokTrafficPolicy{
+			policyCrd = &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"on_http_request": [{"name":"t","actions":[{"type":"deny"}]}]}`),
 				},
 			}
 			Expect(driver.store.Add(policyCrd)).To(BeNil())
 
-			legacyPolicyCrd = &ngrokv1alpha1.NgrokTrafficPolicy{
+			legacyPolicyCrd = &ngrokv1alpha1.TrafficPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "legacy-test-policy",
 					Namespace: namespace,
 				},
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+				Spec: ngrokv1alpha1.TrafficPolicySpec{
 					Policy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
 				},
 			}
@@ -1153,7 +1153,7 @@ var _ = Describe("Driver", func() {
 					Type: "ExtensionRef",
 					ExtensionRef: &gatewayv1.LocalObjectReference{
 						Name:  "test-policy",
-						Kind:  "NgrokTrafficPolicy",
+						Kind:  "TrafficPolicy",
 						Group: "ngrok.k8s.ngrok.com",
 					},
 				},
@@ -1200,7 +1200,7 @@ var _ = Describe("Driver", func() {
 					Type: "ExtensionRef",
 					ExtensionRef: &gatewayv1.LocalObjectReference{
 						Name:  "legacy-test-policy",
-						Kind:  "NgrokTrafficPolicy",
+						Kind:  "TrafficPolicy",
 						Group: "ngrok.k8s.ngrok.com",
 					},
 				},

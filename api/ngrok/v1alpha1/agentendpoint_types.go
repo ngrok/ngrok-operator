@@ -121,7 +121,7 @@ type AgentEndpointSpec struct {
 	Upstream EndpointUpstream `json:"upstream"`
 
 	// Allows configuring a TrafficPolicy to be used with this AgentEndpoint
-	// When configured, the traffic policy is provided inline or as a reference to an NgrokTrafficPolicy resource
+	// When configured, the traffic policy is provided inline or as a reference to an TrafficPolicy resource
 	TrafficPolicy *TrafficPolicyCfg `json:"trafficPolicy,omitempty"`
 
 	// Human-readable description of this agent endpoint
@@ -225,7 +225,7 @@ const (
 )
 
 // TrafficPolicyCfg configures a TrafficPolicy attached to an endpoint, either
-// inline or by reference to an NgrokTrafficPolicy resource in the same
+// inline or by reference to an TrafficPolicy resource in the same
 // namespace as the endpoint.
 //
 // +kubebuilder:validation:XValidation:rule="[has(self.inline), has(self.targetRef)].exists_one(x, x)", message="exactly one of inline or targetRef must be set on trafficPolicy"
@@ -239,7 +239,7 @@ type TrafficPolicyCfg struct {
 	Inline json.RawMessage `json:"inline,omitempty"`
 
 	// Reference to a TrafficPolicy resource to attach to the Endpoint. The
-	// referenced NgrokTrafficPolicy must live in the same namespace as the
+	// referenced TrafficPolicy must live in the same namespace as the
 	// endpoint.
 	Reference *K8sObjectRef `json:"targetRef,omitempty"`
 }

@@ -50,7 +50,7 @@ input:
         filters:
         - type: ExtensionRef
           group: "k8s.ngrok.com"
-          kind: NgrokTrafficPolicy
+          kind: TrafficPolicy
           name: tcp-tp
   services:
   - apiVersion: v1
@@ -67,7 +67,7 @@ input:
       type: ClusterIP
   trafficPolicies:
   - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
-    kind: NgrokTrafficPolicy
+    kind: TrafficPolicy
     metadata:
       name: tcp-tp
       namespace: default

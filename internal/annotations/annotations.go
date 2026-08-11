@@ -97,7 +97,7 @@ const (
 
 // Extracts a single traffic policy str from the annotation
 // ngrok.com/traffic-policy: "module1"
-func ExtractNgrokTrafficPolicyFromAnnotations(obj client.Object) (string, error) {
+func ExtractTrafficPolicyFromAnnotations(obj client.Object) (string, error) {
 	policies, err := parser.GetStringSliceAnnotation(TrafficPolicyAnnotationKey, obj)
 
 	if err != nil {

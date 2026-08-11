@@ -469,7 +469,7 @@ type TranslatorTestCase struct {
 		TLSRoutes       []*gatewayv1alpha2.TLSRoute
 		IngressClasses  []*netv1.IngressClass
 		Ingresses       []*netv1.Ingress
-		TrafficPolicies []*ngrokv1alpha1.NgrokTrafficPolicy
+		TrafficPolicies []*ngrokv1alpha1.TrafficPolicy
 		Secrets         []*corev1.Secret
 		ConfigMaps      []*corev1.ConfigMap
 		Services        []*corev1.Service
@@ -920,8 +920,8 @@ func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) Tran
 	for _, rawObj := range rawTC.Input.TrafficPolicies {
 		obj, err := decodeViaScheme(sch, rawObj)
 		require.NoError(t, err)
-		pol, ok := obj.(*ngrokv1alpha1.NgrokTrafficPolicy)
-		require.True(t, ok, "expected an NgrokTrafficPolicy, got %T", obj)
+		pol, ok := obj.(*ngrokv1alpha1.TrafficPolicy)
+		require.True(t, ok, "expected an TrafficPolicy, got %T", obj)
 		tc.Input.TrafficPolicies = append(tc.Input.TrafficPolicies, pol)
 	}
 

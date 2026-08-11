@@ -408,7 +408,7 @@ Expected: PASS. Leave uncommitted.
 
 - [ ] **Step 1: Write failing extractor tests**
 
-In `internal/annotations/annotations_test.go`, ensure each of `ExtractNgrokTrafficPolicyFromAnnotations`, `ExtractUseEndpointPooling`, `ExtractUseBindings`, `ExtractURL`, `ExtractMetadata`, `ExtractDescription` has all **three** cases (add table cases following the file's existing pattern):
+In `internal/annotations/annotations_test.go`, ensure each of `ExtractTrafficPolicyFromAnnotations`, `ExtractUseEndpointPooling`, `ExtractUseBindings`, `ExtractURL`, `ExtractMetadata`, `ExtractDescription` has all **three** cases (add table cases following the file's existing pattern):
 - object annotated with the **literal** `k8s.ngrok.com/` key only → value returned (legacy fallback)
 - object annotated with the `ngrok.com/` key only → value returned
 - object annotated with both keys → `ngrok.com/` value returned
@@ -1261,7 +1261,7 @@ Expected: PASS. Leave uncommitted.
 **Interfaces:**
 - Consumes/Produces: internal only. `TrafficPolicyPath` renames to `TrafficPolicyIndexKey`; `ModuleSetPath` is deleted.
 
-The traffic-policy field indexer (line 189) extracts via `annotations.ExtractNgrokTrafficPolicyFromAnnotations`, so it already dual-reads after Task 1 — no behavior change needed. But its index name is the literal string `metadata.annotations.k8s.ngrok.com/traffic-policy`, which now misdescribes what the index contains, and `ModuleSetPath` (line 70) has zero references.
+The traffic-policy field indexer (line 189) extracts via `annotations.ExtractTrafficPolicyFromAnnotations`, so it already dual-reads after Task 1 — no behavior change needed. But its index name is the literal string `metadata.annotations.k8s.ngrok.com/traffic-policy`, which now misdescribes what the index contains, and `ModuleSetPath` (line 70) has zero references.
 
 - [ ] **Step 1: Rename and delete**
 

@@ -44,7 +44,7 @@ helm/ngrok-operator/         # Helm chart
 |-----------|-----------|---------------------|
 | **ingress.k8s.ngrok.com/v1alpha1** | Domain, IPPolicy | [internal/controller/ingress/](internal/controller/ingress/) |
 | **ingress.k8s.ngrok.com/v1alpha1** | Ingress (networking.k8s.io/v1) | [internal/controller/ingress/](internal/controller/ingress/) |
-| **ngrok.k8s.ngrok.com/v1alpha1** | NgrokTrafficPolicy, KubernetesOperator | [internal/controller/ngrok/](internal/controller/ngrok/) |
+| **ngrok.k8s.ngrok.com/v1alpha1** | TrafficPolicy, KubernetesOperator | [internal/controller/ngrok/](internal/controller/ngrok/) |
 | **bindings.k8s.ngrok.com/v1alpha1** | BindingConfiguration, BoundEndpoint | [internal/controller/bindings/](internal/controller/bindings/) |
 | **gateway.networking.k8s.io/v1** | Gateway, GatewayClass, HTTPRoute, TLSRoute, TCPRoute | [internal/controller/gateway/](internal/controller/gateway/) |
 | **core/v1** | Service | [internal/controller/service/](internal/controller/service/) |

@@ -278,15 +278,15 @@ func (t *translator) ingressPathsToIR(ingress *netv1.Ingress, ruleHostname strin
 func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.IngressBackend, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream) (*ir.IRDestination, error) {
 	// First check if we are supplying a traffic policy as the backend
 	if resourceRef := backend.Resource; resourceRef != nil {
-		if strings.ToLower(resourceRef.Kind) != "ngroktrafficpolicy" {
-			return nil, fmt.Errorf("ingress backend resource reference to unsupported kind: %q. currently only NgrokTrafficPolicy is supported for resource backends", resourceRef.Kind)
+		if strings.ToLower(resourceRef.Kind) != "trafficpolicy" {
+			return nil, fmt.Errorf("ingress backend resource reference to unsupported kind: %q. currently only TrafficPolicy is supported for resource backends", resourceRef.Kind)
 		}
 
 		if resourceRef.APIGroup != nil && *resourceRef.APIGroup != "ngrok.k8s.ngrok.com" {
-			return nil, fmt.Errorf("ingress backend resource to invalid group: %q. currently only NgrokTrafficPolicy is supported for resource backends with API Group \"ngrok.k8s.ngrok.com\"", *resourceRef.APIGroup)
+			return nil, fmt.Errorf("ingress backend resource to invalid group: %q. currently only TrafficPolicy is supported for resource backends with API Group \"ngrok.k8s.ngrok.com\"", *resourceRef.APIGroup)
 		}
 
-		routePolicyCfg, err := t.store.GetNgrokTrafficPolicyV1(resourceRef.Name, ingress.Namespace)
+		routePolicyCfg, err := t.store.GetTrafficPolicyV1(resourceRef.Name, ingress.Namespace)
 		if err != nil {
 			return nil, fmt.Errorf("unable to resolve traffic policy backend for ingress rule: %w", err)
 		}
@@ -307,7 +307,7 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 
 	// If the backend is not a traffic policy, then it must be a service
 	if backend.Service == nil {
-		return nil, errors.New("ingress backend is invalid. Not an NgrokTrafficPolicy or service")
+		return nil, errors.New("ingress backend is invalid. Not an TrafficPolicy or service")
 	}
 
 	serviceName := backend.Service.Name
@@ -377,7 +377,7 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 // #region Helpers
 
 func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *trafficpolicy.TrafficPolicy, objRef *ir.OwningResource, err error) {
-	tpName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(obj)
+	tpName, err := annotations.ExtractTrafficPolicyFromAnnotations(obj)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
 			return nil, nil, nil
@@ -389,7 +389,7 @@ func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *tra
 		)
 	}
 
-	tpObj, err := store.GetNgrokTrafficPolicyV1(tpName, obj.GetNamespace())
+	tpObj, err := store.GetTrafficPolicyV1(tpName, obj.GetNamespace())
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to load traffic policy for %s %q from annotations: %w",
 			obj.GetObjectKind().GroupVersionKind().Kind,
@@ -407,7 +407,7 @@ func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *tra
 		)
 	}
 	return trafficPolicyCfg, &ir.OwningResource{
-		Kind:      "NgrokTrafficPolicy",
+		Kind:      "TrafficPolicy",
 		Name:      tpObj.Name,
 		Namespace: tpObj.Namespace,
 	}, nil

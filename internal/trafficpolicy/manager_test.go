@@ -76,13 +76,13 @@ func newAgentEndpoint(namespace string, cfg *ngrokv1alpha1.TrafficPolicyCfg) *ng
 	}
 }
 
-func newPolicy(name, namespace, body string) *ngrokv1alpha1.NgrokTrafficPolicy {
-	return &ngrokv1alpha1.NgrokTrafficPolicy{
+func newPolicy(name, namespace, body string) *ngrokv1alpha1.TrafficPolicy {
+	return &ngrokv1alpha1.TrafficPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+		Spec: ngrokv1alpha1.TrafficPolicySpec{
 			Policy: json.RawMessage(body),
 		},
 	}
