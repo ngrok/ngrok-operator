@@ -4,6 +4,6 @@ dependencies:
   version: 2.41.0
 - name: ngrok-crds
   repository: file://../ngrok-crds
-  version: 0.4.0-rc.2
-digest: sha256:9eb05477d5dc5f41c981c1ad164e299f7e495d897d58319fb0de0c6afecf20bf
-generated: "2026-08-04T18:28:33.166182414Z"
+  version: 0.4.0
+digest: sha256:cec0520e48af0fa5b8663bac654a2baf85174a3f6a67e93340afaba61c0fc47f
+generated: "2026-08-12T17:23:16.116097375Z"

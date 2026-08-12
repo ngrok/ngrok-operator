@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## 0.4.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.3.0...helm-chart-ngrok-crds-0.4.0
+
+- Update CRDs Helm chart version to `0.4.0`
+
+Moving `0.4.0-rc.2` to `0.4.0`. See the `0.4.0-rc.1` and `0.4.0-rc.2` notes below for changes.
+
 ## 0.4.0-rc.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.4.0-rc.1...helm-chart-ngrok-crds-0.4.0-rc.2
 

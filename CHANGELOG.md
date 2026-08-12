@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.22.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0
+
+Moving `0.22.0-rc.2` to `0.22.0`. See the `0.22.0-rc.1` and `0.22.0-rc.2` notes below for changes.
+
 ## 0.22.0-rc.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.22.0-rc.1...ngrok-operator-0.22.0-rc.2
 
