@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.22.0
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0
+
+Before upgrading, review the
+[Helm chart 0.23 to 0.24 upgrade guide](docs/upgrading-to-0.24.md).
+
+Moving `0.22.0-rc.2` to `0.22.0`. See the `0.22.0-rc.1` and `0.22.0-rc.2` notes below for changes.
+
 ## 0.22.0-rc.2
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.22.0-rc.1...ngrok-operator-0.22.0-rc.2
 
@@ -29,7 +37,7 @@ For upgrade steps and required manifest migrations, see the
 - Consolidated status conditions across CRDs by @jonstacks in [#828](https://github.com/ngrok/ngrok-operator/pull/828)
 - Cleaned up Domain and IPPolicy status: dropped spec-duplicated fields and the dead `Progressing` condition by @alex-bezek in [#851](https://github.com/ngrok/ngrok-operator/pull/851)
 - Tightened CRD field validation, added `omitempty` on optional fields, and fixed Domain schema issues by @alex-bezek in [#843](https://github.com/ngrok/ngrok-operator/pull/843)
-- Restricted `clientCertificateRefs` on AgentEndpoint to same-namespace secrets by @jonstacks in [#826](https://github.com/ngrok/ngrok-operator/pull/826)
+- Restricted `clientCertificateRefs` on AgentEndpoint to same-namespace secrets by @jonstacks in [#826](https://github.com/ngrok/ngrok-operator/pull/826). Reported by [@thesecguy45](https://github.com/thesecguy45).
 - Support `map[string]string` for CRD metadata fields (K8SOP-295) by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
 - Updated Go and third-party dependencies by @jonstacks in [#822](https://github.com/ngrok/ngrok-operator/pull/822)
 
