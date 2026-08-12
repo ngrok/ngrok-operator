@@ -1,30 +1,19 @@
-# Build the manager binary
-FROM --platform=$BUILDPLATFORM golang:1.26.3 AS builder
-
-WORKDIR /workspace
-# Copy the Go Modules manifests
-COPY go.mod go.mod
-COPY go.sum go.sum
-# cache deps before building and copying source so that we don't need to re-download as much
-# and so that source changes don't invalidate our downloaded layer
-RUN --mount=type=cache,target=/go \
-	go mod download
-
-# Copy the go source
-COPY . .
-
-ARG TARGETOS TARGETARCH
-ARG GIT_COMMIT=""
-
-# Build
-RUN --mount=type=cache,target=/go \
-        CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" GIT_COMMIT="${GIT_COMMIT}" ./scripts/build.sh
+# The manager binary is built on the host by scripts/build.sh rather than in a
+# golang builder stage, so that images are always built with the Go toolchain
+# pinned in flake.nix and there is no second Go version to keep in sync.
+#
+# Use `make docker-build`, or run `make image-binaries` before `docker build`.
+#
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
+
+ARG TARGETOS
+ARG TARGETARCH
+
 COPY certs /etc/ssl/certs/ngrok
+COPY bin/ngrok-operator-${TARGETOS}-${TARGETARCH} /ngrok-operator
 WORKDIR /
-COPY --from=builder /workspace/bin/ngrok-operator ./
 USER 65532:65532
 
 
