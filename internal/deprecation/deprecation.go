@@ -1,7 +1,7 @@
 // Package deprecation emits user-visible signals when deprecated
 // k8s.ngrok.com/* annotation keys are in use, so users can find and migrate
 // their manifests before the legacy read support is removed. See
-// docs/v1-migration-guide.md.
+// docs/upgrading-to-0.24.md.
 //
 // LEGACY-PREFIX-MIGRATION: BEGIN (package scope — read-side cleanup deletes
 // this entire package and its call sites)
