@@ -99,7 +99,10 @@ kubectl get domains.ingress.k8s.ngrok.com -A -o json |
   '
 ```
 
-Remove `spec.region` from these manifests before upgrading.
+Remove `spec.region` from these manifests before upgrading. Leaving it in place
+is not destructive — the 0.24 CRD drops the field and Kubernetes silently prunes
+it, and domains already reserved keep the region they were created with — but
+removing it keeps your manifests aligned with the schema.
 
 Do not rename `Domain.spec.resolves_to` yet if you may roll back to 0.23. That
 field remains supported by 0.24 and is migrated after the rollback window.
@@ -139,7 +142,10 @@ significant changes are:
   `Ready`, `Registered`, and `Draining` conditions plus structured
   `status.drain` counters.
 - `Domain.status.region`, the Domain `Progressing` condition, and
-  `IPPolicy.status.rules` are removed.
+  `IPPolicy.status.rules` are removed. On clusters upgraded in place, a stale
+  `Progressing` entry may linger in `status.conditions` because 0.24 never
+  updates it again; treat it as absent. Freshly created 0.24 objects never have
+  it.
 - The IPPolicy `RulesConfigured` condition is renamed to
   `IPPolicyRulesConfigured`.
 - `NgrokTrafficPolicy.status.policy` is removed; use `spec.policy` for the
@@ -173,11 +179,23 @@ values are not changed.
 
 ## Upgrade
 
+If you install the CRD chart separately (operator chart with `installCRDs:
+false`), upgrade `ngrok/ngrok-crds` to `0.4.x` **first**, then upgrade the
+operator chart. The window where the new CRDs run against the still-old operator
+is benign, with one visible symptom: `KubernetesOperator` shows a blank `Ready`
+column, because the old status fields are pruned before the old operator writes
+the new conditions. Anything alerting on that column goes blind until the
+operator upgrade completes. If the chart manages CRDs (the default), skip this
+paragraph and run the upgrade below.
+
 Use the values file you normally manage for this release:
 
 ```bash
 TARGET_VERSION=0.24.0
-# Use TARGET_VERSION=0.24.0-rc.1 when testing the release candidate.
+# When testing a release candidate, use the latest published one. Do not use
+# 0.24.0-rc.1: its operator image (0.22.0-rc.1) ships a connection leak in
+# forwarding and crashes on rollback while decoding KubernetesOperator status.
+# Both are fixed in a later candidate.
 
 helm repo update ngrok
 
@@ -187,10 +205,6 @@ helm upgrade "$RELEASE" ngrok/ngrok-operator \
   --values path/to/your-values.yaml \
   --wait
 ```
-
-If you install the CRD chart separately, upgrade `ngrok/ngrok-crds` to `0.4.x`
-before upgrading the operator chart, and keep the operator chart's CRD
-installation disabled as in your existing configuration.
 
 ## Verify the upgrade
 
@@ -222,6 +236,48 @@ At this point, you may keep your manifests in their 0.23-compatible forms
 while you evaluate the release. The 0.24 operator accepts them through
 compatibility shims.
 
+The migrations in this guide are in-place. The annotation rename, the
+`resolves_to` → `resolvesTo` rename, the CloudEndpoint traffic-policy field
+move, and the metadata string → map change are all read-side or normalization
+changes: they do not delete and recreate the backing ngrok endpoints, do not
+change their IDs, and do not interrupt the data path. Reconciled objects keep
+their existing ngrok resources.
+
+## Rolling back
+
+If you need to return to chart `0.23.x` within the rollback window, use the
+backups captured above:
+
+```bash
+helm upgrade "$RELEASE" ngrok/ngrok-operator \
+  --namespace "$NAMESPACE" \
+  --version 0.23.0 \
+  --values ngrok-operator-0.23-values.yaml \
+  --wait
+```
+
+If you installed the CRD chart separately, the `0.4.x` CRDs are a superset of
+`0.3.x` for the fields this guide covers and can be left in place during a
+temporary rollback; the removed-field validation only bites on a future write to
+an offending object. Reinstalling the `0.3.x` CRDs is only needed if you are
+abandoning 0.24 entirely.
+
+Sharp edges:
+
+- Do not perform the "After the rollback window" migrations below until rollback
+  is ruled out. Switching `spec.metadata` to the map form, renaming
+  `resolves_to`, or moving CloudEndpoint traffic-policy fields produces objects
+  the `0.3.x` CRD schema rejects. Leaving the `0.4.x` CRDs in place (above) keeps
+  those objects valid, but if you also roll the CRDs back to `0.3.x` those
+  manifests fail to apply.
+- The `appProtocol` value cannot be dual-keyed. If you have already switched a
+  Service port from `k8s.ngrok.com/http2` to `ngrok.com/http2`, rolling back
+  below 0.24 silently drops HTTP/2 for that upstream until you restore the
+  legacy value.
+- On the `0.24.0-rc.1` operator image (`0.22.0-rc.1`) only, rolling back crashes
+  while decoding `KubernetesOperator.status.enabledFeatures`. This is fixed in a
+  later candidate; test with the latest published RC and this does not apply.
+
 ## After the rollback window
 
 Complete the migrations in this section after the 0.24 installation is healthy
@@ -245,6 +301,11 @@ Replace these annotation keys in your manifests:
 | `k8s.ngrok.com/app-protocols` | `ngrok.com/app-protocols` | Service backing an Ingress or Gateway route |
 | `k8s.ngrok.com/terminate-tls.<option>` | `ngrok.com/terminate-tls.<option>` | Gateway listener TLS options |
 
+The last two rows are not object annotations: `terminate-tls.<option>` keys live
+under a Gateway listener's `tls.options`, and `app-protocols` is read from the
+backing Service. They follow the same prefix rename and are listed together here
+for convenience; each has its own audit below.
+
 Also replace the Service port `appProtocol` value `k8s.ngrok.com/http2` with
 `ngrok.com/http2`.
 
@@ -252,11 +313,37 @@ Bindings pod-identity annotations are forwarded verbatim. If an ngrok traffic
 policy expression matches `k8s.ngrok.com/*` pod-annotation keys, update the pod
 annotations and policy expression together.
 
+#### How the two prefixes interact
+
+The 0.24 operator reads both prefixes. When both are present on the same object
+for the same key, the `ngrok.com/` key wins. Precedence is decided by key
+**presence**, not value: a canonical `ngrok.com/` key outranks the legacy one
+even when its value is empty or invalid. Most keys then reject the empty value as
+invalid content, but the practical footgun is a template that renders, say,
+`ngrok.com/traffic-policy: ""` when a variable is unset — it silently outranks a
+working `k8s.ngrok.com/traffic-policy` and detaches the policy, with no error. On
+a gated endpoint that removes the gate. Render canonical keys only when they have
+a real value.
+
+This presence-wins rule is what makes a staggered migration safe: you can add the
+`ngrok.com/` key alongside the legacy one, confirm the endpoint is healthy, and
+drop the legacy key once rollback below 0.24 is ruled out. `appProtocol` is the
+exception — it is a single scalar and cannot carry both values at once, so switch
+it only after rollback below 0.24 is ruled out (see the rollback section).
+
+Helm's three-way merge removes the old key cleanly on upgrade, so chart-managed
+objects rarely end up dual-keyed. Kustomize, Argo CD without prune, and
+`kubectl patch` users routinely land in the both-keys state — harmless given the
+precedence rule, but worth knowing when auditing.
+
+#### Find legacy keys
+
 Find Kubernetes objects that still carry legacy-prefixed annotations:
 
 ```bash
 for kind in ingress gateway service; do
-  kubectl get "$kind" -A -o json |
+  # Skip kinds whose CRD isn't installed (e.g. gateway without Gateway API).
+  kubectl get "$kind" -A -o json 2>/dev/null |
     jq -r --arg kind "$kind" '
       .items[]
       | select((.metadata.annotations // {}) | keys | any(startswith("k8s.ngrok.com/")))
@@ -265,10 +352,16 @@ for kind in ingress gateway service; do
 done
 ```
 
-Find Gateway listener TLS options using the old prefix:
+This match is prefix-based, so it also surfaces any `k8s.ngrok.com/*` keys that
+are yours and unrelated to the operator (image tags, node labels, and the like)
+and the `k8s.ngrok.com/v1alpha1` API group you should leave alone. Cross-check
+hits against the rename table above; only the keys in that table need renaming.
+
+Find Gateway listener TLS options using the old prefix (skip if Gateway API is
+not installed):
 
 ```bash
-kubectl get gateway -A -o json |
+kubectl get gateway -A -o json 2>/dev/null |
   jq -r '
     .items[]
     | select(
@@ -305,6 +398,10 @@ kubectl get pods -A -o json |
   '
 ```
 
+Pods commonly carry `k8s.ngrok.com/*` annotations unrelated to bindings, so this
+audit is noisy. Only annotations your ngrok traffic-policy expressions actually
+match need renaming; the rest are yours to leave or clean up as you see fit.
+
 The operator also emits `LegacyAnnotation` warning events for managed
 Ingresses, Gateways, and LoadBalancer Services:
 
@@ -312,9 +409,12 @@ Ingresses, Gateways, and LoadBalancer Services:
 kubectl get events -A --field-selector reason=LegacyAnnotation
 ```
 
-Events expire and should not be treated as a complete audit. Backend Service
-`app-protocols`, Service `appProtocol`, and bindings pod annotations do not
-produce these events, so use the direct audits above.
+These events are reconcile-driven and expire, so their absence proves nothing in
+either direction: a migrated object stops appearing, and so does an unmigrated
+idle one that has not reconciled recently. Treat them as a hint, not a complete
+audit. Backend Service `app-protocols`, Service `appProtocol`, and bindings pod
+annotations never produce these events at all, so rely on the direct audits
+above for a point-in-time inventory.
 
 ### Rename `Domain.spec.resolves_to`
 
@@ -425,6 +525,14 @@ spec:
 
 This applies to `Domain`, `IPPolicy` and its rules, `KubernetesOperator`,
 `CloudEndpoint`, and `AgentEndpoint`. Use only string keys and string values.
+
+Update only the objects whose `spec.metadata` **you** set. In 0.24 the operator
+still writes the string form for the objects it owns (the default is a JSON
+string, and operator-generated resources normalize to a string on the wire), so
+the audits below will list every operator-owned Domain, CloudEndpoint,
+AgentEndpoint, and the KubernetesOperator — none of which are user-actionable in
+this release. Match the results against the manifests you author directly and
+ignore the rest.
 
 Find top-level metadata that is still a JSON string:
 
