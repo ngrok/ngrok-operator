@@ -93,20 +93,12 @@ Most CRDs that correspond to ngrok API resources include:
 | `description` | `"Created by the ngrok-operator"`     |
 | `metadata`    | `{"owned-by": "ngrok-operator"}`      |
 
-> The `metadata` row shows the logical key/value content. Through the 0.24
-> migration window the CRD default is written in the **JSON-string** form
-> (`'{"owned-by":"ngrok-operator"}'`) for rollback safety; it flips to the object
-> form at the cleanup release. See [`metadata` format](#metadata-format) below.
-
 ### `metadata` format
 
-**End goal:** `metadata` is a map of string key/value pairs
+`metadata` is a map of string key/value pairs
 (`map[string]string`) on every ngrok-backed CRD (`Domain`, `IPPolicy` and its
-`rules[]`, `KubernetesOperator`, `CloudEndpoint`, `AgentEndpoint`). Through the
-0.24 migration window the field is schemaless
-(`x-kubernetes-preserve-unknown-fields`) and accepts both the map and the legacy
-JSON-string form; the string form is removed at the cleanup release. Users
-express metadata as native YAML:
+`rules[]`, `KubernetesOperator`, `CloudEndpoint`, `AgentEndpoint`). Users express
+metadata as native YAML:
 
 ```yaml
 spec:
