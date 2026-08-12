@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.4.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.3.0...helm-chart-ngrok-crds-0.4.0
 
+Before upgrading, review the
+[Helm chart 0.23 to 0.24 upgrade guide](../../docs/upgrading-to-0.24.md).
+
 - Update CRDs Helm chart version to `0.4.0`
 
 Moving `0.4.0-rc.2` to `0.4.0`. See the `0.4.0-rc.1` and `0.4.0-rc.2` notes below for changes.
@@ -32,7 +35,7 @@ Moving `0.4.0-rc.2` to `0.4.0`. See the `0.4.0-rc.1` and `0.4.0-rc.2` notes belo
 - Overhauled KubernetesOperator status: replaced phase enums with structured Conditions and added structured drain reporting by @alex-bezek in [#846](https://github.com/ngrok/ngrok-operator/pull/846)
 - Cleaned up Domain and IPPolicy status: dropped spec-duplicated fields and the dead `Progressing` condition by @alex-bezek in [#851](https://github.com/ngrok/ngrok-operator/pull/851)
 - Tightened CRD field validation, added `omitempty` on optional fields, and fixed Domain schema issues by @alex-bezek in [#843](https://github.com/ngrok/ngrok-operator/pull/843)
-- Restricted `clientCertificateRefs` on AgentEndpoint to same-namespace secrets by @jonstacks in [#826](https://github.com/ngrok/ngrok-operator/pull/826)
+- Restricted `clientCertificateRefs` on AgentEndpoint to same-namespace secrets by @jonstacks in [#826](https://github.com/ngrok/ngrok-operator/pull/826). Reported by [@thesecguy45](https://github.com/thesecguy45).
 - Support `map[string]string` for CRD metadata fields (K8SOP-295) by @alex-bezek in [#858](https://github.com/ngrok/ngrok-operator/pull/858)
 
 ### Added
