@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.22.0-rc.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0-rc.1
 
+For upgrade steps and required manifest migrations, see the
+[Helm chart 0.23 to 0.24 upgrade guide](docs/upgrading-to-0.24.md).
+
 ### Breaking Changes
 - Migrated ingress class handling to the new `ngrok.com` API group by @alex-bezek in [#819](https://github.com/ngrok/ngrok-operator/pull/819)
 - Migrated finalizers to the `ngrok.com` API group, writing the legacy finalizer while dual-reading both by @alex-bezek in [#820](https://github.com/ngrok/ngrok-operator/pull/820)
