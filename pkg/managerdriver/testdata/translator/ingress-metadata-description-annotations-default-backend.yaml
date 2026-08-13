@@ -65,7 +65,9 @@ expected:
       namespace: default
     spec:
       url: "https://test-ingress.ngrok.io"
-      metadata: '{"env":"prod","team":"platform"}'
+      metadata:
+        env: prod
+        team: platform
       description: "My production service"
       upstream:
         url: "http://test-service-1.default:8080"

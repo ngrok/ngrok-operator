@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ngrok/ngrok-api-go/v7"
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -77,7 +76,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 			},
 			Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 				Description:     "test operator",
-				Metadata:        commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"test"}`),
+				Metadata:        map[string]string{"owned-by": "test"},
 				EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
 				Region:          "global",
 			},
@@ -146,7 +145,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 			},
 			Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 				Description:     "test operator with nil binding",
-				Metadata:        commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"test"}`),
+				Metadata:        map[string]string{"owned-by": "test"},
 				EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
 				Binding:         nil,
 				Region:          "global",
@@ -218,7 +217,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 			},
 			Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 				Description:     "drain lifecycle envtest",
-				Metadata:        commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"test"}`),
+				Metadata:        map[string]string{"owned-by": "test"},
 				EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
 				Region:          "global",
 				Drain: &ngrokv1alpha1.DrainConfig{

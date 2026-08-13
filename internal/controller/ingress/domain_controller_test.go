@@ -317,7 +317,7 @@ var _ = Describe("DomainReconciler", func() {
 				},
 				Spec: ingressv1alpha1.DomainSpec{
 					Description: "starting description",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("starting metadata"),
+					Metadata:    map[string]string{"note": "starting metadata"},
 					Domain:      domainName,
 				},
 			}
@@ -334,7 +334,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		It("updates the domain metadata", func() {
 			patch := client.MergeFrom(domain.DeepCopy())
-			domain.Spec.Metadata = commonv1alpha1.MetadataFromLegacyString("updated metadata")
+			domain.Spec.Metadata = map[string]string{"note": "updated metadata"}
 			Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -342,7 +342,7 @@ var _ = Describe("DomainReconciler", func() {
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				g.Expect(commonv1alpha1.MetadataAPIString(d.Spec.Metadata)).To(Equal("updated metadata"))
+				g.Expect(commonv1alpha1.MetadataAPIString(d.Spec.Metadata)).To(Equal(`{"note":"updated metadata"}`))
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
 				g.Expect(d.Status.Domain).To(Equal(domainName))
 			}, timeout, interval).Should(Succeed())

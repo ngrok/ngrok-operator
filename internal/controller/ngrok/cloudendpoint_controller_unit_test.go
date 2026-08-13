@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ngrok/ngrok-api-go/v7"
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
@@ -39,7 +38,7 @@ func TestEndpointNeedsUpdate(t *testing.T) {
 		return ngrokv1alpha1.CloudEndpointSpec{
 			URL:            "https://example.ngrok.app",
 			Description:    "Created by the ngrok-operator",
-			Metadata:       commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"ngrok-operator"}`),
+			Metadata:       map[string]string{"owned-by": "ngrok-operator"},
 			Bindings:       []string{"public"},
 			PoolingEnabled: new(false),
 		}
@@ -88,7 +87,7 @@ func TestEndpointNeedsUpdate(t *testing.T) {
 			endpoint: baseEndpoint(),
 			spec: func() ngrokv1alpha1.CloudEndpointSpec {
 				s := baseSpec()
-				s.Metadata = commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"someone-else"}`)
+				s.Metadata = map[string]string{"owned-by": "someone-else"}
 				return s
 			}(),
 			policy: basePolicy,

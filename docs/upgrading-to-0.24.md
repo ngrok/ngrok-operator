@@ -534,7 +534,7 @@ user-managed migrations above before their cleanup releases:
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
 | CloudEndpoint traffic-policy fields | Reads old and new fields | Use only `targetRef` and `inline` before the announced cleanup release |
 | `Domain.spec.resolves_to` | Reads `resolves_to` and `resolvesTo` | Use only `resolvesTo` before the announced cleanup release |
-| CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
+| CRD `spec.metadata` | Reads JSON strings and maps | **Cleaned up:** a later release makes `spec.metadata` a strict `map[string]string`; the JSON-string form is rejected at admission — migrate before upgrading past it |
 | Bindings labels | Writes both prefixes | Update external selectors before the planned 1.0 write-side cleanup |
 | IngressClass controller | Recognizes both values | Self-authored manifests must use `ngrok.com/ingress-controller` before legacy matching is removed in 0.26 |
 

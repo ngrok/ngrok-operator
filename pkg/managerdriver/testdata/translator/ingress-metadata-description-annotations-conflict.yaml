@@ -96,7 +96,8 @@ expected:
       namespace: default
     spec:
       url: "https://shared-host.ngrok.io"
-      metadata: '{"owner":"team-a"}'
+      metadata:
+        owner: team-a
       description: "Team A description"
       trafficPolicy:
         inline:
@@ -136,7 +137,8 @@ expected:
       namespace: default
     spec:
       url: "https://e3b0c-service-a-default-8080.internal"
-      metadata: '{"owner":"team-a"}'
+      metadata:
+        owner: team-a
       description: "Team A description"
       upstream:
         url: "http://service-a.default:8080"
@@ -152,7 +154,8 @@ expected:
       namespace: default
     spec:
       url: "https://e3b0c-service-b-default-9090.internal"
-      metadata: '{"owner":"team-a"}'
+      metadata:
+        owner: team-a
       description: "Team A description"
       upstream:
         url: "http://service-b.default:9090"

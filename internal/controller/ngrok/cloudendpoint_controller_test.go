@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"time"
 
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/errors"
@@ -92,7 +91,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://test.internal",
 					Description: "Test endpoint",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("{}"),
 				},
 			}
 
@@ -124,7 +122,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "tcp://1.tcp.ngrok.io:12345",
 					Description: "TCP test endpoint",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("{}"),
 				},
 			}
 
@@ -164,7 +161,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "tcp://1.2.3.4:25565",
 					Description: "Custom TCP test endpoint",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("{}"),
 				},
 			}
 
@@ -214,7 +210,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://policy-test.internal",
 					Description:       "Endpoint with policy",
-					Metadata:          commonv1alpha1.MetadataFromLegacyString("{}"),
 					TrafficPolicyName: "test-policy",
 				},
 			}
@@ -313,7 +308,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         fmt.Sprintf("https://delete-%s.internal", rand.String(8)),
 					Description: "Endpoint to delete",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("{}"),
 				},
 			}
 
@@ -356,7 +350,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://error.internal",
 					Description: "Error endpoint",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("{}"),
 				},
 			}
 
@@ -411,7 +404,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://both-fields.internal",
 					Description:       "Both legacy and canonical fields set",
-					Metadata:          commonv1alpha1.MetadataFromLegacyString("{}"),
 					TrafficPolicyName: "ignored-legacy-name",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "canonical-policy"},
@@ -609,7 +601,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				},
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:      "https://metadata-map.internal",
-					Metadata: commonv1alpha1.MetadataFromMap(map[string]string{"team": "platform", "owned-by": "ngrok-operator"}),
+					Metadata: map[string]string{"team": "platform", "owned-by": "ngrok-operator"},
 				},
 			}
 
@@ -627,36 +619,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(endpoint.Metadata).To(Equal(`{"owned-by":"ngrok-operator","team":"platform"}`))
 			}, timeout, interval).Should(Succeed())
 		})
-
-		// LEGACY-metadata-format: BEGIN — delete this test in the cleanup release
-		// once the raw JSON string form is no longer accepted.
-		It("should pass legacy string-form metadata through to the ngrok API verbatim", func(ctx SpecContext) {
-			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "metadata-legacy-endpoint",
-					Namespace: namespace,
-				},
-				Spec: ngrokv1alpha1.CloudEndpointSpec{
-					URL:      "https://metadata-legacy.internal",
-					Metadata: commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"ngrok-operator"}`),
-				},
-			}
-
-			By("Creating the CloudEndpoint with legacy string-form metadata")
-			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
-
-			By("Verifying the ngrok API received the string verbatim")
-			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.CloudEndpoint{}
-				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
-				g.Expect(obj.Status.ID).NotTo(BeEmpty())
-
-				endpoint, err := mockClientset.Endpoints().Get(context.Background(), obj.Status.ID)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(endpoint.Metadata).To(Equal(`{"owned-by":"ngrok-operator"}`))
-			}, timeout, interval).Should(Succeed())
-		})
-		// LEGACY-metadata-format: END
 	})
 
 	Context("Endpoint updates", func() {
@@ -669,7 +631,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://update-test.internal",
 					Description: "Original description",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString(`{"key":"value"}`),
+					Metadata:    map[string]string{"key": "value"},
 				},
 			}
 
@@ -691,7 +653,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
 
 				obj.Spec.Description = "Updated description"
-				obj.Spec.Metadata = commonv1alpha1.MetadataFromLegacyString(`{"key":"updated","new":"field"}`)
+				obj.Spec.Metadata = map[string]string{"key": "updated", "new": "field"}
 				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
 			}, timeout, interval).Should(Succeed())
 
@@ -726,7 +688,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://policy-update.internal",
 					Description:       "Endpoint with updatable policy",
-					Metadata:          commonv1alpha1.MetadataFromLegacyString("{}"),
 					TrafficPolicyName: "policy-v1",
 				},
 			}
@@ -781,7 +742,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://recreate-test.internal",
 					Description: "Endpoint to recreate",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("{}"),
 				},
 			}
 
@@ -919,7 +879,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://original-url.internal",
 					Description: "Endpoint with updatable URL",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("{}"),
 				},
 			}
 
@@ -961,7 +920,6 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://update-error.internal",
 					Description: "Endpoint for error testing",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("{}"),
 				},
 			}
 

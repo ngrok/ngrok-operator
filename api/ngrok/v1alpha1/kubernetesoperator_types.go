@@ -25,8 +25,6 @@ SOFTWARE.
 package v1alpha1
 
 import (
-	"encoding/json"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -175,14 +173,11 @@ type KubernetesOperatorSpec struct {
 	Description string `json:"description,omitempty"`
 
 	// Metadata is arbitrary key/value data associated with the object in the
-	// ngrok API/Dashboard. A raw JSON string is also accepted for backward
-	// compatibility and is deprecated; use a map of string values instead.
-	// The ngrokMetadata Helm value is not merged into this field.
+	// ngrok API/Dashboard. The ngrokMetadata Helm value is not merged into
+	// this field.
 	//
-	// +kubebuilder:validation:Schemaless
-	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
+	// +kubebuilder:default:={"owned-by":"ngrok-operator"}
+	Metadata map[string]string `json:"metadata,omitempty"`
 
 	// Features enabled for this Kubernetes Operator
 	// +kubebuilder:validation:items:Enum=ingress;gateway;bindings

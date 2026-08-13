@@ -39,10 +39,8 @@ func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomai
 				Namespace: in.Namespace,
 			},
 			Spec: ingressv1alpha1.DomainSpec{
-				Domain: domainName,
-				// LEGACY-metadata-format: operator-generated objects keep writing
-				// the string form during the migration window for rollback safety.
-				Metadata: commonv1alpha1.MetadataFromLegacyString(newDomainMetadata),
+				Domain:   domainName,
+				Metadata: commonv1alpha1.MetadataMapFromJSON(newDomainMetadata),
 			},
 		}
 		endpointDomains[domainName] = domain
@@ -78,10 +76,8 @@ func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingD
 				Namespace: in.Namespace,
 			},
 			Spec: ingressv1alpha1.DomainSpec{
-				Domain: domainName,
-				// LEGACY-metadata-format: operator-generated objects keep writing
-				// the string form during the migration window for rollback safety.
-				Metadata: commonv1alpha1.MetadataFromLegacyString(newDomainMetadata),
+				Domain:   domainName,
+				Metadata: commonv1alpha1.MetadataMapFromJSON(newDomainMetadata),
 			},
 		}
 

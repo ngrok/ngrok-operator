@@ -66,7 +66,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 					Protocol: ir.IRProtocol_HTTPS,
 				},
 			},
-			metadata:         "metadata-test",
+			metadata:         `{"note":"metadata-test"}`,
 			expectedName:     "6ca13-test-service-default-cluster.local-8080",
 			expectedURL:      "https://6ca13-test-service-default-cluster-local-8080.internal",
 			expectedUpstream: "http://test-service.default-cluster.local:8080",
@@ -90,7 +90,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 				},
 			},
 			clusterDomain:    "custom.domain",
-			metadata:         "prod-metadata",
+			metadata:         `{"note":"prod-metadata"}`,
 			expectedName:     "5a464-another-service-custom-namespace-custom.domain-9090",
 			expectedURL:      "https://5a464-another-service-custom-namespace-custom-domain-9090.internal",
 			expectedUpstream: "http://another-service.custom-namespace-custom.domain:9090",
@@ -120,7 +120,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 				},
 			},
 			clusterDomain:    "custom.domain",
-			metadata:         "prod-metadata",
+			metadata:         `{"note":"prod-metadata"}`,
 			expectedName:     "5a464-another-service-custom-namespace-mtls-d025c-cust-5fd9effa",
 			expectedURL:      "https://5a464-another-service-custom-namespace-mtls-d025c-custom-domain-443.internal",
 			expectedUpstream: "https://another-service.custom-namespace-custom.domain:443",
@@ -155,7 +155,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			irVHost: &ir.IRVirtualHost{
 				Bindings:  []string{"public"},
 				Namespace: "default",
-				Metadata:  "test-metadata",
+				Metadata:  `{"note":"test-metadata"}`,
 				Listener: ir.IRListener{
 					Hostname: "cloud-host",
 					Port:     80,
@@ -169,7 +169,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			irVHost: &ir.IRVirtualHost{
 				Bindings:         []string{"public"},
 				Namespace:        "foo",
-				Metadata:         "test-metadata",
+				Metadata:         `{"note":"test-metadata"}`,
 				LabelsToAdd:      map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd: map[string]string{"test-annotations": "test-annotation-val"},
 				Listener: ir.IRListener{
@@ -185,7 +185,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			irVHost: &ir.IRVirtualHost{
 				Bindings:               []string{"public"},
 				Namespace:              "foo",
-				Metadata:               "test-metadata",
+				Metadata:               `{"note":"test-metadata"}`,
 				EndpointPoolingEnabled: new(true),
 				LabelsToAdd:            map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd:       map[string]string{"test-annotations": "test-annotation-val"},
@@ -203,7 +203,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 				Bindings:               []string{"public"},
 				NamePrefix:             new("prefix"),
 				Namespace:              "foo",
-				Metadata:               "test-metadata",
+				Metadata:               `{"note":"test-metadata"}`,
 				EndpointPoolingEnabled: new(true),
 				LabelsToAdd:            map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd:       map[string]string{"test-annotations": "test-annotation-val"},
@@ -347,7 +347,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 			translator := &translator{
 				clusterDomain:          "cluster.local",
 				managedResourceLabels:  map[string]string{"app": "test"},
-				defaultIngressMetadata: "test-metadata",
+				defaultIngressMetadata: `{"note":"test-metadata"}`,
 			}
 
 			resultPolicy, err := translator.buildDefaultDestinationPolicy(tc.irVHost, tc.childEndpointCache)

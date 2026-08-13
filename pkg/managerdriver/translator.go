@@ -816,11 +816,9 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1alpha1.CloudEndpoint
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL:            publicURL,
 			PoolingEnabled: irVHost.EndpointPoolingEnabled,
-			// LEGACY-metadata-format: operator-generated objects keep writing the
-			// string form during the migration window for rollback safety.
-			Metadata:    commonv1alpha1.MetadataFromLegacyString(irVHost.Metadata),
-			Description: irVHost.Description,
-			Bindings:    irVHost.Bindings,
+			Metadata:       commonv1alpha1.MetadataMapFromJSON(irVHost.Metadata),
+			Description:    irVHost.Description,
+			Bindings:       irVHost.Bindings,
 		},
 	}, nil
 }
@@ -865,10 +863,8 @@ func buildAgentEndpoint(
 			Annotations: irVHost.AnnotationsToAdd,
 		},
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
-			URL: url,
-			// LEGACY-metadata-format: operator-generated objects keep writing the
-			// string form during the migration window for rollback safety.
-			Metadata:    commonv1alpha1.MetadataFromLegacyString(metadata),
+			URL:         url,
+			Metadata:    commonv1alpha1.MetadataMapFromJSON(metadata),
 			Description: description,
 			Upstream: ngrokv1alpha1.EndpointUpstream{
 				URL:      agentEndpointUpstreamURL(irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.Scheme),

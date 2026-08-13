@@ -1,88 +1,63 @@
 package common
 
 import (
-	"encoding/json"
 	"testing"
 )
 
 func TestMetadataAPIString(t *testing.T) {
 	tests := []struct {
 		name string
-		json string // the raw JSON value of the metadata field
+		m    map[string]string
 		want string
 	}{
-		{name: "unset", json: `null`, want: ""},
-		{name: "empty object", json: `{}`, want: "{}"},
-		{name: "legacy empty string", json: `""`, want: ""},
+		{name: "unset", m: nil, want: ""},
+		{name: "empty map", m: map[string]string{}, want: ""},
 		{
-			name: "legacy json-object string passthrough",
-			json: `"{\"owned-by\":\"ngrok-operator\"}"`,
+			name: "single key",
+			m:    map[string]string{"owned-by": "ngrok-operator"},
 			want: `{"owned-by":"ngrok-operator"}`,
 		},
 		{
-			name: "legacy non-json string passthrough",
-			json: `"some free text"`,
-			want: "some free text",
-		},
-		{
-			name: "object form single key",
-			json: `{"owned-by":"ngrok-operator"}`,
-			want: `{"owned-by":"ngrok-operator"}`,
-		},
-		{
-			name: "object form keys sorted for stable output",
-			json: `{"zeta":"1","alpha":"2"}`,
+			name: "keys sorted for stable output",
+			m:    map[string]string{"zeta": "1", "alpha": "2"},
 			want: `{"alpha":"2","zeta":"1"}`,
-		},
-		{
-			name: "nested object passthrough verbatim",
-			json: `{"a":{"b":"c"}}`,
-			want: `{"a":{"b":"c"}}`,
-		},
-		{
-			name: "null-valued key preserved verbatim (not coerced to empty string)",
-			json: `{"a":null}`,
-			want: `{"a":null}`,
-		},
-		{
-			name: "numeric-valued key passthrough verbatim",
-			json: `{"a":1}`,
-			want: `{"a":1}`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := MetadataAPIString(json.RawMessage(tt.json)); got != tt.want {
-				t.Errorf("MetadataAPIString(%s) = %q, want %q", tt.json, got, tt.want)
+			if got := MetadataAPIString(tt.m); got != tt.want {
+				t.Errorf("MetadataAPIString(%v) = %q, want %q", tt.m, got, tt.want)
 			}
 		})
 	}
-	// nil is unset
-	if got := MetadataAPIString(nil); got != "" {
-		t.Errorf("MetadataAPIString(nil) = %q, want empty", got)
-	}
 }
 
-func TestMetadataConstructors(t *testing.T) {
-	if got := MetadataAPIString(MetadataFromMap(map[string]string{"owned-by": "ngrok-operator"})); got != `{"owned-by":"ngrok-operator"}` {
-		t.Errorf("MetadataFromMap = %q", got)
+func TestMetadataMapFromJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		json string
+		want map[string]string
+	}{
+		{name: "empty string", json: "", want: nil},
+		{name: "invalid json", json: "not json", want: nil},
+		{name: "non-flat json", json: `{"a":{"b":"c"}}`, want: nil},
+		{
+			name: "flat object",
+			json: `{"owned-by":"ngrok-operator"}`,
+			want: map[string]string{"owned-by": "ngrok-operator"},
+		},
 	}
-	// legacy constructor passes the string through verbatim
-	if got := MetadataAPIString(MetadataFromLegacyString(`{"owned-by":"ngrok-operator"}`)); got != `{"owned-by":"ngrok-operator"}` {
-		t.Errorf("MetadataFromLegacyString(json) = %q", got)
-	}
-	if got := MetadataAPIString(MetadataFromLegacyString("free text")); got != "free text" {
-		t.Errorf("MetadataFromLegacyString(non-json) = %q", got)
-	}
-	// Empty inputs return nil so the field is omitted and the CRD default applies
-	// (rather than sending an empty value to ngrok).
-	if got := MetadataFromLegacyString(""); got != nil {
-		t.Errorf("MetadataFromLegacyString(\"\") = %v, want nil", got)
-	}
-	if got := MetadataFromMap(nil); got != nil {
-		t.Errorf("MetadataFromMap(nil) = %v, want nil", got)
-	}
-	if got := MetadataFromMap(map[string]string{}); got != nil {
-		t.Errorf("MetadataFromMap(empty) = %v, want nil", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MetadataMapFromJSON(tt.json)
+			if len(got) != len(tt.want) {
+				t.Fatalf("MetadataMapFromJSON(%s) = %v, want %v", tt.json, got, tt.want)
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("MetadataMapFromJSON(%s)[%s] = %q, want %q", tt.json, k, got[k], v)
+				}
+			}
+		})
 	}
 }
