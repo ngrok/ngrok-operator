@@ -403,9 +403,6 @@ func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *
 	thisBindingLabels := map[string]string{
 		LabelBoundEndpointName:      boundEndpoint.Name,
 		LabelBoundEndpointNamespace: boundEndpoint.Namespace,
-		// LEGACY-PREFIX-MIGRATION (write-side cleanup): drop the two legacy entries
-		LegacyLabelBoundEndpointName:      boundEndpoint.Name,
-		LegacyLabelBoundEndpointNamespace: boundEndpoint.Namespace,
 	}
 
 	// Target Labels in order of increasing precedence
@@ -449,8 +446,6 @@ func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *
 	upstreamLabels := util.MergeMaps(commonBoundEndpointLabels, thisBindingLabels)
 	upstreamAnnotations := map[string]string{
 		LabelEndpointURL: endpointURL,
-		// LEGACY-PREFIX-MIGRATION (write-side cleanup): drop the legacy entry
-		LegacyLabelEndpointURL: endpointURL,
 	}
 	// upstreamService represents the Pod Forwarders as a Service
 	// Target Service will point to this Service via an ExternalName

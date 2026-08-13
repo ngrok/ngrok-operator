@@ -153,10 +153,7 @@ func assertDomainLabels(t *testing.T, c client.Client, name, namespace string, e
 	t.Helper()
 	var domain ingressv1alpha1.Domain
 	require.NoError(t, c.Get(t.Context(), types.NamespacedName{Name: name, Namespace: namespace}, &domain))
-	domainLabels := domain.GetLabels()
-	for k, v := range expectedLabels {
-		assert.Equal(t, v, domainLabels[k])
-	}
+	assert.Equal(t, expectedLabels, domain.GetLabels())
 }
 
 // Tests
@@ -316,9 +313,6 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 	assertDomainLabels(t, c, "example-com", "default", map[string]string{
 		labels.ControllerNamespace: "test-namespace",
 		labels.ControllerName:      "test-controller",
-		// LEGACY-PREFIX-MIGRATION: new domains are dual-stamped with the legacy pair.
-		labels.LegacyControllerNamespace: "test-namespace",
-		labels.LegacyControllerName:      "test-controller",
 	})
 }
 
@@ -629,34 +623,33 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 			name:           "adds labels to domain without labels",
 			existingLabels: nil,
 			wantLabels: map[string]string{
-				labels.ControllerNamespace:       "test-namespace",
-				labels.ControllerName:            "test-controller",
-				labels.LegacyControllerNamespace: "test-namespace",
-				labels.LegacyControllerName:      "test-controller",
+				labels.ControllerNamespace: "test-namespace",
+				labels.ControllerName:      "test-controller",
 			},
 		},
 		{
-			// LEGACY-PREFIX-MIGRATION: a domain stamped with only the new pair
-			// (e.g. by a partially-migrated operator) must get the legacy pair
-			// backfilled. The clone-and-probe detects the missing legacy keys
-			// because EnsureLabels would change the copy.
-			name: "backfills legacy pair when only new pair present",
+			// LEGACY-PREFIX-MIGRATION (write-side cleanup): a domain stamped
+			// with the legacy pair by a pre-migration operator must shed it on
+			// next reconcile. The clone-and-probe detects the stray legacy
+			// keys because EnsureLabels would change the copy.
+			name: "removes legacy pair when present",
 			existingLabels: map[string]string{
-				labels.ControllerNamespace: "test-namespace",
-				labels.ControllerName:      "test-controller",
-				"custom-label":             "custom-value",
-			},
-			wantLabels: map[string]string{
 				labels.ControllerNamespace:       "test-namespace",
 				labels.ControllerName:            "test-controller",
 				labels.LegacyControllerNamespace: "test-namespace",
 				labels.LegacyControllerName:      "test-controller",
 				"custom-label":                   "custom-value",
 			},
+			wantLabels: map[string]string{
+				labels.ControllerNamespace: "test-namespace",
+				labels.ControllerName:      "test-controller",
+				"custom-label":             "custom-value",
+			},
 		},
 		{
 			// The clone-and-probe checks label values, not just presence, so a
-			// controller label carrying a stale value gets corrected on reconcile.
+			// controller label carrying a stale value gets corrected on
+			// reconcile, and the legacy pair is removed at the same time.
 			name: "corrects stale controller label value",
 			existingLabels: map[string]string{
 				labels.ControllerNamespace:       "test-namespace",
@@ -665,10 +658,8 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 				labels.LegacyControllerName:      "stale-controller",
 			},
 			wantLabels: map[string]string{
-				labels.ControllerNamespace:       "test-namespace",
-				labels.ControllerName:            "test-controller",
-				labels.LegacyControllerNamespace: "test-namespace",
-				labels.LegacyControllerName:      "test-controller",
+				labels.ControllerNamespace: "test-namespace",
+				labels.ControllerName:      "test-controller",
 			},
 		},
 		{
@@ -677,11 +668,9 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 				"custom-label": "custom-value",
 			},
 			wantLabels: map[string]string{
-				labels.ControllerNamespace:       "test-namespace",
-				labels.ControllerName:            "test-controller",
-				labels.LegacyControllerNamespace: "test-namespace",
-				labels.LegacyControllerName:      "test-controller",
-				"custom-label":                   "custom-value",
+				labels.ControllerNamespace: "test-namespace",
+				labels.ControllerName:      "test-controller",
+				"custom-label":             "custom-value",
 			},
 		},
 	}

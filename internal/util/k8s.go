@@ -7,16 +7,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-// FinalizerName is the canonical ngrok operator finalizer. R1 of the
-// three-release finalizer rename does NOT write this key yet; it is only
-// matched on read so that an R2 operator can finish migrating objects an R1
-// operator may encounter. See docs/developer-guide/passivity-shims.md.
+// FinalizerName is the canonical ngrok operator finalizer. R2 of the
+// three-release finalizer rename writes this key. See
+// docs/developer-guide/passivity-shims.md.
 const FinalizerName = "ngrok.com/finalizer"
 
 // LEGACY-PREFIX-MIGRATION: BEGIN
-// LegacyFinalizerName is what R1 writes. R2 switches the write to
-// FinalizerName and removes LegacyFinalizerName. R3 deletes this constant
-// and the legacy branches in HasFinalizer / RemoveFinalizer below.
+// LegacyFinalizerName is what R1 wrote. R3 deletes this constant and the
+// legacy branches in HasFinalizer / RemoveFinalizer below.
 const LegacyFinalizerName = "k8s.ngrok.com/finalizer"
 
 // LEGACY-PREFIX-MIGRATION: END
@@ -29,18 +27,15 @@ func HasFinalizer(o client.Object) bool {
 		controllerutil.ContainsFinalizer(o, LegacyFinalizerName)
 }
 
-// AddFinalizer is intentionally asymmetric with HasFinalizer/RemoveFinalizer:
-// during R1 we add the legacy key only so that an in-place rollback to a
-// prior release can still drive object deletion (the prior release only
-// knows how to strip the legacy key). R2 switches this to:
-//
-//	added := controllerutil.AddFinalizer(o, FinalizerName)
-//	removed := controllerutil.RemoveFinalizer(o, LegacyFinalizerName)
-//	return added || removed
-//
-// Returns true if the finalizer was added.
+// AddFinalizer adds the canonical ngrok finalizer and removes the legacy one
+// left behind by a pre-migration (R1) operator. Returns true if the finalizer
+// was added.
 func AddFinalizer(o client.Object) bool {
-	return controllerutil.AddFinalizer(o, LegacyFinalizerName)
+	added := controllerutil.AddFinalizer(o, FinalizerName)
+	// LEGACY-PREFIX-MIGRATION: drop this removal in R3; a rollback to R1 is
+	// still safe because R1's HasFinalizer/RemoveFinalizer bridge both keys.
+	removed := controllerutil.RemoveFinalizer(o, LegacyFinalizerName)
+	return added || removed
 }
 
 // RemoveFinalizer removes both the new and legacy ngrok finalizers from the

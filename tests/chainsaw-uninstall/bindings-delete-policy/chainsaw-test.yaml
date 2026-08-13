@@ -98,7 +98,7 @@ spec:
                 name: bound-endpoint-test
                 namespace: uninstall-test
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
               status:
                 (id != null): true
 

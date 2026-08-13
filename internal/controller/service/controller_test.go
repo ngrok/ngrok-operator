@@ -48,9 +48,7 @@ const (
 	LoadBalancer = corev1.ServiceTypeLoadBalancer
 	ClusterIP    = corev1.ServiceTypeClusterIP
 
-	// R1: AddFinalizer writes the legacy key, so tests assert against it.
-	// Flip to util.FinalizerName in R2.
-	FinalizerName = util.LegacyFinalizerName
+	FinalizerName = util.FinalizerName
 
 	Annotation_URL             = annotations.URLAnnotation
 	Annotation_MappingStrategy = annotations.MappingStrategyAnnotation
@@ -237,7 +235,8 @@ var _ = Describe("ServiceController", func() {
 				// LEGACY-PREFIX-MIGRATION: a TCP Service stamped by a
 				// pre-migration operator carries only the legacy computed-url
 				// key. The reserved-address happy path must re-stamp the new
-				// key so the value survives once the legacy read is removed.
+				// key (and shed the legacy key) so the value survives once the
+				// legacy read is removed.
 				It("Should migrate a legacy-only computed-url to the new key", func() {
 					var reservedURL string
 
@@ -262,13 +261,14 @@ var _ = Describe("ServiceController", func() {
 						return k8sClient.Update(ctx, fetched)
 					}, timeout, interval).Should(Succeed())
 
-					By("expecting the operator to re-stamp the new key while keeping the legacy key (no new reservation)")
+					By("expecting the operator to re-stamp the new key and drop the legacy key (no new reservation)")
 					Eventually(func(g Gomega) {
 						fetched := &corev1.Service{}
 						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
 						a := fetched.GetAnnotations()
 						g.Expect(a[annotations.ComputedURLAnnotation]).To(Equal(reservedURL))
-						g.Expect(a[annotations.LegacyComputedURLAnnotation]).To(Equal(reservedURL))
+						_, hasLegacy := a[annotations.LegacyComputedURLAnnotation]
+						g.Expect(hasLegacy).To(BeFalse())
 					}, timeout, interval).Should(Succeed())
 				})
 			})

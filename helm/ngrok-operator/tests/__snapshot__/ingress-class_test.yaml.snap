@@ -13,4 +13,4 @@ Should match snapshot:
         helm.sh/chart: ngrok-operator-0.24.0-rc.2
       name: ngrok
     spec:
-      controller: k8s.ngrok.com/ingress-controller
+      controller: ngrok.com/ingress-controller

@@ -18,4 +18,4 @@ spec:
           metadata:
             name: minimal-ingress-https
             finalizers:
-            - k8s.ngrok.com/finalizer
+            - ngrok.com/finalizer

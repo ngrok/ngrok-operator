@@ -123,7 +123,7 @@ spec:
                 name: uninstall-test-cloud-ep
                 namespace: uninstall-test
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
               status:
                 (id != null): true
 
@@ -138,7 +138,7 @@ spec:
                 name: uninstall-test-agent-ep
                 namespace: uninstall-test
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
               status:
                 (conditions[?type == 'Ready'] | [0].status): "True"
 
@@ -153,7 +153,7 @@ spec:
                 name: uninstall-test-ingress
                 namespace: uninstall-test
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
 
     - name: verify HTTPRoute has finalizer
       try:
@@ -166,7 +166,7 @@ spec:
                 name: uninstall-test-httproute
                 namespace: uninstall-test
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
 
     - name: verify Gateway has finalizer
       try:
@@ -179,7 +179,7 @@ spec:
                 name: uninstall-test-gateway
                 namespace: uninstall-test
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
 
     - name: verify Ingress and Gateway created CloudEndpoints
       try:

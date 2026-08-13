@@ -381,18 +381,14 @@ func (r *ServiceReconciler) setComputedURLAnnotation(ctx context.Context, svc *c
 	if a == nil {
 		a = make(map[string]string)
 	}
-	// LEGACY-PREFIX-MIGRATION: BEGIN
-	// Dual-write both the new and legacy computed-url keys so a rollback to a
-	// pre-migration operator still sees the value it knows how to read. The
-	// write-side cleanup drops the legacy comparison and the legacy write; the
-	// body collapses back to the simple "skip if equal, otherwise write" form.
-	if a[annotations.ComputedURLAnnotation] == computedURL &&
-		a[annotations.LegacyComputedURLAnnotation] == computedURL {
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop this delete once no
+	// pre-migration-stamped Services remain.
+	_, hadLegacy := a[annotations.LegacyComputedURLAnnotation]
+	if a[annotations.ComputedURLAnnotation] == computedURL && !hadLegacy {
 		return nil
 	}
 	a[annotations.ComputedURLAnnotation] = computedURL
-	a[annotations.LegacyComputedURLAnnotation] = computedURL
-	// LEGACY-PREFIX-MIGRATION: END
+	delete(a, annotations.LegacyComputedURLAnnotation)
 	svc.SetAnnotations(a)
 	return r.Client.Update(ctx, svc)
 }

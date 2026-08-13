@@ -42,8 +42,8 @@ spec:
           metadata:
             name: (join('', ['dom-labels', $ngrokDomainSuffixDashes]))
             labels:
-              k8s.ngrok.com/controller-name: ngrok-operator-agent-manager
-              k8s.ngrok.com/controller-namespace: ngrok-operator
+              ngrok.com/controller-name: ngrok-operator-agent-manager
+              ngrok.com/controller-namespace: ngrok-operator
 
   - name: verify no update errors on agent endpoint
     try:
