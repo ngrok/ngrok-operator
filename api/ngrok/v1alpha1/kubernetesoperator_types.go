@@ -79,16 +79,8 @@ type KubernetesOperatorStatus struct {
 	// +kubebuilder:validation:MaxItems=8
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// LEGACY-enabledfeatures-format: forces the CRD schema to accept the
-	// comma-separated string wire format this field writes during the
-	// migration window (MarshalJSON in kubernetesoperator_status_compat.go).
-	// Delete this marker in the cleanup release; controller-gen will
-	// regenerate the natural array schema once MarshalJSON is also removed.
-
 	// EnabledFeatures are the features enabled for this Kubernetes Operator, as
 	// reported by the ngrok API
-	// +kubebuilder:validation:Schemaless
-	// +kubebuilder:pruning:PreserveUnknownFields
 	EnabledFeatures KubernetesOperatorEnabledFeatures `json:"enabledFeatures,omitempty"`
 
 	// BindingsIngressEndpoint is the URL that the operator will use to talk

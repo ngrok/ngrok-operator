@@ -33,20 +33,14 @@ import (
 
 // LEGACY-enabledfeatures-format: BEGIN
 //
-// KubernetesOperatorEnabledFeatures decodes either the array this field will
-// write once the migration window closes, or the comma-separated string
-// written by pre-migration operator versions (and by this version, for now —
-// see MarshalJSON below).
+// KubernetesOperatorEnabledFeatures decodes either the array this field now
+// writes, or the comma-separated string written by pre-migration operator
+// versions.
 //
 // Two-release, same-key type change (see docs/developer-guide/passivity-shims.md):
-// this release still WRITES the legacy comma-separated string, so a rollback
-// to a pre-migration operator can decode status it never expected to change
-// shape. Once this release is the accepted rollback floor, delete
-// MarshalJSON below (write-side cleanup) so the field marshals as a plain
-// array again, drop the `+kubebuilder:validation:Type=string` override on
-// the field in kubernetesoperator_types.go, and regenerate the CRD. Keep
-// UnmarshalJSON a while longer — existing objects still carry the legacy
-// string until their next reconcile — then delete it too (read-side
+// write-side cleanup is done — the field marshals as a plain array again.
+// Keep UnmarshalJSON a while longer — existing objects still carry the
+// legacy string until their next reconcile — then delete it too (read-side
 // cleanup) along with this type, switching the field to plain []string.
 type KubernetesOperatorEnabledFeatures []string
 
@@ -73,16 +67,6 @@ func (features *KubernetesOperatorEnabledFeatures) UnmarshalJSON(data []byte) er
 
 	*features = strings.Split(legacy, ",")
 	return nil
-}
-
-// MarshalJSON writes the legacy comma-separated string form so a rollback to
-// a pre-migration operator can still decode this field.
-//
-// LEGACY-enabledfeatures-format (write-side cleanup): delete this method once
-// this release is the accepted rollback floor; encoding/json will then
-// marshal the field as a plain array.
-func (features KubernetesOperatorEnabledFeatures) MarshalJSON() ([]byte, error) {
-	return json.Marshal(strings.Join(features, ","))
 }
 
 // LEGACY-enabledfeatures-format: END

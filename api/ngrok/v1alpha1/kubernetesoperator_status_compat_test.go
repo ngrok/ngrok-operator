@@ -47,9 +47,7 @@ func TestKubernetesOperatorEnabledFeatures_UnmarshalJSON(t *testing.T) {
 	}
 }
 
-// This release still writes the legacy string form so a rollback to a
-// pre-migration operator can decode it; see MarshalJSON in
-// kubernetesoperator_status_compat.go.
+// Write-side cleanup is done: this field marshals as a plain array again.
 func TestKubernetesOperatorEnabledFeatures_MarshalJSON(t *testing.T) {
 	var ko KubernetesOperator
 	require.NoError(t, json.Unmarshal([]byte(`{
@@ -60,7 +58,7 @@ func TestKubernetesOperatorEnabledFeatures_MarshalJSON(t *testing.T) {
 
 	encoded, err := json.Marshal(&ko)
 	require.NoError(t, err)
-	assert.Contains(t, string(encoded), `"enabledFeatures":"ingress,bindings"`)
+	assert.Contains(t, string(encoded), `"enabledFeatures":["ingress","bindings"]`)
 }
 
 // LEGACY-enabledfeatures-format: END
