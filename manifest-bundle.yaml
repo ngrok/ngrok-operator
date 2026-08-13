@@ -1715,7 +1715,9 @@ spec:
                 description: |-
                   EnabledFeatures are the features enabled for this Kubernetes Operator, as
                   reported by the ngrok API
-                x-kubernetes-preserve-unknown-fields: true
+                items:
+                  type: string
+                type: array
               id:
                 description: ID is the unique identifier for this Kubernetes Operator
                 type: string
