@@ -532,7 +532,7 @@ user-managed migrations above before their cleanup releases:
 | Migration | 0.24 behavior | Future requirement |
 | --- | --- | --- |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
-| CloudEndpoint traffic-policy fields | Reads old and new fields | Use only `targetRef` and `inline` before the announced cleanup release |
+| CloudEndpoint traffic-policy fields | Reads old and new fields | **Cleaned up:** a later release removes `spec.trafficPolicyName` and `spec.trafficPolicy.policy` — use only `spec.trafficPolicy.targetRef` and `spec.trafficPolicy.inline` before upgrading past it |
 | `Domain.spec.resolves_to` | Reads `resolves_to` and `resolvesTo` | Use only `resolvesTo` before the announced cleanup release |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
 | Bindings labels | Writes both prefixes | Update external selectors before the planned 1.0 write-side cleanup |

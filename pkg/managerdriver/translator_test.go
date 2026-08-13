@@ -566,7 +566,6 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedCLEP.Labels, actualCLEP.Labels)
 				assert.Equal(t, expectedCLEP.Annotations, actualCLEP.Annotations)
 				assert.Equal(t, expectedCLEP.Spec.URL, actualCLEP.Spec.URL)
-				assert.Equal(t, expectedCLEP.Spec.TrafficPolicyName, actualCLEP.Spec.TrafficPolicyName) //nolint:staticcheck // compares deprecated field shape
 				if expectedCLEP.Spec.PoolingEnabled == nil {
 					assert.Nil(t, actualCLEP.Spec.PoolingEnabled)
 				} else {
@@ -583,24 +582,6 @@ func TestTranslate(t *testing.T) {
 					actualTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
 					require.NoError(t, json.Unmarshal(actualCLEP.Spec.TrafficPolicy.Inline, actualTrafficPolicyCfg))
 					assert.Equal(t, expectedTrafficPolicyCfg, actualTrafficPolicyCfg)
-
-					// LEGACY-trafficpolicy-policy: generated CloudEndpoints
-					// must dual-write inline+policy so they remain
-					// rollback-safe to pre-0.24 (which prunes the unknown
-					// inline field but preserves policy).
-					//
-					// By convention the golden fixtures declare only
-					// `trafficPolicy.inline` (the canonical field the
-					// comparison above reads). The legacy `policy` dual-write
-					// is an emitted-object invariant verified here in code
-					// rather than restated as duplicate JSON in every fixture,
-					// so the fixtures are not the source of truth for `policy`.
-					require.NotNil(t, actualCLEP.Spec.TrafficPolicy.Policy, //nolint:staticcheck // intentionally checking the legacy field
-						"generated CloudEndpoint must dual-write spec.trafficPolicy.policy for rollback safety")
-					assert.JSONEq(t,
-						string(actualCLEP.Spec.TrafficPolicy.Inline),
-						string(actualCLEP.Spec.TrafficPolicy.Policy), //nolint:staticcheck // see above
-						"generated CloudEndpoint inline and policy fields must contain the same content")
 				} else {
 					assert.Nil(t, actualCLEP.Spec.TrafficPolicy)
 				}
@@ -695,7 +676,6 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, expectedCLEP.Labels, actualCLEP.Labels)
 				assert.Equal(t, expectedCLEP.Annotations, actualCLEP.Annotations)
 				assert.Equal(t, expectedCLEP.Spec.URL, actualCLEP.Spec.URL)
-				assert.Equal(t, expectedCLEP.Spec.TrafficPolicyName, actualCLEP.Spec.TrafficPolicyName) //nolint:staticcheck // compares deprecated field shape
 				if expectedCLEP.Spec.PoolingEnabled == nil {
 					assert.Nil(t, actualCLEP.Spec.PoolingEnabled)
 				} else {
@@ -712,24 +692,6 @@ func TestTranslate(t *testing.T) {
 					actualTrafficPolicyCfg := &trafficpolicy.TrafficPolicy{}
 					require.NoError(t, json.Unmarshal(actualCLEP.Spec.TrafficPolicy.Inline, actualTrafficPolicyCfg))
 					assert.Equal(t, expectedTrafficPolicyCfg, actualTrafficPolicyCfg)
-
-					// LEGACY-trafficpolicy-policy: generated CloudEndpoints
-					// must dual-write inline+policy so they remain
-					// rollback-safe to pre-0.24 (which prunes the unknown
-					// inline field but preserves policy).
-					//
-					// By convention the golden fixtures declare only
-					// `trafficPolicy.inline` (the canonical field the
-					// comparison above reads). The legacy `policy` dual-write
-					// is an emitted-object invariant verified here in code
-					// rather than restated as duplicate JSON in every fixture,
-					// so the fixtures are not the source of truth for `policy`.
-					require.NotNil(t, actualCLEP.Spec.TrafficPolicy.Policy, //nolint:staticcheck // intentionally checking the legacy field
-						"generated CloudEndpoint must dual-write spec.trafficPolicy.policy for rollback safety")
-					assert.JSONEq(t,
-						string(actualCLEP.Spec.TrafficPolicy.Inline),
-						string(actualCLEP.Spec.TrafficPolicy.Policy), //nolint:staticcheck // see above
-						"generated CloudEndpoint inline and policy fields must contain the same content")
 				} else {
 					assert.Nil(t, actualCLEP.Spec.TrafficPolicy)
 				}

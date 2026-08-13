@@ -281,14 +281,8 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 				)
 				continue
 			}
-			// LEGACY-trafficpolicy-policy: dual-write both `inline` (canonical) and
-			// `policy` (legacy) so an operator-generated CloudEndpoint stays
-			// rollback-safe. The prior-release CRD prunes the unknown `inline`
-			// field; only `policy` survives. The new controller prefers `inline`.
-			// Drop the `Policy` write in the cleanup release.
 			cloudEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 				Inline: json.RawMessage(listenerPolicyJSON),
-				Policy: json.RawMessage(listenerPolicyJSON),
 			}
 			cloudEndpoints[types.NamespacedName{
 				Name:      cloudEndpoint.Name,
