@@ -1,3 +1,7 @@
+// LEGACY-trafficpolicy-kind: delete this whole test file at cleanup. Tests
+// covering the shared condition helper for the canonical ngrok.com/v1
+// TrafficPolicy live alongside its reconciler.
+
 package ngrok
 
 import (

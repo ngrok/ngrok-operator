@@ -22,11 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-// LEGACY-trafficpolicy-kind: delete this whole file at cleanup. The canonical
-// replacement is api/ngrok/v1.TrafficPolicy; every other CRD in this
-// v1alpha1 group stays.
-
-package v1alpha1
+package v1
 
 import (
 	"encoding/json"
@@ -34,8 +30,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
-type NgrokTrafficPolicySpec struct {
+// TrafficPolicySpec defines the desired state of TrafficPolicy.
+//
+// The spec is byte-compatible with the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicySpec so a manual migration is
+// a manifest re-stamp (change kind + apiVersion, re-apply, delete the legacy
+// object).
+type TrafficPolicySpec struct {
 	// The raw json encoded policy that was applied to the ngrok API.
 	// Intentionally schemaless: the traffic policy language is defined and
 	// versioned by the ngrok API, so validating its shape here would break
@@ -48,15 +49,15 @@ type NgrokTrafficPolicySpec struct {
 	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
-// NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
-type NgrokTrafficPolicyStatus struct {
+// TrafficPolicyStatus defines the observed state of TrafficPolicy.
+type TrafficPolicyStatus struct {
 	// ObservedGeneration is the most recent metadata.generation observed by the
 	// controller. When it matches metadata.generation, the status reflects the
 	// latest spec.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	// Conditions describe the current conditions of the NgrokTrafficPolicy.
+	// Conditions describe the current conditions of the TrafficPolicy.
 	//
 	// +listType=map
 	// +listMapKey=type
@@ -66,29 +67,32 @@ type NgrokTrafficPolicyStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:categories=ngrok
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason",priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API
-type NgrokTrafficPolicy struct {
+// TrafficPolicy is the Schema for the trafficpolicies API in the canonical
+// ngrok.com/v1 group. It replaces the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy.
+type TrafficPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   NgrokTrafficPolicySpec   `json:"spec,omitempty"`
-	Status NgrokTrafficPolicyStatus `json:"status,omitempty"`
+	Spec   TrafficPolicySpec   `json:"spec,omitempty"`
+	Status TrafficPolicyStatus `json:"status,omitempty"`
 }
 
 // SetObservedGeneration records the generation the controller reconciled.
-func (tp *NgrokTrafficPolicy) SetObservedGeneration(generation int64) {
+func (tp *TrafficPolicy) SetObservedGeneration(generation int64) {
 	tp.Status.ObservedGeneration = generation
 }
 
 // +kubebuilder:object:root=true
 
-// NgrokTrafficPolicyList contains a list of NgrokTrafficPolicy
-type NgrokTrafficPolicyList struct {
+// TrafficPolicyList contains a list of TrafficPolicy.
+type TrafficPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []NgrokTrafficPolicy `json:"items"`
+	Items           []TrafficPolicy `json:"items"`
 }

@@ -1,12 +1,8 @@
-{{- /*
-LEGACY-trafficpolicy-kind: delete this whole template at cleanup. The
-canonical replacement is trafficpolicy-viewer.yaml in the same directory.
-*/ -}}
 {{- if .Values.crdAccessRoles.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "ngrok-operator.fullname" . }}-ngroktrafficpolicy-viewer-role
+  name: {{ include "ngrok-operator.fullname" . }}-trafficpolicy-viewer-role
   labels:
     app.kubernetes.io/component: rbac
     {{- include "ngrok-operator.labels" . | nindent 4 }}
@@ -16,17 +12,17 @@ metadata:
   {{- end }}
 rules:
 - apiGroups:
-  - ngrok.k8s.ngrok.com
+  - ngrok.com
   resources:
-  - ngroktrafficpolicies
+  - trafficpolicies
   verbs:
   - get
   - list
   - watch
 - apiGroups:
-  - ngrok.k8s.ngrok.com
+  - ngrok.com
   resources:
-  - ngroktrafficpolicies/status
+  - trafficpolicies/status
   verbs:
   - get
 {{- end }}

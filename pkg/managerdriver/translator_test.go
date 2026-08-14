@@ -10,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -505,6 +506,7 @@ func TestTranslate(t *testing.T) {
 	utilruntime.Must(ingressv1alpha1.AddToScheme(sch))
 	utilruntime.Must(corev1.AddToScheme(sch))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(sch))
+	utilruntime.Must(ngrokv1.AddToScheme(sch))
 
 	// Load test files from the testdata directory
 	defaultTranslatorFiles, err := filepath.Glob(filepath.Join(testdataDir, "*.yaml"))

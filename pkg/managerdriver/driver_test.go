@@ -27,6 +27,7 @@ import (
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
@@ -50,6 +51,7 @@ var _ = Describe("Driver", func() {
 	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 	utilruntime.Must(gatewayv1beta1.Install(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1.AddToScheme(scheme))
 
 	BeforeEach(func() {
 		driver = NewDriver(

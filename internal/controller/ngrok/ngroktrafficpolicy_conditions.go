@@ -1,3 +1,7 @@
+// LEGACY-trafficpolicy-kind: delete this whole file at cleanup. The shared
+// Condition*/Reason* constants live in trafficpolicy_conditions.go (the
+// canonical ngrok.com/v1 sibling) so they survive the deletion.
+
 package ngrok
 
 import (
@@ -6,18 +10,6 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	"github.com/ngrok/ngrok-operator/internal/util"
-)
-
-const (
-	// condition types for NgrokTrafficPolicy
-	ConditionTrafficPolicyReady = "Ready"
-	ConditionTrafficPolicyValid = "Valid"
-
-	// condition reasons for NgrokTrafficPolicy
-	ReasonTrafficPolicyValid       = "TrafficPolicyValid"
-	ReasonTrafficPolicyParseFailed = "TrafficPolicyParseFailed"
-	ReasonLegacyPolicyFormat       = "LegacyPolicyFormat"
-	ReasonEnabledDeprecated        = "EnabledFieldDeprecated"
 )
 
 // setTrafficPolicyConditions sets the Valid and Ready conditions from the

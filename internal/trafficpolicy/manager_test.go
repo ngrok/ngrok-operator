@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 )
 
@@ -46,6 +47,7 @@ func newTestManager(t *testing.T, objs ...client.Object) (*Manager, *events.Fake
 	t.Helper()
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
 	rec := events.NewFakeRecorder(10)
 	return NewManager(c, rec), rec
@@ -370,4 +372,110 @@ func TestIntendedSource(t *testing.T) {
 			assert.Equal(t, tc.wantSource, IntendedSource(tc.cfg))
 		})
 	}
+}
+
+// newV1Policy returns a canonical ngrok.com/v1 TrafficPolicy for
+// dual-read tests.
+func newV1Policy(name, namespace, body string) *ngrokv1.TrafficPolicy {
+	return &ngrokv1.TrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: ngrokv1.TrafficPolicySpec{
+			Policy: json.RawMessage(body),
+		},
+	}
+}
+
+// drainEvents drains the fake recorder channel and returns the events joined.
+func drainEvents(rec *events.FakeRecorder) []string {
+	var evs []string
+	for {
+		select {
+		case ev := <-rec.Events:
+			evs = append(evs, ev)
+		default:
+			return evs
+		}
+	}
+}
+
+func TestResolve_TargetRef_PrefersCanonicalV1(t *testing.T) {
+	// Both kinds exist at the same name — canonical wins silently and no
+	// DeprecatedAPIGroup event is emitted.
+	canonical := newV1Policy("shared", "ns", `{"on_http_request":[{"name":"v1"}]}`)
+	legacy := newPolicy("shared", "ns", `{"on_http_request":[{"name":"v1alpha1"}]}`)
+	m, rec := newTestManager(t, canonical, legacy)
+
+	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
+		Reference: &ngrokv1alpha1.K8sObjectRef{Name: "shared"},
+	})
+
+	res, err := m.Resolve(context.Background(), ep)
+
+	require.NoError(t, err)
+	assert.Contains(t, res.Policy, `"v1"`)
+	assert.NotContains(t, res.Policy, `"v1alpha1"`)
+
+	for _, ev := range drainEvents(rec) {
+		assert.NotContains(t, ev, EventDeprecatedAPIGroup, "canonical hit must not emit deprecation event")
+	}
+}
+
+func TestResolve_TargetRef_FallsBackToLegacyAndWarns(t *testing.T) {
+	// Only the deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy is
+	// installed — resolver falls back to it and emits DeprecatedAPIGroup.
+	legacy := newPolicy("only-legacy", "ns", `{"on_http_request":[{"name":"legacy"}]}`)
+	m, rec := newTestManager(t, legacy)
+
+	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
+		Reference: &ngrokv1alpha1.K8sObjectRef{Name: "only-legacy"},
+	})
+
+	res, err := m.Resolve(context.Background(), ep)
+
+	require.NoError(t, err)
+	assert.Contains(t, res.Policy, `"legacy"`)
+
+	evs := drainEvents(rec)
+	found := false
+	for _, ev := range evs {
+		if assert.ObjectsAreEqual(true, containsSubstring(ev, EventDeprecatedAPIGroup)) {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected DeprecatedAPIGroup event on legacy fallback; got %v", evs)
+}
+
+func TestResolve_TargetRef_NeitherKindPresent(t *testing.T) {
+	// Neither kind holds an object under the given name — resolver returns
+	// ErrTrafficPolicyNotFound and emits TrafficPolicyNotFound (not
+	// DeprecatedAPIGroup).
+	m, rec := newTestManager(t)
+
+	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
+		Reference: &ngrokv1alpha1.K8sObjectRef{Name: "nowhere"},
+	})
+
+	res, err := m.Resolve(context.Background(), ep)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrTrafficPolicyNotFound)
+	assert.Nil(t, res)
+
+	evs := drainEvents(rec)
+	for _, ev := range evs {
+		assert.NotContains(t, ev, EventDeprecatedAPIGroup, "missing-in-both must not emit deprecation event")
+	}
+}
+
+func containsSubstring(haystack, needle string) bool {
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		if haystack[i:i+len(needle)] == needle {
+			return true
+		}
+	}
+	return false
 }

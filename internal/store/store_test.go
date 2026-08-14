@@ -5,10 +5,12 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	netv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 )
@@ -559,6 +561,62 @@ var _ = Describe("Store", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(errors.IsErrorNotFound(err)).To(Equal(true))
 				Expect(tp).To(BeNil())
+			})
+		})
+	})
+
+	var _ = Describe("ResolveTrafficPolicy dual-read", func() {
+		newV1 := func(name, namespace, body string) *ngrokv1.TrafficPolicy {
+			return &ngrokv1.TrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+				Spec:       ngrokv1.TrafficPolicySpec{Policy: json.RawMessage(body)},
+			}
+		}
+
+		Context("when only the canonical ngrok.com/v1 TrafficPolicy exists", func() {
+			BeforeEach(func() {
+				Expect(store.Add(newV1("shared", "ns", `{"src":"v1"}`))).To(BeNil())
+			})
+			It("returns the canonical policy without marking legacy", func() {
+				lookup, err := store.ResolveTrafficPolicy("shared", "ns")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lookup.Policy).To(Equal(json.RawMessage(`{"src":"v1"}`)))
+				Expect(lookup.LegacyKind).To(BeFalse())
+			})
+		})
+
+		Context("when only the legacy ngrok.k8s.ngrok.com/v1alpha1 kind exists", func() {
+			BeforeEach(func() {
+				tp := testutils.NewTestNgrokTrafficPolicy("only-legacy", "ns", `{"src":"legacy"}`)
+				Expect(store.Add(&tp)).To(BeNil())
+			})
+			It("falls back to the legacy kind and marks LegacyKind", func() {
+				lookup, err := store.ResolveTrafficPolicy("only-legacy", "ns")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lookup.Policy).To(Equal(json.RawMessage(`{"src":"legacy"}`)))
+				Expect(lookup.LegacyKind).To(BeTrue())
+			})
+		})
+
+		Context("when both kinds exist under the same name", func() {
+			BeforeEach(func() {
+				Expect(store.Add(newV1("shared", "ns", `{"src":"v1"}`))).To(BeNil())
+				legacy := testutils.NewTestNgrokTrafficPolicy("shared", "ns", `{"src":"legacy"}`)
+				Expect(store.Add(&legacy)).To(BeNil())
+			})
+			It("canonical wins silently", func() {
+				lookup, err := store.ResolveTrafficPolicy("shared", "ns")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lookup.Policy).To(Equal(json.RawMessage(`{"src":"v1"}`)))
+				Expect(lookup.LegacyKind).To(BeFalse())
+			})
+		})
+
+		Context("when neither kind holds an object under that name", func() {
+			It("returns a NotFound error", func() {
+				_, err := store.ResolveTrafficPolicy("nowhere", "ns")
+				Expect(err).To(HaveOccurred())
+				Expect(errors.IsErrorNotFound(err)).To(BeTrue())
 			})
 		})
 	})

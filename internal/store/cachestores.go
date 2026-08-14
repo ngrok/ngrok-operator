@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -50,10 +51,18 @@ type CacheStores struct {
 	ReferenceGrant cache.Store
 
 	// Ngrok Stores
-	DomainV1             cache.Store
+	DomainV1 cache.Store
+	// LEGACY-trafficpolicy-kind: NgrokTrafficPolicyV1 backs the deprecated
+	// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy. TrafficPolicyV1 below
+	// is the canonical replacement; ResolveTrafficPolicy prefers it and only
+	// falls back to this cache during the migration window. Delete this
+	// field, its initializer, and the *ngrokv1alpha1.NgrokTrafficPolicy
+	// dispatch cases in Get/Add/Delete at cleanup.
 	NgrokTrafficPolicyV1 cache.Store
-	AgentEndpointV1      cache.Store
-	CloudEndpointV1      cache.Store
+	// TrafficPolicyV1 caches the canonical ngrok.com/v1 TrafficPolicy.
+	TrafficPolicyV1 cache.Store
+	AgentEndpointV1 cache.Store
+	CloudEndpointV1 cache.Store
 
 	log logr.Logger
 	l   *sync.RWMutex
@@ -77,8 +86,10 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		TLSRoute:       cache.NewStore(keyFunc),
 		ReferenceGrant: cache.NewStore(keyFunc),
 		// Ngrok Stores
-		DomainV1:             cache.NewStore(keyFunc),
+		DomainV1: cache.NewStore(keyFunc),
+		// LEGACY-trafficpolicy-kind: drop with the field declaration above.
 		NgrokTrafficPolicyV1: cache.NewStore(keyFunc),
+		TrafficPolicyV1:      cache.NewStore(keyFunc),
 		AgentEndpointV1:      cache.NewStore(keyFunc),
 		CloudEndpointV1:      cache.NewStore(keyFunc),
 		l:                    &sync.RWMutex{},
@@ -146,8 +157,10 @@ func (c CacheStores) Get(obj runtime.Object) (item any, exists bool, err error) 
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		return c.DomainV1.Get(obj)
-	case *ngrokv1alpha1.NgrokTrafficPolicy:
+	case *ngrokv1alpha1.NgrokTrafficPolicy: // LEGACY-trafficpolicy-kind: drop at cleanup.
 		return c.NgrokTrafficPolicyV1.Get(obj)
+	case *ngrokv1.TrafficPolicy:
+		return c.TrafficPolicyV1.Get(obj)
 	case *ngrokv1alpha1.AgentEndpoint:
 		return c.AgentEndpointV1.Get(obj)
 	case *ngrokv1alpha1.CloudEndpoint:
@@ -201,8 +214,10 @@ func (c CacheStores) Add(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		return c.DomainV1.Add(obj)
-	case *ngrokv1alpha1.NgrokTrafficPolicy:
+	case *ngrokv1alpha1.NgrokTrafficPolicy: // LEGACY-trafficpolicy-kind: drop at cleanup.
 		return c.NgrokTrafficPolicyV1.Add(obj)
+	case *ngrokv1.TrafficPolicy:
+		return c.TrafficPolicyV1.Add(obj)
 	case *ngrokv1alpha1.AgentEndpoint:
 		return c.AgentEndpointV1.Add(obj)
 	case *ngrokv1alpha1.CloudEndpoint:
@@ -257,8 +272,10 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	case *ingressv1alpha1.Domain:
 		return c.DomainV1.Delete(obj)
-	case *ngrokv1alpha1.NgrokTrafficPolicy:
+	case *ngrokv1alpha1.NgrokTrafficPolicy: // LEGACY-trafficpolicy-kind: drop at cleanup.
 		return c.NgrokTrafficPolicyV1.Delete(obj)
+	case *ngrokv1.TrafficPolicy:
+		return c.TrafficPolicyV1.Delete(obj)
 	case *ngrokv1alpha1.AgentEndpoint:
 		return c.AgentEndpointV1.Delete(obj)
 	case *ngrokv1alpha1.CloudEndpoint:
