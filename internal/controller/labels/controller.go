@@ -31,17 +31,11 @@ const (
 // LEGACY-PREFIX-MIGRATION: END
 
 // ControllerLabels returns the standard labels identifying which operator
-// instance manages a resource. During the migration window this dual-writes
-// both the new (ngrok.com/...) and legacy (k8s.ngrok.com/...) key pairs so a
-// rollback to a pre-migration operator can still match its own labels. The
-// write-side cleanup drops the legacy entries from this map.
+// instance manages a resource.
 func ControllerLabels(controllerNamespace, controllerName string) map[string]string {
 	return map[string]string{
 		ControllerNamespace: controllerNamespace,
 		ControllerName:      controllerName,
-		// LEGACY-PREFIX-MIGRATION (write-side cleanup): drop both legacy entries
-		LegacyControllerNamespace: controllerNamespace,
-		LegacyControllerName:      controllerName,
 	}
 }
 
@@ -63,12 +57,9 @@ func HasControllerLabels(obj client.Object, controllerNamespace, controllerName 
 	return false
 }
 
-// EnsureControllerLabels writes both the new-prefix and legacy-prefix
-// controller labels on obj, setting them to the desired values. During the
-// migration window we keep the legacy pair set so a rollback to a pre-migration
-// operator still finds its own resources. The write-side cleanup removes the
-// legacy keys instead of ensure-setting them.
-// Returns true if any label changed.
+// EnsureControllerLabels writes the controller labels on obj, setting them to
+// the desired values, and removes the legacy-prefix pair left behind by a
+// pre-migration operator. Returns true if any label changed.
 func EnsureControllerLabels(obj client.Object, controllerNamespace, controllerName string) bool {
 	labels := obj.GetLabels()
 	if labels == nil {
@@ -84,18 +75,16 @@ func EnsureControllerLabels(obj client.Object, controllerNamespace, controllerNa
 		labels[ControllerName] = controllerName
 		modified = true
 	}
-	// LEGACY-PREFIX-MIGRATION: BEGIN — the write-side cleanup replaces this
-	// ensure-set with delete(labels, LegacyControllerNamespace) /
-	// delete(labels, LegacyControllerName).
-	if labels[LegacyControllerNamespace] != controllerNamespace {
-		labels[LegacyControllerNamespace] = controllerNamespace
+	// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop these deletes once no
+	// pre-migration-stamped objects remain.
+	if _, ok := labels[LegacyControllerNamespace]; ok {
+		delete(labels, LegacyControllerNamespace)
 		modified = true
 	}
-	if labels[LegacyControllerName] != controllerName {
-		labels[LegacyControllerName] = controllerName
+	if _, ok := labels[LegacyControllerName]; ok {
+		delete(labels, LegacyControllerName)
 		modified = true
 	}
-	// LEGACY-PREFIX-MIGRATION: END
 
 	if modified {
 		obj.SetLabels(labels)

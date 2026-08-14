@@ -150,7 +150,7 @@ spec:
                 name: uninstall-test-cloud-ep-a
                 namespace: namespace-a
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
               status:
                 (id != null): true
         - assert:
@@ -162,7 +162,7 @@ spec:
                 name: uninstall-test-cloud-ep-b
                 namespace: namespace-b
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
               status:
                 (id != null): true
 
@@ -177,7 +177,7 @@ spec:
                 name: uninstall-test-ingress-a
                 namespace: namespace-a
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
         - assert:
             timeout: 2m
             resource:
@@ -187,7 +187,7 @@ spec:
                 name: uninstall-test-ingress-b
                 namespace: namespace-b
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
 
     - name: verify Ingresses created CloudEndpoints (endpoints-verbose)
       try:
@@ -299,7 +299,7 @@ spec:
                 name: uninstall-test-cloud-ep-b
                 namespace: namespace-b
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
               status:
                 (id != null): true
         - assert:
@@ -311,7 +311,7 @@ spec:
                 name: uninstall-test-ingress-b
                 namespace: namespace-b
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
 
     - name: verify operator-b's endpoints STILL EXIST in ngrok API
       try:

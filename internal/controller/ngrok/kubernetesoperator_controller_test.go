@@ -87,8 +87,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		Expect(k8sClient.Create(ctx, ko)).To(Succeed())
 
 		By("Expecting the finalizer to be added")
-		// R1: AddFinalizer writes the legacy key. Flip to util.FinalizerName in R2.
-		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.LegacyFinalizerName, testutils.WithTimeout(timeout))
+		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.FinalizerName, testutils.WithTimeout(timeout))
 
 		By("Expecting registration to succeed")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
@@ -157,7 +156,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		Expect(k8sClient.Create(ctx, ko)).To(Succeed())
 
 		By("Expecting the finalizer to be added")
-		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.LegacyFinalizerName, testutils.WithTimeout(timeout))
+		kginkgo.ExpectFinalizerToBeAdded(ctx, ko, util.FinalizerName, testutils.WithTimeout(timeout))
 
 		By("Expecting the public failure condition contract")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {

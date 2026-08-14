@@ -70,17 +70,17 @@ func Test_convertBoundEndpointToServices(t *testing.T) {
 	assert.Equal(upstreamService.Name, "abc123")
 	assert.Equal(upstreamService.Spec.Ports[0].Name, "https")
 
-	// LEGACY-PREFIX-MIGRATION: both Services dual-write the new and legacy
-	// ownership labels, and the upstream Service dual-writes the endpoint-url
-	// annotation, so a rollback to a pre-migration operator still finds them.
 	for _, svc := range []*v1.Service{targetService, upstreamService} {
 		assert.Equal("abc123", svc.Labels[LabelBoundEndpointName])
 		assert.Equal("ngrok-op", svc.Labels[LabelBoundEndpointNamespace])
-		assert.Equal("abc123", svc.Labels[LegacyLabelBoundEndpointName])
-		assert.Equal("ngrok-op", svc.Labels[LegacyLabelBoundEndpointNamespace])
+		_, hasLegacyName := svc.Labels[LegacyLabelBoundEndpointName]
+		_, hasLegacyNamespace := svc.Labels[LegacyLabelBoundEndpointNamespace]
+		assert.False(hasLegacyName)
+		assert.False(hasLegacyNamespace)
 	}
 	assert.Equal("abc123.ngrok-op.svc.cluster.local", upstreamService.Annotations[LabelEndpointURL])
-	assert.Equal("abc123.ngrok-op.svc.cluster.local", upstreamService.Annotations[LegacyLabelEndpointURL])
+	_, hasLegacyURL := upstreamService.Annotations[LegacyLabelEndpointURL]
+	assert.False(hasLegacyURL)
 }
 
 func Test_boundEndpointLabelsFor(t *testing.T) {

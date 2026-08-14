@@ -143,19 +143,19 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### Kubernetes Ingress feature configuration
 
-| Name                           | Description                                                     | Value                              |
-| ------------------------------ | --------------------------------------------------------------- | ---------------------------------- |
-| `ingressClass.name`            | DEPRECATED: Use ingress.ingressClass.name instead               |                                    |
-| `ingressClass.create`          | DEPRECATED: Use ingress.ingressClass.create instead             |                                    |
-| `ingressClass.default`         | DEPRECATED: Use ingress.ingressClass.default instead            |                                    |
-| `watchNamespace`               | DEPRECATED: Use ingress.watchNamespace instead                  |                                    |
-| `controllerName`               | DEPRECATED: Use ingress.controllerName instead                  |                                    |
-| `ingress.enabled`              | When true, enable the Ingress controller features               | `true`                             |
-| `ingress.ingressClass.name`    | The name of the ingress class to use.                           | `ngrok`                            |
-| `ingress.ingressClass.create`  | Whether to create the ingress class.                            | `true`                             |
-| `ingress.ingressClass.default` | Whether to set the ingress class as default.                    | `false`                            |
-| `ingress.watchNamespace`       | The namespace to watch for ingress resources (default all)      | `""`                               |
-| `ingress.controllerName`       | The name of the controller to look for matching ingress classes | `k8s.ngrok.com/ingress-controller` |
+| Name                           | Description                                                     | Value                          |
+| ------------------------------ | --------------------------------------------------------------- | ------------------------------ |
+| `ingressClass.name`            | DEPRECATED: Use ingress.ingressClass.name instead               |                                |
+| `ingressClass.create`          | DEPRECATED: Use ingress.ingressClass.create instead             |                                |
+| `ingressClass.default`         | DEPRECATED: Use ingress.ingressClass.default instead            |                                |
+| `watchNamespace`               | DEPRECATED: Use ingress.watchNamespace instead                  |                                |
+| `controllerName`               | DEPRECATED: Use ingress.controllerName instead                  |                                |
+| `ingress.enabled`              | When true, enable the Ingress controller features               | `true`                         |
+| `ingress.ingressClass.name`    | The name of the ingress class to use.                           | `ngrok`                        |
+| `ingress.ingressClass.create`  | Whether to create the ingress class.                            | `true`                         |
+| `ingress.ingressClass.default` | Whether to set the ingress class as default.                    | `false`                        |
+| `ingress.watchNamespace`       | The namespace to watch for ingress resources (default all)      | `""`                           |
+| `ingress.controllerName`       | The name of the controller to look for matching ingress classes | `ngrok.com/ingress-controller` |
 
 ### Agent configuration
 

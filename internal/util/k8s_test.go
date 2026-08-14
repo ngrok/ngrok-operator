@@ -238,9 +238,8 @@ func TestHasFinalizer(t *testing.T) {
 	}
 }
 
-// TestAddFinalizer asserts the R1 behavior: AddFinalizer writes the legacy
-// key only. In R2 this test must be updated to assert FinalizerName is the
-// written key and LegacyFinalizerName has been stripped.
+// TestAddFinalizer asserts the R2 behavior: AddFinalizer writes the new key
+// and strips the legacy key left behind by a pre-migration (R1) operator.
 func TestAddFinalizer(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -253,8 +252,8 @@ func TestAddFinalizer(t *testing.T) {
 			name:              "add to empty",
 			obj:               &netv1.Ingress{},
 			wantAdded:         true,
-			wantLegacyPresent: true,
-			wantNewPresent:    false,
+			wantLegacyPresent: false,
+			wantNewPresent:    true,
 		},
 		{
 			name: "add to existing",
@@ -264,19 +263,21 @@ func TestAddFinalizer(t *testing.T) {
 				},
 			},
 			wantAdded:         true,
-			wantLegacyPresent: true,
-			wantNewPresent:    false,
+			wantLegacyPresent: false,
+			wantNewPresent:    true,
 		},
 		{
-			name: "legacy already present",
+			name: "legacy present from prior R1 reconcile",
 			obj: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Finalizers: []string{LegacyFinalizerName},
 				},
 			},
-			wantAdded:         false,
-			wantLegacyPresent: true,
-			wantNewPresent:    false,
+			// The new key gets added and the legacy key removed, so the add
+			// returns true either way.
+			wantAdded:         true,
+			wantLegacyPresent: false,
+			wantNewPresent:    true,
 		},
 		{
 			name: "new finalizer already present from prior R2 reconcile",
@@ -285,10 +286,8 @@ func TestAddFinalizer(t *testing.T) {
 					Finalizers: []string{FinalizerName},
 				},
 			},
-			// R1 still wants the legacy key on the object, so the add
-			// returns true even though HasFinalizer was already true.
-			wantAdded:         true,
-			wantLegacyPresent: true,
+			wantAdded:         false,
+			wantLegacyPresent: false,
 			wantNewPresent:    true,
 		},
 	}
@@ -391,11 +390,13 @@ func TestRegisterAndSyncFinalizer(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name          string
-		obj           client.Object
-		wantErr       bool
-		wantFinalizer bool
-		wantUpdated   bool
+		name              string
+		obj               client.Object
+		wantErr           bool
+		wantFinalizer     bool
+		wantUpdated       bool
+		wantLegacyPresent bool
+		wantNewPresent    bool
 	}{
 		{
 			name: "add finalizer to object without one",
@@ -405,9 +406,11 @@ func TestRegisterAndSyncFinalizer(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			wantErr:       false,
-			wantFinalizer: true,
-			wantUpdated:   true,
+			wantErr:           false,
+			wantFinalizer:     true,
+			wantUpdated:       true,
+			wantLegacyPresent: false,
+			wantNewPresent:    true,
 		},
 		{
 			name: "object already has legacy finalizer",
@@ -418,9 +421,13 @@ func TestRegisterAndSyncFinalizer(t *testing.T) {
 					Finalizers: []string{LegacyFinalizerName},
 				},
 			},
-			wantErr:       false,
-			wantFinalizer: true,
-			wantUpdated:   false,
+			// The new key gets added and the legacy key removed, so the
+			// object is still patched even though HasFinalizer was already true.
+			wantErr:           false,
+			wantFinalizer:     true,
+			wantUpdated:       true,
+			wantLegacyPresent: false,
+			wantNewPresent:    true,
 		},
 	}
 
@@ -444,9 +451,8 @@ func TestRegisterAndSyncFinalizer(t *testing.T) {
 			err = c.Get(ctx, client.ObjectKeyFromObject(tt.obj), &updated)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantFinalizer, HasFinalizer(&updated))
-			// LEGACY-PREFIX-MIGRATION: assert the R1 persistence contract — legacy key written, new key not. Flip in R2.
-			assert.True(t, hasRawFinalizer(&updated, LegacyFinalizerName), "persisted legacy key")
-			assert.False(t, hasRawFinalizer(&updated, FinalizerName), "no new key persisted")
+			assert.Equal(t, tt.wantLegacyPresent, hasRawFinalizer(&updated, LegacyFinalizerName), "legacy key presence")
+			assert.Equal(t, tt.wantNewPresent, hasRawFinalizer(&updated, FinalizerName), "new key presence")
 		})
 	}
 }

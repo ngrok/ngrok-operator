@@ -18,10 +18,11 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 )
 
-// LEGACY-PREFIX-MIGRATION: an existing Domain stamped with only the legacy
-// controller labels by a previous operator version must get the new label pair
-// backfilled by applyDomains. CreateOrPatch's Get overwrites the object
-// initializer, so the backfill has to happen inside the mutate function.
+// LEGACY-PREFIX-MIGRATION (write-side cleanup): an existing Domain stamped
+// with only the legacy controller labels by a previous operator version must
+// get the new label pair backfilled, and the legacy pair removed, by
+// applyDomains. CreateOrPatch's Get overwrites the object initializer, so
+// the backfill has to happen inside the mutate function.
 func TestApplyDomains_BackfillsLegacyOnlyDomain(t *testing.T) {
 	const (
 		controllerNamespace = "ngrok-system"
@@ -69,6 +70,8 @@ func TestApplyDomains_BackfillsLegacyOnlyDomain(t *testing.T) {
 	gotLabels := got.GetLabels()
 	assert.Equal(t, controllerName, gotLabels[labels.ControllerName], "new controller-name label backfilled")
 	assert.Equal(t, controllerNamespace, gotLabels[labels.ControllerNamespace], "new controller-namespace label backfilled")
-	assert.Equal(t, controllerName, gotLabels[labels.LegacyControllerName], "legacy controller-name label retained")
-	assert.Equal(t, controllerNamespace, gotLabels[labels.LegacyControllerNamespace], "legacy controller-namespace label retained")
+	_, hasLegacyName := gotLabels[labels.LegacyControllerName]
+	_, hasLegacyNamespace := gotLabels[labels.LegacyControllerNamespace]
+	assert.False(t, hasLegacyName, "legacy controller-name label removed")
+	assert.False(t, hasLegacyNamespace, "legacy controller-namespace label removed")
 }
