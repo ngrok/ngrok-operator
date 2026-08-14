@@ -3261,7 +3261,7 @@ spec:
         - --enable-feature-gateway=true
         - --disable-reference-grants=false
         - "--description=The official ngrok Kubernetes Operator."
-        - --ingress-controller-name=k8s.ngrok.com/ingress-controller
+        - --ingress-controller-name=ngrok.com/ingress-controller
         - --zap-log-level=info
         - --zap-stacktrace-level=error
         - --zap-encoder=json
@@ -3315,7 +3315,7 @@ metadata:
     app.kubernetes.io/component: controller
   name: ngrok
 spec:
-  controller: k8s.ngrok.com/ingress-controller
+  controller: ngrok.com/ingress-controller
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: v1
