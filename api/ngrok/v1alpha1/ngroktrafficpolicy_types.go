@@ -22,7 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-// LEGACY-trafficpolicy-kind: delete this whole file at cleanup. The canonical
+// LEGACY-trafficpolicy-kind: delete this whole file at cleanup, then re-run
+// `make manifests` and delete the CRD manifest it stops emitting,
+// helm/ngrok-crds/templates/ngrok.k8s.ngrok.com_ngroktrafficpolicies.yaml.
+// (That manifest is generated, so it cannot carry a sentinel of its own —
+// controller-gen strips comments on every regeneration.) The canonical
 // replacement is api/ngrok/v1.TrafficPolicy; every other CRD in this
 // v1alpha1 group stays.
 
@@ -66,11 +70,16 @@ type NgrokTrafficPolicyStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy is deprecated; use ngrok.com/v1 TrafficPolicy instead. Re-stamp the manifest's kind and apiVersion, apply it, then delete the NgrokTrafficPolicy object."
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason",priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API
+// NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API.
+//
+// Deprecated: use the canonical ngrok.com/v1 TrafficPolicy. This kind is
+// still served and resolved for one migration release; see
+// docs/developer-guide/passivity-shims.md.
 type NgrokTrafficPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

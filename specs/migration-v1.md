@@ -6,7 +6,7 @@ Previous releases of the ngrok-operator used three separate API groups at `v1alp
 
 | Old API Group                    | Resources                                                   |
 |----------------------------------|-------------------------------------------------------------|
-| `ngrok.k8s.ngrok.com/v1alpha1`   | KubernetesOperator, TrafficPolicy                           |
+| `ngrok.k8s.ngrok.com/v1alpha1`   | KubernetesOperator, NgrokTrafficPolicy                      |
 | `ingress.k8s.ngrok.com/v1alpha1` | Domain, IPPolicy, CloudEndpoint, AgentEndpoint              |
 | `bindings.k8s.ngrok.com/v1alpha1`| BoundEndpoint, BindingConfiguration                         |
 
@@ -15,6 +15,11 @@ All resources are consolidated into a single group in v1:
 | New API Group    | Version | Resources                                                                             |
 |------------------|---------|---------------------------------------------------------------------------------------|
 | `ngrok.com`      | `v1`    | AgentEndpoint, CloudEndpoint, KubernetesOperator, TrafficPolicy, Domain, IPPolicy, BoundEndpoint |
+
+`NgrokTrafficPolicy` is also **renamed** to `TrafficPolicy` as part of the move.
+The `Ngrok` prefix was redundant once the group is `ngrok.com`. The spec is
+unchanged, so migrating an object is a manifest re-stamp — see
+[Upgrade Path](#upgrade-path).
 
 ## Status Field Changes
 
@@ -46,14 +51,54 @@ wrote the string representation are outside the supported upgrade window.
 
 ## Upgrade Path
 
-A conversion webhook handles in-place conversion from the old group/version combinations to `ngrok.com/v1`. The webhook is installed automatically as part of the operator upgrade.
+The migration is **not** served by a conversion webhook. A CRD conversion
+webhook is registered on a single CRD — identified by `plural.group` — and
+converts between the versions declared on *that* CRD. It cannot cross group
+boundaries, and it cannot fold two different kinds onto the same storage.
+`ngroktrafficpolicies.ngrok.k8s.ngrok.com` and `trafficpolicies.ngrok.com` are
+two separate CRDs with separate storage, so there is nothing for a webhook to
+convert between.
+
+Instead the operator ships **both CRDs** during the migration window and
+dual-reads them: every lookup consults the canonical `ngrok.com/v1` object
+first and falls back to the deprecated `ngrok.k8s.ngrok.com/v1alpha1` object
+only when no canonical object of that name exists in the namespace. When the
+fallback answers a lookup, the operator emits a `DeprecatedAPIGroup` warning
+event on the referring endpoint. Objects are never copied between the two
+kinds — that would create duplicate storage rows with diverging status — so
+you re-stamp manifests on your own schedule.
 
 Steps:
 
-1. Upgrade the operator via Helm. The conversion webhook is registered automatically.
-2. Existing `v1alpha1` resources continue to function — the API server converts them transparently on read/write.
-3. Migrate your manifests to use `apiVersion: ngrok.com/v1` at your own pace.
-4. Once all manifests are updated, the old API group aliases can be removed in a future release.
+1. Upgrade the operator via Helm. Both CRDs are installed; existing
+   `v1alpha1` objects keep working and keep being resolved.
+2. Re-stamp each manifest's `apiVersion` and `kind`, apply it, then delete the
+   old object. For `NgrokTrafficPolicy`:
+
+   ```sh
+   # Discover
+   kubectl get ngroktrafficpolicies -A
+
+   # Migrate one object
+   kubectl get ngroktrafficpolicy foo -n bar -o json \
+     | jq '.kind = "TrafficPolicy"
+           | .apiVersion = "ngrok.com/v1"
+           | del(.metadata.resourceVersion, .metadata.uid,
+                 .metadata.creationTimestamp, .metadata.generation, .status)' \
+     | kubectl apply -f -
+
+   kubectl delete ngroktrafficpolicy foo -n bar
+   ```
+
+   References from AgentEndpoint, CloudEndpoint, Ingress, and Gateway API
+   routes are resolved by name and namespace, so they keep working across the
+   re-stamp without any edit of their own.
+3. If both a canonical and a deprecated object exist under the same name, the
+   canonical one wins silently — that is the expected transitional state
+   between the `apply` and the `delete` above.
+4. Once all manifests are updated, the deprecated CRDs are removed in the
+   cleanup release. Any objects still stored under a deprecated CRD at that
+   point are removed by the API server along with it.
 
 ## Breaking Field Removals
 

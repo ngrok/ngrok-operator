@@ -1,6 +1,14 @@
 # NgrokTrafficPolicy → TrafficPolicy kind rename: usage map and passive-migration plan
 
-**Status:** Analysis (pre-implementation).
+**Status:** Implemented — kept as the rationale record. The recommendation in
+[§ Recommendation: Sequence C](#recommendation-sequence-c) is what shipped: the
+v1alpha1-only kind rename was dropped and the kind rename was folded into the
+`ngrok.com/v1` group move, as a single dual-CRD dual-read migration under one
+`LEGACY-trafficpolicy-kind` sentinel. The as-built description — the authority
+for the cleanup sweep — lives in
+[`docs/developer-guide/passivity-shims.md`](../../developer-guide/passivity-shims.md)
+§"Per-shim catalog: TrafficPolicy CRD kind + group rename". Where the two
+disagree, that section wins; this doc is frozen at its 2026-08-12 wording.
 **Date:** 2026-08-12.
 **Author:** j.mcclary@ngrok.com.
 **Precedes:** an R1 implementation plan (not yet written) that will convert commit `84c12924` from a hard rename into either a passive dual-kind release *or* a full revert-and-fold-into-v1, depending on the sequencing decision in [§ Interaction with the `ngrok.com/v1` group move](#interaction-with-the-ngrokcomv1-group-move).

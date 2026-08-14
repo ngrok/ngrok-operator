@@ -84,7 +84,6 @@ resources:
     namespaced: true
   controller: true
   domain: ngrok.com
-  group: ngrok
   kind: TrafficPolicy
   path: github.com/ngrok/ngrok-operator/api/ngrok/v1
   version: v1

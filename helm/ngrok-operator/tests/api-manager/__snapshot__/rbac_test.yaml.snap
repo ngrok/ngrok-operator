@@ -325,6 +325,32 @@ should match snapshot in default mode:
           - patch
           - update
       - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
           - ""
         resources:
           - namespaces
@@ -703,6 +729,32 @@ should match snapshot in namespaced mode:
           - ngrok.k8s.ngrok.com
         resources:
           - ngroktrafficpolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies/status
         verbs:
           - get
           - patch

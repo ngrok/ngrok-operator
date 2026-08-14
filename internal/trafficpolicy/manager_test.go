@@ -27,6 +27,8 @@ package trafficpolicy
 import (
 	"context"
 	"encoding/json"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -439,13 +441,9 @@ func TestResolve_TargetRef_FallsBackToLegacyAndWarns(t *testing.T) {
 	assert.Contains(t, res.Policy, `"legacy"`)
 
 	evs := drainEvents(rec)
-	found := false
-	for _, ev := range evs {
-		if assert.ObjectsAreEqual(true, containsSubstring(ev, EventDeprecatedAPIGroup)) {
-			found = true
-			break
-		}
-	}
+	found := slices.ContainsFunc(evs, func(ev string) bool {
+		return strings.Contains(ev, EventDeprecatedAPIGroup)
+	})
 	assert.True(t, found, "expected DeprecatedAPIGroup event on legacy fallback; got %v", evs)
 }
 
@@ -469,13 +467,4 @@ func TestResolve_TargetRef_NeitherKindPresent(t *testing.T) {
 	for _, ev := range evs {
 		assert.NotContains(t, ev, EventDeprecatedAPIGroup, "missing-in-both must not emit deprecation event")
 	}
-}
-
-func containsSubstring(haystack, needle string) bool {
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
 }

@@ -496,6 +496,16 @@ concept during the migration window and let the controller resolve either.
     and deprecated `ngroktrafficpolicies.ngrok.k8s.ngrok.com`
     (`api/ngrok/v1alpha1`). Spec is byte-compatible so a user migration
     is a manifest re-stamp (`kind` + `apiVersion`) plus re-apply.
+  - The legacy kind carries `+kubebuilder:deprecatedversion:warning=...`,
+    which generates `deprecated: true` + `deprecationWarning` on the CRD's
+    only version, so `kubectl apply` on a legacy manifest prints the
+    migration instruction server-side. That covers users who never reach
+    the operator's `DeprecatedAPIGroup` event because they don't have an
+    endpoint referencing the policy yet. The Go type also carries a
+    `Deprecated:` doc comment for downstream importers of
+    `api/ngrok/v1alpha1`; since the operator's own dual-read code must keep
+    referencing it, `.golangci.yml` excludes the resulting `SA1019` (the
+    exclusion is sentinel-tagged and deletes at cleanup).
   - Two reconcilers run:
     - `TrafficPolicyReconciler` (`internal/controller/ngrok/trafficpolicy_controller.go`)
       for the canonical kind.
@@ -570,7 +580,22 @@ concept during the migration window and let the controller resolve either.
     `helm/ngrok-crds/templates/ngrok.k8s.ngrok.com_ngroktrafficpolicies.yaml`,
     the two `ngroktrafficpolicy-{editor,viewer}.yaml` templates, and the
     tagged rule blocks in `api-manager/role.yaml` and `agent/role.yaml`.
-    Regenerate `manifest-bundle.yaml`.
+    Drop the two `ngroktrafficpolicy-*` entries and the deprecated-kind case
+    from `tests/rbac/crd-access_test.yaml`, then
+    `make helm-update-snapshots` and regenerate `manifest-bundle.yaml`.
+    Note the CRD manifest is controller-gen output, so it carries no
+    sentinel of its own — deleting `ngroktrafficpolicy_types.go` is what
+    stops it being emitted.
+  - Tests: delete `internal/testutils::NewTestNgrokTrafficPolicy` and the
+    legacy-kind fixtures
+    `pkg/managerdriver/testdata/translator/ingress-trafficpolicy-mixed-kind.yaml`
+    and `gwapi-trafficpolicy-annotation.yaml`; narrow
+    `TranslatorTestCase.Input.TrafficPolicies` back to
+    `[]*ngrokv1.TrafficPolicy` and drop the type switch in
+    `loadTranslatorTestCase`; drop the legacy specs in
+    `driver_test.go`'s "dual-kind extensionRef resolution" context.
+  - `.golangci.yml`: delete the `SA1019 ... NgrokTrafficPolicy is
+    deprecated` exclusion rule.
   - `PROJECT`: delete the legacy scaffold entry.
 
 #### Why we don't shortcut the TrafficPolicy kind + group migration

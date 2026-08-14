@@ -10,7 +10,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	netv1 "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 )
@@ -567,10 +566,8 @@ var _ = Describe("Store", func() {
 
 	var _ = Describe("ResolveTrafficPolicy dual-read", func() {
 		newV1 := func(name, namespace, body string) *ngrokv1.TrafficPolicy {
-			return &ngrokv1.TrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-				Spec:       ngrokv1.TrafficPolicySpec{Policy: json.RawMessage(body)},
-			}
+			tp := testutils.NewTestTrafficPolicy(name, namespace, body)
+			return &tp
 		}
 
 		Context("when only the canonical ngrok.com/v1 TrafficPolicy exists", func() {
