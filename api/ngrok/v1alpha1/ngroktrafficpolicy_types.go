@@ -27,8 +27,8 @@ SOFTWARE.
 // helm/ngrok-crds/templates/ngrok.k8s.ngrok.com_ngroktrafficpolicies.yaml.
 // (That manifest is generated, so it cannot carry a sentinel of its own —
 // controller-gen strips comments on every regeneration.) The canonical
-// replacement is api/ngrok/v1.TrafficPolicy; every other CRD in this
-// v1alpha1 group stays.
+// replacement is api/ngrok/v1.TrafficPolicy; every other CRD in the
+// v1alpha1 should also be migrated eventually.
 
 package v1alpha1
 
@@ -39,6 +39,9 @@ import (
 )
 
 // NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+
+// This spec is deprecated in favor of the cannonical ngrok.com/v1 
+// TrafficPolicySpec.
 type NgrokTrafficPolicySpec struct {
 	// The raw json encoded policy that was applied to the ngrok API.
 	// Intentionally schemaless: the traffic policy language is defined and

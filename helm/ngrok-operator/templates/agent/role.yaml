@@ -76,6 +76,7 @@ rules:
 # namespace, independent of `watchNamespace`. The agent reads it for drain
 # state via a release-namespace-pinned cache scope; its rules live in
 # release-namespace-role.yaml.
+
 # LEGACY-trafficpolicy-kind: BEGIN — drop this rule block at cleanup.
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -86,8 +87,7 @@ rules:
   - list
   - watch
 # LEGACY-trafficpolicy-kind: END
-# Canonical ngrok.com/v1 TrafficPolicy rule — stays after the
-# LEGACY-trafficpolicy-kind cleanup above is deleted.
+# Canonical ngrok.com/v1 TrafficPolicy rule
 - apiGroups:
   - ngrok.com
   resources:

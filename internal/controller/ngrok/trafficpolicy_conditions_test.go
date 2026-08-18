@@ -14,12 +14,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
-// TestSetV1TrafficPolicyConditions is the canonical ngrok.com/v1 twin of
-// TestSetTrafficPolicyConditions. Both kinds share the Condition*/Reason*
-// vocabulary, so the expectations here must stay identical to the legacy
-// file's — that shared vocabulary is the user-visible contract that survives
-// the migration.
-func TestSetV1TrafficPolicyConditions(t *testing.T) {
+func TestSetTrafficPolicyConditions(t *testing.T) {
 	tests := []struct {
 		name            string
 		policy          string
@@ -81,13 +76,13 @@ func TestSetV1TrafficPolicyConditions(t *testing.T) {
 	}
 }
 
-// TestV1StatusChangeDetection guards TrafficPolicyReconciler.Reconcile's
+// TestStatusChangeDetection guards TrafficPolicyReconciler.Reconcile's
 // skip-write-if-unchanged logic (compare against a DeepCopy taken before
 // mutating). meta.SetStatusCondition mutates an existing condition's fields in
 // place, so a shallow copy of Status would share the same backing array and
 // always compare equal to the post-mutation value, even when something
 // actually changed.
-func TestV1StatusChangeDetection(t *testing.T) {
+func TestStatusChangeDetection(t *testing.T) {
 	tp := &ngrokv1.TrafficPolicy{
 		ObjectMeta: metav1.ObjectMeta{Generation: 1},
 		Spec: ngrokv1.TrafficPolicySpec{
@@ -98,14 +93,14 @@ func TestV1StatusChangeDetection(t *testing.T) {
 	// First reconcile: conditions don't exist yet, must report changed.
 	prevStatus := *tp.Status.DeepCopy()
 	parsed, parseErr := util.NewTrafficPolicyFromJson(tp.Spec.Policy)
-	setV1TrafficPolicyConditions(tp, parsed, parseErr)
+	setTrafficPolicyConditions(tp, parsed, parseErr)
 	tp.SetObservedGeneration(tp.Generation)
 	assert.False(t, reflect.DeepEqual(prevStatus, tp.Status), "initial condition set must be detected as a change")
 
 	// Second reconcile with identical inputs: no real change, must be a no-op.
 	prevStatus = *tp.Status.DeepCopy()
 	parsed, parseErr = util.NewTrafficPolicyFromJson(tp.Spec.Policy)
-	setV1TrafficPolicyConditions(tp, parsed, parseErr)
+	setTrafficPolicyConditions(tp, parsed, parseErr)
 	tp.SetObservedGeneration(tp.Generation)
 	assert.True(t, reflect.DeepEqual(prevStatus, tp.Status), "unchanged inputs must not be reported as a change")
 
@@ -115,9 +110,9 @@ func TestV1StatusChangeDetection(t *testing.T) {
 	prevStatus = *tp.Status.DeepCopy()
 	tp.Spec.Policy = json.RawMessage(`{"inbound":[{"actions":[{"type":"deny"}]}]}`)
 	parsed, parseErr = util.NewTrafficPolicyFromJson(tp.Spec.Policy)
-	setV1TrafficPolicyConditions(tp, parsed, parseErr)
+	setTrafficPolicyConditions(tp, parsed, parseErr)
 	tp.SetObservedGeneration(tp.Generation)
-	assert.Equal(t, metav1.ConditionTrue, meta.FindStatusCondition(tp.Status.Conditions, ConditionTrafficPolicyReady).Status,
+	assert.True(t, reflect.DeepEqual(metav1.ConditionTrue, meta.FindStatusCondition(tp.Status.Conditions, ConditionTrafficPolicyReady).Status),
 		"Ready should still be true for a legacy-format policy")
 	assert.False(t, reflect.DeepEqual(prevStatus, tp.Status), "reason/message change without a status flip must be detected")
 }

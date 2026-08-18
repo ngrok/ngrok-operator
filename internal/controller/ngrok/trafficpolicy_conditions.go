@@ -28,7 +28,7 @@ const (
 )
 
 // setV1TrafficPolicyConditions is the ngrok.com/v1 twin of
-// setTrafficPolicyConditions. It writes the shared Valid/Ready conditions on
+// ƒ. It writes the shared Valid/Ready conditions on
 // the canonical TrafficPolicy kind.
 func setV1TrafficPolicyConditions(tp *ngrokv1.TrafficPolicy, parsed util.TrafficPolicy, parseErr error) {
 	valid := parseErr == nil

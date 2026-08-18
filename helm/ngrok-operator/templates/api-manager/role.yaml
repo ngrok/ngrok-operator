@@ -327,6 +327,7 @@ rules:
 # CR is the api-manager's own state singleton and always lives in the release
 # namespace, independent of `watchNamespace`. Its rules live in
 # release-namespace-role.yaml.
+
 # LEGACY-trafficpolicy-kind: BEGIN — drop these two rule blocks at cleanup.
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -346,20 +347,15 @@ rules:
   - update
 # LEGACY-trafficpolicy-kind: END
 # --- ngrok.com ---
-# Canonical ngrok.com/v1 TrafficPolicy rules — these stay after the
-# LEGACY-trafficpolicy-kind cleanup above is deleted.
+# Canonical ngrok.com/v1 TrafficPolicy rules
 - apiGroups:
   - ngrok.com
   resources:
   - trafficpolicies
   verbs:
-  - create
-  - delete
   - get
-  - list
   - patch
   - update
-  - watch
 - apiGroups:
   - ngrok.com
   resources:
