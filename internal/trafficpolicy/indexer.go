@@ -32,7 +32,7 @@ import (
 )
 
 // RefIndex is the canonical field-indexer name used by endpoint controllers
-// that watch traffic policies. Each controller registers an index with this
+// that watch TrafficPolicy. Each controller registers an index with this
 // name on its endpoint type so the watch mapper can list endpoints by the
 // composite namespace/name of their referenced TrafficPolicy.
 //

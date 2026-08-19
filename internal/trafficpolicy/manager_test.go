@@ -80,7 +80,8 @@ func newAgentEndpoint(namespace string, cfg *ngrokv1alpha1.TrafficPolicyCfg) *ng
 	}
 }
 
-func newPolicy(name, namespace, body string) *ngrokv1alpha1.NgrokTrafficPolicy {
+// LEGACY-trafficpolicy-name: Delete this function once
+func newLegacyPolicy(name, namespace, body string) *ngrokv1alpha1.NgrokTrafficPolicy {
 	return &ngrokv1alpha1.NgrokTrafficPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -141,7 +142,7 @@ func TestResolve_Inline(t *testing.T) {
 }
 
 func TestResolve_TargetRef_SameNamespace(t *testing.T) {
-	policy := newPolicy("my-policy", "ns", `{"on_http_request":[{"name":"log"}]}`)
+	policy := newLegacyPolicy("my-policy", "ns", `{"on_http_request":[{"name":"log"}]}`)
 	m, _ := newTestManager(t, policy)
 
 	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
@@ -161,7 +162,7 @@ func TestResolve_TargetRef_SameNamespace(t *testing.T) {
 func TestResolve_TargetRef_ResolvesInEndpointNamespace(t *testing.T) {
 	// A TrafficPolicy with the same name in a different namespace must NOT be
 	// resolved — the ref always resolves in the endpoint's own namespace.
-	otherNs := newPolicy("shared", "policies", `{"on_http_request":[{"name":"other-ns"}]}`)
+	otherNs := newLegacyPolicy("shared", "policies", `{"on_http_request":[{"name":"other-ns"}]}`)
 	m, _ := newTestManager(t, otherNs)
 
 	ep := newAgentEndpoint("apps", &ngrokv1alpha1.TrafficPolicyCfg{
@@ -376,9 +377,9 @@ func TestIntendedSource(t *testing.T) {
 	}
 }
 
-// newV1Policy returns a canonical ngrok.com/v1 TrafficPolicy for
+// newPolicy returns a canonical ngrok.com/v1 TrafficPolicy for
 // dual-read tests.
-func newV1Policy(name, namespace, body string) *ngrokv1.TrafficPolicy {
+func newPolicy(name, namespace, body string) *ngrokv1.TrafficPolicy {
 	return &ngrokv1.TrafficPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -403,11 +404,12 @@ func drainEvents(rec *events.FakeRecorder) []string {
 	}
 }
 
+// LEGACY-trafficpolicy-name: Delete this function once v1 is the only supported version
 func TestResolve_TargetRef_PrefersCanonicalV1(t *testing.T) {
 	// Both kinds exist at the same name — canonical wins silently and no
 	// DeprecatedAPIGroup event is emitted.
-	canonical := newV1Policy("shared", "ns", `{"on_http_request":[{"name":"v1"}]}`)
-	legacy := newPolicy("shared", "ns", `{"on_http_request":[{"name":"v1alpha1"}]}`)
+	canonical := newPolicy("shared", "ns", `{"on_http_request":[{"name":"v1"}]}`)
+	legacy := newLegacyPolicy("shared", "ns", `{"on_http_request":[{"name":"v1alpha1"}]}`)
 	m, rec := newTestManager(t, canonical, legacy)
 
 	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
@@ -425,10 +427,11 @@ func TestResolve_TargetRef_PrefersCanonicalV1(t *testing.T) {
 	}
 }
 
+// LEGACY-trafficpolicy-name: Delete this function once v1 is the only supported version
 func TestResolve_TargetRef_FallsBackToLegacyAndWarns(t *testing.T) {
 	// Only the deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy is
 	// installed — resolver falls back to it and emits DeprecatedAPIGroup.
-	legacy := newPolicy("only-legacy", "ns", `{"on_http_request":[{"name":"legacy"}]}`)
+	legacy := newLegacyPolicy("only-legacy", "ns", `{"on_http_request":[{"name":"legacy"}]}`)
 	m, rec := newTestManager(t, legacy)
 
 	ep := newAgentEndpoint("ns", &ngrokv1alpha1.TrafficPolicyCfg{
@@ -447,6 +450,7 @@ func TestResolve_TargetRef_FallsBackToLegacyAndWarns(t *testing.T) {
 	assert.True(t, found, "expected DeprecatedAPIGroup event on legacy fallback; got %v", evs)
 }
 
+// LEGACY-trafficpolicy-name: Delete this function once v1 is the only supported version
 func TestResolve_TargetRef_NeitherKindPresent(t *testing.T) {
 	// Neither kind holds an object under the given name — resolver returns
 	// ErrTrafficPolicyNotFound and emits TrafficPolicyNotFound (not
