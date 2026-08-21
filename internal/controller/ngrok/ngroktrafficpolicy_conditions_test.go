@@ -55,7 +55,7 @@ func TestSetTrafficPolicyConditions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tp := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{Generation: 3},
+				Generation: 3,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: json.RawMessage(tt.policy),
 				},
@@ -83,7 +83,7 @@ func TestSetTrafficPolicyConditions(t *testing.T) {
 // post-mutation value, even when something actually changed.
 func TestStatusChangeDetection(t *testing.T) {
 	tp := &ngrokv1alpha1.NgrokTrafficPolicy{
-		ObjectMeta: metav1.ObjectMeta{Generation: 1},
+		Generation: 1,
 		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 			Policy: json.RawMessage(`{"on_http_request":[{"actions":[{"type":"deny"}]}]}`),
 		},

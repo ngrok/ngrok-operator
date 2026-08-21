@@ -52,11 +52,9 @@ func TestStateChecker_NoDraining(t *testing.T) {
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-release",
-			Namespace: "ngrok-operator",
-		},
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
+		Name:      "my-release",
+		Namespace: "ngrok-operator",
+		Spec:      ngrokv1alpha1.KubernetesOperatorSpec{},
 	}
 
 	client := fake.NewClientBuilder().
@@ -74,11 +72,9 @@ func TestStateChecker_DrainingConditionTrue(t *testing.T) {
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-release",
-			Namespace: "ngrok-operator",
-		},
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
+		Name:      "my-release",
+		Namespace: "ngrok-operator",
+		Spec:      ngrokv1alpha1.KubernetesOperatorSpec{},
 		Status: ngrokv1alpha1.KubernetesOperatorStatus{
 			Conditions: []metav1.Condition{{
 				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
@@ -107,13 +103,11 @@ func TestStateChecker_DeletionTimestampWithoutStatus(t *testing.T) {
 
 	now := metav1.NewTime(time.Now())
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              "my-release",
-			Namespace:         "ngrok-operator",
-			DeletionTimestamp: &now,
-			Finalizers:        []string{"test-finalizer"},
-		},
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
+		Name:              "my-release",
+		Namespace:         "ngrok-operator",
+		DeletionTimestamp: &now,
+		Finalizers:        []string{"test-finalizer"},
+		Spec:              ngrokv1alpha1.KubernetesOperatorSpec{},
 		// Status.Conditions has no Draining condition
 	}
 
@@ -149,11 +143,9 @@ func TestStateChecker_CachesDrainingState(t *testing.T) {
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-release",
-			Namespace: "ngrok-operator",
-		},
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
+		Name:      "my-release",
+		Namespace: "ngrok-operator",
+		Spec:      ngrokv1alpha1.KubernetesOperatorSpec{},
 		Status: ngrokv1alpha1.KubernetesOperatorStatus{
 			Conditions: []metav1.Condition{{
 				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,

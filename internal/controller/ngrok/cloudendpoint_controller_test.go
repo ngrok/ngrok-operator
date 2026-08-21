@@ -60,9 +60,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		// Create namespace for testing
 		ns := &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-			},
+			Name: namespace,
 		}
 		Expect(k8sClient.Create(context.Background(), ns)).To(Succeed())
 
@@ -74,9 +72,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		// Clean up namespace
 		if namespace != "" {
 			ns := &v1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
+				Name: namespace,
 			}
 			_ = k8sClient.Delete(context.Background(), ns)
 		}
@@ -85,10 +81,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 	Context("Basic endpoint operations", func() {
 		It("should successfully create a cloud endpoint with internal domain", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "test-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://test.internal",
 					Description: "Test endpoint",
@@ -117,10 +111,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should successfully create a cloud endpoint with TCP URL", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tcp-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "tcp-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "tcp://1.tcp.ngrok.io:12345",
 					Description: "TCP test endpoint",
@@ -157,10 +149,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should not create domain CR for custom TCP endpoint", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tcp-custom-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "tcp-custom-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "tcp://1.2.3.4:25565",
 					Description: "Custom TCP test endpoint",
@@ -196,10 +186,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		It("R1: legacy spec.trafficPolicyName-only manifest resolves via in-memory normalization", func(ctx SpecContext) {
 			// Create traffic policy first
 			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-policy",
-					Namespace: namespace,
-				},
+				Name:      "test-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
@@ -207,15 +195,13 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "policy-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "policy-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://policy-test.internal",
 					Description:       "Endpoint with policy",
 					Metadata:          commonv1alpha1.MetadataFromLegacyString("{}"),
-					TrafficPolicyName: "test-policy",
+					TrafficPolicyName: "test-policy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 				},
 			}
 
@@ -234,10 +220,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should handle endpoint with trafficPolicy.targetRef", func(ctx SpecContext) {
 			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "new-shape-policy",
-					Namespace: namespace,
-				},
+				Name:      "new-shape-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
@@ -245,10 +229,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "new-shape-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "new-shape-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://new-shape.internal",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
@@ -278,14 +260,12 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// the deprecated `policy` field is set, the resolver still
 			// produces the policy JSON. Cleanup release removes this test.
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "legacy-policy-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "legacy-policy-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://legacy-policy.internal",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy"}]}`),
+						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy"}]}`), //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 					},
 				},
 			}
@@ -306,10 +286,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should handle endpoint deletion", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "delete-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "delete-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         fmt.Sprintf("https://delete-%s.internal", rand.String(8)),
 					Description: "Endpoint to delete",
@@ -349,10 +327,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			mockClientset.Endpoints().(*nmockapi.EndpointsClient).SetCreateError(errors.New("API error"))
 
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "error-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "error-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://error.internal",
 					Description: "Error endpoint",
@@ -393,10 +369,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// migration guide recommends keeping `trafficPolicyName`
 			// alone until the rollback floor moves past 0.24.
 			canonicalPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "canonical-policy",
-					Namespace: namespace,
-				},
+				Name:      "canonical-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"canonical"}]}`),
 				},
@@ -404,15 +378,13 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, canonicalPolicy)).To(Succeed())
 
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "both-fields-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "both-fields-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://both-fields.internal",
 					Description:       "Both legacy and canonical fields set",
 					Metadata:          commonv1alpha1.MetadataFromLegacyString("{}"),
-					TrafficPolicyName: "ignored-legacy-name",
+					TrafficPolicyName: "ignored-legacy-name", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "canonical-policy"},
 					},
@@ -446,10 +418,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// coexist with either canonical field during R1; only the
 			// inline+targetRef union is rejected.
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid-tp-union-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "invalid-tp-union-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://invalid-tp-union.internal",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
@@ -469,15 +439,13 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// the deprecated nested `policy` field for rollback while
 			// the R1+ operator uses the new `inline` field.
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "policy-and-inline-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "policy-and-inline-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://policy-and-inline.internal",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 						Inline: json.RawMessage(`{"on_http_request":[{"name":"canonical-inline"}]}`),
-						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy-policy"}]}`),
+						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy-policy"}]}`), //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 					},
 				},
 			}
@@ -504,16 +472,16 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// `trafficPolicy: {}` silently detach a policy that the user
 			// declared via the legacy `trafficPolicyName` field.
 			legacyPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{Name: "fallback-legacy", Namespace: namespace},
-				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"fallback-rule"}]}`)},
+				Name: "fallback-legacy", Namespace: namespace,
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"fallback-rule"}]}`)},
 			}
 			Expect(k8sClient.Create(ctx, legacyPolicy)).To(Succeed())
 
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "fallback-endpoint", Namespace: namespace},
+				Name: "fallback-endpoint", Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://fallback.internal",
-					TrafficPolicyName: "fallback-legacy",
+					TrafficPolicyName: "fallback-legacy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 					// Empty struct mimics a templating system emitting `{}`.
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{},
 				},
@@ -544,22 +512,22 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// (still keeping the legacy for rollback). The attached
 			// policy must reflect the canonical field after the update.
 			legacyPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{Name: "transition-legacy", Namespace: namespace},
-				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-legacy"}]}`)},
+				Name: "transition-legacy", Namespace: namespace,
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-legacy"}]}`)},
 			}
 			Expect(k8sClient.Create(ctx, legacyPolicy)).To(Succeed())
 
 			canonicalPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{Name: "transition-canonical", Namespace: namespace},
-				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-canonical"}]}`)},
+				Name: "transition-canonical", Namespace: namespace,
+				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: []byte(`{"on_http_request":[{"name":"from-canonical"}]}`)},
 			}
 			Expect(k8sClient.Create(ctx, canonicalPolicy)).To(Succeed())
 
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "transition-endpoint", Namespace: namespace},
+				Name: "transition-endpoint", Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://transition.internal",
-					TrafficPolicyName: "transition-legacy",
+					TrafficPolicyName: "transition-legacy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 				},
 			}
 
@@ -603,10 +571,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 	Context("Metadata format", func() {
 		It("should serialize map-form metadata to a sorted JSON object string for the ngrok API", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "metadata-map-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "metadata-map-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:      "https://metadata-map.internal",
 					Metadata: commonv1alpha1.MetadataFromMap(map[string]string{"team": "platform", "owned-by": "ngrok-operator"}),
@@ -632,10 +598,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		// once the raw JSON string form is no longer accepted.
 		It("should pass legacy string-form metadata through to the ngrok API verbatim", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "metadata-legacy-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "metadata-legacy-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:      "https://metadata-legacy.internal",
 					Metadata: commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"ngrok-operator"}`),
@@ -662,10 +626,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 	Context("Endpoint updates", func() {
 		It("should successfully update endpoint description and metadata", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "update-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "update-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://update-test.internal",
 					Description: "Original description",
@@ -708,10 +670,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		It("should successfully update traffic policy", func(ctx SpecContext) {
 			// Create initial traffic policy
 			trafficPolicy1 := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "policy-v1",
-					Namespace: namespace,
-				},
+				Name:      "policy-v1",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"log"}]}`),
 				},
@@ -719,15 +679,13 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, trafficPolicy1)).To(Succeed())
 
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "policy-update-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "policy-update-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://policy-update.internal",
 					Description:       "Endpoint with updatable policy",
 					Metadata:          commonv1alpha1.MetadataFromLegacyString("{}"),
-					TrafficPolicyName: "policy-v1",
+					TrafficPolicyName: "policy-v1", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 				},
 			}
 
@@ -745,10 +703,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 			By("Creating new traffic policy")
 			trafficPolicy2 := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "policy-v2",
-					Namespace: namespace,
-				},
+				Name:      "policy-v2",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
@@ -774,10 +730,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should recreate endpoint when update returns 404", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "recreate-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "recreate-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://recreate-test.internal",
 					Description: "Endpoint to recreate",
@@ -836,10 +790,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// once in update(), so the recreated endpoint must still carry
 			// the correct policy content.
 			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "recreate-legacy-policy",
-					Namespace: namespace,
-				},
+				Name:      "recreate-legacy-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"recreate-legacy"}]}`),
 				},
@@ -847,13 +799,11 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "recreate-legacy-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "recreate-legacy-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://recreate-legacy.internal",
-					TrafficPolicyName: "recreate-legacy-policy",
+					TrafficPolicyName: "recreate-legacy-policy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 				},
 			}
 
@@ -912,10 +862,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should update URL successfully", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "url-update-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "url-update-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://original-url.internal",
 					Description: "Endpoint with updatable URL",
@@ -954,10 +902,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should handle update errors gracefully", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "update-error-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "update-error-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "https://update-error.internal",
 					Description: "Endpoint for error testing",
@@ -1006,10 +952,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 	Context("Domain handling", func() {
 		It("should skip domain creation for Kubernetes-bound endpoint", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "k8s-bound-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "k8s-bound-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:      "http://aws.demo",
 					Bindings: []string{"kubernetes"},
@@ -1062,10 +1006,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		It("should clear stale domainRef for internal domain endpoint", func(ctx SpecContext) {
 			staleDomainName := "stale-domain-ref"
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "internal-with-stale-ref",
-					Namespace: namespace,
-				},
+				Name:      "internal-with-stale-ref",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "http://test.internal",
 				},
@@ -1095,10 +1037,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should create endpoint even when domain is not ready", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "test-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "http://example.com",
 				},
@@ -1187,10 +1127,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should not call the ngrok API update while domain is not ready", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "no-unnecessary-updates",
-					Namespace: namespace,
-				},
+				Name:      "no-unnecessary-updates",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "http://no-update-spam.example.com",
 				},
@@ -1220,20 +1158,16 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// Use different URLs to avoid pooling issues in mock
 			endpoints := []*ngrokv1alpha1.CloudEndpoint{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "k8s-endpoint-1",
-						Namespace: namespace,
-					},
+					Name:      "k8s-endpoint-1",
+					Namespace: namespace,
 					Spec: ngrokv1alpha1.CloudEndpointSpec{
 						URL:      "http://aws1.demo",
 						Bindings: []string{"kubernetes"},
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "k8s-endpoint-2",
-						Namespace: namespace,
-					},
+					Name:      "k8s-endpoint-2",
+					Namespace: namespace,
 					Spec: ngrokv1alpha1.CloudEndpointSpec{
 						URL:      "http://aws2.demo",
 						Bindings: []string{"kubernetes"},
@@ -1282,10 +1216,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		It("should reject endpoint with multiple bindings", func() {
 			// This should be caught by k8s validation (MaxItems=1), so we expect the Create to fail
 			cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid-multiple-bindings",
-					Namespace: namespace,
-				},
+				Name:      "invalid-multiple-bindings",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:      "http://test.demo",
 					Bindings: []string{"public", "kubernetes"}, // Multiple bindings should be rejected
@@ -1302,10 +1234,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 		It("should accept endpoint with single binding", func(ctx SpecContext) {
 			cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "valid-single-binding",
-					Namespace: namespace,
-				},
+				Name:      "valid-single-binding",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:      "http://test-internal.demo",
 					Bindings: []string{"internal"}, // Single binding is valid

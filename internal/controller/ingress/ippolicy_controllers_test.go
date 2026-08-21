@@ -34,7 +34,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 
 	It("creates IPPolicy and configures rules", func() {
 		ip := &ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy", Namespace: "default"},
+			Name: "test-ip-policy", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
 				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
@@ -58,7 +58,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 
 	It("updates existing rule descriptions", func() {
 		ip := &ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy-update", Namespace: "default"},
+			Name: "test-ip-policy-update", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
 				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
@@ -94,7 +94,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 
 	It("deletes obsolete rules", func() {
 		ip := &ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-ip-policy-del", Namespace: "default"},
+			Name: "test-ip-policy-del", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
 				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
@@ -132,7 +132,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 	It("sets Created condition for existing IP Policy", func() {
 		By("creating an IP Policy")
 		ip := &ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-existing-policy", Namespace: "default"},
+			Name: "test-existing-policy", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
 				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
@@ -175,7 +175,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 	It("sets Created condition for existing IP Policy with rules", func() {
 		By("creating an IPPolicy resource with rules")
 		ip := &ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-existing-policy-rules", Namespace: "default"},
+			Name: "test-existing-policy-rules", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
 				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
 			},
@@ -280,7 +280,7 @@ var _ = Describe("IPPolicyDiff", func() {
 var _ = Describe("IPPolicy schema validation", func() {
 	newPolicy := func(name, cidr string) *ingressv1alpha1.IPPolicy {
 		return &ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Name: name, Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
 				Rules: []ingressv1alpha1.IPPolicyRule{{CIDR: cidr, Action: "allow"}},
 			},

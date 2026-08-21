@@ -39,7 +39,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -109,9 +108,7 @@ var _ = BeforeSuite(func() {
 
 	// Create the operator namespace that the poller will use
 	operatorNs := &v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "ngrok-op",
-		},
+		Name: "ngrok-op",
 	}
 	err = k8sClient.Create(ctx, operatorNs)
 	Expect(err).NotTo(HaveOccurred())

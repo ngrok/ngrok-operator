@@ -30,7 +30,6 @@ import (
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -91,10 +90,8 @@ var _ = Describe("GatewayClass controller", func() {
 			// Create a Gateway that references the GatewayClass. This should cause the finalizer to be set.
 			By("creating a new Gateway")
 			gateway := &gatewayv1.Gateway{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "default",
-				},
+				Name:      "test-gateway",
+				Namespace: "default",
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: gatewayv1.ObjectName(gatewayClass.Name),
 					Listeners: []gatewayv1.Listener{

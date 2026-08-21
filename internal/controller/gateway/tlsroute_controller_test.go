@@ -30,7 +30,6 @@ import (
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -67,10 +66,8 @@ var _ = Describe("TLSRoute controller", Ordered, func() {
 				CreateGatewayAndWaitForAcceptance(ctx, gw, timeout, interval)
 
 				route = &gatewayv1alpha2.TLSRoute{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      testutils.RandomName("tlsroute"),
-						Namespace: "default",
-					},
+					Name:      testutils.RandomName("tlsroute"),
+					Namespace: "default",
 					Spec: gatewayv1alpha2.TLSRouteSpec{
 						CommonRouteSpec: gatewayv1.CommonRouteSpec{
 							ParentRefs: []gatewayv1.ParentReference{{
@@ -79,10 +76,8 @@ var _ = Describe("TLSRoute controller", Ordered, func() {
 						},
 						Rules: []gatewayv1alpha2.TLSRouteRule{{
 							BackendRefs: []gatewayv1alpha2.BackendRef{{
-								BackendObjectReference: gatewayv1.BackendObjectReference{
-									Name: gatewayv1.ObjectName("example-svc"),
-									Port: ptr.To[int32](8080),
-								},
+								Name: gatewayv1.ObjectName("example-svc"),
+								Port: ptr.To[int32](8080),
 							}},
 						}},
 					},
@@ -143,10 +138,8 @@ var _ = Describe("TLSRoute controller", Ordered, func() {
 				Expect(k8sClient.Create(ctx, unmanagedGateway)).To(Succeed())
 
 				route = &gatewayv1alpha2.TLSRoute{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      testutils.RandomName("tlsroute"),
-						Namespace: "default",
-					},
+					Name:      testutils.RandomName("tlsroute"),
+					Namespace: "default",
 					Spec: gatewayv1alpha2.TLSRouteSpec{
 						CommonRouteSpec: gatewayv1.CommonRouteSpec{
 							ParentRefs: []gatewayv1.ParentReference{{
@@ -155,10 +148,8 @@ var _ = Describe("TLSRoute controller", Ordered, func() {
 						},
 						Rules: []gatewayv1alpha2.TLSRouteRule{{
 							BackendRefs: []gatewayv1alpha2.BackendRef{{
-								BackendObjectReference: gatewayv1.BackendObjectReference{
-									Name: gatewayv1.ObjectName("example-svc"),
-									Port: ptr.To[int32](8080),
-								},
+								Name: gatewayv1.ObjectName("example-svc"),
+								Port: ptr.To[int32](8080),
 							}},
 						}},
 					},

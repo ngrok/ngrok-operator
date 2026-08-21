@@ -72,10 +72,8 @@ var _ = Describe("DomainReconciler", func() {
 
 		JustBeforeEach(func() {
 			domain = &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-domain",
-					Namespace: namespace,
-				},
+				Name:      "test-domain",
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: domainName,
 				},
@@ -222,10 +220,8 @@ var _ = Describe("DomainReconciler", func() {
 		When("the domain creation succeeds", func() {
 			It("should set success conditions and create the domain", func() {
 				domain := &ingressv1alpha1.Domain{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("test-domain-%s", rand.String(10)),
-						Namespace: namespace,
-					},
+					Name:      fmt.Sprintf("test-domain-%s", rand.String(10)),
+					Namespace: namespace,
 					Spec: ingressv1alpha1.DomainSpec{
 						Domain: fmt.Sprintf("test-domain-%s.%s", rand.String(10), NgrokManagedDomainSuffix),
 					},
@@ -268,10 +264,8 @@ var _ = Describe("DomainReconciler", func() {
 
 			It("should set error conditions and not create the domain", func() {
 				domain := &ingressv1alpha1.Domain{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("test-domain-%s", rand.String(10)),
-						Namespace: namespace,
-					},
+					Name:      fmt.Sprintf("test-domain-%s", rand.String(10)),
+					Namespace: namespace,
 					Spec: ingressv1alpha1.DomainSpec{
 						Domain: fmt.Sprintf("test-domain-%s.%s", rand.String(10), NgrokManagedDomainSuffix),
 					},
@@ -311,10 +305,8 @@ var _ = Describe("DomainReconciler", func() {
 				Namespace: namespace,
 			}
 			domain = &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
-					Namespace: namespace,
-				},
+				Name:      name,
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Description: "starting description",
 					Metadata:    commonv1alpha1.MetadataFromLegacyString("starting metadata"),
@@ -566,10 +558,8 @@ var _ = Describe("DomainReconciler", func() {
 		JustBeforeEach(func() {
 			By("Creating the domain")
 			domain = &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-domain",
-					Namespace: namespace,
-				},
+				Name:      "test-domain",
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					ReclaimPolicy: reclaimPolicy,
 					Domain:        fmt.Sprintf("test-domain-%s.%s", rand.String(10), NgrokManagedDomainSuffix),
@@ -685,10 +675,8 @@ var _ = Describe("DomainReconciler", func() {
 				Namespace: namespace,
 			}
 			domain = &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
-					Namespace: namespace,
-				},
+				Name:      name,
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: domainName,
 				},
@@ -760,10 +748,8 @@ var _ = Describe("DomainReconciler", func() {
 				Namespace: namespace,
 			}
 			domain = &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
-					Namespace: namespace,
-				},
+				Name:      name,
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: domainName,
 				},
@@ -812,10 +798,8 @@ var _ = Describe("DomainReconciler", func() {
 	Describe("Internal Domain Handling", func() {
 		It("should skip reconciliation and not reserve .internal TLD domains in ngrok", func() {
 			domain := &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("test-internal-domain-%s", rand.String(10)),
-					Namespace: namespace,
-				},
+				Name:      fmt.Sprintf("test-internal-domain-%s", rand.String(10)),
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: "my-service.namespace.internal",
 				},
@@ -855,10 +839,8 @@ var _ = Describe("DomainReconciler", func() {
 
 		It("should remove finalizer from .INTERNAL TLD domains allowing clean deletion", func() {
 			domain := &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("test-internal-upper-%s", rand.String(10)),
-					Namespace: namespace,
-				},
+				Name:      fmt.Sprintf("test-internal-upper-%s", rand.String(10)),
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: "my-service.namespace.INTERNAL",
 				},
@@ -888,10 +870,8 @@ var _ = Describe("DomainReconciler", func() {
 		It("should NOT delete domains that contain 'internal' as a subdomain", func() {
 			// This is NOT an internal domain - it just has "internal" as a subdomain
 			domain := &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("test-not-internal-%s", rand.String(10)),
-					Namespace: namespace,
-				},
+				Name:      fmt.Sprintf("test-not-internal-%s", rand.String(10)),
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: fmt.Sprintf("service.internal.%s", CustomDomainSuffix),
 				},
@@ -937,10 +917,8 @@ var _ = Describe("DomainReconciler", func() {
 				Namespace: namespace,
 			}
 			domain = &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
-					Namespace: namespace,
-				},
+				Name:      name,
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: "ngrok.com", // This should fail to create
 				},

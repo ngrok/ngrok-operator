@@ -31,7 +31,6 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -50,10 +49,8 @@ var _ = Describe("AgentEndpoint Controller Namespace Filtering", func() {
 		It("should only reconcile AgentEndpoints in the watched namespace", func(ctx SpecContext) {
 			// Create AgentEndpoint in watched namespace
 			watchedEndpoint := &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "watched-endpoint",
-					Namespace: watchedNamespace,
-				},
+				Name:      "watched-endpoint",
+				Namespace: watchedNamespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://1.tcp.ngrok.io:12345",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -64,10 +61,8 @@ var _ = Describe("AgentEndpoint Controller Namespace Filtering", func() {
 
 			// Create AgentEndpoint in unwatched namespace
 			unwatchedEndpoint := &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "unwatched-endpoint",
-					Namespace: unwatchedNamespace,
-				},
+				Name:      "unwatched-endpoint",
+				Namespace: unwatchedNamespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://2.tcp.ngrok.io:12346",
 					Upstream: ngrokv1alpha1.EndpointUpstream{

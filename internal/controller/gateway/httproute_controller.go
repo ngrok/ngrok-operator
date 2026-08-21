@@ -398,10 +398,8 @@ func (r *HTTPRouteReconciler) findHTTPRouteForGateway(ctx context.Context, o cli
 			}
 
 			requests = append(requests, reconcile.Request{
-				NamespacedName: client.ObjectKey{
-					Namespace: route.Namespace,
-					Name:      route.Name,
-				},
+				Namespace: route.Namespace,
+				Name:      route.Name,
 			})
 			break // Only enqueue the route once per parentRef
 		}

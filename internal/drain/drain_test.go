@@ -34,7 +34,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -112,11 +111,9 @@ func TestDrainer_DrainUserResource(t *testing.T) {
 	require.NoError(t, netv1.AddToScheme(scheme))
 
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-ingress",
-			Namespace:  "default",
-			Finalizers: []string{util.FinalizerName},
-		},
+		Name:       "test-ingress",
+		Namespace:  "default",
+		Finalizers: []string{util.FinalizerName},
 	}
 
 	c := fake.NewClientBuilder().
@@ -144,10 +141,8 @@ func TestDrainer_DrainOperatorResource(t *testing.T) {
 	// when Delete is called. In a real cluster, the controller would handle
 	// removing the finalizer after cleanup, but we can't simulate that here.
 	domain := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-domain",
-			Namespace: "ngrok-operator",
-		},
+		Name:      "test-domain",
+		Namespace: "ngrok-operator",
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: "test.ngrok.io",
 		},
@@ -179,11 +174,9 @@ func TestDrainer_DrainOperatorResource_RetainMode(t *testing.T) {
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	domain := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-domain",
-			Namespace:  "ngrok-operator",
-			Finalizers: []string{util.FinalizerName},
-		},
+		Name:       "test-domain",
+		Namespace:  "ngrok-operator",
+		Finalizers: []string{util.FinalizerName},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: "test.ngrok.io",
 		},
@@ -242,33 +235,27 @@ func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
 	require.NoError(t, gatewayv1alpha2.Install(scheme))
 
 	ipPolicy := &ingressv1alpha1.IPPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "user-created-ippolicy",
-			Namespace:  "default",
-			Finalizers: []string{util.FinalizerName},
-		},
+		Name:       "user-created-ippolicy",
+		Namespace:  "default",
+		Finalizers: []string{util.FinalizerName},
 		Spec: ingressv1alpha1.IPPolicySpec{
 			Description: "User-created IP Policy without controller labels",
 		},
 	}
 
 	cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "user-created-cloudendpoint",
-			Namespace:  "default",
-			Finalizers: []string{util.FinalizerName},
-		},
+		Name:       "user-created-cloudendpoint",
+		Namespace:  "default",
+		Finalizers: []string{util.FinalizerName},
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL: "https://example.ngrok.io",
 		},
 	}
 
 	agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "user-created-agentendpoint",
-			Namespace:  "default",
-			Finalizers: []string{util.FinalizerName},
-		},
+		Name:       "user-created-agentendpoint",
+		Namespace:  "default",
+		Finalizers: []string{util.FinalizerName},
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
 			URL: "https://example.ngrok.io",
 		},
@@ -318,18 +305,14 @@ func TestDrainer_SkipsResourcesWithoutFinalizer(t *testing.T) {
 	require.NoError(t, gatewayv1alpha2.Install(scheme))
 
 	ipPolicyWithFinalizer := &ingressv1alpha1.IPPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "with-finalizer",
-			Namespace:  "default",
-			Finalizers: []string{util.FinalizerName},
-		},
+		Name:       "with-finalizer",
+		Namespace:  "default",
+		Finalizers: []string{util.FinalizerName},
 	}
 
 	ipPolicyWithoutFinalizer := &ingressv1alpha1.IPPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "without-finalizer",
-			Namespace: "default",
-		},
+		Name:      "without-finalizer",
+		Namespace: "default",
 	}
 
 	fakeClient := fake.NewClientBuilder().
@@ -453,11 +436,9 @@ func TestDrainer_DrainOperatorResource_AlreadyDeleted(t *testing.T) {
 		Build()
 
 	domain := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "already-deleted",
-			Namespace:  "ngrok-operator",
-			Finalizers: []string{util.FinalizerName},
-		},
+		Name:       "already-deleted",
+		Namespace:  "ngrok-operator",
+		Finalizers: []string{util.FinalizerName},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: "test.ngrok.io",
 		},
@@ -479,11 +460,9 @@ func TestDrainer_DrainOperatorResource_DeleteError(t *testing.T) {
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	domain := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-domain",
-			Namespace:  "ngrok-operator",
-			Finalizers: []string{util.FinalizerName},
-		},
+		Name:       "test-domain",
+		Namespace:  "ngrok-operator",
+		Finalizers: []string{util.FinalizerName},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: "test.ngrok.io",
 		},
@@ -534,11 +513,9 @@ func TestDrainer_DrainOperatorResource_RetainUpdateError(t *testing.T) {
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	domain := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-domain",
-			Namespace:  "ngrok-operator",
-			Finalizers: []string{util.FinalizerName},
-		},
+		Name:       "test-domain",
+		Namespace:  "ngrok-operator",
+		Finalizers: []string{util.FinalizerName},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: "test.ngrok.io",
 		},

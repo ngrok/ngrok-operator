@@ -34,13 +34,11 @@ func TestApplyDomains_BackfillsLegacyOnlyDomain(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 
 	existing := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      domainName,
-			Namespace: "default",
-			Labels: map[string]string{
-				labels.LegacyControllerName:      controllerName,
-				labels.LegacyControllerNamespace: controllerNamespace,
-			},
+		Name:      domainName,
+		Namespace: "default",
+		Labels: map[string]string{
+			labels.LegacyControllerName:      controllerName,
+			labels.LegacyControllerNamespace: controllerNamespace,
 		},
 		Spec: ingressv1alpha1.DomainSpec{Domain: "example.com"},
 	}
