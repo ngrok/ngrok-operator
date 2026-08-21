@@ -213,7 +213,7 @@ func TestToCRDJson(t *testing.T) {
 					PhaseOnHttpRequest: {[]byte(`ngrok is built to deliver applications and APIs with  zero networking configuration and zero hardware`)},
 				},
 			},
-			expectedErr: errors.New(`json: error calling MarshalJSON for type json.RawMessage: invalid character 'g' in literal null (expecting 'u')`),
+			expectedErr: errors.New(`invalid character 'g' in literal null (expecting 'u')`),
 		},
 	}
 
@@ -226,8 +226,12 @@ func TestToCRDJson(t *testing.T) {
 			if tc.expectedErr == nil {
 				assert.NoError(t, err)
 			} else {
-				// Can't compare the exact error as we don't have access to json SyntaxError underlying `msg` field`
-				assert.Equal(t, tc.expectedErr.Error(), err.Error())
+				// Match a substring, not the whole message: we have no access to
+				// the json SyntaxError's underlying `msg` field, and the full
+				// message is prefixed with the concrete type being marshalled,
+				// which changes between Go releases (json.RawMessage became
+				// *jsontext.Value in Go 1.27's new JSON engine).
+				assert.ErrorContains(t, err, tc.expectedErr.Error())
 			}
 		})
 	}
@@ -484,7 +488,7 @@ func TestMergeEndpointRule(t *testing.T) {
 			addedPhase: PhaseOnHttpRequest,
 			// original traffic policy should be unaffected
 			expectedMergedTrafficPolicy: *newBaseTrafficPolicy(t, nil),
-			expectedErr:                 errors.New("json: error calling MarshalJSON for type json.RawMessage: invalid character 'i' looking for beginning of value"),
+			expectedErr:                 errors.New("invalid character 'i' looking for beginning of value"),
 		},
 	}
 
@@ -500,8 +504,12 @@ func TestMergeEndpointRule(t *testing.T) {
 			if tc.expectedErr == nil {
 				assert.NoError(t, err)
 			} else {
-				// Can't compare the exact error as we don't have access to json SyntaxError underlying `msg` field`
-				assert.Equal(t, tc.expectedErr.Error(), err.Error())
+				// Match a substring, not the whole message: we have no access to
+				// the json SyntaxError's underlying `msg` field, and the full
+				// message is prefixed with the concrete type being marshalled,
+				// which changes between Go releases (json.RawMessage became
+				// *jsontext.Value in Go 1.27's new JSON engine).
+				assert.ErrorContains(t, err, tc.expectedErr.Error())
 			}
 		})
 	}

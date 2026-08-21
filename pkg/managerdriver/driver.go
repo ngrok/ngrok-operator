@@ -206,88 +206,6 @@ func (d *Driver) setNgrokMetadataOwner(owner string, customNgrokMetadata map[str
 	return string(jsonString), nil
 }
 
-func listObjectsForType(ctx context.Context, client client.Reader, v any, listOpts ...client.ListOption) ([]client.Object, error) {
-	switch v.(type) {
-
-	// ----------------------------------------------------------------------------
-	// Kubernetes Core API Support
-	// ----------------------------------------------------------------------------
-	case *corev1.Service:
-		services := &corev1.ServiceList{}
-		err := client.List(ctx, services, listOpts...)
-		return util.ToClientObjects(services.Items), err
-	case *corev1.Secret:
-		secrets := &corev1.SecretList{}
-		err := client.List(ctx, secrets, listOpts...)
-		return util.ToClientObjects(secrets.Items), err
-	case *corev1.ConfigMap:
-		configmaps := &corev1.ConfigMapList{}
-		err := client.List(ctx, configmaps, listOpts...)
-		return util.ToClientObjects(configmaps.Items), err
-	case *corev1.Namespace:
-		namespaces := &corev1.NamespaceList{}
-		err := client.List(ctx, namespaces)
-		return util.ToClientObjects(namespaces.Items), err
-	case *netv1.Ingress:
-		ingresses := &netv1.IngressList{}
-		err := client.List(ctx, ingresses, listOpts...)
-		return util.ToClientObjects(ingresses.Items), err
-	case *netv1.IngressClass:
-		ingressClasses := &netv1.IngressClassList{}
-		err := client.List(ctx, ingressClasses)
-		return util.ToClientObjects(ingressClasses.Items), err
-
-	// ----------------------------------------------------------------------------
-	// Kubernetes Gateway API Support
-	// ----------------------------------------------------------------------------
-	case *gatewayv1.GatewayClass:
-		gatewayClasses := &gatewayv1.GatewayClassList{}
-		err := client.List(ctx, gatewayClasses)
-		return util.ToClientObjects(gatewayClasses.Items), err
-	case *gatewayv1.Gateway:
-		gateways := &gatewayv1.GatewayList{}
-		err := client.List(ctx, gateways, listOpts...)
-		return util.ToClientObjects(gateways.Items), err
-	case *gatewayv1.HTTPRoute:
-		httproutes := &gatewayv1.HTTPRouteList{}
-		err := client.List(ctx, httproutes, listOpts...)
-		return util.ToClientObjects(httproutes.Items), err
-	case *gatewayv1alpha2.TCPRoute:
-		tcpRoutes := &gatewayv1alpha2.TCPRouteList{}
-		err := client.List(ctx, tcpRoutes, listOpts...)
-		return util.ToClientObjects(tcpRoutes.Items), err
-	case *gatewayv1alpha2.TLSRoute:
-		tlsRoutes := &gatewayv1alpha2.TLSRouteList{}
-		err := client.List(ctx, tlsRoutes, listOpts...)
-		return util.ToClientObjects(tlsRoutes.Items), err
-	case *gatewayv1beta1.ReferenceGrant:
-		referenceGrants := &gatewayv1beta1.ReferenceGrantList{}
-		err := client.List(ctx, referenceGrants, listOpts...)
-		return util.ToClientObjects(referenceGrants.Items), err
-
-	// ----------------------------------------------------------------------------
-	// Ngrok API Support
-	// ----------------------------------------------------------------------------
-	case *ingressv1alpha1.Domain:
-		domains := &ingressv1alpha1.DomainList{}
-		err := client.List(ctx, domains, listOpts...)
-		return util.ToClientObjects(domains.Items), err
-	case *ngrokv1alpha1.NgrokTrafficPolicy:
-		policies := &ngrokv1alpha1.NgrokTrafficPolicyList{}
-		err := client.List(ctx, policies, listOpts...)
-		return util.ToClientObjects(policies.Items), err
-	case *ngrokv1alpha1.AgentEndpoint:
-		agentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
-		err := client.List(ctx, agentEndpoints, listOpts...)
-		return util.ToClientObjects(agentEndpoints.Items), err
-	case *ngrokv1alpha1.CloudEndpoint:
-		cloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
-		err := client.List(ctx, cloudEndpoints, listOpts...)
-		return util.ToClientObjects(cloudEndpoints.Items), err
-	}
-	return nil, fmt.Errorf("unsupported type %T", v)
-}
-
 // Seed fetches all the upfront information the driver needs to operate
 // It needs to be seeded fully before it can be used to make calculations otherwise
 // each calculation will be based on an incomplete state of the world. It currently relies on:
@@ -311,47 +229,54 @@ func listObjectsForType(ctx context.Context, client client.Reader, v any, listOp
 // - CloudEndpoints
 // When the sync method becomes a background process, this likely won't be needed anymore
 func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.ListOption) error {
-	typesToSeed := []any{
-		&netv1.Ingress{},
-		&netv1.IngressClass{},
-		&corev1.Service{},
-		&corev1.Secret{},
-		&corev1.Namespace{},
-		&corev1.ConfigMap{},
+	// clusterScoped resources are listed unfiltered: the namespace and label
+	// selectors in listOpts only apply to namespaced resources.
+	type seed struct {
+		list          client.ObjectList
+		clusterScoped bool
+	}
+
+	seeds := []seed{
+		{list: &netv1.IngressList{}},
+		{list: &netv1.IngressClassList{}, clusterScoped: true},
+		{list: &corev1.ServiceList{}},
+		{list: &corev1.SecretList{}},
+		{list: &corev1.NamespaceList{}, clusterScoped: true},
+		{list: &corev1.ConfigMapList{}},
 		// CRDs
-		&ingressv1alpha1.Domain{},
-		&ngrokv1alpha1.NgrokTrafficPolicy{},
-		&ngrokv1alpha1.AgentEndpoint{},
-		&ngrokv1alpha1.CloudEndpoint{},
+		{list: &ingressv1alpha1.DomainList{}},
+		{list: &ngrokv1alpha1.NgrokTrafficPolicyList{}},
+		{list: &ngrokv1alpha1.AgentEndpointList{}},
+		{list: &ngrokv1alpha1.CloudEndpointList{}},
 	}
 
 	if d.gatewayEnabled {
-		typesToSeed = append(typesToSeed,
-			&gatewayv1.Gateway{},
-			&gatewayv1.GatewayClass{},
-			&gatewayv1.HTTPRoute{},
-			&gatewayv1beta1.ReferenceGrant{},
+		seeds = append(seeds,
+			seed{list: &gatewayv1.GatewayList{}},
+			seed{list: &gatewayv1.GatewayClassList{}, clusterScoped: true},
+			seed{list: &gatewayv1.HTTPRouteList{}},
+			seed{list: &gatewayv1beta1.ReferenceGrantList{}},
 		)
 
 		if d.gatewayTCPRouteEnabled {
-			typesToSeed = append(typesToSeed, &gatewayv1alpha2.TCPRoute{})
+			seeds = append(seeds, seed{list: &gatewayv1alpha2.TCPRouteList{}})
 		}
 
 		if d.gatewayTLSRouteEnabled {
-			typesToSeed = append(typesToSeed, &gatewayv1alpha2.TLSRoute{})
+			seeds = append(seeds, seed{list: &gatewayv1alpha2.TLSRouteList{}})
 		}
 	}
 
-	for _, v := range typesToSeed {
-		objects, err := listObjectsForType(ctx, c, v, listOpts...)
-		if err != nil {
+	for _, s := range seeds {
+		opts := listOpts
+		if s.clusterScoped {
+			opts = nil
+		}
+		if err := c.List(ctx, s.list, opts...); err != nil {
 			return err
 		}
-
-		for _, obj := range objects {
-			if err := d.store.Update(obj); err != nil {
-				return err
-			}
+		if err := meta.EachListItem(s.list, d.store.Update); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -134,26 +134,26 @@ func (s Store) Delete(obj runtime.Object) error {
 
 // GetIngressClassV1 returns the 'name' IngressClass resource.
 func (s Store) GetIngressClassV1(name string) (*netv1.IngressClass, error) {
-	return genericGetByKey[netv1.IngressClass](s.stores.IngressClassV1, name)
+	return getByKey[netv1.IngressClass](s.stores.IngressClassV1, name)
 }
 
 // GetIngressV1 returns the 'name' Ingress resource.
 func (s Store) GetIngressV1(name, namespace string) (*netv1.Ingress, error) {
-	return genericGetByKey[netv1.Ingress](s.stores.IngressV1, getKey(name, namespace))
+	return getByKey[netv1.Ingress](s.stores.IngressV1, getKey(name, namespace))
 }
 
 func (s Store) GetServiceV1(name, namespace string) (*corev1.Service, error) {
-	return genericGetByKey[corev1.Service](s.stores.ServiceV1, getKey(name, namespace))
+	return getByKey[corev1.Service](s.stores.ServiceV1, getKey(name, namespace))
 }
 
 // GetIngressV1 returns the named Secret
 func (s Store) GetSecretV1(name, namespace string) (*corev1.Secret, error) {
-	return genericGetByKey[corev1.Secret](s.stores.SecretV1, getKey(name, namespace))
+	return getByKey[corev1.Secret](s.stores.SecretV1, getKey(name, namespace))
 }
 
 // GetConfigMapV1 returns the named ConfigMap
 func (s Store) GetConfigMapV1(name, namespace string) (*corev1.ConfigMap, error) {
-	return genericGetByKey[corev1.ConfigMap](s.stores.ConfigMapV1, getKey(name, namespace))
+	return getByKey[corev1.ConfigMap](s.stores.ConfigMapV1, getKey(name, namespace))
 }
 
 // GetNgrokIngressV1 looks up the Ingress resource by name and namespace and returns it if it's found
@@ -171,40 +171,42 @@ func (s Store) GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 }
 
 func (s Store) GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
-	return genericGetByKey[ngrokv1alpha1.NgrokTrafficPolicy](s.stores.NgrokTrafficPolicyV1, getKey(name, namespace))
+	return getByKey[ngrokv1alpha1.NgrokTrafficPolicy](s.stores.NgrokTrafficPolicyV1, getKey(name, namespace))
 }
 
 func (s Store) GetGateway(name string, namespace string) (*gatewayv1.Gateway, error) {
-	return genericGetByKey[gatewayv1.Gateway](s.stores.Gateway, getKey(name, namespace))
+	return getByKey[gatewayv1.Gateway](s.stores.Gateway, getKey(name, namespace))
 }
 
 func (s Store) GetGatewayClass(name string) (*gatewayv1.GatewayClass, error) {
-	return genericGetByKey[gatewayv1.GatewayClass](s.stores.GatewayClass, name)
+	return getByKey[gatewayv1.GatewayClass](s.stores.GatewayClass, name)
 }
 
 func (s Store) GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error) {
-	return genericGetByKey[gatewayv1.HTTPRoute](s.stores.HTTPRoute, getKey(name, namespace))
+	return getByKey[gatewayv1.HTTPRoute](s.stores.HTTPRoute, getKey(name, namespace))
 }
 
 func (s Store) GetTCPRoute(name string, namespace string) (*gatewayv1alpha2.TCPRoute, error) {
-	return genericGetByKey[gatewayv1alpha2.TCPRoute](s.stores.TCPRoute, getKey(name, namespace))
+	return getByKey[gatewayv1alpha2.TCPRoute](s.stores.TCPRoute, getKey(name, namespace))
 }
 
 func (s Store) GetTLSRoute(name string, namespace string) (*gatewayv1alpha2.TLSRoute, error) {
-	return genericGetByKey[gatewayv1alpha2.TLSRoute](s.stores.TLSRoute, getKey(name, namespace))
+	return getByKey[gatewayv1alpha2.TLSRoute](s.stores.TLSRoute, getKey(name, namespace))
 }
 
 // GetReferenceGrant returns the named ReferenceGrant
 func (s Store) GetReferenceGrant(name, namespace string) (*gatewayv1beta1.ReferenceGrant, error) {
-	return genericGetByKey[gatewayv1beta1.ReferenceGrant](s.stores.ReferenceGrant, getKey(name, namespace))
+	return getByKey[gatewayv1beta1.ReferenceGrant](s.stores.ReferenceGrant, getKey(name, namespace))
 }
 
 // GetNamespaceV1 returns the named Namespace
 func (s Store) GetNamespaceV1(name string) (*corev1.Namespace, error) {
-	return genericGetByKey[corev1.Namespace](s.stores.NamespaceV1, name)
+	return getByKey[corev1.Namespace](s.stores.NamespaceV1, name)
 }
 
-func genericGetByKey[T any, PT interface {
+// getByKey stays a plain function rather than a generic method: unlike list and
+// listSorted it needs no Store state, so a receiver would go unused.
+func getByKey[T any, PT interface {
 	*T
 	client.Object
 }](s cache.Store, key string) (*T, error) {
@@ -221,7 +223,7 @@ func genericGetByKey[T any, PT interface {
 
 // ListIngressClassesV1 returns the list of Ingresses in the Ingress v1 store.
 func (s Store) ListIngressClassesV1() []*netv1.IngressClass {
-	return genericListSorted[netv1.IngressClass](s.log, s.stores.IngressClassV1)
+	return s.listSorted[netv1.IngressClass](s.stores.IngressClassV1)
 }
 
 const defaultIngressControllerName = "ngrok.com/ingress-controller"
@@ -263,11 +265,11 @@ func (s Store) ListNgrokIngressClassesV1() []*netv1.IngressClass {
 
 // listIngressesV1 returns the list of all Ingresses in the Ingress v1 store.
 func (s Store) listIngressesV1() []*netv1.Ingress {
-	return genericListSorted[netv1.Ingress](s.log, s.stores.IngressV1)
+	return s.listSorted[netv1.Ingress](s.stores.IngressV1)
 }
 
 func (s Store) listGateways() []*gatewayv1.Gateway {
-	return genericListSorted[gatewayv1.Gateway](s.log, s.stores.Gateway)
+	return s.listSorted[gatewayv1.Gateway](s.stores.Gateway)
 }
 
 // ListNgrokGateways returns only the Gateways whose GatewayClass is managed by
@@ -295,29 +297,29 @@ func (s Store) ListNgrokGateways() []*gatewayv1.Gateway {
 }
 
 func (s Store) ListGatewayClasses() []*gatewayv1.GatewayClass {
-	return genericListSorted[gatewayv1.GatewayClass](s.log, s.stores.GatewayClass)
+	return s.listSorted[gatewayv1.GatewayClass](s.stores.GatewayClass)
 }
 
 func (s Store) ListHTTPRoutes() []*gatewayv1.HTTPRoute {
-	return genericList[gatewayv1.HTTPRoute](s.log, s.stores.HTTPRoute)
+	return s.list[gatewayv1.HTTPRoute](s.stores.HTTPRoute)
 }
 
 func (s Store) ListTCPRoutes() []*gatewayv1alpha2.TCPRoute {
-	return genericList[gatewayv1alpha2.TCPRoute](s.log, s.stores.TCPRoute)
+	return s.list[gatewayv1alpha2.TCPRoute](s.stores.TCPRoute)
 }
 
 func (s Store) ListTLSRoutes() []*gatewayv1alpha2.TLSRoute {
-	return genericList[gatewayv1alpha2.TLSRoute](s.log, s.stores.TLSRoute)
+	return s.list[gatewayv1alpha2.TLSRoute](s.stores.TLSRoute)
 }
 
 // ListReferenceGrants returns the stored ReferenceGrants
 func (s Store) ListReferenceGrants() []*gatewayv1beta1.ReferenceGrant {
-	return genericListSorted[gatewayv1beta1.ReferenceGrant](s.log, s.stores.ReferenceGrant)
+	return s.listSorted[gatewayv1beta1.ReferenceGrant](s.stores.ReferenceGrant)
 }
 
 // ListNamespaces returns the stored Namespaces
 func (s Store) ListNamespaces() []*corev1.Namespace {
-	return genericListSorted[corev1.Namespace](s.log, s.stores.NamespaceV1)
+	return s.listSorted[corev1.Namespace](s.stores.NamespaceV1)
 }
 
 func (s Store) ListNgrokIngressesV1() []*netv1.Ingress {
@@ -335,19 +337,22 @@ func (s Store) ListNgrokIngressesV1() []*netv1.Ingress {
 
 // ListDomainsV1 returns the list of Domains in the Domain v1 store.
 func (s Store) ListDomainsV1() []*ingressv1alpha1.Domain {
-	return genericListSorted[ingressv1alpha1.Domain](s.log, s.stores.DomainV1)
+	return s.listSorted[ingressv1alpha1.Domain](s.stores.DomainV1)
 }
 
-func genericList[T any, PT interface {
+// list returns every object in the given cache store, dropping (and logging)
+// any entry whose type does not match. As a generic method it reads s.log
+// directly, so callers only name the element type: s.list[gatewayv1.HTTPRoute].
+func (s Store) list[T any, PT interface {
 	*T
 	client.Object
-}](log logr.Logger, s cache.Store) []PT {
+}](store cache.Store) []PT {
 	var result []PT
-	for _, item := range s.List() {
+	for _, item := range store.List() {
 		obj, ok := item.(PT)
 		if !ok {
 			var e PT = new(T)
-			log.Error(nil, "List: dropping object of unexpected type", "expected", e.GetObjectKind().GroupVersionKind().Kind, "type", fmt.Sprintf("%#v", item))
+			s.log.Error(nil, "List: dropping object of unexpected type", "expected", e.GetObjectKind().GroupVersionKind().Kind, "type", fmt.Sprintf("%#v", item))
 			continue
 		}
 		result = append(result, obj)
@@ -356,11 +361,12 @@ func genericList[T any, PT interface {
 	return result
 }
 
-func genericListSorted[T any, PT interface {
+// listSorted is list, ordered by namespace/name for stable output.
+func (s Store) listSorted[T any, PT interface {
 	*T
 	client.Object
-}](log logr.Logger, s cache.Store) []PT {
-	var result = genericList[T, PT](log, s)
+}](store cache.Store) []PT {
+	var result = s.list[T, PT](store)
 	sort.SliceStable(result, func(i, j int) bool {
 		is := fmt.Sprintf("%s/%s", result[i].GetNamespace(), result[i].GetName())
 		js := fmt.Sprintf("%s/%s", result[j].GetNamespace(), result[j].GetName())

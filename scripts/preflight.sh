@@ -9,7 +9,11 @@ set -eu -o pipefail
 REQUIRED_MINOR="$(go mod edit -json | jq -r '.Go' | cut -d. -f1,2)"
 GOVERSION="$(go env GOVERSION || echo "not installed")"
 
-if ! [[ "$GOVERSION" == "go${REQUIRED_MINOR}" || "$GOVERSION" = "go${REQUIRED_MINOR}."* ]]; then
+# Prerelease toolchains (go1.27rc2, go1.27beta1) are accepted: nixpkgs can ship
+# an RC for weeks before the final release lands, and the language features we
+# target are frozen at the first RC.
+REQUIRED_MINOR_RE="${REQUIRED_MINOR//./\\.}"
+if ! [[ "$GOVERSION" =~ ^go${REQUIRED_MINOR_RE}([.][0-9]+|(alpha|beta|rc)[0-9]+)?$ ]]; then
   echo "Detected go version $GOVERSION, but ${REQUIRED_MINOR} is required"
   exit 1
 fi

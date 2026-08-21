@@ -3,13 +3,24 @@ linters:
   enable:
     - gocritic
     - govet
-    - staticcheck
     - errcheck
     - ineffassign
-    - unused
     - unconvert
     - misspell
     - revive
+  # GO-1.27-LINT: BEGIN
+  # staticcheck and unused belong to golangci-lint's default linter set, so they
+  # have to be turned off here explicitly -- dropping them from `enable` above
+  # is not enough. Both are driven by honnef.co/go/tools, which golangci-lint
+  # 2.12.2 vendors at v0.7.0. That version's IR builder panics ("unexpected
+  # expr: *ast.KeyValueExpr") on Go 1.27's new struct-literal field-selector
+  # keys, which the go1.27 standard library itself uses -- so it cannot analyze
+  # any package, whether or not that package uses generic methods. Delete this
+  # block once golangci-lint ships a 1.27-aware staticcheck.
+  disable:
+    - staticcheck
+    - unused
+  # GO-1.27-LINT: END
   settings:
     staticcheck:
       checks:

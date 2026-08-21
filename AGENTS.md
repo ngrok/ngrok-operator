@@ -101,3 +101,10 @@ make undeploy               # Remove from cluster
   stage: binaries are cross-compiled on the host by `scripts/build.sh` into
   `bin/ngrok-operator-<os>-<arch>` and `COPY`d into distroless. Don't reintroduce
   a `golang:` base image — that is what created the version drift this replaced.
+- Bumping the Go version in `flake.nix` also means bumping the
+  `buildGo1XXModule` overrides right above the devShell. `golangci-lint`,
+  `controller-gen`, and `goimports` each embed their own `go/types`, and a tool
+  built against an older Go rejects newer source outright (a generic method
+  reads as `method must have no type parameters`). Keep those overrides in step
+  with `goVersion`, and drop them once nixpkgs builds the tools with that Go by
+  default.

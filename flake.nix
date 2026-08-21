@@ -19,6 +19,29 @@
           };
         };
 
+        # Tools that parse our source with their own embedded go/types must be
+        # built with the same Go toolchain we target. A tool built with go1.26
+        # rejects go1.27 source outright ("method must have no type parameters"
+        # for generic methods; golangci-lint refuses to start at all). Drop
+        # these overrides once nixpkgs builds them with go 1.27 by default.
+        goVersion = pkgs.go_1_27;
+
+        # Each package names its Go builder differently, so the override arg
+        # differs too; nixpkgs pins golangci-lint to a specific Go version on
+        # purpose (see the comment in its package.nix).
+        golangci-lint = pkgs.golangci-lint.override { buildGo126Module = pkgs.buildGo127Module; };
+        kubernetes-controller-tools = pkgs.kubernetes-controller-tools.override {
+          buildGoModule = pkgs.buildGo127Module;
+        };
+        # goimports parses our source too, and `go` here is the toolchain it
+        # wraps itself with. Note: go-tools (staticcheck) is deliberately NOT
+        # rebuilt against go 1.27 -- its own test suite fails under 1.27 for the
+        # same reason golangci-lint's vendored copy does (see .golangci.yml).
+        gotools = pkgs.gotools.override {
+          buildGoModule = pkgs.buildGo127Module;
+          go = pkgs.go_1_27;
+        };
+
         readmeGeneratorForHelm = pkgs.buildNpmPackage {
           pname = "readme-generator-for-helm";
           version = "2.6.1";
@@ -80,7 +103,7 @@
             with pkgs;
             [
               bashInteractive
-              go_1_26
+              goVersion
               go-tools
               golangci-lint
               gotools
