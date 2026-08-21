@@ -226,8 +226,12 @@ func TestToCRDJson(t *testing.T) {
 			if tc.expectedErr == nil {
 				assert.NoError(t, err)
 			} else {
-				// Can't compare the exact error as we don't have access to json SyntaxError underlying `msg` field`
-				assert.Equal(t, tc.expectedErr.Error(), err.Error())
+				// Match a substring, not the whole message: we have no access to
+				// the json SyntaxError's underlying `msg` field, and the full
+				// message is prefixed with the concrete type being marshalled,
+				// which changes between Go releases (json.RawMessage became
+				// *jsontext.Value in Go 1.27's new JSON engine).
+				assert.ErrorContains(t, err, tc.expectedErr.Error())
 			}
 		})
 	}
@@ -500,8 +504,12 @@ func TestMergeEndpointRule(t *testing.T) {
 			if tc.expectedErr == nil {
 				assert.NoError(t, err)
 			} else {
-				// Can't compare the exact error as we don't have access to json SyntaxError underlying `msg` field`
-				assert.Equal(t, tc.expectedErr.Error(), err.Error())
+				// Match a substring, not the whole message: we have no access to
+				// the json SyntaxError's underlying `msg` field, and the full
+				// message is prefixed with the concrete type being marshalled,
+				// which changes between Go releases (json.RawMessage became
+				// *jsontext.Value in Go 1.27's new JSON engine).
+				assert.ErrorContains(t, err, tc.expectedErr.Error())
 			}
 		})
 	}

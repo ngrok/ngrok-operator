@@ -74,20 +74,6 @@ func RemoveAndSyncFinalizer(ctx context.Context, c client.Writer, o client.Objec
 	return nil
 }
 
-// ToClientObjects converts a slice of objects whose pointer implements client.Object
-// to a slice of client.Objects
-func ToClientObjects[T any, PT interface {
-	*T
-	client.Object
-}](s []T) []client.Object {
-	objs := make([]client.Object, len(s))
-	for i, obj := range s {
-		var p PT = &obj
-		objs[i] = p
-	}
-	return objs
-}
-
 // ObjectsToName converts a client.Object to its name
 func ObjToName(obj client.Object) string {
 	if obj == nil {

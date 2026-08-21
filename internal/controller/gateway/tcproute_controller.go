@@ -31,11 +31,11 @@ import (
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-operator/internal/controller"
-	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 )
 
@@ -52,74 +52,26 @@ type TCPRouteReconciler struct {
 	DrainState controller.DrainState
 }
 
+// ops describes TCPRoute to the shared route reconciler in route_controller.go.
+func (r *TCPRouteReconciler) ops() routeOps[*gatewayv1alpha2.TCPRoute] {
+	return routeOps[*gatewayv1alpha2.TCPRoute]{
+		client:      r.Client,
+		driver:      r.Driver,
+		drainState:  r.DrainState,
+		kind:        "TCPRoute",
+		obj:         new(gatewayv1alpha2.TCPRoute),
+		parentRefs:  func(o *gatewayv1alpha2.TCPRoute) []gatewayv1.ParentReference { return o.Spec.ParentRefs },
+		deleteNamed: r.Driver.DeleteNamedTCPRoute,
+		deleteObj:   r.Driver.DeleteTCPRoute,
+		update: func(o *gatewayv1alpha2.TCPRoute) error {
+			_, err := r.Driver.UpdateTCPRoute(o)
+			return err
+		},
+	}
+}
+
 func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues("TCPRoute", req.NamespacedName)
-	ctx = ctrl.LoggerInto(ctx, log)
-
-	tcpRoute := new(gatewayv1alpha2.TCPRoute)
-	err := r.Client.Get(ctx, req.NamespacedName, tcpRoute)
-	switch {
-	case err == nil:
-		// all good, continue
-	case client.IgnoreNotFound(err) == nil:
-		if err := r.Driver.DeleteNamedTCPRoute(req.NamespacedName); err != nil {
-			log.Error(err, "failed to delete TCPRoute from store")
-			return ctrl.Result{}, err
-		}
-
-		return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
-	default:
-		return ctrl.Result{}, err
-	}
-
-	if controller.IsDelete(tcpRoute) {
-		log.Info("deleting TCPRoute from store")
-		if err := util.RemoveAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
-			log.Error(err, "Failed to remove finalizer")
-			return ctrl.Result{}, err
-		}
-
-		if err := r.Driver.DeleteTCPRoute(tcpRoute); err != nil {
-			return ctrl.Result{}, err
-		}
-
-		if err := r.Driver.Sync(ctx, r.Client); err != nil {
-			log.Error(err, "failed to sync after deleting TCPRoute from store")
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
-	}
-
-	// Per the Gateway API spec, only manage routes that reference our GatewayClass.
-	// If no parentRef targets an ngrok-managed Gateway, remove any previously-added
-	// finalizer and skip reconciliation entirely.
-	owned, err := routeReferencesNgrokGateway(ctx, r.Client, tcpRoute.Namespace, tcpRoute.Spec.ParentRefs)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if !owned {
-		log.V(1).Info("TCPRoute does not reference any ngrok-managed Gateway, skipping")
-		return ctrl.Result{}, util.RemoveAndSyncFinalizer(ctx, r.Client, tcpRoute)
-	}
-
-	// Skip non-delete reconciles during drain to prevent adding new finalizers
-	if controller.IsDraining(ctx, r.DrainState) {
-		log.V(1).Info("Draining, skipping non-delete reconcile")
-		return ctrl.Result{}, nil
-	}
-
-	// The object is not being deleted, so register and sync finalizer
-	if err := util.RegisterAndSyncFinalizer(ctx, r.Client, tcpRoute); err != nil {
-		log.Error(err, "Failed to register finalizer")
-		return ctrl.Result{}, err
-	}
-
-	_, err = r.Driver.UpdateTCPRoute(tcpRoute)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
+	return reconcileRoute(ctx, req, r.ops())
 }
 
 // SetupWithManager sets up the controller with the Manager.
