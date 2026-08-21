@@ -7,7 +7,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -66,7 +65,7 @@ func TestScanAnnotations(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := &fakeRecorder{}
-			obj := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Annotations: tc.annotations}}
+			obj := &corev1.Service{Annotations: tc.annotations}
 			ScanAnnotations(logr.Discard(), rec, obj)
 			assert.Len(t, rec.events, tc.wantReasons)
 			for _, ev := range rec.events {
@@ -83,9 +82,8 @@ func TestScanAnnotations(t *testing.T) {
 }
 
 func TestScanAnnotationsNilRecorderDoesNotPanic(_ *testing.T) {
-	obj := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
-		Annotations: map[string]string{"k8s.ngrok.com/url": "tcp://x"},
-	}}
+	obj := &corev1.Service{
+		Annotations: map[string]string{"k8s.ngrok.com/url": "tcp://x"}}
 	ScanAnnotations(logr.Discard(), nil, obj)
 }
 

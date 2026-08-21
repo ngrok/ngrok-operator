@@ -71,7 +71,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	// +kubebuilder:scaffold:imports
 )
@@ -444,21 +443,20 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         opts.electionID != "",
 		LeaderElectionID:       opts.electionID,
-	}
 
-	// The KubernetesOperator CR is a singleton owned by the operator and always
-	// lives in the release namespace, regardless of `watchNamespace`. Pin its
-	// cache scope to the release namespace so the controller can always list/watch
-	// it, and so RBAC for it can stay narrowly scoped to the release namespace.
-	options.Cache = cache.Options{
-		ByObject: map[client.Object]cache.ByObject{
-			&ngrokv1alpha1.KubernetesOperator{}: {
-				Namespaces: map[string]cache.Config{
-					opts.namespace: {},
+		// The KubernetesOperator CR is a singleton owned by the operator and always
+		// lives in the release namespace, regardless of `watchNamespace`. Pin its
+		// cache scope to the release namespace so the controller can always list/watch
+		// it, and so RBAC for it can stay narrowly scoped to the release namespace.
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&ngrokv1alpha1.KubernetesOperator{}: {
+					Namespaces: map[string]cache.Config{
+						opts.namespace: {},
+					},
 				},
 			},
-		},
-	}
+		}}
 	if opts.ingressWatchNamespace != "" {
 		options.Cache.DefaultNamespaces = map[string]cache.Config{
 			opts.ingressWatchNamespace: {},
@@ -793,10 +791,8 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 
 func createKubernetesOperator(ctx context.Context, client client.Client, opts apiManagerOpts) error {
 	k8sOperator := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      opts.releaseName,
-			Namespace: opts.namespace,
-		},
+		Name:      opts.releaseName,
+		Namespace: opts.namespace,
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{

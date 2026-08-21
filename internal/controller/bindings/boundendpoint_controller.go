@@ -33,7 +33,6 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -357,7 +356,7 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 
 	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
 
-	targetNamespace := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: targetService.Namespace}}
+	targetNamespace := &v1.Namespace{Name: targetService.Namespace}
 	if err := r.Client.Get(ctx, types.NamespacedName{Name: targetNamespace.Name}, targetNamespace); err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			log.Error(err, "Failed to get Target Namespace")
@@ -423,12 +422,10 @@ func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *
 	// targetService represents the user's configured endpoint binding as a Service
 	// Clients will send requests to this service: <scheme>://<service>.<namespace>:<port>
 	targetService := &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        boundEndpoint.Spec.Target.Service,
-			Namespace:   boundEndpoint.Spec.Target.Namespace,
-			Labels:      targetLabels,
-			Annotations: targetAnnotations,
-		},
+		Name:        boundEndpoint.Spec.Target.Service,
+		Namespace:   boundEndpoint.Spec.Target.Namespace,
+		Labels:      targetLabels,
+		Annotations: targetAnnotations,
 		Spec: v1.ServiceSpec{
 			Type:                  v1.ServiceTypeExternalName,
 			ExternalName:          endpointURL,
@@ -456,12 +453,10 @@ func (r *BoundEndpointReconciler) convertBoundEndpointToServices(boundEndpoint *
 	// Target Service will point to this Service via an ExternalName
 	// This Service will point to the Pod Forwarders' containers on a dedicated allocated port
 	upstreamService := &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        boundEndpoint.Name,
-			Namespace:   boundEndpoint.Namespace,
-			Labels:      upstreamLabels,
-			Annotations: upstreamAnnotations,
-		},
+		Name:        boundEndpoint.Name,
+		Namespace:   boundEndpoint.Namespace,
+		Labels:      upstreamLabels,
+		Annotations: upstreamAnnotations,
 		Spec: v1.ServiceSpec{
 			Type:                  v1.ServiceTypeClusterIP,
 			InternalTrafficPolicy: &internalTrafficPolicy,
@@ -502,10 +497,8 @@ func (r *BoundEndpointReconciler) findBoundEndpointsForNamespace(ctx context.Con
 	requests := make([]reconcile.Request, len(boundEndpoints.Items))
 	for i, binding := range boundEndpoints.Items {
 		requests[i] = reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: binding.Namespace,
-				Name:      binding.Name,
-			},
+			Namespace: binding.Namespace,
+			Name:      binding.Name,
 		}
 		log.WithValues("endpoint-binding", map[string]string{
 			"namespace": binding.Namespace,
@@ -545,10 +538,8 @@ func (r *BoundEndpointReconciler) findBoundEndpointsForService(ctx context.Conte
 
 	return []reconcile.Request{
 		{
-			NamespacedName: types.NamespacedName{
-				Namespace: epb.Namespace,
-				Name:      epb.Name,
-			},
+			Namespace: epb.Namespace,
+			Name:      epb.Name,
 		},
 	}
 }

@@ -75,10 +75,8 @@ func AggregateBindingEndpoints(ctx context.Context, endpoints []ngrok.Endpoint) 
 
 		// add the found endpoint to the list of endpoints
 		bindingEndpoint.Status.Endpoints = append(bindingEndpoint.Status.Endpoints, bindingsv1alpha1.BindingEndpoint{
-			Ref: ngrok.Ref{
-				ID:  endpoint.ID,
-				URI: endpoint.URI,
-			},
+			ID:  endpoint.ID,
+			URI: endpoint.URI,
 		})
 
 		// update the aggregated map

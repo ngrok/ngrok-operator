@@ -374,10 +374,8 @@ var _ = Describe("BoundEndpoint Controller", func() {
 	Context("Schema validation", func() {
 		It("should reject a BoundEndpoint without endpointURL", func(ctx SpecContext) {
 			be := &bindingsv1alpha1.BoundEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "missing-endpoint-url",
-					Namespace: pollerController.Namespace,
-				},
+				Name:      "missing-endpoint-url",
+				Namespace: pollerController.Namespace,
 				Spec: bindingsv1alpha1.BoundEndpointSpec{
 					Scheme: "https",
 					Port:   8080,

@@ -14,11 +14,9 @@ import (
 // Helper function to create a test CloudEndpoint
 func createTestCloudEndpoint(name, namespace string) *ngrokv1alpha1.CloudEndpoint {
 	return &ngrokv1alpha1.CloudEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       name,
-			Namespace:  namespace,
-			Generation: 1,
-		},
+		Name:       name,
+		Namespace:  namespace,
+		Generation: 1,
 		Status: ngrokv1alpha1.CloudEndpointStatus{
 			Conditions: []metav1.Condition{},
 		},

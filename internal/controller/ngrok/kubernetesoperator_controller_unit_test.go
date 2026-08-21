@@ -143,11 +143,9 @@ func TestUpdateStatus_Conditions(t *testing.T) {
 			require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 			ko := &ngrokv1alpha1.KubernetesOperator{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:       "ko",
-					Namespace:  "test-ns",
-					Generation: 2,
-				},
+				Name:       "ko",
+				Namespace:  "test-ns",
+				Generation: 2,
 			}
 
 			fakeClient := fake.NewClientBuilder().
@@ -203,11 +201,9 @@ func TestUpdate_ExistingOperatorConfigurationFailureRemainsRegistered(t *testing
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "ko",
-			Namespace:  "test-ns",
-			Generation: 2,
-		},
+		Name:       "ko",
+		Namespace:  "test-ns",
+		Generation: 2,
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 			EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
 		},
@@ -249,11 +245,9 @@ func TestUpdate_ExistingOperatorConfigurationFailureRemainsRegistered(t *testing
 func TestKubernetesOperatorReconcilePredicate(t *testing.T) {
 	now := metav1.Now()
 	base := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "ko",
-			Namespace:  "test-ns",
-			Generation: 1,
-		},
+		Name:       "ko",
+		Namespace:  "test-ns",
+		Generation: 1,
 	}
 
 	tests := []struct {
@@ -395,11 +389,9 @@ func TestInvalidateTLSSecretCSR(t *testing.T) {
 	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tls-secret",
-			Namespace: "test-ns",
-		},
-		Type: v1.SecretTypeTLS,
+		Name:      "tls-secret",
+		Namespace: "test-ns",
+		Type:      v1.SecretTypeTLS,
 		Data: map[string][]byte{
 			"tls.key": []byte("key"),
 			"tls.crt": []byte("cert"),
@@ -412,10 +404,8 @@ func TestInvalidateTLSSecretCSR(t *testing.T) {
 	}
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ko",
-			Namespace: "test-ns",
-		},
+		Name:      "ko",
+		Namespace: "test-ns",
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
 				TlsSecretName: "tls-secret",
@@ -442,11 +432,9 @@ func TestReconcileBindingCertRenewalRequeueAfter(t *testing.T) {
 	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tls-secret",
-			Namespace: "test-ns",
-		},
-		Type: v1.SecretTypeTLS,
+		Name:      "tls-secret",
+		Namespace: "test-ns",
+		Type:      v1.SecretTypeTLS,
 		Data: map[string][]byte{
 			"tls.key": []byte("key"),
 			"tls.crt": []byte("cert"),
@@ -472,10 +460,8 @@ func TestReconcileBindingCertRenewalRequeueAfter(t *testing.T) {
 	}
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ko",
-			Namespace: "test-ns",
-		},
+		Name:      "ko",
+		Namespace: "test-ns",
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 			EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
 			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
@@ -502,11 +488,9 @@ func TestReconcileBindingCertRenewalInvalidatesCSR(t *testing.T) {
 	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tls-secret",
-			Namespace: "test-ns",
-		},
-		Type: v1.SecretTypeTLS,
+		Name:      "tls-secret",
+		Namespace: "test-ns",
+		Type:      v1.SecretTypeTLS,
 		Data: map[string][]byte{
 			"tls.key": []byte("key"),
 			"tls.crt": []byte("cert"),
@@ -533,10 +517,8 @@ func TestReconcileBindingCertRenewalInvalidatesCSR(t *testing.T) {
 	}
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ko",
-			Namespace: "test-ns",
-		},
+		Name:      "ko",
+		Namespace: "test-ns",
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 			EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
 			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{

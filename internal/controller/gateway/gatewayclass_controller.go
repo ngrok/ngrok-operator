@@ -194,10 +194,8 @@ func (r *GatewayClassReconciler) findGatewayClassForGateway(_ context.Context, o
 	log.V(1).Info("Enqueueing request for gatewayclass")
 	return []reconcile.Request{
 		{
-			NamespacedName: client.ObjectKey{
-				Namespace: "",
-				Name:      string(gw.Spec.GatewayClassName),
-			},
+			Namespace: "",
+			Name:      string(gw.Spec.GatewayClassName),
 		},
 	}
 }

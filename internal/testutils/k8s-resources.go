@@ -20,11 +20,9 @@ import (
 
 func NewTestIngressClass(name string, isDefault bool, isNgrok bool) *netv1.IngressClass {
 	i := netv1.IngressClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				"app.kubernetes.io/component": "controller",
-			},
+		Name: name,
+		Labels: map[string]string{
+			"app.kubernetes.io/component": "controller",
 		},
 	}
 
@@ -55,17 +53,15 @@ func NewTestIngressV1WithHosts(name string, namespace string, hosts ...string) *
 	for _, host := range hosts {
 		rules = append(rules, netv1.IngressRule{
 			Host: host,
-			IngressRuleValue: netv1.IngressRuleValue{
-				HTTP: &netv1.HTTPIngressRuleValue{
-					Paths: []netv1.HTTPIngressPath{
-						{
-							Path: "/",
-							Backend: netv1.IngressBackend{
-								Service: &netv1.IngressServiceBackend{
-									Name: "example",
-									Port: netv1.ServiceBackendPort{
-										Number: 80,
-									},
+			HTTP: &netv1.HTTPIngressRuleValue{
+				Paths: []netv1.HTTPIngressPath{
+					{
+						Path: "/",
+						Backend: netv1.IngressBackend{
+							Service: &netv1.IngressServiceBackend{
+								Name: "example",
+								Port: netv1.ServiceBackendPort{
+									Number: 80,
 								},
 							},
 						},
@@ -75,10 +71,8 @@ func NewTestIngressV1WithHosts(name string, namespace string, hosts ...string) *
 		})
 	}
 	return &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: netv1.IngressSpec{
 			Rules: rules,
 		},
@@ -91,10 +85,8 @@ func NewTestIngressV1(name string, namespace string) *netv1.Ingress {
 
 func NewTestServiceV1(name string, namespace string) *corev1.Service {
 	return &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{
 				{
@@ -128,10 +120,8 @@ func WithDomainReadyCondition(status metav1.ConditionStatus, message string) Dom
 
 func NewDomainV1(name string, namespace string, opts ...DomainOpt) *ingressv1alpha1.Domain {
 	d := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(name),
-			Namespace: namespace,
-		},
+		Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(name),
+		Namespace: namespace,
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: name,
 		},
@@ -162,9 +152,7 @@ func NewGatewayClass(isManaged bool) *gatewayv1.GatewayClass {
 		controllerName = "k8s.io/some-other-controller"
 	}
 	return &gatewayv1.GatewayClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: RandomName("gateway-class"),
-		},
+		Name: RandomName("gateway-class"),
 		Spec: gatewayv1.GatewayClassSpec{
 			ControllerName: controllerName,
 		},
@@ -173,10 +161,8 @@ func NewGatewayClass(isManaged bool) *gatewayv1.GatewayClass {
 
 func NewGateway(name string, namespace string) gatewayv1.Gateway {
 	return gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: gatewayv1.GatewaySpec{
 			GatewayClassName: "test-gatewayclass",
 			Listeners: []gatewayv1.Listener{
@@ -205,10 +191,8 @@ func NewGatewayWithHostnames(name string, namespace string, hostnames ...string)
 	}
 
 	return &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: gatewayv1.GatewaySpec{
 			GatewayClassName: "ngrok",
 			Listeners:        listeners,
@@ -218,10 +202,8 @@ func NewGatewayWithHostnames(name string, namespace string, hostnames ...string)
 
 func NewHTTPRoute(name string, namespace string) gatewayv1.HTTPRoute {
 	return gatewayv1.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: gatewayv1.HTTPRouteSpec{
 			Rules: []gatewayv1.HTTPRouteRule{
 				{
@@ -241,19 +223,15 @@ func NewHTTPRoute(name string, namespace string) gatewayv1.HTTPRoute {
 
 func NewTLSRoute(name string, namespace string) gatewayv1alpha2.TLSRoute {
 	return gatewayv1alpha2.TLSRoute{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: gatewayv1alpha2.TLSRouteSpec{
 			Rules: []gatewayv1alpha2.TLSRouteRule{
 				{
 					BackendRefs: []gatewayv1alpha2.BackendRef{
 						{
-							BackendObjectReference: gatewayv1alpha2.BackendObjectReference{
-								Name: "test-service",
-								Port: ptr.To(gatewayv1.PortNumber(8000)),
-							},
+							Name: "test-service",
+							Port: ptr.To(gatewayv1.PortNumber(8000)),
 						},
 					},
 				},
@@ -264,19 +242,15 @@ func NewTLSRoute(name string, namespace string) gatewayv1alpha2.TLSRoute {
 
 func NewTCPRoute(name string, namespace string) gatewayv1alpha2.TCPRoute {
 	return gatewayv1alpha2.TCPRoute{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: gatewayv1alpha2.TCPRouteSpec{
 			Rules: []gatewayv1alpha2.TCPRouteRule{
 				{
 					BackendRefs: []gatewayv1alpha2.BackendRef{
 						{
-							BackendObjectReference: gatewayv1alpha2.BackendObjectReference{
-								Name: "tcp-service",
-								Port: ptr.To(gatewayv1.PortNumber(8000)),
-							},
+							Name: "tcp-service",
+							Port: ptr.To(gatewayv1.PortNumber(8000)),
 						},
 					},
 				},
@@ -287,10 +261,8 @@ func NewTCPRoute(name string, namespace string) gatewayv1alpha2.TCPRoute {
 
 func NewReferenceGrant(name string, namespace string) gatewayv1beta1.ReferenceGrant {
 	return gatewayv1beta1.ReferenceGrant{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: gatewayv1beta1.ReferenceGrantSpec{
 			From: []gatewayv1beta1.ReferenceGrantFrom{
 				{
@@ -311,10 +283,8 @@ func NewReferenceGrant(name string, namespace string) gatewayv1beta1.ReferenceGr
 
 func NewTestNgrokTrafficPolicy(name string, namespace string, policyStr string) ngrokv1alpha1.NgrokTrafficPolicy {
 	return ngrokv1alpha1.NgrokTrafficPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 			Policy: json.RawMessage(policyStr),
 		},
@@ -331,10 +301,8 @@ type CloudEndpointOpt func(*ngrokv1alpha1.CloudEndpoint)
 //	NewCloudEndpoint
 func NewCloudEndpoint(opts ...CloudEndpointOpt) *ngrokv1alpha1.CloudEndpoint {
 	clep := &ngrokv1alpha1.CloudEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      RandomName("cloud-endpoint"),
-			Namespace: RandomName("namespace"),
-		},
+		Name:      RandomName("cloud-endpoint"),
+		Namespace: RandomName("namespace"),
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL: RandomName("url"),
 		},
@@ -349,10 +317,8 @@ type AgentEndpointOpt func(*ngrokv1alpha1.AgentEndpoint)
 
 func NewAgentEndpoint(opts ...AgentEndpointOpt) *ngrokv1alpha1.AgentEndpoint {
 	aep := &ngrokv1alpha1.AgentEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      RandomName("agent-endpoint"),
-			Namespace: RandomName("namespace"),
-		},
+		Name:      RandomName("agent-endpoint"),
+		Namespace: RandomName("namespace"),
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
 			URL: RandomURL(),
 		},

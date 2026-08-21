@@ -323,10 +323,8 @@ func (r *AgentEndpointReconciler) findAgentEndpointForTrafficPolicy(ctx context.
 	var requests []ctrl.Request
 	for _, aep := range agentEndpointList.Items {
 		requests = append(requests, ctrl.Request{
-			NamespacedName: client.ObjectKey{
-				Name:      aep.Name,
-				Namespace: aep.Namespace,
-			},
+			Name:      aep.Name,
+			Namespace: aep.Namespace,
 		})
 	}
 

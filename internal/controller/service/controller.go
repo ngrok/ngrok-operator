@@ -54,7 +54,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -357,10 +356,8 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 		svcNamespace := svc.GetNamespace()
 		svcName := svc.GetName()
 		requests[i] = reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: svcNamespace,
-				Name:      svcName,
-			},
+			Namespace: svcNamespace,
+			Name:      svcName,
 		}
 		log.V(3).Info("Triggering reconciliation for service", "namespace", svcNamespace, "name", svcName)
 	}
@@ -548,14 +545,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 	// For the default/collapse strategy, make a single AgentEndpoint
 	case ir.IRMappingStrategy_EndpointsCollapsed:
 		agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: svc.Name + "-",
-				Namespace:    svc.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
-				},
-				Labels: r.ControllerLabels.Labels(),
+			GenerateName: svc.Name + "-",
+			Namespace:    svc.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 			},
+			Labels: r.ControllerLabels.Labels(),
 			Spec: ngrokv1alpha1.AgentEndpointSpec{
 				URL:      computedEndpointURL,
 				Bindings: useBindings,
@@ -584,14 +579,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		}
 
 		cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: svc.Name + "-",
-				Namespace:    svc.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
-				},
-				Labels: r.ControllerLabels.Labels(),
+			GenerateName: svc.Name + "-",
+			Namespace:    svc.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 			},
+			Labels: r.ControllerLabels.Labels(),
 			Spec: ngrokv1alpha1.CloudEndpointSpec{
 				URL:            computedEndpointURL,
 				Bindings:       useBindings,
@@ -602,21 +595,19 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				// only `policy` survives. Drop the `Policy` write in the cleanup release.
 				TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 					Inline: rawPolicy,
-					Policy: rawPolicy,
+					Policy: rawPolicy, //nolint:staticcheck // SA1019: deliberate legacy dual-write, see above
 				},
 			},
 		}
 		objects = append(objects, cloudEndpoint)
 
 		agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: svc.Name + "-internal-",
-				Namespace:    svc.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
-				},
-				Labels: r.ControllerLabels.Labels(),
+			GenerateName: svc.Name + "-internal-",
+			Namespace:    svc.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 			},
+			Labels: r.ControllerLabels.Labels(),
 			Spec: ngrokv1alpha1.AgentEndpointSpec{
 				URL: internalURL,
 				Upstream: ngrokv1alpha1.EndpointUpstream{

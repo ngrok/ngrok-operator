@@ -213,7 +213,7 @@ func TestToCRDJson(t *testing.T) {
 					PhaseOnHttpRequest: {[]byte(`ngrok is built to deliver applications and APIs with  zero networking configuration and zero hardware`)},
 				},
 			},
-			expectedErr: errors.New(`json: error calling MarshalJSON for type json.RawMessage: invalid character 'g' in literal null (expecting 'u')`),
+			expectedErr: errors.New(`json: error calling MarshalJSON for type *jsontext.Value: invalid character 'g' in literal null (expecting 'u')`),
 		},
 	}
 
@@ -484,7 +484,7 @@ func TestMergeEndpointRule(t *testing.T) {
 			addedPhase: PhaseOnHttpRequest,
 			// original traffic policy should be unaffected
 			expectedMergedTrafficPolicy: *newBaseTrafficPolicy(t, nil),
-			expectedErr:                 errors.New("json: error calling MarshalJSON for type json.RawMessage: invalid character 'i' looking for beginning of value"),
+			expectedErr:                 errors.New("json: error calling MarshalJSON for type *jsontext.Value: invalid character 'i' looking for beginning of value"),
 		},
 	}
 

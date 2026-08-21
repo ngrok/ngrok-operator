@@ -89,10 +89,8 @@ func TestOrchestrator_HandleDrain_CompletesSuccessfully(t *testing.T) {
 	scheme := setupTestScheme(t)
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-release",
-			Namespace: "ngrok-operator",
-		},
+		Name:      "my-release",
+		Namespace: "ngrok-operator",
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 			Drain: &ngrokv1alpha1.DrainConfig{
 				Policy: ngrokv1alpha1.DrainPolicyRetain,
@@ -138,10 +136,8 @@ func TestOrchestrator_HandleDrain_SetsStatusToDraining(t *testing.T) {
 	scheme := setupTestScheme(t)
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-release",
-			Namespace: "ngrok-operator",
-		},
+		Name:      "my-release",
+		Namespace: "ngrok-operator",
 	}
 
 	client := fake.NewClientBuilder().
@@ -176,10 +172,8 @@ func TestOrchestrator_HandleDrain_AlreadyCompleted(t *testing.T) {
 	scheme := setupTestScheme(t)
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-release",
-			Namespace: "ngrok-operator",
-		},
+		Name:      "my-release",
+		Namespace: "ngrok-operator",
 		Status: ngrokv1alpha1.KubernetesOperatorStatus{
 			Conditions: []metav1.Condition{{
 				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
@@ -216,10 +210,8 @@ func TestOrchestrator_HandleDrain_TransientErrors_OutcomeRetry(t *testing.T) {
 	scheme := setupTestScheme(t)
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-release",
-			Namespace: "ngrok-operator",
-		},
+		Name:      "my-release",
+		Namespace: "ngrok-operator",
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 			Drain: &ngrokv1alpha1.DrainConfig{
 				Policy: ngrokv1alpha1.DrainPolicyRetain,
@@ -228,11 +220,9 @@ func TestOrchestrator_HandleDrain_TransientErrors_OutcomeRetry(t *testing.T) {
 	}
 
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-ingress",
-			Namespace:  "default",
-			Finalizers: []string{"k8s.ngrok.com/finalizer"},
-		},
+		Name:       "test-ingress",
+		Namespace:  "default",
+		Finalizers: []string{"k8s.ngrok.com/finalizer"},
 	}
 
 	fakeClient := fake.NewClientBuilder().
@@ -298,10 +288,8 @@ func TestOrchestrator_HandleDrain_ListError_OutcomeRetry(t *testing.T) {
 	scheme := setupTestScheme(t)
 
 	ko := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-release",
-			Namespace: "ngrok-operator",
-		},
+		Name:      "my-release",
+		Namespace: "ngrok-operator",
 	}
 
 	fakeClient := fake.NewClientBuilder().

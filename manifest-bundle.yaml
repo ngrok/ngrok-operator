@@ -2034,6 +2034,7 @@ rules:
   - patch
   - update
   - watch
+
 ---
 # Source: ngrok-operator/templates/api-manager/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2934,6 +2935,7 @@ rules:
   - get
   - list
   - watch
+
 ---
 # Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2973,6 +2975,7 @@ rules:
   verbs:
   - create
   - patch
+
 ---
 # Source: ngrok-operator/templates/api-manager/release-namespace-role.yaml
 # Operator-state RBAC: rules the api-manager needs that are tied to the
@@ -3035,6 +3038,7 @@ rules:
   - get
   - patch
   - update
+
 ---
 # Source: ngrok-operator/templates/agent/release-namespace-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3334,6 +3338,7 @@ metadata:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3362,6 +3367,7 @@ rules:
       - list
       - watch
       - delete
+
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1

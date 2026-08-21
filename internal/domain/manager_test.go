@@ -54,10 +54,8 @@ func newTestManagerWithOpts(t *testing.T, opts []ManagerOption, objs ...client.O
 
 func createTestEndpoint(name, namespace, url string) *ngrokv1alpha1.AgentEndpoint {
 	return &ngrokv1alpha1.AgentEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
 			URL: url,
 		},
@@ -69,10 +67,8 @@ func createTestEndpoint(name, namespace, url string) *ngrokv1alpha1.AgentEndpoin
 
 func createReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Domain {
 	return &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: domainName,
 		},
@@ -92,10 +88,8 @@ func createReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Doma
 
 func createNotReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Domain {
 	return &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: domainName,
 		},
@@ -272,10 +266,8 @@ func TestManager_EnsureDomainExists_ExistingDomainNotReady(t *testing.T) {
 
 func TestManager_EnsureDomainExists_ExistingDomainNoReadyCondition(t *testing.T) {
 	existingDomain := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "example-com",
-			Namespace: "default",
-		},
+		Name:      "example-com",
+		Namespace: "default",
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: "example.com",
 		},
@@ -371,17 +363,17 @@ func TestManager_EnsureDomainExists_SkipsKubernetesBinding(t *testing.T) {
 		{
 			name: "AgentEndpoint",
 			endpoint: &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "k8s-bound-endpoint", Namespace: "default"},
-				Spec:       ngrokv1alpha1.AgentEndpointSpec{URL: "http://aws.demo", Bindings: []string{"kubernetes"}},
-				Status:     ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
+				Name: "k8s-bound-endpoint", Namespace: "default",
+				Spec:   ngrokv1alpha1.AgentEndpointSpec{URL: "http://aws.demo", Bindings: []string{"kubernetes"}},
+				Status: ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
 			},
 		},
 		{
 			name: "CloudEndpoint",
 			endpoint: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "k8s-bound-endpoint", Namespace: "default"},
-				Spec:       ngrokv1alpha1.CloudEndpointSpec{URL: "http://aws.demo", Bindings: []string{"kubernetes"}},
-				Status:     ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
+				Name: "k8s-bound-endpoint", Namespace: "default",
+				Spec:   ngrokv1alpha1.CloudEndpointSpec{URL: "http://aws.demo", Bindings: []string{"kubernetes"}},
+				Status: ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
 			},
 		},
 	}
@@ -411,17 +403,17 @@ func TestManager_EnsureDomainExists_SkipsInternalBinding(t *testing.T) {
 		{
 			name: "AgentEndpoint",
 			endpoint: &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "internal-bound-endpoint", Namespace: "default"},
-				Spec:       ngrokv1alpha1.AgentEndpointSpec{URL: "http://internal.demo", Bindings: []string{"internal"}},
-				Status:     ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
+				Name: "internal-bound-endpoint", Namespace: "default",
+				Spec:   ngrokv1alpha1.AgentEndpointSpec{URL: "http://internal.demo", Bindings: []string{"internal"}},
+				Status: ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
 			},
 		},
 		{
 			name: "CloudEndpoint",
 			endpoint: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "internal-bound-endpoint", Namespace: "default"},
-				Spec:       ngrokv1alpha1.CloudEndpointSpec{URL: "http://internal.demo", Bindings: []string{"internal"}},
-				Status:     ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
+				Name: "internal-bound-endpoint", Namespace: "default",
+				Spec:   ngrokv1alpha1.CloudEndpointSpec{URL: "http://internal.demo", Bindings: []string{"internal"}},
+				Status: ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
 			},
 		},
 	}
@@ -451,33 +443,33 @@ func TestManager_EnsureDomainExists_SkipsTCPURLs(t *testing.T) {
 		{
 			name: "AgentEndpoint with tcp ngrok URL",
 			endpoint: &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tcp-endpoint", Namespace: "default"},
-				Spec:       ngrokv1alpha1.AgentEndpointSpec{URL: "tcp://1.tcp.ngrok.io:12345"},
-				Status:     ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
+				Name: "tcp-endpoint", Namespace: "default",
+				Spec:   ngrokv1alpha1.AgentEndpointSpec{URL: "tcp://1.tcp.ngrok.io:12345"},
+				Status: ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
 			},
 		},
 		{
 			name: "AgentEndpoint with custom tcp URL",
 			endpoint: &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tcp-custom-endpoint", Namespace: "default"},
-				Spec:       ngrokv1alpha1.AgentEndpointSpec{URL: "tcp://custom.example.com:8080"},
-				Status:     ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
+				Name: "tcp-custom-endpoint", Namespace: "default",
+				Spec:   ngrokv1alpha1.AgentEndpointSpec{URL: "tcp://custom.example.com:8080"},
+				Status: ngrokv1alpha1.AgentEndpointStatus{Conditions: []metav1.Condition{}},
 			},
 		},
 		{
 			name: "CloudEndpoint with tcp ngrok URL",
 			endpoint: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tcp-endpoint", Namespace: "default"},
-				Spec:       ngrokv1alpha1.CloudEndpointSpec{URL: "tcp://1.tcp.ngrok.io:12345"},
-				Status:     ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
+				Name: "tcp-endpoint", Namespace: "default",
+				Spec:   ngrokv1alpha1.CloudEndpointSpec{URL: "tcp://1.tcp.ngrok.io:12345"},
+				Status: ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
 			},
 		},
 		{
 			name: "CloudEndpoint with custom tcp URL",
 			endpoint: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tcp-custom-endpoint", Namespace: "default"},
-				Spec:       ngrokv1alpha1.CloudEndpointSpec{URL: "tcp://custom.example.com:8080"},
-				Status:     ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
+				Name: "tcp-custom-endpoint", Namespace: "default",
+				Spec:   ngrokv1alpha1.CloudEndpointSpec{URL: "tcp://custom.example.com:8080"},
+				Status: ngrokv1alpha1.CloudEndpointStatus{Conditions: []metav1.Condition{}},
 			},
 		},
 	}
@@ -504,8 +496,8 @@ func TestManager_EnsureDomainExists_KubernetesBinding_DeletesStaleDomain(t *test
 	manager, c := newTestManager(t, existingDomain)
 
 	endpoint := &ngrokv1alpha1.AgentEndpoint{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-endpoint", Namespace: "default"},
-		Spec:       ngrokv1alpha1.AgentEndpointSpec{URL: "http://example.com", Bindings: []string{"kubernetes"}},
+		Name: "test-endpoint", Namespace: "default",
+		Spec: ngrokv1alpha1.AgentEndpointSpec{URL: "http://example.com", Bindings: []string{"kubernetes"}},
 		Status: ngrokv1alpha1.AgentEndpointStatus{
 			DomainRef:  &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com"},
 			Conditions: []metav1.Condition{},
@@ -555,7 +547,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com", Namespace: &ns}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{ObjectMeta: metav1.ObjectMeta{Name: "example-com", Namespace: "default"}},
+			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
 			want:   true,
 		},
 		{
@@ -565,7 +557,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com", Namespace: nil}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{ObjectMeta: metav1.ObjectMeta{Name: "example-com", Namespace: "default"}},
+			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
 			want:   true,
 		},
 		{
@@ -576,7 +568,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com", Namespace: &emptyNs}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{ObjectMeta: metav1.ObjectMeta{Name: "example-com", Namespace: "default"}},
+			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
 			want:   true,
 		},
 		{
@@ -587,7 +579,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com", Namespace: &ns}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{ObjectMeta: metav1.ObjectMeta{Name: "example-com", Namespace: "default"}},
+			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
 			want:   false,
 		},
 		{
@@ -598,7 +590,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "different-domain", Namespace: &ns}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{ObjectMeta: metav1.ObjectMeta{Name: "example-com", Namespace: "default"}},
+			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
 			want:   false,
 		},
 		{
@@ -606,7 +598,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 			endpoint: func() *ngrokv1alpha1.AgentEndpoint {
 				return createTestEndpoint("test-endpoint", "default", "https://example.com")
 			},
-			domain: &ingressv1alpha1.Domain{ObjectMeta: metav1.ObjectMeta{Name: "example-com", Namespace: "default"}},
+			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
 			want:   false,
 		},
 	}
