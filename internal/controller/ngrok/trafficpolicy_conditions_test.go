@@ -1,7 +1,3 @@
-// LEGACY-trafficpolicy-kind: delete this whole test file at cleanup. Tests
-// covering the shared condition helper for the canonical ngrok.com/v1
-// TrafficPolicy live alongside its reconciler.
-
 package ngrok
 
 import (
@@ -14,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -58,15 +54,15 @@ func TestSetTrafficPolicyConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tp := &ngrokv1alpha1.NgrokTrafficPolicy{
-				Generation: 3,
-				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+			tp := &ngrokv1.TrafficPolicy{
+				ObjectMeta: metav1.ObjectMeta{Generation: 3},
+				Spec: ngrokv1.TrafficPolicySpec{
 					Policy: json.RawMessage(tt.policy),
 				},
 			}
 
 			parsed, parseErr := util.NewTrafficPolicyFromJson(tp.Spec.Policy)
-			setTrafficPolicyConditions(tp, parsed, parseErr)
+			setV1TrafficPolicyConditions(tp, parsed, parseErr)
 
 			for _, condType := range []string{ConditionTrafficPolicyReady, ConditionTrafficPolicyValid} {
 				cond := meta.FindStatusCondition(tp.Status.Conditions, condType)
@@ -80,15 +76,16 @@ func TestSetTrafficPolicyConditions(t *testing.T) {
 	}
 }
 
-// TestStatusChangeDetection guards the Reconcile skip-write-if-unchanged logic
-// (compare against a DeepCopy taken before mutating). meta.SetStatusCondition
-// mutates an existing condition's fields in place, so a shallow copy of
-// Status would share the same backing array and always compare equal to the
-// post-mutation value, even when something actually changed.
+// TestStatusChangeDetection guards TrafficPolicyReconciler.Reconcile's
+// skip-write-if-unchanged logic (compare against a DeepCopy taken before
+// mutating). meta.SetStatusCondition mutates an existing condition's fields in
+// place, so a shallow copy of Status would share the same backing array and
+// always compare equal to the post-mutation value, even when something
+// actually changed.
 func TestStatusChangeDetection(t *testing.T) {
-	tp := &ngrokv1alpha1.NgrokTrafficPolicy{
-		Generation: 1,
-		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
+	tp := &ngrokv1.TrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{Generation: 1},
+		Spec: ngrokv1.TrafficPolicySpec{
 			Policy: json.RawMessage(`{"on_http_request":[{"actions":[{"type":"deny"}]}]}`),
 		},
 	}

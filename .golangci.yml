@@ -47,6 +47,18 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
+    rules:
+      # LEGACY-trafficpolicy-kind: delete this exclusion at cleanup.
+      #
+      # NgrokTrafficPolicy carries a Go `Deprecated:` marker so downstream
+      # importers of api/ngrok/v1alpha1 get the signal, but the operator
+      # itself has to keep referencing the type for the whole dual-read
+      # migration window — serving the legacy kind is the point of the
+      # release. Without this rule staticcheck flags every one of those
+      # deliberate references.
+      - linters:
+          - staticcheck
+        text: "SA1019: ngrokv1alpha1.NgrokTrafficPolicy is deprecated"
     paths:
       - third_party$
       - builtin$

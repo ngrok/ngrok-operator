@@ -58,6 +58,7 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
@@ -84,6 +85,7 @@ func init() {
 	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
@@ -617,9 +619,27 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		os.Exit(1)
 	}
 
+	// LEGACY-trafficpolicy-kind: BEGIN
+	// Deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy reconciler.
+	// Runs alongside the canonical ngrok.com/v1 TrafficPolicy reconciler
+	// below during the passive-migration window. Delete this setup block at
+	// cleanup along with the reconciler file itself.
 	if err := (&ngrokcontroller.NgrokTrafficPolicyReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorder("policy-controller"),
+		Driver:   driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NgrokTrafficPolicy")
+		os.Exit(1)
+	}
+	// LEGACY-trafficpolicy-kind: END
+
+	// Canonical ngrok.com/v1 TrafficPolicy reconciler.
+	if err := (&ngrokcontroller.TrafficPolicyReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy-v1"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorder("policy-controller"),
 		Driver:   driver,

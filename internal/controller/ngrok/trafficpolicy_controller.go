@@ -22,13 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-// LEGACY-trafficpolicy-kind: delete this whole file at cleanup. The canonical
-// ngrok.com/v1 TrafficPolicy reconciler lives in trafficpolicy_controller.go
-// and takes over exclusively once the deprecated ngrok.k8s.ngrok.com/v1alpha1
-// NgrokTrafficPolicy CRD is removed. Also delete ngroktrafficpolicy_conditions.go
-// and ngroktrafficpolicy_conditions_test.go, plus the setup call in
-// cmd/api-manager.go.
-
 package ngrok
 
 import (
@@ -36,7 +29,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	v1 "k8s.io/api/core/v1"
@@ -48,13 +41,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-const (
-	EventPolicyDeprecation        = "PolicyDeprecation"
-	EventTrafficPolicyParseFailed = "TrafficPolicyParseFailed"
-)
-
-// NgrokTrafficPolicyReconciler reconciles a NgrokTrafficPolicy object
-type NgrokTrafficPolicyReconciler struct {
+// TrafficPolicyReconciler reconciles a canonical ngrok.com/v1 TrafficPolicy
+// object. It mirrors NgrokTrafficPolicyReconciler (which handles the
+// deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy) so both kinds
+// go through the same parse-and-condition path while the passive migration
+// is in flight.
+//
+// +kubebuilder:rbac:groups=ngrok.com,resources=trafficpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=ngrok.com,resources=trafficpolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=ngrok.com,resources=trafficpolicies/finalizers,verbs=update
+type TrafficPolicyReconciler struct {
 	client.Client
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
@@ -62,19 +58,13 @@ type NgrokTrafficPolicyReconciler struct {
 	Driver   *managerdriver.Driver
 }
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the NgrokTrafficPolicy object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.3/pkg/reconcile
-func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+// Reconcile parses spec.policy, writes the Valid/Ready conditions, and
+// triggers an endpoint sync so any endpoint referencing this policy picks up
+// the change.
+func (r *TrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	policy := &ngrokv1alpha1.NgrokTrafficPolicy{}
+	policy := &ngrokv1.TrafficPolicy{}
 	if err := r.Get(ctx, req.NamespacedName, policy); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -82,7 +72,7 @@ func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.R
 	prevStatus := *policy.Status.DeepCopy()
 
 	parsedTrafficPolicy, parseErr := util.NewTrafficPolicyFromJson(policy.Spec.Policy)
-	setTrafficPolicyConditions(policy, parsedTrafficPolicy, parseErr)
+	setV1TrafficPolicyConditions(policy, parsedTrafficPolicy, parseErr)
 	policy.SetObservedGeneration(policy.Generation)
 
 	if !reflect.DeepEqual(prevStatus, policy.Status) {
@@ -109,9 +99,9 @@ func (r *NgrokTrafficPolicyReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *NgrokTrafficPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *TrafficPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ngrokv1alpha1.NgrokTrafficPolicy{}).
+		For(&ngrokv1.TrafficPolicy{}).
 		WithEventFilter(predicate.Or(
 			predicate.AnnotationChangedPredicate{},
 			predicate.GenerationChangedPredicate{},

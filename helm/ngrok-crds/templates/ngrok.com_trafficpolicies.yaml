@@ -4,14 +4,16 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-  name: ngroktrafficpolicies.ngrok.k8s.ngrok.com
+  name: trafficpolicies.ngrok.com
 spec:
-  group: ngrok.k8s.ngrok.com
+  group: ngrok.com
   names:
-    kind: NgrokTrafficPolicy
-    listKind: NgrokTrafficPolicyList
-    plural: ngroktrafficpolicies
-    singular: ngroktrafficpolicy
+    categories:
+    - ngrok
+    kind: TrafficPolicy
+    listKind: TrafficPolicyList
+    plural: trafficpolicies
+    singular: trafficpolicy
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -25,19 +27,13 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
-    deprecated: true
-    deprecationWarning: ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy is deprecated;
-      use ngrok.com/v1 TrafficPolicy instead. Re-stamp the manifest's kind and apiVersion,
-      apply it, then delete the NgrokTrafficPolicy object.
-    name: v1alpha1
+    name: v1
     schema:
       openAPIV3Schema:
         description: |-
-          NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API.
-
-          Deprecated: use the canonical ngrok.com/v1 TrafficPolicy. This kind is
-          still served and resolved for one migration release; see
-          docs/developer-guide/passivity-shims.md.
+          TrafficPolicy is the Schema for the trafficpolicies API in the canonical
+          ngrok.com/v1 group. It replaces the deprecated
+          ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy.
         properties:
           apiVersion:
             description: |-
@@ -57,7 +53,13 @@ spec:
           metadata:
             type: object
           spec:
-            description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+            description: |-
+              TrafficPolicySpec defines the desired state of TrafficPolicy.
+
+              The spec is byte-compatible with the deprecated
+              ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicySpec so a manual migration is
+              a manifest re-stamp (change kind + apiVersion, re-apply, delete the legacy
+              object).
             properties:
               policy:
                 description: |-
@@ -71,10 +73,10 @@ spec:
                 x-kubernetes-preserve-unknown-fields: true
             type: object
           status:
-            description: NgrokTrafficPolicyStatus defines the observed state of NgrokTrafficPolicy
+            description: TrafficPolicyStatus defines the observed state of TrafficPolicy.
             properties:
               conditions:
-                description: Conditions describe the current conditions of the NgrokTrafficPolicy.
+                description: Conditions describe the current conditions of the TrafficPolicy.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.

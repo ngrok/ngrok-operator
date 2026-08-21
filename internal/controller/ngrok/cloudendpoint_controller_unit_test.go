@@ -8,6 +8,7 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v7"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
@@ -431,6 +432,7 @@ func TestNormalizeLegacyTrafficPolicy_EventSuppression(t *testing.T) {
 func TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
 		Name: "my-policy", Namespace: "ns",

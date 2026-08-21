@@ -836,23 +836,30 @@ func (t *translator) gatewayAPIFilterToTrafficPolicy(filter gatewayv1.HTTPRouteF
 		if extensionRef == nil {
 			return nil, fmt.Errorf("%w: filter type specified as ExtensionRef but the section config was nil", sharedErr)
 		}
-		if !strings.EqualFold(string(extensionRef.Kind), "NgrokTrafficPolicy") {
-			return nil, fmt.Errorf("%w: extension ref filter has unknown kind %q. only NgrokTrafficPolicy is currently supported", sharedErr, string(extensionRef.Kind))
+		// LEGACY-trafficpolicy-kind: at cleanup the accepted set narrows to
+		// {kind: TrafficPolicy, group: ngrok.com}. The NgrokTrafficPolicy /
+		// ngrok.k8s.ngrok.com branches and the "(deprecated)" wording in
+		// the error messages go away.
+		if !strings.EqualFold(string(extensionRef.Kind), "TrafficPolicy") &&
+			!strings.EqualFold(string(extensionRef.Kind), "NgrokTrafficPolicy") {
+			return nil, fmt.Errorf("%w: extension ref filter has unknown kind %q. supported kinds: TrafficPolicy (ngrok.com), NgrokTrafficPolicy (ngrok.k8s.ngrok.com, deprecated)", sharedErr, string(extensionRef.Kind))
 		}
 
-		if group := string(extensionRef.Group); group != "" && !strings.EqualFold(group, "ngrok.k8s.ngrok.com") {
-			return nil, fmt.Errorf("%w: extension ref filter has unknown group %q. only \"ngrok.k8s.ngrok.com\" is currently supported", sharedErr, group)
+		if group := string(extensionRef.Group); group != "" &&
+			!strings.EqualFold(group, "ngrok.com") &&
+			!strings.EqualFold(group, "ngrok.k8s.ngrok.com") {
+			return nil, fmt.Errorf("%w: extension ref filter has unknown group %q. supported groups: \"ngrok.com\" (canonical), \"ngrok.k8s.ngrok.com\" (deprecated)", sharedErr, group)
 		}
 
-		routePolicyCfg, err := store.GetNgrokTrafficPolicyV1(string(extensionRef.Name), namespace)
+		lookup, err := store.ResolveTrafficPolicy(string(extensionRef.Name), namespace)
 		if err != nil {
 			return nil, fmt.Errorf("unable to resolve traffic policy backend for ingress rule: %w", err)
 		}
 
 		var routeTrafficPolicy trafficpolicy.TrafficPolicy
-		if len(routePolicyCfg.Spec.Policy) > 0 {
-			if err := json.Unmarshal(routePolicyCfg.Spec.Policy, &routeTrafficPolicy); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal traffic policy: %w. raw traffic policy: %v", err, routePolicyCfg.Spec.Policy)
+		if len(lookup.Policy) > 0 {
+			if err := json.Unmarshal(lookup.Policy, &routeTrafficPolicy); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal traffic policy: %w. raw traffic policy: %v", err, lookup.Policy)
 			}
 		}
 

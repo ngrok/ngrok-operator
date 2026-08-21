@@ -10,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -462,14 +463,21 @@ type TranslatorRawTestCase struct {
 // TranslatorTestCase stores our actual fully parsed inputs/outputs
 type TranslatorTestCase struct {
 	Input struct {
-		GatewayClasses  []*gatewayv1.GatewayClass
-		Gateways        []*gatewayv1.Gateway
-		HTTPRoutes      []*gatewayv1.HTTPRoute
-		TCPRoutes       []*gatewayv1alpha2.TCPRoute
-		TLSRoutes       []*gatewayv1alpha2.TLSRoute
-		IngressClasses  []*netv1.IngressClass
-		Ingresses       []*netv1.Ingress
-		TrafficPolicies []*ngrokv1alpha1.NgrokTrafficPolicy
+		GatewayClasses []*gatewayv1.GatewayClass
+		Gateways       []*gatewayv1.Gateway
+		HTTPRoutes     []*gatewayv1.HTTPRoute
+		TCPRoutes      []*gatewayv1alpha2.TCPRoute
+		TLSRoutes      []*gatewayv1alpha2.TLSRoute
+		IngressClasses []*netv1.IngressClass
+		Ingresses      []*netv1.Ingress
+		// TrafficPolicies holds either kind — the canonical ngrok.com/v1
+		// TrafficPolicy or the deprecated ngrok.k8s.ngrok.com/v1alpha1
+		// NgrokTrafficPolicy — so a fixture can exercise the dual-read
+		// resolver. The store dispatches on the concrete Go type.
+		//
+		// LEGACY-trafficpolicy-kind: at cleanup this narrows back to
+		// []*ngrokv1.TrafficPolicy.
+		TrafficPolicies []client.Object
 		Secrets         []*corev1.Secret
 		ConfigMaps      []*corev1.ConfigMap
 		Services        []*corev1.Service
@@ -505,6 +513,7 @@ func TestTranslate(t *testing.T) {
 	utilruntime.Must(ingressv1alpha1.AddToScheme(sch))
 	utilruntime.Must(corev1.AddToScheme(sch))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(sch))
+	utilruntime.Must(ngrokv1.AddToScheme(sch))
 
 	// Load test files from the testdata directory
 	defaultTranslatorFiles, err := filepath.Glob(filepath.Join(testdataDir, "*.yaml"))
@@ -920,9 +929,15 @@ func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) Tran
 	for _, rawObj := range rawTC.Input.TrafficPolicies {
 		obj, err := decodeViaScheme(sch, rawObj)
 		require.NoError(t, err)
-		pol, ok := obj.(*ngrokv1alpha1.NgrokTrafficPolicy)
-		require.True(t, ok, "expected an NgrokTrafficPolicy, got %T", obj)
-		tc.Input.TrafficPolicies = append(tc.Input.TrafficPolicies, pol)
+		// LEGACY-trafficpolicy-kind: drop the NgrokTrafficPolicy case at
+		// cleanup.
+		switch obj.(type) {
+		case *ngrokv1.TrafficPolicy, *ngrokv1alpha1.NgrokTrafficPolicy:
+		default:
+			require.Failf(t, "unexpected traffic policy kind",
+				"expected a TrafficPolicy or NgrokTrafficPolicy, got %T", obj)
+		}
+		tc.Input.TrafficPolicies = append(tc.Input.TrafficPolicies, obj.(client.Object))
 	}
 
 	// Decode expected objects

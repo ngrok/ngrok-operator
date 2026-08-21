@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -281,6 +282,25 @@ func NewReferenceGrant(name string, namespace string) gatewayv1beta1.ReferenceGr
 	}
 }
 
+// NewTestTrafficPolicy builds a canonical ngrok.com/v1 TrafficPolicy.
+func NewTestTrafficPolicy(name string, namespace string, policyStr string) ngrokv1.TrafficPolicy {
+	return ngrokv1.TrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: ngrokv1.TrafficPolicySpec{
+			Policy: json.RawMessage(policyStr),
+		},
+	}
+}
+
+// NewTestNgrokTrafficPolicy builds a deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy, for tests that exercise the
+// dual-read fallback.
+//
+// LEGACY-trafficpolicy-kind: delete this helper at cleanup;
+// NewTestTrafficPolicy above is the canonical replacement.
 func NewTestNgrokTrafficPolicy(name string, namespace string, policyStr string) ngrokv1alpha1.NgrokTrafficPolicy {
 	return ngrokv1alpha1.NgrokTrafficPolicy{
 		Name:      name,
