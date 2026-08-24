@@ -22,9 +22,6 @@
   <a href="#gateway-api-status">
     <img src="https://img.shields.io/badge/Gateway_API-supported-rgba(159%2C122%2C234)" alt="Gateway API Supported"/>
   </a>
-  <a href="https://ngrok.com/slack">
-    <img src="https://img.shields.io/badge/Join%20Our%20Community-Slack-blue" alt="Slack"/>
-  </a>
   <a href="https://twitter.com/intent/follow?screen_name=ngrokHQ">
     <img src="https://img.shields.io/twitter/follow/ngrokHQ.svg?style=social&label=Follow" alt="Twitter"/>
   </a>
@@ -110,7 +107,7 @@ For guidance on safely uninstalling the operator, including cleanup of ngrok API
 
 ## Support
 
-The best place to get support using the ngrok Kubernetes Operator is through the [ngrok Slack Community](https://ngrok.com/slack). If you find bugs or would like to contribute code, please follow the instructions in the [contributing guide](./docs/CONTRIBUTING.md).
+The best place to get support using the ngrok Kubernetes Operator is by [opening an issue](https://github.com/ngrok/ngrok-operator/issues). For account or billing questions, contact [ngrok support](https://ngrok.com/support). If you find bugs or would like to contribute code, please follow the instructions in the [contributing guide](./docs/CONTRIBUTING.md).
 
 ## License
 
