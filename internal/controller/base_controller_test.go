@@ -454,8 +454,8 @@ func TestStatusError_ErrorsAs(t *testing.T) {
 	causeErr := errors.New("status update failed")
 	se := StatusError{err: origErr, cause: causeErr}
 
-	var target StatusError
-	assert.True(t, errors.As(se, &target))
+	target, ok := errors.AsType[StatusError](se)
+	assert.True(t, ok)
 	assert.Equal(t, se, target)
 }
 
@@ -630,8 +630,8 @@ func TestCtrlResultForErr_WrappedStatusError(t *testing.T) {
 	assert.Equal(t, ctrl.Result{RequeueAfter: 10 * time.Second}, result)
 	assert.Error(t, err)
 
-	var target StatusError
-	assert.True(t, errors.As(err, &target))
+	_, ok := errors.AsType[StatusError](err)
+	assert.True(t, ok)
 }
 
 func TestNewNgrokError(t *testing.T) {
