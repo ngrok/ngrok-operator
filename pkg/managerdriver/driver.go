@@ -15,7 +15,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -748,10 +747,7 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 			if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				current := new(netv1.Ingress)
 				if err := c.Get(ctx, client.ObjectKeyFromObject(ingress), current); err != nil {
-					if apierrors.IsNotFound(err) {
-						return nil
-					}
-					return err
+					return client.IgnoreNotFound(err)
 				}
 
 				if reflect.DeepEqual(current.Status.LoadBalancer.Ingress, ingress.Status.LoadBalancer.Ingress) {
@@ -901,10 +897,8 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 				current := new(gatewayv1.Gateway)
 				err := c.Get(ctx, client.ObjectKeyFromObject(gateway), current)
 				if err != nil {
-					if apierrors.IsNotFound(err) { // If the gateway was deleted, we don't need to update the status
-						return nil
-					}
-					return err
+					// If the gateway was deleted, we don't need to update the status
+					return client.IgnoreNotFound(err)
 				}
 
 				if reflect.DeepEqual(current.Status, gateway.Status) {
