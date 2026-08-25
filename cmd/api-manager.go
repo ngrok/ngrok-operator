@@ -624,8 +624,10 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 	// LEGACY-trafficpolicy-kind: BEGIN
 	// Deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy reconciler.
 	// Runs alongside the canonical ngrok.com/v1 TrafficPolicy reconciler
-	// below during the passive-migration window. Delete this setup block at
-	// cleanup along with the reconciler file itself.
+	// below during the passive-migration window. Both are instantiations of
+	// the same generic PolicyReconciler, so this block and the alias it names
+	// are the only things to delete at cleanup — the reconciler
+	// implementation is shared and stays.
 	if err := (&ngrokcontroller.NgrokTrafficPolicyReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),

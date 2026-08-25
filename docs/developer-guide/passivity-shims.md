@@ -506,15 +506,28 @@ concept during the migration window and let the controller resolve either.
     `api/ngrok/v1alpha1`; since the operator's own dual-read code must keep
     referencing it, `.golangci.yml` excludes the resulting `SA1019` (the
     exclusion is sentinel-tagged and deletes at cleanup).
-  - Two reconcilers run:
-    - `TrafficPolicyReconciler` (`internal/controller/ngrok/trafficpolicy_controller.go`)
-      for the canonical kind.
-    - `NgrokTrafficPolicyReconciler` (`internal/controller/ngrok/ngroktrafficpolicy_controller.go`)
-      for the deprecated kind — tagged as legacy at the file level, deletes at cleanup.
-    - Both share the `Condition*`/`Reason*` vocabulary. The constants live
-      in `trafficpolicy_conditions.go` (the canonical file) so the
-      cleanup deletion of `ngroktrafficpolicy_conditions.go` doesn't
-      strand them.
+  - Both kinds are structurally identical (schemaless `spec.policy` plus an
+    `observedGeneration`/`conditions` status), so they are reconciled by a
+    single generic implementation rather than a copied pair:
+    - `internal/trafficpolicy/resource.go` defines
+      `TrafficPolicyResource` (the kind-agnostic interface: `client.Object`
+      plus `GetPolicy`/`GetConditions`/`Get`+`SetObservedGeneration`) and the
+      `TrafficPolicyResourcePtr[T]` constraint that lets generic code
+      allocate a fresh typed object with `PT(new(T))`. Both API types carry
+      the accessors and a compile-time assertion pins the contract.
+    - `PolicyReconciler[T, PT]`
+      (`internal/controller/ngrok/trafficpolicy_controller.go`) holds the
+      whole reconcile body once. Two aliases in the same file are the
+      entire per-kind surface: `TrafficPolicyReconciler` for the canonical
+      kind and `NgrokTrafficPolicyReconciler` (sentinel-tagged) for the
+      deprecated one. Controller names still derive from the concrete kind,
+      so the two registrations do not collide.
+    - `setTrafficPolicyConditions` (`trafficpolicy_conditions.go`) takes the
+      interface, so both kinds get byte-identical `Valid`/`Ready`
+      conditions from one implementation. The `Condition*`/`Reason*`
+      constants live in the same file and are unaffected by cleanup.
+    - `trafficpolicy_conditions_test.go` runs its whole table against both
+      kinds via a `trafficPolicyKinds` fixture, so the kinds cannot drift.
   - `internal/store`:
     - `CacheStores.TrafficPolicyV1` is the canonical cache;
       `CacheStores.NgrokTrafficPolicyV1` is the legacy cache (tagged).
@@ -541,9 +554,11 @@ concept during the migration window and let the controller resolve either.
       `Store.ResolveTrafficPolicy`.
   - Endpoint controllers `Watches(&ngrokv1alpha1.NgrokTrafficPolicy{}, ...)`
     alongside the canonical watch so legacy-kind updates re-enqueue
-    referring endpoints. The `Watches` block is `LEGACY-trafficpolicy-kind`-tagged;
-    the mapper is kind-agnostic (accepts either type via a type switch)
-    and its switch narrows at cleanup.
+    referring endpoints. The `Watches` block is `LEGACY-trafficpolicy-kind`-tagged
+    and deletes at cleanup. The mappers themselves are kind-agnostic by
+    construction — they accept anything satisfying `TrafficPolicyResource`
+    rather than switching on concrete types — so they need no edit at
+    cleanup.
   - RBAC: `helm/ngrok-operator/templates/{api-manager,agent}/role.yaml`
     keep the `ngroktrafficpolicies` rule blocks tagged
     `LEGACY-trafficpolicy-kind`; the canonical `trafficpolicies` rules
@@ -556,9 +571,15 @@ concept during the migration window and let the controller resolve either.
   - Delete `api/ngrok/v1alpha1/ngroktrafficpolicy_types.go` (regen
     `zz_generated.deepcopy.go` drops the `NgrokTrafficPolicy*` method
     set), the two entries in `groupversion_info.go::addKnownTypes`.
-  - Delete `internal/controller/ngrok/ngroktrafficpolicy_controller.go`,
-    `ngroktrafficpolicy_conditions.go`, `ngroktrafficpolicy_conditions_test.go`,
-    and the `NgrokTrafficPolicyReconciler` setup block in `cmd/api-manager.go`.
+  - `internal/controller/ngrok/trafficpolicy_controller.go`: delete the
+    `NgrokTrafficPolicyReconciler` alias and the `ngrokv1alpha1` import;
+    the generic `PolicyReconciler` and the canonical alias stay untouched.
+    Delete the matching setup block in `cmd/api-manager.go`.
+  - `internal/trafficpolicy/resource.go`: drop the `NgrokTrafficPolicy`
+    compile-time assertion. The interface and constraint stay.
+  - `internal/controller/ngrok/trafficpolicy_conditions_test.go`: drop the
+    legacy entry from `trafficPolicyKinds` and the legacy
+    `reconcile.Reconciler` assertion. The tables keep working with one kind.
   - `internal/store/cachestores.go`: drop the `NgrokTrafficPolicyV1`
     field, its initializer, and the `*ngrokv1alpha1.NgrokTrafficPolicy`
     dispatch cases in Get/Add/Delete.

@@ -40,7 +40,7 @@ import (
 
 // NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
 
-// This spec is deprecated in favor of the cannonical ngrok.com/v1 
+// This spec is deprecated in favor of the canonical ngrok.com/v1
 // TrafficPolicySpec.
 type NgrokTrafficPolicySpec struct {
 	// The raw json encoded policy that was applied to the ngrok API.
@@ -94,6 +94,22 @@ type NgrokTrafficPolicy struct {
 // SetObservedGeneration records the generation the controller reconciled.
 func (tp *NgrokTrafficPolicy) SetObservedGeneration(generation int64) {
 	tp.Status.ObservedGeneration = generation
+}
+
+// GetPolicy returns the raw JSON policy body from the spec.
+func (tp *NgrokTrafficPolicy) GetPolicy() json.RawMessage {
+	return tp.Spec.Policy
+}
+
+// GetConditions returns a pointer to the status condition slice so shared
+// helpers can mutate it in place.
+func (tp *NgrokTrafficPolicy) GetConditions() *[]metav1.Condition {
+	return &tp.Status.Conditions
+}
+
+// GetObservedGeneration returns the generation the controller last reconciled.
+func (tp *NgrokTrafficPolicy) GetObservedGeneration() int64 {
+	return tp.Status.ObservedGeneration
 }
 
 // +kubebuilder:object:root=true

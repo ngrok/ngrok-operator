@@ -57,7 +57,9 @@ spec:
           metadata:
             type: object
           spec:
-            description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+            description: |-
+              This spec is deprecated in favor of the canonical ngrok.com/v1
+              TrafficPolicySpec.
             properties:
               policy:
                 description: |-

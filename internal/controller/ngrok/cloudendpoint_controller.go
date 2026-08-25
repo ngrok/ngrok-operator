@@ -495,16 +495,17 @@ func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv
 // findCloudEndpointForTrafficPolicy returns reconcile requests for every
 // CloudEndpoint that references the supplied TrafficPolicy via the new
 // targetRef shape or the deprecated spec.trafficPolicyName — both flow through
-// the same composite-key index. Accepts both the canonical ngrok.com/v1
-// TrafficPolicy and the deprecated ngrok.k8s.ngrok.com/v1alpha1
-// NgrokTrafficPolicy since the endpoint index key is namespace/name only.
+// the same composite-key index.
 //
-// LEGACY-trafficpolicy-kind: at cleanup the type switch narrows to a single
-// `*ngrokv1.TrafficPolicy` case (or collapses to a direct type assert).
+// The mapper is kind-agnostic by construction: it accepts anything satisfying
+// trafficpolicypkg.TrafficPolicyResource, which today means both the canonical
+// ngrok.com/v1 TrafficPolicy and the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy. That works because the
+// endpoint index key is namespace/name only, with no kind component. Testing
+// against the interface rather than a list of concrete types means this
+// function needs no edit when the legacy kind is dropped.
 func (r *CloudEndpointReconciler) findCloudEndpointForTrafficPolicy(ctx context.Context, o client.Object) []ctrl.Request {
-	switch o.(type) {
-	case *ngrokv1.TrafficPolicy, *ngrokv1alpha1.NgrokTrafficPolicy: // LEGACY-trafficpolicy-kind: narrow to *ngrokv1.TrafficPolicy at cleanup.
-	default:
+	if _, ok := o.(trafficpolicypkg.TrafficPolicyResource); !ok {
 		return nil
 	}
 

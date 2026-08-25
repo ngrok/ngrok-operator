@@ -317,17 +317,17 @@ func (r *AgentEndpointReconciler) statusID(endpoint *ngrokv1alpha1.AgentEndpoint
 }
 
 // findAgentEndpointForTrafficPolicy searches for any AgentEndpoint CRs that
-// reference a particular TrafficPolicy in the policy's namespace. The mapper
-// is kind-agnostic — it accepts both the canonical ngrok.com/v1 TrafficPolicy
-// and the deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy, since
-// the endpoint index key is composite namespace/name only.
+// reference a particular TrafficPolicy in the policy's namespace.
 //
-// LEGACY-trafficpolicy-kind: at cleanup the type switch narrows to a single
-// `*ngrokv1.TrafficPolicy` case (or collapses to a direct type assert).
+// The mapper is kind-agnostic by construction: it accepts anything satisfying
+// trafficpolicypkg.TrafficPolicyResource, which today means both the canonical
+// ngrok.com/v1 TrafficPolicy and the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy. That works because the
+// endpoint index key is composite namespace/name only, with no kind component.
+// Testing against the interface rather than a list of concrete types means
+// this function needs no edit when the legacy kind is dropped.
 func (r *AgentEndpointReconciler) findAgentEndpointForTrafficPolicy(ctx context.Context, o client.Object) []ctrl.Request {
-	switch o.(type) {
-	case *ngrokv1.TrafficPolicy, *ngrokv1alpha1.NgrokTrafficPolicy: // LEGACY-trafficpolicy-kind: narrow to *ngrokv1.TrafficPolicy at cleanup.
-	default:
+	if _, ok := o.(trafficpolicypkg.TrafficPolicyResource); !ok {
 		return nil
 	}
 

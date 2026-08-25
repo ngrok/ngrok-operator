@@ -3,18 +3,15 @@ package ngrok
 import (
 	"fmt"
 
-	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
+	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
-// Shared TrafficPolicy condition vocabulary. Both the canonical
-// ngrok.com/v1 TrafficPolicy reconciler (this file) and the deprecated
-// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy reconciler
-// (ngroktrafficpolicy_conditions.go) write these condition types/reasons so
-// users see the same vocabulary regardless of which kind they applied.
-// The constants live here — not in the LEGACY-tagged sibling — so the
-// cleanup deletion of the sibling doesn't strand them.
+// Shared TrafficPolicy condition vocabulary, written identically for the
+// canonical ngrok.com/v1 TrafficPolicy and the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy so users see the same
+// condition types and reasons regardless of which kind they applied.
 const (
 	// Condition types.
 	ConditionTrafficPolicyReady = "Ready"
@@ -27,10 +24,14 @@ const (
 	ReasonEnabledDeprecated        = "EnabledFieldDeprecated"
 )
 
-// setV1TrafficPolicyConditions is the ngrok.com/v1 twin of
-// ƒ. It writes the shared Valid/Ready conditions on
-// the canonical TrafficPolicy kind.
-func setV1TrafficPolicyConditions(tp *ngrokv1.TrafficPolicy, parsed util.TrafficPolicy, parseErr error) {
+// setTrafficPolicyConditions sets the Valid and Ready conditions from the
+// result of parsing spec.policy. Both conditions share the same reason so
+// deprecation warnings surface in the Ready-based printer columns.
+//
+// It takes the kind-agnostic TrafficPolicyResource interface rather than a
+// concrete type, so both served kinds get byte-identical condition handling
+// from a single implementation.
+func setTrafficPolicyConditions(tp trafficpolicypkg.TrafficPolicyResource, parsed util.TrafficPolicy, parseErr error) {
 	valid := parseErr == nil
 	reason := ReasonTrafficPolicyValid
 	message := "Traffic policy is valid"
@@ -47,6 +48,6 @@ func setV1TrafficPolicyConditions(tp *ngrokv1.TrafficPolicy, parsed util.Traffic
 		message = "Traffic policy has 'enabled' set. This is a legacy option that will stop being supported soon."
 	}
 
-	conditions.Set(&tp.Status.Conditions, tp.Generation, ConditionTrafficPolicyValid, valid, reason, message)
-	conditions.Set(&tp.Status.Conditions, tp.Generation, ConditionTrafficPolicyReady, valid, reason, message)
+	conditions.Set(tp.GetConditions(), tp.GetGeneration(), ConditionTrafficPolicyValid, valid, reason, message)
+	conditions.Set(tp.GetConditions(), tp.GetGeneration(), ConditionTrafficPolicyReady, valid, reason, message)
 }

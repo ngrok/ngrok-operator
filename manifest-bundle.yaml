@@ -1949,7 +1949,9 @@ spec:
           metadata:
             type: object
           spec:
-            description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+            description: |-
+              This spec is deprecated in favor of the canonical ngrok.com/v1
+              TrafficPolicySpec.
             properties:
               policy:
                 description: |-
@@ -2112,6 +2114,7 @@ rules:
 # namespace, independent of `watchNamespace`. The agent reads it for drain
 # state via a release-namespace-pinned cache scope; its rules live in
 # release-namespace-role.yaml.
+
 # LEGACY-trafficpolicy-kind: BEGIN — drop this rule block at cleanup.
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -2122,8 +2125,7 @@ rules:
   - list
   - watch
 # LEGACY-trafficpolicy-kind: END
-# Canonical ngrok.com/v1 TrafficPolicy rule — stays after the
-# LEGACY-trafficpolicy-kind cleanup above is deleted.
+# Canonical ngrok.com/v1 TrafficPolicy rule
 - apiGroups:
   - ngrok.com
   resources:
@@ -2531,6 +2533,7 @@ rules:
 # CR is the api-manager's own state singleton and always lives in the release
 # namespace, independent of `watchNamespace`. Its rules live in
 # release-namespace-role.yaml.
+
 # LEGACY-trafficpolicy-kind: BEGIN — drop these two rule blocks at cleanup.
 - apiGroups:
   - ngrok.k8s.ngrok.com
@@ -2550,19 +2553,22 @@ rules:
   - update
 # LEGACY-trafficpolicy-kind: END
 # --- ngrok.com ---
-# Canonical ngrok.com/v1 TrafficPolicy rules — these stay after the
-# LEGACY-trafficpolicy-kind cleanup above is deleted.
+# Canonical ngrok.com/v1 TrafficPolicy rules. These mirror the legacy
+# ngroktrafficpolicies pair above: read verbs on the resource itself, write
+# verbs only on the status subresource. The api-manager reads traffic policies
+# and reports conditions on them; it never creates or deletes them.
+#
+# list/watch are load-bearing — TrafficPolicyReconciler does For(&TrafficPolicy{}),
+# both endpoint controllers Watches() it, and driver.Seed lists it. Without them
+# the informer cache cannot start and the canonical kind silently stops working
+# while the deprecated kind keeps going.
 - apiGroups:
   - ngrok.com
   resources:
   - trafficpolicies
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ngrok.com
@@ -3367,7 +3373,7 @@ metadata:
   name: ngrok-operator-agent
   namespace: ngrok-operator
   annotations:
-    checksum/rbac: 1d213cb09b4ec82a927aff22c23f3e2706948f39089124e22e18b001f34e224f
+    checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
 spec:
   replicas: 1
   strategy:
@@ -3383,7 +3389,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/rbac: 1d213cb09b4ec82a927aff22c23f3e2706948f39089124e22e18b001f34e224f
+        checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator
@@ -3473,7 +3479,7 @@ metadata:
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: b8dbd8b5a0dd91528888ec99f3c8cca9a634e70994727e00a98e055d2550b415
+    checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -3488,7 +3494,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: b8dbd8b5a0dd91528888ec99f3c8cca9a634e70994727e00a98e055d2550b415
+        checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:

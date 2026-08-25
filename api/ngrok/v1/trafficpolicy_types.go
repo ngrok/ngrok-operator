@@ -88,6 +88,22 @@ func (tp *TrafficPolicy) SetObservedGeneration(generation int64) {
 	tp.Status.ObservedGeneration = generation
 }
 
+// GetPolicy returns the raw JSON policy body from the spec.
+func (tp *TrafficPolicy) GetPolicy() json.RawMessage {
+	return tp.Spec.Policy
+}
+
+// GetConditions returns a pointer to the status condition slice so shared
+// helpers can mutate it in place.
+func (tp *TrafficPolicy) GetConditions() *[]metav1.Condition {
+	return &tp.Status.Conditions
+}
+
+// GetObservedGeneration returns the generation the controller last reconciled.
+func (tp *TrafficPolicy) GetObservedGeneration() int64 {
+	return tp.Status.ObservedGeneration
+}
+
 // +kubebuilder:object:root=true
 
 // TrafficPolicyList contains a list of TrafficPolicy.

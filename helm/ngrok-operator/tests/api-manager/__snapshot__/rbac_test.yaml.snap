@@ -329,12 +329,8 @@ should match snapshot in default mode:
         resources:
           - trafficpolicies
         verbs:
-          - create
-          - delete
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - ngrok.com
@@ -738,12 +734,8 @@ should match snapshot in namespaced mode:
         resources:
           - trafficpolicies
         verbs:
-          - create
-          - delete
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - ngrok.com

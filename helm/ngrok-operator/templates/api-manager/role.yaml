@@ -347,15 +347,23 @@ rules:
   - update
 # LEGACY-trafficpolicy-kind: END
 # --- ngrok.com ---
-# Canonical ngrok.com/v1 TrafficPolicy rules
+# Canonical ngrok.com/v1 TrafficPolicy rules. These mirror the legacy
+# ngroktrafficpolicies pair above: read verbs on the resource itself, write
+# verbs only on the status subresource. The api-manager reads traffic policies
+# and reports conditions on them; it never creates or deletes them.
+#
+# list/watch are load-bearing — TrafficPolicyReconciler does For(&TrafficPolicy{}),
+# both endpoint controllers Watches() it, and driver.Seed lists it. Without them
+# the informer cache cannot start and the canonical kind silently stops working
+# while the deprecated kind keeps going.
 - apiGroups:
   - ngrok.com
   resources:
   - trafficpolicies
   verbs:
   - get
-  - patch
-  - update
+  - list
+  - watch
 - apiGroups:
   - ngrok.com
   resources:
