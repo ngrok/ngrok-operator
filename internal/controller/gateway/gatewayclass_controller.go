@@ -82,7 +82,7 @@ func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Reconcile reconciles a GatewayClass object ctrl.Request
 func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("gatewayclass", req.NamespacedName)
-	ctrl.LoggerInto(ctx, log)
+	ctx = ctrl.LoggerInto(ctx, log)
 
 	gwc := &gatewayv1.GatewayClass{}
 	if err := r.Get(ctx, req.NamespacedName, gwc); err != nil {
