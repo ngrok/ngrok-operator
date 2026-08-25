@@ -434,8 +434,7 @@ func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, agentEndpoint
 			routeTotalWeight := 0
 			for _, irDestination := range irRoute.Destinations {
 				if irDestination.Weight == nil {
-					defaultWeight := 1
-					irDestination.Weight = &defaultWeight
+					irDestination.Weight = new(1)
 				}
 				routeTotalWeight += *irDestination.Weight
 			}
