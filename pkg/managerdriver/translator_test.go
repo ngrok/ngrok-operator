@@ -3,8 +3,10 @@ package managerdriver
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -354,10 +356,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedPolicy, resultPolicy, "unexpected policy for test case: %s", tc.name)
 
-			var cacheKeys []ir.IRServiceKey
-			for key := range tc.childEndpointCache {
-				cacheKeys = append(cacheKeys, key)
-			}
+			cacheKeys := slices.Collect(maps.Keys(tc.childEndpointCache))
 			assert.ElementsMatch(t, tc.expectedCacheKeys, cacheKeys, "unexpected cache keys for test case: %s", tc.name)
 		})
 	}
