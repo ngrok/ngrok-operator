@@ -8,7 +8,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"golang.org/x/sync/errgroup"
 	netv1 "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -34,10 +33,8 @@ func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomai
 		}
 
 		domain := ingressv1alpha1.Domain{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(domainName),
-				Namespace: in.Namespace,
-			},
+			Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(domainName),
+			Namespace: in.Namespace,
 			Spec: ingressv1alpha1.DomainSpec{
 				Domain: domainName,
 				// LEGACY-metadata-format: operator-generated objects keep writing
@@ -73,10 +70,8 @@ func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingD
 		}
 
 		domain := ingressv1alpha1.Domain{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(domainName),
-				Namespace: in.Namespace,
-			},
+			Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(domainName),
+			Namespace: in.Namespace,
 			Spec: ingressv1alpha1.DomainSpec{
 				Domain: domainName,
 				// LEGACY-metadata-format: operator-generated objects keep writing
@@ -98,10 +93,8 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 	for _, desiredDomain := range desiredDomains {
 		g.Go(func() error {
 			domain := &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      desiredDomain.Name,
-					Namespace: desiredDomain.Namespace,
-				},
+				Name:      desiredDomain.Name,
+				Namespace: desiredDomain.Namespace,
 			}
 
 			res, err := controllerutil.CreateOrPatch(ctx, c, domain, func() error {

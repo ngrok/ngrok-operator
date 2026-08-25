@@ -5,7 +5,6 @@ import (
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -25,10 +24,8 @@ func TestDefaultIPPolicyResolver(t *testing.T) {
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	objects := []runtime.Object{
 		&ingressv1alpha1.IPPolicy{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "namespace",
-				Name:      "my-ip-policy",
-			},
+			Namespace: "namespace",
+			Name:      "my-ip-policy",
 			Spec: ingressv1alpha1.IPPolicySpec{
 				Rules: []ingressv1alpha1.IPPolicyRule{},
 			},

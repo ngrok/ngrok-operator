@@ -48,9 +48,7 @@ func TestIsUpsert(t *testing.T) {
 		{
 			name: "with deletion timestamp",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					DeletionTimestamp: &now,
-				},
+				DeletionTimestamp: &now,
 			},
 			want: false,
 		},
@@ -78,9 +76,7 @@ func TestIsDelete(t *testing.T) {
 		{
 			name: "with deletion timestamp",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					DeletionTimestamp: &now,
-				},
+				DeletionTimestamp: &now,
 			},
 			want: true,
 		},
@@ -121,9 +117,7 @@ func TestAddAnnotations(t *testing.T) {
 		{
 			name: "add to existing",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{"existing": "annotation"},
-				},
+				Annotations: map[string]string{"existing": "annotation"},
 			},
 			annotations:     map[string]string{"key": "value"},
 			wantAnnotations: map[string]string{"existing": "annotation", "key": "value"},
@@ -131,9 +125,7 @@ func TestAddAnnotations(t *testing.T) {
 		{
 			name: "overwrite existing",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{"key": "old"},
-				},
+				Annotations: map[string]string{"key": "old"},
 			},
 			annotations:     map[string]string{"key": "new"},
 			wantAnnotations: map[string]string{"key": "new"},

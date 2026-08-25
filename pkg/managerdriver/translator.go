@@ -13,7 +13,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -288,7 +287,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 			// Drop the `Policy` write in the cleanup release.
 			cloudEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 				Inline: json.RawMessage(listenerPolicyJSON),
-				Policy: json.RawMessage(listenerPolicyJSON),
+				Policy: json.RawMessage(listenerPolicyJSON), //nolint:staticcheck // SA1019: deliberate legacy dual-write, see above
 			}
 			cloudEndpoints[types.NamespacedName{
 				Name:      cloudEndpoint.Name,
@@ -807,12 +806,10 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1alpha1.CloudEndpoint
 	}
 
 	return &ngrokv1alpha1.CloudEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        sanitizeStringForK8sName(name),
-			Namespace:   irVHost.Namespace,
-			Labels:      irVHost.LabelsToAdd,
-			Annotations: irVHost.AnnotationsToAdd,
-		},
+		Name:        sanitizeStringForK8sName(name),
+		Namespace:   irVHost.Namespace,
+		Labels:      irVHost.LabelsToAdd,
+		Annotations: irVHost.AnnotationsToAdd,
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL:            publicURL,
 			PoolingEnabled: irVHost.EndpointPoolingEnabled,
@@ -858,12 +855,10 @@ func buildAgentEndpoint(
 	}
 
 	ret := &ngrokv1alpha1.AgentEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        internalAgentEndpointName(irService.UID, irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.ClientCertRefs),
-			Namespace:   irService.Namespace,
-			Labels:      irVHost.LabelsToAdd,
-			Annotations: irVHost.AnnotationsToAdd,
-		},
+		Name:        internalAgentEndpointName(irService.UID, irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.ClientCertRefs),
+		Namespace:   irService.Namespace,
+		Labels:      irVHost.LabelsToAdd,
+		Annotations: irVHost.AnnotationsToAdd,
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
 			URL: url,
 			// LEGACY-metadata-format: operator-generated objects keep writing the

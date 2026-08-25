@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestSanitizeStringForURL(t *testing.T) {
@@ -483,9 +482,8 @@ func TestGetProtoForServicePort(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
-				Name: "svc", Namespace: "ns", Annotations: tc.annotations,
-			}}
+			svc := &corev1.Service{
+				Name: "svc", Namespace: "ns", Annotations: tc.annotations}
 			got, err := getProtoForServicePort(logr.Discard(), svc, "p", ir.IRProtocol_HTTP)
 			if tc.wantErr {
 				assert.Error(t, err)
@@ -512,7 +510,7 @@ func TestGetPortAppProtocol(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "svc", Namespace: "ns"}}
+			svc := &corev1.Service{Name: "svc", Namespace: "ns"}
 			port := &corev1.ServicePort{Name: "p", AppProtocol: tc.appProtocol}
 			assert.Equal(t, tc.want, getPortAppProtocol(logr.Discard(), svc, port))
 		})

@@ -144,11 +144,9 @@ var _ = Describe("ServiceController", func() {
 
 	JustBeforeEach(func() {
 		svc = &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        fmt.Sprintf("test-service-%d", rand.IntN(100000)),
-				Namespace:   namespace,
-				Annotations: map[string]string{},
-			},
+			Name:        fmt.Sprintf("test-service-%d", rand.IntN(100000)),
+			Namespace:   namespace,
+			Annotations: map[string]string{},
 			Spec: corev1.ServiceSpec{
 				Type: corev1.ServiceTypeLoadBalancer,
 				Ports: []corev1.ServicePort{
@@ -469,10 +467,8 @@ var _ = Describe("ServiceController", func() {
 					BeforeEach(func() {
 						policyName = fmt.Sprintf("test-policy-collapsed-%d", rand.IntN(100000))
 						policy = &ngrokv1alpha1.NgrokTrafficPolicy{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      policyName,
-								Namespace: namespace,
-							},
+							Name:      policyName,
+							Namespace: namespace,
 							Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 								Policy: json.RawMessage(`{"on_tcp_connect": [{"actions": [{"type": "restrict-ips", "config": {"deny": ["5.6.7.8/32"]}}]}]}`),
 							},
@@ -681,10 +677,8 @@ var _ = Describe("ServiceController", func() {
 
 					By("creating a Domain CRD for the ngrok domain")
 					domain := &ingressv1alpha1.Domain{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      domainName,
-							Namespace: namespace,
-						},
+						Name:      domainName,
+						Namespace: namespace,
 						Spec: ingressv1alpha1.DomainSpec{
 							Domain: tlsDomain,
 						},
@@ -797,10 +791,8 @@ var _ = Describe("ServiceController", func() {
 					By("creating a Domain CRD with CNAME target in status")
 					domainName := strings.ReplaceAll(customDomain, ".", "-")
 					domain := &ingressv1alpha1.Domain{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      domainName,
-							Namespace: namespace,
-						},
+						Name:      domainName,
+						Namespace: namespace,
 						Spec: ingressv1alpha1.DomainSpec{
 							Domain: customDomain,
 						},
@@ -861,10 +853,8 @@ var _ = Describe("ServiceController", func() {
 				BeforeEach(func() {
 					policyName = fmt.Sprintf("test-policy-%d", rand.IntN(100000))
 					policy = &ngrokv1alpha1.NgrokTrafficPolicy{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      policyName,
-							Namespace: namespace,
-						},
+						Name:      policyName,
+						Namespace: namespace,
 						Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 							Policy: json.RawMessage(`{"on_tcp_connect": [{"actions": [{"type": "restrict-ips", "config": {"deny": ["1.2.3.4/32"]}}]}]}`),
 						},
@@ -948,17 +938,15 @@ var _ = Describe("ServiceController", func() {
 					Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
 
 					extraClep := &ngrokv1alpha1.CloudEndpoint{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("%s-extra", svc.Name),
-							Namespace: namespace,
-							OwnerReferences: []metav1.OwnerReference{
-								{
-									APIVersion: "v1",
-									Kind:       "Service",
-									Name:       fetched.Name,
-									UID:        fetched.UID,
-									Controller: new(true),
-								},
+						Name:      fmt.Sprintf("%s-extra", svc.Name),
+						Namespace: namespace,
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: "v1",
+								Kind:       "Service",
+								Name:       fetched.Name,
+								UID:        fetched.UID,
+								Controller: new(true),
 							},
 						},
 						Spec: ngrokv1alpha1.CloudEndpointSpec{

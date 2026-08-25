@@ -68,11 +68,9 @@ func (c errClient) Get(_ context.Context, _ client.ObjectKey, _ client.Object, _
 
 func newAgentEndpoint(namespace string, cfg *ngrokv1alpha1.TrafficPolicyCfg) *ngrokv1alpha1.AgentEndpoint {
 	return &ngrokv1alpha1.AgentEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-aep",
-			Namespace:  namespace,
-			Generation: 7,
-		},
+		Name:       "test-aep",
+		Namespace:  namespace,
+		Generation: 7,
 		Spec: ngrokv1alpha1.AgentEndpointSpec{
 			URL:           "tcp://1.tcp.ngrok.io:1234",
 			TrafficPolicy: cfg,
@@ -83,10 +81,8 @@ func newAgentEndpoint(namespace string, cfg *ngrokv1alpha1.TrafficPolicyCfg) *ng
 // LEGACY-trafficpolicy-name: Delete this function once
 func newLegacyPolicy(name, namespace, body string) *ngrokv1alpha1.NgrokTrafficPolicy {
 	return &ngrokv1alpha1.NgrokTrafficPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 			Policy: json.RawMessage(body),
 		},

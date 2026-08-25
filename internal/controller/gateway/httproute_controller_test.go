@@ -142,10 +142,8 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 				CreateGatewayAndWaitForAcceptance(ctx, gw, timeout, interval)
 
 				route = &gatewayv1.HTTPRoute{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      testutils.RandomName("httproute"),
-						Namespace: "default",
-					},
+					Name:      testutils.RandomName("httproute"),
+					Namespace: "default",
 					Spec: gatewayv1.HTTPRouteSpec{
 						CommonRouteSpec: gatewayv1.CommonRouteSpec{
 							ParentRefs: []gatewayv1.ParentReference{
@@ -282,10 +280,8 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 				Expect(k8sClient.Create(ctx, service)).To(Succeed())
 
 				route = &gatewayv1.HTTPRoute{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      testutils.RandomName("httproute"),
-						Namespace: "default",
-					},
+					Name:      testutils.RandomName("httproute"),
+					Namespace: "default",
 					Spec: gatewayv1.HTTPRouteSpec{
 						CommonRouteSpec: gatewayv1.CommonRouteSpec{
 							ParentRefs: []gatewayv1.ParentReference{
@@ -341,10 +337,8 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 				Expect(k8sClient.Create(ctx, unmanagedGateway)).To(Succeed())
 
 				route = &gatewayv1.HTTPRoute{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      testutils.RandomName("httproute"),
-						Namespace: "default",
-					},
+					Name:      testutils.RandomName("httproute"),
+					Namespace: "default",
 					Spec: gatewayv1.HTTPRouteSpec{
 						CommonRouteSpec: gatewayv1.CommonRouteSpec{
 							ParentRefs: []gatewayv1.ParentReference{

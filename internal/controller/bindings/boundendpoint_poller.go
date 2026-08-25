@@ -15,7 +15,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -394,14 +393,10 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 	}
 
 	toCreate := &bindingsv1alpha1.BoundEndpoint{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "bindings.ngrok.com/v1alpha1",
-			Kind:       "BoundEndpoint",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: r.Namespace,
-		},
+		APIVersion: "bindings.ngrok.com/v1alpha1",
+		Kind:       "BoundEndpoint",
+		Name:       name,
+		Namespace:  r.Namespace,
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
 			EndpointURL: desired.Spec.EndpointURL,
 			Scheme:      desired.Spec.Scheme,

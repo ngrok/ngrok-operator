@@ -517,7 +517,7 @@ func (r *CloudEndpointReconciler) findCloudEndpointForTrafficPolicy(ctx context.
 
 	requests := make([]ctrl.Request, 0, len(list.Items))
 	for _, clep := range list.Items {
-		requests = append(requests, ctrl.Request{NamespacedName: client.ObjectKey{Name: clep.Name, Namespace: clep.Namespace}})
+		requests = append(requests, ctrl.Request{Name: clep.Name, Namespace: clep.Namespace})
 	}
 	return requests
 }

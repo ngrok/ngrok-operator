@@ -158,21 +158,20 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         false,
-	}
 
-	// The KubernetesOperator CR is a singleton owned by the operator and always
-	// lives in the release namespace, regardless of `watchNamespace`. Pin its
-	// cache scope to the release namespace so the drain state checker can always
-	// read it, and so RBAC for it can stay narrowly scoped to the release namespace.
-	options.Cache = cache.Options{
-		ByObject: map[client.Object]cache.ByObject{
-			&ngrokv1alpha1.KubernetesOperator{}: {
-				Namespaces: map[string]cache.Config{
-					opts.namespace: {},
+		// The KubernetesOperator CR is a singleton owned by the operator and always
+		// lives in the release namespace, regardless of `watchNamespace`. Pin its
+		// cache scope to the release namespace so the drain state checker can always
+		// read it, and so RBAC for it can stay narrowly scoped to the release namespace.
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&ngrokv1alpha1.KubernetesOperator{}: {
+					Namespaces: map[string]cache.Config{
+						opts.namespace: {},
+					},
 				},
 			},
-		},
-	}
+		}}
 	if opts.watchNamespace != "" {
 		setupLog.Info("watching namespace", "namespace", opts.watchNamespace)
 		options.Cache.DefaultNamespaces = map[string]cache.Config{

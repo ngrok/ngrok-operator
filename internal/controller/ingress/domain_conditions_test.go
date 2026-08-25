@@ -16,10 +16,8 @@ import (
 // Helper function to create a test domain
 func createTestDomain(name, domainName, id string) *ingressv1alpha1.Domain {
 	return &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       name,
-			Generation: 1,
-		},
+		Name:       name,
+		Generation: 1,
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: domainName,
 		},

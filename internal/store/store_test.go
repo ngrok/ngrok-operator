@@ -630,28 +630,26 @@ var _ = Describe("Store", func() {
 			multiRuleIngress.Spec.Rules = []netv1.IngressRule{
 				{
 					Host: "test1.com",
-					IngressRuleValue: netv1.IngressRuleValue{
-						HTTP: &netv1.HTTPIngressRuleValue{
-							Paths: []netv1.HTTPIngressPath{
-								{
-									Path: "/",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "test-service",
-											Port: netv1.ServiceBackendPort{
-												Number: 80,
-											},
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "test-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 80,
 										},
 									},
 								},
-								{
-									Path: "/api",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "api-service",
-											Port: netv1.ServiceBackendPort{
-												Number: 80,
-											},
+							},
+							{
+								Path: "/api",
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "api-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 80,
 										},
 									},
 								},
@@ -661,17 +659,15 @@ var _ = Describe("Store", func() {
 				},
 				{
 					Host: "test2.com",
-					IngressRuleValue: netv1.IngressRuleValue{
-						HTTP: &netv1.HTTPIngressRuleValue{
-							Paths: []netv1.HTTPIngressPath{
-								{
-									Path: "/",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "test-service",
-											Port: netv1.ServiceBackendPort{
-												Number: 80,
-											},
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "test-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 80,
 										},
 									},
 								},
@@ -759,16 +755,14 @@ var _ = Describe("Store", func() {
 				ing.Spec.Rules = []netv1.IngressRule{
 					{
 						Host: "a-hostname.com",
-						IngressRuleValue: netv1.IngressRuleValue{
-							HTTP: &netv1.HTTPIngressRuleValue{
-								Paths: []netv1.HTTPIngressPath{
-									{
-										Path: "/",
-										Backend: netv1.IngressBackend{
-											Service: &netv1.IngressServiceBackend{
-												Name: "test-service",
-												Port: netv1.ServiceBackendPort{Number: 80},
-											},
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "test-service",
+											Port: netv1.ServiceBackendPort{Number: 80},
 										},
 									},
 								},
@@ -777,16 +771,14 @@ var _ = Describe("Store", func() {
 					},
 					{
 						Host: "", // Missing hostname
-						IngressRuleValue: netv1.IngressRuleValue{
-							HTTP: &netv1.HTTPIngressRuleValue{
-								Paths: []netv1.HTTPIngressPath{
-									{
-										Path: "/",
-										Backend: netv1.IngressBackend{
-											Service: &netv1.IngressServiceBackend{
-												Name: "test-service",
-												Port: netv1.ServiceBackendPort{Number: 80},
-											},
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "test-service",
+											Port: netv1.ServiceBackendPort{Number: 80},
 										},
 									},
 								},

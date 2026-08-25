@@ -13,10 +13,8 @@ import (
 // Tests that ipPolicy condition ready is set correctly
 func TestSetIPPolicyReadyCondition(t *testing.T) {
 	ipPolicy := &ingressv1alpha1.IPPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-ip-policy",
-			Generation: 1,
-		},
+		Name:       "test-ip-policy",
+		Generation: 1,
 	}
 
 	setIPPolicyReadyCondition(ipPolicy, true, ReasonIPPolicyActive, "IP Policy is active")
@@ -45,10 +43,8 @@ func TestSetIPPolicyReadyCondition(t *testing.T) {
 // Tests that ipPolicy condition created is set correctly
 func TestSetIPPolicyCreatedCondition(t *testing.T) {
 	ipPolicy := &ingressv1alpha1.IPPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-ip-policy",
-			Generation: 1,
-		},
+		Name:       "test-ip-policy",
+		Generation: 1,
 	}
 
 	setIPPolicyCreatedCondition(ipPolicy, true, ReasonIPPolicyCreated, "IP Policy has been created")
@@ -77,10 +73,8 @@ func TestSetIPPolicyCreatedCondition(t *testing.T) {
 // Tests that ipPolicy condition rules configured is set correctly
 func TestSetIPPolicyRulesConfiguredCondition(t *testing.T) {
 	ipPolicy := &ingressv1alpha1.IPPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-ip-policy",
-			Generation: 1,
-		},
+		Name:       "test-ip-policy",
+		Generation: 1,
 	}
 
 	setIPPolicyRulesConfiguredCondition(ipPolicy, true, ReasonIPPolicyRulesConfigured, "IP Policy rules have been configured")
@@ -110,10 +104,8 @@ func TestSetIPPolicyRulesConfiguredCondition(t *testing.T) {
 // renamed IPPolicyRulesConfigured condition is set
 func TestSetIPPolicyRulesConfiguredCondition_ClearsLegacyCondition(t *testing.T) {
 	ipPolicy := &ingressv1alpha1.IPPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-ip-policy",
-			Generation: 1,
-		},
+		Name:       "test-ip-policy",
+		Generation: 1,
 		Status: ingressv1alpha1.IPPolicyStatus{
 			Conditions: []metav1.Condition{
 				{

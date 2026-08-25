@@ -196,14 +196,14 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 		{
 			name: "no policy configured returns nil",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
+				Namespace: "ns",
 			},
 			want: nil,
 		},
 		{
 			name: "canonical targetRef indexes namespace/name in the endpoint's namespace",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
+				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy"},
@@ -215,7 +215,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 		{
 			name: "canonical inline returns nil (no external ref to watch)",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
+				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 						Inline: json.RawMessage(`{"on_http_request":[]}`),
@@ -227,7 +227,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 		{
 			name: "canonical inline + legacy trafficPolicyName returns nil — canonical wins, do not index legacy",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
+				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicyName: "legacy-ignored", //nolint:staticcheck // test of deprecated field
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
@@ -240,7 +240,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 		{
 			name: "legacy nested policy + legacy trafficPolicyName returns nil — canonical-equivalent wins",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
+				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicyName: "legacy-ignored", //nolint:staticcheck // test of deprecated field
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
@@ -253,7 +253,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 		{
 			name: "canonical targetRef + legacy trafficPolicyName indexes only the canonical ref",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
+				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicyName: "legacy-ignored", //nolint:staticcheck // test of deprecated field
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
@@ -266,7 +266,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 		{
 			name: "empty trafficPolicy{} alongside legacy trafficPolicyName falls back to legacy",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
+				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicyName: "legacy-name", //nolint:staticcheck // test of deprecated field
 					TrafficPolicy:     &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{},
@@ -277,7 +277,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 		{
 			name: "legacy trafficPolicyName only (no canonical) indexes legacy",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "ns"},
+				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicyName: "legacy-name", //nolint:staticcheck // test of deprecated field
 				},
@@ -317,17 +317,15 @@ func TestNormalizeLegacyTrafficPolicy_EventSuppression(t *testing.T) {
 		{
 			name: "operator-managed via controller OwnerReference (Service path) — suppressed",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "ns",
-					Name:      "service-owned",
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "v1",
-							Kind:       "Service",
-							Name:       "my-service",
-							UID:        "uid-123",
-							Controller: new(true),
-						},
+				Namespace: "ns",
+				Name:      "service-owned",
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: "v1",
+						Kind:       "Service",
+						Name:       "my-service",
+						UID:        "uid-123",
+						Controller: new(true),
 					},
 				},
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
@@ -343,13 +341,11 @@ func TestNormalizeLegacyTrafficPolicy_EventSuppression(t *testing.T) {
 		{
 			name: "operator-managed via controller labels (managerdriver path) — suppressed",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "ns",
-					Name:      "managerdriver-owned",
-					Labels: map[string]string{
-						labels.ControllerName:      operatorName,
-						labels.ControllerNamespace: operatorNamespace,
-					},
+				Namespace: "ns",
+				Name:      "managerdriver-owned",
+				Labels: map[string]string{
+					labels.ControllerName:      operatorName,
+					labels.ControllerNamespace: operatorNamespace,
 				},
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://managerdriver-owned.internal",
@@ -364,10 +360,8 @@ func TestNormalizeLegacyTrafficPolicy_EventSuppression(t *testing.T) {
 		{
 			name: "user-authored (no controller ref, no operator labels) — event emitted",
 			clep: &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "ns",
-					Name:      "user-authored",
-				},
+				Namespace: "ns",
+				Name:      "user-authored",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://user-authored.internal",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
@@ -441,16 +435,16 @@ func TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy(t *testing.T) {
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-policy", Namespace: "ns"},
+		Name: "my-policy", Namespace: "ns",
 		Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 			Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy"}]}`),
 		},
 	}
 	clep := &ngrokv1alpha1.CloudEndpoint{
-		ObjectMeta: metav1.ObjectMeta{Name: "legacy-only", Namespace: "ns"},
+		Name: "legacy-only", Namespace: "ns",
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL:               "https://legacy-only.internal",
-			TrafficPolicyName: "my-policy",
+			TrafficPolicyName: "my-policy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 		},
 		// A Status.ID the mock ngrok clientset doesn't know about, so
 		// Endpoints().Get returns 404 and update() falls through to create.

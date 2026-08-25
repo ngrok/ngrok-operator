@@ -63,7 +63,7 @@ func TestBaseController_Reconcile_ObjectNotFound(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "nonexistent", Namespace: "default"},
+		Name: "nonexistent", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.NoError(t, err)
@@ -76,10 +76,8 @@ func TestBaseController_Reconcile_DrainState(t *testing.T) {
 	require.NoError(t, scheme.AddToScheme(s))
 
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-		},
+		Name:      "test-ingress",
+		Namespace: "default",
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).Build()
@@ -98,7 +96,7 @@ func TestBaseController_Reconcile_DrainState(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-ingress", Namespace: "default"},
+		Name: "test-ingress", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.NoError(t, err)
@@ -113,12 +111,10 @@ func TestBaseController_Reconcile_DrainState_AllowsDelete(t *testing.T) {
 
 	now := metav1.NewTime(time.Now())
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              "test-ingress",
-			Namespace:         "default",
-			DeletionTimestamp: &now,
-			Finalizers:        []string{util.FinalizerName},
-		},
+		Name:              "test-ingress",
+		Namespace:         "default",
+		DeletionTimestamp: &now,
+		Finalizers:        []string{util.FinalizerName},
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).Build()
@@ -137,7 +133,7 @@ func TestBaseController_Reconcile_DrainState_AllowsDelete(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-ingress", Namespace: "default"},
+		Name: "test-ingress", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.NoError(t, err)
@@ -151,10 +147,8 @@ func TestBaseController_Reconcile_Create(t *testing.T) {
 	require.NoError(t, scheme.AddToScheme(s))
 
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-		},
+		Name:      "test-ingress",
+		Namespace: "default",
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).Build()
@@ -176,7 +170,7 @@ func TestBaseController_Reconcile_Create(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-ingress", Namespace: "default"},
+		Name: "test-ingress", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.NoError(t, err)
@@ -190,10 +184,8 @@ func TestBaseController_Reconcile_Update(t *testing.T) {
 	require.NoError(t, scheme.AddToScheme(s))
 
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-		},
+		Name:      "test-ingress",
+		Namespace: "default",
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).Build()
@@ -215,7 +207,7 @@ func TestBaseController_Reconcile_Update(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-ingress", Namespace: "default"},
+		Name: "test-ingress", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.NoError(t, err)
@@ -230,12 +222,10 @@ func TestBaseController_Reconcile_Delete(t *testing.T) {
 
 	now := metav1.NewTime(time.Now())
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              "test-ingress",
-			Namespace:         "default",
-			DeletionTimestamp: &now,
-			Finalizers:        []string{util.FinalizerName},
-		},
+		Name:              "test-ingress",
+		Namespace:         "default",
+		DeletionTimestamp: &now,
+		Finalizers:        []string{util.FinalizerName},
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).Build()
@@ -253,7 +243,7 @@ func TestBaseController_Reconcile_Delete(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-ingress", Namespace: "default"},
+		Name: "test-ingress", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.NoError(t, err)
@@ -268,12 +258,10 @@ func TestBaseController_Reconcile_Delete_NotFound(t *testing.T) {
 
 	now := metav1.NewTime(time.Now())
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              "test-ingress",
-			Namespace:         "default",
-			DeletionTimestamp: &now,
-			Finalizers:        []string{util.FinalizerName},
-		},
+		Name:              "test-ingress",
+		Namespace:         "default",
+		DeletionTimestamp: &now,
+		Finalizers:        []string{util.FinalizerName},
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).Build()
@@ -292,7 +280,7 @@ func TestBaseController_Reconcile_Delete_NotFound(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-ingress", Namespace: "default"},
+		Name: "test-ingress", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.NoError(t, err)
@@ -305,11 +293,9 @@ func TestBaseController_ReconcileStatus_SetsObservedGeneration(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(s))
 
 	domain := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-domain",
-			Namespace:  "default",
-			Generation: 3,
-		},
+		Name:       "test-domain",
+		Namespace:  "default",
+		Generation: 3,
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(domain).WithStatusSubresource(domain).Build()
@@ -335,11 +321,9 @@ func TestBaseController_ReconcileStatus_NoObservedGenerationSetter(t *testing.T)
 	require.NoError(t, scheme.AddToScheme(s))
 
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-ingress",
-			Namespace:  "default",
-			Generation: 2,
-		},
+		Name:       "test-ingress",
+		Namespace:  "default",
+		Generation: 2,
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).WithStatusSubresource(ingress).Build()
@@ -481,10 +465,8 @@ func TestBaseController_Reconcile_CreateError(t *testing.T) {
 	require.NoError(t, scheme.AddToScheme(s))
 
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-		},
+		Name:      "test-ingress",
+		Namespace: "default",
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).Build()
@@ -501,7 +483,7 @@ func TestBaseController_Reconcile_CreateError(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-ingress", Namespace: "default"},
+		Name: "test-ingress", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.NoError(t, err)
@@ -514,10 +496,8 @@ func TestBaseController_Reconcile_UpdateError(t *testing.T) {
 	require.NoError(t, scheme.AddToScheme(s))
 
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-		},
+		Name:      "test-ingress",
+		Namespace: "default",
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).Build()
@@ -534,7 +514,7 @@ func TestBaseController_Reconcile_UpdateError(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-ingress", Namespace: "default"},
+		Name: "test-ingress", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.Error(t, err)
@@ -547,10 +527,8 @@ func TestBaseController_Reconcile_CustomErrResult(t *testing.T) {
 	require.NoError(t, scheme.AddToScheme(s))
 
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-		},
+		Name:      "test-ingress",
+		Namespace: "default",
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(ingress).Build()
@@ -570,7 +548,7 @@ func TestBaseController_Reconcile_CustomErrResult(t *testing.T) {
 	}
 
 	result, err := bc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-ingress", Namespace: "default"},
+		Name: "test-ingress", Namespace: "default",
 	}, &netv1.Ingress{})
 
 	assert.NoError(t, err)
