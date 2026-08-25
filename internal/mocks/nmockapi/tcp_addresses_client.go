@@ -4,7 +4,7 @@ import (
 	context "context"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 
 	"github.com/ngrok/ngrok-api-go/v7"
 )
@@ -34,7 +34,7 @@ func (m *TCPAddressesClient) Create(_ context.Context, item *ngrok.ReservedAddrC
 	}
 
 	// Generate a random port in the range 10000-30000
-	newAddr.Addr = fmt.Sprintf("%d.tcp.ngrok.io:%d", rand.Intn(7), rand.Intn(20000)+10000)
+	newAddr.Addr = fmt.Sprintf("%d.tcp.ngrok.io:%d", rand.IntN(7), rand.IntN(20000)+10000)
 
 	m.items[id] = newAddr
 	return newAddr, nil

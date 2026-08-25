@@ -34,7 +34,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"math/big"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -2034,7 +2034,7 @@ func RandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, length)
 	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
+		b[i] = charset[rand.IntN(len(charset))]
 	}
 	return string(b)
 }
