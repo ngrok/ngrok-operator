@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -209,13 +211,9 @@ func startOperator(ctx context.Context, opts apiManagerOpts) error {
 			return fmt.Errorf("unable to list server groups: %w", err)
 		}
 
-		gatewayAPIGroupInstalled := false
-		for _, group := range apiGroupList.Groups {
-			if group.Name == "gateway.networking.k8s.io" {
-				gatewayAPIGroupInstalled = true
-				break
-			}
-		}
+		gatewayAPIGroupInstalled := slices.ContainsFunc(apiGroupList.Groups, func(group metav1.APIGroup) bool {
+			return group.Name == gatewayv1.GroupName
+		})
 		if !gatewayAPIGroupInstalled {
 			setupLog.Info("Gateway API CRDs not detected, Gateway feature set will be disabled")
 			opts.enableFeatureGateway = false
