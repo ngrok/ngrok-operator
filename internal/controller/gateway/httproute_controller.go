@@ -32,6 +32,8 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
@@ -132,14 +134,34 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return managerdriver.HandleSyncResult(r.Driver.Sync(ctx, r.Client))
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	storedResources := []client.Object{
+// storeFedResources lists the kinds this controller keeps fresh in the
+// managerdriver store. Every entry is registered with a
+// ControllerEventHandler; driver.Seed only populates the store once at boot,
+// so a kind missing from this list is resolvable at startup and then silently
+// goes stale. Kept as a function so tests can assert its coverage.
+//
+// The traffic-policy kinds are listed here as well as on the Ingress
+// controller on purpose: the Gateway feature set can be enabled with the
+// Ingress feature set disabled, and in that configuration this is the only
+// controller keeping the store's traffic policies current. HTTPRoute
+// extensionRef filters resolve through store.ResolveTrafficPolicy, so without
+// these entries a policy edited after boot would never be picked up.
+// Registering the same kind from more than one controller is harmless and
+// already the norm here — Domain is registered from three.
+func storeFedResources() []client.Object {
+	return []client.Object{
 		&gatewayv1.GatewayClass{},
 		&corev1.Service{},
 		&ingressv1alpha1.Domain{},
+		// LEGACY-trafficpolicy-kind: drop the NgrokTrafficPolicy entry at
+		// cleanup; the canonical TrafficPolicy entry below stays.
+		&ngrokv1alpha1.NgrokTrafficPolicy{},
+		&ngrokv1.TrafficPolicy{},
 	}
+}
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(
 			&gatewayv1.HTTPRoute{},
@@ -156,7 +178,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		handler.EnqueueRequestsFromMapFunc(r.findHTTPRouteForGateway),
 	)
 
-	for _, obj := range storedResources {
+	for _, obj := range storeFedResources() {
 		builder = builder.Watches(
 			obj,
 			managerdriver.NewControllerEventHandler(

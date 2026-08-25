@@ -316,8 +316,16 @@ func listObjectsForType(ctx context.Context, client client.Reader, v any, listOp
 // - AgentEndpoints
 // - CloudEndpoints
 // When the sync method becomes a background process, this likely won't be needed anymore
-func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.ListOption) error {
-	typesToSeed := []any{
+// BaseSeededTypes returns the kinds the driver loads into its store at
+// startup, independent of feature flags.
+//
+// Seeding a kind only makes it correct at boot — staying correct afterwards
+// requires a controller to register a ControllerEventHandler for it. Exposing
+// this list lets controller tests assert that the two sets agree; the passive
+// TrafficPolicy migration shipped a kind that was seeded but never watched,
+// which read as working until the first post-startup edit.
+func BaseSeededTypes() []any {
+	return []any{
 		&netv1.Ingress{},
 		&netv1.IngressClass{},
 		&corev1.Service{},
@@ -332,6 +340,10 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.L
 		&ngrokv1alpha1.AgentEndpoint{},
 		&ngrokv1alpha1.CloudEndpoint{},
 	}
+}
+
+func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.ListOption) error {
+	typesToSeed := BaseSeededTypes()
 
 	if d.gatewayEnabled {
 		typesToSeed = append(typesToSeed,

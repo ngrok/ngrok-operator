@@ -44,14 +44,12 @@ import (
 
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 )
@@ -230,52 +228,29 @@ func IntendedSource(cfg *ngrokv1alpha1.TrafficPolicyCfg) string {
 // JSON. The policy is always read from the endpoint's own namespace;
 // cross-namespace references are not supported.
 //
-// Resolution order is canonical-first: the ngrok.com/v1 TrafficPolicy is
-// consulted first, and only when it is missing does the resolver fall back to
-// the deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy. When the
-// legacy fallback answers the lookup, a DeprecatedAPIGroup warning event is
-// emitted on the endpoint so users know to re-stamp the manifest. Both kinds
-// present under the same name is a valid transitional state — canonical wins
-// silently in that case (no warning), matching the guidance in the migration
-// plan.
-//
-// LEGACY-trafficpolicy-kind: at cleanup the body collapses to a single Get
-// against ngrokv1.TrafficPolicy — the switch below, the fallback Get on
-// ngrokv1alpha1.NgrokTrafficPolicy, and the warnDeprecatedAPIGroup call all
-// go away, and marshalTrafficPolicy inlines back into resolveRef.
+// Resolution order is canonical-first, delegated to LookupPolicy so this
+// resolver and every other client-side reader share one implementation. When
+// the legacy fallback answers the lookup, a DeprecatedAPIGroup warning event
+// is emitted on the endpoint so users know to re-stamp the manifest.
 func (m *Manager) resolveRef(ctx context.Context, ep ngrokv1alpha1.EndpointWithTrafficPolicy, ref *ngrokv1alpha1.K8sObjectRef) (string, error) {
 	key := client.ObjectKey{Namespace: ep.GetNamespace(), Name: ref.Name}
 	log := ctrl.LoggerFrom(ctx).WithValues("trafficPolicy", key)
 
-	canonical := &ngrokv1.TrafficPolicy{}
-	err := m.Client.Get(ctx, key, canonical)
-	switch {
-	case err == nil:
-		return marshalTrafficPolicy(log, canonical.Spec.Policy)
-	case !apierrors.IsNotFound(err):
-		// Transient/unexpected error — let the caller requeue with backoff.
-		return "", err
-	}
-
-	// LEGACY-trafficpolicy-kind: BEGIN
-	// Canonical not found — fall back to the deprecated v1alpha1 kind. The
-	// whole block (including warnDeprecatedAPIGroup) disappears at cleanup;
-	// a canonical miss becomes ErrTrafficPolicyNotFound directly.
-	legacy := &ngrokv1alpha1.NgrokTrafficPolicy{}
-	if err := m.Client.Get(ctx, key, legacy); err != nil {
-		if apierrors.IsNotFound(err) {
-			if m.Recorder != nil {
-				m.Recorder.Eventf(ep, nil, v1.EventTypeWarning, "TrafficPolicyNotFound", "Reconcile",
-					fmt.Sprintf("Failed to find TrafficPolicy %s/%s: %v", key.Namespace, key.Name, err))
-			}
-			return "", fmt.Errorf("%w: %s", ErrTrafficPolicyNotFound, key)
+	lookup, err := LookupPolicy(ctx, m.Client, key)
+	if err != nil {
+		if errors.Is(err, ErrTrafficPolicyNotFound) && m.Recorder != nil {
+			m.Recorder.Eventf(ep, nil, v1.EventTypeWarning, "TrafficPolicyNotFound", "Reconcile",
+				fmt.Sprintf("Failed to find TrafficPolicy %s/%s: %v", key.Namespace, key.Name, err))
 		}
 		return "", err
 	}
 
-	m.warnDeprecatedAPIGroup(ep, key)
-	return marshalTrafficPolicy(log, legacy.Spec.Policy)
-	// LEGACY-trafficpolicy-kind: END
+	// LEGACY-trafficpolicy-kind: drop this branch at cleanup.
+	if lookup.LegacyKind {
+		m.warnDeprecatedAPIGroup(ep, key)
+	}
+
+	return marshalTrafficPolicy(log, lookup.Policy)
 }
 
 // warnDeprecatedAPIGroup emits a Warning event on ep pointing users at the

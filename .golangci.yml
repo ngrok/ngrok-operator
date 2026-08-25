@@ -53,12 +53,22 @@ linters:
       # NgrokTrafficPolicy carries a Go `Deprecated:` marker so downstream
       # importers of api/ngrok/v1alpha1 get the signal, but the operator
       # itself has to keep referencing the type for the whole dual-read
-      # migration window — serving the legacy kind is the point of the
-      # release. Without this rule staticcheck flags every one of those
-      # deliberate references.
+      # migration window — we are the ones doing the deprecation, and
+      # serving the legacy kind is the point of the release. Without this
+      # rule staticcheck flags every one of those deliberate references.
+      #
+      # The pattern is deliberately loose about how the type is qualified.
+      # staticcheck names the symbol by its full import path
+      # ("github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1.NgrokTrafficPolicy"),
+      # not by the importing file's alias, and that spelling has changed
+      # across staticcheck releases — an alias-specific pattern matches
+      # nothing and fails open, letting all 52 references through as errors.
+      # Matching on the bare type name survives both spellings. The trailing
+      # " is deprecated" keeps it from also swallowing NgrokTrafficPolicyList
+      # or NgrokTrafficPolicySpec, which are not deprecated symbols.
       - linters:
           - staticcheck
-        text: "SA1019: ngrokv1alpha1.NgrokTrafficPolicy is deprecated"
+        text: 'SA1019: .*\bNgrokTrafficPolicy is deprecated'
     paths:
       - third_party$
       - builtin$

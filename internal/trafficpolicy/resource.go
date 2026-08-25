@@ -25,8 +25,11 @@ SOFTWARE.
 package trafficpolicy
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -91,3 +94,64 @@ var (
 	// LEGACY-trafficpolicy-kind: drop this assertion at cleanup.
 	_ TrafficPolicyResource = (*ngrokv1alpha1.NgrokTrafficPolicy)(nil)
 )
+
+// PolicyLookup is the result of resolving a traffic-policy reference straight
+// against the API server. It is the client-side twin of
+// store.TrafficPolicyLookup, which answers the same question from the
+// managerdriver's cache; the field names match deliberately so the two read
+// the same at call sites.
+type PolicyLookup struct {
+	// Policy is the raw JSON policy body.
+	Policy json.RawMessage
+	// Object is the CR that supplied the policy — either a
+	// *ngrokv1.TrafficPolicy or a *ngrokv1alpha1.NgrokTrafficPolicy. Callers
+	// pass it to a recorder when emitting events about the policy itself.
+	Object client.Object
+	// LegacyKind is true when the canonical kind was absent and the
+	// deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy answered the
+	// lookup. Callers use it to emit a DeprecatedAPIGroup warning.
+	//
+	// LEGACY-trafficpolicy-kind: delete this field at cleanup.
+	LegacyKind bool
+}
+
+// LookupPolicy resolves a traffic-policy reference by key, canonical-first:
+// the ngrok.com/v1 TrafficPolicy is consulted first, and only when it is
+// absent does the lookup fall back to the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy. Both kinds present under
+// the same name is a valid transitional state — canonical wins silently.
+//
+// It returns an error wrapping ErrTrafficPolicyNotFound only when neither kind
+// holds an object under key; that error is terminal, so callers should surface
+// it rather than requeue. Any other error is transient and worth a retry.
+//
+// This is the single client-side resolver: every code path that reads a policy
+// through a client.Client goes through it, so a caller cannot accidentally
+// support only one of the two kinds. The store-backed equivalent is
+// store.Store.ResolveTrafficPolicy.
+//
+// LEGACY-trafficpolicy-kind: at cleanup the body collapses to a single Get
+// against ngrokv1.TrafficPolicy and the fallback block below goes away.
+func LookupPolicy(ctx context.Context, c client.Client, key client.ObjectKey) (PolicyLookup, error) {
+	canonical := &ngrokv1.TrafficPolicy{}
+	err := c.Get(ctx, key, canonical)
+	switch {
+	case err == nil:
+		return PolicyLookup{Policy: canonical.Spec.Policy, Object: canonical}, nil
+	case !apierrors.IsNotFound(err):
+		// Transient/unexpected error — let the caller requeue with backoff.
+		return PolicyLookup{}, err
+	}
+
+	// LEGACY-trafficpolicy-kind: BEGIN — delete this fallback at cleanup; a
+	// canonical miss then becomes ErrTrafficPolicyNotFound directly.
+	legacy := &ngrokv1alpha1.NgrokTrafficPolicy{}
+	if err := c.Get(ctx, key, legacy); err != nil {
+		if apierrors.IsNotFound(err) {
+			return PolicyLookup{}, fmt.Errorf("%w: %s", ErrTrafficPolicyNotFound, key)
+		}
+		return PolicyLookup{}, err
+	}
+	return PolicyLookup{Policy: legacy.Spec.Policy, Object: legacy, LegacyKind: true}, nil
+	// LEGACY-trafficpolicy-kind: END
+}
