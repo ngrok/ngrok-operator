@@ -377,10 +377,8 @@ func TestIntendedSource(t *testing.T) {
 // dual-read tests.
 func newPolicy(name, namespace, body string) *ngrokv1.TrafficPolicy {
 	return &ngrokv1.TrafficPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: ngrokv1.TrafficPolicySpec{
 			Policy: json.RawMessage(body),
 		},

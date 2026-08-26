@@ -49,7 +49,7 @@ var trafficPolicyKinds = []trafficPolicyKind{
 		name: "ngrok.com/v1 TrafficPolicy",
 		new: func(generation int64, policy string) trafficpolicypkg.TrafficPolicyResource {
 			return &ngrokv1.TrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{Generation: generation},
+				Generation: generation,
 				Spec:       ngrokv1.TrafficPolicySpec{Policy: json.RawMessage(policy)},
 			}
 		},
@@ -63,7 +63,7 @@ var trafficPolicyKinds = []trafficPolicyKind{
 		name: "ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy",
 		new: func(generation int64, policy string) trafficpolicypkg.TrafficPolicyResource {
 			return &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{Generation: generation},
+				Generation: generation,
 				Spec:       ngrokv1alpha1.NgrokTrafficPolicySpec{Policy: json.RawMessage(policy)},
 			}
 		},

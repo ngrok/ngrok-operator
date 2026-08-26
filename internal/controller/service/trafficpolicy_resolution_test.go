@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -35,11 +34,9 @@ func TestGetTrafficPolicyForService(t *testing.T) {
 
 	svcWithPolicy := func(name string) *corev1.Service {
 		return &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        "svc",
-				Namespace:   "ns",
-				Annotations: map[string]string{annotations.TrafficPolicyAnnotation: name},
-			},
+			Name:        "svc",
+			Namespace:   "ns",
+			Annotations: map[string]string{annotations.TrafficPolicyAnnotation: name},
 		}
 	}
 
@@ -89,7 +86,7 @@ func TestGetTrafficPolicyForService(t *testing.T) {
 
 	t.Run("no annotation returns no policy and no error", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).Build()
-		svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "svc", Namespace: "ns"}}
+		svc := &corev1.Service{Name: "svc", Namespace: "ns"}
 
 		got, err := getTrafficPolicyForService(context.Background(), c, svc)
 		require.NoError(t, err)

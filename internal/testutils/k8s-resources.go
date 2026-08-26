@@ -285,10 +285,8 @@ func NewReferenceGrant(name string, namespace string) gatewayv1beta1.ReferenceGr
 // NewTestTrafficPolicy builds a canonical ngrok.com/v1 TrafficPolicy.
 func NewTestTrafficPolicy(name string, namespace string, policyStr string) ngrokv1.TrafficPolicy {
 	return ngrokv1.TrafficPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: ngrokv1.TrafficPolicySpec{
 			Policy: json.RawMessage(policyStr),
 		},

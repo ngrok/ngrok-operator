@@ -1232,11 +1232,9 @@ var _ = Describe("Driver", func() {
 
 			BeforeEach(func() {
 				Expect(driver.store.Add(&ngrokv1.TrafficPolicy{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "canonical-policy",
-						Namespace: namespace,
-					},
-					Spec: ngrokv1.TrafficPolicySpec{Policy: []byte(canonicalBody)},
+					Name:      "canonical-policy",
+					Namespace: namespace,
+					Spec:      ngrokv1.TrafficPolicySpec{Policy: []byte(canonicalBody)},
 				})).To(BeNil())
 			})
 
@@ -1261,11 +1259,9 @@ var _ = Describe("Driver", func() {
 
 			It("prefers the canonical kind when both exist under one name", func() {
 				Expect(driver.store.Add(&ngrokv1.TrafficPolicy{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-policy",
-						Namespace: namespace,
-					},
-					Spec: ngrokv1.TrafficPolicySpec{Policy: []byte(canonicalBody)},
+					Name:      "test-policy",
+					Namespace: namespace,
+					Spec:      ngrokv1.TrafficPolicySpec{Policy: []byte(canonicalBody)},
 				})).To(BeNil())
 
 				Expect(resolve("test-policy", "TrafficPolicy", "ngrok.com")).
