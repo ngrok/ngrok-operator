@@ -253,7 +253,7 @@ func AnnotationsReferencesConfigmap(obj client.Object) bool {
 func StringToURL(input string) (*url.URL, error) {
 	parsedURL, err := url.Parse(input)
 	if err != nil {
-		return nil, fmt.Errorf("%v is not a valid URL: %v", input, err)
+		return nil, fmt.Errorf("%v is not a valid URL: %w", input, err)
 	}
 
 	switch {
