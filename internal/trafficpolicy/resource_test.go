@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -71,10 +70,8 @@ func newLookupTestClient(t *testing.T, objs ...client.Object) client.Client {
 
 func newCanonicalPolicy(name, namespace, body string) *ngrokv1.TrafficPolicy {
 	return &ngrokv1.TrafficPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Spec: ngrokv1.TrafficPolicySpec{
 			Policy: json.RawMessage(body),
 		},
