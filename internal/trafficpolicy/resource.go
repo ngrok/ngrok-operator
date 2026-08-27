@@ -30,6 +30,7 @@ import (
 	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -138,7 +139,7 @@ func LookupPolicy(ctx context.Context, c client.Client, key client.ObjectKey) (P
 	switch {
 	case err == nil:
 		return PolicyLookup{Policy: canonical.Spec.Policy, Object: canonical}, nil
-	case !apierrors.IsNotFound(err):
+	case !(apierrors.IsNotFound(err) || meta.IsNoMatchError(err)):
 		// Transient/unexpected error — let the caller requeue with backoff.
 		return PolicyLookup{}, err
 	}

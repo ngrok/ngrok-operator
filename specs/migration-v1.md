@@ -71,7 +71,8 @@ you re-stamp manifests on your own schedule.
 Steps:
 
 1. Upgrade the operator via Helm. Both CRDs are installed; existing
-   `v1alpha1` objects keep working and keep being resolved.
+   `v1alpha1` objects keep working and keep being resolved. 
+   If installCRDS=false, upgrade ngrok-crds directly before migrating objects.
 2. Re-stamp each manifest's `apiVersion` and `kind`, apply it, then delete the
    old object. For `NgrokTrafficPolicy`:
 

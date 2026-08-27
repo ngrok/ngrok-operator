@@ -511,7 +511,7 @@ concept during the migration window and let the controller resolve either.
     single generic implementation rather than a copied pair:
     - `internal/trafficpolicy/resource.go` defines
       `TrafficPolicyResource` (the kind-agnostic interface: `client.Object`
-      plus `GetPolicy`/`GetConditions`/`Get`+`SetObservedGeneration`) and the
+      plus `GetPolicy`/`GetConditions`/`GetObservedGeneration`+`SetObservedGeneration`) and the
       `TrafficPolicyResourcePtr[T]` constraint that lets generic code
       allocate a fresh typed object with `PT(new(T))`. Both API types carry
       the accessors and a compile-time assertion pins the contract.
@@ -555,14 +555,11 @@ concept during the migration window and let the controller resolve either.
   - Endpoint controllers `Watches(&ngrokv1alpha1.NgrokTrafficPolicy{}, ...)`
     alongside the canonical watch so legacy-kind updates re-enqueue
     referring endpoints. The `Watches` block is `LEGACY-trafficpolicy-kind`-tagged
-    and deletes at cleanup. The mappers themselves are kind-agnostic by
-    construction — they accept anything satisfying `TrafficPolicyResource`
-    rather than switching on concrete types — so they need no edit at
-    cleanup.
+    and deletes at cleanup.
   - RBAC: `helm/ngrok-operator/templates/{api-manager,agent}/role.yaml`
     keep the `ngroktrafficpolicies` rule blocks tagged
     `LEGACY-trafficpolicy-kind`; the canonical `trafficpolicies` rules
-    are on the same file and stay after cleanup. The
+    are on the same files and stay after cleanup. The
     `ngroktrafficpolicy-editor.yaml` / `ngroktrafficpolicy-viewer.yaml`
     aggregation templates are tagged for whole-file deletion; the
     `trafficpolicy-editor.yaml` / `trafficpolicy-viewer.yaml` siblings

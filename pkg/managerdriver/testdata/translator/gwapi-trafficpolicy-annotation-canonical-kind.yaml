@@ -1,5 +1,5 @@
 # Canonical ngrok.com/v1 TrafficPolicy resolved through the
-# ngrok.com/traffic-policy annotation on an HTTPRoute. The annotation names
+# k8s.ngrok.com/traffic-policy annotation on an HTTPRoute. The annotation names
 # the policy by name only, so the dual-read resolver picks the kind.
 # Legacy twin: gwapi-trafficpolicy-annotation.yaml.
 input:
