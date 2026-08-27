@@ -14,11 +14,13 @@ limitations under the License.
 package store
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -52,7 +54,25 @@ type Storer interface {
 	GetNamespaceV1(name string) (*corev1.Namespace, error)
 	GetConfigMapV1(name, namespace string) (*corev1.ConfigMap, error)
 	GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
+	// LEGACY-trafficpolicy-kind: legacy accessor for the deprecated
+	// NgrokTrafficPolicy kind. Callers should prefer ResolveTrafficPolicy so
+	// the canonical ngrok.com/v1 TrafficPolicy is consulted first. Delete
+	// this method (and its implementation below) at cleanup.
 	GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error)
+	GetTrafficPolicyV1(name, namespace string) (*ngrokv1.TrafficPolicy, error)
+	// ResolveTrafficPolicy looks up the referenced policy by (namespace, name).
+	// It prefers the canonical ngrok.com/v1 TrafficPolicy and falls back to the
+	// deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy when no
+	// canonical object exists. The returned TrafficPolicyLookup surfaces the
+	// raw policy JSON, the object that supplied it (as a client.Object so
+	// callers can emit events on it), and whether the legacy fallback was
+	// used — callers use the legacy signal to emit a DeprecatedAPIGroup
+	// warning on the referencing endpoint.
+	//
+	// LEGACY-trafficpolicy-kind: at cleanup this collapses to a canonical
+	// GetTrafficPolicyV1 lookup; TrafficPolicyLookup.LegacyKind and the
+	// v1alpha1 fallback branch go away with it.
+	ResolveTrafficPolicy(name, namespace string) (TrafficPolicyLookup, error)
 	GetGateway(name string, namespace string) (*gatewayv1.Gateway, error)
 	GetGatewayClass(name string) (*gatewayv1.GatewayClass, error)
 	GetHTTPRoute(name string, namespace string) (*gatewayv1.HTTPRoute, error)
@@ -170,8 +190,67 @@ func (s Store) GetNgrokIngressV1(name, namespace string) (*netv1.Ingress, error)
 	return ing, nil
 }
 
+// LEGACY-trafficpolicy-kind: delete at cleanup. Callers should route through
+// ResolveTrafficPolicy so the canonical kind is preferred.
 func (s Store) GetNgrokTrafficPolicyV1(name, namespace string) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
 	return genericGetByKey[ngrokv1alpha1.NgrokTrafficPolicy](s.stores.NgrokTrafficPolicyV1, getKey(name, namespace))
+}
+
+// GetTrafficPolicyV1 returns the canonical ngrok.com/v1 TrafficPolicy by name
+// and namespace, if one is cached.
+func (s Store) GetTrafficPolicyV1(name, namespace string) (*ngrokv1.TrafficPolicy, error) {
+	return genericGetByKey[ngrokv1.TrafficPolicy](s.stores.TrafficPolicyV1, getKey(name, namespace))
+}
+
+// TrafficPolicyLookup is the result of ResolveTrafficPolicy: the policy JSON,
+// the underlying source object (for eventing / logging), and whether the
+// deprecated ngrok.k8s.ngrok.com/v1alpha1 fallback path served the lookup.
+//
+// LEGACY-trafficpolicy-kind: the LegacyKind field goes away at cleanup and
+// the struct collapses to {Policy, Object}. Callers can then read directly
+// from GetTrafficPolicyV1 without wrapping.
+type TrafficPolicyLookup struct {
+	// Policy is the raw JSON policy body. Empty when Object is nil.
+	Policy json.RawMessage
+	// Object is the underlying CR that supplied the policy — either a
+	// *ngrokv1.TrafficPolicy or a *ngrokv1alpha1.NgrokTrafficPolicy. Callers
+	// pass it back to the recorder when emitting deprecation events.
+	Object client.Object
+	// LegacyKind is true when the canonical ngrok.com/v1 TrafficPolicy was
+	// not present and the deprecated ngrok.k8s.ngrok.com/v1alpha1
+	// NgrokTrafficPolicy answered the lookup. Callers use this to emit a
+	// one-shot DeprecatedAPIGroup warning event on the referring endpoint.
+	//
+	// LEGACY-trafficpolicy-kind: delete this field at cleanup.
+	LegacyKind bool
+}
+
+// ResolveTrafficPolicy prefers the canonical ngrok.com/v1 TrafficPolicy and
+// falls back to the deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy
+// when the canonical object is missing. A NotFound is returned only when
+// neither kind holds an object with the given name.
+//
+// LEGACY-trafficpolicy-kind: at cleanup the body collapses to a bare
+// GetTrafficPolicyV1 lookup:
+//
+//	tp, err := s.GetTrafficPolicyV1(name, namespace)
+//	if err != nil {
+//	    return TrafficPolicyLookup{}, err
+//	}
+//	return TrafficPolicyLookup{Policy: tp.Spec.Policy, Object: tp}, nil
+func (s Store) ResolveTrafficPolicy(name, namespace string) (TrafficPolicyLookup, error) {
+	if tp, err := s.GetTrafficPolicyV1(name, namespace); err == nil {
+		return TrafficPolicyLookup{Policy: tp.Spec.Policy, Object: tp, LegacyKind: false}, nil
+	} else if !errors.IsErrorNotFound(err) {
+		return TrafficPolicyLookup{}, err
+	}
+
+	// LEGACY-trafficpolicy-kind (read-side cleanup): delete the fallback below.
+	legacy, err := s.GetNgrokTrafficPolicyV1(name, namespace)
+	if err != nil {
+		return TrafficPolicyLookup{}, err
+	}
+	return TrafficPolicyLookup{Policy: legacy.Spec.Policy, Object: legacy, LegacyKind: true}, nil
 }
 
 func (s Store) GetGateway(name string, namespace string) (*gatewayv1.Gateway, error) {

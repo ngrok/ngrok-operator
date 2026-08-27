@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 )
@@ -51,6 +52,7 @@ func TestSyncDebouncer(t *testing.T) {
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(testScheme))
+	utilruntime.Must(ngrokv1.AddToScheme(testScheme))
 
 	newDriver := func() *Driver {
 		return NewDriver(

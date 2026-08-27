@@ -34,6 +34,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
@@ -216,8 +217,21 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 				predicate.GenerationChangedPredicate{},
 			),
 		)).
+		// LEGACY-trafficpolicy-kind: BEGIN
+		// Watch the deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy
+		// so endpoints that still resolve through the fallback path
+		// re-enqueue on legacy-kind updates. Delete this Watches call at
+		// cleanup; the canonical Watches below stays.
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
+			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForTrafficPolicy),
+		).
+		// LEGACY-trafficpolicy-kind: END
+		Watches(
+			// Canonical ngrok.com/v1 TrafficPolicy watches — the endpoint's
+			// spec.trafficPolicy.targetRef is untyped-by-kind, so the same
+			// mapper enqueues on either kind by namespace/name key.
+			&ngrokv1.TrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForTrafficPolicy),
 		).
 		Watches(
@@ -304,9 +318,16 @@ func (r *AgentEndpointReconciler) statusID(endpoint *ngrokv1alpha1.AgentEndpoint
 
 // findAgentEndpointForTrafficPolicy searches for any AgentEndpoint CRs that
 // reference a particular TrafficPolicy in the policy's namespace.
+//
+// The mapper is kind-agnostic by construction: it accepts anything satisfying
+// trafficpolicypkg.TrafficPolicyResource, which today means both the canonical
+// ngrok.com/v1 TrafficPolicy and the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy. That works because the
+// endpoint index key is composite namespace/name only, with no kind component.
+// Testing against the interface rather than a list of concrete types means
+// this function needs no edit when the legacy kind is dropped.
 func (r *AgentEndpointReconciler) findAgentEndpointForTrafficPolicy(ctx context.Context, o client.Object) []ctrl.Request {
-	tp, ok := o.(*ngrokv1alpha1.NgrokTrafficPolicy)
-	if !ok {
+	if _, ok := o.(trafficpolicypkg.TrafficPolicyResource); !ok {
 		return nil
 	}
 
@@ -314,7 +335,7 @@ func (r *AgentEndpointReconciler) findAgentEndpointForTrafficPolicy(ctx context.
 	// this TrafficPolicy in its namespace.
 	var agentEndpointList ngrokv1alpha1.AgentEndpointList
 	if err := r.Client.List(ctx, &agentEndpointList,
-		client.MatchingFields{trafficpolicypkg.RefIndex: trafficpolicypkg.LookupKey(tp)}); err != nil {
+		client.MatchingFields{trafficpolicypkg.RefIndex: trafficpolicypkg.LookupKey(o)}); err != nil {
 		r.Log.Error(err, "failed to list AgentEndpoints using index")
 		return nil
 	}

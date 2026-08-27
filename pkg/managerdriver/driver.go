@@ -30,6 +30,7 @@ import (
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -272,8 +273,13 @@ func listObjectsForType(ctx context.Context, client client.Reader, v any, listOp
 		domains := &ingressv1alpha1.DomainList{}
 		err := client.List(ctx, domains, listOpts...)
 		return util.ToClientObjects(domains.Items), err
+	// LEGACY-trafficpolicy-kind: drop this case at cleanup.
 	case *ngrokv1alpha1.NgrokTrafficPolicy:
 		policies := &ngrokv1alpha1.NgrokTrafficPolicyList{}
+		err := client.List(ctx, policies, listOpts...)
+		return util.ToClientObjects(policies.Items), err
+	case *ngrokv1.TrafficPolicy:
+		policies := &ngrokv1.TrafficPolicyList{}
 		err := client.List(ctx, policies, listOpts...)
 		return util.ToClientObjects(policies.Items), err
 	case *ngrokv1alpha1.AgentEndpoint:
@@ -310,8 +316,16 @@ func listObjectsForType(ctx context.Context, client client.Reader, v any, listOp
 // - AgentEndpoints
 // - CloudEndpoints
 // When the sync method becomes a background process, this likely won't be needed anymore
-func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.ListOption) error {
-	typesToSeed := []any{
+// BaseSeededTypes returns the kinds the driver loads into its store at
+// startup, independent of feature flags.
+//
+// Seeding a kind only makes it correct at boot — staying correct afterwards
+// requires a controller to register a ControllerEventHandler for it. Exposing
+// this list lets controller tests assert that the two sets agree; the passive
+// TrafficPolicy migration shipped a kind that was seeded but never watched,
+// which read as working until the first post-startup edit.
+func BaseSeededTypes() []any {
+	return []any{
 		&netv1.Ingress{},
 		&netv1.IngressClass{},
 		&corev1.Service{},
@@ -320,10 +334,16 @@ func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.L
 		&corev1.ConfigMap{},
 		// CRDs
 		&ingressv1alpha1.Domain{},
+		// LEGACY-trafficpolicy-kind: drop the NgrokTrafficPolicy seed at cleanup.
 		&ngrokv1alpha1.NgrokTrafficPolicy{},
+		&ngrokv1.TrafficPolicy{},
 		&ngrokv1alpha1.AgentEndpoint{},
 		&ngrokv1alpha1.CloudEndpoint{},
 	}
+}
+
+func (d *Driver) Seed(ctx context.Context, c client.Reader, listOpts ...client.ListOption) error {
+	typesToSeed := BaseSeededTypes()
 
 	if d.gatewayEnabled {
 		typesToSeed = append(typesToSeed,
@@ -1071,14 +1091,29 @@ type AddHeadersConfig struct {
 
 func (d *Driver) handleExtensionRef(extensionRef *gatewayv1.LocalObjectReference, namespace string, trafficPolicy util.TrafficPolicy) error {
 	switch extensionRef.Kind {
-	case "NgrokTrafficPolicy":
-		// look up Policy CRD
-		policy, err := d.store.GetNgrokTrafficPolicyV1(string(extensionRef.Name), namespace)
+	// LEGACY-trafficpolicy-kind: at cleanup this case narrows to
+	// `case "TrafficPolicy":`, the LegacyKind log line drops, and
+	// ResolveTrafficPolicy collapses to GetTrafficPolicyV1.
+	case "TrafficPolicy", "NgrokTrafficPolicy":
+		// The kind is treated the same either way: for both extensionRef
+		// kinds we run the dual-read resolver so a HTTPRoute that was
+		// authored against the legacy `NgrokTrafficPolicy` kind still
+		// resolves once the user re-stamps their TrafficPolicy manifests to
+		// canonical, without needing to update the HTTPRoute filter first.
+		// The store logs a deprecation warning when it serves from the
+		// v1alpha1 fallback.
+		lookup, err := d.store.ResolveTrafficPolicy(string(extensionRef.Name), namespace)
 		if err != nil {
 			return err
 		}
 
-		jsonMessage := policy.Spec.Policy
+		// LEGACY-trafficpolicy-kind (read-side cleanup): drop this log branch.
+		if lookup.LegacyKind {
+			d.log.Info("resolved TrafficPolicy via deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy; migrate to ngrok.com/v1 TrafficPolicy",
+				"name", extensionRef.Name, "namespace", namespace)
+		}
+
+		jsonMessage := lookup.Policy
 		if jsonMessage == nil {
 			return errors.NewErrorNotFound(fmt.Sprintf("PolicyCRD %v found with no policy", extensionRef.Name))
 		}

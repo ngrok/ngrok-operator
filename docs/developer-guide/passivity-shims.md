@@ -197,6 +197,11 @@ Current sentinel tags:
   `Domain.spec.resolves_to` → `resolvesTo`.
 - `LEGACY-trafficpolicy-name` — `CloudEndpoint.spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`.
 - `LEGACY-trafficpolicy-policy` — `CloudEndpoint.spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`.
+- `LEGACY-trafficpolicy-kind` — CRD **kind and group** rename:
+  `ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy` →
+  `ngrok.com/v1 TrafficPolicy`. Covers both the kind change and the group
+  move, since we fold them into a single dual-CRD migration rather than
+  paying two dual-read cycles.
 - `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
 - `LEGACY-enabledfeatures-format` — `KubernetesOperator.status.enabledFeatures` comma-separated **string** → `[]string` (a field *type* change on an operator-only, operator-written status field; same `json:` tag).
 
@@ -468,6 +473,178 @@ If you find yourself adding another `CloudEndpoint` field rename, follow
 this two-release pattern: relax CEL to accept coexistence, dual-read,
 emit `DeprecatedField` events, normalize in-memory only, sentinel-tag
 every legacy-only code path.
+
+## Per-shim catalog: TrafficPolicy CRD kind + group rename
+
+This is the pattern for renaming a CRD **kind** or moving it between API
+**groups**. Kubernetes has no primitive that lets one storage back two
+names: a CRD is keyed by `plural.group`, and conversion webhooks convert
+*versions* within one CRD — they can't cross group or kind boundaries.
+So the only passive option is to serve **two CRDs** for one policy
+concept during the migration window and let the controller resolve either.
+
+### `ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy` → `ngrok.com/v1 TrafficPolicy`
+
+- **Pattern:** Two-release (deprecated kind + group, both change together
+  in one dual-CRD migration; see the analysis in
+  [`docs/superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md`](../superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md)
+  §"Interaction with the `ngrok.com/v1` group move" for why kind + group
+  are folded into one sentinel rather than staged).
+  Tag: `LEGACY-trafficpolicy-kind`.
+- **R1 — migration release:**
+  - Two CRDs ship: canonical `trafficpolicies.ngrok.com` (`api/ngrok/v1`)
+    and deprecated `ngroktrafficpolicies.ngrok.k8s.ngrok.com`
+    (`api/ngrok/v1alpha1`). Spec is byte-compatible so a user migration
+    is a manifest re-stamp (`kind` + `apiVersion`) plus re-apply.
+  - The legacy kind carries `+kubebuilder:deprecatedversion:warning=...`,
+    which generates `deprecated: true` + `deprecationWarning` on the CRD's
+    only version, so `kubectl apply` on a legacy manifest prints the
+    migration instruction server-side. That covers users who never reach
+    the operator's `DeprecatedAPIGroup` event because they don't have an
+    endpoint referencing the policy yet. The Go type also carries a
+    `Deprecated:` doc comment for downstream importers of
+    `api/ngrok/v1alpha1`; since the operator's own dual-read code must keep
+    referencing it, `.golangci.yml` excludes the resulting `SA1019` (the
+    exclusion is sentinel-tagged and deletes at cleanup).
+  - Both kinds are structurally identical (schemaless `spec.policy` plus an
+    `observedGeneration`/`conditions` status), so they are reconciled by a
+    single generic implementation rather than a copied pair:
+    - `internal/trafficpolicy/resource.go` defines
+      `TrafficPolicyResource` (the kind-agnostic interface: `client.Object`
+      plus `GetPolicy`/`GetConditions`/`GetObservedGeneration`+`SetObservedGeneration`) and the
+      `TrafficPolicyResourcePtr[T]` constraint that lets generic code
+      allocate a fresh typed object with `PT(new(T))`. Both API types carry
+      the accessors and a compile-time assertion pins the contract.
+    - `PolicyReconciler[T, PT]`
+      (`internal/controller/ngrok/trafficpolicy_controller.go`) holds the
+      whole reconcile body once. Two aliases in the same file are the
+      entire per-kind surface: `TrafficPolicyReconciler` for the canonical
+      kind and `NgrokTrafficPolicyReconciler` (sentinel-tagged) for the
+      deprecated one. Controller names still derive from the concrete kind,
+      so the two registrations do not collide.
+    - `setTrafficPolicyConditions` (`trafficpolicy_conditions.go`) takes the
+      interface, so both kinds get byte-identical `Valid`/`Ready`
+      conditions from one implementation. The `Condition*`/`Reason*`
+      constants live in the same file and are unaffected by cleanup.
+    - `trafficpolicy_conditions_test.go` runs its whole table against both
+      kinds via a `trafficPolicyKinds` fixture, so the kinds cannot drift.
+  - `internal/store`:
+    - `CacheStores.TrafficPolicyV1` is the canonical cache;
+      `CacheStores.NgrokTrafficPolicyV1` is the legacy cache (tagged).
+    - `Store.ResolveTrafficPolicy(name, ns)` is canonical-first: try the
+      v1 cache, fall back to the v1alpha1 cache on miss. The returned
+      `TrafficPolicyLookup` carries a `LegacyKind` bool so callers know
+      to emit a deprecation event.
+    - `Store.GetNgrokTrafficPolicyV1` and the `LegacyKind` field are both
+      sentinel-tagged and both go away at cleanup.
+  - `internal/trafficpolicy/manager.go::resolveRef` does canonical-first
+    resolve directly against the API (endpoint reconcilers use client
+    Gets, not the store). On legacy fallback it emits a
+    `DeprecatedAPIGroup` warning event on the referring endpoint. When
+    both kinds exist under the same name the canonical wins silently —
+    no warning, to match the natural collision case during a staged
+    migration.
+  - `pkg/managerdriver`:
+    - `handleExtensionRef` accepts both `TrafficPolicy` and
+      `NgrokTrafficPolicy` `ExtensionRef.Kind` values so a HTTPRoute
+      authored against the legacy kind still resolves once the user
+      re-stamps the policy without needing to edit the route.
+    - Ingress and Gateway API translators accept either group in the
+      resource reference / extensionRef `Group` field and route through
+      `Store.ResolveTrafficPolicy`.
+  - Endpoint controllers `Watches(&ngrokv1alpha1.NgrokTrafficPolicy{}, ...)`
+    alongside the canonical watch so legacy-kind updates re-enqueue
+    referring endpoints. The `Watches` block is `LEGACY-trafficpolicy-kind`-tagged
+    and deletes at cleanup.
+  - RBAC: `helm/ngrok-operator/templates/{api-manager,agent}/role.yaml`
+    keep the `ngroktrafficpolicies` rule blocks tagged
+    `LEGACY-trafficpolicy-kind`; the canonical `trafficpolicies` rules
+    are on the same files and stay after cleanup. The
+    `ngroktrafficpolicy-editor.yaml` / `ngroktrafficpolicy-viewer.yaml`
+    aggregation templates are tagged for whole-file deletion; the
+    `trafficpolicy-editor.yaml` / `trafficpolicy-viewer.yaml` siblings
+    replace them.
+- **R-cleanup:** `git grep 'LEGACY-trafficpolicy-kind'` and sweep:
+  - Delete `api/ngrok/v1alpha1/ngroktrafficpolicy_types.go` (regen
+    `zz_generated.deepcopy.go` drops the `NgrokTrafficPolicy*` method
+    set), the two entries in `groupversion_info.go::addKnownTypes`.
+  - `internal/controller/ngrok/trafficpolicy_controller.go`: delete the
+    `NgrokTrafficPolicyReconciler` alias and the `ngrokv1alpha1` import;
+    the generic `PolicyReconciler` and the canonical alias stay untouched.
+    Delete the matching setup block in `cmd/api-manager.go`.
+  - `internal/trafficpolicy/resource.go`: drop the `NgrokTrafficPolicy`
+    compile-time assertion. The interface and constraint stay.
+  - `internal/controller/ngrok/trafficpolicy_conditions_test.go`: drop the
+    legacy entry from `trafficPolicyKinds` and the legacy
+    `reconcile.Reconciler` assertion. The tables keep working with one kind.
+  - `internal/store/cachestores.go`: drop the `NgrokTrafficPolicyV1`
+    field, its initializer, and the `*ngrokv1alpha1.NgrokTrafficPolicy`
+    dispatch cases in Get/Add/Delete.
+  - `internal/store/store.go`: drop `GetNgrokTrafficPolicyV1`, drop the
+    `LegacyKind` field on `TrafficPolicyLookup`, and collapse
+    `ResolveTrafficPolicy` to a bare `GetTrafficPolicyV1` call.
+  - `internal/trafficpolicy/manager.go`: delete the fallback block in
+    `resolveRef`, `warnDeprecatedAPIGroup`, `EventDeprecatedAPIGroup`,
+    and inline `marshalTrafficPolicy` back into the canonical branch.
+  - `pkg/managerdriver`: drop the `NgrokTrafficPolicy` case in
+    `handleExtensionRef` and the LegacyKind log branch; drop the
+    `NgrokTrafficPolicy` case in `listObjectsForType` and the Seed
+    entry; narrow the kind/group acceptance in
+    `translate_ingresses.go` and `translate_gatewayapi.go`; collapse
+    the `owningKind` LegacyKind branch.
+  - Endpoint controllers: delete the legacy `Watches` calls; narrow the
+    mapper type switches to `*ngrokv1.TrafficPolicy` only.
+  - Helm: delete
+    `helm/ngrok-crds/templates/ngrok.k8s.ngrok.com_ngroktrafficpolicies.yaml`,
+    the two `ngroktrafficpolicy-{editor,viewer}.yaml` templates, and the
+    tagged rule blocks in `api-manager/role.yaml` and `agent/role.yaml`.
+    Drop the two `ngroktrafficpolicy-*` entries and the deprecated-kind case
+    from `tests/rbac/crd-access_test.yaml`, then
+    `make helm-update-snapshots` and regenerate `manifest-bundle.yaml`.
+    Note the CRD manifest is controller-gen output, so it carries no
+    sentinel of its own — deleting `ngroktrafficpolicy_types.go` is what
+    stops it being emitted.
+  - Tests: delete `internal/testutils::NewTestNgrokTrafficPolicy` and the
+    legacy-kind fixtures
+    `pkg/managerdriver/testdata/translator/ingress-trafficpolicy-mixed-kind.yaml`
+    and `gwapi-trafficpolicy-annotation.yaml`; narrow
+    `TranslatorTestCase.Input.TrafficPolicies` back to
+    `[]*ngrokv1.TrafficPolicy` and drop the type switch in
+    `loadTranslatorTestCase`; drop the legacy specs in
+    `driver_test.go`'s "dual-kind extensionRef resolution" context.
+  - `.golangci.yml`: delete the `SA1019 ... NgrokTrafficPolicy is
+    deprecated` exclusion rule.
+  - `PROJECT`: delete the legacy scaffold entry.
+
+#### Why we don't shortcut the TrafficPolicy kind + group migration
+
+A few alternatives were considered and rejected:
+
+- **Conversion webhook.** A CRD conversion webhook can retype a live key
+  but is registered on a *single* `plural.group`. It cannot cross group
+  boundaries, and cannot fold two different kinds onto the same storage.
+  So it can't serve `NgrokTrafficPolicy@ngrok.k8s.ngrok.com` →
+  `TrafficPolicy@ngrok.com` at all. The user-facing docs used to imply
+  the group move would use a conversion webhook; that's wrong per
+  Kubernetes semantics and is fixed alongside this shim.
+- **Ship the kind rename at v1alpha1 first, then the group move
+  separately.** Would cost two dual-CRD dual-read migrations — every
+  user does two manifest re-stamps and the operator implements the same
+  fallback infrastructure twice on the same conceptual resource. The
+  intermediate state also has three shapes (`TP@old + NTP@old + TP@new`)
+  in the release where the second migration overlaps the first cleanup,
+  which is a materially harder debugging surface. See the analysis doc
+  for the sequencing argument.
+- **Operator-driven backfill copies legacy CRs into canonical CRs at
+  R1.** Rejected because it creates duplicate storage rows that diverge
+  on status (each CRD has its own status subresource) and mutates user
+  manifests silently. R1 is discover-and-warn only; users re-stamp
+  manifests on their own schedule.
+
+If you find yourself adding another CRD kind or group rename, follow
+this pattern: two coexisting CRDs, canonical-first dual-read helper on
+the store, `DeprecatedAPIGroup` warning event on legacy fallback,
+sentinel-tag every legacy-only code path, no operator-driven backfill.
 
 ## Per-shim catalog: user-facing key compatibility (read-side only)
 

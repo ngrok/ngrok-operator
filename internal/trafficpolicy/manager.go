@@ -42,8 +42,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
@@ -64,6 +64,16 @@ const (
 	ReasonTrafficPolicyApplied = "TrafficPolicyApplied"
 	ReasonTrafficPolicyError   = "TrafficPolicyError"
 )
+
+// EventDeprecatedAPIGroup is the event reason emitted on an endpoint when its
+// TrafficPolicy reference resolved through the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy fallback. Users see it in
+// `kubectl describe` on the endpoint and know to re-stamp the manifest to
+// the canonical ngrok.com/v1 TrafficPolicy.
+//
+// LEGACY-trafficpolicy-kind: delete this const, warnDeprecatedAPIGroup below,
+// and every reference at cleanup.
+const EventDeprecatedAPIGroup = "DeprecatedAPIGroup"
 
 const (
 	// SourceNone is the status value when no traffic policy is configured.
@@ -214,27 +224,56 @@ func IntendedSource(cfg *ngrokv1alpha1.TrafficPolicyCfg) string {
 	return SourceNone
 }
 
-// resolveRef fetches the referenced NgrokTrafficPolicy and marshals its
-// policy JSON. The policy is always read from the endpoint's own namespace;
+// resolveRef fetches the referenced TrafficPolicy and marshals its policy
+// JSON. The policy is always read from the endpoint's own namespace;
 // cross-namespace references are not supported.
+//
+// Resolution order is canonical-first, delegated to LookupPolicy so this
+// resolver and every other client-side reader share one implementation. When
+// the legacy fallback answers the lookup, a DeprecatedAPIGroup warning event
+// is emitted on the endpoint so users know to re-stamp the manifest.
 func (m *Manager) resolveRef(ctx context.Context, ep ngrokv1alpha1.EndpointWithTrafficPolicy, ref *ngrokv1alpha1.K8sObjectRef) (string, error) {
 	key := client.ObjectKey{Namespace: ep.GetNamespace(), Name: ref.Name}
 	log := ctrl.LoggerFrom(ctx).WithValues("trafficPolicy", key)
 
-	tp := &ngrokv1alpha1.NgrokTrafficPolicy{}
-	if err := m.Client.Get(ctx, key, tp); err != nil {
-		if apierrors.IsNotFound(err) {
-			if m.Recorder != nil {
-				m.Recorder.Eventf(ep, nil, v1.EventTypeWarning, "TrafficPolicyNotFound", "Reconcile",
-					fmt.Sprintf("Failed to find TrafficPolicy %s/%s: %v", key.Namespace, key.Name, err))
-			}
-			return "", fmt.Errorf("%w: %s", ErrTrafficPolicyNotFound, key)
+	lookup, err := LookupPolicy(ctx, m.Client, key)
+	if err != nil {
+		if errors.Is(err, ErrTrafficPolicyNotFound) && m.Recorder != nil {
+			m.Recorder.Eventf(ep, nil, v1.EventTypeWarning, "TrafficPolicyNotFound", "Reconcile",
+				fmt.Sprintf("Failed to find TrafficPolicy %s/%s: %v", key.Namespace, key.Name, err))
 		}
-		// Transient/unexpected error — let the caller requeue with backoff.
 		return "", err
 	}
 
-	policy, err := marshalInline(tp.Spec.Policy)
+	// LEGACY-trafficpolicy-kind: drop this branch at cleanup.
+	if lookup.LegacyKind {
+		m.warnDeprecatedAPIGroup(ep, key)
+	}
+
+	return marshalTrafficPolicy(log, lookup.Policy)
+}
+
+// warnDeprecatedAPIGroup emits a Warning event on ep pointing users at the
+// canonical ngrok.com/v1 TrafficPolicy kind. Kept out of the hot path so the
+// resolver stays readable.
+//
+// LEGACY-trafficpolicy-kind: delete this helper at cleanup.
+func (m *Manager) warnDeprecatedAPIGroup(ep ngrokv1alpha1.EndpointWithTrafficPolicy, key client.ObjectKey) {
+	if m.Recorder == nil {
+		return
+	}
+	m.Recorder.Eventf(ep, nil, v1.EventTypeWarning, EventDeprecatedAPIGroup, "Reconcile",
+		fmt.Sprintf("Resolved TrafficPolicy %s/%s via deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy; migrate to ngrok.com/v1 TrafficPolicy.", key.Namespace, key.Name))
+}
+
+// marshalTrafficPolicy is the tail-shared marshaling step used by both
+// canonical and legacy resolver branches. Kept as a helper so the two branches
+// remain byte-identical on the JSON path.
+//
+// LEGACY-trafficpolicy-kind: at cleanup this helper collapses back into
+// resolveRef's canonical branch (single call to marshalInline).
+func marshalTrafficPolicy(log logr.Logger, raw json.RawMessage) (string, error) {
+	policy, err := marshalInline(raw)
 	if err != nil {
 		log.Error(err, "failed to marshal TrafficPolicy JSON")
 		return "", err

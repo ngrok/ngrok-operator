@@ -22,10 +22,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-// Package v1alpha1 contains API Schema definitions for the ngrok v1alpha1 API group
+// Package v1 contains API Schema definitions for the ngrok.com/v1 API group.
+//
+// This group is the canonical home for ngrok CRDs going forward. The parallel
+// ngrok.k8s.ngrok.com/v1alpha1 group is being deprecated in a passive
+// migration: components read this group first and fall back to v1alpha1 when
+// no v1 object is present, emitting a deprecation warning on the fallback
+// path. See docs/superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md.
+//
 // +kubebuilder:object:generate=true
-// +groupName=ngrok.k8s.ngrok.com
-package v1alpha1
+// +groupName=ngrok.com
+package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,10 +41,10 @@ import (
 )
 
 var (
-	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: "ngrok.k8s.ngrok.com", Version: "v1alpha1"}
+	// GroupVersion is group version used to register these objects.
+	GroupVersion = schema.GroupVersion{Group: "ngrok.com", Version: "v1"}
 
-	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
+	// SchemeBuilder is used to add go types to the GroupVersionKind scheme.
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 
 	// AddToScheme adds the types in this group-version to the given scheme.
@@ -46,18 +53,8 @@ var (
 
 func addKnownTypes(s *runtime.Scheme) error {
 	s.AddKnownTypes(GroupVersion,
-		&AgentEndpoint{},
-		&AgentEndpointList{},
-		&CloudEndpoint{},
-		&CloudEndpointList{},
-		&KubernetesOperator{},
-		&KubernetesOperatorList{},
-		// LEGACY-trafficpolicy-kind: BEGIN — drop the two NgrokTrafficPolicy
-		// registrations at cleanup; the canonical replacement lives in
-		// api/ngrok/v1.
-		&NgrokTrafficPolicy{},
-		&NgrokTrafficPolicyList{},
-		// LEGACY-trafficpolicy-kind: END
+		&TrafficPolicy{},
+		&TrafficPolicyList{},
 	)
 	metav1.AddToGroupVersion(s, GroupVersion)
 	return nil

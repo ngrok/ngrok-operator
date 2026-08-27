@@ -419,3 +419,63 @@ should match snapshot with defaults:
           - ngroktrafficpolicies/status
         verbs:
           - get
+  15: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      labels:
+        app.kubernetes.io/component: rbac
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.22.0
+        helm.sh/chart: ngrok-operator-0.24.0
+      name: RELEASE-NAME-ngrok-operator-trafficpolicy-editor-role
+    rules:
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies/status
+        verbs:
+          - get
+  16: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      labels:
+        app.kubernetes.io/component: rbac
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.22.0
+        helm.sh/chart: ngrok-operator-0.24.0
+      name: RELEASE-NAME-ngrok-operator-trafficpolicy-viewer-role
+    rules:
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies/status
+        verbs:
+          - get

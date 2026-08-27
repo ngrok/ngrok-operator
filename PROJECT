@@ -37,6 +37,8 @@ resources:
   group: gateway
   kind: HTTPRoute
   version: v1alpha1
+# LEGACY-trafficpolicy-kind: delete this scaffold entry at cleanup; the
+# canonical replacement is the TrafficPolicy entry below.
 - api:
     crdVersion: v1
     namespaced: true
@@ -77,4 +79,12 @@ resources:
   kind: KubernetesOperator
   path: github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: ngrok.com
+  kind: TrafficPolicy
+  path: github.com/ngrok/ngrok-operator/api/ngrok/v1
+  version: v1
 version: "3"

@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/deprecation"
@@ -33,16 +34,26 @@ type IngressReconciler struct {
 	DrainState controller.DrainState
 }
 
-func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	storedResources := []client.Object{
+// storeFedResources lists the kinds this controller keeps fresh in the
+// managerdriver store. Every entry is registered with a
+// ControllerEventHandler; driver.Seed only populates the store once at boot,
+// so a kind missing from this list is resolvable at startup and then silently
+// goes stale. Kept as a function so tests can assert its coverage.
+func storeFedResources() []client.Object {
+	return []client.Object{
 		&netv1.IngressClass{},
 		&corev1.Service{},
 		&ingressv1alpha1.Domain{},
+		// LEGACY-trafficpolicy-kind: drop the NgrokTrafficPolicy entry at
+		// cleanup; the canonical TrafficPolicy entry below stays.
 		&ngrokv1alpha1.NgrokTrafficPolicy{},
+		&ngrokv1.TrafficPolicy{},
 	}
+}
 
+func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).For(&netv1.Ingress{})
-	for _, obj := range storedResources {
+	for _, obj := range storeFedResources() {
 		builder = builder.Watches(
 			obj,
 			managerdriver.NewControllerEventHandler(obj.GetObjectKind().GroupVersionKind().Kind, r.Driver, r.Client))
