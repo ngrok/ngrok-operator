@@ -290,6 +290,9 @@ spec:
                     uri:
                       description: a uri for locating a resource
                       type: string
+                  required:
+                  - id
+                  - uri
                   type: object
                 type: array
               endpointsSummary:

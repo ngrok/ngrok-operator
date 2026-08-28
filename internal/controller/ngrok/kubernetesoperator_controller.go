@@ -49,12 +49,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 var featureMap = map[string]string{
@@ -215,7 +216,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		}
 
 		createParams.Binding = &ngrok.KubernetesOperatorBindingCreate{
-			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
+			EndpointSelectors: util.NilIfEmpty(ko.Spec.Binding.EndpointSelectors),
 			CSR:               string(tlsSecret.Data["tls.csr"]),
 		}
 	}
@@ -401,7 +402,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		}
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
-			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
+			EndpointSelectors: util.NilIfEmpty(ko.Spec.Binding.EndpointSelectors),
 			CSR:               new(string(tlsSecret.Data["tls.csr"])),
 		}
 	}
@@ -477,7 +478,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 }
 
 func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
-	features := []string{}
+	var features []string
 
 	for _, f := range ko.Spec.EnabledFeatures {
 		if v, ok := featureMap[f]; ok {

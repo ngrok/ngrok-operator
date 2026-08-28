@@ -25,7 +25,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
-	v6 "github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -149,7 +149,7 @@ type TargetMetadata struct {
 // All endpoints in a BoundEndpoint share the same underlying Kubernetes services
 type BindingEndpoint struct {
 	// Ref is the ngrok API reference to the Endpoint object (id, uri)
-	v6.Ref `json:",inline"`
+	ngrok.Ref `json:",inline"`
 }
 
 // +kubebuilder:object:root=true

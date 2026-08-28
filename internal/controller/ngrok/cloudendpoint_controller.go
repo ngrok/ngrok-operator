@@ -41,7 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
@@ -51,6 +51,7 @@ import (
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 // CloudEndpointReconciler reconciles a CloudEndpoint object
@@ -249,7 +250,7 @@ func (r *CloudEndpointReconciler) createWithPolicy(ctx context.Context, clep *ng
 		Description:    &clep.Spec.Description,
 		Metadata:       &metadata,
 		TrafficPolicy:  policy,
-		Bindings:       clep.Spec.Bindings,
+		Bindings:       util.NilIfEmpty(clep.Spec.Bindings),
 		PoolingEnabled: clep.Spec.PoolingEnabled,
 	}
 
@@ -310,7 +311,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		Description:    &clep.Spec.Description,
 		Metadata:       &metadata,
 		TrafficPolicy:  &policy,
-		Bindings:       clep.Spec.Bindings,
+		Bindings:       util.NilIfEmpty(clep.Spec.Bindings),
 		PoolingEnabled: clep.Spec.PoolingEnabled,
 	}
 

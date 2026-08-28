@@ -8,11 +8,14 @@ import (
 	"slices"
 	"time"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	"github.com/segmentio/ksuid"
 )
 
-type baseClient[T any] struct {
+// baseClient is shared by the mock resource clients. P is the paging type
+// used by that resource's real List method (ngrok.Paging or
+// ngrok.FilteredPaging), which varies by resource in ngrok-api-go v9.
+type baseClient[T any, P any] struct {
 	idPrefix string
 	items    map[string]T
 
@@ -26,14 +29,14 @@ type baseClient[T any] struct {
 	updateCallCount int
 }
 
-func newBase[T any](idPrefix string) baseClient[T] {
-	return baseClient[T]{
+func newBase[T any, P any](idPrefix string) baseClient[T, P] {
+	return baseClient[T, P]{
 		items:    make(map[string]T),
 		idPrefix: idPrefix,
 	}
 }
 
-func (m *baseClient[T]) Get(_ context.Context, id string) (T, error) {
+func (m *baseClient[T, P]) Get(_ context.Context, id string) (T, error) {
 	if m.getError != nil {
 		return *new(T), m.getError
 	}
@@ -44,12 +47,12 @@ func (m *baseClient[T]) Get(_ context.Context, id string) (T, error) {
 	return item, nil
 }
 
-func (m *baseClient[T]) List(_ *ngrok.Paging) ngrok.Iter[T] {
+func (m *baseClient[T, P]) List(_ *P) ngrok.Iter[T] {
 	items := slices.Collect(maps.Values(m.items))
 	return NewIter(items, m.listError)
 }
 
-func (m *baseClient[T]) Delete(ctx context.Context, id string) error {
+func (m *baseClient[T, P]) Delete(ctx context.Context, id string) error {
 	_, err := m.Get(ctx, id)
 	if err != nil {
 		return err
@@ -60,22 +63,22 @@ func (m *baseClient[T]) Delete(ctx context.Context, id string) error {
 
 // Reset clears the items in the client.
 // This is useful for resetting the state of the client between tests, without allocating a new client.
-func (m *baseClient[T]) Reset() {
+func (m *baseClient[T, P]) Reset() {
 	m.items = make(map[string]T)
 	m.updateCallCount = 0
 }
 
-func (m *baseClient[T]) newID() string {
+func (m *baseClient[T, P]) newID() string {
 	return fmt.Sprintf("%s_%s", m.idPrefix, ksuid.New().String())
 }
 
-func (m *baseClient[T]) notFoundErr() error {
+func (m *baseClient[T, P]) notFoundErr() error {
 	return &ngrok.Error{
 		StatusCode: http.StatusNotFound,
 	}
 }
 
-func (m *baseClient[T]) any(predicate func(T) bool) bool {
+func (m *baseClient[T, P]) any(predicate func(T) bool) bool {
 	for _, item := range m.items {
 		if predicate(item) {
 			return true
@@ -84,32 +87,32 @@ func (m *baseClient[T]) any(predicate func(T) bool) bool {
 	return false
 }
 
-func (m *baseClient[T]) createdAt() string {
+func (m *baseClient[T, P]) createdAt() string {
 	return time.Now().Format(time.RFC3339)
 }
 
 // SetCreateError configures the client to return an error on Create calls
-func (m *baseClient[T]) SetCreateError(err error) {
+func (m *baseClient[T, P]) SetCreateError(err error) {
 	m.createError = err
 }
 
 // SetGetError configures the client to return an error on Get calls
-func (m *baseClient[T]) SetGetError(err error) {
+func (m *baseClient[T, P]) SetGetError(err error) {
 	m.getError = err
 }
 
 // SetUpdateError configures the client to return an error on Update calls
-func (m *baseClient[T]) SetUpdateError(err error) {
+func (m *baseClient[T, P]) SetUpdateError(err error) {
 	m.updateError = err
 }
 
 // SetListError configures the client to return an error on List calls
-func (m *baseClient[T]) SetListError(err error) {
+func (m *baseClient[T, P]) SetListError(err error) {
 	m.listError = err
 }
 
 // ClearErrors clears all configured errors
-func (m *baseClient[T]) ClearErrors() {
+func (m *baseClient[T, P]) ClearErrors() {
 	m.createError = nil
 	m.getError = nil
 	m.updateError = nil
@@ -117,11 +120,11 @@ func (m *baseClient[T]) ClearErrors() {
 }
 
 // UpdateCallCount returns the number of times Update has been called
-func (m *baseClient[T]) UpdateCallCount() int {
+func (m *baseClient[T, P]) UpdateCallCount() int {
 	return m.updateCallCount
 }
 
 // ResetUpdateCallCount resets the update call counter to zero
-func (m *baseClient[T]) ResetUpdateCallCount() {
+func (m *baseClient[T, P]) ResetUpdateCallCount() {
 	m.updateCallCount = 0
 }
