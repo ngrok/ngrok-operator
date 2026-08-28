@@ -27,6 +27,7 @@ package ingress
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -231,7 +232,11 @@ func (r *DomainReconciler) delete(ctx context.Context, domain *v1alpha1.Domain) 
 
 // finds the reserved domain by the hostname. If it doesn't exist, returns nil
 func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, domainName string) (*ngrok.ReservedDomain, error) {
-	iter := r.DomainsClient.List(&ngrok.FilteredPaging{})
+	// Filter server-side via ngrok's API filtering (https://ngrok.com/docs/api/api-filtering)
+	// instead of paging through every reserved domain on the account.
+	iter := r.DomainsClient.List(&ngrok.FilteredPaging{
+		Filter: new(fmt.Sprintf("obj.domain == %q", domainName)),
+	})
 	for iter.Next(ctx) {
 		domain := iter.Item()
 		if domain.Domain == domainName {
