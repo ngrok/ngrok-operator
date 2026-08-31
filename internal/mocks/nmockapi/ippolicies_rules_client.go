@@ -6,18 +6,18 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 )
 
 type IPPolicyRuleClient struct {
-	baseClient[*ngrok.IPPolicyRule]
+	baseClient[*ngrok.IPPolicyRule, ngrok.FilteredPaging]
 	ippClient *IPPolicyClient
 }
 
 // NewIPPolicyRuleClient constructs a mock IP policy rule client used by tests.
 func NewIPPolicyRuleClient(ippClient *IPPolicyClient) *IPPolicyRuleClient {
 	return &IPPolicyRuleClient{
-		baseClient: newBase[*ngrok.IPPolicyRule](
+		baseClient: newBase[*ngrok.IPPolicyRule, ngrok.FilteredPaging](
 			"ippr",
 		),
 		ippClient: ippClient,

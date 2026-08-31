@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
@@ -35,7 +35,7 @@ func TestCalculateFeaturesEnabled(t *testing.T) {
 			in: &ngrokv1alpha1.KubernetesOperator{
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
 			},
-			expected: []string{},
+			expected: nil,
 		},
 		{
 			name: "all features enabled",

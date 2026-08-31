@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	ngrok "github.com/ngrok/ngrok-api-go/v7"
+	ngrok "github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
