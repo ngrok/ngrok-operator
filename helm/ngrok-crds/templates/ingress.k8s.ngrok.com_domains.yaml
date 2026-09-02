@@ -40,6 +40,11 @@ spec:
       name: CNAME Target
       priority: 2
       type: string
+    - description: Wildcard domain covering this domain
+      jsonPath: .status.coveredByWildcardDomain
+      name: Wildcard
+      priority: 1
+      type: string
     - description: Ready Reason
       jsonPath: .status.conditions[?(@.type=='Ready')].reason
       name: Reason
@@ -257,6 +262,16 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              coveredByWildcardDomain:
+                description: |-
+                  CoveredByWildcardDomain is the wildcard reservation that already serves
+                  this hostname, e.g. "*.example.com" for "a.example.com". When set, the
+                  operator intentionally did not reserve this domain in the ngrok API
+                  because the wildcard's DNS record and certificate already cover it.
+
+                  ID stays empty in this case: it is the handle the operator would delete,
+                  and the wildcard reservation is shared with every other subdomain under it.
+                type: string
               domain:
                 description: Domain is the domain that was reserved
                 type: string
@@ -285,6 +300,10 @@ spec:
                   type: object
                 type: array
             type: object
+            x-kubernetes-validations:
+            - message: status.id and status.coveredByWildcardDomain cannot both be
+                set
+              rule: '!(has(self.id) && has(self.coveredByWildcardDomain))'
         type: object
     served: true
     storage: true

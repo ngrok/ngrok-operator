@@ -983,6 +983,29 @@ var _ = Describe("Driver", func() {
 			})
 		})
 
+		When("the domain's reservation was skipped in favor of a wildcard", func() {
+			BeforeEach(func() {
+				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
+				ingress.Spec = netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{
+							Host: "a.example.ngrok.io",
+						},
+					},
+				}
+				// A covered Domain holds no reservation of its own, so status.id
+				// is empty and status.domain is the fallback the LB status reads.
+				covered := newTestDomain("a-example-ngrok-io", "a.example.ngrok.io", nil)
+				covered.Status.CoveredByWildcardDomain = "*.example.ngrok.io"
+				domains = newTestDomainList(covered)
+			})
+
+			It("should still advertise its own hostname", func() {
+				Expect(len(status)).To(Equal(1))
+				Expect(status[0].Hostname).To(Equal("a.example.ngrok.io"))
+			})
+		})
+
 		When("the domain is a wildcard ngrok managed domain", func() {
 			BeforeEach(func() {
 				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
