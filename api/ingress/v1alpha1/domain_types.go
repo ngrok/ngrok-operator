@@ -90,6 +90,8 @@ func (s *DomainSpec) GetResolvesTo() []DomainResolvesToEntry {
 }
 
 // DomainStatus defines the observed state of Domain
+//
+// +kubebuilder:validation:XValidation:rule="!(has(self.id) && has(self.coveredByWildcardDomain))", message="status.id and status.coveredByWildcardDomain cannot both be set"
 type DomainStatus struct {
 
 	// ObservedGeneration is the most recent metadata.generation observed by the
@@ -103,6 +105,16 @@ type DomainStatus struct {
 
 	// Domain is the domain that was reserved
 	Domain string `json:"domain,omitempty"`
+
+	// CoveredByWildcardDomain is the wildcard reservation that already serves
+	// this hostname, e.g. "*.example.com" for "a.example.com". When set, the
+	// operator intentionally did not reserve this domain in the ngrok API
+	// because the wildcard's DNS record and certificate already cover it.
+	//
+	// ID stays empty in this case: it is the handle the operator would delete,
+	// and the wildcard reservation is shared with every other subdomain under it.
+	// +optional
+	CoveredByWildcardDomain string `json:"coveredByWildcardDomain,omitempty"`
 
 	// ResolvesTo is the list of resolving targets for the domain
 	ResolvesTo []DomainResolvesToEntry `json:"resolvesTo,omitempty"`
@@ -177,6 +189,7 @@ type DomainStatusProvisioningJob struct {
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`,description="Domain Ready"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 // +kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cnameTarget`,description="CNAME Target",priority=2
+// +kubebuilder:printcolumn:name="Wildcard",type=string,JSONPath=`.status.coveredByWildcardDomain`,description="Wildcard domain covering this domain",priority=1
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].reason`,description="Ready Reason",priority=1
 // +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].message`,description="Ready Message",priority=1
 

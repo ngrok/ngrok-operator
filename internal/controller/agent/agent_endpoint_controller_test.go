@@ -1539,6 +1539,83 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			}, timeout, interval).Should(BeTrue())
 		})
 
+		// A Domain whose reservation the Domain reconciler skipped in favor of a
+		// wildcard parent has an empty status.id. This asserts the AgentEndpoint
+		// controller treats that as usable: IsDomainReady must accept it, or
+		// DomainResult.RequeueError() blocks the endpoint forever.
+		It("should treat a wildcard-covered Domain as ready", func(ctx SpecContext) {
+			hostname := "a.wildcard-covered.example.com"
+			wildcard := "*.wildcard-covered.example.com"
+
+			By("Creating a Domain that a wildcard already covers")
+			domain := &ingressv1alpha1.Domain{
+				Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(hostname),
+				Namespace: namespace,
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: hostname,
+				},
+			}
+			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				latest := &ingressv1alpha1.Domain{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), latest)).To(Succeed())
+				domain = latest
+			}, timeout, interval).Should(Succeed())
+
+			// No reservation of its own: exactly the state the reconciler writes.
+			domain.Status.ID = ""
+			domain.Status.Domain = hostname
+			domain.Status.CoveredByWildcardDomain = wildcard
+			domain.Status.Conditions = []metav1.Condition{
+				{
+					Type:               "Ready",
+					Status:             metav1.ConditionTrue,
+					Reason:             "CoveredByWildcardDomain",
+					Message:            "Domain ready for use (covered by wildcard domain " + wildcard + ")",
+					LastTransitionTime: metav1.Now(),
+					ObservedGeneration: domain.Generation,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, domain)).To(Succeed())
+
+			envMockDriver.SetEndpointResult(namespace+"/wildcard-covered-endpoint", &agent.EndpointResult{
+				URL: "https://" + hostname,
+			})
+
+			By("Creating an AgentEndpoint for the covered hostname")
+			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				Name:      "wildcard-covered-endpoint",
+				Namespace: namespace,
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL: "https://" + hostname,
+					Upstream: ngrokv1alpha1.EndpointUpstream{
+						URL: "http://upstream.demo:80",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
+
+			By("Verifying the endpoint reports the domain ready and becomes ready itself")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.AgentEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
+
+				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
+				// The reason propagates from the Domain, so users see why no
+				// reservation exists without inspecting the Domain CR.
+				g.Expect(domainCond.Reason).To(Equal("CoveredByWildcardDomain"))
+
+				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+
+				g.Expect(obj.Status.DomainRef).NotTo(BeNil())
+			}, timeout, interval).Should(Succeed())
+		})
+
 		When("the domainRef for kubernetes-bound endpoint is stale", func() {
 			var staleDomain *ingressv1alpha1.Domain
 			BeforeEach(func(ctx SpecContext) {

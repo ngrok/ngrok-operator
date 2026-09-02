@@ -20,6 +20,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 | **Endpoint Pooling** | Allows multiple endpoints to share the same public URL, distributing traffic across them. Controlled via the `ngrok.com/pooling-enabled` annotation. | [annotations.md](annotations.md) |
 | **Mapping Strategy** | Controls which ngrok endpoint resources are created: `endpoints` (AgentEndpoint only) or `endpoints-verbose` (CloudEndpoint + internal AgentEndpoint). | [annotations.md](annotations.md) |
 | **Traffic Policy** | A set of rules (rate limiting, header manipulation, authentication, etc.) applied to ngrok endpoints. Defined as an `TrafficPolicy` CR or inline JSON. | [features/traffic-policy.md](features/traffic-policy.md) |
+| **Wildcard Domain** | A reserved domain of the form `*.example.com`. Direct children of a reserved wildcard are not reserved individually — the wildcard's DNS record and certificate already cover them. | [controllers/domain.md](controllers/domain.md#wildcard-domain-coverage) |
 
 ## Directory Structure
 

@@ -86,6 +86,32 @@ func createReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Doma
 	}
 }
 
+// createWildcardCoveredDomain builds a Domain whose ngrok reservation was
+// skipped because a wildcard parent already covers it: status.ID is empty on
+// purpose, and coveredByWildcardDomain names the covering wildcard.
+func createWildcardCoveredDomain(name, namespace, domainName, wildcard string) *ingressv1alpha1.Domain {
+	return &ingressv1alpha1.Domain{
+		Name:      name,
+		Namespace: namespace,
+		Spec: ingressv1alpha1.DomainSpec{
+			Domain: domainName,
+		},
+		Status: ingressv1alpha1.DomainStatus{
+			ID:                      "",
+			Domain:                  domainName,
+			CoveredByWildcardDomain: wildcard,
+			Conditions: []metav1.Condition{
+				{
+					Type:    "Ready",
+					Status:  metav1.ConditionTrue,
+					Reason:  "CoveredByWildcardDomain",
+					Message: "Domain ready for use (covered by wildcard domain " + wildcard + ")",
+				},
+			},
+		},
+	}
+}
+
 func createNotReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Domain {
 	return &ingressv1alpha1.Domain{
 		Name:      name,
@@ -695,4 +721,60 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 			assertDomainLabels(t, c, "example-com", "default", tt.wantLabels)
 		})
 	}
+}
+
+// TestEnsureDomainExists_WildcardCoveredDomainIsReady is the single test that
+// proves the CloudEndpoint, AgentEndpoint and Service paths all unblock for a
+// wildcard-covered domain: cloudendpoint_controller.go and
+// agent_endpoint_controller.go both gate on DomainResult.RequeueError().
+func TestEnsureDomainExists_WildcardCoveredDomainIsReady(t *testing.T) {
+	covered := createWildcardCoveredDomain("a-example-com", "test-namespace", "a.example.com", "*.example.com")
+	m, _ := newTestManager(t, covered)
+	endpoint := createTestEndpoint("test-endpoint", "test-namespace", "https://a.example.com")
+
+	result, err := m.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.True(t, result.IsReady, "a wildcard-covered domain must be usable")
+	assert.Equal(t, "CoveredByWildcardDomain", result.ReadyReason)
+	assert.NoError(t, result.RequeueError(), "endpoints must not requeue on a covered domain")
+
+	// The endpoint still needs its domainRef: the Service controller clears
+	// LoadBalancer status for tls:// endpoints when domainRef is nil.
+	assertDomainRef(t, endpoint, "a-example-com", "test-namespace")
+	assertDomainCondition(t, endpoint, metav1.ConditionTrue, "covered by wildcard domain *.example.com")
+}
+
+// The manager creates a Domain for the exact hostname only. Deciding whether a
+// wildcard covers it belongs entirely to the Domain reconciler, which is what
+// keeps the behavior consistent across all five entry points.
+func TestEnsureDomainExists_DoesNotCreateWildcardParent(t *testing.T) {
+	m, c := newTestManager(t)
+	endpoint := createTestEndpoint("test-endpoint", "test-namespace", "https://a.example.com")
+
+	_, err := m.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+
+	domains := &ingressv1alpha1.DomainList{}
+	require.NoError(t, c.List(t.Context(), domains))
+	require.Len(t, domains.Items, 1)
+	assert.Equal(t, "a.example.com", domains.Items[0].Spec.Domain)
+	assert.Equal(t, "a-example-com", domains.Items[0].Name)
+}
+
+// A wildcard hostname on the endpoint itself must survive URL parsing and
+// produce a Domain named via HyphenatedDomainNameFromURL.
+func TestEnsureDomainExists_WildcardEndpointURL(t *testing.T) {
+	m, c := newTestManager(t)
+	endpoint := createTestEndpoint("test-endpoint", "test-namespace", "https://*.example.com")
+
+	_, err := m.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+
+	domains := &ingressv1alpha1.DomainList{}
+	require.NoError(t, c.List(t.Context(), domains))
+	require.Len(t, domains.Items, 1)
+	assert.Equal(t, "*.example.com", domains.Items[0].Spec.Domain)
+	assert.Equal(t, "wildcard-example-com", domains.Items[0].Name)
 }
