@@ -7,6 +7,7 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -42,6 +43,15 @@ func createTestDomainWithCertManagement(name, domainName, id string, job *ingres
 	domain.Status.CertificateManagementStatus = &ingressv1alpha1.DomainStatusCertificateManagementStatus{
 		ProvisioningJob: job,
 	}
+	return domain
+}
+
+// Helper function to create a test domain whose reservation was skipped because
+// a wildcard parent already covers it. status.ID stays empty on purpose.
+func createTestDomainCoveredByWildcard(name, domainName, wildcard string) *ingressv1alpha1.Domain {
+	domain := createTestDomain(name, domainName, "")
+	domain.Status.Domain = domainName
+	domain.Status.CoveredByWildcardDomain = wildcard
 	return domain
 }
 
@@ -298,6 +308,46 @@ func TestIsDomainReady(t *testing.T) {
 			expected: false,
 		},
 		{
+			// A wildcard-covered domain holds no reservation of its own, so an
+			// empty ID is its steady state rather than a failure.
+			name: "wildcard-covered domain with no ID but Ready=True",
+			domain: &ingressv1alpha1.Domain{
+				Status: ingressv1alpha1.DomainStatus{
+					ID:                      "",
+					CoveredByWildcardDomain: "*.example.com",
+					Conditions: []metav1.Condition{{
+						Type:   ConditionDomainReady,
+						Status: metav1.ConditionTrue,
+					}},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "wildcard-covered domain with Ready=False",
+			domain: &ingressv1alpha1.Domain{
+				Status: ingressv1alpha1.DomainStatus{
+					ID:                      "",
+					CoveredByWildcardDomain: "*.example.com",
+					Conditions: []metav1.Condition{{
+						Type:   ConditionDomainReady,
+						Status: metav1.ConditionFalse,
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "wildcard-covered domain with no Ready condition",
+			domain: &ingressv1alpha1.Domain{
+				Status: ingressv1alpha1.DomainStatus{
+					ID:                      "",
+					CoveredByWildcardDomain: "*.example.com",
+				},
+			},
+			expected: false,
+		},
+		{
 			name: "domain with ID and Ready condition false",
 			domain: &ingressv1alpha1.Domain{
 				Status: ingressv1alpha1.DomainStatus{
@@ -409,4 +459,98 @@ func TestBuildResolvesToStatus(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestUpdateDomainConditions_CoveredByWildcard_NgrokManaged(t *testing.T) {
+	domain := createTestDomainCoveredByWildcard("test-domain", "a.example.ngrok.app", "*.example.ngrok.app")
+	// An ngrok-managed wildcard: nil CertificateManagementPolicy means ngrok
+	// handles DNS and certificates.
+	wildcard := &ngrok.ReservedDomain{ID: "rd_wildcard", Domain: "*.example.ngrok.app"}
+
+	updateDomainConditions(domain, wildcard, nil)
+
+	// The empty status.ID must not be mistaken for "could not be reserved".
+	created := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainCreated)
+	require.NotNil(t, created)
+	assert.Equal(t, metav1.ConditionTrue, created.Status)
+	assert.Equal(t, ReasonCoveredByWildcardDomain, created.Reason)
+	assert.Contains(t, created.Message, "*.example.ngrok.app")
+
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	require.NotNil(t, ready)
+	assert.Equal(t, metav1.ConditionTrue, ready.Status)
+	assert.Equal(t, ReasonCoveredByWildcardDomain, ready.Reason)
+	assert.Contains(t, ready.Message, "*.example.ngrok.app")
+
+	assert.True(t, IsDomainReady(domain))
+}
+
+func TestUpdateDomainConditions_CoveredByWildcard_CustomWithCertificate(t *testing.T) {
+	domain := createTestDomainCoveredByWildcard("test-domain", "a.custom.xyz", "*.custom.xyz")
+	domain.Status.Certificate = &ingressv1alpha1.DomainStatusCertificateInfo{ID: "cert_123"}
+	wildcard := &ngrok.ReservedDomain{
+		ID:                          "rd_wildcard",
+		Domain:                      "*.custom.xyz",
+		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
+	}
+
+	updateDomainConditions(domain, wildcard, nil)
+
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	require.NotNil(t, ready)
+	assert.Equal(t, metav1.ConditionTrue, ready.Status)
+	assert.True(t, IsDomainReady(domain))
+}
+
+// A custom wildcard whose certificate has not provisioned cannot actually serve
+// its children, so a covered child must not report Ready. This is what stops
+// endpoints from coming up and failing TLS at request time.
+func TestUpdateDomainConditions_CoveredByWildcard_CustomStillProvisioning(t *testing.T) {
+	domain := createTestDomainCoveredByWildcard("test-domain", "a.custom.xyz", "*.custom.xyz")
+	domain.Status.CertificateManagementStatus = &ingressv1alpha1.DomainStatusCertificateManagementStatus{
+		ProvisioningJob: &ingressv1alpha1.DomainStatusProvisioningJob{
+			Message: "provisioning certificate",
+		},
+	}
+	wildcard := &ngrok.ReservedDomain{
+		ID:                          "rd_wildcard",
+		Domain:                      "*.custom.xyz",
+		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
+	}
+
+	updateDomainConditions(domain, wildcard, nil)
+
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	require.NotNil(t, ready)
+	assert.Equal(t, metav1.ConditionFalse, ready.Status)
+	assert.Equal(t, ReasonProvisioningError, ready.Reason)
+	assert.Contains(t, ready.Message, "provisioning certificate")
+
+	assert.False(t, IsDomainReady(domain))
+}
+
+// Guards against relaxing the empty-ID check too far: without wildcard
+// coverage, an empty status.ID still means the domain could not be reserved.
+func TestUpdateDomainConditions_EmptyIDWithoutWildcardStillInvalid(t *testing.T) {
+	domain := createTestDomain("test-domain", "a.example.com", "")
+
+	updateDomainConditions(domain, nil, nil)
+
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	require.NotNil(t, ready)
+	assert.Equal(t, metav1.ConditionFalse, ready.Status)
+	assert.Equal(t, ReasonDomainInvalid, ready.Reason)
+	assert.False(t, IsDomainReady(domain))
+}
+
+// Creation errors keep precedence over wildcard coverage.
+func TestUpdateDomainConditions_CreateErrorWinsOverWildcard(t *testing.T) {
+	domain := createTestDomainCoveredByWildcard("test-domain", "a.custom.xyz", "*.custom.xyz")
+
+	updateDomainConditions(domain, nil, errors.New("boom"))
+
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	require.NotNil(t, ready)
+	assert.Equal(t, metav1.ConditionFalse, ready.Status)
+	assert.Equal(t, ReasonDomainCreationFailed, ready.Reason)
 }

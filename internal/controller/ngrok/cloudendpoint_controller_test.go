@@ -1212,6 +1212,88 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		})
 	})
 
+	Context("Wildcard-covered domains", func() {
+		var cloudEndpoint *ngrokv1alpha1.CloudEndpoint
+
+		AfterEach(func(ctx SpecContext) {
+			if cloudEndpoint != nil {
+				_ = k8sClient.Delete(ctx, cloudEndpoint)
+				cloudEndpoint = nil
+			}
+		})
+
+		// A Domain whose reservation the Domain reconciler skipped in favor of a
+		// wildcard parent has an empty status.id. This asserts the CloudEndpoint
+		// controller treats that as usable: IsDomainReady must accept it, or
+		// DomainResult.RequeueError() blocks the endpoint forever.
+		It("should treat a wildcard-covered Domain as ready", func(ctx SpecContext) {
+			hostname := "a.wildcard-covered.example.com"
+			wildcard := "*.wildcard-covered.example.com"
+
+			By("Creating a Domain that a wildcard already covers")
+			domain := &ingressv1alpha1.Domain{
+				Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(hostname),
+				Namespace: namespace,
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: hostname,
+				},
+			}
+			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				latest := &ingressv1alpha1.Domain{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), latest)).To(Succeed())
+				domain = latest
+			}, timeout, interval).Should(Succeed())
+
+			// No reservation of its own: exactly the state the reconciler writes.
+			domain.Status.ID = ""
+			domain.Status.Domain = hostname
+			domain.Status.CoveredByWildcardDomain = wildcard
+			domain.Status.Conditions = []metav1.Condition{
+				{
+					Type:               "Ready",
+					Status:             metav1.ConditionTrue,
+					Reason:             "CoveredByWildcardDomain",
+					Message:            "Domain ready for use (covered by wildcard domain " + wildcard + ")",
+					LastTransitionTime: metav1.Now(),
+					ObservedGeneration: domain.Generation,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, domain)).To(Succeed())
+
+			By("Creating a CloudEndpoint for the covered hostname")
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				Name:      "wildcard-covered-endpoint",
+				Namespace: namespace,
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "https://" + hostname,
+				},
+			}
+			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
+
+			By("Verifying the endpoint reports the domain ready and becomes ready itself")
+			Eventually(func(g Gomega) {
+				obj := &ngrokv1alpha1.CloudEndpoint{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
+
+				domainCond := findCloudEndpointCondition(obj.Status.Conditions, "DomainReady")
+				g.Expect(domainCond).NotTo(BeNil())
+				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
+				// The reason propagates from the Domain, so users see why no
+				// reservation exists without inspecting the Domain CR.
+				g.Expect(domainCond.Reason).To(Equal("CoveredByWildcardDomain"))
+
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+
+				g.Expect(obj.Status.ID).NotTo(BeEmpty())
+				g.Expect(obj.Status.DomainRef).NotTo(BeNil())
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
 	Context("Bindings validation", func() {
 		It("should reject endpoint with multiple bindings", func() {
 			// This should be caught by k8s validation (MaxItems=1), so we expect the Create to fail

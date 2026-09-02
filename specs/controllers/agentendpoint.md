@@ -27,6 +27,11 @@ The AgentEndpoint controller reconciles `AgentEndpoint` resources by creating an
 - ngrok agent endpoint (via AgentDriver API)
 - `Domain` CR (via DomainManager)
 
+A `Domain` whose reservation was skipped because a wildcard parent already
+covers it satisfies `DomainReady` like any other ready Domain, and the
+`CoveredByWildcardDomain` reason propagates onto the endpoint's condition. See
+[domain.md](domain.md#wildcard-domain-coverage).
+
 ## TLS Termination (Zero-Knowledge TLS)
 
 AgentEndpoints support agent-side TLS termination via `spec.tlsTermination`. When configured, the ngrok agent decrypts TLS traffic in-cluster before forwarding to the upstream service, so ngrok never sees the plaintext — hence "zero-knowledge" TLS.
