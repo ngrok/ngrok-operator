@@ -444,21 +444,6 @@ spec:
                 - Delete
                 - Retain
                 type: string
-              resolves_to:
-                description: 'Deprecated: use resolvesTo instead. Will be removed
-                  in a future release.'
-                items:
-                  description: DomainResolvesToEntry contains a resolving target for
-                    this domain
-                  properties:
-                    value:
-                      description: Value is a point-of-presence alias, an IP address
-                        (coming soon), or an IP group alias (coming soon)
-                      type: string
-                  required:
-                  - value
-                  type: object
-                type: array
               resolvesTo:
                 description: ResolvesTo is the list of resolving targets for the domain
                 items:
