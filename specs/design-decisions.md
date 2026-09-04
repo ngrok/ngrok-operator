@@ -36,7 +36,9 @@ acceptable because those semantics come from the DNS standard, not from ngrok
 policy, and the alternative — reserving every subdomain and letting the API
 sort it out — is the problem this behavior exists to solve.
 
-No public-suffix list is consulted. For a two-label hostname the derived parent
-would be `*.<tld>`, which no account can hold, so the lookup simply never
-matches; carrying a PSL to avoid asking would add an embedded table and a
-staleness obligation for no behavioral gain.
+No public-suffix list is consulted. For a two-label hostname (such as `example.com`),
+no wildcard parent is derived because `WildcardParentDomain` requires at least three
+labels to avoid synthesizing `*.<tld>` (which could not be reserved anyway); the
+operator queries only for the exact hostname. Carrying a PSL to distinguish multi-label
+public suffixes (like `co.uk`) would add an embedded table and a staleness obligation
+for no behavioral gain.
