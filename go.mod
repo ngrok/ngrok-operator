@@ -7,7 +7,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-logr/logr v1.4.3
 	github.com/gobwas/glob v0.2.3
-	github.com/google/cel-go v0.26.0
+	github.com/google/cel-go v0.29.0
 	github.com/google/uuid v1.6.0
 	github.com/ngrok/ngrok-api-go/v9 v9.0.0
 	github.com/onsi/ginkgo/v2 v2.29.0
@@ -32,7 +32,7 @@ require (
 require (
 	cel.dev/expr v0.25.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -81,7 +81,6 @@ require (
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	go.starlark.net v0.0.0-20230103143115-09991d3a103e // indirect
