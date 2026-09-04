@@ -190,3 +190,63 @@ func TestGatewayToDomains_SkipsNilHostname(t *testing.T) {
 	_, found := result["example.com"]
 	assert.True(t, found)
 }
+
+// Wildcard hostnames translate to Domain CRs like any other host: the operator
+// creates the CR and the Domain reconciler decides whether a reservation is
+// actually needed. Both entry points must agree on that.
+func TestIngressToDomains_WildcardHosts(t *testing.T) {
+	tests := []struct {
+		name            string
+		hosts           []string
+		expectedDomains map[string]string // spec.domain -> object name
+	}{
+		{
+			name:  "wildcard host",
+			hosts: []string{"*.example.com"},
+			expectedDomains: map[string]string{
+				"*.example.com": "wildcard-example-com",
+			},
+		},
+		{
+			// The operator does not de-duplicate a covered child against its
+			// wildcard: both get a CR, and the reconciler skips the child's
+			// reservation.
+			name:  "wildcard and a covered child together",
+			hosts: []string{"*.example.com", "a.example.com"},
+			expectedDomains: map[string]string{
+				"*.example.com": "wildcard-example-com",
+				"a.example.com": "a-example-com",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "test-namespace", tt.hosts...)
+			domains := ingressToDomains(ingress, "", nil)
+
+			assert.Len(t, domains, len(tt.expectedDomains))
+			for host, objName := range tt.expectedDomains {
+				domain, found := domains[host]
+				assert.True(t, found, "expected a Domain for host %q", host)
+				assert.Equal(t, host, domain.Spec.Domain)
+				assert.Equal(t, objName, domain.Name)
+			}
+		})
+	}
+}
+
+func TestGatewayToDomains_WildcardHosts(t *testing.T) {
+	gateway := testutils.NewGatewayWithHostnames("test-gateway", "test-namespace", "*.example.com", "a.example.com")
+	domains := gatewayToDomains(gateway, "", nil)
+
+	assert.Len(t, domains, 2)
+
+	wildcard, found := domains["*.example.com"]
+	assert.True(t, found, "expected a Domain for the wildcard listener")
+	assert.Equal(t, "wildcard-example-com", wildcard.Name)
+
+	child, found := domains["a.example.com"]
+	assert.True(t, found, "expected a Domain for the covered listener")
+	assert.Equal(t, "a-example-com", child.Name)
+}

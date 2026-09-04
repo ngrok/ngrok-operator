@@ -22,7 +22,7 @@ When enabled, the operator:
 1. Creates an `IngressClass` resource (if `ingress.ingressClass.create` is true) with the configured controller name.
 2. Watches Ingress resources that reference the operator's IngressClass.
 3. For each matching Ingress, creates `AgentEndpoint` and/or `CloudEndpoint` resources based on the mapping strategy.
-4. Manages Domain resources for the hostnames specified in the Ingress rules.
+4. Manages Domain resources for the hostnames specified in the Ingress rules. Hostnames that are direct children of an already-reserved wildcard get a Domain CR but no separate ngrok reservation — see [controllers/domain.md](../controllers/domain.md#wildcard-domain-coverage).
 5. Updates the Ingress status with endpoint information.
 
 ## Annotations

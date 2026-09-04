@@ -1,6 +1,7 @@
 package ingress
 
 import (
+	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -33,6 +34,7 @@ const (
 	ReasonDanglingDNSRecord       = "DanglingDNSRecord"
 	ReasonProtectedDomain         = "ProtectedDomain"
 	ReasonDomainCreationFailed    = "DomainCreationFailed"
+	ReasonCoveredByWildcardDomain = "CoveredByWildcardDomain"
 )
 
 // setReadyCondition sets the Ready condition based on the overall domain state
@@ -67,7 +69,11 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 		return
 	}
 
-	if domain.Status.ID == "" {
+	// A wildcard-covered domain holds no reservation of its own, so an empty
+	// status.id is the expected steady state rather than a failure.
+	coveredByWildcard := domain.Status.CoveredByWildcardDomain != ""
+
+	if domain.Status.ID == "" && !coveredByWildcard {
 		message := "Domain could not be reserved"
 		setDomainCreatedCondition(domain, false, ReasonDomainInvalid, message)
 		setCertificateReadyCondition(domain, false, ReasonDomainInvalid, message)
@@ -76,14 +82,25 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 		return
 	}
 
-	setDomainCreatedCondition(domain, true, ReasonDomainCreated, "Domain successfully reserved")
+	// The domain is provisioned in the platform either way: via its own
+	// reservation, or via the wildcard that covers it.
+	readyReason := ReasonDomainActive
+	readyMessage := "Domain ready for use"
+	if coveredByWildcard {
+		readyReason = ReasonCoveredByWildcardDomain
+		readyMessage = fmt.Sprintf("Domain ready for use (covered by wildcard domain %s)", domain.Status.CoveredByWildcardDomain)
+		setDomainCreatedCondition(domain, true, ReasonCoveredByWildcardDomain,
+			fmt.Sprintf("Reservation skipped: already covered by wildcard domain %s", domain.Status.CoveredByWildcardDomain))
+	} else {
+		setDomainCreatedCondition(domain, true, ReasonDomainCreated, "Domain successfully reserved")
+	}
 
 	// Check if its an ngrok domain. If so the DNS and certs are managed by ngrok
 	// and already setup so the domain is ready.
 	if isNgrokManagedDomain(ngrokDomain) {
 		setCertificateReadyCondition(domain, true, ReasonNgrokManaged, "Certificate managed by ngrok")
 		setDNSConfiguredCondition(domain, true, ReasonNgrokManaged, "DNS managed by ngrok")
-		setDomainReadyCondition(domain, true, ReasonDomainActive, "Domain ready for use")
+		setDomainReadyCondition(domain, true, readyReason, readyMessage)
 		return
 	}
 
@@ -91,7 +108,7 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 	if domain.Status.Certificate != nil {
 		setCertificateReadyCondition(domain, true, ReasonCertificateReady, "Certificate provisioned successfully")
 		setDNSConfiguredCondition(domain, true, ReasonDomainCreated, "DNS records configured")
-		setDomainReadyCondition(domain, true, ReasonDomainActive, "Domain ready for use")
+		setDomainReadyCondition(domain, true, readyReason, readyMessage)
 		return
 	}
 
@@ -142,10 +159,12 @@ func currentProvisioningJob(status *ingressv1alpha1.DomainStatusCertificateManag
 	return status.ProvisioningJob
 }
 
-// IsDomainReady checks if a domain is ready by examining both Status.ID and Ready condition
+// IsDomainReady checks if a domain is usable: it must be backed by a reservation
+// -- either its own, or a wildcard parent's -- and its Ready condition must be true.
 func IsDomainReady(domain *ingressv1alpha1.Domain) bool {
-	// First check if domain has an ID (basic requirement)
-	if domain.Status.ID == "" {
+	// A domain is only usable if it is backed by a reservation: its own, or the
+	// wildcard parent's when the operator skipped reserving it.
+	if domain.Status.ID == "" && domain.Status.CoveredByWildcardDomain == "" {
 		return false
 	}
 

@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/ngrok/ngrok-api-go/v9"
@@ -27,6 +28,11 @@ type baseClient[T any, P any] struct {
 
 	// Call counters for testing
 	updateCallCount int
+
+	// filterMu protects lastFilter from concurrent reads and writes during tests.
+	filterMu sync.RWMutex
+	// lastFilter records the CEL filter from the most recent List call.
+	lastFilter string
 }
 
 func newBase[T any, P any](idPrefix string) baseClient[T, P] {
@@ -47,9 +53,33 @@ func (m *baseClient[T, P]) Get(_ context.Context, id string) (T, error) {
 	return item, nil
 }
 
-func (m *baseClient[T, P]) List(_ *P) ngrok.Iter[T] {
+func (m *baseClient[T, P]) List(paging *P) ngrok.Iter[T] {
 	items := slices.Collect(maps.Values(m.items))
-	return NewIter(items, m.listError)
+	if m.listError != nil {
+		return NewIter(items, m.listError)
+	}
+
+	// Record what the caller asked for so tests can assert on the filter the
+	// production code built, which is a separate question from whether filtering
+	// selected the right items.
+	filter := pagingFilter(paging)
+	m.filterMu.Lock()
+	m.lastFilter = filter
+	m.filterMu.Unlock()
+
+	matched, err := applyFilter(items, filter)
+	if err != nil {
+		return NewIter[T](nil, err)
+	}
+	return NewIter(matched, nil)
+}
+
+// LastFilter returns the CEL filter expression passed to the most recent List
+// call, or "" if that call passed none.
+func (m *baseClient[T, P]) LastFilter() string {
+	m.filterMu.RLock()
+	defer m.filterMu.RUnlock()
+	return m.lastFilter
 }
 
 func (m *baseClient[T, P]) Delete(ctx context.Context, id string) error {
@@ -66,6 +96,9 @@ func (m *baseClient[T, P]) Delete(ctx context.Context, id string) error {
 func (m *baseClient[T, P]) Reset() {
 	m.items = make(map[string]T)
 	m.updateCallCount = 0
+	m.filterMu.Lock()
+	m.lastFilter = ""
+	m.filterMu.Unlock()
 }
 
 func (m *baseClient[T, P]) newID() string {

@@ -32,6 +32,7 @@ When enabled and Gateway API CRDs are detected:
 2. `Gateway` resources referencing that GatewayClass are reconciled by the operator.
 3. Route resources (`HTTPRoute`, `TCPRoute`, `TLSRoute`) referencing a managed Gateway are materialized as ngrok endpoints.
 4. `ReferenceGrant` resources enable cross-namespace references (e.g., a route in namespace A referencing a service in namespace B).
+5. Domain resources are managed for listener hostnames. A listener hostname that is a direct child of an already-reserved wildcard gets a Domain CR but no separate ngrok reservation — see [controllers/domain.md](../controllers/domain.md#wildcard-domain-coverage).
 
 ## Driver Pattern
 

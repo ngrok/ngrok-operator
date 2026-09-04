@@ -795,6 +795,288 @@ var _ = Describe("DomainReconciler", func() {
 		})
 	})
 
+	Describe("Wildcard Domain Coverage", func() {
+		// countReservations reports how many reservations the mock ngrok API holds,
+		// which is the assertion that actually proves a reservation was skipped.
+		countReservations := func() int {
+			count := 0
+			iter := domainClient.List(&ngrok.FilteredPaging{})
+			for iter.Next(ctx) {
+				count++
+			}
+			Expect(iter.Err()).To(BeNil())
+			return count
+		}
+
+		createDomain := func(hostname string) *ingressv1alpha1.Domain {
+			domain := &ingressv1alpha1.Domain{
+				Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(hostname),
+				Namespace: namespace,
+				Spec: ingressv1alpha1.DomainSpec{
+					Domain: hostname,
+				},
+			}
+			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+			return domain
+		}
+
+		var (
+			suffix   string
+			wildcard string
+		)
+
+		BeforeEach(func() {
+			// A distinct zone per spec keeps the shared mock client from leaking
+			// reservations between specs.
+			suffix = fmt.Sprintf("wc-%s.%s", rand.String(8), CustomDomainSuffix)
+			wildcard = "*." + suffix
+		})
+
+		When("the wildcard parent is already reserved", func() {
+			BeforeEach(func() {
+				_, err := domainClient.Create(ctx, &ngrok.ReservedDomainCreate{Domain: wildcard})
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("should skip the reservation and report the covering wildcard", func() {
+				hostname := "a." + suffix
+				domain := createDomain(hostname)
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+
+					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+					// No reservation of its own: status.id is the handle delete()
+					// would pass to the API, and the wildcard is shared.
+					g.Expect(found.Status.ID).To(BeEmpty())
+					// Must be this Domain's own hostname. Ingress LB status and
+					// Gateway addresses fall back to status.domain, so the
+					// wildcard here would advertise the apex.
+					g.Expect(found.Status.Domain).To(Equal(hostname))
+
+					readyCondition := meta.FindStatusCondition(found.Status.Conditions, ConditionDomainReady)
+					g.Expect(readyCondition).ToNot(BeNil())
+					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue))
+					g.Expect(readyCondition.Reason).To(Equal(ReasonCoveredByWildcardDomain))
+					g.Expect(readyCondition.Message).To(ContainSubstring(wildcard))
+
+					g.Expect(IsDomainReady(found)).To(BeTrue())
+				}, timeout, interval).Should(Succeed())
+
+				// The whole point: still only the wildcard is reserved.
+				Expect(countReservations()).To(Equal(1))
+			})
+
+			It("should mirror the wildcard's CNAME target so LB status still resolves", func() {
+				wildcardReservation := &ngrok.ReservedDomain{}
+				iter := domainClient.List(&ngrok.FilteredPaging{})
+				for iter.Next(ctx) {
+					if iter.Item().Domain == wildcard {
+						wildcardReservation = iter.Item()
+					}
+				}
+				Expect(wildcardReservation.CNAMETarget).ToNot(BeNil(),
+					"a custom wildcard should have a CNAME target to mirror")
+
+				domain := createDomain("cname." + suffix)
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+					g.Expect(found.Status.CNAMETarget).ToNot(BeNil())
+					g.Expect(*found.Status.CNAMETarget).To(Equal(*wildcardReservation.CNAMETarget))
+					// The ACME challenge record belongs to the wildcard; publishing
+					// it here would imply one _acme-challenge per subdomain.
+					g.Expect(found.Status.ACMEChallengeCNAMETarget).To(BeNil())
+				}, timeout, interval).Should(Succeed())
+			})
+
+			It("should ask for the exact hostname and its wildcard parent in one filtered call", func() {
+				createDomain("filter." + suffix)
+
+				Eventually(func(g Gomega) {
+					g.Expect(domainClient.LastFilter()).To(Equal(
+						fmt.Sprintf(`obj.domain in ["filter.%s","%s"]`, suffix, wildcard)))
+				}, timeout, interval).Should(Succeed())
+			})
+
+			It("should not reserve or delete anything when a covered domain is deleted", func() {
+				domain := createDomain("deleted." + suffix)
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+				}, timeout, interval).Should(Succeed())
+
+				Expect(k8sClient.Delete(ctx, domain)).To(Succeed())
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)
+					g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "finalizer should be released")
+				}, timeout, interval).Should(Succeed())
+
+				// The shared wildcard reservation must survive.
+				Expect(countReservations()).To(Equal(1))
+				iter := domainClient.List(&ngrok.FilteredPaging{})
+				Expect(iter.Next(ctx)).To(BeTrue())
+				Expect(iter.Item().Domain).To(Equal(wildcard))
+			})
+
+			It("should prefer an exact reservation over the wildcard", func() {
+				hostname := "exact." + suffix
+				exact, err := domainClient.Create(ctx, &ngrok.ReservedDomainCreate{Domain: hostname})
+				Expect(err).ToNot(HaveOccurred())
+
+				domain := createDomain(hostname)
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					// Adopts the exact reservation. The filter returns two rows and
+					// the mock iterates a Go map, so a first-match-wins
+					// implementation would flake here.
+					g.Expect(found.Status.ID).To(Equal(exact.ID))
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+
+				Expect(countReservations()).To(Equal(2))
+			})
+
+			It("should not treat a deeper subdomain as covered", func() {
+				// DNS wildcards match exactly one label: *.suffix does not cover
+				// y.x.suffix, whose covering wildcard would be *.x.suffix.
+				hostname := "y.x." + suffix
+				domain := createDomain(hostname)
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.ID).ToNot(BeEmpty(), "should reserve its own domain")
+				}, timeout, interval).Should(Succeed())
+
+				Expect(countReservations()).To(Equal(2))
+			})
+
+			It("should not treat the apex as covered", func() {
+				domain := createDomain(suffix)
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.ID).ToNot(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+
+				Expect(countReservations()).To(Equal(2))
+			})
+
+			It("should still reserve a domain that declares its own resolvesTo targets", func() {
+				// resolvesTo is a property of the reservation, so a Domain that sets
+				// it needs one of its own -- there is nowhere else to record it.
+				hostname := "resolves." + suffix
+				domain := &ingressv1alpha1.Domain{
+					Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(hostname),
+					Namespace: namespace,
+					Spec: ingressv1alpha1.DomainSpec{
+						Domain:     hostname,
+						ResolvesTo: []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
+					},
+				}
+				Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.ID).ToNot(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+
+				Expect(countReservations()).To(Equal(2))
+			})
+		})
+
+		When("the wildcard parent is removed after coverage was recorded", func() {
+			It("should reserve the domain itself on the next reconcile", func() {
+				wc, err := domainClient.Create(ctx, &ngrok.ReservedDomainCreate{Domain: wildcard})
+				Expect(err).ToNot(HaveOccurred())
+
+				hostname := "healing." + suffix
+				domain := createDomain(hostname)
+
+				By("Waiting for the domain to be marked as covered")
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+				}, timeout, interval).Should(Succeed())
+
+				By("Removing the wildcard reservation from the account")
+				Expect(domainClient.Delete(ctx, wc.ID)).To(Succeed())
+
+				// status.id is empty for a covered domain, so the next reconcile
+				// re-enters create() and reserves the domain properly. Nudge it
+				// rather than waiting out the hourly recheck.
+				By("Forcing a reconcile")
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					if found.Annotations == nil {
+						found.Annotations = map[string]string{}
+					}
+					found.Annotations["test.ngrok.com/nudge"] = "1"
+					g.Expect(k8sClient.Update(ctx, found)).To(Succeed())
+				}, timeout, interval).Should(Succeed())
+
+				By("Verifying the domain now holds its own reservation")
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty(),
+						"stale coverage must be cleared once the domain reserves itself")
+					g.Expect(found.Status.ID).ToNot(BeEmpty())
+					g.Expect(found.Status.Domain).To(Equal(hostname))
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
+		When("no wildcard parent is reserved", func() {
+			It("should reserve the domain itself", func() {
+				hostname := "solo." + suffix
+				domain := createDomain(hostname)
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.ID).ToNot(BeEmpty())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.Domain).To(Equal(hostname))
+				}, timeout, interval).Should(Succeed())
+
+				Expect(countReservations()).To(Equal(1))
+			})
+
+			It("should reserve a wildcard Domain itself rather than looking for *.*", func() {
+				domain := createDomain(wildcard)
+
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.ID).ToNot(BeEmpty())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+
+				// A wildcard has no wildcard parent, so only the exact name is asked for.
+				Expect(domainClient.LastFilter()).To(Equal(fmt.Sprintf(`obj.domain in [%q]`, wildcard)))
+				Expect(countReservations()).To(Equal(1))
+			})
+		})
+	})
+
 	Describe("Internal Domain Handling", func() {
 		It("should skip reconciliation and not reserve .internal TLD domains in ngrok", func() {
 			domain := &ingressv1alpha1.Domain{
@@ -888,7 +1170,7 @@ var _ = Describe("DomainReconciler", func() {
 		})
 	})
 
-	Describe("findReservedDomainByHostname", func() {
+	Describe("findReservedDomainForHostname", func() {
 		It("should propagate iterator errors", func() {
 			ctx := context.Background()
 			iterErr := errors.New("API pagination failure")
@@ -898,9 +1180,34 @@ var _ = Describe("DomainReconciler", func() {
 			r := &DomainReconciler{
 				DomainsClient: mockClient,
 			}
-			result, err := r.findReservedDomainByHostname(ctx, "any-domain.example.com")
-			Expect(result).To(BeNil())
+			result, err := r.findReservedDomainForHostname(ctx, "any-domain.example.com")
+			Expect(result.Exact).To(BeNil())
+			Expect(result.Wildcard).To(BeNil())
 			Expect(err).To(MatchError(iterErr))
+		})
+
+		It("should ask the API for both the exact hostname and its wildcard parent", func() {
+			ctx := context.Background()
+			mockClient := nmockapi.NewDomainClient()
+
+			r := &DomainReconciler{
+				DomainsClient: mockClient,
+			}
+			_, err := r.findReservedDomainForHostname(ctx, "a.example.com")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(mockClient.LastFilter()).To(Equal(`obj.domain in ["a.example.com","*.example.com"]`))
+		})
+
+		It("should ask only for the exact hostname when it has no wildcard parent", func() {
+			ctx := context.Background()
+			mockClient := nmockapi.NewDomainClient()
+
+			r := &DomainReconciler{
+				DomainsClient: mockClient,
+			}
+			_, err := r.findReservedDomainForHostname(ctx, "example.com")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(mockClient.LastFilter()).To(Equal(`obj.domain in ["example.com"]`))
 		})
 	})
 

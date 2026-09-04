@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ngrok/ngrok-api-go/v9"
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
@@ -85,6 +87,67 @@ var _ = Describe("Gateway controller", Ordered, func() {
 						g.Expect(obj.Status.Addresses[0].Type).To(Equal(gatewayv1.HostnameAddressType))
 						g.Expect(obj.Status.Addresses[0].Value).To(Equal(domain))
 					})
+				})
+			})
+
+			When("a wildcard parent for the hostname is already reserved", func() {
+				var wildcard string
+
+				BeforeEach(func(ctx SpecContext) {
+					zone := fmt.Sprintf("%s.ngrok.io", rand.String(10))
+					wildcard = "*." + zone
+					domain = "a." + zone
+
+					// Pre-reserve only the wildcard, as a customer who set one up
+					// in the ngrok dashboard would have.
+					_, err := domainClient.Create(ctx, &ngrok.ReservedDomainCreate{Domain: wildcard})
+					Expect(err).ToNot(HaveOccurred())
+
+					gw.Spec.Listeners = []gatewayv1.Listener{
+						{
+							Name:     gatewayv1.SectionName(testutils.RandomName("listener")),
+							Hostname: new(gatewayv1.Hostname(domain)),
+							Port:     443,
+							Protocol: gatewayv1.HTTPSProtocolType,
+						},
+					}
+				})
+
+				It("Should not reserve the domain, and still assign the gateway address", func(ctx SpecContext) {
+					By("Checking the Domain CR is marked as covered rather than reserved")
+					Eventually(func(g Gomega) {
+						found := &ingressv1alpha1.Domain{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+							Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(domain),
+							Namespace: gw.Namespace,
+						}, found)).To(Succeed())
+
+						g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+						g.Expect(found.Status.ID).To(BeEmpty())
+						g.Expect(found.Status.Domain).To(Equal(domain))
+					}, timeout, interval).Should(Succeed())
+
+					By("Checking the hostname itself was never reserved in ngrok")
+					// Scoped to this spec's own zone on purpose: Domain CRs are not
+					// deleted between gateway specs, and domainClient.Reset() clears
+					// the mock each spec, so leftover CRs from sibling specs
+					// re-reserve themselves here. A global count would be flaky.
+					reserved := map[string]bool{}
+					iter := domainClient.List(&ngrok.FilteredPaging{})
+					for iter.Next(ctx) {
+						reserved[iter.Item().Domain] = true
+					}
+					Expect(iter.Err()).To(BeNil())
+					Expect(reserved).To(HaveKey(wildcard), "the seeded wildcard should still be reserved")
+					Expect(reserved).ToNot(HaveKey(domain), "the covered hostname must not be reserved")
+
+					By("Checking the gateway still advertises the listener hostname")
+					Eventually(func(g Gomega) {
+						obj := &gatewayv1.Gateway{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), obj)).To(Succeed())
+						g.Expect(obj.Status.Addresses).To(HaveLen(1))
+						g.Expect(obj.Status.Addresses[0].Value).To(Equal(domain))
+					}, timeout, interval).Should(Succeed())
 				})
 			})
 
