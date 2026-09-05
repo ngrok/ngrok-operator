@@ -1136,8 +1136,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 	}
 
 	if backendRef.Weight != nil {
-		weight := int(*backendRef.Weight)
-		destination.Weight = &weight
+		destination.Weight = new(int(*backendRef.Weight))
 	}
 
 	for _, filter := range backendRef.Filters {
@@ -1256,8 +1255,7 @@ func (t *translator) tcpBackendToIR(routeName string, routeNamespace string, rou
 	}
 
 	if backendRef.Weight != nil {
-		weight := int(*backendRef.Weight)
-		destination.Weight = &weight
+		destination.Weight = new(int(*backendRef.Weight))
 	}
 
 	if backendRef.Kind != nil && !strings.EqualFold(string(*backendRef.Kind), "Service") {
@@ -1415,7 +1413,6 @@ func (t *translator) gatewayTLSTermConfigToIR(listenerTLS *gatewayv1.ListenerTLS
 				fmt.Sprintf("%s.%s", string(certRef.Name), refNamespace),
 			)
 		}
-		privateKey := string(privateKeyData)
 
 		// Pull out the certificate (tls.crt)
 		certData, ok := secret.Data[corev1.TLSCertKey]
@@ -1424,10 +1421,8 @@ func (t *translator) gatewayTLSTermConfigToIR(listenerTLS *gatewayv1.ListenerTLS
 				fmt.Sprintf("%s.%s", string(certRef.Name), refNamespace),
 			)
 		}
-		cert := string(certData)
-
-		tlsTermCfg.ServerCertificate = &cert
-		tlsTermCfg.ServerPrivateKey = &privateKey
+		tlsTermCfg.ServerCertificate = new(string(certData))
+		tlsTermCfg.ServerPrivateKey = new(string(privateKeyData))
 	}
 
 	// Next, check if there is mTLS config at the gateway level (moved from per-listener in gateway-api v1.5+)
