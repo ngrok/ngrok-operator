@@ -198,7 +198,6 @@ func (c *RunnerClient) DecommissionByKubernetesOperatorID(ctx context.Context, k
 	default:
 		return err
 	}
-	return nil
 }
 
 // httpStatusOf extracts the HTTP status code carried by an ngrok API error,

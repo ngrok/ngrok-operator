@@ -593,7 +593,7 @@ func (r *AppReplicaPoller) ensureReplicaAgentEndpoints(ctx context.Context, repl
 
 		if current.Spec.URL == desired.Spec.URL &&
 			current.Spec.Upstream.URL == desired.Spec.Upstream.URL &&
-			current.Spec.Metadata == desired.Spec.Metadata &&
+			bytes.Equal(current.Spec.Metadata, desired.Spec.Metadata) &&
 			trafficPolicyEqual(current.Spec.TrafficPolicy, desired.Spec.TrafficPolicy) {
 			continue
 		}
@@ -624,15 +624,15 @@ const endpointMetadataReplicaIDKey = "ngrok.com/replica-id"
 // replicaEndpointMetadata is the metadata ship expects on a replica endpoint.
 // The owner key restates the CRD's own default, which is only applied when the
 // field is absent — setting metadata at all replaces it.
-func replicaEndpointMetadata(replicaID string) string {
+func replicaEndpointMetadata(replicaID string) json.RawMessage {
 	encoded, err := json.Marshal(map[string]string{
 		"owned-by":                   "ngrok-operator",
 		endpointMetadataReplicaIDKey: replicaID,
 	})
 	if err != nil {
-		return ""
+		return nil
 	}
-	return string(encoded)
+	return encoded
 }
 
 func (r *AppReplicaPoller) ensureReplicaPullSecret(ctx context.Context, replica computeReplica) error {
