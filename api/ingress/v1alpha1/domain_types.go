@@ -53,8 +53,14 @@ type DomainSpec struct {
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 
-	// Domain is the domain name to reserve
+	// Domain is the domain name to reserve.
+	//
+	// Immutable: reserved domains cannot be renamed via the ngrok API, so
+	// changing this field would require releasing the existing reservation and
+	// reserving a new one. To move to a different domain, delete this Domain and
+	// create a new one.
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.domain is immutable. Reserved domains cannot be renamed via the ngrok API; delete this Domain and create a new one instead"
 	Domain string `json:"domain"`
 
 	// ResolvesTo is the list of resolving targets for the domain

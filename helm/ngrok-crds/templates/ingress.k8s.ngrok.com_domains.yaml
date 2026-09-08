@@ -81,8 +81,18 @@ spec:
                   in the ngrok API/Dashboard
                 type: string
               domain:
-                description: Domain is the domain name to reserve
+                description: |-
+                  Domain is the domain name to reserve.
+
+                  Immutable: reserved domains cannot be renamed via the ngrok API, so
+                  changing this field would require releasing the existing reservation and
+                  reserving a new one. To move to a different domain, delete this Domain and
+                  create a new one.
                 type: string
+                x-kubernetes-validations:
+                - message: spec.domain is immutable. Reserved domains cannot be renamed
+                    via the ngrok API; delete this Domain and create a new one instead
+                  rule: self == oldSelf
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
                 description: |-
