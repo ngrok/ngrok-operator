@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	ngrok "github.com/ngrok/ngrok-api-go/v7"
+	ngrok "github.com/ngrok/ngrok-api-go/v9"
 )
 
 // ComputeMetadata is the parsed form of the free-form --compute-metadata JSON

@@ -981,10 +981,10 @@ func resolveComputeMode(computeMetadataJSON string, remoteAccessEnabled bool) co
 	}
 }
 
-// buildKubernetesOperatorMetadata constructs the metadata JSON string for the
-// KubernetesOperator API resource, merging the default owned-by field with an
-// optional compute metadata block.
-func buildKubernetesOperatorMetadata(computeMetadataJSON string) string {
+// buildKubernetesOperatorMetadata constructs the metadata JSON for the
+// KubernetesOperator API resource. It merges the default owned-by field with
+// an optional compute metadata block.
+func buildKubernetesOperatorMetadata(computeMetadataJSON string) json.RawMessage {
 	m := map[string]any{
 		"owned-by": "ngrok-operator",
 	}
@@ -995,5 +995,5 @@ func buildKubernetesOperatorMetadata(computeMetadataJSON string) string {
 		}
 	}
 	b, _ := json.Marshal(m)
-	return string(b)
+	return b
 }

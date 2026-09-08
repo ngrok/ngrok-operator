@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 130c037f16a9498d8d1f7a93d6da0cd09a602e8d5c9064e622c37ca4b10894a3
+        checksum/controller-role: 4fb0087fb567e80add107aff380a315261840cea89465fbe4682c50d710a79f4
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 130c037f16a9498d8d1f7a93d6da0cd09a602e8d5c9064e622c37ca4b10894a3
+            checksum/controller-role: 4fb0087fb567e80add107aff380a315261840cea89465fbe4682c50d710a79f4
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -60,6 +60,7 @@ Should match all-options snapshot:
                 - --enable-feature-gateway=true
                 - --disable-reference-grants=false
                 - --description=The official ngrok Kubernetes Operator.
+                - --compute-metadata={}
                 - --ingress-controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
@@ -204,8 +205,10 @@ Should match all-options snapshot:
         resources:
           - secrets
         verbs:
+          - create
           - get
           - list
+          - update
           - watch
       - apiGroups:
           - ""
@@ -232,6 +235,17 @@ Should match all-options snapshot:
           - get
           - list
           - patch
+          - update
+          - watch
+      - apiGroups:
+          - apps
+        resources:
+          - deployments
+        verbs:
+          - create
+          - delete
+          - get
+          - list
           - update
           - watch
       - apiGroups:
@@ -566,7 +580,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 130c037f16a9498d8d1f7a93d6da0cd09a602e8d5c9064e622c37ca4b10894a3
+        checksum/controller-role: 4fb0087fb567e80add107aff380a315261840cea89465fbe4682c50d710a79f4
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -588,7 +602,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 130c037f16a9498d8d1f7a93d6da0cd09a602e8d5c9064e622c37ca4b10894a3
+            checksum/controller-role: 4fb0087fb567e80add107aff380a315261840cea89465fbe4682c50d710a79f4
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -622,6 +636,7 @@ Should match default snapshot:
                 - --enable-feature-gateway=true
                 - --disable-reference-grants=false
                 - --description=The official ngrok Kubernetes Operator.
+                - --compute-metadata={}
                 - --ingress-controller-name=k8s.ngrok.com/ingress-controller
                 - --zap-log-level=info
                 - --zap-stacktrace-level=error
@@ -753,8 +768,10 @@ Should match default snapshot:
         resources:
           - secrets
         verbs:
+          - create
           - get
           - list
+          - update
           - watch
       - apiGroups:
           - ""
@@ -781,6 +798,17 @@ Should match default snapshot:
           - get
           - list
           - patch
+          - update
+          - watch
+      - apiGroups:
+          - apps
+        resources:
+          - deployments
+        verbs:
+          - create
+          - delete
+          - get
+          - list
           - update
           - watch
       - apiGroups:

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-	ngrok "github.com/ngrok/ngrok-api-go/v7"
+	ngrok "github.com/ngrok/ngrok-api-go/v9"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"

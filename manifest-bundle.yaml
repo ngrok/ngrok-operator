@@ -13,7 +13,6 @@ metadata:
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
-
 ---
 # Source: ngrok-operator/templates/api-manager/serviceaccount.yaml
 apiVersion: v1
@@ -29,7 +28,6 @@ metadata:
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
-
 ---
 # Source: ngrok-operator/templates/api-manager/configmap.yaml
 apiVersion: v1
@@ -48,7 +46,6 @@ data:
     leaderElection:
       leaderElect: true
       resourceName: ngrok-operator-leader
-
 ---
 # Source: ngrok-operator/charts/ngrok-crds/templates/bindings.k8s.ngrok.com_boundendpoints.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -341,7 +338,6 @@ spec:
     storage: true
     subresources:
       status: {}
-
 ---
 # Source: ngrok-operator/charts/ngrok-crds/templates/ingress.k8s.ngrok.com_domains.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -635,7 +631,6 @@ spec:
     storage: true
     subresources:
       status: {}
-
 ---
 # Source: ngrok-operator/charts/ngrok-crds/templates/ingress.k8s.ngrok.com_ippolicies.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -830,7 +825,6 @@ spec:
     storage: true
     subresources:
       status: {}
-
 ---
 # Source: ngrok-operator/charts/ngrok-crds/templates/ngrok.com_trafficpolicies.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -983,7 +977,6 @@ spec:
     storage: true
     subresources:
       status: {}
-
 ---
 # Source: ngrok-operator/charts/ngrok-crds/templates/ngrok.k8s.ngrok.com_agentendpoints.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -1353,7 +1346,6 @@ spec:
     storage: true
     subresources:
       status: {}
-
 ---
 # Source: ngrok-operator/charts/ngrok-crds/templates/ngrok.k8s.ngrok.com_cloudendpoints.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -1612,7 +1604,6 @@ spec:
     storage: true
     subresources:
       status: {}
-
 ---
 # Source: ngrok-operator/charts/ngrok-crds/templates/ngrok.k8s.ngrok.com_kubernetesoperators.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -1891,7 +1882,6 @@ spec:
     storage: true
     subresources:
       status: {}
-
 ---
 # Source: ngrok-operator/charts/ngrok-crds/templates/ngrok.k8s.ngrok.com_ngroktrafficpolicies.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -2044,7 +2034,6 @@ spec:
     storage: true
     subresources:
       status: {}
-
 ---
 # Source: ngrok-operator/templates/agent/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2053,7 +2042,7 @@ metadata:
   name: ngrok-operator-agent-role
 rules:
 - apiGroups:
-  - ""
+  - events.k8s.io
   resources:
   - events
   verbs:
@@ -2137,7 +2126,6 @@ rules:
   - get
   - list
   - watch
-
 ---
 # Source: ngrok-operator/templates/api-manager/bindings-cluster-role.yaml
 # Bindings RBAC: cluster-wide rules required by the BoundEndpoint controller
@@ -2212,7 +2200,6 @@ rules:
   - patch
   - update
   - watch
-
 ---
 # Source: ngrok-operator/templates/api-manager/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2249,8 +2236,10 @@ rules:
   resources:
   - secrets
   verbs:
+  - create
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - ""
@@ -2277,6 +2266,18 @@ rules:
   - get
   - list
   - patch
+  - update
+  - watch
+# --- apps ---
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
   - update
   - watch
 # --- networking.k8s.io ---
@@ -2632,7 +2633,6 @@ rules:
   verbs:
   - patch
   - update
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/agentendpoint-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2666,7 +2666,6 @@ rules:
   - agentendpoints/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/agentendpoint-viewer.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2696,7 +2695,6 @@ rules:
   - agentendpoints/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/boundendpoint-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2730,7 +2728,6 @@ rules:
   - boundendpoints/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/boundendpoint-viewer.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2760,7 +2757,6 @@ rules:
   - boundendpoints/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/cloudendpoint-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2794,7 +2790,6 @@ rules:
   - cloudendpoints/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/cloudendpoint-viewer.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2824,7 +2819,6 @@ rules:
   - cloudendpoints/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/domain-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2858,7 +2852,6 @@ rules:
   - domains/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/domain-viewer.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2888,7 +2881,6 @@ rules:
   - domains/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/ippolicy-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2922,7 +2914,6 @@ rules:
   - ippolicies/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/ippolicy-viewer.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2952,7 +2943,6 @@ rules:
   - ippolicies/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/kubernetesoperator-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2986,7 +2976,6 @@ rules:
   - kubernetesoperators/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/kubernetesoperator-viewer.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3016,7 +3005,6 @@ rules:
   - kubernetesoperators/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/ngroktrafficpolicy-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3050,7 +3038,6 @@ rules:
   - ngroktrafficpolicies/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/ngroktrafficpolicy-viewer.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3080,7 +3067,6 @@ rules:
   - ngroktrafficpolicies/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/trafficpolicy-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3114,7 +3100,6 @@ rules:
   - trafficpolicies/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/trafficpolicy-viewer.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3144,7 +3129,6 @@ rules:
   - trafficpolicies/status
   verbs:
   - get
-
 ---
 # Source: ngrok-operator/templates/agent/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3159,7 +3143,6 @@ subjects:
 - kind: ServiceAccount
   name: ngrok-operator-agent
   namespace: ngrok-operator
-
 ---
 # Source: ngrok-operator/templates/api-manager/bindings-cluster-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3174,7 +3157,6 @@ subjects:
 - kind: ServiceAccount
   name: ngrok-operator
   namespace: ngrok-operator
-
 ---
 # Source: ngrok-operator/templates/api-manager/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3189,7 +3171,6 @@ subjects:
 - kind: ServiceAccount
   name: ngrok-operator
   namespace: ngrok-operator
-
 ---
 # Source: ngrok-operator/templates/agent/release-namespace-role.yaml
 # Operator-state RBAC for the agent: the agent reads the singleton
@@ -3212,7 +3193,6 @@ rules:
   - get
   - list
   - watch
-
 ---
 # Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3252,7 +3232,6 @@ rules:
   verbs:
   - create
   - patch
-
 ---
 # Source: ngrok-operator/templates/api-manager/release-namespace-role.yaml
 # Operator-state RBAC: rules the api-manager needs that are tied to the
@@ -3315,7 +3294,6 @@ rules:
   - get
   - patch
   - update
-
 ---
 # Source: ngrok-operator/templates/agent/release-namespace-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3331,7 +3309,6 @@ subjects:
 - kind: ServiceAccount
   name: ngrok-operator-agent
   namespace: ngrok-operator
-
 ---
 # Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3347,7 +3324,6 @@ subjects:
 - kind: ServiceAccount
   name: ngrok-operator
   namespace: ngrok-operator
-
 ---
 # Source: ngrok-operator/templates/api-manager/release-namespace-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3363,7 +3339,6 @@ subjects:
 - kind: ServiceAccount
   name: ngrok-operator
   namespace: ngrok-operator
-
 ---
 # Source: ngrok-operator/templates/agent/deployment.yaml
 apiVersion: apps/v1
@@ -3380,7 +3355,7 @@ metadata:
   name: ngrok-operator-agent
   namespace: ngrok-operator
   annotations:
-    checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
+    checksum/rbac: b88c6111b5afb329aca61e8e2761cb6db635af42c5cdc3a526136e560e88eb66
 spec:
   replicas: 1
   strategy:
@@ -3396,7 +3371,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
+        checksum/rbac: b88c6111b5afb329aca61e8e2761cb6db635af42c5cdc3a526136e560e88eb66
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator
@@ -3469,7 +3444,6 @@ spec:
         resources:
           limits: {}
           requests: {}
-
 ---
 # Source: ngrok-operator/templates/api-manager/deployment.yaml
 apiVersion: apps/v1
@@ -3486,7 +3460,7 @@ metadata:
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
+    checksum/controller-role: e5beed131ad6a89a88ed22e55b4074931c9c7f3d8e06cb1f32654e1617d91c17
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -3501,7 +3475,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
+        checksum/controller-role: e5beed131ad6a89a88ed22e55b4074931c9c7f3d8e06cb1f32654e1617d91c17
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
@@ -3542,6 +3516,7 @@ spec:
         - --enable-feature-gateway=true
         - --disable-reference-grants=false
         - "--description=The official ngrok Kubernetes Operator."
+        - --compute-metadata={}
         - --ingress-controller-name=k8s.ngrok.com/ingress-controller
         - --zap-log-level=info
         - --zap-stacktrace-level=error
@@ -3580,7 +3555,6 @@ spec:
         resources:
           limits: {}
           requests: {}
-
 ---
 # Source: ngrok-operator/templates/ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3615,7 +3589,6 @@ metadata:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3644,7 +3617,6 @@ rules:
       - list
       - watch
       - delete
-
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3671,7 +3643,6 @@ subjects:
   - kind: ServiceAccount
     name: ngrok-operator-cleanup
     namespace: ngrok-operator
-
 ---
 # Source: ngrok-operator/templates/cleanup-hook/job.yaml
 apiVersion: batch/v1
@@ -3716,4 +3687,3 @@ spec:
           resources:
             limits: {}
             requests: {}
-
