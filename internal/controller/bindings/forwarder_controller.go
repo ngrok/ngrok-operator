@@ -44,6 +44,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/mux"
 	pb_agent "github.com/ngrok/ngrok-operator/internal/pb_agent"
+	"github.com/ngrok/ngrok-operator/internal/privatedial"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
@@ -70,6 +71,13 @@ type ForwarderReconciler struct {
 	BindingsDriver         *bindingsdriver.BindingsDriver
 	KubernetesOperatorName string
 	RootCAs                *x509.CertPool
+
+	// UsePrivateDial routes the egress leg through PrivateDialer instead of
+	// the mTLS + UpgradeToBindingConnection path. POC for K8SOP-292; see
+	// specs/private-dial/08-poc-build-guide.md. PrivateDialer must be set
+	// when this is true.
+	UsePrivateDial bool
+	PrivateDialer  *privatedial.Dialer
 
 	// DrainState is used to check if the operator is draining.
 	// If draining, non-delete reconciles are skipped to prevent new finalizers.
@@ -162,7 +170,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		return errors.New("operator does not have binding configuration")
 	}
 
-	if op.Status.BindingsIngressEndpoint == "" {
+	if !r.UsePrivateDial && op.Status.BindingsIngressEndpoint == "" {
 		return errors.New("operator binding configuration does not have an ingress endpoint")
 	}
 
@@ -177,12 +185,57 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		return err
 	}
 
-	ingressEndpoint, err := getIngressEndpointWithFallback(op.Status.BindingsIngressEndpoint, log)
-	if err != nil {
-		log.Error(err, "failed to determine bindings ingress endpoint")
+	var cnxnHandler func(conn net.Conn) error
+	if r.UsePrivateDial {
+		if r.PrivateDialer == nil {
+			return errors.New("UsePrivateDial is set but PrivateDialer is nil")
+		}
+		cnxnHandler = r.privateDialCnxnHandler(ctx, log, host, port)
+	} else {
+		ingressEndpoint, err := getIngressEndpointWithFallback(op.Status.BindingsIngressEndpoint, log)
+		if err != nil {
+			log.Error(err, "failed to determine bindings ingress endpoint")
+		}
+		cnxnHandler = r.mtlsCnxnHandler(ctx, log, op, host, port, endpointURL, ingressEndpoint)
 	}
 
-	cnxnHandler := func(conn net.Conn) error {
+	log.Info("Listening on port")
+
+	return r.BindingsDriver.Listen(int32(epb.Spec.Port), cnxnHandler)
+}
+
+// privateDialCnxnHandler is the private-dial egress leg (K8SOP-292 POC):
+// dial the target directly through the private-dial gateway instead of
+// mTLS + UpgradeToBindingConnection. No pod-identity gather, no ingress
+// cert — see specs/private-dial/08-poc-build-guide.md.
+func (r *ForwarderReconciler) privateDialCnxnHandler(ctx context.Context, log logr.Logger, host string, port int) func(conn net.Conn) error {
+	return func(conn net.Conn) error {
+		defer conn.Close()
+
+		log := log.WithValues(
+			"remoteAddr", conn.RemoteAddr(),
+			"binding", map[string]string{
+				"host": host,
+				"port": strconv.Itoa(port),
+			},
+		)
+		log.Info("Handling connection (private dial)")
+
+		ngrokConn, err := r.PrivateDialer.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
+		if err != nil {
+			log.Error(err, "private dial failed", "target", host)
+			return err
+		}
+		log.Info("private-dialed endpoint", "target", host)
+
+		return joinConnections(log, conn, ngrokConn)
+	}
+}
+
+// mtlsCnxnHandler is today's shipping egress leg: mTLS to the bindings
+// ingress endpoint, then UpgradeToBindingConnection with pod identity.
+func (r *ForwarderReconciler) mtlsCnxnHandler(ctx context.Context, log logr.Logger, op ngrokv1alpha1.KubernetesOperator, host string, port int, endpointURL *url.URL, ingressEndpoint string) func(conn net.Conn) error {
+	return func(conn net.Conn) error {
 		defer conn.Close()
 
 		log := log.WithValues(
@@ -267,10 +320,6 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		log.Info("Bound connection")
 		return joinConnections(log, conn, ngrokConn)
 	}
-
-	log.Info("Listening on port")
-
-	return r.BindingsDriver.Listen(int32(epb.Spec.Port), cnxnHandler)
 }
 
 func (r *ForwarderReconciler) loadTLSCertificate(ctx context.Context, namespace, name string) (tls.Certificate, error) {

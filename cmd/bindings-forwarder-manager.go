@@ -48,6 +48,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	"github.com/ngrok/ngrok-operator/internal/drain"
+	"github.com/ngrok/ngrok-operator/internal/privatedial"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
@@ -72,6 +73,11 @@ type bindingsForwarderManagerOpts struct {
 	managerName string
 	zapOpts     *zap.Options
 
+	// Private-dial POC (K8SOP-292, see specs/private-dial/08-poc-build-guide.md).
+	// Gated behind usePrivateDial so the shipping mTLS egress leg stays intact.
+	usePrivateDial    bool
+	privateDialServer string
+
 	// env vars
 	namespace string
 }
@@ -91,6 +97,11 @@ func bindingsForwarderCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
 
+	c.Flags().BoolVar(&opts.usePrivateDial, "use-private-dial", false,
+		"POC (K8SOP-292): dial bound endpoints via private-dial instead of mTLS + UpgradeToBindingConnection. Also settable via USE_PRIVATE_DIAL=true. Requires NGROK_PRIVATE_DIAL_PAT (a PAT, ngrok_pat_*) in the environment.")
+	c.Flags().StringVar(&opts.privateDialServer, "private-dial-server", "h2.connect-endpoint.ngrok.com:443",
+		"Private-dial gateway address (host:port). Only used with --use-private-dial.")
+
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.zapOpts.BindFlags(goFlagSet)
@@ -109,6 +120,19 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 	opts.namespace, ok = os.LookupEnv("POD_NAMESPACE")
 	if !ok {
 		return errors.New("POD_NAMESPACE environment variable should be set, but was not")
+	}
+
+	if !opts.usePrivateDial && os.Getenv("USE_PRIVATE_DIAL") == "true" {
+		opts.usePrivateDial = true
+	}
+	var privateDialer *privatedial.Dialer
+	if opts.usePrivateDial {
+		pat := os.Getenv("NGROK_PRIVATE_DIAL_PAT")
+		if pat == "" {
+			return errors.New("--use-private-dial is set but NGROK_PRIVATE_DIAL_PAT environment variable was not")
+		}
+		privateDialer = privatedial.NewDialer(pat, opts.privateDialServer)
+		setupLog.Info("private-dial POC enabled", "server", opts.privateDialServer)
 	}
 
 	options := ctrl.Options{
@@ -155,6 +179,8 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		KubernetesOperatorName: opts.releaseName,
 		RootCAs:                certPool,
 		DrainState:             drainState,
+		UsePrivateDial:         opts.usePrivateDial,
+		PrivateDialer:          privateDialer,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BindingsForwarder")
 		os.Exit(1)
