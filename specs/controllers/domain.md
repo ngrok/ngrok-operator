@@ -87,6 +87,7 @@ reservation of its own to reclaim, so deleting the CR never calls the ngrok API.
 
 ## Special Cases
 
+- **Renaming a domain**: `spec.domain` is immutable, rejected at admission by a CEL transition rule. Reserved domains cannot be renamed via the ngrok API, so the controller only ever reconciles `description`, `metadata`, and `resolvesTo` onto an existing reservation. Moving to a different domain means creating a new Domain resource for it — the old one does not need to be deleted. If it is deleted, `spec.reclaimPolicy` governs only what happens to its reservation in ngrok. See [Domain CRD: Immutability](../crds/domain.md#immutability).
 - **Internal domains**: Domains with URLs ending in `.internal` are not managed in the ngrok API. The controller removes the finalizer and takes no further action.
 - **Custom domains**: Require DNS configuration (CNAME to `status.cnameTarget`) before the domain becomes ready. The operator does not verify DNS — it polls the ngrok API which performs the check.
 

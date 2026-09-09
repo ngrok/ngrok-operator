@@ -544,6 +544,34 @@ var _ = Describe("DomainReconciler", func() {
 				}, timeout, interval).Should(Succeed())
 			})
 		})
+
+		When("spec.domain is changed", func() {
+			It("should reject the change because spec.domain is immutable", func() {
+				d := &ingressv1alpha1.Domain{}
+				Expect(k8sClient.Get(ctx, objKey, d)).To(Succeed())
+
+				patch := client.MergeFrom(d.DeepCopy())
+				d.Spec.Domain = fmt.Sprintf("test-domain-%s.%s", rand.String(10), NgrokManagedDomainSuffix)
+
+				err := k8sClient.Patch(ctx, d, patch)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("spec.domain is immutable"))
+
+				// pkg/managerdriver.applyDomains treats an Invalid rejection on a
+				// single Domain as non-fatal so one bad resource cannot wedge the
+				// whole driver sync. That depends on CEL rejections landing in this
+				// error class, so pin it here.
+				Expect(apierrors.IsInvalid(err)).To(BeTrue())
+
+				// The reservation in ngrok is untouched.
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, objKey, found)).To(Succeed())
+					g.Expect(found.Spec.Domain).To(Equal(domainName))
+					g.Expect(found.Status.Domain).To(Equal(domainName))
+				}, timeout, interval).Should(Succeed())
+			})
+		})
 	})
 
 	Describe("DeleteDomain", func() {

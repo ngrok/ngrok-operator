@@ -15,6 +15,20 @@ The operator does not attempt to replicate ngrok API validation rules at admissi
 - Duplicating validation creates a maintenance burden and risks divergence between client and server rules.
 - Status conditions and events provide clear feedback when the API rejects a value.
 
+**Scope:** This decision covers *value* validation — whether a given field value is
+acceptable to the ngrok API. It does not cover **immutability**, which is a statement about
+a CRD's own lifecycle rather than a server-side rule being duplicated. CEL transition rules
+(`self == oldSelf`) are used where the ngrok API has no corresponding mutation at all, so
+there is nothing to defer to and nothing that can diverge:
+
+- `Domain.spec.domain` — see [Domain CRD: Immutability](crds/domain.md#immutability).
+
+Deferring is not an option in these cases. Because the API exposes no way to perform the
+change, the operator never sends a request and the API never returns an error, so there is
+no asynchronous failure to surface. The edit is silently dropped instead, leaving the
+resource reporting `Ready` against the old value. Rejecting at admission is the only way
+the user learns the change did not happen.
+
 ## Compute wildcard domain coverage client-side, but confirm it with the API
 
 The operator derives a hostname's wildcard parent locally — `a.example.com` →
