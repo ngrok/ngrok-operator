@@ -83,10 +83,15 @@ domains cannot be renamed via the ngrok API — `ReservedDomainUpdate` accepts o
 mean releasing the existing reservation and reserving a new one, which risks losing the
 domain to another account in the gap.
 
-To move to a different domain, delete the Domain and create a new one. Note that
-`spec.reclaimPolicy` governs whether the delete also releases the reservation in ngrok.
+To reserve a different domain, create a new Domain resource for it. The existing Domain
+does not need to be deleted — it keeps its reservation until you decide otherwise.
+Deleting it is a separate, optional step: `spec.reclaimPolicy` governs only what that
+delete does on the ngrok side (release the reservation, or leave it reserved).
 
-Every other spec field remains mutable and is reconciled onto the existing reservation.
+The other reservation fields (`description`, `metadata`, and `resolvesTo`) remain mutable
+and are reconciled onto the existing reservation. `reclaimPolicy` is set only at creation
+and controls that resource's own deletion behavior — it is not reconciled onto the
+reservation.
 
 ## Notes
 
