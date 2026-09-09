@@ -48,10 +48,10 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	"github.com/ngrok/ngrok-operator/internal/drain"
-	"github.com/ngrok/ngrok-operator/internal/privatedial"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
+	"golang.ngrok.com/ngrok/privatedial"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -99,8 +99,13 @@ func bindingsForwarderCmd() *cobra.Command {
 
 	c.Flags().BoolVar(&opts.usePrivateDial, "use-private-dial", false,
 		"POC (K8SOP-292): dial bound endpoints via private-dial instead of mTLS + UpgradeToBindingConnection. Also settable via USE_PRIVATE_DIAL=true. Requires NGROK_PRIVATE_DIAL_PAT (a PAT, ngrok_pat_*) in the environment.")
-	c.Flags().StringVar(&opts.privateDialServer, "private-dial-server", "h2.connect-endpoint.ngrok.com:443",
-		"Private-dial gateway address (host:port). Only used with --use-private-dial.")
+	c.Flags().StringVar(&opts.privateDialServer, "private-dial-server", "quic.connect-endpoint.ngrok.com:443",
+		"Private-dial gateway address (host:port) for the QUIC transport. Only used with --use-private-dial. "+
+			"QUIC only, not a typo: golang.ngrok.com/ngrok/privatedial's HTTP/2 transport panics on Go 1.27 "+
+			"(newH2Transport calls http2.Transport.NewClientConn without initializing it, which Go 1.27's "+
+			"native net/http HTTP/2 wrapper in golang.org/x/net requires) — this operator builds with Go 1.27, "+
+			"so the forwarder forces privatedial.ProtocolQUIC to avoid crashing the pod. Fix upstream before "+
+			"ever wiring in ProtocolH2 or ProtocolAuto here.")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -131,8 +136,12 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		if pat == "" {
 			return errors.New("--use-private-dial is set but NGROK_PRIVATE_DIAL_PAT environment variable was not")
 		}
-		privateDialer = privatedial.NewDialer(pat, opts.privateDialServer)
-		setupLog.Info("private-dial POC enabled", "server", opts.privateDialServer)
+		privateDialer = privatedial.New(privatedial.Config{
+			QUICServerAddr: opts.privateDialServer,
+			ForceProtocol:  privatedial.ProtocolQUIC, // see the --private-dial-server flag help for why
+			AuthToken:      pat,
+		})
+		setupLog.Info("private-dial POC enabled", "server", opts.privateDialServer, "protocol", "quic")
 	}
 
 	options := ctrl.Options{

@@ -2,7 +2,9 @@
 
 Migrating the ngrok-operator off **kubernetes bindings** onto **private endpoints + private dial**. These docs replace the old Notion "Private Dial Notes" page; work happens here now.
 
-**Status:** spike / design exploration. Nothing committed to an approach. No production code yet.
+**Status:** spike / design exploration for the migration itself — nothing committed to an
+approach. A working datapath POC exists on branch `alex/private-dial-poc`
+(see [09-poc-results.md](09-poc-results.md)); it's a proof, not production code.
 **Owner:** Alex
 **Last updated:** 2026-09-09
 
@@ -22,7 +24,8 @@ Product is consolidating three endpoint bindings (`public`, `internal`, `kuberne
 6. [06-poc-and-findings.md](06-poc-and-findings.md) — the POC plan, and the verified backend finding that private dial can't resolve kubernetes-bound endpoints today.
 7. [07-transparent-internal-projection.md](07-transparent-internal-projection.md) — deep dive on the "no namespace URIs, `foo.internal` addressable in-cluster" end-state: cross-provider DNS matrix, and the two L4-correct demux mechanisms (per-endpoint Service+DNS alias vs TUN DaemonSet).
 8. [08-poc-build-guide.md](08-poc-build-guide.md) — step-by-step guide to build the full transparent-mode POC (datapath swap + DNS glue) on existing private-dial code and `.internal` endpoints, no backend change.
-9. [references.md](references.md) — every Linear ticket, Slack thread, RFC, doc, and code file referenced.
+9. [09-poc-results.md](09-poc-results.md) — **what actually got built** (branch `alex/private-dial-poc`) and, if you're trying to tell "private-dial code change" apart from "DNS/`.internal` change" apart from "test-setup gotcha," start here — it's organized by exactly that split.
+10. [references.md](references.md) — every Linear ticket, Slack thread, RFC, doc, and code file referenced.
 
 ## Decisions made so far
 
