@@ -20,7 +20,9 @@ Product is consolidating three endpoint bindings (`public`, `internal`, `kuberne
 4. [04-design-options.md](04-design-options.md) — every option we've weighed (field / resource / URL convention / in-cluster CR / DNS-hijack), with tradeoffs.
 5. [05-dns-tun-feasibility.md](05-dns-tun-feasibility.md) — deep dive on the "make `foo.internal` directly addressable in-cluster" idea and why L4 demux is the wall.
 6. [06-poc-and-findings.md](06-poc-and-findings.md) — the POC plan, and the verified backend finding that private dial can't resolve kubernetes-bound endpoints today.
-7. [references.md](references.md) — every Linear ticket, Slack thread, RFC, doc, and code file referenced.
+7. [07-transparent-internal-projection.md](07-transparent-internal-projection.md) — deep dive on the "no namespace URIs, `foo.internal` addressable in-cluster" end-state: cross-provider DNS matrix, and the two L4-correct demux mechanisms (per-endpoint Service+DNS alias vs TUN DaemonSet).
+8. [08-poc-build-guide.md](08-poc-build-guide.md) — step-by-step guide to build the full transparent-mode POC (datapath swap + DNS glue) on existing private-dial code and `.internal` endpoints, no backend change.
+9. [references.md](references.md) — every Linear ticket, Slack thread, RFC, doc, and code file referenced.
 
 ## Decisions made so far
 

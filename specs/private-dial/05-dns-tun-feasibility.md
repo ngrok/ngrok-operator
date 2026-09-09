@@ -1,5 +1,7 @@
 # Feasibility: making `foo.internal` directly addressable in-cluster
 
+> **Update / correction:** this doc concludes "no-Services ⇒ privileged TUN." That's true only if you insist on **zero Service objects**. If the real requirement is just "no namespace URI" (it is), there's a cheaper L4-correct middle path — keep an *invisible* per-endpoint Service and alias it via DNS — that this doc missed. See [07](07-transparent-internal-projection.md) for the corrected, serious treatment. Keep this doc for the L4-demux principle, which stands.
+
 The appealing idea: skip namespace URLs and per-endpoint Services entirely, and make `foo.internal` resolve + connect from any pod — the way the agent does it. This is option E in [04](04-design-options.md). It's feasible, but there's a hard wall at L4.
 
 ## The easy half — DNS hijack

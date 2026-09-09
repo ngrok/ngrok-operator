@@ -61,7 +61,7 @@ The most k8s-native option: the user creates a `BoundEndpoint` (or new CR) in th
 
 ## E. Transparent in-cluster DNS (operator behaves like the agent) — **maybe a later v1, not a migration**
 
-Make `foo.internal` directly addressable from any pod by hijacking cluster DNS, no namespace URL and no per-endpoint Service. Deep dive in [05](05-dns-tun-feasibility.md).
+Make `foo.internal` directly addressable from any pod by hijacking cluster DNS, no namespace URL. Deep dive in [05](05-dns-tun-feasibility.md); serious end-state treatment (and the correction that this does **not** require dropping Services / a privileged TUN) in [07](07-transparent-internal-projection.md).
 
 - **Pro:** cleanest end-state; `foo.internal` works identically on pod, agent, laptop; rides the exact infra the agent team is already building.
 - **Con:** requires cluster-admin (edit CoreDNS/kube-dns — provider-specific), a privileged per-node TUN DaemonSet to support raw TCP, collides with GCP's `.internal` DNS, and **loses the real Service object** (no NetworkPolicy targeting, no `kubectl get svc`). Non-passive change to how the product works. Best treated as an additive future mode, not the migration path.

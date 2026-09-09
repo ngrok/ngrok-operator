@@ -51,7 +51,8 @@ Everything referenced across these notes. Migrated from the Notion "Private Dial
 
 | Path | What |
 |---|---|
-| `go/svc/mux/privatedial/handler.go` | Private dial `/session` + `/dial`. **Hardcodes internal binding at L826-827.** PAT auth at L1072-1124. `DialReq.metadata` unread at L811-814. |
+| `go/svc/mux/privatedial/handler.go` | Private dial `/session` + `/dial`. **Hardcodes internal binding at L826-827.** PAT auth at L1072-1124. `DialReq.metadata` unread at L811-814. Also `/get-host` (L918-957, name-only existence → DNS A/NXDOMAIN) and `/get-hostport` (L963-1024) — the live-resolution API an operator-DNS would query. |
+| `local/ngrok/go/svc/ship/core/privatedial/privatedial.go` | Uses `golang.ngrok.com/ngrok/privatedial` (imported `ngrokdial`, L14): portable `Dialer.DialContext(ctx,"tcp","host:port")`. The reusable relay for the POC / forwarder / any DaemonSet. |
 | `go/svc/mux/muxmap/map.go` | Endpoint index keyed by `(host, port, binding)` (`Key` ~L438-440, `Get` ~L180-188). |
 | `go/svc/mux/mux_k8sop.go` | mTLS kubernetes binding ingress (`muxKubernetesBinding` ~L97-144); account id from cert `DNSNames[0]`; queries `NewKubernetesOperatorBinding`. |
 | `go/lib/bindings/computation.go` | Binding computation; kubernetes binding is account-scoped (~L44-48). |
