@@ -23,7 +23,8 @@ Product is consolidating three endpoint bindings (`public`, `internal`, `kuberne
 7. [07-transparent-internal-projection.md](07-transparent-internal-projection.md) — deep dive on the "no namespace URIs, `foo.internal` addressable in-cluster" end-state: cross-provider DNS matrix, and the two L4-correct demux mechanisms (per-endpoint Service+DNS alias vs TUN DaemonSet).
 8. [08-poc-build-guide.md](08-poc-build-guide.md) — step-by-step guide to build the full transparent-mode POC (datapath swap + DNS glue) on existing private-dial code and `.internal` endpoints, no backend change.
 9. [09-keep-k8s-binding-approach.md](09-keep-k8s-binding-approach.md) — the least-invasive approach: keep the `kubernetes` binding + the `svc.namespace` URL, make one backend change (teach `/dial` the k8s binding) + the operator egress swap. Needs the mono repo. Cluster-side unchanged.
-10. [references.md](references.md) — every Linear ticket, Slack thread, RFC, doc, and code file referenced.
+10. [10-endpoint-k8s-field.md](10-endpoint-k8s-field.md) — **the chosen direction.** A new extensible `kubernetes` object field (list of structured targets) on the Endpoint API resource; endpoint stays `.internal` so no `/dial` change. Build spec across backend API + operator.
+11. [references.md](references.md) — every Linear ticket, Slack thread, RFC, doc, and code file referenced.
 
 ## Decisions made so far
 
