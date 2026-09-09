@@ -8,6 +8,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"golang.org/x/sync/errgroup"
 	netv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -118,6 +119,21 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 
 			if err != nil {
 				log.Error(err, "error creating or patching domain")
+
+				// An Invalid rejection is the API server refusing this specific
+				// object, so retrying the same patch will never succeed. The
+				// reachable case is spec.domain: it is immutable, and a Domain that
+				// drifted from its desired hostname before that validation shipped
+				// makes the rewrite above a rename, which admission rejects.
+				//
+				// Failing the errgroup here would return early from Sync and skip
+				// applyAgentEndpoints, applyCloudEndpoints, and updateStatuses, so
+				// one unfixable Domain would wedge reconciliation for every Ingress
+				// and Gateway in the cluster. Log it and let the rest of the sync
+				// proceed; every other error class stays fatal and retryable.
+				if apierrors.IsInvalid(err) {
+					return nil
+				}
 			} else {
 				log.V(3).Info("create or patched domain")
 			}
